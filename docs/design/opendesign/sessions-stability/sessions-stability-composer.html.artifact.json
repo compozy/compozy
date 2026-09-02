@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "sessions-stability/sessions-stability-composer.html",
+  "entry": "sessions-stability/sessions-stability-composer.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-09-01T18:38:02.968Z",
+  "updatedAt": "2026-09-01T18:38:02.968Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

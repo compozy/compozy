@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Composer · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-composer · S1 — Composer & primary actions.
+  Spec: .compozy/tasks/sessions-stability/_uiux.md S1 · US-003, US-004, US-009, US-018 ·
+  ADR-002 (busy-send default = steer, one-shot modifier) · ADR-004 (stop contract).
+  Visual Contract rows: task_01 VC-01..05 · task_02 VC-01..02.
+  Provenance:
+    production — session-composer.tsx card (rounded-lg, elevated, highlight, pad 11/10/8/14),
+                 session-composer-action-row.tsx (runtime chip · env chip · attach · ⏎ hint ·
+                 ghost Queue/Steer/Interrupt · 28px disc), Stop disc hover = danger-tint.
+    spec S1   — one disc morphs Send↔Stop↔Stopping; disposition note inside the card;
+                 refusals restore the draft; hint reads the daemon default (steer) + ⌘⏎ opposite.
+    authorized delta — badge token `stopping` (session-badge.ts has none; today it renders
+                 as `running`, which US-009 forbids).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Sessions stability</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Composer &amp; primary actions</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="sessions-stability-queue.html">Next: Queue strip →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== BOARD CONTRACT ===== -->
+    <section class="ss-contract" data-od-id="cp-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S1 — the composer while an agent works.</b> One primary control that is Send when the session is idle, Stop while a turn runs, and a truthful “Stopping…” until the runtime confirms. Enter follows your follow-up default (steer); ⌘⏎ does the opposite once. Every busy send answers inside the card with what happened to it, and a refused send gives your draft back.</p>
+        <p class="ss-contract__file">sessions-stability-composer.html · S1 · US-003 · US-004 · US-009</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposer</b><i>web/src/components/assistant-ui/session-composer.tsx</i>gains the in-card disposition note; keeps card geometry</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposerActionRow</b><i>web/src/components/assistant-ui/session-composer-action-row.tsx</i>Send disc + Stop disc collapse into one morphing control; hint reads steer/queue from the daemon default</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>sessionBusyInputLogic</b><i>web/src/components/assistant-ui/hooks/session-busy-input-store.ts</i>refusals call back with a reason and restore the draft; single-flight guard also covers Stop</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionPageControls</b><i>web/src/hooks/routes/use-session-page-controls.ts</i>gate refusals return the reason instead of a silent no-op</span></li>
+          <li><span class="ss-mod ss-mod--delete">delete</span><span><b>remount-on-cancel key</b><i>web/src/systems/session/components/session-chat-runtime-provider.tsx:181</i>cancel no longer rebuilds the runtime subtree</span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>badge token <code>stopping</code></b><i>web/src/systems/session/lib/session-badge.ts</i>warning ring + pulse; today <code>stopping</code> falls back to <code>running</code></span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Button · Kbd · Spinner · Tooltip</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#cp-idle">Idle — Send</a><code>baseline</code></li>
+          <li><a href="#cp-running">Running, empty draft — Stop</a><code>US-009.AC-1</code></li>
+          <li><a href="#cp-draft">Running with draft — Stop + steer on Enter</a><code>US-003.AC-1</code></li>
+          <li><a href="#cp-dispo">Disposition notes ×6</a><code>task_01 VC-01..04</code></li>
+          <li><a href="#cp-refused">Gate refusal, draft restored</a><code>task_01 VC-05</code></li>
+          <li><a href="#cp-stopping">Stopping…</a><code>task_02 VC-01</code></li>
+          <li><a href="#cp-stopped">Stopped, confirmed</a><code>task_02 VC-02</code></li>
+          <li><a href="#cp-unverified">Stop couldn’t be confirmed</a><code>US-009.AC-3</code></li>
+          <li><a href="#cp-rm">Reduced motion</a><code>ADR-008</code></li>
+          <li><a href="#cp-demo">Morph demo + double-click guard</a><code>US-009.EC-1</code></li>
+          <li><a href="sessions-stability-connection.html#cn-guard">Disconnected send guard → connection board</a><code>task_06 VC-04</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · IDLE ===== -->
+    <section class="lab-sec" id="cp-idle" data-od-id="cp-idle">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Idle — the disc is Send</h2><span class="lab-sec__gist">production baseline · US-003.AC-4</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing changes at rest.</b> Transcribed from production: the card, the runtime and folder chips, the attach button, the <code>⏎ send</code> hint and the accent disc. The setting that governs busy sends does not touch an idle session — Enter is a normal send. The disc is the only accent on the screen.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-idle-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="cp-idle-win" style="--ss-win-h:440px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+                    <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary></details>
+                    <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps; it waits on the lifecycle channel instead.</p></div>
+                  </div>
+                </div></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-composer" data-od-id="cp-idle-composer">
+                    <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                    <div class="ss-composer__row">
+                      <div class="ss-composer__cluster">
+                        <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                        <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                        <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                        <span class="ss-hint"><span class="kbd">⏎</span>send</span><i class="ss-n">2</i>
+                      </div>
+                      <span class="spacer"></span>
+                      <button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button><i class="ss-n">1</i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Primary disc — Send</b> <em>SessionComposerActionRow · 28px · accent fill · Button-like, one element for all three shapes</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Enter hint</b> <em>Kbd 18px + word · reads “send” on an idle session regardless of the follow-up default</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>idle</span><span class="ss-tag"><b>component</b>SessionComposerActionRow</span><span class="ss-tag"><b>accent</b>1 of 2</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · RUNNING, EMPTY DRAFT ===== -->
+    <section class="lab-sec" id="cp-running" data-od-id="cp-running">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Running, empty draft — the disc is Stop</h2><span class="lab-sec__gist">US-009.AC-1 · US-003.EC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same element, different shape.</b> The moment a turn starts the disc turns into Stop: line border, muted glyph, danger tint only on hover (production’s stop disc). The busy verbs sit beside it but stay disabled until there is text — Enter on an empty draft does nothing, and says nothing. The hint already tells you what Enter will do once you type.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-running-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="cp-running-win" style="--ss-win-h:470px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <div class="ss-tool ss-tool--live" data-od-id="cp-running-live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for 12s<span class="sep">·</span>Running shell</div></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-composer" data-od-id="cp-running-composer">
+                    <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                    <div class="ss-composer__row">
+                      <div class="ss-composer__cluster">
+                        <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                        <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                        <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                        <span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span><i class="ss-n">3</i>
+                      </div>
+                      <span class="spacer"></span>
+                      <div class="ss-composer__busy"><i class="ss-n">2</i>
+                        <button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button>
+                        <button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button>
+                        <button class="btn btn--ghost btn--sm" disabled><svg data-lucide="scissors"></svg>Interrupt</button>
+                      </div>
+                      <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button><i class="ss-n">1</i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Primary disc — Stop</b> <em>same element as Send · line border, muted square · hover = danger-tint (production) · one press, guarded</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Busy verbs</b> <em>Queue · Steer · Interrupt — production ghost sm buttons; disabled with an empty draft, never hidden (they are the explicit override, US-003.EC-2)</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Hint reads the daemon default</b> <em>`⏎ steer` mirrors <code>session.busy_input.default_mode</code>; `⌘⏎ queue` is the one-shot opposite (ADR-002)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>running · empty draft</span><span class="ss-tag"><b>component</b>SessionComposerActionRow</span><span class="ss-tag"><b>accent</b>0 (stop is neutral)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · RUNNING WITH DRAFT ===== -->
+    <section class="lab-sec" id="cp-draft" data-od-id="cp-draft">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Running with a draft — Enter steers, the verbs light up</h2><span class="lab-sec__gist">US-003.AC-1 · US-002.AC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Steer tells you how it will land before you press it.</b> With text in the field the three verbs enable. Hovering Steer shows the capability answer the daemon already knows (<code>busy_input.steer_delivery</code>): delivered live, or interrupt-and-replace on agents that can’t take guidance mid-turn. Stop stays the disc; Send never co-renders with it — Enter and the verbs carry the send.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="cp-draft-demo" style="padding:16px">
+            <div class="ss-composer" data-od-id="cp-draft-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Only touch the lifecycle tests, skip the store package</div>
+              <div class="ss-composer__row">
+                <div class="ss-composer__cluster">
+                  <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                  <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                  <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                  <span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span>
+                </div>
+                <span class="spacer"></span>
+                <div class="ss-composer__busy" style="position:relative">
+                  <button class="btn btn--ghost btn--sm"><svg data-lucide="list-plus"></svg>Queue</button>
+                  <button class="btn btn--ghost btn--sm" aria-describedby="cp-steer-tip"><svg data-lucide="corner-down-right"></svg>Steer</button><i class="ss-n">1</i>
+                  <button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button>
+                  <div id="cp-steer-tip" role="tooltip" style="position:absolute;right:88px;bottom:calc(100% + 8px);padding:6px 10px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-hairline);font-size:var(--text-form);color:var(--fg-strong);white-space:nowrap">Delivered into the live turn<i class="ss-n">2</i></div>
+                </div>
+                <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+            <div class="lab-grid lab-grid--2" style="margin-top:14px">
+              <div class="lab-cell"><div class="lab-cell__t">Steer tooltip — agent without live injection <code>steer_delivery = interrupt_fallback</code></div>
+                <div style="display:inline-flex;padding:6px 10px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-hairline);font-size:var(--text-form);color:var(--fg-strong)">Interrupts the turn and runs this instead</div></div>
+              <div class="lab-cell"><div class="lab-cell__t">Steer with files attached <code>steer_attachments_unsupported</code></div>
+                <div style="display:inline-flex;align-items:center;gap:6px"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button><span style="font-size:11.5px;color:var(--subtle)">disabled with reason on hover: “Steer can’t carry files on this agent — queue it instead”</span></div></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Steer, enabled</b> <em>explicit verb always wins over the Enter default for that one send</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Capability tooltip</b> <em>Tooltip primitive · copy comes from <code>busy_input.steer_delivery</code> on the session resource, not from the client</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>running · draft</span><span class="ss-tag"><b>component</b>SessionComposerActionRow · Tooltip</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · DISPOSITION NOTES ===== -->
+    <section class="lab-sec" id="cp-dispo" data-od-id="cp-dispo">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">After a busy send — the card says what happened</h2><span class="lab-sec__gist">US-004.AC-1 · US-001.EC-1 · US-002.AC-2 · task_01 VC-01..04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One line, inside the card, between the field and the row.</b> The glyph names the verb (steer / queue / interrupt), the bold phrase names the outcome, the mono suffix is the daemon’s own <code>delivery</code> word. The field is already empty — the send was accepted. The note stays until you type again or six seconds pass, whichever comes first. Nothing is colored: these are outcomes, not alarms.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="cp-dispo-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Steer — delivered <code>task_01 VC-01</code></div>
+              <div class="ss-composer" data-od-id="cp-dispo-injected">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="steer"><svg data-lucide="corner-down-right"></svg><span><b>Steering</b> — delivered into the live turn<span class="mono-id">injected</span></span><i class="ss-n">1</i></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer</span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Steer — waiting for the tool to yield <code>task_01 VC-02</code></div>
+              <div class="ss-composer" data-od-id="cp-dispo-pending">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="steer"><svg data-lucide="corner-down-right"></svg><span><b>Steering</b> — the agent sees it when the current tool finishes<span class="mono-id">pending_injection</span></span></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer</span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Steer — fell back to interrupt <code>task_01 VC-03</code></div>
+              <div class="ss-composer" data-od-id="cp-dispo-fallback">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="steer"><svg data-lucide="scissors"></svg><span><b>Interrupted and replaced</b> — this agent can’t take guidance mid-turn<span class="mono-id">interrupt_fallback</span></span><i class="ss-n">2</i></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">HM</span>Hermes</span><span class="ss-hint"><span class="kbd">⏎</span>steer</span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Queued with position <code>task_01 VC-04</code></div>
+              <div class="ss-composer" data-od-id="cp-dispo-queued">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="queued"><svg data-lucide="list-plus"></svg><span><b>Queued #2</b> — runs after the current turn<span class="mono-id">inp_4d9</span></span><i class="ss-n">3</i></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer</span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Interrupting</div>
+              <div class="ss-composer" data-od-id="cp-dispo-interrupting">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="stopping"><svg class="ss-spin" data-lucide="loader-circle"></svg><span><b>Interrupting</b> — stopping the turn, then running your message</span></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>queue</span></div><span class="spacer"></span><button class="ss-primary" data-shape="stopping" aria-disabled="true"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…</button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Turn ended as the steer landed <code>US-001.EC-2</code></div>
+              <div class="ss-composer" data-od-id="cp-dispo-turnended">
+                <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                <div class="ss-composer__note" data-kind="steer"><svg data-lucide="corner-down-right"></svg><span><b>Turn ended</b> — sent as your next message instead</span></div>
+                <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>send</span></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div>
+              </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Disposition note</b> <em>new slot in SessionComposer · 11.5px muted · glyph = verb · mono suffix = daemon <code>delivery</code> / <code>entry_id</code></em></span></li>
+            <li><i class="ss-n">2</i><span><b>Fallback wording</b> <em>the verb you pressed was Steer; the note tells you what the runtime actually did (US-002.AC-2) — same glyph as Interrupt</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Position</b> <em>“#2” comes from <code>queue_position</code> in the 202 envelope; the queue strip above the card (S2) shows the same entry</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>disposition ×6</span><span class="ss-tag"><b>component</b>SessionComposer (note slot)</span><span class="ss-tag"><b>copy</b>runtime envelope words as mono</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · GATE REFUSAL ===== -->
+    <section class="lab-sec" id="cp-refused" data-od-id="cp-refused">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Refused — the reason, and your draft back</h2><span class="lab-sec__gist">US-004.AC-3 · US-004.EC-1 · task_01 VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A refusal is never silent and never eats text.</b> The field is repopulated with exactly what you typed (attachments included), the note leads with “Not sent”, the plain sentence says why, and the daemon’s error code sits at the end for anyone who needs it. The warning glyph is the only tone: a gate is not a failure of the system. The hint updates to the new truth — if the turn ended meanwhile, it now reads <code>send</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cp-refused-demo">
+            <div class="ss-composer" data-od-id="cp-refused-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Only touch the lifecycle tests, skip the store package<i class="ss-n">2</i></div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — the turn changed before this went out. Your draft is back.<span class="mono-id">active_turn_mismatch</span></span><i class="ss-n">1</i></div>
+              <div class="ss-composer__row">
+                <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div>
+                <span class="spacer"></span>
+                <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm"><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm"><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button></div>
+                <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px" data-od-id="cp-refused-variants">
+              <div class="lab-cell__t">Other refusals — same slot, same shape</div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — the turn ended. Send it normally.<span class="mono-id">active_turn_mismatch · turn settled</span></span></div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — this session is stopped. Resume it or pick another.<span class="mono-id">session_not_promptable</span></span></div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — steer can’t carry files on this agent. Queue it, or remove the 2 files.<span class="mono-id">steer_attachments_unsupported</span></span></div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — the queue is full (10 of 10). Steer, interrupt, or clear the queue.<span class="mono-id">queue_full</span></span></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Refusal note</b> <em>same slot as dispositions · warning glyph only · sentence from the <code>_dx.md</code> error table · code as mono suffix</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Restored draft</b> <em>text and attachments back in the field, caret at the end — the store’s <code>onFailure</code> path, never <code>clearComposer</code></em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>refused · draft restored</span><span class="ss-tag"><b>component</b>SessionComposer · sessionBusyInputLogic</span><span class="ss-tag"><b>tone</b>warning glyph only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · STOPPING ===== -->
+    <section class="lab-sec" id="cp-stopping" data-od-id="cp-stopping">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Stopping — the disc widens into a word and waits for the truth</h2><span class="lab-sec__gist">US-009.AC-1 · ADR-004 · task_02 VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Stop is a contract, so the control shows the in-between state.</b> One press: the disc becomes a quiet “Stopping…” pill with a spinner, guarded against a second activation. The status row and the head dot say the same thing. Steer and Interrupt disappear — the turn is ending, they can’t be honored — while Queue stays, because queued work survives a stop (ADR-003) and Enter now queues. The cooperative phase has a budget (<code>session.stop.cooperative_grace = 10s</code>); after it the runtime escalates on its own, and the pill keeps saying Stopping until the daemon confirms.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-stopping-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="cp-stopping-win" style="--ss-win-h:470px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="stopping"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div><i class="ss-n">3</i>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <details class="ss-group" open><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 3 commands, edited 1 file<svg class="ss-group__chev" data-lucide="chevron-right"></svg></summary>
+                      <div class="ss-group__body">
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+18</span><span class="del">−4</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                      </div></details>
+                    <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…<span class="sep">·</span>3s<span class="sep">·</span>escalates automatically after 10s</div><i class="ss-n">2</i></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-composer" data-od-id="cp-stopping-composer">
+                    <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                    <div class="ss-composer__row">
+                      <div class="ss-composer__cluster">
+                        <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                        <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                        <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                        <span class="ss-hint"><span class="kbd">⏎</span>queue</span><i class="ss-n">4</i>
+                      </div>
+                      <span class="spacer"></span>
+                      <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button></div>
+                      <button class="ss-primary" data-shape="stopping" aria-disabled="true" aria-live="polite"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…</button><i class="ss-n">1</i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Primary — Stopping…</b> <em>same element · 28px pill · input-fill plate, subtle ink, 12px spinner · <code>aria-disabled</code>, second press ignored (US-009.EC-1)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Status row</b> <em>SessionThinkingRow · “Stopping… · 3s · escalates automatically after 10s” — the elapsed is daemon time, the budget is the public config key</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Head dot — stopping</b> <em>new badge token · warning ring, slow pulse · never the running dot, never the stopped ring</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Only Queue remains</b> <em>Steer/Interrupt are absent (can’t be honored); Enter queues; the field stays editable — your draft is not at risk</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>stopping</span><span class="ss-tag"><b>component</b>SessionComposerActionRow · SessionThinkingRow · session-badge.ts</span><span class="ss-tag"><b>VC</b>task_02/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · STOPPED CONFIRMED ===== -->
+    <section class="lab-sec" id="cp-stopped" data-od-id="cp-stopped">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Stopped — confirmed by the runtime, with the cause</h2><span class="lab-sec__gist">US-009.AC-3 · US-009.AC-4 · task_02 VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The final word arrives from the daemon, not from the click.</b> A session-scope stop lands as stopped: the head dot goes hollow, the status row reads who stopped it and after how long, the interrupted turn stays open at the stopping point (S5), and the composer goes inactive with a plain placeholder. Resume lives where it lives today — the head action. When the runtime had to force the agent, the cause says so in the same row: still stopped, still true.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-stopped-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="cp-stopped-win" style="--ss-win-h:450px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="stopped"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--sm" data-od-id="cp-stopped-resume"><svg data-lucide="play"></svg>Resume</button><i class="ss-n">3</i><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <div class="ss-group">
+                      <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                      <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+18</span><span class="del">−4</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                      <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry -count=3</span><span class="ss-tool__state">stopped</span></div>
+                    </div>
+                    <div class="ss-fold ss-fold--stopped"><div class="ss-fold__head"><svg data-lucide="circle-stop"></svg>You stopped after 1m 40s</div></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped by you after 1m 40s</div><i class="ss-n">2</i></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-composer ss-composer--inactive" inert data-od-id="cp-stopped-composer">
+                    <div class="ss-composer__input" data-placeholder="This session is stopped"></div>
+                    <div class="ss-composer__row">
+                      <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span></div>
+                      <span class="spacer"></span>
+                      <button class="ss-primary" data-shape="send" aria-disabled="true" aria-label="Send"><svg data-lucide="arrow-up"></svg></button><i class="ss-n">1</i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <div class="lab-grid lab-grid--2" style="margin-top:12px" data-od-id="cp-stopped-variants">
+            <div class="lab-cell"><div class="lab-cell__t">Runtime had to force the agent <code>escalated = true</code></div>
+              <div class="plain" style="padding:8px 12px"><div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped by you after 14s<span class="sep">·</span>the agent didn’t answer the stop, so it was closed for you</div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Turn-scope cancel — the session stays promptable <code>prompt-cancel</code></div>
+              <div class="plain" style="padding:8px 12px;display:flex;flex-direction:column;gap:8px"><div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped after 12s</div><div class="ss-composer__row" style="min-height:0"><span class="ss-hint"><span class="kbd">⏎</span>send</span><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Inactive composer</b> <em>production `inert` + opacity .6 · placeholder “This session is stopped” · the disc is Send again but can’t fire — the affordance that can’t be honored is dimmed with its reason in the placeholder</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Status row — stopped</b> <em>warning-toned label text only (ADR-009) · cause from <code>stop_cause</code> · duration from durable timestamps</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Resume</b> <em>production head action (`canResume`) — unchanged; shown so the stopped state is not a dead end</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>stopped · verified</span><span class="ss-tag"><b>component</b>SessionComposer · SessionThinkingRow · SessionTurnFoldRow</span><span class="ss-tag"><b>VC</b>task_02/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · UNVERIFIED STOP ===== -->
+    <section class="lab-sec" id="cp-unverified" data-od-id="cp-unverified">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">The runtime couldn’t confirm the agent is gone</h2><span class="lab-sec__gist">US-009.AC-3 · ADR-004 invariant 3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A fabricated “stopped” is forbidden, so the UI stays at stopping and asks for attention.</b> The full ladder ran and the process still can’t be verified dead. The pill keeps its word, the status row explains in one sentence, and the only action is the one that exists: try the stop again. Danger is not used — nothing failed in your work; the runtime is being honest about what it can’t prove.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cp-unverified-demo" style="display:flex;flex-direction:column;gap:10px">
+            <div class="ss-notice-slot" style="padding:0"><div class="notice"><svg data-lucide="triangle-alert"></svg><span><b>Couldn’t confirm the agent stopped.</b> The stop ran all the way to a forced kill and the process still didn’t go away. The session stays “stopping” until it does.</span><span class="notice__actions"><button class="btn btn--xs">Retry stop</button></span></div><i class="ss-n">1</i></div>
+            <div class="ss-status" role="status"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…<span class="sep">·</span>needs attention<span class="sep">·</span><span class="mono-id">stop_verification_failed</span></div>
+            <div class="ss-composer__row" style="min-height:0"><span class="ss-hint"><span class="kbd">⏎</span>queue</span><span class="spacer"></span><button class="ss-primary" data-shape="stopping" aria-disabled="true"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…</button><i class="ss-n">2</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Notice slot</b> <em>production SessionWindowContent notice precedence · ds-core .notice warning · action = <code>session stop</code> again, nothing invented</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Pill holds</b> <em>truthful non-terminal: the control never flips to Send while output could still arrive</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>stopping · unverified</span><span class="ss-tag"><b>component</b>SessionWindowContent notice · SessionThinkingRow</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 09 · REDUCED MOTION ===== -->
+    <section class="lab-sec" id="cp-rm" data-od-id="cp-rm">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">Reduced motion — same words, no cadence</h2><span class="lab-sec__gist">ADR-008 · US-025.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The morph has no transition, the spinner doesn’t turn, the shimmer is plain text.</b> Everything the motion carried is also carried by a word, so nothing is lost. Left: default. Right: <code>prefers-reduced-motion: reduce</code> forced on the specimen.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="cp-rm-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Default</div>
+              <div class="plain" style="display:flex;flex-direction:column;gap:10px">
+                <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div>
+                <div class="ss-composer__row" style="min-height:0"><span class="spacer"></span><button class="ss-primary" data-shape="stopping" aria-disabled="true"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…</button></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Reduced motion</div>
+              <div class="plain ss-rm" style="display:flex;flex-direction:column;gap:10px">
+                <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div>
+                <div class="ss-composer__row" style="min-height:0"><span class="spacer"></span><button class="ss-primary" data-shape="stopping" aria-disabled="true" style="transition:none"><svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…</button></div>
+              </div></div>
+          </div>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>reduced-motion</span><span class="ss-tag"><b>rule</b>tokens-runtime.css global guard + component-level shimmer fallback</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 10 · MORPH DEMO ===== -->
+    <section class="lab-sec" id="cp-demo" data-od-id="cp-demo">
+      <div class="lab-sec__head"><span class="lab-sec__num">10</span><h2 class="lab-sec__t">Try it — Send → Stop → Stopping… → stopped, with the guard</h2><span class="lab-sec__gist">US-009.EC-1 · lab</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Click the disc.</b> Send starts a fake turn (the disc becomes Stop). Click Stop once: it becomes Stopping…; click it again while stopping and nothing happens — the guard drops the second activation. After a moment the runtime “confirms” and the row reads Stopped after 2s. Double-clicking Send lands the second click on Stop and is ignored the same way (orca’s <code>event.detail &gt; 1</code> rule).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cp-demo-plain">
+            <div class="ss-status" role="status" id="cp-demo-status" aria-live="polite"><span style="color:var(--faint)">Idle</span></div>
+            <div class="ss-composer" style="margin-top:10px" data-od-id="cp-demo-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Only touch the lifecycle tests</div>
+              <div class="ss-composer__note" data-kind="steer" id="cp-demo-note" hidden></div>
+              <div class="ss-composer__row">
+                <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint" id="cp-demo-hint"><span class="kbd">⏎</span>send</span></div>
+                <span class="spacer"></span>
+                <button class="ss-primary" data-shape="send" id="cp-demo-disc" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+              </div>
+            </div>
+            <p class="lab-foot" style="margin-top:12px;border-top:0;padding-top:0" id="cp-demo-log">Log: —</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapters 02–08. Copy: second person, sentence case, runtime words as mono suffixes (<span class="mono">COPY.md</span> §Web UI Microcopy). Fixture: <span class="mono">dev-loop · Claude Code · t_9f2 · inp_4d9</span>. Content illustrative; runtime truth owns values. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+  if(window.lucide) window.lucide.createIcons();
+  var disc=document.getElementById('cp-demo-disc'),status=document.getElementById('cp-demo-status'),note=document.getElementById('cp-demo-note'),hint=document.getElementById('cp-demo-hint'),log=document.getElementById('cp-demo-log');
+  if(!disc) return;
+  var phase='idle',t0=0,timer=null,confirmT=null;
+  var SVG={send:'<svg data-lucide="arrow-up"></svg>',stop:'<svg data-lucide="square"></svg>',stopping:'<svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…'};
+  function icons(){ if(window.lucide) window.lucide.createIcons(); }
+  function say(s){ log.textContent='Log: '+s; }
+  function fmt(ms){ var s=Math.floor(ms/1000); return s<60? s+'s' : Math.floor(s/60)+'m '+String(s%60).padStart(2,'0')+'s'; }
+  function render(){
+    disc.setAttribute('data-shape', phase==='idle'||phase==='stopped'?'send':phase==='running'?'stop':'stopping');
+    disc.innerHTML=SVG[phase==='idle'||phase==='stopped'?'send':phase==='running'?'stop':'stopping'];
+    disc.setAttribute('aria-label', phase==='running'?'Stop':phase==='stopping'?'Stopping':'Send');
+    if(phase==='stopping'){disc.setAttribute('aria-disabled','true');}else{disc.removeAttribute('aria-disabled');}
+    hint.innerHTML='<span class="kbd">⏎</span>'+(phase==='running'?'steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span>':phase==='stopping'?'queue':'send');
+    icons();
+  }
+  function tick(){
+    if(phase==='running'){ status.innerHTML='<span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for '+fmt(Date.now()-t0)+'<span class="sep">·</span>Running shell'; }
+    if(phase==='stopping'){ status.innerHTML='<svg class="ss-spin" data-lucide="loader-circle"></svg>Stopping…<span class="sep">·</span>'+fmt(Date.now()-t0)+'<span class="sep">·</span>escalates automatically after 10s'; icons(); }
+  }
+  disc.addEventListener('click',function(ev){
+    if(ev.detail>1){ say('second click of a double-click ignored (guard)'); return; }
+    if(phase==='idle'||phase==='stopped'){ phase='running'; t0=Date.now(); note.hidden=true; status.className='ss-status'; render(); tick(); timer=setInterval(tick,1000); say('turn t_9f2 started'); return; }
+    if(phase==='running'){ phase='stopping'; var ran=Date.now()-t0; t0=Date.now(); render(); tick(); say('stop requested — cooperative phase'); confirmT=setTimeout(function(){ clearInterval(timer); phase='stopped'; status.className='ss-status ss-status--stopped'; status.innerHTML='<svg data-lucide="circle-stop"></svg>Stopped after '+fmt(ran+2000); render(); say('daemon confirmed: state=stopped, stop_cause=user_requested'); },2000); return; }
+    if(phase==='stopping'){ say('already stopping — activation ignored (guard)'); return; }
+  });
+})();
+</script>
+</body>
+</html>

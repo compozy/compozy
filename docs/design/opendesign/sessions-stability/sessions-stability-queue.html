@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Queue strip · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-queue · S2 — Queue strip (SessionQueueStrip, rework of
+  session-composer-queued-prompts.tsx). Spec: _uiux.md S2 · US-005, US-006, US-007 ·
+  ADR-003 (interrupt keeps the queue; clear is explicit). VC rows: task_03 VC-01..06.
+  Provenance:
+    production — strip fused to the composer top (rounded-t-lg, border-b-0, elevated),
+                 32px rows, ListPlus glyph, 12px muted preview, ghost Steer + Pencil + Trash2.
+    spec S2   — header with count + Clear all; position + owner per row; dispatching /
+                 unconfirmed(+Retry, client-local) / editing states; inline clear confirm;
+                 per-entry trace in the transcript.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="qs-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Queue strip</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-composer.html">← Composer</a><a class="btn btn--sm" href="sessions-stability-working.html">Next: Working row →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="qs-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S2 — the queue as a place you manage.</b> Parked follow-ups sit in a strip fused to the top of the composer, one row each: position, who queued it, a one-line preview, and the three verbs. A send whose acknowledgment got lost shows as “not confirmed” with a Retry that replays the same identity, so it can never duplicate. Interrupt leaves the queue alone; emptying it is its own explicit action, and every removed entry leaves a trace in the conversation.</p>
+        <p class="ss-contract__file">sessions-stability-queue.html · S2 · US-005 · US-006 · US-007</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionQueueStrip</b><i>web/src/systems/session/components/session-queue-strip.tsx</i>replaces <code>SessionComposerQueuedPrompts</code>; header, position, owner, states, inline confirm</span></li>
+          <li><span class="ss-mod ss-mod--delete">delete</span><span><b>SessionComposerQueuedPrompts</b><i>web/src/components/assistant-ui/session-composer-queued-prompts.tsx</i>geometry survives inside the new component; the file does not</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposer</b><i>web/src/components/assistant-ui/session-composer.tsx</i>mounts the strip; keeps <code>rounded-t-none</code> when stacked; queue-full note</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionPageControls</b><i>web/src/hooks/routes/use-session-page-controls.ts</i>adds clear-all (<code>DELETE …/prompt/queue</code>), retry-by-identity, edit-refusal handoff to draft</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>RuntimeActivityNotice</b><i>web/src/systems/session/components/runtime-activity-notice.tsx</i>renders queue-clear and queue-remove trace markers (today <code>prompt_dropped</code> returns null)</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Button · Pill · Spinner · Textarea · Marker</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#qs-populated">Populated — 3 entries</a><code>task_03 VC-01</code></li>
+          <li><a href="#qs-owner">Entry owned by another actor</a><code>task_03 VC-02</code></li>
+          <li><a href="#qs-dispatch">Head entry dispatching · edit refused</a><code>task_03 VC-03</code></li>
+          <li><a href="#qs-unconfirmed">Not confirmed + Retry</a><code>task_03 VC-04</code></li>
+          <li><a href="#qs-full">Queue full</a><code>task_03 VC-05</code></li>
+          <li><a href="#qs-clear">Clear all — confirm + trace</a><code>task_03 VC-06</code></li>
+          <li><a href="#qs-edit">Editing · code preview</a><code>US-005.AC-3 · EC-3</code></li>
+          <li><a href="#qs-interrupt">Interrupt keeps the queue</a><code>US-006.AC-1</code></li>
+          <li><a href="#qs-leaves">An entry leaves the queue and runs</a><code>US-004.AC-2</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · POPULATED ===== -->
+    <section class="lab-sec" id="qs-populated" data-od-id="qs-populated">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Three queued follow-ups, fused to the composer</h2><span class="lab-sec__gist">US-005.AC-1 · task_03 VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Production geometry, one new header line.</b> The strip keeps its fused shape (top radius, no bottom border, elevated fill) and its 32px rows. New: a 28px header that says how many are parked and carries the only Clear all; a mono position on each row; the three verbs stay as today — Steer as a word, edit and remove as glyphs. Rows are ordered as they will run.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="qs-populated-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="qs-populated-win" style="--ss-win-h:500px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for 48s<span class="sep">·</span>Running shell</div></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-queue" data-od-id="qs-populated-strip">
+                    <div class="ss-queue__head"><span class="n">3</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button><i class="ss-n">1</i></div>
+                    <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><i class="ss-n">2</i><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev" title="Ship it with tests">Ship it with tests</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div><i class="ss-n">3</i></div>
+                    <div class="ss-queue__row"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev" title="Also update the changelog with the new retry semantics">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                    <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev" title="Bump the version and tag the release">Bump the version and tag the release</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                  </div>
+                  <div class="ss-composer ss-composer--stacked" data-od-id="qs-populated-composer"><i class="ss-n ss-n--abs" style="right:10px;top:8px">4</i>
+                    <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                    <div class="ss-composer__row">
+                      <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div>
+                      <span class="spacer"></span>
+                      <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="scissors"></svg>Interrupt</button></div>
+                      <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Strip header</b> <em>new · 28px · mono count + “queued” · Clear all is the only place the whole queue can be emptied (ADR-003)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Position</b> <em>mono-id 11px faint · run order, from the daemon list</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Row verbs</b> <em>production: ghost sm Steer · Pencil · Trash2 — unchanged; Steer promotes and delivers per the steer contract</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Composer stacked</b> <em>production `rounded-t-none` when the strip is present</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>1–N entries</span><span class="ss-tag"><b>component</b>SessionQueueStrip</span><span class="ss-tag"><b>VC</b>task_03/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · OWNER ===== -->
+    <section class="lab-sec" id="qs-owner" data-od-id="qs-owner">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Queued by someone else — attributed, same rules</h2><span class="lab-sec__gist">US-005.EC-4 · US-006.AC-3 · task_03 VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Your own rows carry no name; anyone else’s does.</b> An agent driver (here <b>reviewer</b>, session <span class="mono">agent:rev</span>) parked an entry: it shows the agent chip and its name before the preview. Whether you may edit it follows policy — when you may not, the verbs are absent, not disabled. Goal-owned work reads the same way with the goal’s name.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="qs-owner-demo">
+            <div class="ss-queue" style="border-radius:0;border:0">
+              <div class="ss-queue__head"><span class="n">3</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row" data-owner="agent"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><span class="agent-avatar">RV</span>reviewer</span><i class="ss-n">1</i><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row" data-owner="goal"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><svg data-lucide="target" style="width:12px;height:12px;color:var(--faint)"></svg>goal · release-1.4</span><i class="ss-n">2</i><span class="ss-queue__prev">Run the release checklist</span><div class="ss-queue__acts"></div></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Owner attribution</b> <em>agent-avatar 16px + name, 11.5px muted · from <code>owner</code> on the queue row · your own rows show nothing here</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Read-only for you</b> <em>verbs absent, never disabled — the runtime won’t honor them (goal-owned row); the entry is still visible and survives interrupt (US-006.AC-3)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>other-actor entry</span><span class="ss-tag"><b>component</b>SessionQueueStrip</span><span class="ss-tag"><b>VC</b>task_03/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DISPATCHING ===== -->
+    <section class="lab-sec" id="qs-dispatch" data-od-id="qs-dispatch">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">The head entry is sending — and you were editing it</h2><span class="lab-sec__gist">US-005.EC-2 · task_03 VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Dispatching is a state, not a disappearance.</b> The turn ended and #1 started leaving: spinner, “Sending…”, verbs gone. If you were mid-edit, the edit is refused with the daemon’s word and your edited text is handed to the composer as a fresh draft — nothing typed is lost. The row vanishes the moment the transcript shows the message running (section 09).</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="qs-dispatch-demo" style="padding:16px">
+            <div class="ss-queue">
+              <div class="ss-queue__head"><span class="n">3</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span><span class="ss-queue__state"><svg class="ss-spin" data-lucide="loader-circle"></svg>Sending…</span><i class="ss-n">1</i></div>
+              <div class="ss-queue__row" data-owner="agent"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><span class="agent-avatar">RV</span>reviewer</span><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+            </div>
+            <div class="ss-composer ss-composer--stacked" data-od-id="qs-dispatch-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Ship it with tests — and run the e2e lane too</div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>That one is already sending</b> — your edit is here as a new message.<span class="mono-id">entry_dispatching</span></span><i class="ss-n">2</i></div>
+              <div class="ss-composer__row">
+                <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div>
+                <span class="spacer"></span>
+                <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm"><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm"><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button></div>
+                <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Dispatching row</b> <em>status <code>dispatching</code> from the queue route · Spinner 12px + “Sending…” · verbs absent (can’t be honored)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Edit refused, text handed back</b> <em>composer note (S1 slot) · the 409 body returns the edited text; the strip never swallows it</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>dispatching · edit refused</span><span class="ss-tag"><b>component</b>SessionQueueStrip · SessionComposer</span><span class="ss-tag"><b>VC</b>task_03/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · UNCONFIRMED ===== -->
+    <section class="lab-sec" id="qs-unconfirmed" data-od-id="qs-unconfirmed">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Not confirmed — the only client-local row, with Retry</h2><span class="lab-sec__gist">US-007.AC-1 · US-007.AC-2 · task_03 VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The daemon never reports this state; the browser does.</b> You sent, the acknowledgment was lost (timeout, reconnect). The row keeps its preview, drops the position (it has none yet), and says “Not confirmed” with a Retry. Retry replays the same <span class="mono">message_id · idempotency_key</span>: if the daemon already recorded it, you get the original outcome and the row resolves; if it never arrived, it dispatches once. Retry is the one accent on this screen — the Stop disc is neutral.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="qs-unconfirmed-demo">
+            <div class="ss-queue" style="border-radius:0;border:0">
+              <div class="ss-queue__head"><span class="n">2</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row" data-local="unconfirmed"><span class="ss-queue__pos">—</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Also run the migration equivalence suite</span><span class="ss-queue__state">Not confirmed<span class="mono-id">msg_01k4</span></span><i class="ss-n">1</i><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm ss-queue__retry"><svg data-lucide="rotate-ccw"></svg>Retry</button><i class="ss-n">2</i><button class="btn btn--ghost btn--sm btn--icon" aria-label="Discard"><svg data-lucide="x"></svg></button></div></div>
+            </div>
+          </div>
+          <div class="lab-grid lab-grid--2" style="margin-top:12px">
+            <div class="lab-cell"><div class="lab-cell__t">Retry resolved — daemon had it <code>replayed: true</code></div><div class="plain" style="padding:8px 12px"><div class="ss-composer__note" data-kind="queued"><svg data-lucide="list-plus"></svg><span><b>Queued #2</b> — it had arrived; nothing was sent twice<span class="mono-id">replayed</span></span></div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Retry with changed text <code>send_conflict</code></div><div class="plain" style="padding:8px 12px"><div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not sent</b> — this identity was used with different text. Send it as a new message.<span class="mono-id">send_conflict</span></span></div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Unconfirmed row</b> <em>client-local (never in <code>GET …/prompt/queue</code>) · no position · neutral state text + the message id</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Retry</b> <em>ghost sm with accent-strong ink (the one action-colored control) · replays identity; Discard drops the local row only</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>unconfirmed · retry</span><span class="ss-tag"><b>component</b>SessionQueueStrip (local state)</span><span class="ss-tag"><b>VC</b>task_03/VC-04</span><span class="ss-tag"><b>accent</b>1 of 2</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · QUEUE FULL ===== -->
+    <section class="lab-sec" id="qs-full" data-od-id="qs-full">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Queue full — the strip scales, the composer says why</h2><span class="lab-sec__gist">US-005.EC-1 · task_03 VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Ten rows is the cap (<code>session.busy_input.queue_cap</code>).</b> The strip caps its own height at four rows and scrolls inside; the header count tells the truth. A queue attempt is refused with the numbers and the three ways out; Steer and Interrupt stay available because they don’t park anything. The composer hint drops <span class="mono">⌘⏎ queue</span> while the queue is full — an affordance the runtime won’t honor is absent.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="qs-full-demo" style="padding:16px">
+            <div class="ss-queue">
+              <div class="ss-queue__head"><span class="n">10</span>queued<span class="dotsep"></span>full<i class="ss-n">1</i><span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div style="max-height:132px;overflow:auto">
+                <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#4</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Regenerate the OpenAPI types</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#5</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Run make gate</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              </div>
+            </div>
+            <div class="ss-composer ss-composer--stacked" data-od-id="qs-full-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Open a draft PR when the gate is green</div>
+              <div class="ss-composer__note" data-kind="refused"><svg data-lucide="circle-slash"></svg><span><b>Not queued</b> — the queue is full (10 of 10). Steer or interrupt, or clear the queue.<span class="mono-id">queue_full</span></span><i class="ss-n">2</i></div>
+              <div class="ss-composer__row">
+                <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer</span><i class="ss-n">3</i></div>
+                <span class="spacer"></span>
+                <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm"><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button></div>
+                <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Header at cap</b> <em>“10 queued · full” · the strip body caps at 4 rows (132px) and scrolls; the composer never grows past that</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Refusal</b> <em><code>queue_full</code> with <code>cap</code> and <code>entries</code> from the 409 body · draft kept</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Queue affordances absent</b> <em>no Queue button, no ⌘⏎ queue hint while full — Steer/Interrupt remain</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>queue full</span><span class="ss-tag"><b>component</b>SessionQueueStrip · SessionComposer</span><span class="ss-tag"><b>VC</b>task_03/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · CLEAR ALL ===== -->
+    <section class="lab-sec" id="qs-clear" data-od-id="qs-clear">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Clear all — one confirmation in place, one trace per entry</h2><span class="lab-sec__gist">US-006.AC-2 · US-006.EC-3 · task_03 VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The confirmation replaces the header; the receipt lands in the conversation.</b> No dialog: the header line becomes the question with the count, Clear all in the destructive tint, Keep as the quiet way out. After it runs, the strip is gone and the transcript carries one marker naming who cleared, followed by one line per removed entry — a dispatching entry reports its own result. A single row’s remove writes the same one-line trace.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="qs-clear-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Confirming — header swapped</div>
+              <div class="plain plain--flush"><div class="ss-queue" style="border-radius:0;border:0">
+                <div class="ss-queue__confirm"><svg data-lucide="trash-2" style="width:12px;height:12px;color:var(--subtle)"></svg>Remove all 3 queued follow-ups?<i class="ss-n">1</i><span class="spacer"></span><button class="btn btn--destructive btn--xs">Clear all</button><button class="btn btn--ghost btn--xs">Keep</button></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span></div>
+                <div class="ss-queue__row" data-owner="agent"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><span class="agent-avatar">RV</span>reviewer</span><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span></div>
+                <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release</span></div>
+              </div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">After — the trace in the transcript</div>
+              <div class="plain" style="display:flex;flex-direction:column;gap:2px">
+                <div class="ss-marker" data-od-id="qs-clear-trace"><svg data-lucide="list-x"></svg><span><b>You cleared the queue</b> — 3 follow-ups removed<span class="mono-id">14:06</span>
+                  <ul class="ss-marker__list"><li>Ship it with tests</li><li>Also update the changelog with the new retry semantics <span class="mono-id">queued by reviewer</span></li><li>Bump the version and tag the release</li></ul></span><i class="ss-n">2</i></div>
+                <div class="ss-marker" style="margin-top:6px"><svg data-lucide="list-x"></svg><span><b>You removed a queued follow-up</b> — “Run the release checklist”<span class="mono-id">14:09</span></span><i class="ss-n">3</i></div>
+                <div class="ss-marker"><svg data-lucide="list-x"></svg><span><b>You cleared the queue</b> — 2 removed, 1 was already sending and ran<span class="mono-id">14:12</span></span></div>
+              </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Inline confirm</b> <em>replaces the header · destructive-tint button (production Button variant) · Keep = ghost · Esc = Keep</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Clear trace</b> <em>Marker primitive · attributed to the actor · one line per entry with foreign owners named</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Single remove trace</b> <em>same marker, one line (US-005.AC-4)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>clear-all · trace</span><span class="ss-tag"><b>component</b>SessionQueueStrip · RuntimeActivityNotice</span><span class="ss-tag"><b>VC</b>task_03/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · EDITING + CODE PREVIEW ===== -->
+    <section class="lab-sec" id="qs-edit" data-od-id="qs-edit">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Editing a row · a code block flattens to one line</h2><span class="lab-sec__gist">US-005.AC-3 · US-005.EC-3</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Edit happens in the row.</b> The preview becomes a field (production Textarea geometry, 36px min), Save and Cancel replace the verbs, and the preview updates the moment the daemon accepts. Multi-line entries show their first meaningful line; a message that opens with a fence shows a <span class="mono">code</span> tag and the first line inside it. Expand the row to read the whole thing.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="qs-edit-demo"><div class="ss-queue" style="border-radius:0;border:0">
+            <div class="ss-queue__head"><span class="n">3</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+            <div class="ss-queue__row ss-queue__row--editing"><div style="display:flex;align-items:center;gap:8px"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="pencil"></svg><span style="font-size:11.5px;color:var(--subtle)">Editing</span></div>
+              <div class="ss-queue__edit"><textarea aria-label="Queued message">Ship it with tests — and run the e2e lane too</textarea><i class="ss-n">1</i></div>
+              <div class="ss-queue__editacts"><button class="btn btn--ghost btn--xs">Cancel</button><button class="btn btn--xs">Save</button></div></div>
+            <div class="ss-queue__row"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev"><span class="cb">code</span>func TestRetry_NoWallClock(t *testing.T) {</span><i class="ss-n">2</i><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+            <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release <span class="mono-id">· 2 files</span></span><i class="ss-n">3</i><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm" disabled title="Queued messages with files can’t be steered on this agent">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+          </div></div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Inline edit</b> <em>Textarea primitive inside the row · Save → <code>PUT …/queue/{entry_id}</code> · Cancel restores the preview</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Code preview</b> <em>fence detected → mono “code” tag + first line inside · full content on expand</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Files suffix</b> <em>production “· 2 files” mono suffix · Steer disabled with its reason (production tooltip)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>editing · code · files</span><span class="ss-tag"><b>component</b>SessionQueueStrip</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · INTERRUPT KEEPS THE QUEUE ===== -->
+    <section class="lab-sec" id="qs-interrupt" data-od-id="qs-interrupt">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">“Stop and do this instead” leaves the queue intact</h2><span class="lab-sec__gist">US-006.AC-1 · ADR-003</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Interrupt kills the turn, not the plan.</b> The transcript shows the stopped turn (open, S5), then your replacement running. Above the composer the same three rows wait, untouched. Today the daemon wipes them silently — that is the defect this board removes.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="qs-interrupt-demo" style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div class="ss-fold ss-fold--stopped" style="margin-bottom:6px"><div class="ss-fold__head"><svg data-lucide="circle-stop"></svg>You stopped after 48s<span class="dotsep"></span>replaced by your next message</div></div>
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Skip the store package entirely — finish the lifecycle tests first</div><span class="ss-msg-user__meta"><svg data-lucide="scissors"></svg>Interrupted and replaced</span></div>
+              <div class="ss-status" role="status" style="margin-top:4px"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div>
+            </div>
+            <div class="ss-queue" data-od-id="qs-interrupt-strip">
+              <div class="ss-queue__head"><span class="n">3</span>queued<i class="ss-n">1</i><span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#1</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Ship it with tests</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row" data-owner="agent"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><span class="agent-avatar">RV</span>reviewer</span><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#3</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+            </div>
+          </div>
+          <ul class="ss-legend ss-legend--1">
+            <li><i class="ss-n">1</i><span><b>Same three rows after the interrupt</b> <em>the daemon cancels the active turn only; the strip re-renders from <code>GET …/prompt/queue</code> unchanged</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>post-interrupt</span><span class="ss-tag"><b>component</b>SessionQueueStrip · SessionTurnFoldRow</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 09 · ENTRY LEAVES ===== -->
+    <section class="lab-sec" id="qs-leaves" data-od-id="qs-leaves">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">The turn ends, #1 leaves the strip and appears in the conversation</h2><span class="lab-sec__gist">US-004.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>You watch it move.</b> The row goes to Sending…, then disappears as your message shows up as a normal bubble with a small “from the queue” note under it; positions renumber. The strip’s header now says 2. Nothing animates except the row’s exit (180ms fade, off under reduced motion).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="qs-leaves-demo" style="display:flex;flex-direction:column;gap:10px">
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Ship it with tests</div><span class="ss-msg-user__meta"><svg data-lucide="list-plus"></svg>From the queue<span class="dotsep"></span>was #1</span><i class="ss-n">1</i></div>
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div>
+            <div class="ss-queue">
+              <div class="ss-queue__head"><span class="n">2</span>queued<span class="spacer"></span><button class="btn btn--ghost btn--xs">Clear all</button></div>
+              <div class="ss-queue__row" data-owner="agent"><span class="ss-queue__pos">#1</span><i class="ss-n">2</i><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__owner"><span class="agent-avatar">RV</span>reviewer</span><span class="ss-queue__prev">Also update the changelog with the new retry semantics</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+              <div class="ss-queue__row"><span class="ss-queue__pos">#2</span><svg class="ss-queue__kind" data-lucide="list-plus"></svg><span class="ss-queue__prev">Bump the version and tag the release</span><div class="ss-queue__acts"><button class="btn btn--ghost btn--sm">Steer</button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Edit queued message"><svg data-lucide="pencil"></svg></button><button class="btn btn--ghost btn--sm btn--icon" aria-label="Remove from queue"><svg data-lucide="trash-2"></svg></button></div></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Queued-origin meta</b> <em>user bubble + 11.5px meta line (same slot as the steer markers on S5)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Renumbered</b> <em>positions are the daemon’s, not a client counter</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>dispatched</span><span class="ss-tag"><b>component</b>SessionQueueStrip · SessionUserMessage meta</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapter 07 (+03 markers, 08 composer). Queue statuses are the daemon’s closed set <span class="mono">queued · dispatching · sent · failed · canceled</span>; “not confirmed” is browser-only. Fixture: <span class="mono">dev-loop · inp_4d8 · inp_4e1 · msg_01k4</span>. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

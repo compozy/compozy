@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Connection &amp; sync · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-connection · S4 — Connection & sync state (SessionTransportChip — new).
+  Spec: _uiux.md S4 · US-018, US-017, US-012. VC rows: task_06 VC-01..05.
+  Provenance:
+    production — transport phases exist with zero consumers
+                 (session-live-tail-store-contract.ts: disabled · connecting · live ·
+                 waiting-reconnect · terminal; RECONNECT_MAX_DELAY_MS 4000); ThreadStatePane
+                 owns "Couldn't load this conversation / Retry transcript"; the head's trailing
+                 edge is the reserved chip slot (patterns.html §05 U3).
+    spec S4   — chip after a 2s grace; connecting / reconnecting · n / catching up / paused;
+                 sync-failed is a sentence + Try again, never an empty thread; sending while
+                 disconnected fails fast and keeps the draft.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cn-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Connection &amp; sync state</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-working.html">← Working row</a><a class="btn btn--sm" href="sessions-stability-timeline.html">Next: Timeline →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="cn-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S4 — silence means the agent is idle, never that you are disconnected.</b> A small chip at the window head’s trailing edge appears only when the live stream is degraded: connecting, reconnecting with the attempt count, catching up, or paused in a background window. Brief blips show nothing. If retries run out you get a sentence and Try again — never a blank conversation. Sending while disconnected fails at once and keeps your draft.</p>
+        <p class="ss-contract__file">sessions-stability-connection.html · S4 · US-018 · US-017 · US-012</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionTransportChip</b><i>web/src/systems/session/components/session-transport-chip.tsx</i>Pill (info / neutral / danger) + Spinner; first consumer of <code>transportPhase</code></span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionTopbarSlot</b><i>web/src/systems/session/hooks/use-session-topbar-slot.tsx</i>mounts the chip in the status slot, before the actions</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>ThreadStatePane</b><i>web/src/components/assistant-ui/session-thread-states.tsx</i>gains the sync-failed state (loaded-then-lost) beside the existing load-failed state</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionRuntimeExtensions</b><i>web/src/systems/session/hooks/use-session-runtime-extensions.ts:41-51</i>SSE stays open during the prompt POST; a 2s grace before the chip</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposer</b><i>web/src/components/assistant-ui/session-composer.tsx</i>disconnected send guard note (S1 slot)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionWindowSidebar</b><i>web/src/systems/os/apps/session/use-session-window-sidebar.ts:99</i><code>disconnected</code> reflects transport, not only a query error</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Pill · Spinner · ConnectionIndicator · Button · Marker</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#cn-live">Live — chip absent · the 2s grace</a><code>US-018.EC-1</code></li>
+          <li><a href="#cn-reconnecting">Reconnecting · attempt count</a><code>task_06 VC-01</code></li>
+          <li><a href="#cn-catchup">Catching up · history reset note</a><code>task_06 VC-02</code></li>
+          <li><a href="#cn-failed">Sync failed — Try again</a><code>task_06 VC-03</code></li>
+          <li><a href="#cn-guard">Disconnected send guard</a><code>task_06 VC-04</code></li>
+          <li><a href="#cn-paused">Background window paused</a><code>task_06 VC-05</code></li>
+          <li><a href="#cn-dict">Phase dictionary · sidebar footer</a><code>US-018.AC-1</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · LIVE + GRACE ===== -->
+    <section class="lab-sec" id="cn-live" data-od-id="cn-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Live — nothing to show · a blip under 2 seconds — still nothing</h2><span class="lab-sec__gist">US-018.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The chip slot is empty while the stream is healthy.</b> The head keeps its state dot, title, and agent; the trailing edge holds only the actions. A drop shorter than the grace never reaches the screen — the store retries at 250ms → 4s backoff, and the chip mounts only if the phase is still <code>waiting-reconnect</code> after 2s. Below the head, the timeline shows what an operator sees across a 1.4s blip: the same thing.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cn-live-demo" style="display:flex;flex-direction:column;gap:12px">
+            <header class="win-head" style="border-radius:var(--radius-md);border:1px solid var(--line);cursor:default">
+              <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+              <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><span style="font-family:var(--font-mono);font-size:9.5px;color:var(--faint);border:1px dashed var(--line-strong);border-radius:var(--radius-xs);padding:2px 6px">chip slot · empty</span><i class="ss-n">1</i><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;align-items:end" data-od-id="cn-live-timeline">
+              <div class="lab-cell"><div class="lab-cell__t"><code>0.0s</code> stream drops</div><div style="height:28px;border-radius:var(--radius-sm);background:var(--canvas-soft);display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--faint)">nothing</div></div>
+              <div class="lab-cell"><div class="lab-cell__t"><code>0.25s</code> retry 1</div><div style="height:28px;border-radius:var(--radius-sm);background:var(--canvas-soft);display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--faint)">nothing</div></div>
+              <div class="lab-cell"><div class="lab-cell__t"><code>1.4s</code> back</div><div style="height:28px;border-radius:var(--radius-sm);background:var(--canvas-soft);display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--faint)">nothing</div></div>
+              <div class="lab-cell"><div class="lab-cell__t"><code>2.0s</code> grace ends</div><div style="height:28px;border-radius:var(--radius-sm);background:var(--canvas-soft);display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--subtle)">chip mounts if still down</div><i class="ss-n">2</i></div>
+              <div class="lab-cell"><div class="lab-cell__t"><code>2.0s+</code></div><div style="height:28px;border-radius:var(--radius-sm);background:var(--canvas-soft);display:flex;align-items:center;padding:0 8px"><span class="ss-transport" data-phase="reconnecting"><svg class="ss-spin" data-lucide="loader-circle"></svg>Reconnecting<span class="n">·2</span></span></div></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Chip slot</b> <em>reserved trailing position in the head (before the actions) so mounting the chip moves nothing else</em></span></li>
+            <li><i class="ss-n">2</i><span><b>2s grace</b> <em>client constant beside <code>RECONNECT_BASE_DELAY_MS</code>; the chip mounts with a 120ms fade, none under reduced motion</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>live · blip</span><span class="ss-tag"><b>component</b>SessionTransportChip (absent)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · RECONNECTING ===== -->
+    <section class="lab-sec" id="cn-reconnecting" data-od-id="cn-reconnecting">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Reconnecting · 3 — the chip says how hard it’s trying</h2><span class="lab-sec__gist">US-018.AC-1 · task_06 VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Info tone, spinner, a count.</b> The chip reads “Reconnecting · 3” (attempt from <code>reconnectAttempt</code>); hovering it gives the time the stream was last live and the retry cadence. Everything else stays as it was: the transcript keeps what it has, the status row keeps counting from the daemon’s clock, the composer stays enabled — the guard fires on send, not on typing.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cn-reconnecting-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="cn-reconnecting-win" style="--ss-win-h:440px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail" style="position:relative"><span class="ss-transport" data-phase="reconnecting" role="status" aria-live="polite" aria-describedby="cn-chip-tip"><svg class="ss-spin" data-lucide="loader-circle"></svg>Reconnecting<span class="n">·3</span></span><i class="ss-n">1</i>
+                  <div id="cn-chip-tip" role="tooltip" style="position:absolute;right:56px;top:calc(100% + 6px);padding:6px 10px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-hairline);font-size:var(--text-form);color:var(--fg-strong);white-space:nowrap;z-index:9">Live updates lost at 14:02 · retrying every 4s<i class="ss-n">2</i></div>
+                  <div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>12m 09s</b><span class="sep">·</span>Running shell</div></div>
+                <div class="ss-composer-zone"><div class="ss-composer"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div><span class="spacer"></span><div class="ss-composer__busy"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="scissors"></svg>Interrupt</button></div><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div></div></div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Transport chip — reconnecting</b> <em>Pill tone info, size sm (20px) · Spinner 12px · mono attempt count · <code>role=status</code> polite</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Tooltip</b> <em>last-live time + cadence (<code>RECONNECT_MAX_DELAY_MS</code>) — machine truth one step deeper</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>reconnecting · 3</span><span class="ss-tag"><b>component</b>SessionTransportChip</span><span class="ss-tag"><b>VC</b>task_06/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · CATCHING UP ===== -->
+    <section class="lab-sec" id="cn-catchup" data-od-id="cn-catchup">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Back — catching up from where you left off</h2><span class="lab-sec__gist">US-012.EC-1 · US-017.AC-1 · US-017.AC-3 · task_06 VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Replay is by sequence, so nothing repeats and nothing is skipped.</b> The chip flips to “Catching up” while the gap replays; the transcript grows at the end the way streaming does and the scroll owner rules (S6) apply — if you were reading up, nothing moves. When the gap crossed a history rewrite (clear, rewind), the view resets to the new truth and says so with one info marker instead of interleaving stale rows.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="cn-catchup-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Catching up — 42 events replayed</div>
+              <div class="plain" style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:flex-end"><span class="ss-transport" data-phase="catching-up" role="status"><svg class="ss-spin" data-lucide="loader-circle"></svg>Catching up</span><i class="ss-n">1</i></div>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+18</span><span class="del">−4</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -count=3</span></div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Gap crossed a history rewrite <code>US-017.AC-3</code></div>
+              <div class="plain" style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:flex-end"><span class="ss-transport" data-phase="catching-up" role="status"><svg class="ss-spin" data-lucide="loader-circle"></svg>Catching up</span></div>
+                <div class="ss-marker" data-tone="info"><svg data-lucide="info"></svg><span><b>The conversation was rewound while you were away</b> — showing the current history from turn 3.<span class="mono-id">generation 4</span></span><i class="ss-n">2</i></div>
+                <div class="ss-msg-user"><div class="ss-msg-user__bubble">Skip the store package entirely — finish the lifecycle tests first</div></div>
+              </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Catching up</b> <em>same chip, info tone, no count · unmounts on the first frame after the replay watermark</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Reset marker</b> <em>Marker tone info · one line, the generation as mono · never a modal</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>catching up · reset</span><span class="ss-tag"><b>component</b>SessionTransportChip · Marker</span><span class="ss-tag"><b>VC</b>task_06/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · SYNC FAILED ===== -->
+    <section class="lab-sec" id="cn-failed" data-od-id="cn-failed">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Retries ran out — a sentence and Try again, never a blank thread</h2><span class="lab-sec__gist">US-018.AC-2 · task_06 VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two shapes, one rule: failed is never empty.</b> If the conversation had loaded, it stays — with a danger chip and a marker at the end saying when live updates stopped and a Try again. If it never loaded, the pane (production ThreadStatePane geometry) says the conversation didn’t sync, how many tries, and offers Try again. The composer is inactive in both: a send couldn’t go anywhere. Danger is earned here — this is a real failure of the live view.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="cn-failed-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Loaded, then lost <code>transportPhase = terminal</code></div>
+              <div class="plain plain--flush">
+                <header class="win-head" style="cursor:default"><div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div><div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div><span class="w2-flex" aria-hidden="true"></span><div class="win-trail"><span class="ss-transport" data-phase="failed" role="status"><svg data-lucide="wifi-off"></svg>Disconnected</span><i class="ss-n">1</i></div></header>
+                <div style="padding:12px 16px;display:flex;flex-direction:column;gap:6px">
+                  <div class="ss-prose ss-prose--muted"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                  <div class="ss-marker" data-tone="danger" role="alert"><svg data-lucide="wifi-off"></svg><span><b>Live updates stopped at 14:02</b> — couldn’t reconnect after 6 tries. What you see is saved up to then.<a class="ss-marker__act" href="#cn-failed">Try again</a></span><i class="ss-n">2</i></div>
+                </div>
+              </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Never loaded <code>ThreadStatePane · sync-failed</code></div>
+              <div class="plain plain--flush" style="display:flex;flex-direction:column;min-height:260px">
+                <header class="win-head" style="cursor:default"><div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div><div class="w2-id" data-status="unknown"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div><span class="w2-flex" aria-hidden="true"></span><div class="win-trail"><span class="ss-transport" data-phase="failed" role="status"><svg data-lucide="wifi-off"></svg>Disconnected</span></div></header>
+                <div class="ss-syncfail" role="alert" data-od-id="cn-failed-pane"><span class="ss-syncfail__ic"><svg data-lucide="wifi-off"></svg></span><div class="ss-syncfail__t">This conversation didn’t sync</div><div class="ss-syncfail__d">Couldn’t reach CompozyOS after 6 tries. Nothing here is lost — the history is saved.</div><button class="btn btn--sm">Try again</button><i class="ss-n">3</i></div>
+              </div></div>
+          </div>
+          <div class="lab-grid lab-grid--2" style="margin-top:12px">
+            <div class="lab-cell"><div class="lab-cell__t">Production sibling — load failed (unchanged)</div><div class="plain" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px;text-align:center"><div class="ss-syncfail__t">Couldn’t load this conversation</div><div class="ss-syncfail__d">The transcript could not be loaded.</div><button class="btn btn--sm">Retry transcript</button></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Loading — quieter than failure <code>ThreadStatePane · loading</code></div><div class="plain"><div class="ss-loading"><svg class="ss-spin" data-lucide="loader-circle" style="color:var(--faint)"></svg><span style="color:var(--faint)">Loading conversation</span></div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Chip — disconnected</b> <em>Pill tone danger · <code>wifi-off</code> · the only danger chip on the set</em></span></li>
+            <li><i class="ss-n">2</i><span><b>End-of-transcript marker</b> <em>Marker tone danger, <code>role=alert</code> · the time is the last applied cursor · Try again = <code>manualRecoveryRequested</code></em></span></li>
+            <li><i class="ss-n">3</i><span><b>Sync-failed pane</b> <em>new ThreadStatePane state · 34px icon well, 13.5px title, 12px body, sm button · replaces the empty thread that today poses as “no messages”</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>sync failed ×2</span><span class="ss-tag"><b>component</b>SessionTransportChip · ThreadStatePane · Marker</span><span class="ss-tag"><b>VC</b>task_06/VC-03</span><span class="ss-tag"><b>tone</b>danger (real failure)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · SEND GUARD ===== -->
+    <section class="lab-sec" id="cn-guard" data-od-id="cn-guard">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">You press Send while disconnected — it fails now, your draft stays</h2><span class="lab-sec__gist">US-018.AC-3 · task_06 VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The send button stays a send button.</b> Typing is always allowed; the guard answers the press: one note in the S1 slot, info glyph, the draft untouched, and the chip above already telling the story. When the stream comes back the note clears on its own and Enter works again — no need to press anything.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cn-guard-demo" style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;justify-content:flex-end"><span class="ss-transport" data-phase="reconnecting" role="status"><svg class="ss-spin" data-lucide="loader-circle"></svg>Reconnecting<span class="n">·4</span></span></div>
+            <div class="ss-composer" data-od-id="cn-guard-composer">
+              <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Only touch the lifecycle tests, skip the store package</div>
+              <div class="ss-composer__note" data-kind="disconnected"><svg data-lucide="wifi-off"></svg><span><b>Not sent</b> — you’re disconnected right now. Your draft is kept; it sends when you press Enter after the connection is back.</span><i class="ss-n">1</i></div>
+              <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div><span class="spacer"></span><div class="ss-composer__busy"><button class="btn btn--ghost btn--sm"><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm"><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button></div><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button><i class="ss-n">2</i></div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Guard note</b> <em>S1 note slot · info glyph (<code>wifi-off</code>) · no code suffix — the client refused before any request left</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Controls unchanged</b> <em>nothing is disabled; a second press repeats the note — never a silent no-op</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>disconnected send guard</span><span class="ss-tag"><b>component</b>SessionComposer · SessionTransportChip</span><span class="ss-tag"><b>VC</b>task_06/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · PAUSED ===== -->
+    <section class="lab-sec" id="cn-paused" data-od-id="cn-paused">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">A window in the background is paused, and says so</h2><span class="lab-sec__gist">US-018.EC-2 · US-012.AC-3 · task_06 VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A lagging watcher lags alone.</b> An unfocused session window keeps its last frame and a neutral “Paused · 4m” chip — the honest word for a live view that isn’t applying frames. Bring it forward and it catches up (section 03) then goes quiet again. The session and the other windows are unaffected: this is the watcher, not the turn.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cn-paused-stage">
+            <section class="win win--inline ss-win" data-od-id="cn-paused-win" style="--ss-win-h:360px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="ss-transport" data-phase="paused" role="status"><svg data-lucide="pause"></svg>Paused<span class="n">·4m</span></span><i class="ss-n">1</i><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+                    <div class="ss-tool ss-tool--live ss-rm"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span><i class="ss-n">2</i></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status ss-rm" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>8m 12s</b><span class="sep">·</span>as of 14:02</div></div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Chip — paused</b> <em>Pill tone neutral · <code>pause</code> glyph · elapsed since the last applied frame</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Frozen live row</b> <em>shimmer and dots stop while paused (no cadence for a view that isn’t updating); the status row appends “as of {time}”</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>background paused</span><span class="ss-tag"><b>component</b>SessionTransportChip · SessionThinkingRow</span><span class="ss-tag"><b>VC</b>task_06/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · DICTIONARY ===== -->
+    <section class="lab-sec" id="cn-dict" data-od-id="cn-dict">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">The phase dictionary, and the sidebar footer</h2><span class="lab-sec__gist">US-018.AC-1 · session-live-tail-store-contract.ts</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Five store phases, four chip words, one rule for first attempts.</b> The first connect of a fresh window reads “Connecting”; anything after a failure reads “Reconnecting” with the count (t3code’s rule). The sessions sidebar footer uses the production <code>ConnectionIndicator</code> with the same phase, so the list and the window never disagree.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="cn-dict-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Chip dictionary — <code>transportPhase</code> → chip</div>
+              <div class="plain" style="padding:8px 12px"><table class="table" style="font-size:12px"><tbody>
+                <tr><td class="mono" style="color:var(--muted)">live</td><td><span style="font-size:11px;color:var(--faint)">absent</span></td><td style="color:var(--subtle)">healthy stream</td></tr>
+                <tr><td class="mono" style="color:var(--muted)">connecting · attempt ≤1</td><td><span class="ss-transport" data-phase="connecting"><svg class="ss-spin" data-lucide="loader-circle"></svg>Connecting</span></td><td style="color:var(--subtle)">fresh window, after 2s</td></tr>
+                <tr><td class="mono" style="color:var(--muted)">waiting-reconnect</td><td><span class="ss-transport" data-phase="reconnecting"><svg class="ss-spin" data-lucide="loader-circle"></svg>Reconnecting<span class="n">·3</span></span></td><td style="color:var(--subtle)">count = <code>reconnectAttempt</code></td></tr>
+                <tr><td class="mono" style="color:var(--muted)">live · replaying gap</td><td><span class="ss-transport" data-phase="catching-up"><svg class="ss-spin" data-lucide="loader-circle"></svg>Catching up</span></td><td style="color:var(--subtle)">until the replay watermark</td></tr>
+                <tr><td class="mono" style="color:var(--muted)">disabled · window hidden</td><td><span class="ss-transport" data-phase="paused"><svg data-lucide="pause"></svg>Paused<span class="n">·4m</span></span></td><td style="color:var(--subtle)">background watcher</td></tr>
+                <tr><td class="mono" style="color:var(--muted)">terminal · retries exhausted</td><td><span class="ss-transport" data-phase="failed"><svg data-lucide="wifi-off"></svg>Disconnected</span></td><td style="color:var(--subtle)">+ marker or pane with Try again</td></tr>
+              </tbody></table></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Sessions sidebar footer — production <code>ConnectionIndicator variant="footer"</code></div>
+              <div class="plain" style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span class="d d--ok"></span><span class="eyebrow">Connected</span></div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span class="d d--needs d--pulse" style="color:var(--warning)"></span><span class="eyebrow">Reconnecting · 3</span><i class="ss-n">1</i></div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><span class="d d--fail"></span><span class="eyebrow">Disconnected</span><span class="spacer" style="flex:1"></span><button class="btn btn--ghost btn--xs">Try again</button></div>
+              </div></div>
+          </div>
+          <ul class="ss-legend ss-legend--1">
+            <li><i class="ss-n">1</i><span><b>Sidebar mirrors transport</b> <em>today <code>disconnected</code> only reflects a sessions-query error; it now ORs the window’s transport phase so the list never shows “connected” under a dead stream</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>dictionary</span><span class="ss-tag"><b>component</b>SessionTransportChip · ConnectionIndicator · useSessionWindowSidebar</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapter 05. Info tone for degraded-but-recovering, neutral for paused, danger only when retries are exhausted. Timings from the store contract (<span class="mono">250ms → 4s backoff</span>) plus the 2s grace. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

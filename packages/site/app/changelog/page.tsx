@@ -1,6 +1,7 @@
 import { Eyebrow } from "@compozy/ui";
 import { Rss } from "lucide-react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { ReleaseEntry } from "@/components/blog/release-entry";
 import { loadChangelogReleases } from "@/lib/changelog/github-client";
@@ -33,6 +34,7 @@ function UnavailableChangelog() {
 }
 
 export default async function ChangelogPage() {
+  await connection();
   const result = await loadChangelogReleases();
   const releases = result.status === "ready" ? result.releases : [];
 

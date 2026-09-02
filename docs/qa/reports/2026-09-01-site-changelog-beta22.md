@@ -35,7 +35,8 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
   the declared five-minute window. A fresh session found beta.22 first, opened the complete detail,
   survived reload, followed PR #498, contributor `pedronauck`, the beta.21 compare, and a macOS asset.
   Header search failed with HTTP 500, so the session cannot pass until deployment and replay.
-- **Bugs filed/updated:** BUG-20260901-site-search-catalog-files-missing
+- **Bugs filed/updated:** BUG-20260901-site-search-catalog-files-missing;
+  BUG-20260901-changelog-deploy-prerender-unavailable
 - **Scenarios settled:** SITE-changelog-release-receipts → fail, pending governed fix
 - **Paper cuts:** None beyond the registered search failure.
 - **Surprises:** The static changelog error state observed during deployment was replaced inside the
@@ -61,6 +62,9 @@ None recorded yet.
 - Public `/api/search/?query=v0.3.0-beta.22` returned HTTP 500 because the deployed function lacked
   repository-owned extension catalog files. Registered as
   `BUG-20260901-site-search-catalog-files-missing`.
+- Both production deployments initially published the changelog's unavailable state and recovered
+  only at the first five-minute regeneration. Registered as
+  `BUG-20260901-changelog-deploy-prerender-unavailable`.
 
 ## Human Verifications Needed
 

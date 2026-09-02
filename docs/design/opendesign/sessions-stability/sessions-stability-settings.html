@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session settings · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-settings · S10 — Session settings (Follow-up behavior + Smooth streaming).
+  Spec: _uiux.md S10 · US-003, US-025 · ADR-002 · config `session.busy_input.default_mode`
+  (daemon, closed set steer|queue) · smooth streaming = client-local (this browser).
+  VC rows: task_01 VC-06.
+  Provenance:
+    production — settings surfaces under web/src/systems/settings/components/ use the
+                 .srow vocabulary (design-system/settings.html §06: srow ≥54, label 13.5/510,
+                 control right-aligned, panelbox); PillGroup 24px segments; Switch 32×18.
+                 There is no session-scoped settings panel in production today (the showcase
+                 "Session settings" sheet is Storybook-only) — this group lands in Settings.
+    spec S10  — two rows, plain labels, no helper prose; both values; disabled-while-saving.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="st-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Session settings</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-find-trail.html">← Find &amp; trail</a><a class="btn btn--sm" href="index.html">Back to set →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="st-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S10 — two controls in Settings → Sessions.</b> <b>Follow-up behavior</b> decides what Enter does while an agent is working: steer immediately (default) or queue until the turn ends. It is stored by the runtime, so the CLI and agent tools resolve the same default. <b>Smooth streaming</b> turns the reveal cadence on or off for this browser only — it never touches the runtime configuration.</p>
+        <p class="ss-contract__file">sessions-stability-settings.html · S10 · US-003 · US-025</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionsSettingsSection</b><i>web/src/systems/settings/components/sessions-settings-section.tsx</i>panelbox with the two rows; joins the existing settings route</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>settings navigation</b><i>web/src/systems/settings/**</i>“Sessions” group added beside Providers / MCP / Roles / Window manager</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>config read-model</b><i>web/src/systems/settings/lib/</i>reads/writes <code>session.busy_input.default_mode</code> through the existing config surface</span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>useSmoothStreamingPreference</b><i>web/src/systems/session/hooks/use-smooth-streaming-preference.ts</i>localStorage-backed, consumed by the StreamMarkdown host (S7)</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>PillGroup · Switch · Field · Spinner</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#st-default">Both rows — defaults (steer · smooth on)</a><code>task_01 VC-06</code></li>
+          <li><a href="#st-values">Both values — queue · smooth off</a><code>task_01 VC-06</code></li>
+          <li><a href="#st-saving">Disabled while saving</a><code>US-003.EC-1</code></li>
+          <li><a href="#st-parity">Where else the same default shows</a><code>_dx.md</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · DEFAULTS ===== -->
+    <section class="lab-sec" id="st-default" data-od-id="st-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings → Sessions — two rows, no prose</h2><span class="lab-sec__gist">US-003.AC-1 · US-025.AC-3 · task_01 VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The label is the whole explanation.</b> A two-way choice (PillGroup, 24px segments) for what Enter does during a turn; a switch for the streaming reveal. The config key sits beside the label in micro mono — machine truth one step deeper, never a sentence under the row. The browser-only nature of the second row is a mono tag too, not helper text.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="st-default-demo" style="max-width:720px">
+            <div class="sgroup"><div class="sgroup__t">Sessions</div></div>
+            <div class="panelbox" data-od-id="st-default-panel">
+              <div class="srow" data-od-id="st-row-followup">
+                <div class="srow__main"><div class="srow__label">Follow-up behavior<span class="ss-srow-key">session.busy_input.default_mode</span><i class="ss-n">1</i></div></div>
+                <div class="srow__ctl"><div class="pill-group" role="radiogroup" aria-label="Follow-up behavior"><button class="pill-group__item is-on" role="radio" aria-checked="true">Steer immediately</button><button class="pill-group__item" role="radio" aria-checked="false">Queue until the turn ends</button></div><i class="ss-n">2</i></div>
+              </div>
+              <div class="srow" data-od-id="st-row-smooth">
+                <div class="srow__main"><div class="srow__label">Smooth streaming<span class="ss-srow-key">this browser</span><i class="ss-n">3</i></div></div>
+                <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Smooth streaming"><span class="knob"></span></button><i class="ss-n">4</i></div>
+              </div>
+            </div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Row label + key</b> <em>srow label 13.5/510 · key in 10px mono faint (GUIDE: machine truth demoted, never removed)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>PillGroup</b> <em>production 24px segments · on = elevated + fg-strong + highlight · closed set <code>steer | queue</code> (the shipped validator’s third value <code>interrupt</code> is deleted as a default)</em></span></li>
+            <li><i class="ss-n">3</i><span><b>“this browser” tag</b> <em>the only signal that this row is client-local; it never writes to config.toml (decided Q20)</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Switch</b> <em>production 32×18 · on = accent (the one accent on the panel)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>defaults</span><span class="ss-tag"><b>component</b>SessionsSettingsSection · PillGroup · Switch</span><span class="ss-tag"><b>VC</b>task_01/VC-06</span><span class="ss-tag"><b>accent</b>1 of 2</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · BOTH VALUES ===== -->
+    <section class="lab-sec" id="st-values" data-od-id="st-values">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The other values — queue by default, streaming off</h2><span class="lab-sec__gist">US-003.AC-2 · US-025.AC-3 · task_01 VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing else changes when you flip them</b> — except the composer hint, which now reads <span class="mono">⏎ queue · ⌘⏎ steer</span> (S1), and streamed prose, which renders chunks directly (S7).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="st-values-demo" style="max-width:720px">
+            <div class="panelbox">
+              <div class="srow"><div class="srow__main"><div class="srow__label">Follow-up behavior<span class="ss-srow-key">session.busy_input.default_mode</span></div></div><div class="srow__ctl"><div class="pill-group" role="radiogroup" aria-label="Follow-up behavior"><button class="pill-group__item" role="radio" aria-checked="false">Steer immediately</button><button class="pill-group__item is-on" role="radio" aria-checked="true">Queue until the turn ends</button></div><i class="ss-n">1</i></div></div>
+              <div class="srow"><div class="srow__main"><div class="srow__label">Smooth streaming<span class="ss-srow-key">this browser</span></div></div><div class="srow__ctl"><button class="switch" role="switch" aria-checked="false" aria-label="Smooth streaming"><span class="knob"></span></button><i class="ss-n">2</i></div></div>
+            </div>
+            <div style="margin-top:12px;display:flex;align-items:center;gap:10px"><span class="lab-cell__t">Composer hint after the change</span><span class="ss-hint" style="font-size:11px"><span class="kbd">⏎</span>queue<span class="alt"><span class="kbd">⌘⏎</span>steer</span></span></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Queue selected</b> <em>writes <code>default_mode = "queue"</code>; the next busy send uses it, in-flight sends don’t (US-003.EC-1)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Off</b> <em>switch off = elevated track, fg-strong knob (production)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>queue · smooth off</span><span class="ss-tag"><b>component</b>SessionsSettingsSection</span><span class="ss-tag"><b>VC</b>task_01/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SAVING ===== -->
+    <section class="lab-sec" id="st-saving" data-od-id="st-saving">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Saving — the control locks with its ink swapped, not dimmed</h2><span class="lab-sec__gist">GUIDE: disabled = token swap · US-003.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Follow-up behavior round-trips through the daemon, so it has a saving state; Smooth streaming is local and never does.</b> While the write is in flight the segments swap to the disabled ink and a spinner with “Saving…” sits beside the control. On failure the previous value returns and the row shows the reason in the production failure banner.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="st-saving-demo" style="max-width:720px;display:flex;flex-direction:column;gap:12px">
+            <div class="panelbox">
+              <div class="srow is-saving"><div class="srow__main"><div class="srow__label">Follow-up behavior<span class="ss-srow-key">session.busy_input.default_mode</span></div></div><div class="srow__ctl"><span class="ss-saving"><svg class="ss-spin" data-lucide="loader-circle"></svg>Saving…</span><div class="pill-group" role="radiogroup" aria-label="Follow-up behavior" aria-disabled="true"><button class="pill-group__item" role="radio" aria-checked="false" disabled>Steer immediately</button><button class="pill-group__item is-on" role="radio" aria-checked="true" disabled>Queue until the turn ends</button></div><i class="ss-n">1</i></div></div>
+              <div class="srow"><div class="srow__main"><div class="srow__label">Smooth streaming<span class="ss-srow-key">this browser</span></div></div><div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Smooth streaming"><span class="knob"></span></button></div></div>
+            </div>
+            <div class="notice notice--danger" role="alert"><svg data-lucide="circle-alert"></svg><span><b>Couldn’t save Follow-up behavior.</b> CompozyOS didn’t accept the change — the previous value is back.<span class="mono-id" style="margin-left:6px">config_write_failed</span></span><span class="notice__actions"><button class="btn btn--xs">Try again</button></span><i class="ss-n">2</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Saving</b> <em>segments in <code>--disabled</code> ink, the chosen one in muted · Spinner 12px + “Saving…” · pointer events off; no opacity</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Write failed</b> <em>ds-core notice danger (production ActionResultBanner) · value reverted · Try again</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>saving · failed</span><span class="ss-tag"><b>component</b>SessionsSettingsSection · ActionResultBanner</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PARITY ===== -->
+    <section class="lab-sec" id="st-parity" data-od-id="st-parity">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">One default, three surfaces</h2><span class="lab-sec__gist">_dx.md · CLI · native tools</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The setting is the daemon’s, so every surface reads it the same way.</b> The composer hint (S1) mirrors it live; <span class="mono">compozy session status</span> reports it under <span class="mono">busy_input.default_mode</span>; an agent driver sees it in <span class="mono">compozy__session_describe</span>. Explicit verbs and flags always override it for one send.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3" data-od-id="st-parity-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Composer (S1)</div><div class="plain" style="padding:10px 12px"><span class="ss-hint" style="font-size:11px"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">CLI</div><div class="plain" style="padding:10px 12px"><div class="ss-code" style="margin:0;font-size:11.5px">$ compozy session status dev-loop -o json | jq .busy_input
+{ "default_mode": "steer", "steer_delivery": "injected" }</div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">config.toml</div><div class="plain" style="padding:10px 12px"><div class="ss-code" style="margin:0;font-size:11.5px">[session.busy_input]
+default_mode = "steer"   # steer | queue
+queue_cap    = 10</div></div></div>
+          </div>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>parity</span><span class="ss-tag"><b>rule</b>no UI-only capability</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapter 12. Settings vocabulary from <span class="mono">design-system/settings.html</span> §06 (srow, panelbox, G-rules). Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

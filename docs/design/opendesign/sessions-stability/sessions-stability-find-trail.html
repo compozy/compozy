@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Find &amp; message trail · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-find-trail · S8 Find in conversation (SessionFindBar — new) +
+  S9 Message trail (SessionMessageTrail — new). Spec: _uiux.md S8/S9 · US-028, US-029.
+  Routes: GET …/transcript/search (full history) · GET …/transcript/outline (trail).
+  VC rows: task_08 VC-01..05.
+  Provenance:
+    production — SearchInput 28px canvas-soft + 12px glyph; Kbd; Button icon-xs; Command
+                 list row grammar (selected = elevated + fg-strong); Popover with `anchor`
+                 (no HoverCard exists — the trail card wraps Popover with a hover trigger);
+                 ::selection glaze = accent-tint-strong (reused for the active match);
+                 "Find in transcript ⌘F" already sits in the window menu (components.html).
+    spec      — bar docks under the head and never pushes the reading position; matches
+                 with context from the search route; jump loads older history and opens
+                 folds; trail = 2px ticks, width breathes, opacity encodes rest / in-view /
+                 anchor / focus; hover card = your message + the final reply.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ft-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Find &amp; message trail</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-timeline.html">← Timeline</a><a class="btn btn--sm" href="sessions-stability-settings.html">Next: Settings →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="ft-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S8 + S9 — two ways to move through a long session.</b> Find (⌘F) docks a bar under the window head, searches the whole history (not just what’s loaded), lists matches with context, and jumps — loading older turns and opening folds as needed. The trail is a thin rail on the left edge with one tick per message you sent; hover shows what you asked and what came back, click jumps there. Neither ever moves your reading position on its own.</p>
+        <p class="ss-contract__file">sessions-stability-find-trail.html · S8 · S9 · US-028 · US-029</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionFindBar</b><i>web/src/systems/session/components/session-find-bar.tsx</i>SearchInput + Kbd + Button icon-xs + Command-style result list; calls <code>transcript/search</code></span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionMessageTrail</b><i>web/src/systems/session/components/session-message-trail.tsx</i>positioned tick list over the scroller; Popover(anchor) hover card; reads <code>transcript/outline</code></span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>lib/transcript-find.ts · lib/message-trail.ts</b><i>web/src/systems/session/lib/</i>pure: match ranges, active index, tick layout (count-only, no measurement)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionThreadViewport</b><i>web/src/components/assistant-ui/session-thread-viewport.tsx</i>hosts the trail rail (left, 28px) and the bar slot above the scroller</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useThreadScrollController</b><i>web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts</i><code>scrollToMessage(id)</code> + <code>scrollToSequence(seq)</code> that respect ownership (S6)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionTurnFoldRow</b><i>web/src/systems/session/components/session-turn-fold-row.tsx</i>opens programmatically for a jump target</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>window menu · shortcuts</b><i>web/src/systems/os/**</i>“Find in transcript” routes to the bar; ⌘F scoped to the focused session window</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>SearchInput · Kbd · Button · Popover · Spinner</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#ft-open">Find — matches, active highlight, result list</a><code>task_08 VC-01</code></li>
+          <li><a href="#ft-none">Find — no matches · open-empty</a><code>task_08 VC-02</code></li>
+          <li><a href="#ft-fold">Jump into a folded turn</a><code>task_08 VC-03</code></li>
+          <li><a href="#ft-older">Searching older history · live appends</a><code>US-028.EC-1 · EC-2</code></li>
+          <li><a href="#ft-trail">Trail — few ticks, hover preview</a><code>task_08 VC-04</code></li>
+          <li><a href="#ft-dense">Trail — many ticks, scaled</a><code>task_08 VC-05</code></li>
+          <li><a href="#ft-active">Trail — anchor, jumped, streaming update</a><code>US-029.AC-2 · EC-2</code></li>
+          <li><a href="#ft-keys">Keyboard</a><code>US-028 · US-029</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · FIND OPEN ===== -->
+    <section class="lab-sec" id="ft-open" data-od-id="ft-open">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">⌘F — the bar docks under the head, matches light up, the list gives context</h2><span class="lab-sec__gist">US-028.AC-1 · task_08 VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A 40px bar, never an overlay that hides the conversation.</b> The field is the production 28px SearchInput; to its right the count (mono, “3 of 12”), previous / next, close. Typing queries the search route across the whole session; results appear in a list below the field with who said it, the snippet, and the time, and a small “folded” tag when the hit lives behind a fold. In the transcript every match wears a neutral glaze; the active one borrows the selection glaze. Enter steps, Shift+Enter steps back, Esc closes and returns focus to the composer.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ft-open-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="ft-open-win" style="--ss-win-h:560px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-find" role="search" aria-label="Find in conversation" data-od-id="ft-open-bar">
+                  <div class="ss-find__field"><svg data-lucide="search"></svg><input value="lifecycle" aria-label="Find in conversation" placeholder="Find in conversation"></div><i class="ss-n">1</i>
+                  <span class="ss-find__count" aria-live="polite">3 of 12</span><i class="ss-n">2</i>
+                  <div class="ss-find__nav"><button class="btn btn--ghost btn--icon" aria-label="Previous match (Shift+Enter)"><svg data-lucide="chevron-up"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Next match (Enter)"><svg data-lucide="chevron-down"></svg></button></div>
+                  <button class="btn btn--ghost btn--icon" aria-label="Close find (Esc)"><svg data-lucide="x"></svg></button>
+                  <div class="ss-find__list" role="listbox" aria-label="Matches" data-od-id="ft-open-list">
+                    <div class="ss-find__item" role="option" aria-selected="false"><span class="who">You</span><span class="snip">Only touch the <span class="ss-mark">lifecycle</span> tests, skip the store package</span><span class="when">14:03</span></div>
+                    <div class="ss-find__item" role="option" aria-selected="false"><span class="who">Claude Code</span><span class="snip">…retry path in manager_<span class="ss-mark">lifecycle</span>_test.go no longer depends on wall-clock sleeps<span class="fold">folded</span></span><span class="when">13:44</span></div>
+                    <div class="ss-find__item" role="option" aria-selected="true"><span class="who">Claude Code</span><span class="snip">…waits on the <span class="ss-mark ss-mark--active">lifecycle</span> channel instead</span><span class="when">13:44</span></div><i class="ss-n">3</i>
+                    <div class="ss-find__item" role="option" aria-selected="false"><span class="who">Tool</span><span class="snip">go test ./internal/session/... -run <span class="ss-mark">Lifecycle</span> -count=5<span class="fold">folded</span></span><span class="when">13:42</span></div>
+                    <div class="ss-find__item" role="option" aria-selected="false"><span class="who">You</span><span class="snip">Refactor the flaky manager tests — the <span class="ss-mark">lifecycle</span> ones first</span><span class="when">13:40</span></div>
+                  </div>
+                </div>
+                <div class="ss-thread ss-thread--rail"><div class="ss-thread__inner">
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests — the <span class="ss-mark">lifecycle</span> ones first</div></div>
+                    <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files<span class="fold" style="font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-left:6px">2 matches inside</span></summary></details>
+                    <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_<span class="ss-mark">lifecycle</span>_test.go</code> no longer depends on wall-clock sleeps; it waits on the <span class="ss-mark ss-mark--active">lifecycle</span> channel instead.</p></div><i class="ss-n">4</i>
+                  </div>
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Only touch the <span class="ss-mark">lifecycle</span> tests, skip the store package</div><span class="ss-msg-user__meta"><svg data-lucide="corner-down-right"></svg>Steered — delivered into the live turn</span></div>
+                  </div>
+                </div>
+                  <div class="ss-trail" role="navigation" aria-label="Message navigation" style="top:0">
+                    <div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="anchor" aria-label="Message 1: Refactor the flaky manager tests" aria-current="location"></button></div>
+                    <div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="in-view" aria-label="Message 2: Only touch the lifecycle tests"></button></div>
+                    <div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 3: Now make the same change in the store package"></button></div>
+                  </div>
+                </div>
+                <div class="ss-composer-zone"><div class="ss-composer"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>send</span></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div></div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Find field</b> <em>SearchInput 28px canvas-soft, 12px glyph · placeholder “Find in conversation” · seeds from the selection when opened over selected text</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Count</b> <em>mono 11px tabular “3 of 12”, <code>aria-live=polite</code> · counts the whole session, not the loaded window</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Result list</b> <em>Command-row grammar: who (eyebrow) · snippet with the match glazed · time · “folded” tag when behind a fold · selected = elevated + fg-strong</em></span></li>
+            <li><i class="ss-n">4</i><span><b>In-text marks</b> <em>neutral <code>bar-fill</code> glaze; active = <code>accent-tint-strong</code> + <code>accent-dim</code> ring (the ::selection pair) · the fold summary counts hidden matches</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>find open · matches</span><span class="ss-tag"><b>component</b>SessionFindBar</span><span class="ss-tag"><b>VC</b>task_08/VC-01</span><span class="ss-tag"><b>accent</b>active match only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · NO MATCHES ===== -->
+    <section class="lab-sec" id="ft-none" data-od-id="ft-none">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Nothing found — said plainly · the bar just opened</h2><span class="lab-sec__gist">US-028.AC-3 · task_08 VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Empty is a sentence, not a blank list.</b> The count reads “No matches”, the list holds one muted line with the query, and the step buttons are absent (nothing to step to). Before you type, the bar shows the field alone with the shortcut hints — no list, no count.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="ft-none-grid">
+            <div class="lab-cell"><div class="lab-cell__t">No matches for “sqlite”</div><div class="plain plain--flush" style="overflow:visible;position:relative;min-height:120px">
+              <div class="ss-find" role="search" aria-label="Find in conversation" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+                <div class="ss-find__field"><svg data-lucide="search"></svg><input value="sqlite" aria-label="Find in conversation"></div>
+                <span class="ss-find__count" aria-live="polite">No matches</span><i class="ss-n">1</i>
+                <button class="btn btn--ghost btn--icon" aria-label="Close find (Esc)"><svg data-lucide="x"></svg></button>
+                <div class="ss-find__list" role="listbox" aria-label="Matches"><div class="ss-find__empty">No matches for “sqlite” in this conversation.</div></div>
+              </div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Open, empty query</div><div class="plain plain--flush" style="overflow:visible;position:relative;min-height:120px">
+              <div class="ss-find" role="search" aria-label="Find in conversation" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+                <div class="ss-find__field"><svg data-lucide="search"></svg><input value="" aria-label="Find in conversation" placeholder="Find in conversation"></div>
+                <span class="ss-find__count"><span class="keys"><span class="kbd">⏎</span><span class="kbd">⇧⏎</span></span>step<span class="dotsep"></span><span class="kbd">Esc</span>close</span><i class="ss-n">2</i>
+                <button class="btn btn--ghost btn--icon" aria-label="Close find (Esc)"><svg data-lucide="x"></svg></button>
+              </div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Explicit empty</b> <em>count slot reads “No matches”; the list carries the query back in quotes; prev/next absent</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Open-empty</b> <em>the count slot shows the three keys (Kbd, one cap per binding) until the first character</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>no matches · open-empty</span><span class="ss-tag"><b>component</b>SessionFindBar</span><span class="ss-tag"><b>VC</b>task_08/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · FOLD ===== -->
+    <section class="lab-sec" id="ft-fold" data-od-id="ft-fold">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">The match is inside a folded turn — the fold opens for it</h2><span class="lab-sec__gist">US-028.AC-2 · task_08 VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Jumping never lands on a closed door.</b> Picking a result behind a fold opens that fold, scrolls the match into view under the bar (free mode — you own the position), and the fold row keeps a small note saying why it opened. Closing it by hand is one click, as always.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ft-fold-demo">
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+            <details class="ss-fold" open style="margin-top:8px"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files<span style="font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-left:6px">opened for a match</span><i class="ss-n">1</i></summary>
+              <div class="ss-fold__body">
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__name">Read file</span><span class="ss-tool__prev">internal/session/manager_<span class="ss-mark">lifecycle</span>_test.go · 412 lines</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/session/... -run <span class="ss-mark ss-mark--active">Lifecycle</span> -count=5</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div><i class="ss-n">2</i>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/session/manager_lifecycle_test.go</span><span class="ss-tool__stat"><span class="add">+41</span><span class="del">−27</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+              </div></details>
+            <div class="ss-prose"><p>Done — 14 tests updated.</p></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Fold opened by the jump</b> <em>“opened for a match” mono note · fold state is real UI state, so it stays open until you close it</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Active match in a tool preview</b> <em>same glaze inside mono text · tool previews are searchable (the route indexes tool rows)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>match inside fold</span><span class="ss-tag"><b>component</b>SessionFindBar · SessionTurnFoldRow</span><span class="ss-tag"><b>VC</b>task_08/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · OLDER + LIVE ===== -->
+    <section class="lab-sec" id="ft-older" data-od-id="ft-older">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Older history loads for a jump · new matches arrive without stealing focus</h2><span class="lab-sec__gist">US-028.EC-1 · US-028.EC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two quiet states in the count slot.</b> When the chosen match isn’t loaded yet, the slot shows a spinner and “Loading older…” while pages prepend with position preserved (S6). While the agent streams, new hits append to the end of the list and the count grows; the active match and your focus don’t move.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="ft-older-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Jump target not loaded yet</div><div class="plain plain--flush"><div class="ss-find" role="search" style="border-radius:var(--radius-lg)"><div class="ss-find__field"><svg data-lucide="search"></svg><input value="lifecycle" aria-label="Find in conversation"></div><span class="ss-find__count" aria-live="polite"><svg class="ss-spin" data-lucide="loader-circle"></svg>Loading older…<span class="dotsep"></span>9 of 12</span><i class="ss-n">1</i><div class="ss-find__nav"><button class="btn btn--ghost btn--icon" aria-label="Previous match"><svg data-lucide="chevron-up"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Next match"><svg data-lucide="chevron-down"></svg></button></div><button class="btn btn--ghost btn--icon" aria-label="Close find"><svg data-lucide="x"></svg></button></div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Streaming appended a match</div><div class="plain plain--flush"><div class="ss-find" role="search" style="border-radius:var(--radius-lg)"><div class="ss-find__field"><svg data-lucide="search"></svg><input value="lifecycle" aria-label="Find in conversation"></div><span class="ss-find__count" aria-live="polite">3 of 13<span class="dotsep"></span><span style="color:var(--faint)">+1 new</span></span><i class="ss-n">2</i><div class="ss-find__nav"><button class="btn btn--ghost btn--icon" aria-label="Previous match"><svg data-lucide="chevron-up"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Next match"><svg data-lucide="chevron-down"></svg></button></div><button class="btn btn--ghost btn--icon" aria-label="Close find"><svg data-lucide="x"></svg></button></div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Loading older</b> <em>Spinner 12px + words in the count slot · steps are blocked until the page lands (no jumping on a stale set)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Live append</b> <em>“+1 new” faint for 4s · list appends at the end · active index unchanged</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>searching older · live append</span><span class="ss-tag"><b>component</b>SessionFindBar</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · TRAIL ===== -->
+    <section class="lab-sec" id="ft-trail" data-od-id="ft-trail">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">The trail — one tick per message you sent, a card on hover</h2><span class="lab-sec__gist">US-029.AC-1 · task_08 VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A 28px rail on the scroller’s left edge, ticks 2px tall.</b> Rest ticks sit at 20% opacity; the ones for messages currently in view at 52%; the reading anchor (the last sent message at or above the top of the viewport) at 90% and wider; the one under your pointer at 100%. Width breathes toward the pointer like a dock — color never moves. The card is the outline entry: what you asked, then the final reply that turn produced. The rail appears at ≥864px pane width with two or more sent messages; below that it’s absent, not squeezed.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush" data-od-id="ft-trail-demo" style="position:relative;min-height:300px;padding:12px 16px 12px 36px;overflow:visible">
+            <div class="ss-trail" role="navigation" aria-label="Message navigation">
+              <div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="anchor" aria-current="location" aria-label="Message 1: Refactor the flaky manager tests"></button><i class="ss-n ss-n--abs" style="left:24px;top:-6px">1</i></div>
+              <div class="ss-trail__slot" data-show="true"><button class="ss-trail__tick" data-vis="in-view" style="width:18px;opacity:1" aria-label="Message 2: Only touch the lifecycle tests"></button>
+                <div class="ss-trail__card" role="tooltip"><div class="you">Only touch the lifecycle tests, skip the store package</div><div class="reply">Understood — the store package is untouched. The lifecycle tests now wait on the manager’s settle signal instead of sleeping; 14 updated, all green with -count=5.</div><div class="meta">14:03 · 2 of 6</div></div><i class="ss-n ss-n--abs" style="left:300px;top:-8px">2</i></div>
+              <div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="in-view" data-near="1" aria-label="Message 3: Now make the same change in the store package"></button></div>
+              <div class="ss-trail__slot"><button class="ss-trail__tick" data-near="2" aria-label="Message 4: Ship it with tests"></button></div>
+              <div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 5: Also update the changelog"></button></div>
+              <div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 6: Open a draft PR"></button><i class="ss-n ss-n--abs" style="left:24px;top:-6px">3</i></div>
+            </div>
+            <div class="ss-prose ss-prose--muted" style="font-size:13px"><p>(transcript continues to the right of the rail — the rail overlays the scroller’s left gutter; the content rail keeps its production inset, widened from 16 to 36px only while the trail is present)</p></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Anchor tick</b> <em>opacity .9, width 14px, <code>aria-current=location</code> · the last sent message at or above the viewport top</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Hover card</b> <em>Popover(anchor) with hover trigger · 256px · your message (12px, 510, 2 lines) + final reply (12px muted, 3 lines) + time · ordinal</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Rest tick</b> <em>2×6px, opacity .2 · width lerps to 12/9px for the two neighbours of the hovered tick (dock magnification)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>few ticks · hover</span><span class="ss-tag"><b>component</b>SessionMessageTrail</span><span class="ss-tag"><b>VC</b>task_08/VC-04</span><span class="ss-tag"><b>accent</b>none</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · DENSE ===== -->
+    <section class="lab-sec" id="ft-dense" data-od-id="ft-dense">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Sixty messages — the trail compresses instead of becoming a wall</h2><span class="lab-sec__gist">US-029.EC-1 · task_08 VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Layout depends only on the count.</b> Spacing shrinks from 9px to 3px as the count grows, capped at 80% of the pane height; beyond what fits, the ticks are distributed proportionally (every tick still has its own hit target, 8px tall). Magnification widens to a Gaussian window so a dense rail is still pickable. No ResizeObserver, no measurement loop.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3" data-od-id="ft-dense-grid">
+            <div class="lab-cell"><div class="lab-cell__t">6 messages · gap 9px</div><div class="plain" style="position:relative;min-height:220px;padding:0"><div class="ss-trail" role="navigation" aria-label="Message navigation" id="ft-trail-6"></div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">24 messages · gap 5px</div><div class="plain" style="position:relative;min-height:220px;padding:0"><div class="ss-trail" role="navigation" aria-label="Message navigation" id="ft-trail-24" style="gap:5px"></div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">60 messages · gap 3px, magnified around the pointer</div><div class="plain" style="position:relative;min-height:220px;padding:0"><div class="ss-trail ss-trail--dense" role="navigation" aria-label="Message navigation" id="ft-trail-60"></div><i class="ss-n ss-n--abs" style="left:40px;top:96px">1</i></div></div>
+          </div>
+          <ul class="ss-legend ss-legend--1">
+            <li><i class="ss-n">1</i><span><b>Dense magnification</b> <em>σ = clamp(spacing × 1.5, 8, 22) · widths lerp 6→18px across the window · opacity stays per-state (hover the rail to see it)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>many ticks · scaled</span><span class="ss-tag"><b>component</b>SessionMessageTrail · lib/message-trail.ts</span><span class="ss-tag"><b>VC</b>task_08/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · ACTIVE / STREAMING ===== -->
+    <section class="lab-sec" id="ft-active" data-od-id="ft-active">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Click jumps — respecting who owns the scroll · a new turn adds a tick without a shift</h2><span class="lab-sec__gist">US-029.EC-2 · US-029.AC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A jump is a manual navigation: the scroller goes to free mode and stays there.</b> The target bubble lands 16px under the top; the tick becomes the anchor. While streaming, a new sent message appends a tick at the end of the rail; existing ticks keep their positions (spacing only recomputes when the count crosses a threshold, and then all at once, in a 90ms transition — none under reduced motion).</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="ft-active-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Just jumped to message 4</div><div class="plain" style="position:relative;min-height:170px;padding:12px 16px 12px 40px"><div class="ss-trail" role="navigation" aria-label="Message navigation"><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 1"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 2"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 3"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="anchor" aria-current="location" aria-label="Message 4: Ship it with tests"></button><i class="ss-n ss-n--abs" style="left:24px;top:-6px">1</i></div><div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="in-view" aria-label="Message 5"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 6"></button></div></div>
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble ss-anchor-mark">Ship it with tests</div><span class="ss-msg-user__meta"><svg data-lucide="list-plus"></svg>From the queue<span class="dotsep"></span>was #1</span></div>
+              <div class="ss-prose ss-prose--muted" style="margin-top:8px;font-size:13px"><p>The gate is green locally…</p></div>
+              <button class="ss-jump" aria-label="Scroll to latest"><svg data-lucide="arrow-down"></svg></button></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Streaming — 7th message appended</div><div class="plain" style="position:relative;min-height:170px;padding:12px 16px 12px 40px"><div class="ss-trail" role="navigation" aria-label="Message navigation"><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 1"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 2"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 3"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 4"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" aria-label="Message 5"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="in-view" aria-label="Message 6"></button></div><div class="ss-trail__slot"><button class="ss-trail__tick" data-vis="anchor" aria-current="location" aria-label="Message 7: Open a draft PR"></button><i class="ss-n ss-n--abs" style="left:24px;top:-6px">2</i></div></div>
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Open a draft PR when the gate is green</div></div>
+              <div class="ss-status" role="status" style="margin-top:8px"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div></div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Jumped tick = anchor</b> <em>the scroller is now free-scrolling; the jump pill appears; streaming can’t tug (S6)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Appended tick</b> <em>new entry from the outline route · previous ticks don’t move · the reply preview fills in when the turn settles</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>jumped · streaming append</span><span class="ss-tag"><b>component</b>SessionMessageTrail · useThreadScrollController</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · KEYBOARD ===== -->
+    <section class="lab-sec" id="ft-keys" data-od-id="ft-keys">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Keyboard</h2><span class="lab-sec__gist">US-028 · US-029 · one cap per binding</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Find uses the standard shortcut; the trail is one roving tab stop.</b> Nothing here invents a chord that the OS shell doesn’t already reserve.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="ft-keys-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Find</div><div class="plain" style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--muted)">
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">⌘F</span>Open find in the focused session window · seeds the field from selected text</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">⏎</span>Next match<span class="dotsep"></span><span class="kbd">⇧⏎</span>Previous match</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">Esc</span>Close · focus returns to the composer</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">↑</span><span class="kbd">↓</span>Move the selection in the result list without jumping</div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Trail</div><div class="plain" style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--muted)">
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">Tab</span>Enters the rail on the anchor tick (one tab stop)</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">↑</span><span class="kbd">↓</span>Move between ticks · the card follows focus</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">Home</span><span class="kbd">End</span>First / last message</div>
+              <div style="display:flex;align-items:center;gap:10px"><span class="kbd">⏎</span><span class="kbd">Space</span>Jump<span class="dotsep"></span><span class="kbd">Esc</span>Leave the rail</div>
+            </div></div>
+          </div>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>keyboard</span><span class="ss-tag"><b>component</b>SessionFindBar · SessionMessageTrail</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapters 10–11. Match ink reuses the <span class="mono">::selection</span> pair; ticks use <span class="mono">--fg</span> at four opacities, never a hue. Other boards in this set omit the trail rail to keep their subject in focus — in production it is present on every session window that qualifies. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+  if(window.lucide) window.lucide.createIcons();
+  function build(id,n,anchor){
+    var rail=document.getElementById(id); if(!rail) return;
+    for(var i=0;i<n;i++){ var slot=document.createElement('div'); slot.className='ss-trail__slot'; var b=document.createElement('button'); b.className='ss-trail__tick'; b.setAttribute('aria-label','Message '+(i+1)); if(i===anchor){b.setAttribute('data-vis','anchor');b.setAttribute('aria-current','location');} else if(i>anchor&&i<anchor+3){b.setAttribute('data-vis','in-view');} slot.appendChild(b); rail.appendChild(slot); }
+    // dock-style magnification: width follows pointer distance, opacity does not
+    var ticks=rail.querySelectorAll('.ss-trail__tick'); var gap=parseFloat(getComputedStyle(rail).gap)||9; var sigma=Math.min(22,Math.max(Math.min(gap*2,8),gap*1.5));
+    rail.addEventListener('mousemove',function(e){ ticks.forEach(function(t){ var r=t.getBoundingClientRect(); var d=Math.abs(e.clientY-(r.top+r.height/2)); var w=6+12*Math.exp(-(d*d)/(2*sigma*sigma)); t.style.width=w.toFixed(1)+'px'; }); });
+    rail.addEventListener('mouseleave',function(){ ticks.forEach(function(t){ t.style.width=''; }); });
+  }
+  build('ft-trail-6',6,1); build('ft-trail-24',24,5); build('ft-trail-60',60,21);
+})();
+</script>
+</body>
+</html>

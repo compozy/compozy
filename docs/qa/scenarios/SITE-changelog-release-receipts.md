@@ -7,7 +7,7 @@ journey: J-evaluate-compozy-beta
 expected: '`/changelog` lists only published GitHub releases from `v0.3.0-beta.1` onward with the exact version as each title; every version page preserves the complete release notes and real categories, compares from the closest lower semantic version, links referenced pull requests, attributes unique human contributors, exposes release assets, and refreshes within five minutes.'
 entry_points: compozy.com `/changelog`, `/changelog/<version>`, `/changelog/feed.xml`, GitHub Releases
 qa_status: fail
-bug_ids: BUG-20260901-site-search-catalog-files-missing
+bug_ids: BUG-20260901-site-search-catalog-files-missing; BUG-20260901-changelog-deploy-prerender-unavailable
 fix_status: pending
 retest_status:
 fix_commits:

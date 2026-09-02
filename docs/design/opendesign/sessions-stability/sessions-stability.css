@@ -1,0 +1,549 @@
+/* ============================================================
+   SESSIONS STABILITY — sessions-stability.css
+   Domain lane for the seven boards under opendesign/sessions-stability/.
+   Depends on ../design-system/ds-core.css + ds-shell.css (linked first,
+   never rebound here). Spec: .compozy/tasks/sessions-stability/_uiux.md
+   (S1–S10) · ADR-003/006/007/008/009 · contract: DESIGN-NOTES.md.
+
+   Naming rule: every product class here is prefixed `ss-` and named
+   after the production component it renders (PARITY.md convention):
+     .ss-composer*      → web/src/components/assistant-ui/session-composer*.tsx
+     .ss-queue*         → SessionQueueStrip (rework of session-composer-queued-prompts.tsx)
+     .ss-status*        → SessionThinkingRow / session-working-row.tsx
+     .ss-transport*     → SessionTransportChip (new)
+     .ss-tool*          → SessionLiveToolRow / SessionToolGroupRow (new)
+     .ss-fold*          → SessionTurnFoldRow (new)
+     .ss-find*          → SessionFindBar (new)
+     .ss-trail*         → SessionMessageTrail (new)
+   Lab chrome (contract block, callouts, legend, stage) is prefixed
+   `lab-` / `ss-contract` / `ss-n` / `ss-legend` and is NEVER product UI.
+
+   Provenance per chapter: production / spec <id> / authorized delta.
+   Color = state, never decoration. Shimmer + prose reveal are the only
+   cadence motion; both die under reduced-motion (ADR-008).
+   ============================================================ */
+
+/* ============ 00 · LAB SCAFFOLD ============
+   Provenance: copied verbatim from agent-comms.css (itself from the
+   retired graph-eng set). This set owns its copy so boards never link
+   into another domain lane. */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 44px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.spec{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11.5px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:12px;margin-bottom:3px;color:var(--fg-strong)}
+.spec__note code{font-family:var(--font-mono);font-size:10px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--auto{min-height:0}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+.stage .win{position:relative;animation:none}
+.stage--pad > .win{width:min(var(--ss-win-w,860px),100%)}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.plain--flush{padding:0;overflow:hidden}
+.lab-foot{font-size:11px;line-height:1.6;color:var(--faint);border-top:1px solid var(--line-soft);padding-top:14px;max-width:72ch}
+.lab-grid{display:grid;gap:12px}
+.lab-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lab-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lab-cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lab-cell__t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px}
+.lab-cell__t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+  .lab-grid--2,.lab-grid--3{grid-template-columns:1fr}
+}
+
+/* ============ 01 · BOARD CONTRACT (lab chrome — the "what is this board" block) ============
+   Authorized delta vs older sets: every board opens with one block that
+   says, in plain words, (a) what the surface is and what changes for the
+   operator, (b) which production components it modifies / adds / reuses
+   unchanged, (c) the states on the board with their Visual Contract ids.
+   Reviewers read this before any specimen. */
+.ss-contract{
+  display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.9fr);gap:0;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+  margin:0 0 32px;overflow:hidden;
+}
+.ss-contract__col{padding:16px 18px;min-width:0}
+.ss-contract__col + .ss-contract__col{border-left:1px solid var(--line-soft)}
+.ss-contract__col .eyebrow{display:block;margin-bottom:8px}
+.ss-contract__what{font-size:var(--text-small-body);line-height:1.55;color:var(--fg);max-width:48ch;text-wrap:pretty}
+.ss-contract__what b{color:var(--fg-strong);font-weight:600}
+.ss-contract__file{margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.ss-mods{display:flex;flex-direction:column;gap:6px}
+.ss-mods li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.ss-mods li b{display:block;font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg);letter-spacing:0}
+.ss-mods li i{display:block;font-style:normal;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);overflow-wrap:anywhere}
+.ss-mods li span{display:block}
+/* verb chips: modify / new / reuse / delete — neutral + the two meaningful tones */
+.ss-mod{
+  display:inline-flex;align-items:center;justify-content:center;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--neutral-tint);color:var(--neutral-ink);box-shadow:var(--shadow-hairline-inset);
+}
+.ss-mod--new{background:var(--success-tint);color:var(--success)}
+.ss-mod--modify{background:var(--info-tint);color:var(--info)}
+.ss-mod--delete{background:var(--danger-tint);color:var(--danger)}
+.ss-mod--reuse{background:var(--neutral-tint);color:var(--subtle)}
+.ss-states{display:flex;flex-direction:column;gap:4px;counter-reset:st}
+.ss-states li{display:flex;align-items:baseline;gap:8px;font-size:11.5px;line-height:1.5}
+.ss-states li a{color:var(--fg);border-radius:var(--radius-xxs)}
+.ss-states li a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.ss-states li::before{counter-increment:st;content:counter(st,decimal-leading-zero);font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;width:18px}
+.ss-states li code{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);white-space:nowrap}
+@media (max-width:960px){.ss-contract{grid-template-columns:1fr}.ss-contract__col + .ss-contract__col{border-left:0;border-top:1px solid var(--line-soft)}}
+
+/* ---- numbered callouts inside a specimen + legend below it ----
+   Markers are annotation ink (inverted plate) so they never read as product
+   chrome; they flow inline next to the element they name. */
+.ss-n{
+  display:inline-grid;place-items:center;width:15px;height:15px;flex:none;
+  border-radius:var(--radius-xxs);background:var(--fg-strong);color:var(--canvas);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:1;letter-spacing:0;
+  vertical-align:middle;margin:0 4px;pointer-events:none;user-select:none;
+}
+.ss-n--abs{position:absolute;margin:0;z-index:4}
+.ss-legend{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;
+  margin-top:10px;padding:10px 12px;border-radius:var(--radius-md);
+  background:var(--canvas-soft);border:1px solid var(--line-soft);
+}
+.ss-legend li{display:grid;grid-template-columns:15px minmax(0,1fr);gap:8px;align-items:start;font-size:11px;line-height:1.5;color:var(--muted)}
+.ss-legend li .ss-n{margin:2px 0 0}
+.ss-legend li b{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg);letter-spacing:0}
+.ss-legend li em{font-style:normal;color:var(--subtle)}
+.ss-legend--1{grid-template-columns:1fr}
+@media (max-width:760px){.ss-legend{grid-template-columns:1fr}}
+
+/* state strip under a specimen: component · state · VC id (mono, faint) */
+.ss-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ss-tag{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--radius-xs);
+  font-family:var(--font-mono);font-size:9.5px;color:var(--subtle);background:var(--badge-fill)}
+.ss-tag b{font-weight:600;color:var(--faint);letter-spacing:.04em;text-transform:uppercase;font-size:8.5px}
+
+/* ============ 02 · SESSION WINDOW HOST ============
+   Provenance: production — web/src/systems/os/apps/session/session-window-content.tsx
+   (notice slot → thread → status row → composer), session-thread-viewport.tsx
+   (scroller, ThreadContentRail px-4), use-session-topbar-slot.tsx (7px state dot,
+   title crumb, SessionStatusLine agent · provider). Frame = ds-shell .win (44px head). */
+:root{--ss-win-w:860px;--ss-win-h:560px;--ss-chat-fill-user:var(--row-hover)}
+.ss-win{width:min(var(--ss-win-w),100%);height:var(--ss-win-h);display:flex;flex-direction:column}
+.ss-win .win-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;position:relative;background:var(--canvas)}
+.ss-win .win-head .w2-id{gap:8px}
+.ss-head-meta{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:var(--text-eyebrow);color:var(--muted);white-space:nowrap}
+.ss-head-meta .prov{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--faint)}
+.ss-head-meta .word{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--subtle)}
+[data-status="running"] .ss-head-meta .word{color:var(--accent-strong)}
+[data-status="stopping"] .ss-head-meta .word{color:var(--warning)}
+[data-status="stopped"] .ss-head-meta .word{color:var(--subtle)}
+[data-status="failed"] .ss-head-meta .word{color:var(--danger)}
+/* badge token `stopping` — new · spec US-009 (session-badge.ts has no such token; today it
+   falls back to `running`). Ring shape + pulse: motion says "in flight", the word carries it. */
+[data-status="stopping"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--warning);animation:ss-ring-pulse 1.6s var(--ease) infinite}
+@keyframes ss-ring-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.ss-win .w2-actions .btn--icon{width:24px;height:24px;padding:0;border-radius:var(--radius)}
+.ss-win .w2-actions .btn--icon svg{width:13px;height:13px}
+/* window content column */
+.ss-notice-slot{flex:none;padding:10px 16px 0}
+.ss-thread{position:relative;flex:1;min-height:0;overflow-y:auto;padding:12px 16px 4px;scrollbar-gutter:stable}
+.ss-thread--rail{padding-left:36px}
+.ss-thread__inner{display:flex;flex-direction:column;gap:0;min-height:100%}
+.ss-below{flex:none;padding:8px 16px 0}
+.ss-composer-zone{flex:none;padding:6px 16px 16px;background:var(--canvas)}
+/* generic 12px glyph + spinner (lucide loader) */
+.ss-spin{width:12px;height:12px;flex:none;animation:ss-spin 1s linear infinite;color:inherit}
+@keyframes ss-spin{to{transform:rotate(360deg)}}
+/* text shimmer — production web/src/styles.css .session-shimmer (ThinkingBlock live label).
+   Candidate promotion to @compozy/ui `ShimmerText` (packages/ui has only the block sweep). */
+.ss-shimmer{
+  background:linear-gradient(90deg,var(--subtle) 0%,var(--subtle) 35%,var(--fg-strong) 50%,var(--subtle) 65%,var(--subtle) 100%);
+  background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:ss-shimmer 2s linear infinite;
+}
+@keyframes ss-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+/* reduced-motion: cadence dies, the words stay */
+@media (prefers-reduced-motion:reduce){
+  .ss-shimmer{animation:none;background:none;color:var(--subtle)}
+  .ss-spin{animation:none}
+  [data-status="stopping"] .status-dot{animation:none}
+}
+/* forced reduced-motion for the artboard's side-by-side specimen */
+.ss-rm .ss-shimmer{animation:none;background:none;color:var(--subtle)}
+.ss-rm .ss-spin{animation:none}
+.ss-rm .ss-dots i{animation:none;opacity:.7}
+.ss-rm [data-status="stopping"] .status-dot{animation:none}
+
+/* ============ 03 · TRANSCRIPT ROWS ============
+   Provenance: production — session-user-message.tsx (right-aligned bubble, bg-chat-fill-user,
+   rounded-lg 14, px-3 py-7, 13.5px, max-w 80%), session-assistant-message.tsx (bare column,
+   no avatar/bubble), packages/ui StreamMarkdown (15px/1.55 prose, 72ch), Marker (22px row,
+   12px, 7px gap, glyph-only tone). Deltas are annotated inline. */
+.ss-turn{display:flex;flex-direction:column;gap:7px;padding:4px 0 18px}
+.ss-turn--tight{padding-bottom:10px}
+.ss-msg-user{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:4px}
+.ss-msg-user__bubble{
+  width:fit-content;max-width:80%;min-width:0;padding:7px 12px;border-radius:var(--radius-lg);
+  background:var(--ss-chat-fill-user);font-size:var(--text-small-body);line-height:1.5;color:var(--fg);overflow-wrap:anywhere;
+}
+.ss-msg-user__meta{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--subtle);padding-right:2px}
+.ss-msg-user__meta svg{width:12px;height:12px;color:var(--faint)}
+.ss-msg-user--superseded .ss-msg-user__bubble{color:var(--subtle)}
+.ss-msg-user--superseded .ss-msg-user__meta{color:var(--faint)}
+.ss-prose{font-size:var(--text-card-title);line-height:1.55;color:var(--fg);max-width:72ch}
+.ss-prose p+p{margin-top:8px}
+.ss-prose code{font-family:var(--font-mono);font-size:var(--text-form);background:var(--surface-glaze);border-radius:var(--radius-xxs);padding:1px 4px;color:var(--fg-strong)}
+.ss-prose--muted{color:var(--muted)}
+.ss-code{
+  margin:8px 0;padding:10px 12px;border-radius:var(--radius-md);background:var(--canvas);
+  font-family:var(--font-mono);font-size:var(--text-code);line-height:1.5;color:var(--fg);overflow-x:auto;white-space:pre;
+}
+/* markers — packages/ui Marker: min-h 22, gap 7, 12px, subtle; glyph carries tone; <b> = muted/510 */
+.ss-marker{display:flex;align-items:flex-start;gap:7px;min-height:22px;padding:2px 4px;font-size:var(--text-eyebrow);line-height:1.5;color:var(--subtle)}
+.ss-marker svg{width:12px;height:12px;flex:none;margin-top:2px;color:var(--faint)}
+.ss-marker b{font-weight:510;color:var(--muted)}
+.ss-marker[data-tone="danger"] svg{color:var(--danger)}
+.ss-marker[data-tone="warning"] svg{color:var(--warning)}
+.ss-marker[data-tone="info"] svg{color:var(--info)}
+.ss-marker .mono-id{margin-left:2px}
+.ss-marker__act{margin-left:6px;color:var(--muted);text-decoration:underline;text-underline-offset:2px;border-radius:var(--radius-xxs)}
+.ss-marker__act:hover{color:var(--fg-strong)}
+.ss-marker__list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.ss-marker__list li{color:var(--subtle)}
+.ss-marker__list li::before{content:"·";margin-right:6px;color:var(--faint)}
+
+/* ============ 04 · STATUS ROW (SessionThinkingRow / session-working-row.tsx) ============
+   Provenance: production — WorkingIndicator: role=status, min-h 22, gap 8, px-1 py-0.5,
+   11.5px subtle, TypingDots (3×4px) + "Working for 12s" (tabular). Rendered once between
+   the scroller and the composer. Delta (spec S3/ADR-006): thinking shimmer, "· Running {tool}",
+   "· 2 agents running", "Stopped after {duration}" warning-toned, quiet-warning wording. */
+.ss-status{display:flex;align-items:center;gap:7px;min-height:22px;padding:2px 4px;font-size:var(--text-transcript-meta,11.5px);color:var(--subtle);font-variant-numeric:tabular-nums}
+.ss-status svg{width:12px;height:12px;flex:none;color:var(--faint)}
+.ss-status .sep{color:var(--faint)}
+.ss-status b{font-weight:510;color:var(--muted)}
+.ss-status--stopped{color:var(--warning)}
+.ss-status--stopped svg{color:var(--warning)}
+.ss-status--stopped b{color:var(--warning)}
+.ss-status--failed{color:var(--danger)}
+.ss-status--failed svg{color:var(--danger)}
+.ss-dots{display:inline-flex;align-items:center;gap:3px;height:10px}
+.ss-dots i{width:4px;height:4px;border-radius:50%;background:var(--subtle);animation:ss-dots 1.2s ease-in-out infinite}
+.ss-dots i:nth-child(2){animation-delay:.15s}
+.ss-dots i:nth-child(3){animation-delay:.3s}
+@keyframes ss-dots{0%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+@media (prefers-reduced-motion:reduce){.ss-dots i{animation:none;opacity:.7}}
+
+/* ============ 05 · TRANSPORT CHIP (SessionTransportChip — new) ============
+   Composed from @compozy/ui Pill (tone info/neutral, size sm 20px) + Spinner 12px.
+   Lives at the head's trailing edge (patterns.html §05 U3 slot); absent while live. */
+.ss-transport{
+  display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:var(--radius-pill);
+  font-size:var(--text-eyebrow);font-weight:510;letter-spacing:var(--track-eyebrow);line-height:1;white-space:nowrap;
+  background:var(--info-tint);color:var(--info);
+}
+.ss-transport svg{width:12px;height:12px}
+.ss-transport .n{font-family:var(--font-mono);font-size:var(--text-mono-id);font-weight:600;letter-spacing:0}
+.ss-transport[data-phase="paused"]{background:var(--neutral-tint);color:var(--neutral-ink)}
+.ss-transport[data-phase="failed"]{background:var(--danger-tint);color:var(--danger)}
+/* sync-failed pane — production ThreadStatePane geometry; copy is the new sync-failure sentence */
+.ss-syncfail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;flex:1;min-height:220px;text-align:center;padding:24px}
+.ss-syncfail__ic{width:34px;height:34px;border-radius:var(--radius-md);display:grid;place-items:center;background:var(--canvas-soft);color:var(--subtle)}
+.ss-syncfail__ic svg{width:16px;height:16px}
+.ss-syncfail__t{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.ss-syncfail__d{font-size:var(--text-eyebrow);color:var(--muted);max-width:44ch;text-wrap:pretty}
+.ss-loading{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-height:220px;font-size:var(--text-small-body);color:var(--subtle)}
+
+/* ============ 06 · TOOL ROWS (SessionLiveToolRow / SessionToolGroupRow — new; ToolCallRow reused) ============
+   Provenance: production packages/ui ToolCallRow — min-h 24, gap 6, px-1, radius sm, 13.5px;
+   icon well 20 (glyph 14, stroke 1.75, subtle); name 510 muted; preview mono subtle truncate;
+   chevron 12 rotates 90; hover bg-hover; expanded body ml-28 border-l line pl-12 max-h 256.
+   Two axes only (ADR-009): kind = left glyph; status = motion (live) / muted (settled) /
+   trailing glyph; danger only when the failure ended the turn. */
+.ss-tool{
+  position:relative;display:flex;align-items:center;gap:6px;min-height:24px;padding:0 4px;border-radius:var(--radius-sm);
+  font-size:var(--text-small-body);color:var(--muted);min-width:0;
+  transition:background var(--dur) var(--ease);
+}
+.ss-tool:hover{background:var(--row-hover)}
+.ss-tool__well{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xs)}
+.ss-tool__well svg{width:14px;height:14px;color:var(--subtle)}
+.ss-tool__name{flex:none;font-weight:510;color:var(--muted)}
+.ss-tool__prev{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);font-size:var(--text-form);color:var(--subtle)}
+.ss-tool__stat{flex:none;display:inline-flex;gap:4px;font-family:var(--font-mono);font-size:var(--text-transcript-caption,11px);color:var(--subtle);font-variant-numeric:tabular-nums}
+.ss-tool__stat .add{color:var(--success)}.ss-tool__stat .del{color:var(--danger)}
+.ss-tool__state{flex:none;display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint)}
+.ss-tool__state svg{width:12px;height:12px;color:var(--subtle)}
+.ss-tool__state[data-tone="danger"] svg,.ss-tool__state[data-tone="danger"]{color:var(--danger)}
+.ss-tool__chev{width:12px;height:12px;flex:none;color:var(--subtle);opacity:0;transition:transform var(--dur) var(--ease),opacity var(--dur-fast)}
+.ss-tool:hover .ss-tool__chev,.ss-tool[aria-expanded="true"] .ss-tool__chev{opacity:1}
+.ss-tool[aria-expanded="true"] .ss-tool__chev{transform:rotate(90deg)}
+/* live = the one row that replaces itself; label shimmers, kind glyph brightens one step */
+.ss-tool--live .ss-tool__name,.ss-tool--live .ss-tool__prev{font-family:var(--font-sans);font-size:var(--text-small-body)}
+.ss-tool--live .ss-tool__label{display:inline;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.ss-tool--live .ss-tool__well svg{color:var(--muted)}
+/* settled = one step quieter than live; failed-but-absorbed keeps the same ink, glyph says so */
+.ss-tool--settled .ss-tool__name{color:var(--subtle)}
+.ss-tool--settled .ss-tool__well svg{color:var(--faint)}
+/* expanded body (production geometry) */
+.ss-tool__body{margin:4px 0 6px 28px;padding-left:12px;border-left:1px solid var(--line);max-height:256px;overflow:auto;font-family:var(--font-mono);font-size:var(--text-form);line-height:1.6;color:var(--muted);white-space:pre-wrap}
+.ss-tool__body .ctx{color:var(--subtle)}.ss-tool__body .add{color:var(--success)}.ss-tool__body .del{color:var(--danger)}
+.ss-tool__trunc{display:flex;align-items:center;gap:8px;margin:4px 0 6px 28px;padding:6px 10px;border-radius:var(--radius-sm);background:var(--canvas-soft);font-size:11.5px;color:var(--subtle)}
+.ss-tool__trunc .spacer{flex:1}
+/* group row — settled tools of the live turn (≥2), or the settled-turn fold body */
+.ss-group{display:flex;flex-direction:column;min-width:0}
+.ss-group__head{
+  display:flex;align-items:center;gap:6px;min-height:24px;padding:0 4px;border-radius:var(--radius-sm);width:100%;text-align:left;
+  font-size:var(--text-eyebrow);color:var(--subtle);cursor:pointer;list-style:none;
+  transition:color var(--dur-fast) var(--ease),background var(--dur) var(--ease);
+}
+.ss-group__head::-webkit-details-marker{display:none}
+.ss-group__head:hover{color:var(--fg);background:var(--row-hover)}
+.ss-group__head .ss-tool__well{width:20px;height:20px}
+.ss-group__head .ss-tool__well svg{width:12px;height:12px;color:var(--faint)}
+.ss-group__chev{width:12px;height:12px;color:var(--subtle);opacity:0;transition:transform var(--dur) var(--ease),opacity var(--dur-fast)}
+.ss-group__head:hover .ss-group__chev,details[open]>.ss-group__head .ss-group__chev{opacity:1}
+details[open]>.ss-group__head .ss-group__chev{transform:rotate(90deg)}
+.ss-group__body{display:flex;flex-direction:column;gap:2px;padding:2px 0 4px 25px}
+.ss-group__fail{color:var(--subtle)}
+/* turn fold — production session-timeline-render.tsx `turn-fold`: mb-10 border-b line pb-6;
+   label px-1 12px subtle tabular. Interrupted: production paints danger; spec ADR-009 → warning. */
+.ss-fold{display:flex;flex-direction:column;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.ss-fold__head{display:flex;align-items:center;gap:6px;width:fit-content;min-height:22px;padding:0 4px;border-radius:var(--radius-xs);font-size:var(--text-eyebrow);color:var(--subtle);font-variant-numeric:tabular-nums;cursor:pointer;list-style:none;transition:color var(--dur-fast)}
+.ss-fold__head::-webkit-details-marker{display:none}
+.ss-fold__head:hover{color:var(--fg)}
+.ss-fold__head svg{width:12px;height:12px;flex:none}
+.ss-fold__chev{color:var(--faint);transition:transform var(--dur) var(--ease)}
+details[open]>.ss-fold__head .ss-fold__chev{transform:rotate(90deg)}
+.ss-fold__body{display:flex;flex-direction:column;gap:2px;padding:4px 0 2px}
+.ss-fold--stopped{border-bottom-color:var(--line)}
+.ss-fold--stopped .ss-fold__head{color:var(--warning);cursor:default}
+.ss-fold--stopped .ss-fold__head svg{color:var(--warning)}
+.ss-fold--failed .ss-fold__head{color:var(--danger)}
+.ss-fold--failed .ss-fold__head svg{color:var(--danger)}
+
+/* ============ 07 · QUEUE STRIP (SessionQueueStrip — rework of session-composer-queued-prompts.tsx) ============
+   Provenance: production — container rounded-t-lg(14) border border-b-0 line bg-elevated fused
+   to the composer (composer drops its top radius); rows min-h 32, gap 8, py-3 pr-7 pl-12,
+   ListPlus 12px faint, preview 12px muted truncate, ghost sm Steer + Pencil + Trash2.
+   Delta (spec S2 / ADR-003): header with count + explicit Clear all; position; owner;
+   dispatching / unconfirmed+Retry (client-local) / editing; inline clear confirmation. */
+.ss-queue{display:flex;flex-direction:column;border:1px solid var(--line);border-bottom:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--elevated);overflow:hidden}
+.ss-queue__head{display:flex;align-items:center;gap:8px;height:28px;padding:0 6px 0 12px;font-size:var(--text-eyebrow);color:var(--subtle);border-bottom:1px solid var(--line-soft)}
+.ss-queue__head .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.ss-queue__head .spacer{flex:1}
+.ss-queue__row{display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 7px 3px 12px;min-width:0}
+.ss-queue__row+.ss-queue__row{border-top:1px solid var(--line-soft)}
+.ss-queue__pos{flex:none;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint);font-variant-numeric:tabular-nums;min-width:14px}
+.ss-queue__kind{width:12px;height:12px;flex:none;color:var(--faint)}
+.ss-queue__owner{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:11.5px;color:var(--muted)}
+.ss-queue__prev{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-eyebrow);color:var(--muted)}
+.ss-queue__prev .cb{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px;margin-right:6px}
+.ss-queue__acts{display:flex;align-items:center;gap:1px;flex:none}
+.ss-queue__state{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.ss-queue__state svg{width:12px;height:12px}
+.ss-queue__retry{color:var(--accent-strong)}
+.ss-queue__retry:hover{background:var(--accent-tint);color:var(--accent-strong)}
+/* editing row: the preview becomes the field; Save / Cancel replace the actions */
+.ss-queue__row--editing{align-items:stretch;flex-direction:column;gap:6px;padding:8px 8px 8px 12px}
+.ss-queue__edit{display:flex;gap:8px;align-items:flex-start}
+.ss-queue__edit textarea{flex:1;min-height:36px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--input-fill);font-size:var(--text-small-body);line-height:1.5;resize:vertical}
+.ss-queue__edit textarea:focus{outline:none;border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.ss-queue__editacts{display:flex;gap:6px;justify-content:flex-end}
+/* clear-all inline confirm replaces the header line */
+.ss-queue__confirm{display:flex;align-items:center;gap:8px;height:32px;padding:0 6px 0 12px;font-size:var(--text-eyebrow);color:var(--fg);background:var(--canvas-tint);border-bottom:1px solid var(--line-soft)}
+.ss-queue__confirm .spacer{flex:1}
+/* other-actor rows are read-only for you when policy says so: actions absent, not disabled */
+.ss-queue__row[data-owner="agent"] .ss-queue__owner .agent-avatar{width:16px;height:16px;flex-basis:16px;font-size:7px}
+
+/* ============ 08 · COMPOSER (session-composer.tsx + session-composer-action-row.tsx) ============
+   Provenance: production — card rounded-lg(14) border line bg-elevated shadow-highlight,
+   pad 11/10/8/14, gap 7, hover border-line-strong, focus-within border-accent-dim; input
+   13.5px min-h 24 max-h 288; action row min-h 28 gap 8: runtime chip · env chip · attach ·
+   `⏎ send` hint · spacer · Send disc 28 accent / running: ghost sm Queue·Steer·Interrupt +
+   Stop disc 28 (line border, muted, hover danger-tint). Delta (spec S1): one primary disc that
+   morphs Send↔Stop↔Stopping, disposition note inside the card, refusal restores the draft. */
+.ss-composer{position:relative;
+  display:flex;flex-direction:column;gap:7px;padding:11px 10px 8px 14px;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--elevated);box-shadow:var(--highlight);
+  transition:border-color var(--dur) var(--ease);
+}
+.ss-composer:hover{border-color:var(--line-strong)}
+.ss-composer:focus-within{border-color:var(--accent-dim)}
+.ss-composer--stacked{border-top-left-radius:0;border-top-right-radius:0}
+.ss-composer--inactive{opacity:.6}
+.ss-composer__input{min-height:24px;max-height:288px;font-size:var(--text-small-body);line-height:1.5;color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+.ss-composer__input:empty::before{content:attr(data-placeholder);color:var(--subtle)}
+.ss-composer__row{display:flex;align-items:center;gap:8px;min-height:28px;flex-wrap:wrap}
+.ss-composer__row .spacer{flex:1;min-width:8px}
+.ss-composer__cluster{display:flex;align-items:center;gap:8px;min-width:0}
+.ss-composer__busy{display:flex;align-items:center;gap:2px}
+/* runtime / environment chips — production CommandSelectChip (24px, canvas-soft, 11.5px) */
+.ss-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 6px;border-radius:var(--radius-sm);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:11.5px;font-weight:510;color:var(--muted);white-space:nowrap}
+.ss-chip svg{width:12px;height:12px;color:var(--subtle)}
+.ss-chip .agent-avatar{width:14px;height:14px;flex-basis:14px;font-size:6.5px;border-radius:3px}
+.ss-chip:hover{background:var(--btn-fill);color:var(--fg)}
+/* enter hint — production: kbd 20px + word, 11px faint */
+.ss-hint{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-micro);color:var(--faint);white-space:nowrap}
+.ss-hint .keys{gap:2px}
+.ss-hint .kbd{height:18px;min-width:18px;padding:0 4px;font-size:10px}
+.ss-hint .alt{color:var(--faint);margin-left:6px}
+/* the primary disc (28px) — three shapes, one element */
+.ss-primary{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;min-width:28px;padding:0;
+  border-radius:var(--radius-pill);border:1px solid transparent;flex:none;
+  font-size:var(--text-form);font-weight:510;white-space:nowrap;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),border-color var(--dur) var(--ease),min-width var(--dur) var(--ease),padding var(--dur) var(--ease);
+}
+.ss-primary svg{width:14px;height:14px;flex:none}
+.ss-primary[data-shape="send"]{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+.ss-primary[data-shape="send"]:hover{background:var(--accent-hover)}
+.ss-primary[data-shape="send"][aria-disabled="true"]{background:var(--btn-fill);color:var(--disabled);box-shadow:none;cursor:default}
+.ss-primary[data-shape="stop"]{border-color:var(--line);color:var(--muted);background:transparent}
+.ss-primary[data-shape="stop"] svg{width:12px;height:12px;fill:currentColor}
+.ss-primary[data-shape="stop"]:hover{border-color:transparent;background:var(--danger-tint);color:var(--danger)}
+.ss-primary[data-shape="stopping"]{padding:0 10px 0 8px;border-color:var(--line-soft);background:var(--input-fill);color:var(--subtle);cursor:default}
+.ss-primary[data-shape="stopping"] .ss-spin{color:var(--subtle)}
+.ss-primary:focus-visible{box-shadow:var(--focus-ring)}
+/* disposition / refusal / guard note — inside the card, between input and action row.
+   Icon carries the kind; text stays neutral; machine code as a mono suffix. */
+.ss-composer__note{display:flex;align-items:flex-start;gap:7px;min-height:18px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.ss-composer__note svg{width:12px;height:12px;flex:none;margin-top:2px;color:var(--subtle)}
+.ss-composer__note b{font-weight:510;color:var(--fg)}
+.ss-composer__note .mono-id{margin-left:4px}
+.ss-composer__note[data-kind="refused"] svg{color:var(--warning)}
+.ss-composer__note[data-kind="disconnected"] svg{color:var(--info)}
+.ss-composer__note[data-kind="stopping"] svg,.ss-composer__note[data-kind="queued"] svg,.ss-composer__note[data-kind="steer"] svg{color:var(--subtle)}
+.ss-composer__note .spacer{flex:1}
+.ss-composer__note .act{color:var(--muted);text-decoration:underline;text-underline-offset:2px;border-radius:var(--radius-xxs)}
+.ss-composer__note .act:hover{color:var(--fg-strong)}
+
+/* ============ 09 · SCROLL OWNERSHIP (use-thread-scroll-controller.ts) ============
+   Provenance: production — ScrollToBottomPill: 32px disc, border line, bg canvas-soft,
+   shadow-overlay, ArrowDown 14, bottom 12 centered, fades + drifts 4px. AT_END_THRESHOLD is
+   96px today; spec ADR-007 narrows the re-arm band to 40px. Band guides are lab ink. */
+.ss-jump{
+  position:absolute;left:50%;bottom:12px;translate:-50% 0;z-index:5;
+  width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid var(--line);background:var(--canvas-soft);color:var(--muted);box-shadow:var(--shadow-overlay);
+  transition:color var(--dur-fast),background var(--dur-fast),opacity var(--dur) var(--ease),translate var(--dur) var(--ease);
+}
+.ss-jump:hover{background:var(--row-hover);color:var(--fg)}
+.ss-jump svg{width:14px;height:14px}
+.ss-jump[hidden]{display:grid;opacity:0;translate:-50% 4px;pointer-events:none}
+.ss-band{position:absolute;left:0;right:0;pointer-events:none;border-top:1px dashed var(--line-focus);background:var(--surface-glaze);z-index:4}
+.ss-band__l{position:absolute;right:8px;top:4px;font-family:var(--font-mono);font-size:9.5px;color:var(--subtle);background:var(--canvas);padding:1px 5px;border-radius:var(--radius-xxs)}
+.ss-guide{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--line-focus);pointer-events:none;z-index:4}
+.ss-guide .ss-band__l{top:-9px}
+.ss-anchor-mark{outline:1px dashed var(--line-focus);outline-offset:2px;border-radius:var(--radius-lg)}
+
+/* ============ 10 · FIND BAR (SessionFindBar — new) ============
+   Composed from SearchInput (28px, canvas-soft, 12px glyph), Kbd, Button icon-xs, Command list
+   grammar (rows 13.5px, selected = elevated + fg-strong). Docks under the head, above the
+   scroller; never pushes the reading position. Match ink: neutral bar-fill; the active match
+   borrows the selection glaze (accent-tint-strong — the ::selection token). */
+.ss-find{flex:none;display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--canvas);position:relative;z-index:6}
+.ss-find__field{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft)}
+.ss-find__field:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.ss-find__field svg{width:12px;height:12px;color:var(--subtle);flex:none}
+.ss-find__field input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:var(--text-eyebrow);color:var(--fg);line-height:1}
+.ss-find__field input::placeholder{color:var(--subtle)}
+.ss-find__count{flex:none;display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ss-find__count svg{width:12px;height:12px}
+.ss-find__nav{display:flex;gap:1px;flex:none}
+.ss-find__nav .btn--icon{width:24px;height:24px;padding:0}
+.ss-find__nav .btn--icon svg{width:13px;height:13px}
+.ss-find__list{
+  position:absolute;left:12px;right:12px;top:calc(100% + 4px);z-index:8;
+  max-height:220px;overflow:auto;padding:4px;border-radius:var(--radius-lg);background:var(--canvas-soft);box-shadow:var(--shadow-overlay);
+}
+.ss-find__item{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:6px 8px;border-radius:var(--radius);font-size:var(--text-form);color:var(--muted);cursor:pointer}
+.ss-find__item:hover{background:var(--row-hover);color:var(--fg)}
+.ss-find__item[aria-selected="true"]{background:var(--elevated);color:var(--fg-strong)}
+.ss-find__item .who{font-size:var(--text-eyebrow);font-weight:510;color:var(--subtle)}
+.ss-find__item .snip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ss-find__item .when{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.ss-find__item .fold{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-left:6px}
+.ss-find__empty{padding:10px 8px;font-size:var(--text-form);color:var(--subtle)}
+.ss-mark{background:var(--bar-fill);border-radius:3px;padding:0 1px;color:var(--fg)}
+.ss-mark--active{background:var(--accent-tint-strong);box-shadow:0 0 0 1px var(--accent-dim)}
+
+/* ============ 11 · MESSAGE TRAIL (SessionMessageTrail — new) ============
+   A 24px rail on the scroller's left edge: one 2px tick per operator-sent message
+   (outline route). Width breathes on hover (dock-style), opacity encodes rest / in-view /
+   reading anchor / focused; color never moves. Hover card = Popover with `anchor`
+   (packages/ui has no HoverCard — the domain component wraps Popover with a hover trigger). */
+.ss-trail{position:absolute;left:0;top:0;bottom:0;width:28px;display:flex;flex-direction:column;align-items:flex-start;gap:9px;padding:14px 0 0 10px;z-index:3}
+.ss-trail--dense{gap:3px}
+.ss-trail__tick{
+  position:relative;display:block;height:2px;width:6px;border-radius:var(--radius-pill);background:var(--fg);opacity:.2;
+  border:0;padding:0;cursor:pointer;transition:width 90ms var(--ease),opacity 90ms var(--ease);
+}
+.ss-trail__tick::after{content:"";position:absolute;inset:-4px -8px;border-radius:4px}
+.ss-trail__tick[data-vis="in-view"]{opacity:.52}
+.ss-trail__tick[data-vis="anchor"]{opacity:.9;width:14px}
+.ss-trail__tick:hover,.ss-trail__tick:focus-visible{opacity:1;width:18px;outline:none}
+.ss-trail__tick:focus-visible{box-shadow:0 0 0 2px rgba(255,255,255,.5)}
+.ss-trail__tick[data-near="1"]{width:12px}
+.ss-trail__tick[data-near="2"]{width:9px}
+.ss-trail__card{
+  position:absolute;left:36px;width:256px;padding:8px 10px;border-radius:var(--radius-md);z-index:7;
+  background:var(--canvas-soft);box-shadow:var(--shadow-overlay);translate:0 -50%;
+  display:none;flex-direction:column;gap:4px;pointer-events:none;
+}
+.ss-trail__card .you{font-size:var(--text-eyebrow);font-weight:510;color:var(--fg);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ss-trail__card .reply{font-size:var(--text-eyebrow);color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ss-trail__card .meta{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.ss-trail__slot{position:relative}
+.ss-trail__slot:hover .ss-trail__card,.ss-trail__slot:focus-within .ss-trail__card,.ss-trail__slot[data-show="true"] .ss-trail__card{display:flex}
+@media (prefers-reduced-motion:reduce){.ss-trail__tick{transition:none}}
+
+/* ============ 12 · SETTINGS ROWS (S10 — ds-core .srow vocabulary, PillGroup, Switch) ============
+   Provenance: design-system settings.html (srow ≥54, label 13.5/510, ctl right); production
+   PillGroup 24px segments (elevated + fg-strong + highlight when on); Switch 32×18.
+   Disabled-while-saving = token swap + spinner, never opacity. */
+.ss-srow-key{font-family:var(--font-mono);font-size:10px;color:var(--faint);letter-spacing:0;margin-left:8px;font-weight:400}
+.srow.is-saving .pill-group,.srow.is-saving .switch{pointer-events:none}
+.srow.is-saving .pill-group__item{color:var(--disabled)}
+.srow.is-saving .pill-group__item.is-on{color:var(--muted)}
+.srow.is-saving .switch{background:var(--canvas-tint)}
+.srow.is-saving .switch.is-on{background:var(--accent-dim)}
+.srow.is-saving .switch .knob{background:var(--disabled)}
+.ss-saving{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.ss-saving svg{width:12px;height:12px}
+
+/* ============ 13 · NOTICE SLOT (production SessionWindowContent notice precedence) ============
+   ds-core .notice (tone in fill, never in border) — quiet warning rides the existing slot. */
+.ss-notice-slot .notice{padding:9px 12px;font-size:var(--text-eyebrow)}
+.ss-notice-slot .notice svg{margin-top:1px}
