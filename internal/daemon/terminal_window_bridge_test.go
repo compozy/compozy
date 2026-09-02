@@ -260,7 +260,7 @@ func seedSessionWindowOnSecondDesktop(t *testing.T, manager *windowmanager.Manag
 		ExpectedRevision: snapshot.Revision,
 		Actor:            windowmanager.Actor{Kind: "system", ID: "test.seed"},
 		Payload: windowmanager.CreateDesktopCommand{
-			DesktopID: "desktop-two", Name: "Two", Purpose: windowmanager.DesktopPurposeStandard,
+			DesktopID: "desktop-two", Name: "Two",
 		},
 	}); err != nil {
 		t.Fatalf("Execute(desktop.create) error = %v", err)
