@@ -24,8 +24,8 @@ the custom implementer path.
 
 2026-08-28: `blocked-verify` — the deterministic daemon harness proves custom Agent identity,
 Agent-local sentinel visibility, category runtime propagation, settlement, and worker cleanup, but
-authorized provider credentials were unavailable for the isolated public-interface walk. A human
-must authorize provider access and run this charter before the scenario can become `pass`. The
-existing optional-runtime retest remains `pending`; no blocked result is promoted to pass.
+authorized provider credentials were unavailable for that isolated public-interface walk. At that
+point, provider access and a human-run charter remained required before the scenario could become
+`pass`; the existing optional-runtime retest was `pending`, and the blocked result was not promoted to pass.
 
 2026-09-01: `pass` — typed entity validation resolves the acting Profile, and exact daemon-issued Agent identity plus nested session commands preserve that Profile without widening other CLI namespaces. Secret-safe sandbox diagnostics retained the red `compozy me` boundary (exit 69, session not found). The green public E2E proves conductor success, three engineer workers, Agent-local sentinel visibility, ordered task completion, stopped settlement, and zero surviving workers.

@@ -44,55 +44,57 @@ func TestProfileReadScopeQueryValues(t *testing.T) {
 }
 
 func TestAgentProfileSelectionUsesTheDaemonSessionOwner(t *testing.T) {
-	t.Parallel()
+	t.Run("Should use the daemon session owner Profile", func(t *testing.T) {
+		t.Parallel()
 
-	root := &cobra.Command{Use: "compozy"}
-	sessionCommand := &cobra.Command{Use: "session"}
-	command := &cobra.Command{Use: "prompt"}
-	root.AddCommand(sessionCommand)
-	sessionCommand.AddCommand(command)
-	command.SetContext(context.Background())
-	command.Flags().String(profileFlagName, "", "")
-	client := &profileTestDaemonClient{
-		DaemonClient: &stubClient{getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
-			if id != "sess-engineering" {
-				t.Fatalf("GetSession() id = %q, want sess-engineering", id)
-			}
-			if got := profileQueryValues(ctx, nil).Get("all_profiles"); got != "true" {
-				t.Fatalf("GetSession() all_profiles = %q, want true", got)
-			}
-			return SessionRecord{
-				ID: "sess-engineering", ProfileID: "profile-engineering", AgentName: "orchestrator",
-				WorkspaceID: "ws-1", State: session.StateActive,
-			}, nil
-		}},
-		profileClientAPI: &profileClientStub{profiles: []contract.Profile{
-			{ID: "00000000000000000000000000", Name: "default", State: "active"},
-			{ID: "profile-engineering", Name: "engineering", State: "active"},
-		}},
-	}
-	deps := newTestDeps(t, client)
-	deps.getenv = func(key string) string {
-		switch key {
-		case agentidentity.EnvSessionID:
-			return "sess-engineering"
-		case agentidentity.EnvAgent:
-			return "orchestrator"
-		default:
-			return ""
+		root := &cobra.Command{Use: "compozy"}
+		sessionCommand := &cobra.Command{Use: "session"}
+		command := &cobra.Command{Use: "prompt"}
+		root.AddCommand(sessionCommand)
+		sessionCommand.AddCommand(command)
+		command.SetContext(context.Background())
+		command.Flags().String(profileFlagName, "", "")
+		client := &profileTestDaemonClient{
+			DaemonClient: &stubClient{getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
+				if id != "sess-engineering" {
+					t.Fatalf("GetSession() id = %q, want sess-engineering", id)
+				}
+				if got := profileQueryValues(ctx, nil).Get("all_profiles"); got != "true" {
+					t.Fatalf("GetSession() all_profiles = %q, want true", got)
+				}
+				return SessionRecord{
+					ID: "sess-engineering", ProfileID: "profile-engineering", AgentName: "orchestrator",
+					WorkspaceID: "ws-1", State: session.StateActive,
+				}, nil
+			}},
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+				{ID: "00000000000000000000000000", Name: "default", State: "active"},
+				{ID: "profile-engineering", Name: "engineering", State: "active"},
+			}},
 		}
-	}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-engineering"
+			case agentidentity.EnvAgent:
+				return "orchestrator"
+			default:
+				return ""
+			}
+		}
 
-	handled, err := prepareAgentProfileSelection(command, deps, client, client)
-	if err != nil {
-		t.Fatalf("prepareAgentProfileSelection() error = %v", err)
-	}
-	if !handled {
-		t.Fatal("prepareAgentProfileSelection() handled = false")
-	}
-	if got := profileQueryValues(command.Context(), nil).Get(profileFlagName); got != "engineering" {
-		t.Fatalf("profile query = %q, want engineering", got)
-	}
+		handled, err := prepareAgentProfileSelection(command, deps, client, client)
+		if err != nil {
+			t.Fatalf("prepareAgentProfileSelection() error = %v", err)
+		}
+		if !handled {
+			t.Fatal("prepareAgentProfileSelection() handled = false")
+		}
+		if got := profileQueryValues(command.Context(), nil).Get(profileFlagName); got != "engineering" {
+			t.Fatalf("profile query = %q, want engineering", got)
+		}
+	})
 }
 
 // Invariant: a remote gateway defers implicit profile selection to the remote
