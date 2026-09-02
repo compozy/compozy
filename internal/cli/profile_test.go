@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -93,6 +94,58 @@ func TestAgentProfileSelectionUsesTheDaemonSessionOwner(t *testing.T) {
 		}
 		if got := profileQueryValues(command.Context(), nil).Get(profileFlagName); got != "engineering" {
 			t.Fatalf("profile query = %q, want engineering", got)
+		}
+	})
+}
+
+// Invariant: every executable session command inherits the calling agent's session profile.
+// The canonical profile scope suite owns command-tree profile selection.
+func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inherit the caller Profile for session status", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileTestDaemonClient{
+			DaemonClient: &stubClient{
+				getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
+					if id != "sess-engineering" {
+						t.Fatalf("GetSession() id = %q, want sess-engineering", id)
+					}
+					if got := profileQueryValues(ctx, nil).Get("all_profiles"); got != "true" {
+						t.Fatalf("GetSession() all_profiles = %q, want true", got)
+					}
+					return SessionRecord{
+						ID: "sess-engineering", ProfileID: "profile-engineering", AgentName: "orchestrator",
+						WorkspaceID: "ws-1", State: session.StateActive,
+					}, nil
+				},
+				getSessionStatusFn: func(ctx context.Context, id string) (SessionStatusRecord, error) {
+					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "engineering" {
+						t.Fatalf("GetSessionStatus() profile = %q, want engineering", got)
+					}
+					return SessionStatusRecord{SessionID: id, State: contract.SessionHealthStatePrompting}, nil
+				},
+			},
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+				{ID: store.DefaultProfileID, Name: configDefaultKey, State: "active"},
+				{ID: "profile-engineering", Name: "engineering", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-engineering"
+			case agentidentity.EnvAgent:
+				return "orchestrator"
+			default:
+				return ""
+			}
+		}
+
+		if _, _, err := executeRootCommand(t, deps, "session", "status", "sess-engineering", "-o", "json"); err != nil {
+			t.Fatalf("session status error = %v", err)
 		}
 	})
 }

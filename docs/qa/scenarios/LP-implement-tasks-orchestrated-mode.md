@@ -11,8 +11,8 @@ bug_ids: BUG-20260826-optional-runtime-run-fails
 fix_status: fixed
 retest_status: pass
 fix_commits: 16096e1e706261c30e112995c0cbe457c27014ce; d4df0df8adbb73896b2cd33243db98f4037b00c3; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1; be2ca774e0ea4c5f1a3aa30fe73bb9110d451735
-evidence:
-last_report: docs/qa/reports/2026-09-01-profile-extension-implementer.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-profile-session-command-scope-20260902-170402-483315-lab/qa-artifacts/qa/journey-log.jsonl
+last_report: docs/qa/reports/2026-09-02-profile-session-command-scope.md
 overlaps: LP-003; LP-goal-command-judge; ET-spec-cycle-skill-bundle
 ---
 
@@ -29,3 +29,5 @@ point, provider access and a human-run charter remained required before the scen
 `pass`; the existing optional-runtime retest was `pending`, and the blocked result was not promoted to pass.
 
 2026-09-01: `pass` — typed entity validation resolves the acting Profile, and exact daemon-issued Agent identity plus nested session commands preserve that Profile without widening other CLI namespaces. Secret-safe sandbox diagnostics retained the red `compozy me` boundary (exit 69, session not found). The green public E2E proves conductor success, three engineer workers, Agent-local sentinel visibility, ordered task completion, stopped settlement, and zero surviving workers.
+
+2026-09-02: `pass` after resetting the stale verdict. The targeted runtime E2E re-walk proved that the Profile conductor can run `session status`, `session prompt`, and `session stop` for each spawned worker before the Loop settles done.

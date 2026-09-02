@@ -72,7 +72,6 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
-	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 

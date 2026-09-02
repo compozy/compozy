@@ -37,6 +37,19 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionHistoryCommand(deps))
 	cmd.AddCommand(newSessionRuntimeCommand(deps))
 	cmd.AddCommand(newSessionGoalCommand(deps))
+	configureSessionProfileCommands(cmd, deps)
 
 	return cmd
+}
+
+func configureSessionProfileCommands(cmd *cobra.Command, deps commandDeps) {
+	for _, child := range cmd.Commands() {
+		if child.HasSubCommands() {
+			configureSessionProfileCommands(child, deps)
+		}
+		if child.RunE == nil || child.Flags().Lookup(allProfilesFlagName) != nil {
+			continue
+		}
+		configureSingleProfileCommand(child, deps)
+	}
 }

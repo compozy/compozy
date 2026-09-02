@@ -45,7 +45,6 @@ var (
 func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 	flags := &sessionPromptCommandFlags{}
 	cmd := newSessionPromptCobraCommand(deps, flags)
-	configureProfileMutationCommand(cmd, deps)
 	cmd.Flags().BoolVar(&flags.queue, "queue", false, "Queue the prompt if the session is busy")
 	cmd.Flags().BoolVar(&flags.interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
 	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Replace the fenced active turn with steering guidance")
