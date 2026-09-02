@@ -75,8 +75,15 @@ func ensureWritableLoopSource(spec looppkg.ResourceSpec) error {
 	return nil
 }
 
-func (s *daemonLoopAPIService) compileForPublish(ctx context.Context, def dsl.Definition) error {
-	compiler := newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry))
+func (s *daemonLoopAPIService) compileForPublish(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	profileID string,
+	def dsl.Definition,
+) error {
+	compiler := newLoopCompilerWithSchemaSource(
+		newLoopToolSchemaSourceForScope(ctx, s.toolRegistry, workspaceID, profileID),
+	)
 	if _, err := compiler.Compile(def); err != nil {
 		if lint, ok := errors.AsType[*looppkg.LintFailedError](err); ok {
 			return &core.LoopLintFailedError{Errors: loopLintErrorsPayload(lint.Errors)}
@@ -88,6 +95,8 @@ func (s *daemonLoopAPIService) compileForPublish(ctx context.Context, def dsl.De
 
 func (s *daemonLoopAPIService) writeDefinition(
 	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	root string,
 	def dsl.Definition,
 	overwrite bool,
@@ -99,7 +108,9 @@ func (s *daemonLoopAPIService) writeDefinition(
 	_, path, err := looppkg.WriteDefinition(root, data, looppkg.WriteDefinitionOptions{
 		Source:    looppkg.SourceWorkspace,
 		Overwrite: overwrite,
-		Linter:    newLoopLinterWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry)),
+		Linter: newLoopLinterWithSchemaSource(
+			newLoopToolSchemaSourceForScope(ctx, s.toolRegistry, workspaceID, profileID),
+		),
 	})
 	if err != nil {
 		if lint, ok := errors.AsType[*looppkg.LintFailedError](err); ok {
@@ -124,9 +135,10 @@ func (s *daemonLoopAPIService) loopResponseFromDefinitionFile(
 	ctx context.Context,
 	path string,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	name string,
 ) (contract.LoopResponse, error) {
-	record, def, err := s.refreshCatalogLoopRecordFromFile(ctx, path, workspaceID, name)
+	record, def, err := s.refreshCatalogLoopRecordFromFile(ctx, path, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
@@ -141,11 +153,14 @@ func (s *daemonLoopAPIService) refreshCatalogLoopRecordFromFile(
 	ctx context.Context,
 	path string,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	name string,
 ) (resources.Record[looppkg.ResourceSpec], dsl.Definition, error) {
 	spec, def, err := looppkg.ParseResourceFile(path, looppkg.ResourceParseOptions{
 		Source: looppkg.SourceWorkspace,
-		Linter: newLoopLinterWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry)),
+		Linter: newLoopLinterWithSchemaSource(
+			newLoopToolSchemaSourceForScope(ctx, s.toolRegistry, workspaceID, profileID),
+		),
 	})
 	if err != nil {
 		return resources.Record[looppkg.ResourceSpec]{}, dsl.Definition{}, err

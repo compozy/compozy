@@ -13,6 +13,7 @@ import (
 type loopToolSchemaSource struct {
 	ctx      context.Context
 	registry toolspkg.Registry
+	scope    toolspkg.Scope
 	once     sync.Once
 	schemas  map[toolspkg.ToolID]looppkg.ToolSchemaSnapshot
 }
@@ -20,13 +21,34 @@ type loopToolSchemaSource struct {
 var _ looppkg.ToolSchemaSource = (*loopToolSchemaSource)(nil)
 
 func newLoopToolSchemaSource(ctx context.Context, registry toolspkg.Registry) looppkg.ToolSchemaSource {
+	return newScopedLoopToolSchemaSource(ctx, registry, toolspkg.Scope{Operator: true})
+}
+
+func newScopedLoopToolSchemaSource(
+	ctx context.Context,
+	registry toolspkg.Registry,
+	scope toolspkg.Scope,
+) looppkg.ToolSchemaSource {
 	if registry == nil {
 		return nil
 	}
 	if ctx == nil {
 		return nil
 	}
-	return &loopToolSchemaSource{ctx: ctx, registry: registry}
+	return &loopToolSchemaSource{ctx: ctx, registry: registry, scope: scope}
+}
+
+func newLoopToolSchemaSourceForScope(
+	ctx context.Context,
+	registry toolspkg.Registry,
+	workspaceID looppkg.WorkspaceID,
+	profileID string,
+) looppkg.ToolSchemaSource {
+	return newScopedLoopToolSchemaSource(ctx, registry, toolspkg.Scope{
+		Operator:    true,
+		WorkspaceID: strings.TrimSpace(string(workspaceID)),
+		ProfileID:   strings.TrimSpace(profileID),
+	})
 }
 
 func (s *loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapshot, bool) {
@@ -55,7 +77,7 @@ func (s *loopToolSchemaSource) load() {
 	if err := s.ctx.Err(); err != nil {
 		return
 	}
-	views, err := s.registry.List(s.ctx, toolspkg.Scope{Operator: true})
+	views, err := s.registry.List(s.ctx, s.scope)
 	if err != nil {
 		return
 	}
@@ -79,9 +101,13 @@ func newLoopCompilerWithSchemaSource(source looppkg.ToolSchemaSource) *looppkg.C
 	return looppkg.NewCompiler(looppkg.WithCompilerToolSchemaSource(source))
 }
 
-func newLoopCompilerFactory(registry toolspkg.Registry) func(context.Context) *looppkg.Compiler {
-	return func(ctx context.Context) *looppkg.Compiler {
-		return newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, registry))
+func newLoopCompilerFactory(
+	registry toolspkg.Registry,
+) func(context.Context, looppkg.WorkspaceID, string) *looppkg.Compiler {
+	return func(ctx context.Context, workspaceID looppkg.WorkspaceID, profileID string) *looppkg.Compiler {
+		return newLoopCompilerWithSchemaSource(
+			newLoopToolSchemaSourceForScope(ctx, registry, workspaceID, profileID),
+		)
 	}
 }
 

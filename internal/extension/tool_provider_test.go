@@ -1031,6 +1031,77 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 func TestExtensionToolProviderDispatch(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose profile-placed tools only in the named profile", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		fixture := createExtensionToolTestExtension(t, "ext-profile-placement", "fake-extension", nil, nil, true)
+		tool := fixture.manifest.Resources.Tools["search"]
+		tool.Profile = "work"
+		fixture.manifest.Resources.Tools["search"] = tool
+		encoded, err := json.MarshalIndent(fixture.manifest, "", "  ")
+		if err != nil {
+			t.Fatalf("json.MarshalIndent(manifest) error = %v", err)
+		}
+		writeFile(t, filepath.Join(fixture.dir, manifestJSONFileName), string(encoded))
+		fixture.checksum, err = ComputeDirectoryChecksum(fixture.dir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+		descriptors, err := ResolveManifestToolDescriptors(fixture.manifest)
+		if err != nil || len(descriptors) != 1 {
+			t.Fatalf("ResolveManifestToolDescriptors() = %#v, %v, want one", descriptors, err)
+		}
+		runtime := newFakeExtensionToolRuntime(
+			t, env.registry, fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptors[0].RuntimeDescriptor},
+		)
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return runtime },
+			WithToolProviderProfileNameResolver(fixedProfileNameResolver{
+				"profile-work": "work", "profile-peer": "peer",
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		work, err := provider.List(testutil.Context(t), toolspkg.Scope{ProfileID: "profile-work"})
+		if err != nil || len(work) != 1 || work[0].ID != descriptors[0].Tool.ID {
+			t.Fatalf("Provider.List(work) = %#v, %v, want %q", work, err, descriptors[0].Tool.ID)
+		}
+		peer, err := provider.List(testutil.Context(t), toolspkg.Scope{ProfileID: "profile-peer"})
+		if err != nil || len(peer) != 0 {
+			t.Fatalf("Provider.List(peer) = %#v, %v, want empty", peer, err)
+		}
+	})
+
+	t.Run("Should reject an empty resolved Profile name", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, _ := createExtensionToolProviderFixture(t, "ext-empty-profile-name", true)
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return nil },
+			WithToolProviderProfileNameResolver(profileNameResolverFunc(
+				func(context.Context, string) (string, error) { return " \t ", nil },
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider(%q) error = %v", fixture.manifest.Name, err)
+		}
+
+		catalog, err := provider.List(testutil.Context(t), toolspkg.Scope{ProfileID: "profile-work"})
+		if err == nil || !strings.Contains(err.Error(), "empty profile name") {
+			t.Fatalf("Provider.List(empty Profile name) error = %v, want empty profile name", err)
+		}
+		if len(catalog) != 0 {
+			t.Fatalf("Provider.List(empty Profile name) = %#v, want no catalog", catalog)
+		}
+	})
+
 	t.Run("Should call extension tool handlers through Registry.Call", func(t *testing.T) {
 		t.Parallel()
 
@@ -1170,6 +1241,12 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 			t.Fatalf("Decision reasons = %#v, want approval_required", view.Decision.ReasonCodes)
 		}
 	})
+}
+
+type profileNameResolverFunc func(context.Context, string) (string, error)
+
+func (fn profileNameResolverFunc) ProfileName(ctx context.Context, profileID string) (string, error) {
+	return fn(ctx, profileID)
 }
 
 func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {

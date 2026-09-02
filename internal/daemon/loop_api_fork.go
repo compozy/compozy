@@ -15,6 +15,7 @@ const loopForkRollbackTimeout = 5 * time.Second
 func (s *daemonLoopAPIService) forkLoop(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	sourcePath string,
 	targetRoot string,
 	name string,
@@ -36,7 +37,7 @@ func (s *daemonLoopAPIService) forkLoop(
 	if err := s.syncLoopResources(ctx); err != nil {
 		return contract.LoopResponse{}, err
 	}
-	response, err := s.loopResponseFromDefinitionFile(ctx, path, workspaceID, name)
+	response, err := s.loopResponseFromDefinitionFile(ctx, path, workspaceID, profileID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}

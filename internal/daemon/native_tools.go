@@ -218,6 +218,7 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 			return toolRuntime
 		},
 		extensionpkg.WithToolProviderLogger(state.logger),
+		extensionpkg.WithToolProviderProfileNameResolver(state.profiles),
 	)
 	if err != nil {
 		return nil, err

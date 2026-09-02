@@ -53,7 +53,7 @@ func (r *Registry) ForAgentSession(
 		if errors.Is(err, ErrAgentLocalInvalid) {
 			r.emitSkillsLoadFailed(
 				ctx,
-				resolvedSkillEventProfileID(resolved),
+				resolvedSkillProfileID(resolved),
 				resourceWorkspaceKey(resolved),
 				target,
 				err,
@@ -112,7 +112,7 @@ func (r *Registry) ForAgentDefSession(
 	for _, diagnostic := range diagnostics {
 		r.emitSkillsLoadFailed(
 			ctx,
-			resolvedSkillEventProfileID(resolved),
+			resolvedSkillProfileID(resolved),
 			resourceWorkspaceKey(resolved),
 			target,
 			diagnostic,
@@ -124,7 +124,7 @@ func (r *Registry) ForAgentDefSession(
 			skillsByName,
 			agentLocalSkills,
 			skillAgentKind,
-			resolvedSkillEventProfileID(resolved),
+			resolvedSkillProfileID(resolved),
 			resourceWorkspaceKey(resolved),
 			target,
 		),
@@ -154,6 +154,7 @@ func (r *Registry) projectAgentSkillActivation(
 		}
 	}
 	return r.projectSkillActivation(ctx, skills, ActivationTarget{
+		ProfileID:    resolvedSkillProfileID(resolved),
 		WorkspaceID:  resourceWorkspaceKey(resolved),
 		SessionID:    strings.TrimSpace(sessionID),
 		AgentName:    strings.TrimSpace(agent.Name),

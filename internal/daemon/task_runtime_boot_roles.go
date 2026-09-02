@@ -356,7 +356,7 @@ func (p daemonExtensionWatchPoller) Poll(
 
 type daemonLoopDefinitionResolver struct {
 	catalog         *resourceCatalog[looppkg.ResourceSpec]
-	compilerFactory func(context.Context) *looppkg.Compiler
+	compilerFactory func(context.Context, looppkg.WorkspaceID, string) *looppkg.Compiler
 	profiles        loopProfileNameResolver
 }
 
@@ -391,7 +391,7 @@ func (r *daemonLoopDefinitionResolver) ResolveLoop(
 		if err != nil {
 			return nil, err
 		}
-		resolved, err := r.compilerFactory(ctx).Compile(definition)
+		resolved, err := r.compilerFactory(ctx, ws, profileID).Compile(definition)
 		if err != nil {
 			return nil, err
 		}
