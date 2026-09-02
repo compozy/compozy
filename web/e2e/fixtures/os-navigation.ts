@@ -30,6 +30,12 @@ export async function openAppWindow(page: Page, title: string, app: string): Pro
       : page
           .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
           .getByRole("button", { exact: true, name: title });
+  if (app === "settings") {
+    await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
+      "title",
+      /^Command palette · /u
+    );
+  }
   await launcher.click();
   const win = appWindow(page, app);
   await expect(win).toBeVisible();
@@ -121,11 +127,12 @@ export function commandPalette(page: Page): Locator {
 /** Opens ⌘K and waits for the overlay; the palette must not block on the daemon. */
 export async function openCommandPalette(page: Page): Promise<Locator> {
   const palette = commandPalette(page);
-  await expect(async () => {
-    if (await palette.isVisible().catch(() => false)) return;
-    await page.keyboard.press("ControlOrMeta+KeyK");
-    await expect(palette).toBeVisible({ timeout: 500 });
-  }).toPass({ timeout: 20_000 });
+  await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
+    "title",
+    /^Command palette · /u
+  );
+  await page.keyboard.press("ControlOrMeta+KeyK");
+  await expect(palette).toBeVisible();
   return palette;
 }
 
