@@ -1489,6 +1489,10 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
       globalSection.getByRole("button", { name: /Record global hotkey/u }).first()
     ).toBeDisabled();
 
+    await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
+      "title",
+      /^Command palette · /u
+    );
     if (process.platform === "darwin") {
       // Chromium reserves Command-based browser shortcuts before Playwright can
       // deliver them; dispatch the same renderer event the registry consumes.
