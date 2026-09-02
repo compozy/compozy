@@ -265,8 +265,7 @@ func writeGenerationOutput(
 	tx task.Tx,
 	loopRunID string,
 	generation int,
-	output GenerationOutput,
-	resolvedRuntime any,
+	output GenerationOutput, resolvedRuntime any,
 ) error {
 	expectedEpoch := output.Epoch
 	if output.ExpectedEpoch != nil {
@@ -301,7 +300,8 @@ func writeGenerationOutput(
 		WHERE loop_generation_outputs.epoch = ? AND NOT (
 			loop_generation_outputs.epoch = excluded.epoch
 			AND loop_generation_outputs.status IN ('succeeded', 'partial', 'failed', 'canceled', 'quarantined')
-			AND excluded.status IN ('pending', 'enqueued', 'running', 'retrying')
+			AND excluded.status IN ('pending', 'enqueued', 'running', 'retrying', 'waiting',
+				'paused', 'awaiting_child', 'control_pending', 'awaiting_goal')
 		  )`,
 		loopRunID,
 		generation,
