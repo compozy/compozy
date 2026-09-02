@@ -307,6 +307,9 @@ authoring failure handled by the same policy.
 A `route` checks its CEL conditions in declaration order and takes the first match. If none match,
 it takes the mandatory `default`. Every destination must be a unique direct forward edge. A broken
 condition fails closed with `predicate_evaluation_failed`; it never falls through to the default.
+Nodes that belong only to a non-selected path settle as durable `route_not_taken` evidence and are
+not evaluated or scheduled, including gates. Shared downstream joins remain live. Inspect the
+decision through Loop status, the node roster, and `route_causes`.
 
 ```yaml
 - id: classify

@@ -149,7 +149,13 @@ func advanceControlNodes(
 			return nil, err
 		}
 		indexes := generationOutputIndexMap(*outputs)
-		for _, output := range sortedGenerationOutputs(*outputs) {
+		for _, candidate := range sortedGenerationOutputs(*outputs) {
+			key := generationOutputKey{nodeID: candidate.NodeID, itemIndex: candidate.ItemIndex}
+			idx, ok := indexes[key]
+			if !ok {
+				continue
+			}
+			output := (*outputs)[idx]
 			if output.Status != generationOutputPending {
 				continue
 			}
@@ -181,10 +187,7 @@ func advanceControlNodes(
 				}
 				updated = materializationFailedOutput(output)
 			}
-			key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
-			if idx, ok := indexes[key]; ok {
-				(*outputs)[idx] = updated
-			}
+			(*outputs)[idx] = updated
 			if terminal != nil {
 				if terminal.Status != string(StatusNeedsApproval) {
 					return terminal, nil
