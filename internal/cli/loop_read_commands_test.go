@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -235,6 +236,8 @@ func TestLoopRunReadCommands(t *testing.T) {
 	})
 
 	t.Run("Should drain a terminal transition committed after a resumed snapshot", func(t *testing.T) {
+		t.Parallel()
+
 		terminalBriefingRead := false
 		resumeClient := &stubClient{
 			getWorkspaceFn: resolveTestLoopWorkspace(t),
@@ -301,6 +304,109 @@ func TestLoopRunReadCommands(t *testing.T) {
 			if want := int64(index + 2); entry.Seq != want {
 				t.Fatalf("resumed timeline line %d sequence = %d, want %d", index, entry.Seq, want)
 			}
+		}
+	})
+
+	t.Run("Should drain every page before completing an already terminal follow", func(t *testing.T) {
+		t.Parallel()
+
+		terminalClient := &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopBriefingFn: func(context.Context, string, string) (contract.LoopBriefingResponse, error) {
+				return looppkg.Briefing{RunID: "run-a", Status: looppkg.StatusDone}, nil
+			},
+			getLoopTimelineFn: func(
+				_ context.Context,
+				_, _ string,
+				query LoopTimelineQuery,
+			) (contract.LoopTimelineResponse, error) {
+				switch query.Cursor {
+				case "":
+					return looppkg.TimelinePage{
+						RunID: "run-a", HeadSeq: 3, NextCursor: "older",
+						Entries: []looppkg.TimelineEntry{
+							{Seq: 2, Kind: looppkg.RunEventNodeSucceeded, Title: "durable event"},
+							{Seq: 3, Kind: looppkg.RunEventStatusChanged, Title: "run status: done"},
+						},
+					}, nil
+				case "older":
+					return looppkg.TimelinePage{
+						RunID: "run-a", HeadSeq: 3,
+						Entries: []looppkg.TimelineEntry{{
+							Seq: 1, Kind: looppkg.RunEventGenerationStarted, Title: "round 1 started",
+						}},
+					}, nil
+				default:
+					return contract.LoopTimelineResponse{}, fmt.Errorf(
+						"unexpected timeline cursor %q",
+						query.Cursor,
+					)
+				}
+			},
+			streamLoopEventsFn: func(context.Context, string, string, int64, SSEHandler) error {
+				t.Fatal("already terminal timeline unexpectedly opened an SSE stream")
+				return nil
+			},
+		}
+		terminalDeps := newTestDeps(t, terminalClient)
+		stdout, _, err := executeRootCommand(
+			t,
+			terminalDeps,
+			"loop", "events", "run-a", "--follow", "--view", "all",
+			"--workspace", "alpha", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("terminal loop events error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("terminal timeline lines = %d, want 3: %q", len(lines), stdout)
+		}
+		for index, line := range lines {
+			var entry looppkg.TimelineEntry
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				t.Fatalf("decode terminal timeline line %d error = %v", index, err)
+			}
+			if want := int64(index + 1); entry.Seq != want {
+				t.Fatalf("terminal timeline line %d sequence = %d, want %d", index, entry.Seq, want)
+			}
+		}
+	})
+
+	t.Run("Should keep terminal catch-up output as a valid JSON stream", func(t *testing.T) {
+		t.Parallel()
+
+		jsonDeps := newTestDeps(t, loopReadCommandClient(t, now))
+		jsonDeps.now = func() time.Time { return now }
+		stdout, _, err := executeRootCommand(
+			t,
+			jsonDeps,
+			"loop", "events", "run-a", "--after", "1", "--limit", "2", "--follow", "--view", "all",
+			"--workspace", "alpha", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("resumed loop events JSON error = %v", err)
+		}
+		decoder := json.NewDecoder(strings.NewReader(stdout))
+		var snapshot contract.LoopTimelineResponse
+		if err := decoder.Decode(&snapshot); err != nil {
+			t.Fatalf("decode initial timeline snapshot error = %v", err)
+		}
+		if len(snapshot.Entries) != 3 || snapshot.Entries[0].Seq != 2 || snapshot.Entries[2].Seq != 4 {
+			t.Fatalf("initial timeline snapshot = %#v", snapshot)
+		}
+		wantSequences := []int64{6, 7, 8}
+		for index, want := range wantSequences {
+			var catchUp looppkg.TimelineEntry
+			if err := decoder.Decode(&catchUp); err != nil {
+				t.Fatalf("decode terminal catch-up %d error = %v", index, err)
+			}
+			if catchUp.Seq != want {
+				t.Fatalf("terminal catch-up %d sequence = %d, want %d", index, catchUp.Seq, want)
+			}
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			t.Fatalf("terminal JSON stream trailing decode error = %v, want EOF", err)
 		}
 	})
 

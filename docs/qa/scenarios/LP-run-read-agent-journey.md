@@ -62,3 +62,8 @@ CLI, HTTP, UDS, and native reads. The targeted re-walk must compare one persiste
 
 QA result 2026-09-01: passed. CLI, HTTP, and UDS returned the same sparse worker indexes `2,4`
 and fan-out rollup `2/2`; native `compozy__loop_runs` reported the same completed run progress.
+
+QA impact 2026-09-02: review remediation made terminal follows drain every fixed-head cursor page
+before stopping and kept JSON catch-up records structured. The focused CLI regressions covered both
+cases; the race-enabled disconnect/resume E2E re-walk passed with no timeline gaps or duplicates.
+Command: `go test -race -tags=integration -run '^TestDaemonE2ELoopRunReadCLIJourneys/Should_disconnect_resume_and_wait_for_the_first_event_E2E-003$' -count=1 ./internal/daemon`.

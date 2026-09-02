@@ -198,7 +198,7 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			runID := strings.TrimSpace(args[0])
-			page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, limit)
+			page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, limit, follow)
 			if err != nil {
 				return normalizeLoopReadError(runID, err)
 			}
@@ -282,6 +282,7 @@ func loadLoopTimeline(
 	workspaceID, runID, view string,
 	after int64,
 	limit int,
+	drainPages bool,
 ) (contract.LoopTimelineResponse, []looppkg.TimelineEntry, error) {
 	query := LoopTimelineQuery{View: view, After: after, Limit: limit}
 	page, err := client.GetLoopRunTimeline(cmd.Context(), workspaceID, runID, query)
@@ -289,7 +290,7 @@ func loadLoopTimeline(
 		return contract.LoopTimelineResponse{}, nil, err
 	}
 	entries := append([]looppkg.TimelineEntry(nil), page.Entries...)
-	if after > 0 {
+	if after > 0 || drainPages {
 		for page.NextCursor != "" {
 			query.Cursor = page.NextCursor
 			page, err = client.GetLoopRunTimeline(cmd.Context(), workspaceID, runID, query)
@@ -360,7 +361,7 @@ func drainLoopTimeline(
 	workspaceID, runID, view string,
 	after int64,
 ) (int64, error) {
-	page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, 500)
+	page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, 500, true)
 	if err != nil {
 		return after, err
 	}
@@ -456,7 +457,7 @@ func writeFollowTimelineEntry(cmd *cobra.Command, entry looppkg.TimelineEntry) e
 	if err != nil {
 		return err
 	}
-	if mode == OutputJSONL {
+	if mode == OutputJSON || mode == OutputJSONL {
 		return writeJSONLineWithoutWorkspaceResolution(cmd, entry)
 	}
 	return writeRawCommandOutput(cmd, strings.Join(loopEventHumanRow(entry), "\t"))

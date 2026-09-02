@@ -641,24 +641,44 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 func TestModelCatalogConfigChanged(t *testing.T) {
 	t.Parallel()
 
-	previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
-	unchanged := previous
-	unchanged.MCPServers = append(unchanged.MCPServers, compozyconfig.MCPServer{Name: "added"})
-	if modelCatalogConfigChanged(&previous, &unchanged) {
-		t.Fatal("modelCatalogConfigChanged(MCP-only update) = true, want false")
+	tests := []struct {
+		name   string
+		mutate func(*compozyconfig.Config)
+		want   bool
+	}{
+		{
+			name: "Should ignore an MCP-only update",
+			mutate: func(cfg *compozyconfig.Config) {
+				cfg.MCPServers = append(cfg.MCPServers, compozyconfig.MCPServer{Name: "added"})
+			},
+		},
+		{
+			name: "Should detect a provider update",
+			mutate: func(cfg *compozyconfig.Config) {
+				cfg.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+				cfg.Providers["codex"] = compozyconfig.ProviderConfig{Command: "codex acp --next"}
+			},
+			want: true,
+		},
+		{
+			name: "Should detect a model catalog update",
+			mutate: func(cfg *compozyconfig.Config) {
+				cfg.ModelCatalog.Sources.ModelsDev.Timeout = "3s"
+			},
+			want: true,
+		},
 	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	providerChanged := previous
-	providerChanged.Providers = compozyconfig.CloneProviderConfigs(previous.Providers)
-	providerChanged.Providers["codex"] = compozyconfig.ProviderConfig{Command: "codex acp --next"}
-	if !modelCatalogConfigChanged(&previous, &providerChanged) {
-		t.Fatal("modelCatalogConfigChanged(provider update) = false, want true")
-	}
-
-	modelCatalogChanged := previous
-	modelCatalogChanged.ModelCatalog.Sources.ModelsDev.Timeout = "3s"
-	if !modelCatalogConfigChanged(&previous, &modelCatalogChanged) {
-		t.Fatal("modelCatalogConfigChanged(model catalog update) = false, want true")
+			previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+			next := previous
+			testCase.mutate(&next)
+			if got := modelCatalogConfigChanged(&previous, &next); got != testCase.want {
+				t.Fatalf("modelCatalogConfigChanged() = %t, want %t", got, testCase.want)
+			}
+		})
 	}
 }
 
