@@ -1078,6 +1078,30 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an empty resolved Profile name", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, _ := createExtensionToolProviderFixture(t, "ext-empty-profile-name", true)
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return nil },
+			WithToolProviderProfileNameResolver(profileNameResolverFunc(
+				func(context.Context, string) (string, error) { return " \t ", nil },
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider(%q) error = %v", fixture.manifest.Name, err)
+		}
+
+		catalog, err := provider.List(testutil.Context(t), toolspkg.Scope{ProfileID: "profile-work"})
+		if err == nil || !strings.Contains(err.Error(), "empty profile name") {
+			t.Fatalf("Provider.List(empty Profile name) error = %v, want empty profile name", err)
+		}
+		if len(catalog) != 0 {
+			t.Fatalf("Provider.List(empty Profile name) = %#v, want no catalog", catalog)
+		}
+	})
+
 	t.Run("Should call extension tool handlers through Registry.Call", func(t *testing.T) {
 		t.Parallel()
 
@@ -1217,6 +1241,12 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 			t.Fatalf("Decision reasons = %#v, want approval_required", view.Decision.ReasonCodes)
 		}
 	})
+}
+
+type profileNameResolverFunc func(context.Context, string) (string, error)
+
+func (fn profileNameResolverFunc) ProfileName(ctx context.Context, profileID string) (string, error) {
+	return fn(ctx, profileID)
 }
 
 func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {

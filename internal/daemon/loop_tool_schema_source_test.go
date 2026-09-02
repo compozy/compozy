@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -194,7 +193,8 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		_, err = newLoopCompilerFactory(registry)(
 			t.Context(), "workspace-peer", "profile-engineering",
 		).Compile(definition)
-		if err == nil || !strings.Contains(err.Error(), looppkg.CodeUnknownActionKind) {
+		lintErr, ok := errors.AsType[*looppkg.LintFailedError](err)
+		if !ok || len(lintErr.Errors) != 1 || lintErr.Errors[0].Code != looppkg.CodeUnknownActionKind {
 			t.Fatalf("Compile(peer lifecycle scope) error = %v, want %s", err, looppkg.CodeUnknownActionKind)
 		}
 	})

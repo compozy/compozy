@@ -106,6 +106,9 @@ func (p *ExtensionToolProvider) manifestToolsWithFingerprint(
 			return nil, "", fmt.Errorf("extension: resolve tool profile %q: %w", profileID, err)
 		}
 		profileName = strings.TrimSpace(profileName)
+		if profileName == "" {
+			return nil, "", fmt.Errorf("extension: resolve tool profile %q: empty profile name", profileID)
+		}
 	}
 	infos, err := p.manifestToolInfos(workspaceID)
 	if err != nil {
