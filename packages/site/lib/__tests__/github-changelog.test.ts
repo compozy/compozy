@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loadChangelogReleases, loadReleasePullRequests } from "../changelog/github-client";
+import {
+  loadChangelogReleaseByTag,
+  loadChangelogReleases,
+  loadReleasePullRequests,
+} from "../changelog/github-client";
 
 const releaseFixture = {
   tag_name: "v0.3.0-beta.3",
@@ -92,6 +96,45 @@ describe("GitHub changelog boundary", () => {
     expect(result).toEqual({
       status: "unavailable",
       error: expect.objectContaining({ kind: "invalid-response" }),
+    });
+  });
+
+  it("resolves a release by tag when the cached release list has not caught up yet", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(releaseFixture));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const lookup = await loadChangelogReleaseByTag("v0.3.0-beta.3");
+
+    expect(lookup).toEqual({
+      status: "found",
+      release: expect.objectContaining({
+        version: "v0.3.0-beta.3",
+        body: releaseFixture.body,
+        pullRequestNumbers: [123],
+      }),
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/compozy/compozy/releases/tags/v0.3.0-beta.3",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("separates a missing release by tag from a GitHub outage it must not hide", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: "Not Found" }, 404));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await loadChangelogReleaseByTag("v0.3.0-beta.99")).toEqual({ status: "missing" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    expect(await loadChangelogReleaseByTag("v0.2.9")).toEqual({ status: "missing" });
+    expect(await loadChangelogReleaseByTag("  ")).toEqual({ status: "missing" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ message: "boom" }, 500)));
+
+    expect(await loadChangelogReleaseByTag("v0.3.0-beta.3")).toEqual({
+      status: "unavailable",
+      error: expect.objectContaining({ kind: "github-response", status: 500 }),
     });
   });
 

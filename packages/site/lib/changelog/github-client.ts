@@ -1,6 +1,7 @@
 import {
   githubGraphqlResponseSchema,
   githubReleaseListSchema,
+  githubReleaseSchema,
   type GitHubPullRequestPayload,
   type GitHubReleasePayload,
 } from "./github-schemas";
@@ -22,6 +23,7 @@ import {
   type ChangelogPullRequest,
   type ChangelogPullRequestsResult,
   type ChangelogRelease,
+  type ChangelogReleaseLookup,
   type ChangelogReleasesResult,
 } from "./types";
 
@@ -188,6 +190,44 @@ export async function loadChangelogReleases(): Promise<ChangelogReleasesResult> 
       .filter((release): release is ChangelogRelease => release !== null)
       .toSorted((left, right) => right.publishedAt.localeCompare(left.publishedAt));
     return { status: "ready", releases };
+  } catch (error) {
+    return { status: "unavailable", error: toLoadError(error) };
+  }
+}
+
+async function fetchReleaseByTag(tag: string): Promise<GitHubReleasePayload | null> {
+  const url = `https://api.github.com/repos/${COMPOZY_REPOSITORY.owner}/${COMPOZY_REPOSITORY.name}/releases/tags/${encodeURIComponent(tag)}`;
+  let payload: unknown;
+  try {
+    payload = await githubJson(url, { method: "GET", cache: "no-store" }, false);
+  } catch (error) {
+    if (error instanceof GitHubClientError && error.status === 404) return null;
+    throw error;
+  }
+  const parsed = githubReleaseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new GitHubClientError(
+      "invalid-response",
+      `GitHub release data failed validation: ${parsed.error.message}`
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * Resolves one release directly by tag so a release published after the last
+ * cached list refresh is still reachable on its own page.
+ */
+export async function loadChangelogReleaseByTag(tag: string): Promise<ChangelogReleaseLookup> {
+  const trimmed = tag.trim();
+  if (!trimmed || !releaseTagIsAtOrAfter(trimmed, CHANGELOG_CUTOFF_TAG)) {
+    return { status: "missing" };
+  }
+  try {
+    const payload = await fetchReleaseByTag(trimmed);
+    if (!payload) return { status: "missing" };
+    const release = buildRelease(payload);
+    return release ? { status: "found", release } : { status: "missing" };
   } catch (error) {
     return { status: "unavailable", error: toLoadError(error) };
   }
