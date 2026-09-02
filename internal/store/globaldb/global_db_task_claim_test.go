@@ -8876,13 +8876,21 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 					t.Fatalf("CreateLoopRunForStart() error = %v", err)
 				}
 				taskRunID := "run-output-terminal-race-" + nonTerminalStatus
+				currentChildLoopRunID := sql.NullString{}
+				incomingChildLoopRunID := ""
+				if nonTerminalStatus == "awaiting_child" {
+					currentChildLoopRunID = sql.NullString{String: "child-1", Valid: true}
+					incomingChildLoopRunID = "child-1"
+				}
 				if _, err := globalDB.db.ExecContext(
 					ctx,
 					`INSERT INTO loop_generation_outputs (
-						loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, attempt, epoch
-					) VALUES (?, 1, 'work', 0, 'succeeded', '{"ok":true}', ?, 1, 0)`,
+						loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
+						child_loop_run_id, attempt, epoch
+					) VALUES (?, 1, 'work', 0, 'succeeded', '{"ok":true}', ?, ?, 1, 0)`,
 					string(loopRun.ID),
 					taskRunID,
+					currentChildLoopRunID,
 				); err != nil {
 					t.Fatalf("insert generation output error = %v", err)
 				}
@@ -8904,13 +8912,14 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 						LoopRunID:  string(loopRun.ID),
 						Generation: 1,
 						Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
-							NodeID:        "work",
-							Status:        nonTerminalStatus,
-							TaskRunID:     taskRunID,
-							Attempt:       1,
-							NextAttemptAt: nextAttemptAt,
-							Epoch:         0,
-							ExpectedEpoch: &expectedEpoch,
+							NodeID:         "work",
+							Status:         nonTerminalStatus,
+							TaskRunID:      taskRunID,
+							ChildLoopRunID: incomingChildLoopRunID,
+							Attempt:        1,
+							NextAttemptAt:  nextAttemptAt,
+							Epoch:          0,
+							ExpectedEpoch:  &expectedEpoch,
 						}}},
 					},
 				)
@@ -8935,6 +8944,80 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 					t.Fatalf("generation output = (%q, %q), want succeeded terminal result", status, outputRef)
 				}
 			})
+		}
+	})
+
+	t.Run("Should allow a completed run-loop output to enter awaited-child state", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 23, 20, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-output-await-child", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		const taskRunID = "run-output-await-child"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'work', 0, 'succeeded', '{"loop_run_id":"child-1","status":"awaiting_child"}', ?, 1, 0)`,
+			string(loopRun.ID),
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+
+		tx, err := globalDB.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		expectedEpoch := int64(0)
+		err = looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+			ctx,
+			tx,
+			taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					NodeID:         "work",
+					Status:         "awaiting_child",
+					OutputRef:      `{"loop_run_id":"child-1","status":"awaiting_child"}`,
+					TaskRunID:      taskRunID,
+					ChildLoopRunID: "child-1",
+					Attempt:        1,
+					Epoch:          0,
+					ExpectedEpoch:  &expectedEpoch,
+				}}},
+			},
+		)
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				t.Errorf("Rollback() error = %v", rollbackErr)
+			}
+			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+
+		var status string
+		var childLoopRunID string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status, child_loop_run_id FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0`,
+			string(loopRun.ID),
+		).Scan(&status, &childLoopRunID); err != nil {
+			t.Fatalf("query generation output error = %v", err)
+		}
+		if status != "awaiting_child" || childLoopRunID != "child-1" {
+			t.Fatalf("generation output = (%q, %q), want awaited child", status, childLoopRunID)
 		}
 	})
 }

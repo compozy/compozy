@@ -271,7 +271,7 @@ func writeGenerationOutput(
 	if output.ExpectedEpoch != nil {
 		expectedEpoch = *output.ExpectedEpoch
 	}
-	// Fence same-epoch snapshots because task completion records terminal results without advancing the epoch.
+	// Fence stale same-epoch snapshots while preserving completed run-loop await refinement.
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
@@ -302,6 +302,13 @@ func writeGenerationOutput(
 			AND loop_generation_outputs.status IN ('succeeded', 'partial', 'failed', 'canceled', 'quarantined')
 			AND excluded.status IN ('pending', 'enqueued', 'running', 'retrying', 'waiting',
 				'paused', 'awaiting_child', 'control_pending', 'awaiting_goal')
+			AND NOT (
+				loop_generation_outputs.status = 'succeeded'
+				AND excluded.status = 'awaiting_child'
+				AND excluded.task_run_id IS NOT NULL
+				AND loop_generation_outputs.task_run_id IS excluded.task_run_id
+				AND loop_generation_outputs.child_loop_run_id IS NULL AND excluded.child_loop_run_id IS NOT NULL
+			)
 		  )`,
 		loopRunID,
 		generation,
