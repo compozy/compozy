@@ -143,7 +143,7 @@ func (r *Registry) buildSkillShadowSummaries(
 		}
 
 		summary := store.EventSummary{
-			ProfileID:   normalizedSkillEventProfileID(profileID),
+			ProfileID:   normalizedSkillProfileID(profileID),
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
@@ -199,7 +199,7 @@ func (r *Registry) buildSkillShadowSummariesFromResolved(
 			continue
 		}
 		summary := store.EventSummary{
-			ProfileID:   normalizedSkillEventProfileID(profileID),
+			ProfileID:   normalizedSkillProfileID(profileID),
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
 			Type:        eventspkg.SkillShadowed,
@@ -269,7 +269,7 @@ func (r *Registry) emitSkillsLoadFailed(
 	}
 
 	summary := store.EventSummary{
-		ProfileID:   normalizedSkillEventProfileID(profileID),
+		ProfileID:   normalizedSkillProfileID(profileID),
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),
 		Type:        eventspkg.SkillLoadFailed,
@@ -281,16 +281,16 @@ func (r *Registry) emitSkillsLoadFailed(
 	}
 }
 
-func normalizedSkillEventProfileID(profileID string) string {
+func normalizedSkillProfileID(profileID string) string {
 	if trimmed := strings.TrimSpace(profileID); trimmed != "" {
 		return trimmed
 	}
 	return store.DefaultProfileID
 }
 
-func resolvedSkillEventProfileID(resolved *workspacepkg.ResolvedWorkspace) string {
+func resolvedSkillProfileID(resolved *workspacepkg.ResolvedWorkspace) string {
 	if resolved == nil {
 		return store.DefaultProfileID
 	}
-	return normalizedSkillEventProfileID(resolved.ProfileID)
+	return normalizedSkillProfileID(resolved.ProfileID)
 }

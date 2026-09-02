@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -181,7 +182,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		}
 	})
 
-	t.Run("Should activate a tool-gated skill on the next prompt without restart", func(t *testing.T) {
+	t.Run("Should activate a Profile tool-gated skill on the next prompt without restart", func(t *testing.T) {
 		t.Parallel()
 
 		userDir := t.TempDir()
@@ -205,29 +206,27 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		}
 
 		var toolAvailable atomic.Bool
+		toolRegistry := &promptSkillsToolRegistry{
+			profileID:   "profile-work",
+			workspaceID: "ws-1",
+			sessionID:   "sess-tool-gate",
+			agentName:   "coordinator",
+			available:   &toolAvailable,
+		}
 		registry := skillspkg.NewRegistry(
 			skillspkg.RegistryConfig{GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(
 				&compozyconfig.SkillsConfig{},
 				compozyconfig.HomePaths{SkillsDir: userDir},
 			)},
-			skillspkg.WithActivationContextProvider(func(
-				_ context.Context,
-				target skillspkg.ActivationTarget,
-			) (skillspkg.ActivationContext, error) {
-				if target.SessionID != "sess-tool-gate" {
-					return skillspkg.ActivationContext{}, fmt.Errorf("session id = %q", target.SessionID)
-				}
-				tools := make([]string, 0)
-				if toolAvailable.Load() {
-					tools = append(tools, "compozy__skill_view")
-				}
-				return skillspkg.ActivationContext{Platform: "linux", Tools: tools}, nil
-			}),
+			skillspkg.WithActivationContextProvider(newSkillActivationContextProvider(
+				&bootState{toolRegistry: toolRegistry},
+			)),
 		)
 		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			ProfileID: "profile-work",
 			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
 		}}
 		augmenter := newSkillsCatalogAugmenter(
@@ -374,6 +373,63 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatal("skillsForSessionAgent(authored failure) consulted the extension catalog")
 		}
 	})
+}
+
+type promptSkillsToolRegistry struct {
+	profileID   string
+	workspaceID string
+	sessionID   string
+	agentName   string
+	available   *atomic.Bool
+}
+
+func (r *promptSkillsToolRegistry) List(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) ([]toolspkg.ToolView, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if scope.ProfileID != r.profileID {
+		return nil, fmt.Errorf("profile id = %q, want %q", scope.ProfileID, r.profileID)
+	}
+	if scope.WorkspaceID != r.workspaceID {
+		return nil, fmt.Errorf("workspace id = %q, want %q", scope.WorkspaceID, r.workspaceID)
+	}
+	if scope.SessionID != r.sessionID {
+		return nil, fmt.Errorf("session id = %q, want %q", scope.SessionID, r.sessionID)
+	}
+	if scope.AgentName != r.agentName {
+		return nil, fmt.Errorf("agent name = %q, want %q", scope.AgentName, r.agentName)
+	}
+	if !r.available.Load() {
+		return []toolspkg.ToolView{}, nil
+	}
+	return []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{ID: "compozy__skill_view"}}}, nil
+}
+
+func (*promptSkillsToolRegistry) Search(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.SearchQuery,
+) ([]toolspkg.ToolView, error) {
+	return nil, errors.New("unexpected Search call")
+}
+
+func (*promptSkillsToolRegistry) Get(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.ToolID,
+) (toolspkg.ToolView, error) {
+	return toolspkg.ToolView{}, errors.New("unexpected Get call")
+}
+
+func (*promptSkillsToolRegistry) Call(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	return toolspkg.ToolResult{}, errors.New("unexpected Call call")
 }
 
 func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {

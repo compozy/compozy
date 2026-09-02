@@ -53,7 +53,7 @@ func (m *ExposeManager) emitExposureEvent(
 		return
 	}
 	summary := store.EventSummary{
-		ProfileID:   normalizedSkillEventProfileID(correlation.ProfileID),
+		ProfileID:   normalizedSkillProfileID(correlation.ProfileID),
 		WorkspaceID: strings.TrimSpace(record.WorkspaceID),
 		Type:        eventType,
 		Summary:     fmt.Sprintf("skill %s exposure %s for %s", record.SkillName, eventType, record.TargetSlug),

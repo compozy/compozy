@@ -43,6 +43,13 @@
 
 - None.
 
+## Compozy Impact Audit
+
+- **Native tools:** No native tool IDs, toolsets, descriptors, schema digests, risk flags, availability diagnostics, capability gates, or CLI/API fallbacks changed. Checked the shared Loop compiler source and extension provider projections used by `compozy__loops` and the public Loop surfaces.
+- **Extensibility and hooks:** Extension tool manifest placement and Loop action schema discovery became Profile- and workspace-aware. Checked extension resources, runtime registry projections, provider dispatch, cache identity, and config lifecycle; no hook event, bridge SDK, MCP sidecar, extension resource ID, or `config.toml` key/default changed.
+- **Workspace data isolation:** The changed catalog data is workspace/Profile-scoped and ephemeral. Checked `workspace_id` and `profile_id` propagation through CLI/HTTP/UDS, Loop compile/validate/create/patch/fork/run, tool registry projections, and extension caches; no session/agent store, SSE event, or durable datum changed.
+- **Official Compozy skill:** No update required. Checked `skills/compozy/` Loop and extension guidance; no public tool ID, CLI path, hook event, capability, extension resource, memory/network/task semantic, or operator workflow changed.
+
 ## Final Status
 
 - **Exit gate:** `make gate` passed; focused extension/daemon race suites and strict isolated QA audit passed.

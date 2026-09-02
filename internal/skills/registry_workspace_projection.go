@@ -22,7 +22,10 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	if err != nil {
 		return nil, err
 	}
-	return r.projectSkillActivation(ctx, skills, ActivationTarget{WorkspaceID: resourceWorkspaceKey(resolved)})
+	return r.projectSkillActivation(ctx, skills, ActivationTarget{
+		ProfileID:   resolvedSkillProfileID(resolved),
+		WorkspaceID: resourceWorkspaceKey(resolved),
+	})
 }
 
 func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*Skill, error) {
