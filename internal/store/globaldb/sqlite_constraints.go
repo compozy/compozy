@@ -36,6 +36,11 @@ func isSQLitePrimaryKeyConstraint(err error) bool {
 	return ok && code == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
+func isSQLiteTriggerConstraint(err error) bool {
+	code, ok := sqliteConstraintCode(err)
+	return ok && code == sqlite3.SQLITE_CONSTRAINT_TRIGGER
+}
+
 // mapTerminalRunCommandGuardError translates the SQLite trigger ABI into the domain error once.
 // SQLite exposes RAISE(ABORT) identity only as the trigger constraint code plus its exact message.
 func mapTerminalRunCommandGuardError(err error) error {

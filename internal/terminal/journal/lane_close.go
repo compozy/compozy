@@ -86,12 +86,13 @@ func (s *Service) closeLanes(ctx context.Context, matches func(*terminalLane) bo
 	var errs []error
 	for _, entry := range lanes {
 		laneCtx, cancelLane := independentLaneCloseContext(ctx)
-		if err := entry.lane.close(laneCtx); err != nil {
+		err := entry.lane.close(laneCtx)
+		s.removeStoppedLane(entry.key, entry.lane)
+		if err != nil {
 			errs = append(errs, err)
 			cancelLane()
 			continue
 		}
-		s.removeStoppedLane(entry.key, entry.lane)
 		cancelLane()
 	}
 	return errors.Join(errs...)

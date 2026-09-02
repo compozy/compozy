@@ -11,10 +11,18 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/logs/stream-lease-redaction-session.md; docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
+last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-terminal-agent-handoff-input; ET-terminal-hook-events
 ---
+
+qa-impact: 2026-09-01 deep-review round 2 changed lease release, reconnect, and stale-controller
+cleanup paths. Reset for a focused contested-control and recovery re-walk.
+
+2026-09-02 re-walk: passed. Human takeover rejected the bound agent's write with typed
+`lease_revoked` and no terminal or journal side effect; closing the first controlling view preserved
+control, the final close released it after grace, and a foreign agent run remained fenced. Confirmed,
+cancelled, and forced human takeover paths retained exactly one writer, while watcher input was ignored.
 
 Planned by integrated-terminal task 09 for the control-lease guarantees. `ET-terminal-agent-handoff-input`
 walks the ordinary watch-claim-yield path; this file owns the contested and recovery paths that the

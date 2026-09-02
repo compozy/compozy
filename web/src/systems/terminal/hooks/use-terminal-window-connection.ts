@@ -91,11 +91,6 @@ export function useTerminalWindowConnection({
   const pane = useSelector(store, snapshot =>
     snapshot.context.scopeKey === scopeKey ? snapshot.context.panes[terminal.id] : undefined
   );
-  // Giving control back is a request, not a claim: `DETACH` goes out on the
-  // write connection, the daemon closes it, and this viewer comes back as a
-  // watcher. Without remembering the request, the reconnect would ask for the
-  // write lease again and undo the release it just performed.
-  const [releaseAsked, setReleaseAsked] = useState(false);
   // The client reconnects on its own with backoff; this is how a person asks
   // for it now rather than waiting the delay out.
   const [restartKey, setRestartKey] = useState(0);
@@ -109,15 +104,14 @@ export function useTerminalWindowConnection({
         canRelease: false,
       }
     : observedLease;
-  // The request is over the moment the daemon's own frames agree the lease has
-  // moved — derived here rather than reset by an effect, so there is never a
-  // render where the two disagree.
-  const releasing = releaseAsked && lease.canType;
   const attachment = useTerminalAttachment({
     workspaceId,
     terminalId: terminal.id,
     scope: { profile },
-    mode: !readOnly && lease.canType && !releasing ? "write" : "read",
+    // Keep the write attachment alive until the daemon confirms the release.
+    // Its protocol client retains a queued RELEASE across reconnect attempts;
+    // replacing it early with a read attachment would discard that intent.
+    mode: !readOnly && lease.canType ? "write" : "read",
     viewer,
     handleRef,
     socketFactory,
@@ -129,14 +123,8 @@ export function useTerminalWindowConnection({
     lease,
     attachment,
     handleRef,
-    takeControl: force => {
-      setReleaseAsked(false);
-      attachment.requestTakeover(force);
-    },
-    releaseControl: () => {
-      attachment.releaseControl();
-      setReleaseAsked(true);
-    },
+    takeControl: force => attachment.requestTakeover(force),
+    releaseControl: () => attachment.releaseControl(),
     reconnect: () => setRestartKey(key => key + 1),
   };
 }

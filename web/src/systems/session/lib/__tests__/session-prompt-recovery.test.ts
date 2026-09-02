@@ -10,6 +10,8 @@ import { buildTerminalQuote } from "@/systems/terminal/parts";
 import { SessionPromptRecovery } from "../session-prompt-recovery";
 import { composeQuotedPrompt } from "../session-terminal-quote-prompt";
 
+const SCOPE = { workspaceId: "workspace-atlas", sessionId: "session-primary" };
+
 const messages = [
   {
     id: "prompt-1",
@@ -26,11 +28,11 @@ describe("SessionPromptRecovery", () => {
     const recovery = new SessionPromptRecovery();
     const listener = vi.fn();
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    recovery.subscribe(listener);
+    recovery.subscribe(SCOPE, listener);
 
-    recovery.stage({ messages });
-    recovery.recover([file]);
-    recovery.recover([file]);
+    recovery.stage(SCOPE, { messages });
+    recovery.recover(SCOPE, [file]);
+    recovery.recover(SCOPE, [file]);
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith({
@@ -48,9 +50,9 @@ describe("SessionPromptRecovery", () => {
       fromLine: 1,
       lines: ["FAIL"],
     });
-    recovery.subscribe(listener);
+    recovery.subscribe(SCOPE, listener);
 
-    recovery.stage({
+    recovery.stage(SCOPE, {
       messages: [
         {
           id: "prompt-quote",
@@ -59,7 +61,7 @@ describe("SessionPromptRecovery", () => {
         },
       ],
     });
-    recovery.recover([]);
+    recovery.recover(SCOPE, []);
 
     expect(listener).toHaveBeenCalledWith({
       files: [],
@@ -72,15 +74,43 @@ describe("SessionPromptRecovery", () => {
   it("Should discard an accepted draft and unsubscribe listeners", () => {
     const recovery = new SessionPromptRecovery();
     const listener = vi.fn();
-    const unsubscribe = recovery.subscribe(listener);
+    const unsubscribe = recovery.subscribe(SCOPE, listener);
 
-    recovery.stage({ messages });
-    recovery.acknowledge();
-    recovery.recover([]);
+    recovery.stage(SCOPE, { messages });
+    recovery.acknowledge(SCOPE);
+    recovery.recover(SCOPE, []);
     unsubscribe();
-    recovery.stage({ messages });
-    recovery.recover([]);
+    recovery.stage(SCOPE, { messages });
+    recovery.recover(SCOPE, []);
 
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("Should recover a rejected prompt only in its originating workspace and session", () => {
+    const recovery = new SessionPromptRecovery();
+    const originalListener = vi.fn();
+    const nextListener = vi.fn();
+    const nextScope = { workspaceId: "workspace-atlas", sessionId: "session-next" };
+    recovery.subscribe(SCOPE, originalListener);
+    recovery.subscribe(nextScope, nextListener);
+
+    recovery.stage(SCOPE, { messages });
+    recovery.stage(nextScope, {
+      messages: [
+        {
+          id: "prompt-next",
+          parts: [{ text: "Next session", type: "text" }],
+          role: "user",
+        },
+      ],
+    });
+    recovery.recover(SCOPE, []);
+
+    expect(originalListener).toHaveBeenCalledOnce();
+    expect(nextListener).not.toHaveBeenCalled();
+
+    recovery.recover(nextScope, []);
+    expect(nextListener).toHaveBeenCalledOnce();
+    expect(nextListener).toHaveBeenCalledWith({ files: [], quote: null, text: "Next session" });
   });
 });

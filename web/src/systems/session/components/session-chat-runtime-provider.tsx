@@ -32,22 +32,28 @@ async function restoreRejectedPromptDraft(
     }
     aui.composer.setText(draft.text);
   }
-  for (const file of draft.files) {
-    await aui.composer.addAttachment(file);
-  }
+  await draft.files.reduce(
+    (pending, file) => pending.then(() => aui.composer.addAttachment(file)),
+    Promise.resolve()
+  );
 }
 
 function SessionPromptRecoveryBridge({
   recovery,
   sessionId,
+  workspaceId,
 }: {
   recovery: SessionPromptRecovery;
   sessionId: string;
+  workspaceId: string;
 }) {
   const aui = useAui();
   const [draft, setDraft] = useState<RestoredSessionPromptDraft | null>(null);
 
-  useEffect(() => recovery.subscribe(setDraft), [recovery]);
+  useEffect(
+    () => recovery.subscribe({ workspaceId, sessionId }, setDraft),
+    [recovery, sessionId, workspaceId]
+  );
 
   useEffect(() => {
     if (draft === null) return;
@@ -166,7 +172,11 @@ function SessionChatRuntimeBinding({
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
       <SessionPromptDispatchPendingProvider store={promptDispatch}>
-        <SessionPromptRecoveryBridge recovery={promptRecovery} sessionId={sessionId} />
+        <SessionPromptRecoveryBridge
+          recovery={promptRecovery}
+          sessionId={sessionId}
+          workspaceId={resolvedWorkspaceId}
+        />
         <SessionRuntimeExtensions
           sessionId={sessionId}
           workspaceId={resolvedWorkspaceId}

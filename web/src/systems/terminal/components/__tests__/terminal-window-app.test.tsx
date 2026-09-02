@@ -373,6 +373,58 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId("terminal-window")).toBeInTheDocument();
   });
 
+  it("Should keep another profile window's mounted terminal buffer alive", async () => {
+    restoreFetch = stubTerminalTicketFetch();
+    const operationsTerminal = {
+      ...DEV_SERVER_TERMINAL,
+      id: "term-operations-window",
+      profile_name: "operations",
+      title: "Operations shell",
+    };
+    renderTerminalWindow(
+      <>
+        <TerminalWindowApp
+          actions={stubWindowActions()}
+          engineLoader={stubEngineLoader}
+          inputRequests={[]}
+          interactiveAvailable
+          journal={<div>Marketing journal</div>}
+          profile={TERMINAL_FIXTURE_PROFILE}
+          socketFactory={silentSocketFactory}
+          terminals={[DEV_SERVER_TERMINAL]}
+          viewerId={TERMINAL_FIXTURE_VIEWER}
+          workspaceId="ws-atlas"
+        />
+        <TerminalWindowApp
+          actions={stubWindowActions()}
+          engineLoader={stubEngineLoader}
+          inputRequests={[]}
+          interactiveAvailable
+          journal={<div>Operations journal</div>}
+          profile="operations"
+          socketFactory={silentSocketFactory}
+          terminals={[operationsTerminal]}
+          viewerId={TERMINAL_FIXTURE_VIEWER}
+          workspaceId="ws-atlas"
+        />
+      </>
+    );
+
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
+    await waitForTerminalRenderer(operationsTerminal.id);
+
+    expect(
+      screen
+        .getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)
+        .querySelector('[data-slot="terminal-view-host"]')
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId(`terminal-pane-${operationsTerminal.id}`)
+        .querySelector('[data-slot="terminal-view-host"]')
+    ).toBeInTheDocument();
+  });
+
   it("Should keep an exited terminal readable with its outcome", async () => {
     renderWindow({ terminals: [SSH_STAGING_TERMINAL] });
 
@@ -610,6 +662,20 @@ describe("TerminalWindowApp — contention", () => {
     expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument();
   });
 
+  it("Should preserve an explicit release while the write connection reconnects", async () => {
+    const socket = recordingSocketFactory();
+    renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
+
+    await socket.ready();
+    await socket.drop();
+    await userEvent.click(screen.getByTestId("terminal-release-control"));
+    await socket.readyForConnectionCount(2);
+
+    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.release)).toEqual([
+      { op: TERMINAL_CLIENT_OP.release, payload: {} },
+    ]);
+  });
+
   it("Should announce a change of control without announcing the whole head", async () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [PSQL_TERMINAL] });
@@ -645,6 +711,29 @@ describe("TerminalWindowApp — contention", () => {
     expect(screen.queryByTestId("terminal-notice-terminal_not_found")).not.toBeInTheDocument();
     await userEvent.click(within(gone).getByRole("button", { name: "View journal" }));
     expect(screen.getByTestId("journal-slot")).toBeVisible();
+  });
+
+  it("Should not offer terminal creation from a read-only gone state", async () => {
+    const actions = stubWindowActions();
+    const socket = recordingSocketFactory();
+    renderWindow({
+      actions,
+      readOnly: true,
+      socketFactory: socket.factory,
+      terminals: [DEV_SERVER_TERMINAL],
+    });
+    await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
+
+    await socket.ready();
+    await socket.deliver(TERMINAL_SERVER_OP.error, {
+      error: { code: "terminal_not_found", message: "terminal was removed" },
+    });
+
+    const gone = await screen.findByTestId("terminal-not-found");
+    expect(
+      within(gone).queryByRole("button", { name: "Open a new terminal" })
+    ).not.toBeInTheDocument();
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
   });
 
   it("Should state a reclaimed terminal from the stream with its idle period", async () => {
@@ -809,34 +898,32 @@ describe("TerminalWindowApp — contention", () => {
 
 describe("TerminalWindowApp — id-less route resolver and close", () => {
   it("Should adopt the newest running terminal no other window shows", async () => {
-    const actions = stubWindowActions();
-    const onSelectTerminal = vi.fn();
+    const retargetTerminal = vi.fn();
+    const actions = stubWindowActions({ retargetTerminal });
     renderWindow({
       actions,
-      onSelectTerminal,
       requestedTerminalId: null,
       terminals: TERMINAL_FIXTURES,
       windowedTerminalIds: new Set([DEV_SERVER_TERMINAL.id]),
     });
 
     // PSQL is the latest running fixture without a window; SSH has exited.
-    await waitFor(() => expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
+    await waitFor(() => expect(retargetTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
   });
 
   it("Should open a fresh terminal when every running one already has a window", async () => {
-    const actions = stubWindowActions();
-    const onSelectTerminal = vi.fn();
+    const retargetTerminal = vi.fn();
+    const actions = stubWindowActions({ retargetTerminal });
     const { rerender, actions: renderedActions } = renderWindow({
       actions,
-      onSelectTerminal,
       requestedTerminalId: null,
       terminals: [DEV_SERVER_TERMINAL, SSH_STAGING_TERMINAL],
       windowedTerminalIds: new Set([DEV_SERVER_TERMINAL.id]),
     });
 
     await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
-    expect(onSelectTerminal).not.toHaveBeenCalled();
+    expect(retargetTerminal).not.toHaveBeenCalled();
 
     // A re-render on the same arrival must not open a second terminal.
     rerender(
@@ -847,7 +934,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
-        onSelectTerminal={onSelectTerminal}
         profile={TERMINAL_FIXTURE_PROFILE}
         requestedTerminalId={null}
         socketFactory={silentSocketFactory}
@@ -861,11 +947,10 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
   });
 
   it("Should wait for a fresh catalog before resolving the id-less route", async () => {
-    const actions = stubWindowActions();
-    const onSelectTerminal = vi.fn();
+    const retargetTerminal = vi.fn();
+    const actions = stubWindowActions({ retargetTerminal });
     const { rerender, actions: renderedActions } = renderWindow({
       actions,
-      onSelectTerminal,
       requestedTerminalId: null,
       resolveReady: false,
       terminals: [],
@@ -883,7 +968,6 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
         interactiveAvailable
         journal={<div data-testid="journal-slot">journal</div>}
         limit={TERMINAL_LIMIT}
-        onSelectTerminal={onSelectTerminal}
         profile={TERMINAL_FIXTURE_PROFILE}
         requestedTerminalId={null}
         resolveReady
@@ -894,24 +978,23 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
       />
     );
     // Once the catalog is fresh, the running terminal is adopted, not duplicated.
-    await waitFor(() => expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
+    await waitFor(() => expect(retargetTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
   });
 
   it("Should create instead of adopting when the arrival asked for a fresh terminal", async () => {
-    const actions = stubWindowActions();
-    const onSelectTerminal = vi.fn();
+    const retargetTerminal = vi.fn();
+    const actions = stubWindowActions({ retargetTerminal });
     renderWindow({
       actions,
       createIntent: true,
-      onSelectTerminal,
       requestedTerminalId: null,
       terminals: TERMINAL_FIXTURES,
       windowedTerminalIds: new Set<string>(),
     });
 
     await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
-    expect(onSelectTerminal).not.toHaveBeenCalled();
+    expect(retargetTerminal).not.toHaveBeenCalled();
   });
 
   it("Should surface the cap instead of creating when the id-less route lands full", async () => {
@@ -928,18 +1011,17 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
   });
 
   it("Should neither adopt nor create on an aggregate profile read", async () => {
-    const actions = stubWindowActions();
-    const onSelectTerminal = vi.fn();
+    const retargetTerminal = vi.fn();
+    const actions = stubWindowActions({ retargetTerminal });
     renderWindow({
       actions,
-      onSelectTerminal,
       readOnly: true,
       requestedTerminalId: null,
       terminals: [],
     });
 
     expect(screen.getByTestId("terminal-empty")).toBeInTheDocument();
-    expect(onSelectTerminal).not.toHaveBeenCalled();
+    expect(retargetTerminal).not.toHaveBeenCalled();
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
   });
 

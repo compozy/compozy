@@ -45,8 +45,8 @@ func (s *Service) CloseTerminal(ctx context.Context, info terminalpkg.Info) erro
 		return nil
 	}
 	err := lane.close(ctx)
+	s.removeStoppedLane(key, lane)
 	if err == nil {
-		s.removeStoppedLane(key, lane)
 		s.removeTerminalLiveTails(info.WS, info.ID)
 	}
 	return err
@@ -151,7 +151,15 @@ func (l *terminalLane) finishCommand(row terminalpkg.CommandRow, finishedAt time
 	if row.DurationMs != nil {
 		duration = *row.DurationMs
 	}
-	l.enqueue(row)
+	result := l.enqueue(row)
+	select {
+	case err := <-result:
+		if err != nil {
+			l.service.ReleaseCommandID(l.info.WS, row.ID)
+			return
+		}
+	default:
+	}
 	l.emitEvent(terminalpkg.Event{
 		Kind: terminalpkg.EventKindCommandFinished, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
 		TerminalID: l.info.ID, Actor: row.Actor, At: finishedAt,

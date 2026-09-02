@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -43,18 +41,6 @@ func windowsConsoleModeHelper(operation string) {
 	}
 	switch {
 	case operation == "query":
-	case operation == "redact":
-		if err := windows.SetConsoleMode(input, prior&^windows.ENABLE_ECHO_INPUT); err != nil {
-			os.Exit(int(windowsConsoleModeErrorMask | windowsErrorCode(err)))
-		}
-	case strings.HasPrefix(operation, "restore:"):
-		value, parseErr := strconv.ParseUint(strings.TrimPrefix(operation, "restore:"), 10, 32)
-		if parseErr != nil {
-			os.Exit(int(windowsConsoleModeErrorMask | uint32(windows.ERROR_INVALID_PARAMETER)))
-		}
-		if err := windows.SetConsoleMode(input, uint32(value)); err != nil {
-			os.Exit(int(windowsConsoleModeErrorMask | windowsErrorCode(err)))
-		}
 	default:
 		os.Exit(int(windowsConsoleModeErrorMask | uint32(windows.ERROR_INVALID_PARAMETER)))
 	}
@@ -90,13 +76,15 @@ func (p *windowsProc) WriteRedacted(input []byte) (RedactedWriteResult, error) {
 		return RedactedWriteResult{}, err
 	}
 	defer p.io.end()
-	prior, err := p.runConsoleModeHelper("redact")
+	mode, err := p.runConsoleModeHelper("query")
 	if err != nil {
 		return RedactedWriteResult{}, err
 	}
+	if mode&windows.ENABLE_ECHO_INPUT != 0 {
+		return RedactedWriteResult{}, ErrInputVisible
+	}
 	written, writeErr := writeAllRedactedBytes(input, p.write)
-	_, restoreErr := p.runConsoleModeHelper("restore:" + strconv.FormatUint(uint64(prior), 10))
-	return RedactedWriteResult{BytesDelivered: written, RestoreError: restoreErr}, writeErr
+	return RedactedWriteResult{BytesDelivered: written}, writeErr
 }
 
 func (p *windowsProc) runConsoleModeHelper(operation string) (uint32, error) {

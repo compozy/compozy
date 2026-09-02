@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { TerminalInfo, TerminalViewerIdentity } from "../types";
-import type { TerminalWindowActions } from "../components/terminal-window-actions";
+import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalAttachmentSocketFactory } from "./use-terminal-attachment";
 import {
   useTerminalWindowConnection,

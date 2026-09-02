@@ -298,7 +298,7 @@ func TestAttachTerminalWindowBridge(t *testing.T) {
 	t.Run("Should recover from a panicking provider through the notifier", func(t *testing.T) {
 		t.Parallel()
 		notifier := terminalpkg.NewNotifier(discardLogger())
-		notifier.Observe(func(ctx context.Context, event terminalpkg.Event) {
+		notifier.Observe(func(_ context.Context, event terminalpkg.Event) {
 			if !terminalWindowBridgeApplies(event) {
 				return
 			}

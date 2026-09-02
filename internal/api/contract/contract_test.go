@@ -1673,7 +1673,6 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 			t.Fatalf("prompt runtime payload = %#v", roundTrip.PromptRuntime)
 		}
 	})
-
 }
 
 func TestAutomationJobPayloadJSONShape(t *testing.T) {

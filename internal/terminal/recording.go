@@ -219,30 +219,27 @@ func (s *session) persistStoppedRecording(
 }
 
 func (s *session) appendRecording(output []byte) {
-	s.recordingMu.Lock()
-	if s.recordingSealed {
-		s.recordingMu.Unlock()
-		return
-	}
-	recording := s.recording
-	if recording == nil || !recording.appendOutput(s.manager.now(), output) {
-		s.recordingMu.Unlock()
-		return
-	}
-	s.recording = nil
-	s.recordingWG.Add(1)
-	s.recordingMu.Unlock()
-	s.persistTruncatedRecording(recording)
+	s.appendRecordingEntry(func(recording *activeRecording, at time.Time) bool {
+		return recording.appendOutput(at, output)
+	})
 }
 
 func (s *session) appendRecordingMarker(marker OutputSegment) {
+	s.appendRecordingEntry(func(recording *activeRecording, at time.Time) bool {
+		return recording.appendMarker(at, marker)
+	})
+}
+
+func (s *session) appendRecordingEntry(
+	appendEntry func(*activeRecording, time.Time) bool,
+) {
 	s.recordingMu.Lock()
 	if s.recordingSealed {
 		s.recordingMu.Unlock()
 		return
 	}
 	recording := s.recording
-	if recording == nil || !recording.appendMarker(s.manager.now(), marker) {
+	if recording == nil || !appendEntry(recording, s.manager.now()) {
 		s.recordingMu.Unlock()
 		return
 	}

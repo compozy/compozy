@@ -11,10 +11,17 @@ bug_ids: BUG-20260826-terminal-attach-profile-scope
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/logs/profile-selector-session.md; docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
+last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-terminal-profile-segmentation; ET-profile-selection-precedence
 ---
+
+qa-impact: 2026-09-01 deep-review round 2 changed workspace/profile recovery and UDS bootstrap
+scope ownership. Reset for a focused cross-surface selector and isolation re-walk.
+
+2026-09-01 re-walk: passed for the round-2 scope. Ada confirmed default, named-profile, aggregate,
+conflicting, missing, and foreign-id behavior across CLI, HTTP, and UDS. The older archived-read rule
+was explicitly excluded under the review directive not to re-open deliberate spec divergences.
 
 Planned by integrated-terminal task 09 for the structured selector contract.
 `ET-terminal-profile-segmentation` owns the operator-visible segmentation walk; this file owns the

@@ -62,7 +62,7 @@ func (p *oscParser) filter(
 	display := make([]byte, 0, len(data))
 	facts := make([]MarkerFacts, 0, 1)
 	for len(data) > 0 {
-		start, kind := controlStart(data)
+		start, kind, prefixBytes := controlStart(data)
 		if start < 0 {
 			if len(data) > 0 && data[len(data)-1] == 0x1b {
 				display = append(display, data[:len(data)-1]...)
@@ -73,7 +73,7 @@ func (p *oscParser) filter(
 			break
 		}
 		display = append(display, data[:start]...)
-		end, terminatorBytes := controlEnd(data[start+2:], kind)
+		end, terminatorBytes := controlEnd(data[start+prefixBytes:], kind)
 		if end < 0 {
 			partial := data[start:]
 			if len(partial) > maxPendingOSCBytes {
@@ -85,8 +85,8 @@ func (p *oscParser) filter(
 			}
 			break
 		}
-		content := data[start+2 : start+2+end]
-		wholeEnd := start + 2 + end + terminatorBytes
+		content := data[start+prefixBytes : start+prefixBytes+end]
+		wholeEnd := start + prefixBytes + end + terminatorBytes
 		if kind == 'd' {
 			data = data[wholeEnd:]
 			continue
@@ -128,17 +128,27 @@ func (p *oscParser) discardUntilTerminator(input []byte) []byte {
 	return input[end+terminatorBytes:]
 }
 
-func controlStart(input []byte) (int, byte) {
+func controlStart(input []byte) (int, byte, int) {
 	osc := bytes.Index(input, []byte{0x1b, ']'})
 	dcs := bytes.Index(input, []byte{0x1b, 'P'})
-	switch {
-	case osc < 0:
-		return dcs, 'd'
-	case dcs < 0 || osc < dcs:
-		return osc, 'o'
-	default:
-		return dcs, 'd'
+	c1OSC := bytes.IndexByte(input, 0x9d)
+	c1DCS := bytes.IndexByte(input, 0x90)
+	start, kind, prefixBytes := -1, byte(0), 0
+	for _, candidate := range []struct {
+		start       int
+		kind        byte
+		prefixBytes int
+	}{
+		{start: osc, kind: 'o', prefixBytes: 2},
+		{start: dcs, kind: 'd', prefixBytes: 2},
+		{start: c1OSC, kind: 'o', prefixBytes: 1},
+		{start: c1DCS, kind: 'd', prefixBytes: 1},
+	} {
+		if candidate.start >= 0 && (start < 0 || candidate.start < start) {
+			start, kind, prefixBytes = candidate.start, candidate.kind, candidate.prefixBytes
+		}
 	}
+	return start, kind, prefixBytes
 }
 
 func controlEnd(input []byte, kind byte) (int, int) {
@@ -150,6 +160,9 @@ func controlEnd(input []byte, kind byte) (int, int) {
 
 func dcsEnd(input []byte) (int, int) {
 	for index, value := range input {
+		if value == 0x9c {
+			return index, 1
+		}
 		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {
 			return index, 2
 		}
@@ -160,6 +173,9 @@ func dcsEnd(input []byte) (int, int) {
 func oscEnd(input []byte) (int, int) {
 	for index, value := range input {
 		if value == 0x07 {
+			return index, 1
+		}
+		if value == 0x9c {
 			return index, 1
 		}
 		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {

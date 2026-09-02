@@ -118,6 +118,7 @@ export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErro
   "input_request_superseded",
   "input_request_limit_reached",
   "input_answer_requires_write",
+  "input_request_requires_hidden_input",
   "recording_already_started",
   "recording_not_active",
   "recording_unavailable",
@@ -284,7 +285,6 @@ export const terminalRecordingResponseSchema: z.ZodType<TerminalRecordingRespons
     }),
   }
 );
-export const terminalWaitUntilSchema = z.enum(["exit", "idle", "match"]);
 export const terminalWaitResponseSchema: z.ZodType<TerminalWaitResponse> = z.strictObject({
   exit_code: z.number().int().nullable().optional(),
   reason: z.string(),

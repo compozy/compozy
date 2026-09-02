@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	privateDirMode  = 0o700
-	privateFileMode = 0o600
+	privateDirMode         = 0o700
+	privateFileMode        = 0o600
+	artifactRetentionKind  = "terminal-artifacts"
+	recordingRetentionKind = "terminal-recordings"
 )
 
 // WriteArtifact redacts and retains one content-addressed spill artifact.
@@ -39,7 +41,7 @@ func (s *Service) WriteArtifact(
 	}
 	path, digestText, retainedBytes, created, err := s.writeRedactedRetainedFile(
 		workspaceID,
-		"terminal-artifacts",
+		artifactRetentionKind,
 		".bin",
 		contents,
 	)
@@ -99,7 +101,7 @@ func (s *Service) Artifact(
 	if !scope.Matches(artifact.ProfileID) {
 		return nil, os.ErrNotExist
 	}
-	return s.openContained(workspaceID, "terminal-artifacts", artifact.Path)
+	return s.openContained(workspaceID, artifactRetentionKind, artifact.Path)
 }
 
 // Recording opens a profile-scoped recording and its asciicast artifact.
@@ -123,7 +125,7 @@ func (s *Service) Recording(
 	if !scope.Matches(recording.ProfileID) {
 		return nil, nil, os.ErrNotExist
 	}
-	reader, err := s.openContained(workspaceID, "terminal-recordings", recording.Path)
+	reader, err := s.openContained(workspaceID, recordingRetentionKind, recording.Path)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -143,7 +145,7 @@ func (s *Service) writeRecordingFile(
 ) (string, string, int64, bool, error) {
 	path, digest, retainedBytes, created, err := s.writeRedactedRetainedFile(
 		workspaceID,
-		"terminal-recordings",
+		recordingRetentionKind,
 		".cast",
 		contents,
 	)
@@ -239,7 +241,7 @@ func (s *Service) removeWorkspaceFiles(workspaceID string) error {
 	}
 	root := filepath.Join(s.homeDir, "workspaces", workspaceID)
 	var errs []error
-	for _, kind := range []string{"terminal-artifacts", "terminal-recordings"} {
+	for _, kind := range []string{artifactRetentionKind, recordingRetentionKind} {
 		path := filepath.Join(root, kind)
 		if err := os.RemoveAll(path); err != nil {
 			errs = append(errs, fmt.Errorf("terminal journal: remove retained workspace files %q: %w", path, err))

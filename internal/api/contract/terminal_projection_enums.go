@@ -1,17 +1,32 @@
 package contract
 
+import terminalpkg "github.com/compozy/compozy/internal/terminal"
+
 func TerminalModeValues() []string {
-	return []string{"pty", "pipe"}
+	return []string{string(terminalpkg.ModePTY), string(terminalpkg.ModePipe)}
 }
 
 func TerminalLeaseStateValues() []string {
-	return []string{"human_owned", "agent_owned", "available"}
+	return []string{
+		string(terminalpkg.LeaseHumanOwned),
+		string(terminalpkg.LeaseAgentOwned),
+		string(terminalpkg.LeaseAvailable),
+	}
 }
 
 func TerminalActorKindValues() []string {
-	return []string{"human", "agent", "system"}
+	return []string{
+		string(terminalpkg.ActorKindHuman),
+		string(terminalpkg.ActorKindAgent),
+		string(terminalpkg.ActorKindSystem),
+	}
 }
 
 func TerminalSignalValues() []string {
-	return []string{"INT", "TERM", "KILL", "HUP"}
+	return []string{
+		string(terminalpkg.SignalINT),
+		string(terminalpkg.SignalTERM),
+		string(terminalpkg.SignalKILL),
+		string(terminalpkg.SignalHUP),
+	}
 }

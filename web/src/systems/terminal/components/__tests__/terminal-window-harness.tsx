@@ -194,6 +194,7 @@ export function stubWindowActions(
 ): TerminalWindowActions {
   return {
     onOpenTerminal: vi.fn(),
+    retargetTerminal: vi.fn(),
     onCloseTerminal: vi.fn(),
     onStop: vi.fn(),
     onWait: vi.fn(),

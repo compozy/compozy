@@ -22,18 +22,25 @@ export interface PermissionReceiptCopy {
   suffix: string;
 }
 
-function terminalSubject(permission: PermissionRequest): {
+interface TerminalPermissionDescriptor {
   kind: "exec" | "typing" | "open";
   subject: string | null;
-} | null {
+  verb: "run" | "type" | "open";
+}
+
+function terminalPermissionDescriptor(
+  permission: PermissionRequest
+): TerminalPermissionDescriptor | null {
   const detail = terminalPermissionDetail(
     permission.toolId ?? permission.toolName,
     permission.toolInput
   );
   if (!detail) return null;
-  if (detail.kind === "exec") return { kind: "exec", subject: detail.command };
-  if (detail.kind === "typing") return { kind: "typing", subject: null };
-  return { kind: "open", subject: detail.title };
+  if (detail.kind === "exec") {
+    return { kind: "exec", subject: detail.command, verb: "run" };
+  }
+  if (detail.kind === "typing") return { kind: "typing", subject: null, verb: "type" };
+  return { kind: "open", subject: detail.title, verb: "open" };
 }
 
 function unsupportedDecision(decision: PermissionDecision): never {
@@ -44,7 +51,7 @@ export function permissionReceiptCopy(
   permission: PermissionRequest,
   decision: PermissionDecision
 ): PermissionReceiptCopy {
-  const terminal = terminalSubject(permission);
+  const terminal = terminalPermissionDescriptor(permission);
   if (terminal?.kind === "exec" && terminal.subject) {
     return execReceipt(terminal.subject, decision);
   }
@@ -215,12 +222,6 @@ function genericReceipt(
 export function terminalWaitingLead(
   permission: PermissionRequest
 ): { verb: "run" | "type" | "open"; command: string | null } | null {
-  const detail = terminalPermissionDetail(
-    permission.toolId ?? permission.toolName,
-    permission.toolInput
-  );
-  if (!detail) return null;
-  if (detail.kind === "exec") return { verb: "run", command: detail.command };
-  if (detail.kind === "typing") return { verb: "type", command: null };
-  return { verb: "open", command: detail.title };
+  const descriptor = terminalPermissionDescriptor(permission);
+  return descriptor ? { verb: descriptor.verb, command: descriptor.subject } : null;
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 const (
@@ -11,6 +12,7 @@ const (
 	errorMessageExited               = "terminal has exited"
 	errorMessageGenerationFenced     = "terminal action came from a stale runtime generation"
 	errorMessageInputAlreadyResolved = "terminal input request is already resolved"
+	errorMessageInputRequiresHidden  = "redacted input requires a foreground program that is already hiding input"
 	errorMessageInputPending         = "agent terminal mutation is blocked while an input request is pending"
 	errorMessageNotFound             = "terminal not found"
 	errorMessageNotInteractive       = "terminal is not interactive"
@@ -36,6 +38,7 @@ var (
 	ErrInputResolving          = errors.New("terminal input request resolution in progress")
 	ErrInputLimit              = errors.New("terminal input request limit reached")
 	ErrInputRequiresWrite      = errors.New("terminal input answer requires write")
+	ErrInputRequiresHidden     = errors.New("terminal redacted input requires hidden input")
 	ErrInputPending            = errors.New("terminal input request pending")
 	ErrWaitTimeout             = errors.New("terminal wait timeout")
 	ErrExited                  = errors.New("terminal exited")
@@ -60,37 +63,38 @@ var (
 type ErrorCode string
 
 const (
-	ErrorCodeNotFound                 ErrorCode = "terminal_not_found"
-	ErrorCodeProfileSelectionConflict ErrorCode = "profile_selection_conflict"
-	ErrorCodeProfileSessionConflict   ErrorCode = "profile_session_conflict"
-	ErrorCodeRequiresWorkspace        ErrorCode = "terminal_requires_workspace"
-	ErrorCodeProfileArchived          ErrorCode = "profile_archived"
-	ErrorCodeProfileUnavailable       ErrorCode = "profile_unavailable"
-	ErrorCodeLimitReached             ErrorCode = "terminal_limit_reached"
-	ErrorCodeSubscriberLimitReached   ErrorCode = "subscriber_limit_reached"
-	ErrorCodeExited                   ErrorCode = "terminal_exited"
-	ErrorCodeExpired                  ErrorCode = "terminal_expired"
-	ErrorCodeInteractiveUnavailable   ErrorCode = "terminal_interactive_unavailable"
-	ErrorCodeNotInteractive           ErrorCode = "terminal_not_interactive"
-	ErrorCodeInvalidCwd               ErrorCode = "invalid_cwd"
-	ErrorCodeTimeoutOutOfRange        ErrorCode = "timeout_out_of_range"
-	ErrorCodeWriteOwnerHeld           ErrorCode = "write_owner_held"
-	ErrorCodeLeaseRevoked             ErrorCode = "lease_revoked"
-	ErrorCodeGenerationFenced         ErrorCode = "generation_fenced"
-	ErrorCodeTypingGrantRejected      ErrorCode = "typing_grant_rejected"
-	ErrorCodeApprovalRejected         ErrorCode = "approval_rejected"
-	ErrorCodeTicketInvalid            ErrorCode = "ticket_invalid"
-	ErrorCodeTicketExpired            ErrorCode = "ticket_expired"
-	ErrorCodeInputRequestNotFound     ErrorCode = "input_request_not_found"
-	ErrorCodeInputRequestAnswered     ErrorCode = "input_request_already_answered"
-	ErrorCodeInputRequestSuperseded   ErrorCode = "input_request_superseded"
-	ErrorCodeInputRequestLimitReached ErrorCode = "input_request_limit_reached"
-	ErrorCodeInputAnswerRequiresWrite ErrorCode = "input_answer_requires_write"
-	ErrorCodeRecordingAlreadyStarted  ErrorCode = "recording_already_started"
-	ErrorCodeRecordingNotActive       ErrorCode = "recording_not_active"
-	ErrorCodeRecordingUnavailable     ErrorCode = "recording_unavailable"
-	ErrorCodeSlowConsumer             ErrorCode = "slow_consumer"
-	ErrorCodeJournalUnavailable       ErrorCode = "journal_unavailable"
+	ErrorCodeNotFound                   ErrorCode = "terminal_not_found"
+	ErrorCodeProfileSelectionConflict   ErrorCode = "profile_selection_conflict"
+	ErrorCodeProfileSessionConflict     ErrorCode = "profile_session_conflict"
+	ErrorCodeRequiresWorkspace          ErrorCode = "terminal_requires_workspace"
+	ErrorCodeProfileArchived            ErrorCode = "profile_archived"
+	ErrorCodeProfileUnavailable         ErrorCode = "profile_unavailable"
+	ErrorCodeLimitReached               ErrorCode = "terminal_limit_reached"
+	ErrorCodeSubscriberLimitReached     ErrorCode = "subscriber_limit_reached"
+	ErrorCodeExited                     ErrorCode = "terminal_exited"
+	ErrorCodeExpired                    ErrorCode = "terminal_expired"
+	ErrorCodeInteractiveUnavailable     ErrorCode = "terminal_interactive_unavailable"
+	ErrorCodeNotInteractive             ErrorCode = "terminal_not_interactive"
+	ErrorCodeInvalidCwd                 ErrorCode = "invalid_cwd"
+	ErrorCodeTimeoutOutOfRange          ErrorCode = "timeout_out_of_range"
+	ErrorCodeWriteOwnerHeld             ErrorCode = "write_owner_held"
+	ErrorCodeLeaseRevoked               ErrorCode = "lease_revoked"
+	ErrorCodeGenerationFenced           ErrorCode = "generation_fenced"
+	ErrorCodeTypingGrantRejected        ErrorCode = "typing_grant_rejected"
+	ErrorCodeApprovalRejected           ErrorCode = "approval_rejected"
+	ErrorCodeTicketInvalid              ErrorCode = "ticket_invalid"
+	ErrorCodeTicketExpired              ErrorCode = "ticket_expired"
+	ErrorCodeInputRequestNotFound       ErrorCode = "input_request_not_found"
+	ErrorCodeInputRequestAnswered       ErrorCode = "input_request_already_answered"
+	ErrorCodeInputRequestSuperseded     ErrorCode = "input_request_superseded"
+	ErrorCodeInputRequestLimitReached   ErrorCode = "input_request_limit_reached"
+	ErrorCodeInputAnswerRequiresWrite   ErrorCode = "input_answer_requires_write"
+	ErrorCodeInputRequestRequiresHidden ErrorCode = "input_request_requires_hidden_input"
+	ErrorCodeRecordingAlreadyStarted    ErrorCode = "recording_already_started"
+	ErrorCodeRecordingNotActive         ErrorCode = "recording_not_active"
+	ErrorCodeRecordingUnavailable       ErrorCode = "recording_unavailable"
+	ErrorCodeSlowConsumer               ErrorCode = "slow_consumer"
+	ErrorCodeJournalUnavailable         ErrorCode = "journal_unavailable"
 )
 
 var errorCodeValues = [...]ErrorCode{
@@ -102,25 +106,28 @@ var errorCodeValues = [...]ErrorCode{
 	ErrorCodeGenerationFenced, ErrorCodeTypingGrantRejected, ErrorCodeApprovalRejected,
 	ErrorCodeTicketInvalid, ErrorCodeTicketExpired, ErrorCodeInputRequestNotFound,
 	ErrorCodeInputRequestAnswered, ErrorCodeInputRequestSuperseded, ErrorCodeInputRequestLimitReached,
-	ErrorCodeInputAnswerRequiresWrite, ErrorCodeRecordingAlreadyStarted, ErrorCodeRecordingNotActive,
-	ErrorCodeRecordingUnavailable, ErrorCodeSlowConsumer, ErrorCodeJournalUnavailable,
+	ErrorCodeInputAnswerRequiresWrite, ErrorCodeInputRequestRequiresHidden,
+	ErrorCodeRecordingAlreadyStarted, ErrorCodeRecordingNotActive, ErrorCodeRecordingUnavailable, ErrorCodeSlowConsumer,
+	ErrorCodeJournalUnavailable,
+}
+
+func inputRequiresHiddenError(cause error) *Error {
+	return &Error{
+		Code: ErrorCodeInputRequestRequiresHidden, Message: errorMessageInputRequiresHidden,
+		Err: errors.Join(ErrInputRequiresHidden, cause),
+	}
 }
 
 func ErrorCodeValues() []string {
 	values := make([]string, len(errorCodeValues))
-	for index, code := range errorCodeValues {
+	for index, code := range errorCodeValues[:] {
 		values[index] = string(code)
 	}
 	return values
 }
 
 func IsErrorCode(code ErrorCode) bool {
-	for _, candidate := range errorCodeValues {
-		if code == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(errorCodeValues[:], code)
 }
 
 type Error struct {

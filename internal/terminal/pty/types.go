@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-var ErrInteractiveUnavailable = errors.New("interactive terminal unavailable")
+var (
+	ErrInputVisible           = errors.New("terminal input is visible")
+	ErrInteractiveUnavailable = errors.New("interactive terminal unavailable")
+)
 
 type Mode string
 
@@ -45,10 +48,8 @@ type Exit struct {
 	Signal *string
 }
 
-// RedactedWriteResult separates delivered secret bytes from echo restoration state.
 type RedactedWriteResult struct {
 	BytesDelivered int
-	RestoreError   error
 }
 
 type PTY interface {

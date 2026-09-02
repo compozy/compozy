@@ -41,6 +41,7 @@ export {
   parseTerminalCatalogEvent,
   reconcileTerminalCatalog,
   TERMINAL_CATALOG_EVENTS,
+  TERMINAL_STREAM_EVENTS,
   type TerminalCatalogEvent,
 } from "./lib/terminal-catalog-stream";
 export {

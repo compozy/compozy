@@ -144,15 +144,15 @@ func assertCanceledTerminalRequests(t *testing.T) {
 		params any
 	}{
 		{
-			name: "kill", method: acpsdk.ClientMethodTerminalKill,
+			name: "Should reject kill after cancellation", method: acpsdk.ClientMethodTerminalKill,
 			params: acpsdk.KillTerminalRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
 		},
 		{
-			name: "output", method: acpsdk.ClientMethodTerminalOutput,
+			name: "Should reject output after cancellation", method: acpsdk.ClientMethodTerminalOutput,
 			params: acpsdk.TerminalOutputRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
 		},
 		{
-			name: "release", method: acpsdk.ClientMethodTerminalRelease,
+			name: "Should reject release after cancellation", method: acpsdk.ClientMethodTerminalRelease,
 			params: acpsdk.ReleaseTerminalRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
 		},
 	} {

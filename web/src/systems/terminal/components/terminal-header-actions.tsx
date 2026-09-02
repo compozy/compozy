@@ -1,0 +1,265 @@
+import { CircleStop, Ellipsis, Plus, ScrollText } from "lucide-react";
+
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Separator,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
+
+import type { TerminalHeaderProps } from "./terminal-header";
+
+/**
+ * At most two trailing actions, set off from the chips by a hairline.
+ *
+ * On a pipe terminal the interactive verbs are absent rather than disabled: a
+ * greyed-out Take control would still claim the feature exists here. Wait and
+ * Close stay on the head; Signal moves to overflow so the head never grows a
+ * third verb.
+ */
+export function TerminalHeaderActions({
+  isPipe,
+  lease,
+  recording,
+  closePending,
+  onTakeControl,
+  onReleaseControl,
+  onStop,
+  onClose,
+  onSignal,
+  onWait,
+  onStopRecording,
+}: TerminalHeaderActionsProps) {
+  if (isPipe) {
+    return (
+      <TerminalPipeHeaderActions
+        closePending={closePending}
+        onClose={onClose}
+        onSignal={onSignal}
+        onWait={onWait}
+      />
+    );
+  }
+  const takeControl =
+    lease.canTakeControl && onTakeControl ? (
+      <Button data-testid="terminal-take-control" onClick={onTakeControl} size="sm" type="button">
+        Take control
+      </Button>
+    ) : null;
+  const releaseControl =
+    lease.canRelease && onReleaseControl ? (
+      <Button
+        data-testid="terminal-release-control"
+        onClick={onReleaseControl}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Release control
+      </Button>
+    ) : null;
+  // Recording does not touch the lease, so it never takes the lease action's
+  // place. Stopping the recording is ghost text; danger stays on the rec dot.
+  const quietAction =
+    recording && onStopRecording ? (
+      <Button
+        data-testid="terminal-stop-recording"
+        onClick={onStopRecording}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Stop recording
+      </Button>
+    ) : onStop && !lease.canTakeControl ? (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              aria-label="Stop"
+              data-testid="terminal-stop"
+              onClick={onStop}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          <CircleStop aria-hidden="true" className="size-3.5 text-danger" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Stop</TooltipContent>
+      </Tooltip>
+    ) : null;
+  // Ending the session is deliberate, so it lives one step away — never as a
+  // third verb beside the lease pair.
+  const overflow = onClose ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="More actions"
+            data-testid="terminal-overflow"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis aria-hidden="true" className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          data-testid="terminal-close"
+          disabled={closePending}
+          onClick={onClose}
+          variant="destructive"
+        >
+          Close terminal
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+  if (!takeControl && !releaseControl && !quietAction && !overflow) return null;
+  return (
+    <>
+      <TerminalHeaderRule />
+      {takeControl}
+      {releaseControl}
+      {quietAction}
+      {overflow}
+    </>
+  );
+}
+
+/**
+ * Window-level verbs: another terminal, and the journal. They belong to the
+ * window rather than to this terminal's lease, so they trail everything else.
+ */
+export function TerminalWindowVerbs({
+  onNewTerminal,
+  onViewJournal,
+}: Pick<TerminalHeaderProps, "onNewTerminal" | "onViewJournal">) {
+  if (!onNewTerminal && !onViewJournal) return null;
+  return (
+    <>
+      <TerminalHeaderRule />
+      {onNewTerminal ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="New terminal"
+                data-testid="terminal-new"
+                onClick={onNewTerminal}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <Plus aria-hidden="true" className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">New terminal</TooltipContent>
+        </Tooltip>
+      ) : null}
+      {onViewJournal ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Journal"
+                data-testid="terminal-journal-toggle"
+                onClick={onViewJournal}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <ScrollText aria-hidden="true" className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Journal</TooltipContent>
+        </Tooltip>
+      ) : null}
+    </>
+  );
+}
+
+function TerminalPipeHeaderActions({
+  onClose,
+  onSignal,
+  onWait,
+  closePending,
+}: Pick<TerminalHeaderActionsProps, "onClose" | "onSignal" | "onWait" | "closePending">) {
+  const wait = onWait ? (
+    <Button data-testid="terminal-wait" onClick={onWait} size="sm" type="button" variant="ghost">
+      Wait
+    </Button>
+  ) : null;
+  const close = onClose ? (
+    <Button
+      data-testid="terminal-close"
+      disabled={closePending}
+      onClick={onClose}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      Close
+    </Button>
+  ) : null;
+  const overflow = onSignal ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="More actions"
+            data-testid="terminal-pipe-overflow"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis aria-hidden="true" className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem data-testid="terminal-signal" onClick={onSignal}>
+          Signal
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+  if (!wait && !close && !overflow) return null;
+  return (
+    <>
+      <TerminalHeaderRule />
+      {wait}
+      {close}
+      {overflow}
+    </>
+  );
+}
+
+function TerminalHeaderRule() {
+  return <Separator className="h-3.5 self-center" orientation="vertical" />;
+}
+
+type TerminalHeaderActionsProps = Pick<
+  TerminalHeaderProps,
+  | "lease"
+  | "recording"
+  | "closePending"
+  | "onTakeControl"
+  | "onReleaseControl"
+  | "onStop"
+  | "onClose"
+  | "onSignal"
+  | "onWait"
+  | "onStopRecording"
+> & { isPipe: boolean };

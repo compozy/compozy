@@ -248,7 +248,7 @@ func TestOpen(t *testing.T) {
 		if err := preparation.Commit(canceled); !errors.Is(err, context.Canceled) {
 			t.Fatalf("Commit(canceled) error = %v, want context canceled", err)
 		}
-		if _, err := pool.Open(ctx, "workspace-a"); err == nil || !strings.Contains(err.Error(), "removal is pending") {
+		if _, err := pool.Open(ctx, "workspace-a"); !errors.Is(err, errWorkspaceRemovalPending) {
 			t.Fatalf("Open(during retry) error = %v, want removal pending", err)
 		}
 		if err := preparation.Commit(ctx); err != nil {

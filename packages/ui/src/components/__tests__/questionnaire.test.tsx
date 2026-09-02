@@ -7,8 +7,14 @@ import {
   QuestionnaireActions,
   QuestionnaireChoice,
   QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireError,
   QuestionnaireInput,
   QuestionnaireItem,
+  QuestionnaireNext,
+  QuestionnairePrevious,
+  QuestionnaireProgress,
+  QuestionnaireSkip,
   QuestionnaireSubmit,
   QuestionnaireTitle,
 } from "../questionnaire";
@@ -77,5 +83,66 @@ describe("Questionnaire", () => {
 
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(values).toEqual(["now"]);
+  });
+
+  it("Should expose validation and navigation through every flow slot", async () => {
+    render(
+      <Questionnaire
+        items={[
+          {
+            name: "scope",
+            required: true,
+            choices: [{ value: "web" }, { value: "all" }],
+          },
+          { name: "note" },
+        ]}
+      >
+        <QuestionnaireProgress />
+        <QuestionnaireItem name="scope" required>
+          <QuestionnaireTitle>Which files should change?</QuestionnaireTitle>
+          <QuestionnaireDescription>Choose the narrowest useful scope.</QuestionnaireDescription>
+          <QuestionnaireChoices>
+            <QuestionnaireChoice value="web">Only web/</QuestionnaireChoice>
+            <QuestionnaireChoice value="all">The whole repo</QuestionnaireChoice>
+          </QuestionnaireChoices>
+          <QuestionnaireError />
+        </QuestionnaireItem>
+        <QuestionnaireItem name="note">
+          <QuestionnaireTitle>Anything else?</QuestionnaireTitle>
+          <QuestionnaireInput aria-label="Optional note" />
+          <QuestionnaireError />
+        </QuestionnaireItem>
+        <QuestionnaireActions>
+          <QuestionnairePrevious />
+          <QuestionnaireSkip />
+          <QuestionnaireNext />
+          <QuestionnaireSubmit />
+        </QuestionnaireActions>
+      </Questionnaire>
+    );
+
+    expect(screen.getByRole("progressbar")).toHaveTextContent("Question 1 of 2");
+    expect(screen.getByText("Choose the narrowest useful scope.")).toBeVisible();
+    const next = screen.getByRole("button", { name: "Next" });
+    expect(next).toHaveAttribute("data-size", "sm");
+    expect(next).toHaveAttribute("data-variant", "default");
+
+    await userEvent.click(next);
+    expect(screen.getByRole("alert")).toHaveTextContent("Choose an answer to continue.");
+
+    await userEvent.click(screen.getByRole("radio", { name: "Only web/" }));
+    await userEvent.click(next);
+    expect(screen.getByText("Anything else?")).toBeVisible();
+    const previous = screen.getByRole("button", { name: "Previous" });
+    expect(previous).toHaveAttribute("data-size", "sm");
+    expect(previous).toHaveAttribute("data-variant", "outline");
+    expect(screen.getByRole("button", { name: "Skip" })).toHaveAttribute("data-variant", "ghost");
+    expect(screen.getByRole("button", { name: "Submit" })).toHaveAttribute(
+      "data-variant",
+      "default"
+    );
+
+    await userEvent.click(previous);
+    expect(screen.getByText("Which files should change?")).toBeVisible();
   });
 });

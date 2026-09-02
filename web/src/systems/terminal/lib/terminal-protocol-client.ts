@@ -29,6 +29,8 @@ import {
   createTerminalFrameConsumers,
   type TerminalFrameConsumers,
 } from "./terminal-frame-consumers";
+import { TerminalLeaseRequests } from "./terminal-lease-requests";
+import { TerminalReplayState } from "./terminal-replay-state";
 import type {
   TerminalAttachedFrame,
   TerminalGapFrame,
@@ -42,12 +44,9 @@ export type {
   TerminalStreamStatus,
 } from "./terminal-protocol-contract";
 
-type TerminalLeaseRequest = { kind: "takeover"; force: boolean } | { kind: "release" };
-
 export class TerminalProtocolClient {
   private socket: TerminalSocket | null = null;
   private socketOpen = false;
-  private pendingLeaseRequest: TerminalLeaseRequest | null = null;
   /**
    * Which connection is current.
    *
@@ -66,16 +65,8 @@ export class TerminalProtocolClient {
    */
   private ended = false;
   private attempt = 0;
-  /**
-   * The last byte this viewer has actually *seen*.
-   *
-   * Resuming from anywhere past this skips output. So it advances only when the
-   * emulator has parsed the bytes, when a snapshot has replaced the screen, or
-   * when a held tail has been written — never merely because a frame arrived.
-   * A connection that dies mid-catch-up asks again from here, and the daemon
-   * replays what was never drawn.
-   */
-  private committedSeq = 0n;
+  private readonly leaseRequests = new TerminalLeaseRequests();
+  private readonly replay = new TerminalReplayState();
   private readonly sender = new TerminalCommandSender({
     // A socket that has not opened yet cannot carry a frame; handing it out
     // would record sends that never happened.
@@ -86,14 +77,6 @@ export class TerminalProtocolClient {
     this.sender.send(frame, "The terminal could not report what it has drawn.")
   );
   private inputEnabled = false;
-  /** The connection whose catch-up is running, so a takeover cancels it. */
-  private resyncEpoch = 0;
-  /** The resume point this attempt asked for, or zero for a first attach. */
-  private resumedFrom = 0n;
-  /** Where the replay announced by `ATTACHED` ends, until it has been drawn. */
-  private replayTarget: bigint | null = null;
-  /** Set when the daemon called the attach truncated: the replay is not usable. */
-  private discardReplay = false;
   private readonly consumers: TerminalFrameConsumers;
   private cancelReconnect: (() => void) | null = null;
   private readonly abort = new AbortController();
@@ -110,14 +93,14 @@ export class TerminalProtocolClient {
           this.options.scope,
           this.abort.signal
         ),
-      commit: seqEnd => this.commit(seqEnd),
+      commit: seqEnd => this.replay.commit(seqEnd),
       returnCredit: bytes => this.returnCredit(bytes),
       currentEpoch: () => this.connectionEpoch,
       isStopped: () => this.stopped,
-      isGapCancelled: () => this.stopped || this.resyncEpoch !== this.connectionEpoch,
-      replayTarget: () => this.replayTarget,
-      discardReplay: () => this.discardReplay,
-      finishReplay: () => this.finishReplay(),
+      isGapCancelled: () => this.replay.isResyncCancelled(this.stopped, this.connectionEpoch),
+      replayTarget: () => this.replay.replayTarget,
+      discardReplay: () => this.replay.discardReplay,
+      finishReplay: () => this.replay.finishReplay(),
       onReplayComplete: () => this.setInputEnabled(this.options.mode === "write"),
       onTrustedFrame: frame => this.options.handlers?.onRedactedInput?.(frame),
       setStatus: status => this.setStatus(status),
@@ -151,7 +134,7 @@ export class TerminalProtocolClient {
     const socket = this.socket;
     this.socket = null;
     this.socketOpen = false;
-    this.pendingLeaseRequest = null;
+    this.leaseRequests.clear();
     if (socket) {
       // Exactly one DETACH per attachment. Releasing control already sent it,
       // and a second would detach a lease this client no longer holds.
@@ -182,25 +165,19 @@ export class TerminalProtocolClient {
   /** Claims the write lease. `force` skips the human-vs-human confirmation. */
   requestTakeover(force: boolean): void {
     if (this.stopped) return;
-    this.pendingLeaseRequest = { kind: "takeover", force };
+    this.leaseRequests.requestTakeover(force);
     this.flushLeaseRequest();
   }
 
   /** Gives the write lease back and waits for the daemon's `OWNER` frame. */
   releaseControl(): void {
     if (this.stopped) return;
-    this.pendingLeaseRequest = { kind: "release" };
+    this.leaseRequests.requestRelease();
     this.flushLeaseRequest();
   }
 
   private flushLeaseRequest(): void {
-    const request = this.pendingLeaseRequest;
-    if (!request || !this.socketOpen) return;
-    const sent =
-      request.kind === "takeover"
-        ? this.sender.takeover(request.force)
-        : this.sender.release("The terminal could not release control.");
-    if (sent && this.pendingLeaseRequest === request) this.pendingLeaseRequest = null;
+    this.leaseRequests.flush(this.socketOpen, this.sender);
   }
 
   private setStatus(status: TerminalStreamStatus): void {
@@ -230,9 +207,7 @@ export class TerminalProtocolClient {
     await this.consumers.emulator.drain();
     if (this.stopped) return;
     let socket: TerminalSocket;
-    // Remembered so the attach frame can be read correctly: whether a replay is
-    // coming at all depends on whether this attempt asked to resume.
-    this.resumedFrom = this.committedSeq;
+    const resumedFrom = this.replay.beginConnectionAttempt();
     // Read once: a vote recorded while the mint is in flight is not in this
     // query, so it must not be marked as carried below.
     const carriedProposal = this.sender.proposed;
@@ -244,7 +219,7 @@ export class TerminalProtocolClient {
         mode: this.options.mode,
         viewer: this.options.viewer,
         flow: this.flow,
-        afterSeq: this.committedSeq > 0n ? this.committedSeq : undefined,
+        afterSeq: resumedFrom > 0n ? resumedFrom : undefined,
         proposed: carriedProposal,
         ...(this.options.socketFactory ? { socketFactory: this.options.socketFactory } : {}),
         signal: this.abort.signal,
@@ -329,16 +304,6 @@ export class TerminalProtocolClient {
     this.consumeControl(frame.op, frame.payload);
   }
 
-  private finishReplay(): void {
-    this.replayTarget = null;
-    this.discardReplay = false;
-  }
-
-  /** Marks everything up to `seqEnd` as drawn, so a resume starts after it. */
-  private commit(seqEnd: bigint): void {
-    if (seqEnd > this.committedSeq) this.committedSeq = seqEnd;
-  }
-
   /**
    * Abandons this connection and asks again from the last byte on screen.
    *
@@ -390,28 +355,15 @@ export class TerminalProtocolClient {
 
   private applyAttached(frame: TerminalAttachedFrame): void {
     this.attempt = 0;
-    // The cursor deliberately does not move here. `ATTACHED` announces where the
-    // replay *will end*, and the replay itself arrives afterwards as `OUTPUT`.
-    // Trusting the announcement would mean a disconnect in between resumes past
-    // a replay that was never drawn.
     this.credit.reset();
-    // The replay that follows is where the cursor lands once it is drawn. It is
-    // also the one frame whose length says nothing about sequence: a truncated
-    // replay is prefixed with a synthetic reset and preamble that belong to no
-    // absolute position, so its end is this target rather than start + length.
-    // A replay is coming whenever the daemon attaches ahead of where this
-    // viewer left off — including a first attach to a terminal that has already
-    // produced output. Only an attach that lands exactly on the resume point
-    // has nothing to catch up on.
-    this.replayTarget = frame.seq > this.resumedFrom ? frame.seq : null;
-    this.discardReplay = false;
+    const replayPlan = this.replay.applyAttached(frame);
     // A client that asked for the whole history cannot vouch for what is
     // already on the screen: the emulator's buffer outlives connections by
     // design, so a fresh pass over a retained buffer would paint the replay on
     // top of the very bytes it repeats. The daemon prefixes its own reset only
     // on the truncated branch; the from-zero branch is this client's to clear.
     // Queued on the emulator so it lands ahead of the replay's writes.
-    if (this.resumedFrom === 0n && this.replayTarget !== null) {
+    if (replayPlan.resetRetainedScreen) {
       const epoch = this.connectionEpoch;
       void this.consumers.emulator.run(async () => {
         if (epoch === this.connectionEpoch && !this.stopped) this.options.sink.reset();
@@ -422,7 +374,7 @@ export class TerminalProtocolClient {
     this.options.sink.applyDimensions({ cols: frame.cols, rows: frame.rows });
     this.setStatus("connected");
     this.options.handlers?.onAttached?.(frame);
-    if (frame.truncated) {
+    if (replayPlan.startResync) {
       // The daemon has already said the resume point missed bytes. Showing the
       // suffix as if it continued the screen would be a lie about what ran, so
       // the screen is rebuilt from a snapshot and the keyboard stays shut until
@@ -432,13 +384,12 @@ export class TerminalProtocolClient {
       // screen with a synthetic prefix, and the snapshot replaces exactly what
       // it would have drawn. Marked as state, not inferred from arrival order —
       // it can land before or after the snapshot request resolves.
-      this.discardReplay = this.replayTarget !== null;
       void this.startResync();
       return;
     }
     // The keyboard waits for the replay. Typing into a screen the emulator has
     // not drawn yet answers a prompt that is not on it.
-    if (this.replayTarget === null) this.setInputEnabled(this.options.mode === "write");
+    if (replayPlan.inputReady) this.setInputEnabled(this.options.mode === "write");
   }
 
   private applyResized(frame: TerminalResizedFrame): void {
@@ -453,7 +404,7 @@ export class TerminalProtocolClient {
   }
 
   private async startResync(): Promise<void> {
-    this.resyncEpoch = this.connectionEpoch;
+    this.replay.beginResync(this.connectionEpoch);
     await this.consumers.resync.run();
   }
 

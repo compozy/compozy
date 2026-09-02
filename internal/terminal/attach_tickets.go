@@ -79,10 +79,11 @@ func (m *Service) MintAttachTicket(
 	if err != nil {
 		return AttachTicket{}, err
 	}
+	now := m.now()
 	ticket := AttachTicket{
-		Token: token, Binding: binding, Actor: actor, ExpiresAt: m.now().Add(attachTicketTTL),
+		Token: token, Binding: binding, Actor: actor, ExpiresAt: now.Add(attachTicketTTL),
 	}
-	m.tickets.mint(ticket, m.now())
+	m.tickets.mint(ticket, now)
 	return ticket, nil
 }
 

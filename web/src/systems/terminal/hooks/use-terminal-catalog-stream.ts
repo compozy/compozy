@@ -11,7 +11,7 @@ import {
   reconcileTerminalProfileSnapshot,
   TerminalCatalogProtocolError,
   terminalCatalogStreamPath,
-  TERMINAL_CATALOG_EVENTS,
+  TERMINAL_STREAM_EVENTS,
 } from "../lib/terminal-catalog-stream";
 import { terminalKeys } from "../lib/query-keys";
 import {
@@ -193,7 +193,7 @@ function openTerminalCatalogStream(
     refreshFromREST();
   };
 
-  const listeners = TERMINAL_CATALOG_EVENTS.map(name => ({ name, listener: handleFrame(name) }));
+  const listeners = TERMINAL_STREAM_EVENTS.map(name => ({ name, listener: handleFrame(name) }));
   const source = eventSourceFactory(terminalCatalogStreamPath(workspaceId, streamProfile));
   const detach = () => {
     source.removeEventListener("open", handleOpen);

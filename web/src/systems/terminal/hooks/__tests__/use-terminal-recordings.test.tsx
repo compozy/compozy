@@ -1,7 +1,7 @@
 // Suite: terminal recordings host hook
-// Invariant: elapsed is derived from `at`; one timer runs while the map is
-// non-empty, is cleared when the map empties or the host unmounts, and is
-// created exactly once more when the map is written again after a clear.
+// Invariant: elapsed is derived from `at`; every recording consumer shares one
+// process-wide timer while any scoped map is non-empty, and the timer stops
+// after the final active consumer pauses or unmounts.
 // Boundary IN: useTerminalRecordings over the scoped recordings cache.
 // Boundary OUT: catalog stream writes, owned by use-terminal-catalog-stream.
 
@@ -39,21 +39,24 @@ describe("useTerminalRecordings", () => {
     vi.useRealTimers();
   });
 
-  it("Should derive elapsed from at and tick once per second while recording", () => {
+  it("Should share one elapsed ticker across recording consumers", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData<TerminalRecordingMap>(terminalKeys.recordings(SCOPE), {
       "term-4f21c9a03b7e": { recordingId: "rec-1", at: AT, profileKey: "work" },
     });
     const interval = vi.spyOn(window, "setInterval");
-    const { result } = renderRecordings(client);
+    const first = renderRecordings(client);
+    const second = renderRecordings(client);
 
-    expect(result.current["term-4f21c9a03b7e"]?.elapsed).toBe("00:00");
+    expect(first.result.current["term-4f21c9a03b7e"]?.elapsed).toBe("00:00");
+    expect(second.result.current["term-4f21c9a03b7e"]?.elapsed).toBe("00:00");
     expect(interval).toHaveBeenCalledOnce();
 
     act(() => {
       vi.advanceTimersByTime(134_000);
     });
-    expect(result.current["term-4f21c9a03b7e"]?.elapsed).toBe("02:14");
+    expect(first.result.current["term-4f21c9a03b7e"]?.elapsed).toBe("02:14");
+    expect(second.result.current["term-4f21c9a03b7e"]?.elapsed).toBe("02:14");
   });
 
   it("Should clear its timer when the map empties and on unmount", () => {

@@ -93,7 +93,9 @@ export function useSettingsRolesPage() {
   const draftFlow = useSelector(draftLogic, snapshot => snapshot.context);
   const [numberErrors, setNumberErrors] = useState<NumberErrors>({});
   const [draftRevision, setDraftRevision] = useState(0);
-  const fieldRefs = useRef<Map<string, HTMLElement | null> | null>(null);
+  const fieldRefs = useRef<Map<string, HTMLElement> | null>(null);
+  if (fieldRefs.current === null) fieldRefs.current = new Map();
+  const registeredFields = fieldRefs.current;
 
   const draft = draftFlow.draft;
   const setDraft = (
@@ -121,11 +123,9 @@ export function useSettingsRolesPage() {
 
   const registerFieldRef = (id: string) => (element: HTMLElement | null) => {
     if (element) {
-      const refs = fieldRefs.current ?? new Map<string, HTMLElement | null>();
-      fieldRefs.current = refs;
-      refs.set(id, element);
+      registeredFields.set(id, element);
     } else {
-      fieldRefs.current?.delete(id);
+      registeredFields.delete(id);
     }
   };
 
@@ -136,7 +136,7 @@ export function useSettingsRolesPage() {
       return;
     }
     queueMicrotask(() => {
-      fieldRefs.current?.get(id)?.focus();
+      registeredFields.get(id)?.focus();
     });
   };
 

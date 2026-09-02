@@ -77,6 +77,7 @@ function buildSessionRuntimeConfig(
   idempotencyKeys?: Map<string, string>,
   preparedUserMessages?: Map<string, UIMessage>
 ) {
+  const recoveryScope = { workspaceId, sessionId };
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
       sessionStore.trigger.goalErrorAcknowledged({ sessionId });
@@ -134,7 +135,7 @@ function buildSessionRuntimeConfig(
       const target = await authorizeStreamFetchInput(input, controller.signal);
       const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
       await reportGatewayResponse(response);
-      if (response.ok) promptRecovery.acknowledge();
+      if (response.ok) promptRecovery.acknowledge(recoveryScope);
       responseOwnsCompletion = true;
       return completeWhenResponseBodySettles(response, completeRequest);
     } finally {
@@ -150,8 +151,8 @@ function buildSessionRuntimeConfig(
       ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
       ...(preparedUserMessages ? { preparedUserMessages } : {}),
-      onPromptPrepared: messages => {
-        promptRecovery.stage(messages);
+      onPromptPrepared: request => {
+        promptRecovery.stage(recoveryScope, request);
         discardSessionTerminalQuote(sessionId);
       },
       prepareUserMessage: message => applyTerminalQuoteToPromptMessage(sessionId, message),
@@ -180,6 +181,7 @@ export function useSessionChatRuntime({
   const [idempotencyKeys] = useState(() => new Map<string, string>());
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
+  const recoveryScope = { workspaceId, sessionId };
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
@@ -194,11 +196,11 @@ export function useSessionChatRuntime({
   return useChatRuntime({
     transport: runtimeConfig.transport,
     onError: () => {
-      promptRecovery.recover(attachmentAdapter.recoverSentFiles());
+      promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
     },
     onFinish: ({ isError }) => {
       if (!isError) {
-        promptRecovery.acknowledge();
+        promptRecovery.acknowledge(recoveryScope);
         attachmentAdapter.acknowledgeSentFiles();
       }
       runtimeConfig.onFinish();

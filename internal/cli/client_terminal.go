@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,13 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-type TerminalCreateRequest struct {
-	Cwd   string `json:"cwd,omitempty"`
-	Shell string `json:"shell,omitempty"`
-	Cols  uint16 `json:"cols,omitempty"`
-	Rows  uint16 `json:"rows,omitempty"`
-	Title string `json:"title,omitempty"`
-}
+type TerminalCreateRequest = contract.TerminalCreateRequest
 
 type TerminalExitRecord struct {
 	Cause  string    `json:"cause"`
@@ -86,14 +81,23 @@ func (c *daemonClient) DeleteTerminal(
 	ctx context.Context,
 	workspace, id, signal string,
 ) (TerminalExitRecord, error) {
-	var response struct {
-		Exit TerminalExitRecord `json:"exit"`
-	}
+	var response contract.TerminalExitResponse
 	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id))
-	if err := c.doJSON(ctx, http.MethodDelete, path, nil, map[string]string{"signal": signal}, &response); err != nil {
+	request := contract.TerminalCloseRequest{Signal: contract.TerminalSignal(signal)}
+	if err := c.doJSON(ctx, http.MethodDelete, path, nil, request, &response); err != nil {
 		return TerminalExitRecord{}, err
 	}
-	return response.Exit, nil
+	if response.Exit == nil {
+		return TerminalExitRecord{}, errors.New("terminal close response is missing exit")
+	}
+	var exitSignal *string
+	if response.Exit.Signal != nil {
+		value := string(*response.Exit.Signal)
+		exitSignal = &value
+	}
+	return TerminalExitRecord{
+		Cause: string(response.Exit.Cause), Code: response.Exit.Code, Signal: exitSignal, At: response.Exit.At,
+	}, nil
 }
 
 func terminalClientPath(workspace string) string {

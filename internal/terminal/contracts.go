@@ -2,11 +2,9 @@ package terminal
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
-	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -333,52 +331,6 @@ type OutputSegment struct {
 	Characters int               `json:"characters,omitempty"`
 }
 
-type MarkerConsumer interface {
-	ConsumeMarkerFacts(ctx context.Context, terminal Info, facts []MarkerFacts) error
-}
-
-type JournalInput struct {
-	Content    []byte
-	Redacted   bool
-	Characters int
-}
-
-// JournalInputReservation pins one terminal journal lane across PTY delivery.
-type JournalInputReservation interface {
-	Commit(actor Actor, input JournalInput)
-	Release()
-}
-
-type ProcSpec = terminalpty.ProcSpec
-type PTY = terminalpty.PTY
-type Proc = terminalpty.Proc
-
-type Subscription interface {
-	Frames() <-chan Frame
-	Err() error
-	Ack(bytes int)
-	Resize(cols, rows uint16) error
-	Close() error
-}
-
-type Handle interface {
-	Info() Info
-	MarkerNonce() string
-	Attach(ctx context.Context, options AttachOptions) (Subscription, error)
-	Write(ctx context.Context, actor Actor, input []byte) error
-	Screen(ctx context.Context, options ReadOptions) (*ReadResult, error)
-	Wait(ctx context.Context, condition WaitCondition) (*WaitResult, error)
-	Takeover(ctx context.Context, actor Actor, force bool) error
-	Yield(ctx context.Context, actor Actor) error
-	RequestInput(ctx context.Context, request InputRequest) (*InputOutcome, error)
-	AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) (*InputOutcome, error)
-	RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error
-	PendingInput(id InputRequestID) (*PendingInputRequest, error)
-	Signal(ctx context.Context, actor Actor, signal Signal) error
-	StartRecording(ctx context.Context, actor Actor) (RecordingRef, error)
-	StopRecording(ctx context.Context, actor Actor) (RecordingRef, error)
-}
-
 type Manager interface {
 	Open(ctx context.Context, request OpenRequest) (Handle, error)
 	Exec(ctx context.Context, request ExecRequest) (*ExecResult, error)
@@ -422,56 +374,6 @@ type Manager interface {
 		ctx context.Context,
 		workspaceID string,
 	) (workspacepkg.UnregisterPreparation, error)
-}
-
-type Journal interface {
-	MarkerConsumer
-	ReserveCommandID(ctx context.Context, workspaceID string) (string, error)
-	ReleaseCommandID(workspaceID, commandID string)
-	ReserveRecordingID(ctx context.Context, workspaceID string) (string, error)
-	ReleaseRecordingID(workspaceID, recordingID string)
-	Record(ctx context.Context, workspaceID string, row CommandRow) error
-	RecordQueued(ctx context.Context, terminal Info, row CommandRow) error
-	Query(ctx context.Context, workspaceID string, scope store.ReadScope, query Query) (*Page, error)
-	LinkRecording(ctx context.Context, workspaceID string, terminalID ID, recording RecordingRef) error
-	PersistRecording(
-		ctx context.Context,
-		workspaceID string,
-		terminalID ID,
-		recording RecordingRef,
-		contents []byte,
-	) (RecordingRef, error)
-	WriteArtifact(
-		ctx context.Context,
-		workspaceID string,
-		profileID string,
-		commandID string,
-		terminalID *ID,
-		contents []byte,
-		expiresAt time.Time,
-	) (SpillRef, error)
-	Recording(
-		ctx context.Context,
-		workspaceID string,
-		scope store.ReadScope,
-		id string,
-	) (*RecordingRef, io.ReadCloser, error)
-	Artifact(ctx context.Context, workspaceID string, scope store.ReadScope, id string) (io.ReadCloser, error)
-	RegisterTerminal(terminal Info, setBlocked func(bool), emit func(Event))
-	CloseTerminal(ctx context.Context, terminal Info) error
-	ReserveInput(terminal Info, input JournalInput) (JournalInputReservation, bool)
-	ObserveOutput(terminal Info, output []byte)
-	PrepareWorkspaceRemoval(
-		ctx context.Context,
-		workspaceID string,
-	) (workspacepkg.UnregisterPreparation, error)
-	PrepareWorkspaceRemovalAt(
-		ctx context.Context,
-		workspaceID string,
-		rootDir string,
-	) (workspacepkg.UnregisterPreparation, error)
-	RemoveWorkspace(ctx context.Context, workspaceID string) error
-	Shutdown(ctx context.Context) error
 }
 
 type ProfileGuard interface {

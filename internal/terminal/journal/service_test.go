@@ -43,6 +43,57 @@ func TestService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should release a command identity rejected after its lane closes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		actor := terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
+		}
+		info := terminalpkg.Info{
+			ID: "term-close-race", WS: workspaceID, ProfileID: actor.ProfileID, Controller: &actor,
+		}
+		events := make(chan terminalpkg.Event, 1)
+		service.RegisterTerminal(info, nil, func(event terminalpkg.Event) { events <- event })
+		lane := service.lane(info)
+		if lane == nil {
+			t.Fatal("registered lane = nil")
+		}
+		lane.mu.Lock()
+		lane.closed = true
+		lane.mu.Unlock()
+		const commandID = "cmd-close-race"
+		if !service.claimCommandID(workspaceID, commandID) {
+			t.Fatal("claimCommandID(first) = false, want reservation")
+		}
+		duration := int64(1)
+		terminalID := info.ID
+		lane.finishCommand(terminalpkg.CommandRow{
+			ID: commandID, TerminalID: &terminalID, ProfileID: actor.ProfileID, Actor: actor,
+			Command: "pwd", Cwd: "/workspace", StartedAt: time.UnixMilli(1), DurationMs: &duration,
+			ExitCause: "unknown", DetectedBy: "idle", Approval: "human",
+		}, time.UnixMilli(2))
+
+		if !service.claimCommandID(workspaceID, commandID) {
+			t.Fatal("claimCommandID(after rejection) = false, want released identity")
+		}
+		service.ReleaseCommandID(workspaceID, commandID)
+		select {
+		case event := <-events:
+			t.Fatalf("rejected command emitted event %#v", event)
+		default:
+		}
+		lane.wake <- struct{}{}
+		err := service.CloseTerminal(ctx, info)
+		if err == nil || !strings.Contains(err.Error(), "command completed after lane close") {
+			t.Fatalf("CloseTerminal() error = %v, want rejected command persistence error", err)
+		}
+		if got := service.lane(info); got != nil {
+			t.Fatalf("lane after terminal close = %#v, want removed stopped lane", got)
+		}
+	})
+
 	t.Run("Should append exact rows with secret scrubbing and recording linkage", func(t *testing.T) {
 		t.Parallel()
 
@@ -604,6 +655,44 @@ func TestService(t *testing.T) {
 		}
 		if got := service.liveOutputTail(workspaceID, row.ID); len(got) != 0 {
 			t.Fatalf("liveOutputTail(after shutdown) = %#v, want empty", got)
+		}
+	})
+
+	t.Run("Should cancel lanes and clear live tails after a lane close failure", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+			return workspacedb.ResolvedRoot{}, errors.New("unexpected workspace open")
+		})
+		if err != nil {
+			t.Fatalf("NewPool() error = %v", err)
+		}
+		service, err := New(ctx, Options{Databases: pool, HomeDir: t.TempDir()})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		laneErr := errors.New("lane close failed")
+		laneDone := make(chan struct{})
+		close(laneDone)
+		service.lanes["failed"] = &terminalLane{closed: true, done: laneDone, err: laneErr}
+		service.retainLiveOutputTail(
+			"workspace-a",
+			"terminal-a",
+			"command-a",
+			[]terminalpkg.OutputSegment{{Kind: terminalpkg.OutputSegmentBytes, Text: "tail"}},
+		)
+		shutdownErr := service.Shutdown(ctx)
+		if !errors.Is(shutdownErr, laneErr) {
+			t.Fatalf("Shutdown() error = %v, want lane close failure", shutdownErr)
+		}
+		if !errors.Is(context.Cause(service.laneCtx), context.Canceled) {
+			t.Fatalf("lane context cause = %v, want cancellation", context.Cause(service.laneCtx))
+		}
+		if got := service.liveOutputTail("workspace-a", "command-a"); len(got) != 0 {
+			t.Fatalf("liveOutputTail(after failed close) = %#v, want empty", got)
+		}
+		if _, err := pool.Open(ctx, "workspace-a"); err == nil || !strings.Contains(err.Error(), "pool is closed") {
+			t.Fatalf("pool.Open(after failed close) error = %v, want closed pool", err)
 		}
 	})
 

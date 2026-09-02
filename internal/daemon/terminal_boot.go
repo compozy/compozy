@@ -96,11 +96,9 @@ func terminalManagerOptions(
 		terminalpkg.WithWorkspaceResolver(state.workspaceResolver),
 	)
 	if state.profiles != nil {
-		options = append(options, terminalpkg.WithProfileNameResolver(state.profiles))
-	}
-	if state.profiles != nil {
 		options = append(
 			options,
+			terminalpkg.WithProfileNameResolver(state.profiles),
 			terminalpkg.WithProfileGuard(state.profiles),
 			terminalpkg.WithSettingsProvider(terminalSettingsProvider(state)),
 		)

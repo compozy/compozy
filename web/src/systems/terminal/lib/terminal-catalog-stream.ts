@@ -25,6 +25,10 @@ export const TERMINAL_CATALOG_EVENTS = [
   "terminal.title_changed",
   "terminal.lease_changed",
   "terminal.mode_changed",
+] as const;
+
+export const TERMINAL_STREAM_EVENTS = [
+  ...TERMINAL_CATALOG_EVENTS,
   "terminal.recording_started",
   "terminal.recording_stopped",
 ] as const;

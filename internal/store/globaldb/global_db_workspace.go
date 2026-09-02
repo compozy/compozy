@@ -392,14 +392,23 @@ func mapWorkspaceWriteConstraintError(
 	if err == nil {
 		return nil
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "workspace deletion pending") {
-		return compozyworkspace.ErrWorkspaceDeletionPending
+	queries := sqlcgen.New(exec)
+	if isSQLiteTriggerConstraint(err) {
+		_, intentErr := queries.GetWorkspaceDeletionIntent(ctx, workspace.ID)
+		switch {
+		case intentErr == nil:
+			return compozyworkspace.ErrWorkspaceDeletionPending
+		case !errors.Is(intentErr, sql.ErrNoRows):
+			return errors.Join(
+				err,
+				fmt.Errorf("store: classify workspace deletion constraint: %w", intentErr),
+			)
+		}
 	}
 	if !isSQLiteUniqueConstraint(err) {
 		return err
 	}
 
-	queries := sqlcgen.New(exec)
 	byPath, pathErr := queries.GetWorkspaceByPath(ctx, workspace.RootDir)
 	switch {
 	case pathErr == nil && byPath.ID != workspace.ID:

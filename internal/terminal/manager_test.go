@@ -182,6 +182,38 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should archive a running unpublished exec before its yield deadline", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		execDone := make(chan error, 1)
+		go func() {
+			_, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Command: "long-running", YieldMs: 30000,
+				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			})
+			execDone <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		removeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := manager.ArchiveWorkspace(removeCtx, "workspace-a"); err != nil {
+			t.Fatalf("ArchiveWorkspace() error = %v", err)
+		}
+		select {
+		case err := <-execDone:
+			if err != nil {
+				t.Fatalf("Exec() error after workspace archive = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("unpublished exec did not finish after workspace archive")
+		}
+		select {
+		case <-proc.done:
+		default:
+			t.Fatal("workspace archive left the unpublished process running")
+		}
+	})
+
 	t.Run("Should reject an incomplete actor without inventing a terminal-not-found outcome", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
@@ -1361,6 +1393,42 @@ func TestManagerRetentionAndReaper(t *testing.T) {
 func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should attempt producer and journal cleanup after a terminal close failure", func(t *testing.T) {
+		t.Parallel()
+		killErr := errors.New("kill failed")
+		journalErr := errors.New("journal shutdown failed")
+		starter := &fakePTY{started: make(chan *fakeProc, 1)}
+		journal := &shutdownProbeJournal{
+			Journal: journalContractOnly{journal: &fakeRecordingJournal{}},
+			err:     journalErr,
+		}
+		manager, err := NewManager(
+			WithPTY(starter),
+			WithJournal(journal),
+			WithWorkspaceResolver(&staticWorkspaceResolver{workspace: workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "workspace-a", RootDir: t.TempDir()},
+				WorkspaceID: "workspace-a",
+			}}),
+			WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
+				return DefaultSettings(), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := receiveStartedProc(t, starter)
+		proc.failKill(killErr)
+		t.Cleanup(func() { proc.complete(terminalExit("exited", new(0), nil)) })
+		shutdownErr := manager.Shutdown(t.Context())
+		if !errors.Is(shutdownErr, killErr) || !errors.Is(shutdownErr, journalErr) {
+			t.Fatalf("Shutdown() error = %v, want terminal and journal cleanup failures", shutdownErr)
+		}
+		if !journal.called.Load() {
+			t.Fatal("Shutdown() skipped journal cleanup after terminal close failure")
+		}
+	})
+
 	t.Run("Should bound startup rollback and preserve every cleanup failure", func(t *testing.T) {
 		t.Parallel()
 		primaryErr := errors.New("insert failed")
@@ -1421,7 +1489,9 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 					checkpoint *cleanupProbeCheckpoint,
 					cause error,
 				) error {
-					return cleanupExecRun(ctx, &session{proc: proc, processRecord: checkpoint}, cause)
+					return cleanupExecRun(ctx, &execRun{
+						item: &session{proc: proc, processRecord: checkpoint},
+					}, cause)
 				},
 			},
 		} {
@@ -1457,6 +1527,21 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 					}
 				})
 			})
+		}
+	})
+
+	t.Run("Should release an exec command identity exactly once during rollback", func(t *testing.T) {
+		t.Parallel()
+
+		var releases atomic.Int64
+		run := &execRun{releaseCommandID: func() { releases.Add(1) }}
+		cause := errors.New("publication failed")
+		if err := cleanupExecRun(t.Context(), run, cause); !errors.Is(err, cause) {
+			t.Fatalf("cleanupExecRun() error = %v, want cause", err)
+		}
+		run.releaseCommandIdentity()
+		if got := releases.Load(); got != 1 {
+			t.Fatalf("command identity releases = %d, want 1", got)
 		}
 	})
 
@@ -2931,7 +3016,29 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve delivered redacted input once when echo restoration fails", func(t *testing.T) {
+	t.Run("Should reject redacted input requests while foreground input is visible", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		if _, err := handle.RequestInput(
+			t.Context(),
+			InputRequest{Reason: "password", Redact: true},
+		); !errors.Is(err, ErrInputRequiresHidden) ||
+			terminalErrorCode(err) != string(ErrorCodeInputRequestRequiresHidden) {
+			t.Fatalf("RequestInput(visible) error = %v, want typed hidden-input requirement", err)
+		}
+		pending, err := manager.InputRequests(
+			t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "",
+		)
+		if err != nil {
+			t.Fatalf("InputRequests() error = %v", err)
+		}
+		if len(pending) != 0 {
+			t.Fatalf("pending input requests = %#v, want none", pending)
+		}
+	})
+
+	t.Run("Should resolve delivered redacted input once while foreground input stays hidden", func(t *testing.T) {
 		t.Parallel()
 		journal := &fakeRecordingJournal{}
 		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
@@ -2942,8 +3049,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			t.Fatalf("Open(agent) error = %v", err)
 		}
 		proc := receiveStartedProc(t, starter)
-		restoreFailure := errors.New("restore console echo")
-		proc.failEchoRestore(restoreFailure)
+		proc.hideInputEcho()
 		type requestResult struct {
 			outcome *InputOutcome
 			err     error
@@ -2958,11 +3064,9 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		answer, answerErr := handle.AnswerInput(
 			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
 		)
-		if answer == nil || answer.Outcome != "answered" || answer.Length != len("secret") ||
-			!errors.Is(answerErr, restoreFailure) || !errors.Is(answerErr, errRedactedInputRestore) ||
-			errors.Is(answerErr, ErrInteractive) || terminalErrorCode(answerErr) != "" {
+		if answerErr != nil || answer == nil || answer.Outcome != "answered" || answer.Length != len("secret") {
 			t.Fatalf(
-				"AnswerInput(restore failure) = %#v error=%v, want answered with untyped restore failure",
+				"AnswerInput(hidden foreground) = %#v error=%v, want answered",
 				answer,
 				answerErr,
 			)
@@ -3000,6 +3104,54 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should supersede a redacted request when foreground input becomes visible before delivery",
+		func(t *testing.T) {
+			t.Parallel()
+			manager, starter, _ := newTestManager(t, DefaultSettings())
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: agent,
+				Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(agent) error = %v", err)
+			}
+			proc := receiveStartedProc(t, starter)
+			proc.hideInputEcho()
+			type requestResult struct {
+				outcome *InputOutcome
+				err     error
+			}
+			requestDone := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(
+					t.Context(), InputRequest{Reason: "password", Redact: true},
+				)
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+			proc.showInputEcho()
+			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			answer, answerErr := handle.AnswerInput(
+				t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+			)
+			if answer != nil || !errors.Is(answerErr, ErrInputRequiresHidden) ||
+				terminalErrorCode(answerErr) != string(ErrorCodeInputRequestRequiresHidden) {
+				t.Fatalf("AnswerInput(visible) = %#v error=%v, want typed hidden-input requirement", answer, answerErr)
+			}
+			request := <-requestDone
+			if request.err != nil || request.outcome == nil || request.outcome.Outcome != "superseded" {
+				t.Fatalf("RequestInput() = %#v error=%v, want superseded", request.outcome, request.err)
+			}
+			if got := proc.inputString(); got != "" {
+				t.Fatalf("delivered input = %q, want none", got)
+			}
+			if _, err := handle.PendingInput(pending[0].ID); !errors.Is(err, ErrInputSuperseded) {
+				t.Fatalf("PendingInput(after visibility change) error = %v, want superseded", err)
+			}
+		},
+	)
+
 	t.Run("Should resolve partially delivered redacted input without retrying secret bytes", func(t *testing.T) {
 		t.Parallel()
 		journal := &fakeRecordingJournal{}
@@ -3011,6 +3163,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			t.Fatalf("Open(agent) error = %v", err)
 		}
 		proc := receiveStartedProc(t, starter)
+		proc.hideInputEcho()
 		writeFailure := errors.New("redacted write interrupted")
 		proc.failNextWriteAfter(3, writeFailure)
 		type requestResult struct {
@@ -3061,6 +3214,51 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 		if got := proc.inputString(); got != "sec" {
 			t.Fatalf("partially delivered input after retry = %q, want no duplicate", got)
+		}
+	})
+
+	t.Run("Should drain process output while a redacted input write is blocked", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := receiveStartedProc(t, starter)
+		proc.hideInputEcho()
+		writeStarted := make(chan struct{})
+		releaseWrite := make(chan struct{})
+		proc.blockWrites(writeStarted, releaseWrite, nil)
+		writeDone := make(chan error, 1)
+		go func() {
+			writeDone <- handle.Write(
+				t.Context(),
+				Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+				[]byte("secret"),
+			)
+		}()
+		select {
+		case <-writeStarted:
+		case <-time.After(time.Second):
+			t.Fatal("redacted write did not reach the process")
+		}
+		emitDone := make(chan error, 1)
+		go func() { emitDone <- proc.emit([]byte("output while input is blocked")) }()
+		read := waitForTailContent(t, handle, "output while input is blocked")
+		if read.Content != "output while input is blocked" {
+			t.Fatalf("tail during redacted write = %q", read.Content)
+		}
+		if err := <-emitDone; err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		close(releaseWrite)
+		if err := <-writeDone; err != nil {
+			t.Fatalf("Write(redacted) error = %v", err)
+		}
+		read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen() error = %v", err)
+		}
+		if len(read.Segments) != 2 || read.Segments[0].Kind != OutputSegmentBytes ||
+			read.Segments[1].Kind != OutputSegmentRedactedInput || read.Segments[1].Characters != len("secret") {
+			t.Fatalf("segments after redacted write = %#v", read.Segments)
 		}
 	})
 
@@ -3606,6 +3804,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				t.Fatalf("Write(ordinary) error = %v", err)
 			}
 			waitForTailContent(t, handle, "ordinary-visible")
+			proc.hideInputEcho()
 			outcomeCh := make(chan *InputOutcome, 1)
 			errCh := make(chan error, 1)
 			go func() {

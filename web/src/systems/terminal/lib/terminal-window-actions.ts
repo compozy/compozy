@@ -13,6 +13,8 @@ import type { TerminalInputRequest } from "../types";
  */
 export interface TerminalWindowActions {
   onOpenTerminal?: () => void;
+  /** Retargets the host route to a terminal the id-less window adopted. */
+  retargetTerminal?: (terminalId: string) => void;
   /**
    * Opens another terminal beside this one — a new OS window joining this
    * frame as a tab. Without it the head's New falls back to `onOpenTerminal`,

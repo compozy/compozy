@@ -240,14 +240,15 @@ func TestUnixPTYHardening(t *testing.T) {
 		stopTestProc(t, proc)
 	})
 
-	t.Run("Should deliver redacted input and restore terminal echo", func(t *testing.T) {
+	t.Run("Should refuse visible redacted input and deliver only after the program hides input", func(t *testing.T) {
 		t.Parallel()
 
 		proc := startTestProc(t, ProcSpec{
 			Argv: []string{
 				"sh",
 				"-c",
-				"stty -icanon; printf 'redacted-ready\\n'; head -c 65536 >/dev/null; printf 'redacted-accepted\\n'",
+				"printf 'visible-ready\\n'; sleep 0.1; stty -echo; printf 'hidden-ready\\n'; " +
+					"IFS= read -r secret; printf 'redacted-accepted\\n'",
 			},
 			Mode: ModePTY,
 			Cols: 80,
@@ -256,23 +257,30 @@ func TestUnixPTYHardening(t *testing.T) {
 		defer stopTestProc(t, proc)
 		unixProcess := proc.(*unixProc)
 		reader := bufio.NewReader(unixProcess.reader)
-		if line, err := readUntilContaining(reader, "redacted-ready"); err != nil {
+		if line, err := readUntilContaining(reader, "visible-ready"); err != nil {
 			t.Fatalf("read readiness = %q error=%v", line, err)
 		}
-		secret := bytes.Repeat([]byte("x"), 64<<10)
+		secret := []byte("secret-value\n")
 		result, err := unixProcess.WriteRedacted(secret)
-		if err != nil || result.RestoreError != nil || result.BytesDelivered != len(secret) {
+		if !errors.Is(err, ErrInputVisible) || result.BytesDelivered != 0 {
 			t.Fatalf(
-				"WriteRedacted() = %#v error=%v, want %d delivered bytes and restored echo",
-				result, err, len(secret),
+				"WriteRedacted(visible) = %#v error=%v, want zero bytes and ErrInputVisible",
+				result, err,
 			)
+		}
+		if line, err := readUntilContaining(reader, "hidden-ready"); err != nil {
+			t.Fatalf("read hidden readiness = %q error=%v", line, err)
+		}
+		result, err = unixProcess.WriteRedacted(secret)
+		if err != nil || result.BytesDelivered != len(secret) {
+			t.Fatalf("WriteRedacted(hidden) = %#v error=%v, want %d bytes", result, err, len(secret))
 		}
 		visible, err := unixProcess.InputVisible()
 		if err != nil {
 			t.Fatalf("InputVisible(after redacted write) error = %v", err)
 		}
-		if !visible {
-			t.Fatal("InputVisible(after redacted write) = false, want restored echo")
+		if visible {
+			t.Fatal("InputVisible(after redacted write) = true, want program-owned hidden input unchanged")
 		}
 		line, err := readUntilContaining(reader, "redacted-accepted")
 		if err != nil {

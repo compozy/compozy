@@ -85,20 +85,26 @@ wider typing grant or treat an execution allowlist as typing authority.
 Treat `generation_fenced` as a stale runtime action, `lease_revoked` as a completed human takeover,
 and `write_owner_held` as another controller retaining the lease. Do not replay the rejected write.
 Refresh the terminal catalog and continue only when the current generation and controller allow it.
-The 31 terminal codes describe domain outcomes. Transport failures keep the same nested error envelope
+The closed terminal codes describe domain outcomes. Transport failures keep the same nested error envelope
 but may truthfully use codes such as `invalid_request`, `unauthorized`, or `service_unavailable`.
 
 ## Input Handoff
 
-Use `compozy__terminal_request_input` when the program is waiting for the operator. Supply a bounded
-reason and prompt excerpt, and mark secret input as redacted. The tool creates the request and blocks
-until it is answered, rejected, superseded, or expired; it does not yield the lease. Do not call
+Use `compozy__terminal_request_input` whenever a running terminal or your own terminal workflow is
+waiting for the operator. Private values, including passwords, passphrases, tokens, and credentials,
+require a redacted request while the foreground program is already hiding its input; the session
+composer and an idle shell prompt are not private-input surfaces. Start a dedicated foreground
+program that securely reads the value before requesting it. Supply a bounded reason and prompt excerpt.
+The tool creates the request and blocks until it is
+answered, rejected, superseded, or expired; it does not yield the lease. Do not call
 `terminal_yield` unless you intentionally want to give up control, and do not keep typing while the
 request is pending.
 
 After the operator answers, resume from the returned handoff outcome and current lease. A rejected or
 expired request is terminal for that request; do not infer consent or replay old input. Redacted input
-is delivered to the process without retaining its bytes. Scrollback, replay, the journal, and
+is delivered directly to the waiting process and never returned to the agent. The runtime rejects a
+redacted request while input is visible and supersedes it if visibility changes before delivery.
+Scrollback, replay, the journal, and
 recordings retain only the trusted `hidden input · N characters` marker. Identical text printed by the
 shell remains ordinary untrusted output and does not become a marker.
 

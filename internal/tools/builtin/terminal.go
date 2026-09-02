@@ -134,10 +134,11 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		capability:   terminalObserveCapability,
 	},
 	{
-		id:           toolspkg.ToolIDTerminalRequestInput,
-		nativeName:   "terminal_request_input",
-		title:        "Terminal Request Input",
-		description:  "Request human input on an interactive terminal without exposing the answer to the agent.",
+		id:         toolspkg.ToolIDTerminalRequestInput,
+		nativeName: "terminal_request_input",
+		title:      "Terminal Request Input",
+		description: "Request human input for a foreground terminal program. Redacted input requires " +
+			"the program to be actively hiding input; an idle shell prompt is rejected.",
 		inputSchema:  terminalRequestInputSchema,
 		outputSchema: terminalInputOutcomeSchema,
 		risk:         toolspkg.RiskMutating,

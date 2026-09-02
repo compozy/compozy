@@ -15,6 +15,10 @@ func (p *unixProc) InputVisible() (bool, error) {
 	defer p.io.end()
 	p.inputMu.Lock()
 	defer p.inputMu.Unlock()
+	return p.inputVisibleLocked()
+}
+
+func (p *unixProc) inputVisibleLocked() (bool, error) {
 	state, err := p.readTermios()
 	if err != nil {
 		return false, err
@@ -39,15 +43,15 @@ func (p *unixProc) WriteRedacted(input []byte) (RedactedWriteResult, error) {
 	defer p.io.end()
 	p.inputMu.Lock()
 	defer p.inputMu.Unlock()
-	state, err := p.setEcho(false)
+	visible, err := p.inputVisibleLocked()
 	if err != nil {
 		return RedactedWriteResult{}, err
 	}
+	if visible {
+		return RedactedWriteResult{}, ErrInputVisible
+	}
 	written, writeErr := writeAllRedactedBytes(input, p.write)
-	return RedactedWriteResult{
-		BytesDelivered: written,
-		RestoreError:   p.restoreTermios(state),
-	}, writeErr
+	return RedactedWriteResult{BytesDelivered: written}, writeErr
 }
 
 func (p *unixProc) readTermios() (*unix.Termios, error) {
@@ -60,23 +64,6 @@ func (p *unixProc) readTermios() (*unix.Termios, error) {
 		return nil, fmt.Errorf("terminal pty: inspect echo: %w", err)
 	}
 	return state, nil
-}
-
-func (p *unixProc) setEcho(enabled bool) (*unix.Termios, error) {
-	prior, err := p.readTermios()
-	if err != nil {
-		return nil, err
-	}
-	next := *prior
-	if enabled {
-		next.Lflag |= unix.ECHO
-	} else {
-		next.Lflag &^= unix.ECHO
-	}
-	if err := p.writeTermios(&next, "change"); err != nil {
-		return nil, err
-	}
-	return prior, nil
 }
 
 func (p *unixProc) restoreTermios(state *unix.Termios) error {

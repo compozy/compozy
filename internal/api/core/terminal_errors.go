@@ -38,11 +38,7 @@ func (h *BaseHandlers) respondTerminalError(c *gin.Context, err error) {
 		h.respondTerminalProfileError(c, err)
 		return
 	}
-	status, code, domain := terminalErrorStatusCode(err)
-	payload := terminalErrorResponse(code, err)
-	if !domain && h.MaskInternalErrors && status >= http.StatusInternalServerError {
-		payload.Error.Message = http.StatusText(status)
-	}
+	status, payload := projectTerminalError(err, 0, h.MaskInternalErrors, true)
 	c.AbortWithStatusJSON(status, payload)
 }
 
@@ -53,17 +49,7 @@ func TerminalErrorStatus(err error) (int, string, bool) {
 
 // TerminalErrorResponseForError projects a terminal failure without writing to a transport.
 func TerminalErrorResponseForError(err error, status int, maskInternal bool) contract.TerminalErrorResponse {
-	derivedStatus, code, domain := terminalErrorStatusCode(err)
-	if domain || status <= 0 {
-		status = derivedStatus
-	}
-	if !domain {
-		code = terminalTransportCode(status)
-	}
-	payload := terminalErrorResponse(code, err)
-	if !domain && maskInternal && status >= http.StatusInternalServerError {
-		payload.Error.Message = http.StatusText(status)
-	}
+	_, payload := projectTerminalError(err, status, maskInternal, true)
 	return payload
 }
 
@@ -80,11 +66,30 @@ func (h *BaseHandlers) respondTerminalMappedError(
 	status int,
 	err error,
 ) {
-	payload := terminalErrorResponse(terminalTransportCode(status), err)
-	if h.MaskInternalErrors && status >= http.StatusInternalServerError {
+	_, payload := projectTerminalError(err, status, h.MaskInternalErrors, false)
+	c.AbortWithStatusJSON(status, payload)
+}
+
+func projectTerminalError(
+	err error,
+	status int,
+	maskInternal bool,
+	preserveDomain bool,
+) (int, contract.TerminalErrorResponse) {
+	derivedStatus, domainCode, domain := terminalErrorStatusCode(err)
+	useDomain := preserveDomain && domain
+	if status <= 0 || useDomain {
+		status = derivedStatus
+	}
+	code := terminalTransportCode(status)
+	if useDomain {
+		code = domainCode
+	}
+	payload := terminalErrorResponse(code, err)
+	if !useDomain && maskInternal && status >= http.StatusInternalServerError {
 		payload.Error.Message = http.StatusText(status)
 	}
-	c.AbortWithStatusJSON(status, payload)
+	return status, payload
 }
 
 func (h *BaseHandlers) respondTerminalProfileError(c *gin.Context, err error) {
@@ -209,6 +214,7 @@ func TerminalDomainStatus(code terminalpkg.ErrorCode) (int, bool) {
 		terminalpkg.ErrorCodeWriteOwnerHeld, terminalpkg.ErrorCodeLeaseRevoked,
 		terminalpkg.ErrorCodeGenerationFenced, terminalpkg.ErrorCodeInputRequestAnswered,
 		terminalpkg.ErrorCodeInputRequestSuperseded, terminalpkg.ErrorCodeInputRequestLimitReached,
+		terminalpkg.ErrorCodeInputRequestRequiresHidden,
 		terminalpkg.ErrorCodeRecordingAlreadyStarted, terminalpkg.ErrorCodeRecordingNotActive,
 		terminalpkg.ErrorCodeSlowConsumer:
 		return http.StatusConflict, true

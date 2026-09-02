@@ -28,7 +28,7 @@ Domain-free shape a second surface could use unchanged (slot/variant API, token-
 
 ## Motion vs. CSS
 
-CSS owns simple state (hover, focus, pulse, shimmer). `motion` owns unmounts, sibling-synced timing, and layout transitions — Dialog/Popover/Sheet exits use the `AnimatePresence` + `actionsRef` pattern. Width animations ignore `reducedMotion`: any primitive animating width (Sidebar collapse, SplitPane resize) sets `duration: 0` explicitly when the provider is reduced.
+CSS owns simple state (hover, focus, pulse, shimmer). `motion` owns unmounts, sibling-synced timing, and layout transitions. Dialog mounts and unmounts with its Base UI portal and no exit-motion owner; Popover and Sheet keep their explicit lifecycle patterns. Width animations ignore `reducedMotion`: any primitive animating width (Sidebar collapse, SplitPane resize) sets `duration: 0` explicitly when the provider is reduced.
 
 ## Stories
 

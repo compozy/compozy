@@ -5,7 +5,7 @@
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Rafa
 - **Journey Step:** J-audit-terminal-work, open the journal for the active workspace
-- **Scenarios:** ET-terminal-journal-recording; ET-agent-reported-terminal; ET-terminal-cli-public-contract
+- **Scenarios:** ET-terminal-journal-recording; ET-terminal-cli-public-contract
 - **Found:** 2026-08-26 · **Report:** docs/qa/reports/2026-08-26-integrated-terminal.md
 
 ## Summary

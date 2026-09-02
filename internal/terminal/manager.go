@@ -64,6 +64,7 @@ type Service struct {
 	pendingDaemon       int
 	workspaceProducers  map[string]int
 	registeredProducers map[string]int
+	unpublishedExecs    map[terminalKey]*session
 	producerChanged     chan struct{}
 	sealedWorkspaces    map[string]struct{}
 	closing             bool
@@ -84,6 +85,7 @@ func NewManager(options ...Option) (*Service, error) {
 		pendingByScope:      make(map[terminalScope]int),
 		workspaceProducers:  make(map[string]int),
 		registeredProducers: make(map[string]int),
+		unpublishedExecs:    make(map[terminalKey]*session),
 		producerChanged:     make(chan struct{}),
 		sealedWorkspaces:    make(map[string]struct{}),
 		reaperDone:          make(chan struct{}),
@@ -257,13 +259,22 @@ func (m *Service) archiveTerminals(
 	matches func(terminalKey) bool,
 ) error {
 	m.mu.RLock()
-	targets := make([]terminalLifecycleTarget, 0)
+	targetsByKey := make(map[terminalKey]*session)
 	for key, item := range m.terminals {
 		if matches(key) {
-			targets = append(targets, terminalLifecycleTarget{key: key, item: item})
+			targetsByKey[key] = item
+		}
+	}
+	for key, item := range m.unpublishedExecs {
+		if matches(key) {
+			targetsByKey[key] = item
 		}
 	}
 	m.mu.RUnlock()
+	targets := make([]terminalLifecycleTarget, 0, len(targetsByKey))
+	for key, item := range targetsByKey {
+		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
+	}
 	return m.closeAndArchiveTerminals(ctx, targets, reason, actorID)
 }
 
@@ -337,24 +348,13 @@ func (m *Service) drain(ctx context.Context, reaperStop chan struct{}) {
 		close(reaperStop)
 		<-m.reaperDone
 	}
-	m.mu.RLock()
-	targets := make([]terminalLifecycleTarget, 0, len(m.terminals))
-	for key, item := range m.terminals {
-		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
-	}
-	m.mu.RUnlock()
-	closeErr := m.closeAndArchiveTerminals(ctx, targets, "shutdown", "daemon-shutdown")
-	closeErrors := []error{closeErr}
-	if closeErr == nil {
-		closeErrors = append(closeErrors, m.waitAllProducers(ctx))
-	}
-	if errors.Join(closeErrors...) == nil {
-		journalCtx, cancelJournal := context.WithTimeout(ctx, defaultJournalShutdownTimeout)
-		if err := m.journal.Shutdown(journalCtx); err != nil {
-			closeErrors = append(closeErrors, err)
-		}
-		cancelJournal()
-	}
+	closeErrors := []error{m.archiveTerminals(ctx, "shutdown", "daemon-shutdown", func(terminalKey) bool {
+		return true
+	})}
+	closeErrors = append(closeErrors, m.waitAllProducers(ctx))
+	journalCtx, cancelJournal := context.WithTimeout(ctx, defaultJournalShutdownTimeout)
+	closeErrors = append(closeErrors, m.journal.Shutdown(journalCtx))
+	cancelJournal()
 	m.mu.Lock()
 	m.shutdownErr = errors.Join(closeErrors...)
 	close(m.shutdownDone)

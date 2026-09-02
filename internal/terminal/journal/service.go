@@ -117,13 +117,10 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	laneErr := s.closeLanes(ctx, func(*terminalLane) bool { return true })
-	if laneErr != nil {
-		return laneErr
-	}
 	s.cancelLanes(nil)
 	closeErr := s.databases.Close(ctx)
 	s.clearLiveTails()
-	return closeErr
+	return errors.Join(laneErr, closeErr)
 }
 
 // WriteFailureCount reports durable append failures observed by retry workers.

@@ -883,17 +883,21 @@ func assertTerminalRelationCounts(
 ) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	for table, want := range map[string]int{
-		"terminal_recordings": recordings,
-		"terminal_commands":   commands,
-		"terminal_artifacts":  artifacts,
-	} {
+	counts := []struct {
+		table string
+		want  int
+	}{
+		{table: "terminal_recordings", want: recordings},
+		{table: "terminal_commands", want: commands},
+		{table: "terminal_artifacts", want: artifacts},
+	}
+	for _, count := range counts {
 		var got int
-		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&got); err != nil {
-			t.Fatalf("query %s count: %v", table, err)
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+count.table).Scan(&got); err != nil {
+			t.Fatalf("query %s count: %v", count.table, err)
 		}
-		if got != want {
-			t.Fatalf("%s count = %d, want %d", table, got, want)
+		if got != count.want {
+			t.Fatalf("%s count = %d, want %d", count.table, got, count.want)
 		}
 	}
 }

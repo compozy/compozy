@@ -16,6 +16,7 @@ export interface TerminalWindowHostActionInput {
   activateSession: (sessionId: string) => void;
   hasActiveSession: boolean;
   openTerminal: (() => void) | undefined;
+  retargetTerminal: (terminalId: string) => void;
   openTerminalTab: () => void;
   close: (terminalId: string) => void;
   closePending: boolean;
@@ -49,6 +50,7 @@ export function useTerminalWindowHostActions(
   });
   return {
     onOpenTerminal: input.openTerminal,
+    retargetTerminal: input.retargetTerminal,
     onOpenTerminalTab: input.openTerminalTab,
     onCloseTerminal: input.close,
     closePending: input.closePending,

@@ -164,45 +164,44 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	}
 }
 
-func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { // IT-037
+func TestTerminalCommandsShouldKeepProfileContracts(t *testing.T) { // IT-037
 	t.Parallel()
 	deps := commandDeps{}
 	testCases := []struct {
-		name                string
+		commandName         string
 		command             *cobra.Command
 		wantAllProfilesFlag bool
 	}{
-		{name: "list aggregate read", command: newTerminalListCommand(deps), wantAllProfilesFlag: true},
-		{name: "journal aggregate read", command: newTerminalJournalCommand(deps), wantAllProfilesFlag: true},
+		{commandName: "attach", command: newTerminalAttachCommand(deps)},
+		{commandName: "exec", command: newTerminalExecCommand(deps)},
+		{commandName: "get", command: newTerminalGetCommand(deps)},
 		{
-			name:                "input requests aggregate read",
+			commandName:         "input-requests",
 			command:             newTerminalInputRequestsCommand(deps),
 			wantAllProfilesFlag: true,
 		},
-		{name: "get owner read", command: newTerminalGetCommand(deps)},
-		{name: "attach owner read", command: newTerminalAttachCommand(deps)},
-		{name: "quote owner read", command: newTerminalQuoteCommand(deps)},
-		{name: "open mutation", command: newTerminalOpenCommand(deps)},
-		{name: "exec mutation", command: newTerminalExecCommand(deps)},
-		{name: "kill mutation", command: newTerminalKillCommand(deps)},
-		{name: "signal mutation", command: newTerminalSignalCommand(deps)},
-		{name: "respond mutation", command: newTerminalRespondCommand(deps)},
-		{name: "record mutation", command: newTerminalRecordCommand(deps)},
+		{
+			commandName:         "journal",
+			command:             newTerminalJournalCommand(deps),
+			wantAllProfilesFlag: true,
+		},
+		{commandName: "kill", command: newTerminalKillCommand(deps)},
+		{
+			commandName:         "list",
+			command:             newTerminalListCommand(deps),
+			wantAllProfilesFlag: true,
+		},
+		{commandName: "open", command: newTerminalOpenCommand(deps)},
+		{commandName: "quote", command: newTerminalQuoteCommand(deps)},
+		{commandName: "record", command: newTerminalRecordCommand(deps)},
+		{commandName: "respond", command: newTerminalRespondCommand(deps)},
+		{commandName: "signal", command: newTerminalSignalCommand(deps)},
 	}
-	commands := newTerminalCommand(deps).Commands()
-	gotNames := make([]string, 0, len(commands))
-	for _, command := range commands {
-		gotNames = append(gotNames, command.Name())
-	}
-	wantNames := []string{
-		"attach", "exec", "get", "input-requests", "journal", "kill",
-		"list", "open", "quote", "record", "respond", "signal",
-	}
-	if !reflect.DeepEqual(gotNames, wantNames) {
-		t.Fatalf("terminal commands = %#v, want %#v", gotNames, wantNames)
-	}
+
+	wantNames := make([]string, 0, len(testCases))
 	for _, testCase := range testCases {
-		t.Run("Should configure "+testCase.name, func(t *testing.T) {
+		wantNames = append(wantNames, testCase.commandName)
+		t.Run("Should configure "+testCase.commandName, func(t *testing.T) {
 			t.Parallel()
 			flag := testCase.command.Flags().Lookup(allProfilesFlagName)
 			if got := flag != nil; got != testCase.wantAllProfilesFlag {
@@ -211,46 +210,58 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 		})
 	}
 
-	t.Run("Should render the documented list table and scoped empty state", func(t *testing.T) {
-		t.Parallel()
-		fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
-		command := &cobra.Command{}
-		command.SetContext(t.Context())
-		recordProfileReadSelection(command, profileReadSelection{Profile: "work"})
-		recordWorkspaceResolution(command, workspaceResolution{
-			ID: "workspace-a",
-			Detail: WorkspaceDetailRecord{Workspace: WorkspaceRecord{
-				ID: "workspace-a", Name: "acme-api",
-			}},
-			Source: workspaceResolutionFlag,
-		})
-		empty, err := terminalListBundle(command, nil, func() time.Time { return fixed }).human()
-		if err != nil {
-			t.Fatalf("empty terminalListBundle().human() error = %v", err)
-		}
-		wantEmpty := "No terminals in workspace acme-api (profile: work). Open one: compozy terminal open"
-		if empty != wantEmpty {
-			t.Fatalf("empty terminal list = %q, want %q", empty, wantEmpty)
-		}
+	commands := newTerminalCommand(deps).Commands()
+	gotNames := make([]string, 0, len(commands))
+	for _, command := range commands {
+		gotNames = append(gotNames, command.Name())
+	}
+	if !reflect.DeepEqual(gotNames, wantNames) {
+		t.Fatalf("terminal commands = %#v, want %#v", gotNames, wantNames)
+	}
+}
 
-		recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
-		rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
-			ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
-			Controller: &contract.TerminalControllerPayload{Kind: "human", ID: terminalCLIActorID},
-			State:      "running", CreatedAt: fixed.Add(-2 * time.Minute),
-		}}, func() time.Time { return fixed }).human()
-		if err != nil {
-			t.Fatalf("terminalListBundle().human() error = %v", err)
-		}
-		wantRows := strings.Join([]string{
-			"ID\tPROFILE\tTITLE\tCONTROLLER\tSTATE\tCREATED",
-			"term-9f21c04a3b17\twork\tzsh — status\tyou\trunning\t2m ago",
-		}, "\n")
-		if rows != wantRows {
-			t.Fatalf("terminal list = %q, want %q", rows, wantRows)
-		}
+func TestTerminalListBundleShouldRenderHumanOutput(t *testing.T) {
+	t.Parallel()
+	fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
+	command := &cobra.Command{}
+	command.SetContext(t.Context())
+	recordProfileReadSelection(command, profileReadSelection{Profile: "work"})
+	recordWorkspaceResolution(command, workspaceResolution{
+		ID: "workspace-a",
+		Detail: WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+			ID: "workspace-a", Name: "acme-api",
+		}},
+		Source: workspaceResolutionFlag,
 	})
+	empty, err := terminalListBundle(command, nil, func() time.Time { return fixed }).human()
+	if err != nil {
+		t.Fatalf("empty terminalListBundle().human() error = %v", err)
+	}
+	wantEmpty := "No terminals in workspace acme-api (profile: work). Open one: compozy terminal open"
+	if empty != wantEmpty {
+		t.Fatalf("empty terminal list = %q, want %q", empty, wantEmpty)
+	}
 
+	recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
+	rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
+		ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
+		Controller: &contract.TerminalControllerPayload{Kind: "human", ID: terminalCLIActorID},
+		State:      "running", CreatedAt: fixed.Add(-2 * time.Minute),
+	}}, func() time.Time { return fixed }).human()
+	if err != nil {
+		t.Fatalf("terminalListBundle().human() error = %v", err)
+	}
+	wantRows := strings.Join([]string{
+		"ID\tPROFILE\tTITLE\tCONTROLLER\tSTATE\tCREATED",
+		"term-9f21c04a3b17\twork\tzsh — status\tyou\trunning\t2m ago",
+	}, "\n")
+	if rows != wantRows {
+		t.Fatalf("terminal list = %q, want %q", rows, wantRows)
+	}
+}
+
+func TestTerminalQuoteShouldEscapeTerminalContext(t *testing.T) {
+	t.Parallel()
 	quote := terminalQuote("term-4aa01f22e6c3", 120, 121, "FAIL users.test.ts\nexpected 201, received 500")
 	want := strings.Join([]string{
 		`<terminal_context terminal="term-4aa01f22e6c3" lines="120-121">`,
@@ -277,7 +288,6 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 		t.Fatalf("terminalQuote() unsafe output = %q, want %q", escaped, wantEscaped)
 	}
 }
-
 func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) { // IT-027, IT-034, IT-037
 	client := &terminalAgentCommandClient{DaemonClient: newDefaultProfileTestClient(&stubClient{})}
 	deps := newTestDeps(t, client)
@@ -1051,18 +1061,20 @@ type terminalAgentCommandClient struct {
 	noInputRequests    bool
 }
 
+var errUnexpectedTerminalClientCall = errors.New("unexpected terminal client call")
+
 func (*terminalAgentCommandClient) CreateTerminal(
 	context.Context,
 	string,
 	TerminalCreateRequest,
 ) (contract.TerminalInfoPayload, error) {
-	return contract.TerminalInfoPayload{}, nil
+	return contract.TerminalInfoPayload{}, errUnexpectedTerminalClientCall
 }
 func (*terminalAgentCommandClient) ListTerminals(
 	context.Context,
 	string,
 ) ([]contract.TerminalInfoPayload, error) {
-	return nil, nil
+	return nil, errUnexpectedTerminalClientCall
 }
 func (c *terminalAgentCommandClient) GetTerminal(
 	context.Context,
@@ -1072,7 +1084,7 @@ func (c *terminalAgentCommandClient) GetTerminal(
 	return c.terminal, nil
 }
 func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error) {
-	return TerminalExitRecord{}, nil
+	return TerminalExitRecord{}, errUnexpectedTerminalClientCall
 }
 
 func (c *terminalAgentCommandClient) AttachTerminal(
@@ -1128,7 +1140,7 @@ func (*terminalAgentCommandClient) AnswerTerminalInputRequest(
 	string,
 	[]byte,
 ) (int, bool, error) {
-	return 2, true, nil
+	return 0, false, errUnexpectedTerminalClientCall
 }
 func (c *terminalAgentCommandClient) RejectTerminalInputRequest(_ context.Context, _, _, requestID, _ string) error {
 	c.rejected = requestID

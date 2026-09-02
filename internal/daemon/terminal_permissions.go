@@ -113,10 +113,14 @@ func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 }
 
 func terminalPermissionRisk(classification terminalpkg.CommandClassification) string {
-	if classification.Reason == "irreversible" || classification.Reason == "unclassifiable" {
+	if terminalApprovalMustBeForced(classification) {
 		return classification.Reason
 	}
 	return "ordinary"
+}
+
+func terminalApprovalMustBeForced(classification terminalpkg.CommandClassification) bool {
+	return classification.Reason == "irreversible" || classification.Reason == "unclassifiable"
 }
 
 func (b *terminalPermissionBridge) AuthorizeTerminalInput(

@@ -13,13 +13,14 @@ import {
   TerminalExecuteOnlyState,
   TerminalNotFoundState,
 } from "./terminal-empty-states";
-import { TerminalJournalHostChrome, type TerminalRecordingState } from "./terminal-header";
+import type { TerminalRecordingState } from "./terminal-header";
+import { TerminalJournalHostChrome } from "./terminal-journal-host-chrome";
 import { TerminalJournalHead } from "./terminal-journal-panel";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
-import type { TerminalWindowActions } from "./terminal-window-actions";
+import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import { TerminalWindowBody } from "./terminal-window-body";
 
-export type { TerminalWindowActions } from "./terminal-window-actions";
+export type { TerminalWindowActions } from "../lib/terminal-window-actions";
 
 const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 
@@ -59,8 +60,6 @@ export interface TerminalWindowAppProps {
   createIntent?: boolean;
   /** The catalog is fetched for this mount; the resolver waits for it. */
   resolveReady?: boolean;
-  /** Retargets the host to `/terminal/:id`. Isolated windows omit this. */
-  onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: () => void;
   /** The journal overlay is no longer the surface being read. */
@@ -105,7 +104,6 @@ export function TerminalWindowApp({
   windowedTerminalIds,
   createIntent,
   resolveReady,
-  onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
   actions,
@@ -138,7 +136,6 @@ export function TerminalWindowApp({
     windowedTerminalIds,
     createIntent,
     resolveReady,
-    onSelectTerminal,
     onViewJournal,
     onLeaveJournal,
   });

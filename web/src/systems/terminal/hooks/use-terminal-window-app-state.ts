@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import type { TerminalWindowActions } from "../components/terminal-window-actions";
+import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalInfo } from "../types";
 import { useTerminalScopeCleanup } from "./use-terminal-scope-cleanup";
 import { useTerminalStore } from "./use-terminal-store";
@@ -38,8 +38,6 @@ export interface UseTerminalWindowAppStateOptions {
    * running terminal and open a duplicate instead of adopting it.
    */
   resolveReady?: boolean;
-  /** Retargets the host route to this PTY. Absent in isolated windows. */
-  onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: (() => void) | undefined;
   /** The journal overlay is no longer the surface being read. */
@@ -84,7 +82,6 @@ export function useTerminalWindowAppState({
   windowedTerminalIds = EMPTY_WINDOWED,
   createIntent = false,
   resolveReady = true,
-  onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
@@ -139,8 +136,8 @@ export function useTerminalWindowAppState({
     const adoptable = createIntent
       ? null
       : latestUnwindowedRunning(terminals, profile, windowedTerminalIds);
-    if (adoptable && onSelectTerminal) {
-      onSelectTerminal(adoptable.id);
+    if (adoptable && actions.retargetTerminal) {
+      actions.retargetTerminal(adoptable.id);
       return;
     }
     // Execute-only platforms cannot host a PTY; the state surface says so.

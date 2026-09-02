@@ -3455,6 +3455,14 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 		t.Fatalf("InsertWorkspace(base) error = %v", err)
 	}
 
+	t.Run("Should preserve an untyped error that only mentions workspace deletion pending", func(t *testing.T) {
+		cause := errors.New("remote audit: workspace deletion pending review failed")
+		err := mapWorkspaceWriteConstraintError(testutil.Context(t), globalDB.db, base, cause)
+		if !errors.Is(err, cause) || errors.Is(err, compozyworkspace.ErrWorkspaceDeletionPending) {
+			t.Fatalf("mapWorkspaceWriteConstraintError() = %v, want original untyped error", err)
+		}
+	})
+
 	tests := []struct {
 		name string
 		ws   compozyworkspace.Workspace

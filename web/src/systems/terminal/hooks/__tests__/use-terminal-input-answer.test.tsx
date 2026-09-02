@@ -1,6 +1,6 @@
 // Suite: terminal input answer mutation
-// Invariant: the typed secret reaches the daemon and never lands in TanStack
-// mutation variables, so a cache dump cannot replay hidden input.
+// Invariant: the typed secret reaches the daemon without creating a TanStack
+// mutation record, so a cache dump cannot replay hidden input.
 // Owning layer: terminal answer hook. Canonical suite: this file — no prior
 // suite owned the mutation-cache boundary; the card suite owns the DOM mask.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ function renderAnswer() {
 }
 
 describe("useTerminalInputAnswer", () => {
-  it("Should deliver the secret without storing it in mutation variables", async () => {
+  it("Should deliver the secret without creating a mutation cache record", async () => {
     vi.mocked(answerTerminalInputRequest).mockResolvedValue({
       delivered_bytes: SECRET.length,
       redacted: true,
@@ -52,11 +52,43 @@ describe("useTerminalInputAnswer", () => {
       { profile: PASSWORD_REQUEST.profile_name }
     );
 
-    const cached = queryClient
-      .getMutationCache()
-      .getAll()
-      .map(mutation => mutation.state.variables);
-    expect(JSON.stringify(cached)).not.toContain(SECRET);
-    expect(cached).toEqual([{ request: PASSWORD_REQUEST }]);
+    expect(queryClient.getMutationCache().getAll()).toEqual([]);
+  });
+
+  it("Should keep concurrent answers isolated for the same pending request", async () => {
+    const first = "first-secret";
+    const second = "second-secret";
+    vi.mocked(answerTerminalInputRequest).mockClear();
+    vi.mocked(answerTerminalInputRequest).mockResolvedValue({
+      delivered_bytes: first.length,
+      redacted: true,
+    });
+    const { queryClient, result } = renderAnswer();
+
+    act(() => {
+      result.current.mutate({ request: PASSWORD_REQUEST, value: first });
+      result.current.mutate({ request: PASSWORD_REQUEST, value: second });
+    });
+
+    await waitFor(() => expect(answerTerminalInputRequest).toHaveBeenCalledTimes(2));
+    expect(answerTerminalInputRequest).toHaveBeenNthCalledWith(
+      1,
+      "ws-atlas",
+      PASSWORD_REQUEST.terminal_id,
+      PASSWORD_REQUEST.id,
+      first,
+      { profile: PASSWORD_REQUEST.profile_name }
+    );
+    expect(answerTerminalInputRequest).toHaveBeenNthCalledWith(
+      2,
+      "ws-atlas",
+      PASSWORD_REQUEST.terminal_id,
+      PASSWORD_REQUEST.id,
+      second,
+      { profile: PASSWORD_REQUEST.profile_name }
+    );
+    expect(JSON.stringify(queryClient.getMutationCache().getAll())).not.toContain(first);
+    expect(JSON.stringify(queryClient.getMutationCache().getAll())).not.toContain(second);
+    expect(queryClient.getMutationCache().getAll()).toEqual([]);
   });
 });

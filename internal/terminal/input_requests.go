@@ -43,6 +43,9 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 	if err != nil {
 		return nil, err
 	}
+	if request.Redact && inputVisible {
+		return nil, inputRequiresHiddenError(nil)
+	}
 	redacted = redacted || !inputVisible
 	var pending *pendingInput
 	var requester Actor
@@ -109,6 +112,16 @@ func (s *session) AnswerInput(
 	)
 	returnErr := s.finishInputAnswerHandoff(actor, handoff)
 	if deliveryErr != nil {
+		if deliveryState.BytesDelivered == 0 && errors.Is(deliveryErr, ErrInputRequiresHidden) {
+			outcome := InputOutcome{
+				Outcome: InputResolutionOutcomeSuperseded, Redacted: pending.projection.Redacted,
+			}
+			if !s.manager.inputs.complete(pending, outcome, actor, "input_visibility_changed") {
+				return nil, errors.Join(inputRequestResolutionLostError(), returnErr)
+			}
+			s.emitInputProvided(ctx, pending, actor, "superseded", 0, "input_visibility_changed")
+			return nil, errors.Join(deliveryErr, returnErr)
+		}
 		if deliveryState.BytesDelivered == 0 {
 			s.manager.inputs.release(pending)
 			return nil, errors.Join(deliveryErr, returnErr)

@@ -85,32 +85,23 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 		Mode: terminalpty.ModePTY, MarkerNonce: nonce,
 		ShellIntegration: settings.ShellIntegration,
 	}
-	proc, err := m.pty.Start(ctx, spec)
-	if err != nil {
-		return nil, fmt.Errorf("terminal: start shell %q: %w", shell, err)
-	}
 	info := ownedInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
 		Title: request.Title, Shell: shell, Cwd: cwd, Mode: ModePTY, State: terminalStateRunning,
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
-	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	titlePinned := strings.TrimSpace(request.Title) != ""
-	item := newSession(ctx, m, proc, info, settings, nonce, profileName, cols, rows, titlePinned)
-	processRecord, err := m.processRegistration(ctx, item, spec)
+	item, key, err := m.launchTerminal(ctx, terminalLaunch{
+		spec: spec, info: info, settings: settings, nonce: nonce, titlePinned: titlePinned,
+		startLabel: fmt.Sprintf("shell %q", shell),
+	})
 	if err != nil {
-		cleanupErr := cleanupUnregisteredProcess(ctx, proc)
-		return nil, errors.Join(err, cleanupErr)
-	}
-	item.processRecord = processRecord
-	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
-	if err := m.insert(key, item); err != nil {
-		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
+		return nil, err
 	}
 	if err := m.startOpenedSession(ctx, item, request.Actor, settings.Recording); err != nil {
 		m.removeInserted(key, item)
 		item.cancel()
-		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
+		return nil, cleanupRegisteredProcess(ctx, item.proc, item.processRecord, err)
 	}
 	return item, nil
 }

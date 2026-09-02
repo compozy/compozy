@@ -11,10 +11,19 @@ bug_ids: BUG-20260826-terminal-cli-raw-mode
 fix_status: fixed
 retest_status:
 fix_commits:
-evidence: terminal-protocol-client suite (43) + E2E-002/E2E-011; docs/qa/reports/2026-08-31-terminal-stabilization.md
-last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-controller-after-flood.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-watcher-recovered.png
+last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
+
+qa-impact: 2026-09-01 deep-review round 2 changed stream draining, reconnect settlement, and
+redacted-output backpressure behavior. Reset for a focused degraded-stream re-walk.
+
+2026-09-02 re-walk: passed. Three browser viewers converged after a 6,000-line flood while one watcher
+was offline; the watcher announced reconnecting, recovered through the final line, never gained control,
+and never resized the `80×24` terminal. A disconnected controlling viewer did not strand the command.
+Catalog cursor replay and snapshot reset were distinct, and single-use, expired, foreign-terminal, and
+wrong-mode attach passes all failed before upgrade.
 
 reset 2026-08-31: the stream client now settles as closed on exit or a gone terminal instead of reconnecting forever, and the reconnect line layers above the grid; the prior verdict predates that behavior.
 Planned by integrated-terminal task 09 for the transport and flow-control guarantees, which

@@ -120,7 +120,7 @@ function renderGrantRows(
   grants: ToolApprovalGrant[],
   onRevoke: (grant: ToolApprovalGrant) => void
 ) {
-  const terminal: {
+  const terminalGrants: {
     source: ToolApprovalGrant;
     grant: NonNullable<ReturnType<typeof terminalGrantFromToolGrant>>;
   }[] = [];
@@ -128,20 +128,20 @@ function renderGrantRows(
   for (const grant of grants) {
     const terminalGrant = terminalGrantFromToolGrant(grant);
     if (terminalGrant) {
-      terminal.push({ source: grant, grant: terminalGrant });
+      terminalGrants.push({ source: grant, grant: terminalGrant });
     } else {
       other.push(grant);
     }
   }
   return (
     <>
-      {terminal.length > 0 ? (
+      {terminalGrants.length > 0 ? (
         <ListGroup
           className={other.length > 0 ? "border-b border-line" : undefined}
           data-testid={`${TEST_ID}-terminal-group`}
           label="Terminal"
         >
-          {terminal.map(({ source, grant }) => (
+          {terminalGrants.map(({ source, grant }) => (
             <TerminalGrantRow grant={grant} key={source.id} onRevoke={() => onRevoke(source)} />
           ))}
         </ListGroup>

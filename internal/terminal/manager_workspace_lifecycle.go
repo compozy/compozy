@@ -66,6 +66,27 @@ func (p *workspaceProducer) Release() {
 	p.manager.notifyProducerChangeLocked()
 }
 
+func (m *Service) trackUnpublishedExec(run *execRun) {
+	if run == nil || run.item == nil || run.producer == nil {
+		return
+	}
+	m.mu.Lock()
+	m.unpublishedExecs[run.key] = run.item
+	m.mu.Unlock()
+	run.producer.MarkRegistered()
+}
+
+func (m *Service) untrackUnpublishedExec(run *execRun) {
+	if run == nil || run.item == nil {
+		return
+	}
+	m.mu.Lock()
+	if m.unpublishedExecs[run.key] == run.item {
+		delete(m.unpublishedExecs, run.key)
+	}
+	m.mu.Unlock()
+}
+
 func (m *Service) notifyProducerChangeLocked() {
 	close(m.producerChanged)
 	m.producerChanged = make(chan struct{})

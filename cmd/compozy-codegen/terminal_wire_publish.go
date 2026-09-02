@@ -1,64 +1,23 @@
 package main
 
-import (
-	"errors"
-	"fmt"
-	"slices"
-)
+import "context"
 
-type generatedArtifact struct {
-	path    string
-	content []byte
+func writeTerminalWire(ctx context.Context, paths terminalWirePaths) error {
+	return writeTerminalWireWith(ctx, paths, publishGeneratedFile)
 }
 
-type generatedArtifactSnapshot struct {
-	path    string
-	content []byte
-	existed bool
-}
-
-func publishGeneratedArtifactSet(
-	artifacts []generatedArtifact,
+func writeTerminalWireWith(
+	ctx context.Context,
+	paths terminalWirePaths,
 	publish func(string, []byte) error,
 ) error {
-	snapshots := make([]generatedArtifactSnapshot, 0, len(artifacts))
-	seenPaths := make(map[string]struct{}, len(artifacts))
-	for _, artifact := range artifacts {
-		if artifact.path == "" {
-			return errors.New("generated output path is empty")
-		}
-		if _, exists := seenPaths[artifact.path]; exists {
-			return fmt.Errorf("generated output path %q is duplicated", artifact.path)
-		}
-		seenPaths[artifact.path] = struct{}{}
-		content, existed, err := readGeneratedFile(artifact.path)
-		if err != nil {
-			return fmt.Errorf("snapshot generated output %q: %w", artifact.path, err)
-		}
-		snapshots = append(snapshots, generatedArtifactSnapshot{
-			path: artifact.path, content: content, existed: existed,
-		})
+	goContent, tsContent, docsContent, err := generateTerminalWire(ctx, paths)
+	if err != nil {
+		return err
 	}
-
-	for index, artifact := range artifacts {
-		if err := publish(artifact.path, artifact.content); err != nil {
-			return rollbackGeneratedArtifactSet(err, snapshots[:index+1])
-		}
-	}
-	return nil
-}
-
-func rollbackGeneratedArtifactSet(publishErr error, snapshots []generatedArtifactSnapshot) error {
-	result := publishErr
-	for _, snapshot := range slices.Backward(snapshots) {
-		if err := restoreGeneratedFile(
-			snapshot.path,
-			snapshot.content,
-			snapshot.existed,
-			publishGeneratedFile,
-		); err != nil {
-			result = errors.Join(result, fmt.Errorf("restore generated output %q: %w", snapshot.path, err))
-		}
-	}
-	return result
+	return publishGeneratedArtifactSet([]generatedArtifact{
+		{path: paths.goOutput, content: goContent},
+		{path: paths.tsOutput, content: tsContent},
+		{path: paths.docsOutput, content: docsContent},
+	}, publish)
 }

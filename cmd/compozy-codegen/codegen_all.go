@@ -91,28 +91,23 @@ func publishAllGeneratedArtifacts(
 	publishFile func(string, []byte) error,
 	publishTree func(string, map[string][]byte) error,
 ) error {
-	snapshots, err := snapshotGeneratedArtifacts(artifacts.files)
-	if err != nil {
-		return err
-	}
 	treePath := filepath.Clean(sdkGoContractsPath)
-	treeSnapshot, err := snapshotGeneratedTree(treePath)
-	if err != nil {
-		return err
+	companion := &generatedPublicationCompanion{
+		snapshot: func() (func() error, error) {
+			snapshot, err := snapshotGeneratedTree(treePath)
+			if err != nil {
+				return nil, err
+			}
+			return func() error { return restoreGeneratedTreeSnapshot(treePath, snapshot) }, nil
+		},
+		publish: func() error {
+			if err := publishTree(treePath, artifacts.goFiles); err != nil {
+				return fmt.Errorf("publish Go SDK contracts: %w", err)
+			}
+			return nil
+		},
 	}
-	for index, artifact := range artifacts.files {
-		if err := publishFile(artifact.path, artifact.content); err != nil {
-			return rollbackGeneratedArtifactSet(err, snapshots[:index+1])
-		}
-	}
-	if err := publishTree(treePath, artifacts.goFiles); err != nil {
-		publishErr := fmt.Errorf("publish Go SDK contracts: %w", err)
-		if restoreErr := restoreGeneratedTreeSnapshot(treePath, treeSnapshot); restoreErr != nil {
-			publishErr = errors.Join(publishErr, restoreErr)
-		}
-		return rollbackGeneratedArtifactSet(publishErr, snapshots)
-	}
-	return nil
+	return publishGeneratedArtifactTransaction(artifacts.files, publishFile, companion)
 }
 
 func snapshotGeneratedTree(path string) (generatedTreeSnapshot, error) {
@@ -156,26 +151,4 @@ func restoreGeneratedTreeSnapshot(path string, snapshot generatedTreeSnapshot) e
 		return fmt.Errorf("restore Go SDK tree %q: %w", path, err)
 	}
 	return nil
-}
-
-func snapshotGeneratedArtifacts(artifacts []generatedArtifact) ([]generatedArtifactSnapshot, error) {
-	snapshots := make([]generatedArtifactSnapshot, 0, len(artifacts))
-	seen := make(map[string]struct{}, len(artifacts))
-	for _, artifact := range artifacts {
-		if artifact.path == "" {
-			return nil, errors.New("generated output path is empty")
-		}
-		if _, exists := seen[artifact.path]; exists {
-			return nil, fmt.Errorf("generated output path %q is duplicated", artifact.path)
-		}
-		seen[artifact.path] = struct{}{}
-		content, existed, err := readGeneratedFile(artifact.path)
-		if err != nil {
-			return nil, fmt.Errorf("snapshot generated output %q: %w", artifact.path, err)
-		}
-		snapshots = append(snapshots, generatedArtifactSnapshot{
-			path: artifact.path, content: content, existed: existed,
-		})
-	}
-	return snapshots, nil
 }

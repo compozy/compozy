@@ -204,7 +204,7 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 }
 
 func respondHostedMCPError(c *gin.Context, err error) {
-	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok && terminalErr != nil {
+	if isHostedMCPTerminalError(err) {
 		status, _, _ := core.TerminalErrorStatus(err)
 		c.JSON(status, core.TerminalErrorResponseForError(err, status, false))
 		return

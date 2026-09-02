@@ -8,8 +8,11 @@ import {
   QuestionnaireChoiceDescription,
   QuestionnaireChoices,
   QuestionnaireDescription,
+  QuestionnaireError,
   QuestionnaireInput,
   QuestionnaireItem,
+  QuestionnaireNext,
+  QuestionnairePrevious,
   QuestionnaireProgress,
   QuestionnaireSkip,
   QuestionnaireSubmit,
@@ -24,13 +27,22 @@ import {
 const meta: Meta<typeof Questionnaire> = {
   title: "components/Questionnaire",
   component: Questionnaire,
-  parameters: { layout: "centered" },
+  parameters: {
+    layout: "centered",
+    docs: {
+      description: {
+        component: "Question-and-answer form with choice, free-text, and multi-step flows.",
+      },
+    },
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Choice question with shortcuts and optional supporting detail. */
 export const Choices: Story = {
+  args: {},
   render: () => (
     <div className="w-[420px]">
       <Questionnaire onSubmit={event => event.preventDefault()} shortcuts="numbers">
@@ -58,7 +70,9 @@ export const Choices: Story = {
   ),
 };
 
+/** Free-text question for a masked answer held only by the DOM input. */
 export const FreeText: Story = {
+  args: {},
   render: () => (
     <div className="w-[420px]">
       <Questionnaire onSubmit={event => event.preventDefault()}>
@@ -78,7 +92,9 @@ export const FreeText: Story = {
   ),
 };
 
+/** Multi-step flow showing progress, validation, and every navigation action. */
 export const MultiStep: Story = {
+  args: {},
   render: () => (
     <div className="w-[420px]">
       <Questionnaire onSubmit={event => event.preventDefault()} shortcuts="letters">
@@ -89,13 +105,16 @@ export const MultiStep: Story = {
             <QuestionnaireChoice value="web">Only web/</QuestionnaireChoice>
             <QuestionnaireChoice value="all">The whole repo</QuestionnaireChoice>
           </QuestionnaireChoices>
+          <QuestionnaireError />
         </QuestionnaireItem>
         <QuestionnaireItem name="note">
           <QuestionnaireTitle>Anything else it should know?</QuestionnaireTitle>
           <QuestionnaireInput placeholder="Optional note" type="text" />
         </QuestionnaireItem>
         <QuestionnaireActions>
+          <QuestionnairePrevious />
           <QuestionnaireSkip />
+          <QuestionnaireNext />
           <QuestionnaireSubmit>Send</QuestionnaireSubmit>
         </QuestionnaireActions>
       </Questionnaire>

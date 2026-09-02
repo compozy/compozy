@@ -1,8 +1,7 @@
 # J-operate-integrated-terminal — Work in a supervised terminal and keep agent reports distinct
 
 An operator opens a real terminal, works in it, leaves and returns without losing the process, and
-can always tell that supervised runtime activity apart from command output an agent ran internally
-agent.
+can always tell that supervised runtime activity apart from command output an agent ran internally.
 
 ```mermaid
 flowchart TD

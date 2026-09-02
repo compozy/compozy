@@ -57,6 +57,9 @@ const (
 	TerminalErrorInputAnswerRequiresWrite TerminalErrorCode = TerminalErrorCode(
 		terminalpkg.ErrorCodeInputAnswerRequiresWrite,
 	)
+	TerminalErrorInputRequestRequiresHidden TerminalErrorCode = TerminalErrorCode(
+		terminalpkg.ErrorCodeInputRequestRequiresHidden,
+	)
 	TerminalErrorRecordingAlreadyStarted TerminalErrorCode = TerminalErrorCode(
 		terminalpkg.ErrorCodeRecordingAlreadyStarted,
 	)

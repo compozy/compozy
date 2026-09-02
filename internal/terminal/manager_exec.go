@@ -31,6 +31,7 @@ type execRun struct {
 	registered       atomic.Bool
 	decision         chan struct{}
 	decideOnce       sync.Once
+	releaseOnce      sync.Once
 	producer         *workspaceProducer
 	releaseCommandID func()
 }
@@ -78,9 +79,11 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		if err := m.publishExec(ctx, run, request); err != nil {
 			run.producer.Release()
 			run.producer = nil
-			return nil, cleanupExecRun(ctx, run.item, err)
+			return nil, cleanupExecRun(ctx, run, err)
 		}
 		run.settlePublication()
+	} else {
+		m.trackUnpublishedExec(run)
 	}
 	m.startExecLifecycle(run, request, argv)
 	timer := time.NewTimer(yield)
@@ -102,7 +105,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		if !request.Visible {
 			if err := m.publishExec(ctx, run, request); err != nil {
 				run.settlePublication()
-				return nil, cleanupExecRun(ctx, run.item, err)
+				return nil, cleanupExecRun(ctx, run, err)
 			}
 		}
 		run.settlePublication()
@@ -110,7 +113,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		return &ExecResult{StillRunning: true, TerminalID: &id, Untrusted: true, CommandID: run.commandID}, nil
 	case <-ctx.Done():
 		run.settlePublication()
-		return nil, cleanupExecRun(ctx, run.item, context.Cause(ctx))
+		return nil, cleanupExecRun(ctx, run, context.Cause(ctx))
 	}
 }
 
@@ -286,6 +289,7 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 	}
 	m.registerJournalTerminal(run.item)
 	run.registered.Store(true)
+	m.untrackUnpublishedExec(run)
 	info := run.item.Info()
 	m.events.Notify(ctx, Event{
 		Kind: EventKindOpened, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: run.item.profileName,
@@ -310,8 +314,9 @@ func (m *Service) recordExecRow(
 	argv []string,
 	info Info,
 ) error {
+	defer m.untrackUnpublishedExec(run)
 	defer run.producer.Release()
-	defer run.releaseCommandID()
+	defer run.releaseCommandIdentity()
 	duration := m.now().Sub(run.startedAt).Milliseconds()
 	digest := argvDigest(argv)
 	approval := terminalApprovalLabel(request.Approval)
@@ -344,6 +349,13 @@ func terminalApprovalLabel(value string) string {
 
 func (r *execRun) settlePublication() {
 	r.decideOnce.Do(func() { close(r.decision) })
+}
+
+func (r *execRun) releaseCommandIdentity() {
+	if r == nil || r.releaseCommandID == nil {
+		return
+	}
+	r.releaseOnce.Do(r.releaseCommandID)
 }
 
 func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequest) (*ExecResult, error) {
@@ -388,7 +400,12 @@ func infoSettingsRetention(item *session) time.Duration {
 	return time.Duration(item.policy.RecordingRetentionDays) * 24 * time.Hour
 }
 
-func cleanupExecRun(ctx context.Context, item *session, cause error) error {
+func cleanupExecRun(ctx context.Context, run *execRun, cause error) error {
+	if run == nil {
+		return cause
+	}
+	run.releaseCommandIdentity()
+	item := run.item
 	if item == nil {
 		return cause
 	}

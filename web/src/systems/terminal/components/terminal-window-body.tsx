@@ -14,10 +14,10 @@ import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest }
 import { TerminalExpiredState, TerminalNotFoundState } from "./terminal-empty-states";
 import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
 import { TerminalInputRequestStack } from "./terminal-input-request-stack";
-import { TerminalPane } from "./terminal-pane";
+import { TerminalPane, type TerminalPaneSelectionActions } from "./terminal-pane";
 import { TerminalPipeLogPane } from "./terminal-pipe-log-pane";
 import { TerminalTakeoverDialog } from "./terminal-takeover-dialog";
-import type { TerminalWindowActions } from "./terminal-window-actions";
+import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 
 const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 
@@ -115,14 +115,11 @@ function TerminalInteractiveWindowBody({
         {goneCode === "terminal_expired" ? (
           <TerminalExpiredState
             idleFor={detachedTtl}
-            onOpenTerminal={actions.onOpenTerminal}
+            onOpenTerminal={newTerminal}
             onViewJournal={onViewJournal}
           />
         ) : (
-          <TerminalNotFoundState
-            onOpenTerminal={actions.onOpenTerminal}
-            onViewJournal={onViewJournal}
-          />
+          <TerminalNotFoundState onOpenTerminal={newTerminal} onViewJournal={onViewJournal} />
         )}
       </>
     );
@@ -174,13 +171,7 @@ function TerminalInteractiveWindowBody({
             />
           </div>
         }
-        selectionActions={{
-          hasActiveSession: actions.hasActiveSession,
-          onChooseSession: selection => actions.onChooseSession(terminal.id, selection),
-          onCopy: selection => actions.onCopySelection(terminal.id, selection),
-          onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
-          onStartSession: selection => actions.onStartSession(terminal.id, selection),
-        }}
+        selectionActions={terminalSelectionActions(actions, terminal.id)}
         terminal={terminal}
       />
       {controller.pendingTakeover ? (
@@ -269,18 +260,25 @@ function TerminalPipeWindowBody({
           exit={exitNoticeFromTerminal(terminal)}
           firstLineNumber={pipeOutput?.firstLineNumber ?? 1}
           lines={pipeOutput?.lines ?? splitTerminalOutput(output.data?.content ?? "")}
-          selectionActions={{
-            hasActiveSession: actions.hasActiveSession,
-            onChooseSession: selection => actions.onChooseSession(terminal.id, selection),
-            onCopy: selection => actions.onCopySelection(terminal.id, selection),
-            onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
-            onStartSession: selection => actions.onStartSession(terminal.id, selection),
-          }}
+          selectionActions={terminalSelectionActions(actions, terminal.id)}
           terminal={terminal}
         />
       )}
     </>
   );
+}
+
+function terminalSelectionActions(
+  actions: TerminalWindowActions,
+  terminalId: string
+): TerminalPaneSelectionActions {
+  return {
+    hasActiveSession: actions.hasActiveSession,
+    onChooseSession: selection => actions.onChooseSession(terminalId, selection),
+    onCopy: selection => actions.onCopySelection(terminalId, selection),
+    onSendToConversation: selection => actions.onSendSelection(terminalId, selection),
+    onStartSession: selection => actions.onStartSession(terminalId, selection),
+  };
 }
 
 function splitTerminalOutput(content: string): string[] {

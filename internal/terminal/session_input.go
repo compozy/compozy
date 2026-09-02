@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"unicode/utf8"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
@@ -25,8 +24,6 @@ type inputVisibilityProc interface {
 	InputVisible() (bool, error)
 	WriteRedacted([]byte) (terminalpty.RedactedWriteResult, error)
 }
-
-var errRedactedInputRestore = errors.New("terminal redacted input echo restoration failed")
 
 func requireInputVisibilityProc(proc Proc) (inputVisibilityProc, error) {
 	visibilityProc, ok := proc.(inputVisibilityProc)
@@ -72,7 +69,7 @@ func (s *session) deliverInputMode(
 	}
 	filtered := s.filter.FilterInput(input)
 	info := s.Info()
-	writer, redacted, restoreError, err := s.inputWriter(clientRedact)
+	writer, redacted, err := s.inputWriter(clientRedact)
 	if err != nil {
 		return inputDeliveryState{}, err
 	}
@@ -92,21 +89,10 @@ func (s *session) deliverInputMode(
 			Err:     ErrJournalUnavailable,
 		}
 	}
-	if redacted {
-		s.streamMu.Lock()
-		defer s.streamMu.Unlock()
-	}
 	deliveryErr := s.lease.deliverWith(actor, filtered, writer)
 	state, err := s.commitInputDelivery(actor, filtered, auditInput, reservation, deliveryErr)
 	if err != nil {
 		return state, err
-	}
-	if restoreErr := restoreError(); restoreErr != nil {
-		return state, fmt.Errorf(
-			"terminal input was delivered but echo restoration failed on %s: %w",
-			runtime.GOOS,
-			errors.Join(errRedactedInputRestore, restoreErr),
-		)
 	}
 	return state, deliveryErr
 }
@@ -175,34 +161,38 @@ func (s *session) authorizeAgentInput(ctx context.Context, actor Actor) error {
 
 func (s *session) inputWriter(
 	clientRedact bool,
-) (func([]byte) (int, error), bool, func() error, error) {
+) (func([]byte) (int, error), bool, error) {
 	redacted := clientRedact
 	writer := s.proc.Write
-	var restoreErr error
 	if clientRedact {
 		visibilityProc, err := requireInputVisibilityProc(s.proc)
 		if err != nil {
-			return nil, false, nil, err
+			return nil, false, err
 		}
-		writer = redactedInputWriter(visibilityProc, &restoreErr)
+		writer = redactedInputWriter(visibilityProc)
 	}
 	if visibilityProc, ok := s.proc.(inputVisibilityProc); ok {
 		inputVisible, err := visibilityProc.InputVisible()
 		if err != nil {
-			return nil, false, nil, err
+			return nil, false, err
+		}
+		if clientRedact && inputVisible {
+			return nil, false, inputRequiresHiddenError(nil)
 		}
 		redacted = redacted || !inputVisible
 		if redacted && !clientRedact {
-			writer = redactedInputWriter(visibilityProc, &restoreErr)
+			writer = redactedInputWriter(visibilityProc)
 		}
 	}
-	return writer, redacted, func() error { return restoreErr }, nil
+	return writer, redacted, nil
 }
 
-func redactedInputWriter(proc inputVisibilityProc, restoreErr *error) func([]byte) (int, error) {
+func redactedInputWriter(proc inputVisibilityProc) func([]byte) (int, error) {
 	return func(input []byte) (int, error) {
 		result, err := proc.WriteRedacted(input)
-		*restoreErr = errors.Join(*restoreErr, result.RestoreError)
+		if errors.Is(err, terminalpty.ErrInputVisible) {
+			return 0, inputRequiresHiddenError(err)
+		}
 		return result.BytesDelivered, err
 	}
 }

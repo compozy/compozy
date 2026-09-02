@@ -19,6 +19,8 @@ export const TERMINAL_RECORDING_EVENTS = [
 
 export type TerminalRecordingEventName = (typeof TERMINAL_RECORDING_EVENTS)[number];
 
+const TERMINAL_RECORDING_EVENT_NAMES: ReadonlySet<string> = new Set(TERMINAL_RECORDING_EVENTS);
+
 export interface TerminalRecordingEntry {
   recordingId: string;
   /** ISO instant from the generated payload field `at`. */
@@ -51,7 +53,7 @@ const recordingEventFieldsSchema = z.object({
 });
 
 export function isTerminalRecordingEventName(name: string): name is TerminalRecordingEventName {
-  return name === "terminal.recording_started" || name === "terminal.recording_stopped";
+  return TERMINAL_RECORDING_EVENT_NAMES.has(name);
 }
 
 /**

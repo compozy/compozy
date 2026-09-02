@@ -429,6 +429,80 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should reject a semantic-open continuation after the runtime binding changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    let resolveOpen!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
+    vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveOpen = resolve;
+      })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.openOrFocus({
+      app: "session",
+      instanceKey: "session-pending",
+      route: { pathname: "/sessions/session-pending", search: { tab: "messages" } },
+    });
+    const continuation = runtime.openOrFocus({
+      app: "session",
+      instanceKey: "session-pending",
+      route: { pathname: "/sessions/session-pending", search: { tab: "events" } },
+    });
+    await flushCommandQueue();
+
+    const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:next", "marketing"),
+      nextSnapshot
+    );
+    queryClient.setQueryData(windowManagerKeys.config("workspace:next", "client:next"), {
+      ...SETTINGS_SECTION,
+      workspaceId: "workspace:next",
+    });
+    runtime.bind({
+      workspaceId: "workspace:next",
+      profileId: "marketing",
+      clientId: "client:next",
+    });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:next",
+      clientId: "client:next",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    resolveOpen({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+
+    await expect(first.completion).resolves.toBe(true);
+    await expect(continuation.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    runtime.stop();
+  });
+
   it("Should dispatch frame resizes as wire rects for windows and islands", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);

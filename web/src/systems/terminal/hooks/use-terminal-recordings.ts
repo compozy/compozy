@@ -1,8 +1,9 @@
 "use client";
 
 import { hashKey, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
+import { useSecondClock } from "@/hooks/use-second-clock";
 import type { TerminalRecordingState } from "../components/terminal-header";
 import { terminalKeys } from "../lib/query-keys";
 import { formatRecordingElapsed, type TerminalRecordingMap } from "../lib/terminal-recording-state";
@@ -24,8 +25,7 @@ function getEmptyRecordings(): TerminalRecordingMap {
  * The catalog stream writes this cache. There is no GET for in-progress
  * recordings, so the hook reads the query cache directly. Reconnect presence
  * is that stream's snapshot/open clear plus the following started events. One
- * interval exists while any entry is present and is cleared when the map
- * empties or on unmount.
+ * The process-wide second clock runs while any recording consumer is active.
  */
 export function useTerminalRecordings(
   scope: TerminalScopeKey,
@@ -56,13 +56,7 @@ export function useTerminalRecordings(
     getEmptyRecordings
   );
   const hasAny = Object.keys(map).length > 0;
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!canRead || !hasAny) return undefined;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [canRead, hasAny]);
+  const now = useSecondClock(canRead && hasAny);
 
   const recordings: Record<string, TerminalRecordingState> = {};
   for (const [terminalId, entry] of Object.entries(map)) {

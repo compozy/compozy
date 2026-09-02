@@ -67,6 +67,23 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 			t.Fatalf("human display output = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should neutralize C1 OSC and DCS across split reads", func(t *testing.T) {
+		t.Parallel()
+		filter := newOSCSecurityFilter("nonce-1", nil)
+		first := filter.Filter([]byte("before\x9d52;c;secret"))
+		if got := string(first.DisplayBytes); got != "before" {
+			t.Fatalf("first C1 OSC display = %q, want before", got)
+		}
+		second := filter.Filter([]byte("\x9cafter\x90private\x9cdone"))
+		if got := string(second.DisplayBytes); got != "afterdone" {
+			t.Fatalf("second C1 control display = %q, want afterdone", got)
+		}
+		input := []byte("before\x9d8;;https://example.com\x9clink\x9d8;;\x9cafter")
+		if got := string(newOSCSecurityFilter("nonce-1", nil).Filter(input).DisplayBytes); got != "beforelinkafter" {
+			t.Fatalf("C1 hyperlink display = %q, want beforelinkafter", got)
+		}
+	})
 }
 
 func TestOSCSecurityFilterShouldDeliverTypedFactsBeforeDisplayFanout(t *testing.T) {

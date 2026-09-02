@@ -71,31 +71,23 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		Argv: append([]string(nil), request.Argv...), Cwd: cwd, Env: cloneStringMap(request.Env),
 		Cols: 80, Rows: 24, Mode: terminalpty.ModePipe, MarkerNonce: nonce,
 	}
-	proc, err := m.pty.Start(ctx, spec)
-	if err != nil {
-		return nil, fmt.Errorf("terminal: start pipe command %q: %w", request.Argv[0], err)
-	}
 	info := ownedInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
 		Title: request.Title, Shell: request.Argv[0], Cwd: cwd, Mode: ModePipe, State: terminalStateRunning,
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
-	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
-	item := newSession(ctx, m, proc, info, settings, nonce, profileName, 80, 24, true)
-	processRecord, err := m.processRegistration(ctx, item, spec)
+	item, _, err := m.launchTerminal(ctx, terminalLaunch{
+		spec: spec, info: info, settings: settings, nonce: nonce, titlePinned: true,
+		startLabel: fmt.Sprintf("pipe command %q", request.Argv[0]),
+	})
 	if err != nil {
-		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
-	}
-	item.processRecord = processRecord
-	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
-	if err := m.insert(key, item); err != nil {
-		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
+		return nil, err
 	}
 	m.registerJournalTerminal(item)
 	opened := item.Info()
 	m.events.Notify(ctx, Event{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
-		ProfileName: profileName,
+		ProfileName: item.profileName,
 		TerminalID:  id, Actor: request.Actor, Info: &opened,
 		Detail: &EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})

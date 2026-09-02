@@ -111,8 +111,8 @@ export function useWorkspacesSwitcher({
   const [layer, setLayer] = useState<WorkspacesSwitcherLayer>("strip");
   const [menuFocus, setMenuFocusPosition] = useState<FocusPosition>({ key: null, index: 0 });
 
-  const tileElsRef = useRef(new Map<string, HTMLElement>());
-  const rowElsRef = useRef(new Map<string, HTMLElement>());
+  const tileElements = new Map<string, HTMLElement>();
+  const rowElements = new Map<string, HTMLElement>();
   const typeBufferRef = useRef("");
   const typeTimerRef = useRef(0);
   const storedFocusIndex = entries.findIndex(entry => entry.key === stripFocus.key);
@@ -143,7 +143,7 @@ export function useWorkspacesSwitcher({
   }
 
   const focusTileElement = (key: string | undefined, intent: FocusIntent) => {
-    const element = key ? tileElsRef.current.get(key) : undefined;
+    const element = key ? tileElements.get(key) : undefined;
     if (!element) return;
     element.focus({ preventScroll: true });
     if (!intent.skipScroll) keepInView(element, { instant: intent.instant ?? reducedMotion });
@@ -161,7 +161,7 @@ export function useWorkspacesSwitcher({
     if (!row) return;
     setLayer("menu");
     setMenuFocusPosition({ key: row.key, index: navIndex });
-    const element = rowElsRef.current.get(row.key);
+    const element = rowElements.get(row.key);
     // preventScroll keeps the overlay page still; the nest scrolls its own
     // viewport so rows past the menu's cap stay reachable by arrow keys.
     element?.focus({ preventScroll: true });
@@ -169,7 +169,10 @@ export function useWorkspacesSwitcher({
   };
 
   const reconcileDOMFocus = useEffectEvent(
-    (element: HTMLElement, resolvedLayer: WorkspacesSwitcherLayer) => {
+    (resolvedKey: string, resolvedLayer: WorkspacesSwitcherLayer) => {
+      const element =
+        resolvedLayer === "menu" ? rowElements.get(resolvedKey) : tileElements.get(resolvedKey);
+      if (!element || document.activeElement === element) return;
       element.focus({ preventScroll: true });
       if (resolvedLayer === "strip") {
         keepInView(element, { instant: reducedMotion });
@@ -183,11 +186,7 @@ export function useWorkspacesSwitcher({
   useLayoutEffect(() => {
     const resolvedKey = activeLayer === "menu" ? focusedMenuRow?.key : focusedEntry?.key;
     if (!resolvedKey) return;
-    const element =
-      activeLayer === "menu"
-        ? rowElsRef.current.get(resolvedKey)
-        : tileElsRef.current.get(resolvedKey);
-    if (element && document.activeElement !== element) reconcileDOMFocus(element, activeLayer);
+    reconcileDOMFocus(resolvedKey, activeLayer);
   }, [activeLayer, focusedEntry?.key, focusedMenuRow?.key]);
 
   useEffect(() => {
@@ -312,15 +311,15 @@ export function useWorkspacesSwitcher({
 
   const registerTile = (key: string) => (element: HTMLElement | null) => {
     if (!element) {
-      tileElsRef.current.delete(key);
+      tileElements.delete(key);
       return;
     }
-    tileElsRef.current.set(key, element);
+    tileElements.set(key, element);
   };
 
   const registerRow = (key: string) => (element: HTMLElement | null) => {
-    if (element) rowElsRef.current.set(key, element);
-    else rowElsRef.current.delete(key);
+    if (element) rowElements.set(key, element);
+    else rowElements.delete(key);
   };
 
   const tileHandlers = (index: number) => ({

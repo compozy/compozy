@@ -11,10 +11,18 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: web/e2e/__tests__/terminal.spec.ts E2E-002 + E2E-018 (green vs branch daemon 2026-08-31); docs/qa/reports/2026-08-31-terminal-stabilization.md
-last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/bruno-two-terminals-after-reload.png; docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
+last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps:
 ---
+
+qa-impact: 2026-09-01 deep-review round 2 changed terminal route retargeting, reconnect settlement,
+window close handling, and browser recovery ownership. Reset for a focused public-surface re-walk.
+
+2026-09-01 re-walk: passed. Bruno opened two browser terminals, executed a real shell command,
+reloaded with both tabs intact, closed the window without ending either process, reopened the newest
+running terminal from the dock, and closed an already-ended terminal without an error notification.
+Independent `compozy terminal get|list` reads matched the rendered state throughout.
 
 Flagged by integrated-terminal task 06; reset 2026-08-31 by the window-native
 UX rework (internal tab strip removed; id-less route resolves itself; close is

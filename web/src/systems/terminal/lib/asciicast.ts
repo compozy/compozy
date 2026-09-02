@@ -131,20 +131,21 @@ function parseFrame(line: string): AsciicastFrame | null {
     }
     return { atMs, kind: "output", data };
   }
+  const record = data as Record<string, unknown>;
   if (
     typeof data !== "object" ||
     data === null ||
-    (data as Record<string, unknown>).kind !== "redacted_input" ||
-    typeof (data as Record<string, unknown>).characters !== "number" ||
-    !Number.isSafeInteger((data as Record<string, unknown>).characters) ||
-    ((data as Record<string, unknown>).characters as number) < 0
+    record.kind !== "redacted_input" ||
+    typeof record.characters !== "number" ||
+    !Number.isSafeInteger(record.characters) ||
+    record.characters < 0
   ) {
     throw new AsciicastParseError("A recording redacted-input event is not readable.");
   }
   return {
     atMs,
     kind: "redacted_input",
-    characters: (data as Record<string, unknown>).characters as number,
+    characters: record.characters,
   };
 }
 

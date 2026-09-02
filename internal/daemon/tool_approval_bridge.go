@@ -170,7 +170,7 @@ func terminalApprovalPromptPolicy(
 			toolspkg.ReasonPolicyDenied,
 		)
 	}
-	if classification.Reason == "unclassifiable" || classification.Reason == "irreversible" {
+	if terminalApprovalMustBeForced(classification) {
 		return toolApprovalPromptPolicy{force: true}, nil
 	}
 	return toolApprovalPromptPolicy{remember: true}, nil
@@ -295,32 +295,21 @@ func toolApprovalDescriptor(call toolspkg.CallRequest, view *toolspkg.ToolView) 
 }
 
 func toolApprovalOptions(remember bool) []acpsdk.PermissionOption {
+	allowOnce := acpsdk.PermissionOption{
+		Kind: acpsdk.PermissionOptionKindAllowOnce, Name: toolApprovalAllowOnceName,
+		OptionId: toolApprovalAllowOnceID,
+	}
+	rejectOnce := acpsdk.PermissionOption{
+		Kind: acpsdk.PermissionOptionKindRejectOnce, Name: toolApprovalRejectOnceName,
+		OptionId: toolApprovalRejectOnceID,
+	}
 	if !remember {
-		return []acpsdk.PermissionOption{
-			{
-				Kind:     acpsdk.PermissionOptionKindAllowOnce,
-				Name:     toolApprovalAllowOnceName,
-				OptionId: toolApprovalAllowOnceID,
-			},
-			{
-				Kind:     acpsdk.PermissionOptionKindRejectOnce,
-				Name:     toolApprovalRejectOnceName,
-				OptionId: toolApprovalRejectOnceID,
-			},
-		}
+		return []acpsdk.PermissionOption{allowOnce, rejectOnce}
 	}
 	return []acpsdk.PermissionOption{
-		{
-			Kind:     acpsdk.PermissionOptionKindAllowOnce,
-			Name:     toolApprovalAllowOnceName,
-			OptionId: toolApprovalAllowOnceID,
-		},
+		allowOnce,
 		{Kind: acpsdk.PermissionOptionKindAllowAlways, Name: "Allow always", OptionId: toolApprovalAllowAlwaysID},
-		{
-			Kind:     acpsdk.PermissionOptionKindRejectOnce,
-			Name:     toolApprovalRejectOnceName,
-			OptionId: toolApprovalRejectOnceID,
-		},
+		rejectOnce,
 		{Kind: acpsdk.PermissionOptionKindRejectAlways, Name: "Reject always", OptionId: toolApprovalRejectAlwaysID},
 	}
 }

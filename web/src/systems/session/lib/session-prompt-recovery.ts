@@ -17,6 +17,15 @@ export interface RestoredSessionPromptDraft {
 
 type RecoveryListener = (draft: RestoredSessionPromptDraft) => void;
 
+export interface SessionPromptRecoveryScope {
+  workspaceId: string;
+  sessionId: string;
+}
+
+function recoveryScopeKey(scope: SessionPromptRecoveryScope): string {
+  return JSON.stringify([scope.workspaceId, scope.sessionId]);
+}
+
 function latestUserPromptText(messages: readonly UIMessage[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -36,30 +45,40 @@ function latestUserPromptText(messages: readonly UIMessage[]): string {
  * allowing the public composer API to restore previews and editable text.
  */
 export class SessionPromptRecovery {
-  private draft: RejectedSessionPromptDraft | null = null;
-  private readonly listeners = new Set<RecoveryListener>();
+  private readonly drafts = new Map<string, RejectedSessionPromptDraft>();
+  private readonly listeners = new Map<string, Set<RecoveryListener>>();
 
-  public stage({ messages }: { messages: readonly UIMessage[] }): void {
+  public stage(
+    scope: SessionPromptRecoveryScope,
+    { messages }: { messages: readonly UIMessage[] }
+  ): void {
     const { annotation, quote } = splitQuotedPrompt(latestUserPromptText(messages));
-    this.draft = { quote, text: annotation };
+    this.drafts.set(recoveryScopeKey(scope), { quote, text: annotation });
   }
 
-  public acknowledge(): void {
-    this.draft = null;
+  public acknowledge(scope: SessionPromptRecoveryScope): void {
+    this.drafts.delete(recoveryScopeKey(scope));
   }
 
-  public recover(files: readonly File[]): void {
-    const draft = this.draft;
-    this.draft = null;
+  public recover(scope: SessionPromptRecoveryScope, files: readonly File[]): void {
+    const key = recoveryScopeKey(scope);
+    const draft = this.drafts.get(key);
+    this.drafts.delete(key);
     if (!draft) return;
     const restored = { files, quote: draft.quote, text: draft.text };
-    for (const listener of this.listeners) {
+    for (const listener of this.listeners.get(key) ?? []) {
       listener(restored);
     }
   }
 
-  public subscribe(listener: RecoveryListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+  public subscribe(scope: SessionPromptRecoveryScope, listener: RecoveryListener): () => void {
+    const key = recoveryScopeKey(scope);
+    const listeners = this.listeners.get(key) ?? new Set<RecoveryListener>();
+    listeners.add(listener);
+    this.listeners.set(key, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.listeners.delete(key);
+    };
   }
 }

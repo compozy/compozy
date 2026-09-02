@@ -80,6 +80,13 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     workspaceId,
   } = useTerminalWindowControllerState(windowId);
   const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
+  const retargetTerminal = (terminalId: string) => {
+    void coordinator.userRetarget(windowId, {
+      app: "terminal",
+      instanceKey: terminalId,
+      route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
+    });
+  };
   const actions = useTerminalWindowHostActions({
     coordinator,
     getActiveSessionId: () => mostRecentSession(manager.getState(), windowId)?.sessionId ?? null,
@@ -89,6 +96,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     },
     hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
     openTerminal,
+    retargetTerminal,
     // Another terminal beside this one: a fresh window joins this frame as a
     // tab. `new` marks deliberate creation, so the resolver there opens a
     // fresh terminal instead of adopting a windowless running one.
@@ -224,13 +232,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         onFiltersChange={setJournalChips}
         onLoadMore={() => void journal.fetchNextPage()}
         onOpenNewTerminal={openTerminal}
-        onOpenTerminal={terminalId => {
-          void coordinator.userRetarget(windowId, {
-            app: "terminal",
-            instanceKey: terminalId,
-            route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
-          });
-        }}
+        onOpenTerminal={retargetTerminal}
         onReplay={(_recordingId, entry) => {
           const recordingId = entry.recording;
           if (!recordingId) return;
@@ -258,13 +260,6 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       journal={journalContent}
       limit={terminalSettings?.max_per_workspace}
       recordings={recordings}
-      onSelectTerminal={terminalId => {
-        void coordinator.userRetarget(windowId, {
-          app: "terminal",
-          instanceKey: terminalId,
-          route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
-        });
-      }}
       onViewJournal={unlockJournal}
       profile={profile.destination}
       projectLabel={workspace.runtimeWorkspace?.name}

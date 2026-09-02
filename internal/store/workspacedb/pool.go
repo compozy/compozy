@@ -42,7 +42,14 @@ type namedWorkspaceOpening struct {
 	opening     *workspaceOpening
 }
 
-var errWorkspacePoolClosed = errors.New("store: workspace database pool is closed")
+var (
+	errWorkspacePoolClosed     = errors.New("store: workspace database pool is closed")
+	errWorkspaceRemovalPending = errors.New("store: workspace database removal is pending")
+)
+
+func workspaceRemovalPendingError(workspaceID string) error {
+	return fmt.Errorf("store: workspace database %q removal is pending: %w", workspaceID, errWorkspaceRemovalPending)
+}
 
 // NewPool constructs an empty per-workspace database pool.
 func NewPool(resolveRoot RootResolver) (*Pool, error) {
@@ -77,7 +84,7 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 	}
 	if _, removing := p.removing[workspaceID]; removing {
 		p.mu.Unlock()
-		return nil, fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
+		return nil, workspaceRemovalPendingError(workspaceID)
 	}
 	if opening := p.opening[workspaceID]; opening != nil {
 		p.mu.Unlock()
@@ -167,7 +174,7 @@ func (p *Pool) CloseWorkspace(ctx context.Context, workspaceID string) error {
 	p.mu.Lock()
 	if _, removing := p.removing[workspaceID]; removing {
 		p.mu.Unlock()
-		return fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
+		return workspaceRemovalPendingError(workspaceID)
 	}
 	db := p.entries[workspaceID]
 	delete(p.entries, workspaceID)

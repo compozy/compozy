@@ -145,21 +145,9 @@ func (r *inputRegistry) emitExpired(pending *pendingInput) {
 func (r *inputRegistry) claim(session *session, id InputRequestID) (*pendingInput, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	pending := r.pending[id]
-	if pending == nil || pending.session != session {
-		if resolved, ok := r.resolved[id]; ok {
-			return nil, resolvedInputRequestError(resolved)
-		}
-		return nil, &Error{
-			Code: ErrorCodeInputRequestNotFound, Message: inputRequestNotFoundMessage, Err: ErrInputNotFound,
-		}
-	}
-	if pending.resolving {
-		return nil, &Error{
-			Code:    ErrorCodeInputRequestAnswered,
-			Message: "terminal input request is already being resolved",
-			Err:     ErrInputResolving,
-		}
+	pending, err := r.lookupPendingLocked(session, id)
+	if err != nil {
+		return nil, err
 	}
 	pending.resolving = true
 	pending.timerGeneration++
@@ -173,6 +161,13 @@ func (r *inputRegistry) claim(session *session, id InputRequestID) (*pendingInpu
 func (r *inputRegistry) inspect(session *session, id InputRequestID) (*pendingInput, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.lookupPendingLocked(session, id)
+}
+
+func (r *inputRegistry) lookupPendingLocked(
+	session *session,
+	id InputRequestID,
+) (*pendingInput, error) {
 	pending := r.pending[id]
 	if pending == nil || pending.session != session {
 		if resolved, ok := r.resolved[id]; ok {

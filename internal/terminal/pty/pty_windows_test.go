@@ -58,7 +58,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 		}
 	})
 
-	t.Run("Should suppress a real ConPTY echo and restore its input mode [UT-092]", func(t *testing.T) {
+	t.Run("Should refuse redacted input while ConPTY input is visible [UT-092]", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePTY, []string{
 			"powershell.exe",
 			"-NoLogo",
@@ -82,25 +82,41 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 		}
 		secret := []byte("conpty-secret\r")
 		result, err := visibilityProc.WriteRedacted(secret)
-		if err != nil || result.RestoreError != nil || result.BytesDelivered != len(secret) {
+		if !errors.Is(err, ErrInputVisible) || result.BytesDelivered != 0 {
 			t.Fatalf(
-				"WriteRedacted() = %#v error=%v, want %d delivered bytes and restored echo",
+				"WriteRedacted() = %#v error=%v, want zero bytes and ErrInputVisible",
 				result,
 				err,
-				len(secret),
 			)
 		}
-		visible, err = visibilityProc.InputVisible()
-		if err != nil || !visible {
-			t.Fatalf("InputVisible(after) = %t error=%v, want restored visible mode", visible, err)
+		if bytes.Contains(output, []byte("conpty-secret")) {
+			t.Fatalf("ConPTY output = %q", output)
+		}
+	})
+
+	t.Run("Should deliver redacted input after a ConPTY program hides input", func(t *testing.T) {
+		proc := startWindowsTestProc(t, ModePTY, []string{
+			"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+			`$secret = Read-Host -AsSecureString -Prompt 'Password'; Write-Output 'accepted'; Start-Sleep -Seconds 2`,
+		})
+		visibilityProc := proc.(interface {
+			InputVisible() (bool, error)
+			WriteRedacted([]byte) (RedactedWriteResult, error)
+		})
+		reader := bufio.NewReader(proc.Reader())
+		output := readWindowsUntil(t, proc, reader, "Password")
+		visible, err := visibilityProc.InputVisible()
+		if err != nil || visible {
+			t.Fatalf("InputVisible(hidden prompt) = %t error=%v, want hidden", visible, err)
+		}
+		secret := []byte("conpty-secret\r")
+		result, err := visibilityProc.WriteRedacted(secret)
+		if err != nil || result.BytesDelivered != len(secret) {
+			t.Fatalf("WriteRedacted(hidden) = %#v error=%v, want %d bytes", result, err, len(secret))
 		}
 		output = append(output, readWindowsUntil(t, proc, reader, "accepted")...)
 		if !bytes.Contains(output, []byte("accepted")) || bytes.Contains(output, []byte("conpty-secret")) {
 			t.Fatalf("ConPTY redacted output = %q", output)
-		}
-		exit, err := proc.Wait(t.Context())
-		if err != nil || exit.Code == nil || *exit.Code != 0 {
-			t.Fatalf("Wait() = %#v error=%v", exit, err)
 		}
 	})
 

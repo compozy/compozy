@@ -102,8 +102,7 @@ func terminalInputRequestsFromContract(response contract.TerminalInputRequestsRe
 		if err != nil {
 			return TerminalInputRequests{}, err
 		}
-		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(string(item.TerminalID)) == "" ||
-			strings.TrimSpace(item.ProfileID) == "" {
+		if !terminalInputIdentityComplete(item.ID, item.TerminalID, item.ProfileID) {
 			return TerminalInputRequests{}, fmt.Errorf(
 				"terminal pending input response contains an incomplete identity",
 			)
@@ -129,8 +128,7 @@ func terminalInputRequestsFromContract(response contract.TerminalInputRequestsRe
 		if err != nil {
 			return TerminalInputRequests{}, fmt.Errorf("decode terminal resolved input outcome: %w", err)
 		}
-		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(string(item.TerminalID)) == "" ||
-			strings.TrimSpace(item.ProfileID) == "" {
+		if !terminalInputIdentityComplete(item.ID, item.TerminalID, item.ProfileID) {
 			return TerminalInputRequests{}, fmt.Errorf(
 				"terminal resolved input response contains an incomplete identity",
 			)
@@ -144,6 +142,11 @@ func terminalInputRequestsFromContract(response contract.TerminalInputRequestsRe
 		})
 	}
 	return TerminalInputRequests{Pending: pending, Resolved: resolved}, nil
+}
+
+func terminalInputIdentityComplete(id string, terminalID contract.TerminalID, profileID string) bool {
+	return strings.TrimSpace(id) != "" && strings.TrimSpace(string(terminalID)) != "" &&
+		strings.TrimSpace(profileID) != ""
 }
 
 func terminalInputActorFromContract(

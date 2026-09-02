@@ -66,11 +66,6 @@ export function sessionPreviewInstanceKey(input: {
   ].join("");
 }
 
-/** True when a buffer belongs to the Terminal app rather than another surface. */
-export function isTerminalPaneKey(key: string): boolean {
-  return key.startsWith(PANE_NAMESPACE);
-}
-
 /** True when a buffer key belongs to the given scope. */
 export function terminalInstanceKeyInScope(key: string, scopeKey: string): boolean {
   return key.startsWith(`${PANE_NAMESPACE}${scopeKey}`);

@@ -203,6 +203,24 @@ function QuestionnaireActions({ className, ...props }: React.ComponentProps<"div
   );
 }
 
+type QuestionnaireActionStyle = Pick<React.ComponentProps<typeof Button>, "size" | "variant"> & {
+  className?: string;
+  position: string;
+};
+
+function questionnaireActionStyle({
+  className,
+  position,
+  size,
+  variant,
+}: QuestionnaireActionStyle) {
+  return {
+    "data-size": size,
+    "data-variant": variant,
+    className: cn(buttonVariants({ size, variant }), position, className),
+  };
+}
+
 function QuestionnairePrevious({
   children,
   className,
@@ -214,13 +232,12 @@ function QuestionnairePrevious({
   return (
     <QuestionnairePrimitive.Previous
       data-slot="questionnaire-previous"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-1 row-start-1 justify-self-start",
-        className
-      )}
+      {...questionnaireActionStyle({
+        className,
+        position: "col-start-1 row-start-1 justify-self-start",
+        size,
+        variant,
+      })}
       {...props}
     >
       {children ?? "Previous"}
@@ -239,13 +256,12 @@ function QuestionnaireSkip({
   return (
     <QuestionnairePrimitive.Skip
       data-slot="questionnaire-skip"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-2 row-start-1 justify-self-end",
-        className
-      )}
+      {...questionnaireActionStyle({
+        className,
+        position: "col-start-2 row-start-1 justify-self-end",
+        size,
+        variant,
+      })}
       {...props}
     >
       {children ?? "Skip"}
@@ -264,13 +280,12 @@ function QuestionnaireNext({
   return (
     <QuestionnairePrimitive.Next
       data-slot="questionnaire-next"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-3 row-start-1 justify-self-end",
-        className
-      )}
+      {...questionnaireActionStyle({
+        className,
+        position: "col-start-3 row-start-1 justify-self-end",
+        size,
+        variant,
+      })}
       {...props}
     >
       {children ?? "Next"}
@@ -289,13 +304,12 @@ function QuestionnaireSubmit({
   return (
     <QuestionnairePrimitive.Submit
       data-slot="questionnaire-submit"
-      data-size={size}
-      data-variant={variant}
-      className={cn(
-        buttonVariants({ size, variant }),
-        "col-start-3 row-start-1 justify-self-end",
-        className
-      )}
+      {...questionnaireActionStyle({
+        className,
+        position: "col-start-3 row-start-1 justify-self-end",
+        size,
+        variant,
+      })}
       {...props}
     >
       {children ?? "Submit"}

@@ -72,7 +72,7 @@ type fakeProc struct {
 	writeErr       error
 	partialBytes   int
 	partialErr     error
-	restoreErr     error
+	killErr        error
 }
 
 type fakeResize struct {
@@ -144,12 +144,15 @@ func (p *fakeProc) InputVisible() (bool, error) {
 }
 
 func (p *fakeProc) WriteRedacted(input []byte) (terminalpty.RedactedWriteResult, error) {
+	p.mu.Lock()
+	visible := p.echoEnabled
+	p.mu.Unlock()
+	if visible {
+		return terminalpty.RedactedWriteResult{}, terminalpty.ErrInputVisible
+	}
 	p.redactedWrites.Add(1)
 	written, err := p.writeInput(input, false)
-	p.mu.Lock()
-	restoreErr := p.restoreErr
-	p.mu.Unlock()
-	return terminalpty.RedactedWriteResult{BytesDelivered: written, RestoreError: restoreErr}, err
+	return terminalpty.RedactedWriteResult{BytesDelivered: written}, err
 }
 
 func (p *fakeProc) enableWriteEcho() { p.echoWrites.Store(true) }
@@ -162,9 +165,21 @@ func (p *fakeProc) blockWrites(started chan struct{}, release <-chan struct{}, e
 	p.mu.Unlock()
 }
 
-func (p *fakeProc) failEchoRestore(err error) {
+func (p *fakeProc) showInputEcho() {
 	p.mu.Lock()
-	p.restoreErr = err
+	p.echoEnabled = true
+	p.mu.Unlock()
+}
+
+func (p *fakeProc) failKill(err error) {
+	p.mu.Lock()
+	p.killErr = err
+	p.mu.Unlock()
+}
+
+func (p *fakeProc) hideInputEcho() {
+	p.mu.Lock()
+	p.echoEnabled = false
 	p.mu.Unlock()
 }
 
@@ -201,6 +216,12 @@ func (p *fakeProc) Wait(ctx context.Context) (terminalpty.Exit, error) {
 }
 
 func (p *fakeProc) Kill(signal terminalpty.Signal) error {
+	p.mu.Lock()
+	killErr := p.killErr
+	p.mu.Unlock()
+	if killErr != nil {
+		return killErr
+	}
 	signalName := string(signal)
 	p.complete(terminalpty.Exit{Cause: "signaled", Signal: &signalName})
 	return nil
@@ -435,6 +456,17 @@ type fakeRecordingJournal struct {
 
 type journalContractOnly struct {
 	journal Journal
+}
+
+type shutdownProbeJournal struct {
+	Journal
+	called atomic.Bool
+	err    error
+}
+
+func (j *shutdownProbeJournal) Shutdown(context.Context) error {
+	j.called.Store(true)
+	return j.err
 }
 
 func (j journalContractOnly) Record(ctx context.Context, workspaceID string, row CommandRow) error {

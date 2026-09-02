@@ -85,7 +85,7 @@ func (p *Pool) prepareWorkspaceRemoval(
 	}
 	if _, removing := p.removing[workspaceID]; removing {
 		p.mu.Unlock()
-		return nil, fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
+		return nil, workspaceRemovalPendingError(workspaceID)
 	}
 	db := p.entries[workspaceID]
 	p.mu.Unlock()
@@ -136,7 +136,7 @@ func (p *WorkspaceRemovalPreparation) BeforeDelete(context.Context) error {
 		return errWorkspacePoolClosed
 	}
 	if _, removing := p.pool.removing[p.workspaceID]; removing {
-		return fmt.Errorf("store: workspace database %q removal is pending", p.workspaceID)
+		return workspaceRemovalPendingError(p.workspaceID)
 	}
 	p.pool.removing[p.workspaceID] = p
 	p.staged = true

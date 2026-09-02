@@ -56,13 +56,6 @@ func parseTerminalAPIError(statusCode int, status string, body []byte) (bool, er
 func terminalStreamFrameError(payload []byte, operation string) error {
 	matched, err := parseTerminalAPIError(0, "", payload)
 	if matched {
-		if errors.Is(err, errInvalidTerminalErrorEnvelope) {
-			return terminalPermanentError(fmt.Errorf(
-				"cli: decode terminal %s ERROR frame: %w",
-				operation,
-				err,
-			))
-		}
 		return terminalPermanentError(err)
 	}
 	return terminalPermanentError(fmt.Errorf(
