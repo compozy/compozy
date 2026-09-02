@@ -12,7 +12,8 @@ import {
 } from "../lib/window-manager-view";
 import type { WindowManagerCommandInput } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
-import { randomWindowManagerId, WindowManagerRuntimeCore } from "./window-manager-runtime-core";
+import { WindowManagerRuntimeCore } from "./window-manager-runtime-core";
+import { randomWindowManagerId } from "./window-manager-runtime-helpers";
 
 /**
  * Builders for the tab half of the command surface. They live apart from

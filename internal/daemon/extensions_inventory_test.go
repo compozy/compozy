@@ -401,7 +401,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			Document: windowmanager.LayoutDocument{
 				Version: windowmanager.SnapshotVersion,
 				Desktops: []windowmanager.Desktop{{
-					ID: "desktop-default", Name: "Desktop 1", Purpose: windowmanager.DesktopPurposeStandard,
+					ID: "desktop-default", Name: "Desktop 1",
 					Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
 				}},
 				Windows: map[windowmanager.WindowID]windowmanager.Window{},

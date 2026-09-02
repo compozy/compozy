@@ -19,6 +19,7 @@ function windowFixture(id: string, desktopId: string, layer: number, minimized =
     rect: { x: 40, y: 40, w: 720, h: 480 },
     layer,
     minimized,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,

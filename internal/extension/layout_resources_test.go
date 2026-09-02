@@ -94,7 +94,6 @@ func testLayoutResource(id string) windowmanager.LayoutResource {
 			Desktops: []windowmanager.Desktop{{
 				ID:       "desktop-default",
 				Name:     "Desktop 1",
-				Purpose:  windowmanager.DesktopPurposeStandard,
 				Groups:   []windowmanager.LayoutGroup{},
 				Floating: []windowmanager.WindowID{},
 			}},

@@ -37,8 +37,6 @@ function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDo
       id: desktop.id,
       name: desktop.name,
       order: desktop.order,
-      purpose: desktop.purpose,
-      focusOwner: desktop.focusOwner,
       groups: desktop.groups.map(group => ({
         id: group.id,
         frame: { ...group.frame },
@@ -80,6 +78,7 @@ function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDo
           desktopId: window.desktopId,
           floatingRect: { ...window.floatingRect },
           minimized: window.minimized,
+          zoomed: window.zoomed,
           returnAnchor: window.returnAnchor === null ? null : structuredClone(window.returnAnchor),
         },
       ])

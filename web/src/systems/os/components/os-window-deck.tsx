@@ -143,6 +143,7 @@ export function OsWindowDeck({
         className="mr-1.5 h-deck-tab"
         onSelect={onTrafficLight}
         wrapZoom={zoomMenu}
+        zoomed={frame.zoomed}
       />
       <div
         ref={registerTabs}

@@ -1348,7 +1348,7 @@ func windowManagerTransportCreateDesktopRequest(
 		revision,
 		compozycontract.WindowManagerCommandDesktopCreate,
 		json.RawMessage(fmt.Sprintf(
-			`{"desktop_id":%q,"name":%q,"purpose":"standard"}`,
+			`{"desktop_id":%q,"name":%q}`,
 			desktopID,
 			desktopID,
 		)),
@@ -2070,12 +2070,16 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 			t.Fatalf("CLI extension search error = %v", err)
 		}
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
-		if len(cliValue.Items) != 1 {
-			t.Fatalf("CLI extension search items = %#v, want one curated entry", cliValue)
+		// The search unions live community results with the curated catalog, so
+		// only the curated entry has a stable shape worth pinning.
+		curated := slices.IndexFunc(cliValue.Items, func(item compozycontract.ExtensionSearchItem) bool {
+			return item.Slug == "compozy/bridge-github"
+		})
+		if curated < 0 {
+			t.Fatalf("CLI extension search items = %#v, want the curated entry", cliValue)
 		}
-		item := cliValue.Items[0]
-		if item.Slug != "compozy/bridge-github" ||
-			item.Name != "GitHub bridge" ||
+		item := cliValue.Items[curated]
+		if item.Name != "GitHub bridge" ||
 			item.Description != "Connect GitHub events to Compozy" ||
 			item.Version != "1.0.0" ||
 			item.Source != "curated" ||

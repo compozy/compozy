@@ -19,7 +19,7 @@ const record: WindowManagerLayoutResourceRecord = {
     aspectVariant: "landscape",
     participantSlots: [],
     overflowPolicy: "reject",
-    document: { version: 3, workspaceId: "", desktops: [], windows: {}, overrides: {} },
+    document: { version: 4, workspaceId: "", desktops: [], windows: {}, overrides: {} },
   },
   createdAt: "2026-07-22T00:00:00Z",
   updatedAt: "2026-07-22T00:00:00Z",

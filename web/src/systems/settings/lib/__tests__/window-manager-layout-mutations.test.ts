@@ -47,8 +47,6 @@ function projectRoot(root: WindowManagerLayoutNode) {
     id: "desktop:one",
     name: "One",
     order: 0,
-    purpose: "standard",
-    focusOwner: null,
     floating: [],
     floatingStacks: [],
     groups: [{ id: "group:main", frame: { x: 0, y: 0, w: 1, h: 1 }, root }],

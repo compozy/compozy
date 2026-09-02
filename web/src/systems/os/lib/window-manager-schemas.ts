@@ -154,8 +154,6 @@ const desktopSchema = z
     id: identifierSchema,
     name: z.string().trim().min(1),
     order: z.number().int().nonnegative(),
-    purpose: z.enum(["standard", "focus"]),
-    focus_owner: identifierSchema.optional(),
     groups: z.array(groupSchema),
     floating: z.array(identifierSchema),
     floating_stacks: z.array(floatingStackSchema),
@@ -165,8 +163,6 @@ const desktopSchema = z
       id: desktop.id,
       name: desktop.name,
       order: desktop.order,
-      purpose: desktop.purpose,
-      focusOwner: desktop.focus_owner ?? null,
       groups: desktop.groups,
       floating: desktop.floating,
       floatingStacks: desktop.floating_stacks,
@@ -183,6 +179,7 @@ const returnAnchorSchema = z
     neighbor_ids: z.array(identifierSchema).optional(),
     source_revision: safeRevisionSchema,
     source_group: groupSchema.optional(),
+    zoomed: z.boolean().optional(),
   })
   .transform(
     (anchor): WindowManagerReturnAnchor => ({
@@ -194,6 +191,7 @@ const returnAnchorSchema = z
       neighborIds: anchor.neighbor_ids ?? [],
       sourceRevision: anchor.source_revision,
       sourceGroup: anchor.source_group ?? null,
+      zoomed: anchor.zoomed ?? false,
     })
   );
 
@@ -216,6 +214,7 @@ const windowSchema = z
     desktop_id: identifierSchema,
     floating_rect: normalizedRectSchema,
     minimized: z.boolean(),
+    zoomed: z.boolean(),
     return_anchor: returnAnchorSchema.optional(),
   })
   .transform(
@@ -230,6 +229,7 @@ const windowSchema = z
       desktopId: window.desktop_id,
       floatingRect: window.floating_rect,
       minimized: window.minimized,
+      zoomed: window.zoomed,
       returnAnchor: window.return_anchor ?? null,
     })
   );
@@ -265,7 +265,7 @@ const commandIdSchema = z.enum([
 
 export const windowManagerSnapshotSchema = z
   .strictObject({
-    version: z.literal(3),
+    version: z.literal(4),
     workspace_id: identifierSchema,
     revision: safeRevisionSchema,
     desktops: z.array(desktopSchema).min(1),

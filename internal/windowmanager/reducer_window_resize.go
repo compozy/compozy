@@ -10,39 +10,41 @@ func (r *reducer) resizeWindow(snapshot *Snapshot, command ResizeWindowCommand) 
 	if !found {
 		return false, fmt.Errorf("window %q has no placement: %w", command.WindowID, ErrInvalidTopology)
 	}
+	unzoomed := r.endZoom(snapshot, zoomUnitMembers(snapshot, command.WindowID))
 	switch {
 	case placement.floatingStackIndex >= 0:
-		return r.resizeFloatingStackFrame(snapshot, placement, command.Frame)
+		return r.resizeFloatingStackFrame(snapshot, placement, command.Frame) || unzoomed, nil
 	case placement.floatingIndex >= 0:
-		return r.resizeFloatingWindow(snapshot, command)
+		return r.resizeFloatingWindow(snapshot, command) || unzoomed, nil
 	default:
-		return r.resizeTiledUnit(snapshot, placement, command)
+		changed, err := r.resizeTiledUnit(snapshot, placement, command)
+		return changed || unzoomed, err
 	}
 }
 
-func (r *reducer) resizeFloatingWindow(snapshot *Snapshot, command ResizeWindowCommand) (bool, error) {
+func (r *reducer) resizeFloatingWindow(snapshot *Snapshot, command ResizeWindowCommand) bool {
 	window := snapshot.Windows[command.WindowID]
 	next := clampRect(command.Frame)
 	if rectsAlmostEqual(window.FloatingRect, next) {
-		return false, nil
+		return false
 	}
 	window.FloatingRect = next
 	snapshot.Windows[command.WindowID] = window
 	r.changes.window(command.WindowID)
 	r.changes.desktop(window.DesktopID)
-	return true, nil
+	return true
 }
 
 func (r *reducer) resizeFloatingStackFrame(
 	snapshot *Snapshot,
 	placement windowPlacement,
 	frame NormalizedRect,
-) (bool, error) {
+) bool {
 	desktop := &snapshot.Desktops[placement.desktopIndex]
 	stack := desktop.FloatingStacks[placement.floatingStackIndex]
 	next := clampRect(frame)
 	if rectsAlmostEqual(stack.Rect, next) {
-		return false, nil
+		return false
 	}
 	stack.Rect = next
 	desktop.FloatingStacks[placement.floatingStackIndex] = stack
@@ -54,7 +56,7 @@ func (r *reducer) resizeFloatingStackFrame(
 	}
 	r.changes.node(stack.ID)
 	r.changes.desktop(desktop.ID)
-	return true, nil
+	return true
 }
 
 func (r *reducer) resizeTiledUnit(

@@ -6,7 +6,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { statusKeys, type StatusPayload } from "@/systems/status";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
@@ -26,6 +26,9 @@ import type {
 } from "../../lib/window-manager-types";
 import {
   useWindowManagerStream,
+  WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS,
+  WINDOW_MANAGER_STREAM_STALL_MS,
+  windowManagerReconnectDelay,
   type WindowManagerClientContextInput,
   type WindowManagerSocket,
   type WindowManagerSocketFactory,
@@ -70,7 +73,7 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 3,
+    version: 4,
     workspaceId: "workspace:test",
     revision,
     desktops: [
@@ -78,8 +81,6 @@ function snapshot(revision: number): WindowManagerSnapshot {
         id: "desktop:main",
         name: "Main",
         order: 0,
-        purpose: "standard",
-        focusOwner: null,
         groups: [],
         floating: [],
         floatingStacks: [],
@@ -168,7 +169,7 @@ function rawSnapshotFrame(revision: number) {
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 3,
+      version: 4,
       workspace_id: "workspace:test",
       revision,
       desktops: [
@@ -176,7 +177,6 @@ function rawSnapshotFrame(revision: number) {
           id: "desktop:main",
           name: "Main",
           order: 0,
-          purpose: "standard",
           groups: [],
           floating: [],
           floating_stacks: [],
@@ -220,6 +220,11 @@ afterEach(() => {
 });
 
 describe("useWindowManagerStream", () => {
+  // Reconnect delays carry jitter in production; pin it so timer assertions stay exact.
+  beforeEach(() => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+  });
+
   it("Should close and reopen the stream when only the profile binding changes", () => {
     const queryClient = new QueryClient();
     const { factory, sockets } = createSocketFactory();
@@ -812,5 +817,285 @@ describe("useWindowManagerStream", () => {
         },
       })
     );
+  });
+
+  it("Should refetch when a heartbeat announces a revision the cache never received", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(snapshot(6));
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 5 })
+    );
+    expect(fetchWindowManagerSnapshot).not.toHaveBeenCalled();
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 6 })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
+    ).toBe(6);
+    expect(factory).toHaveBeenCalledOnce();
+  });
+
+  it("Should replace the cache from a fence behind it after the authority resets", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:test", "marketing"),
+      snapshot(102)
+    );
+    const { factory, sockets } = createSocketFactory();
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(snapshot(1));
+    const onSnapshot = vi.fn();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 102,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot,
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(0)));
+
+    expect(
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
+    ).toBe(0);
+    expect(onSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 0 }));
+
+    act(() => sockets[0]?.message(rawEventFrame(1)));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
+    ).toBe(1);
+  });
+
+  it("Should replace the cache from a fence at the same revision after the authority migrated", () => {
+    const queryClient = new QueryClient();
+    const stale = snapshot(7);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), {
+      ...stale,
+      desktops: [
+        ...stale.desktops,
+        {
+          id: "desktop:stale",
+          name: "Stale",
+          order: 1,
+          groups: [],
+          floating: [],
+          floatingStacks: [],
+        },
+      ],
+    });
+    const { factory, sockets } = createSocketFactory();
+    const onSnapshot = vi.fn();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 7,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot,
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(7)));
+
+    const cached = queryClient.getQueryData<WindowManagerSnapshot>(
+      windowManagerKeys.snapshot("workspace:test", "marketing")
+    );
+    expect(cached?.revision).toBe(7);
+    expect(cached?.desktops.map(desktop => desktop.id)).toEqual(["desktop:main"]);
+    expect(onSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 7 }));
+  });
+
+  it("Should re-read and accept the daemon's truth when a heartbeat falls behind the cache", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(snapshot(2));
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 2 })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot("workspace:test", "marketing")
+      )?.revision
+    ).toBe(2);
+  });
+
+  it("Should drop a silent socket after the stall window and reconnect", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    const onStatusChange = vi.fn();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange,
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() => sockets[0]?.open());
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+
+    await act(() => vi.advanceTimersByTimeAsync(WINDOW_MANAGER_STREAM_STALL_MS - 1));
+    expect(factory).toHaveBeenCalledOnce();
+
+    act(() =>
+      sockets[0]?.message({ type: "heartbeat", workspace_id: "workspace:test", revision: 5 })
+    );
+    await act(() => vi.advanceTimersByTimeAsync(WINDOW_MANAGER_STREAM_STALL_MS - 1));
+    expect(factory).toHaveBeenCalledOnce();
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(sockets[0]?.close).toHaveBeenCalledOnce();
+    expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(factory).toHaveBeenLastCalledWith(
+      "/api/workspaces/workspace%3Atest/window-manager/stream?after_revision=5&client_id=client%3Aweb&profile=marketing"
+    );
+  });
+
+  it("Should verify a quiet socket when the browser comes back online or visible", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const { factory, sockets } = createSocketFactory();
+    renderHook(
+      () =>
+        useWindowManagerStream({
+          workspaceId: "workspace:test",
+          profileId: "marketing",
+          clientId: "client:web",
+          registrationEpoch: 0,
+          currentClient: client(1),
+          enabled: true,
+          afterRevision: 0,
+          socketFactory: factory,
+          onStatusChange: vi.fn(),
+          onSnapshot: vi.fn(),
+          onClient: vi.fn(),
+          onClientInvalidated: vi.fn(),
+          onError: vi.fn(),
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+    expect(factory).toHaveBeenCalledOnce();
+    act(() => sockets[0]?.open());
+    expect(factory).toHaveBeenCalledOnce();
+    act(() => sockets[0]?.message(rawSnapshotFrame(5)));
+    expect(factory).toHaveBeenCalledOnce();
+
+    act(() => window.dispatchEvent(new Event("online")));
+    expect(factory).toHaveBeenCalledOnce();
+
+    await act(() => vi.advanceTimersByTimeAsync(WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS + 1));
+    act(() => window.dispatchEvent(new Event("online")));
+    await act(() => vi.advanceTimersByTimeAsync(1));
+
+    // The wake check closes the quiet socket and the effect cleanup closes it again on reconnect.
+    expect(sockets[0]?.close).toHaveBeenCalled();
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should back off with bounded jitter and never give up", () => {
+    expect(windowManagerReconnectDelay(0, () => 0)).toBe(500);
+    expect(windowManagerReconnectDelay(0, () => 1)).toBe(625);
+    expect(windowManagerReconnectDelay(4, () => 0)).toBe(8_000);
+    expect(windowManagerReconnectDelay(40, () => 0)).toBe(8_000);
+    expect(windowManagerReconnectDelay(40, () => 1)).toBe(10_000);
   });
 });

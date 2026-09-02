@@ -10,9 +10,9 @@ qa_status: pass
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
-fix_commits: c3c50b6; 531b9f5; 538777e
-evidence: docs/qa/evidence/2026-08-20-window-render-recovery/agents-window-after-reload.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/settings-knowledge-background-route.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/grouped-tabs-knowledge-active.png
-last_report: docs/qa/reports/2026-08-20-window-management-regressions.md
+fix_commits: c3c50b6; 531b9f5; 538777e; a1baedd3a
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-window-manager-stream-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-parity-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/08-daemon-restart-reconnected.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/23-v3-migrated-live.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
@@ -54,3 +54,11 @@ real desktop window with no sync warning and remained rendered after a full page
 qa-impact: 2026-08-20 Knowledge route projection stopped allocating a new selector result on each
 external-store read. Reset to verify that opening Knowledge does not enter a render loop or break
 the desktop shell.
+
+qa-impact: 2026-09-01 stream hardening: heartbeat frames, a client stall watchdog, wake/online
+verification, jittered reconnect, and 409 self-recovery replaced the sticky read-only conflict state.
+Reset to re-walk "stream loss exposes an honest disconnected state ... reconnect replaces the query
+cache from a new snapshot fence" from the current build; liveness assertions live in
+RT-window-manager-stream-liveness.
+
+qa-impact: 2026-09-01 a reconnect fence replaces the cache even at an equal revision, so a daemon that migrated an arrangement at load re-renders without a reload; walked B7 and P5a on the final binary.

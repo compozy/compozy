@@ -20,13 +20,10 @@ func (m *Manager) Subscribe(ctx context.Context, request SubscriptionRequest) (S
 	if err != nil {
 		return nil, err
 	}
-	if request.AfterRevision > snapshot.Revision {
-		return nil, &RevisionConflictError{
-			Expected: request.AfterRevision,
-			Current:  snapshot.Revision,
-			Details:  []Conflict{{Code: "subscription.after_ahead"}},
-		}
-	}
+	// A client may remember a revision the authority no longer has: the stored
+	// arrangement was discarded or replaced while it was away. The fence is the
+	// truth, so such a client restarts from the current snapshot instead of
+	// being refused until someone reloads it.
 	fence := SubscriptionFence{Snapshot: snapshot}
 	if request.ClientID != nil {
 		m.mu.Lock()

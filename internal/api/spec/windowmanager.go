@@ -330,6 +330,7 @@ func windowManagerStreamOperation(
 					responseBodyOf[contract.WindowManagerSnapshotFrame](),
 					responseBodyOf[contract.WindowManagerEventFrame](),
 					responseBodyOf[contract.WindowManagerClientFrame](),
+					responseBodyOf[contract.WindowManagerHeartbeatFrame](),
 					responseBodyOf[contract.WindowManagerErrorFrame](),
 				),
 			},

@@ -100,10 +100,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.HeartbeatWakeReason]():              contract.HeartbeatWakeReasonValues(),
 		reflect.TypeFor[contract.WindowManagerErrorCode]():           contract.WindowManagerErrorCodeValues(),
 		reflect.TypeFor[contract.WindowManagerCommandID]():           contract.WindowManagerCommandIDValues(),
-		reflect.TypeFor[windowmanager.DesktopPurpose](): {
-			string(windowmanager.DesktopPurposeStandard),
-			string(windowmanager.DesktopPurposeFocus),
-		},
 		reflect.TypeFor[windowmanager.NodeKind](): {
 			string(windowmanager.NodeKindLeaf),
 			string(windowmanager.NodeKindSplit),

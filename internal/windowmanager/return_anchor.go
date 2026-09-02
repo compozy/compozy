@@ -77,7 +77,7 @@ func sourceGroupSnapshot(source LayoutGroup) Snapshot {
 		Version:     SnapshotVersion,
 		WorkspaceID: WorkspaceID(sourceDesktopID),
 		Desktops: []Desktop{{
-			ID: sourceDesktopID, Purpose: DesktopPurposeStandard,
+			ID:     sourceDesktopID,
 			Groups: []LayoutGroup{cloneLayoutGroup(source)}, Floating: []WindowID{},
 		}},
 		Windows: windows,

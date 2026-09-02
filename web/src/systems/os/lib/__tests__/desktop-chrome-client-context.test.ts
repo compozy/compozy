@@ -56,6 +56,7 @@ describe("selectPaletteDestinationRoute", () => {
       rect: { x: 0, y: 0, w: 600, h: 400 },
       layer: 1,
       minimized: false,
+      zoomed: false,
       groupId: null,
       nodeId: null,
       stackId: null,

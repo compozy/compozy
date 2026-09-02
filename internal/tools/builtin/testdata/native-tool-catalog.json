@@ -533,7 +533,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "28b3cd0d2f8d5c9b79c1155d58bf9fa653e716f36280c8a9742a13acc4225d69",
+    "input_schema_digest": "a917ea0619a18cd097633f80e9b96a1a5553742b364b4523502357ce8b1373e2",
     "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
@@ -1019,7 +1019,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "3cf10c825a380b68b4b7e44a4b1e61fd62f31917ad6a00eb05d98920252ab6fe",
+    "input_schema_digest": "2a5c1bf037c660e2bcea0fd067b616cc68e854a9c5ade36a11958f9a7835e958",
     "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
@@ -1115,7 +1115,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "975a1fcd4252966a869823bb55a2d95f08b45d3a70644dfc3d064a7505267f4e",
+    "input_schema_digest": "fe4a8d3f573765f3a0e853726b4de4220e2c99e802e6c0d1ab9e14aa56260a8e",
     "output_schema_digest": "17f187f6369d93208bdaa4b73522b33596b3ea82797c600c52a88dbfbbcffd90",
     "required_capabilities": [
       "window_manager.read"
@@ -1179,7 +1179,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "976ca86fa9f24d52f74ad41d39056a170441b63b2d54b2700d38d22364e97cec",
+    "input_schema_digest": "822b70f4870cd1085de51c58e4769f23daf38c9bfadf2566a51ab22925ec11b0",
     "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
     "required_capabilities": [
       "window_manager.read"
@@ -3545,7 +3545,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "8958c6f01114a4c429058ed4a6335f39844f4813bde6cb46dd339b24b0333a6b",
+    "input_schema_digest": "7582da5975183d9c207eff67bc8dca64db1f1d3a8d8709539f135949fa12ab1f",
     "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"

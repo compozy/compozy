@@ -250,11 +250,8 @@ func newWindowZoomCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var windowID string
 	cmd := &cobra.Command{
-		Use: "zoom", Short: "Toggle a window's client-specific focus desktop", Args: cobra.NoArgs,
+		Use: "zoom", Short: "Toggle whether a window fills its desktop", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := requiredWindowManagerClient(flags); err != nil {
-				return err
-			}
 			windowID, err := requiredWindowManagerFlag(windowID, "id")
 			if err != nil {
 				return err

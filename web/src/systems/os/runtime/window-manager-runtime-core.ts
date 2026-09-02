@@ -1,4 +1,4 @@
-import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 
 import { executeWindowManagerCommand } from "../adapters/window-manager-api";
@@ -28,6 +28,11 @@ import {
   reportCommandCompleted,
   reportCommandRefused,
 } from "./window-manager-command-outcome";
+import {
+  queryCacheEventChangesData,
+  randomWindowManagerId,
+  WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
+} from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
 
 export interface WindowManagerRuntimeBinding {
@@ -35,32 +40,6 @@ export interface WindowManagerRuntimeBinding {
   /** The profile whose desks this runtime presents; a switch rebinds (US-026). */
   profileId: string;
   clientId: string;
-}
-
-export function randomWindowManagerId(prefix: string): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return `${prefix}-${globalThis.crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolean {
-  switch (event.type) {
-    case "added":
-      return event.query.state.data !== undefined;
-    case "removed":
-      return true;
-    case "updated":
-      return (
-        event.action.type === "success" ||
-        (event.action.type === "setState" && Object.hasOwn(event.action.state, "data"))
-      );
-    case "observerAdded":
-    case "observerRemoved":
-    case "observerResultsUpdated":
-    case "observerOptionsUpdated":
-      return false;
-  }
 }
 
 /** Query/client lifecycle and semantic command transport shared by the OS runtime. */
@@ -78,6 +57,8 @@ export abstract class WindowManagerRuntimeCore {
   protected reduceMotion = false;
   protected dockMagnify = true;
   protected loadError: Error | null = null;
+  private diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
+  private conflictRecovery: Promise<boolean> | null = null;
 
   constructor(queryClient: QueryClient) {
     this.queryClient = queryClient;
@@ -125,6 +106,7 @@ export abstract class WindowManagerRuntimeCore {
     this.unsubscribePresentation?.();
     this.unsubscribeQuery = null;
     this.unsubscribePresentation = null;
+    this.cancelDiagnosticExpiry();
   }
 
   destroy(): void {
@@ -267,7 +249,62 @@ export abstract class WindowManagerRuntimeCore {
     windowManagerStore.trigger.conflictCleared();
   }
 
-  async refreshSnapshot(): Promise<boolean> {
+  /**
+   * A revision conflict means another client or agent moved the layout first.
+   * The surface re-reads the snapshot and reopens for commands on its own; the
+   * refused action rolls back and the notice explains what happened.
+   */
+  private recoverFromConflict(): Promise<boolean> {
+    if (this.conflictRecovery !== null) return this.conflictRecovery;
+    const commandState = windowManagerStore.getSnapshot().context.commandState;
+    // The daemon reporting a revision behind ours means it restarted from a
+    // discarded or replaced arrangement; its re-read replaces the cache.
+    const authoritative =
+      commandState.status === "conflict" &&
+      commandState.conflict.currentRevision < (this.view.snapshot?.revision ?? 0);
+    this.conflictRecovery = this.refreshSnapshot({ authoritative })
+      .then(refreshed => {
+        if (!refreshed) return false;
+        const commandState = windowManagerStore.getSnapshot().context.commandState;
+        if (commandState.status === "conflict") {
+          const diagnostic = commandState.diagnostic;
+          this.clearConflict();
+          windowManagerStore.trigger.diagnosticReported({ diagnostic });
+          this.scheduleDiagnosticExpiry();
+        }
+        return refreshed;
+      })
+      .finally(() => {
+        this.conflictRecovery = null;
+        this.publish();
+      });
+    return this.conflictRecovery;
+  }
+
+  /** Resolves once the surface has re-read the layout after a revision conflict. */
+  protected awaitConflictRecovery(): Promise<boolean> {
+    if (windowManagerStore.getSnapshot().context.commandState.status !== "conflict") {
+      return Promise.resolve(true);
+    }
+    return this.recoverFromConflict();
+  }
+
+  private scheduleDiagnosticExpiry(): void {
+    this.cancelDiagnosticExpiry();
+    this.diagnosticTimer = setTimeout(() => {
+      this.diagnosticTimer = null;
+      windowManagerStore.trigger.diagnosticCleared();
+      this.publish();
+    }, WINDOW_MANAGER_DIAGNOSTIC_TTL_MS);
+  }
+
+  private cancelDiagnosticExpiry(): void {
+    if (this.diagnosticTimer === null) return;
+    clearTimeout(this.diagnosticTimer);
+    this.diagnosticTimer = null;
+  }
+
+  async refreshSnapshot(options: { authoritative?: boolean } = {}): Promise<boolean> {
     const binding = this.binding;
     if (binding === null) return false;
     const result = await this.snapshotRefresher.refresh(
@@ -282,7 +319,10 @@ export abstract class WindowManagerRuntimeCore {
     }
     this.queryClient.setQueryData<WindowManagerSnapshot>(
       windowManagerKeys.snapshot(binding.workspaceId, binding.profileId),
-      current => reconcileWindowManagerSnapshot(current, result.snapshot)
+      current =>
+        options.authoritative
+          ? result.snapshot
+          : reconcileWindowManagerSnapshot(current, result.snapshot)
     );
     this.setLoadError(null);
     return true;
@@ -395,7 +435,7 @@ export abstract class WindowManagerRuntimeCore {
       binding.workspaceId,
       binding.profileId,
       binding.clientId,
-      snapshot.revision,
+      command.expectedRevision ?? snapshot.revision,
       command
     )
       .then(result => {
@@ -416,7 +456,17 @@ export abstract class WindowManagerRuntimeCore {
       })
       .catch(error => {
         clearSwitchTransition(command, binding);
-        reportCommandRefused(requestId, error, snapshot.revision, binding);
+        reportCommandRefused(
+          requestId,
+          error,
+          command.expectedRevision ?? snapshot.revision,
+          binding
+        );
+        if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") {
+          void this.recoverFromConflict();
+        } else {
+          this.scheduleDiagnosticExpiry();
+        }
         this.publish();
         return false;
       });

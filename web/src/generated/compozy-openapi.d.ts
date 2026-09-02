@@ -8322,10 +8322,7 @@ export interface components {
     WindowManagerCreateDesktopPayload: {
       after_id?: string | null;
       desktop_id: string;
-      focus_owner?: string | null;
       name: string;
-      /** @enum {string} */
-      purpose: "standard" | "focus";
     };
     WindowManagerDeleteDesktopPayload: {
       desktop_id: string;
@@ -8349,7 +8346,6 @@ export interface components {
         };
         window_ids: string[];
       }[];
-      focus_owner?: string | null;
       groups: {
         frame: {
           /** Format: double */
@@ -8378,8 +8374,6 @@ export interface components {
       id: string;
       name: string;
       order: number;
-      /** @enum {string} */
-      purpose: "standard" | "focus";
     };
     WindowManagerErrorFrame: {
       error: {
@@ -8513,6 +8507,12 @@ export interface components {
       target_window_id: string;
       window_ids: string[];
     };
+    WindowManagerHeartbeatFrame: {
+      revision: number;
+      /** @enum {string} */
+      type: "heartbeat";
+      workspace_id: string;
+    };
     WindowManagerLayoutDocument: {
       desktops: {
         floating: string[];
@@ -8532,7 +8532,6 @@ export interface components {
           };
           window_ids: string[];
         }[];
-        focus_owner?: string | null;
         groups: {
           frame: {
             /** Format: double */
@@ -8561,8 +8560,6 @@ export interface components {
         id: string;
         name: string;
         order: number;
-        /** @enum {string} */
-        purpose: "standard" | "focus";
       }[];
       overrides: {
         bindings?: {
@@ -8668,6 +8665,7 @@ export interface components {
             source_revision: number;
             /** Format: double */
             weight?: number | null;
+            zoomed?: boolean;
           } | null;
           route: {
             pathname: string;
@@ -8675,6 +8673,7 @@ export interface components {
               [key: string]: unknown;
             };
           };
+          zoomed: boolean;
         };
       };
       workspace_id: string;
@@ -8741,7 +8740,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -8770,8 +8768,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -8877,6 +8873,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -8884,6 +8881,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -8912,7 +8910,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -8941,8 +8938,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -9048,6 +9043,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -9055,6 +9051,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -9216,7 +9213,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -9245,8 +9241,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -9355,6 +9349,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -9362,6 +9357,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -9397,7 +9393,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -9426,8 +9421,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -9533,6 +9526,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -9540,6 +9534,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -9628,7 +9623,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -9657,8 +9651,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -9767,6 +9759,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -9774,6 +9767,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -9802,7 +9796,6 @@ export interface components {
           };
           window_ids: string[];
         }[];
-        focus_owner?: string | null;
         groups: {
           frame: {
             /** Format: double */
@@ -9831,8 +9824,6 @@ export interface components {
         id: string;
         name: string;
         order: number;
-        /** @enum {string} */
-        purpose: "standard" | "focus";
       }[];
       overrides: {
         bindings?: {
@@ -9941,6 +9932,7 @@ export interface components {
             source_revision: number;
             /** Format: double */
             weight?: number | null;
+            zoomed?: boolean;
           } | null;
           route: {
             pathname: string;
@@ -9948,6 +9940,7 @@ export interface components {
               [key: string]: unknown;
             };
           };
+          zoomed: boolean;
         };
       };
       workspace_id: string;
@@ -10014,7 +10007,6 @@ export interface components {
             };
             window_ids: string[];
           }[];
-          focus_owner?: string | null;
           groups: {
             frame: {
               /** Format: double */
@@ -10043,8 +10035,6 @@ export interface components {
           id: string;
           name: string;
           order: number;
-          /** @enum {string} */
-          purpose: "standard" | "focus";
         }[];
         overrides: {
           bindings?: {
@@ -10153,6 +10143,7 @@ export interface components {
               source_revision: number;
               /** Format: double */
               weight?: number | null;
+              zoomed?: boolean;
             } | null;
             route: {
               pathname: string;
@@ -10160,6 +10151,7 @@ export interface components {
                 [key: string]: unknown;
               };
             };
+            zoomed: boolean;
           };
         };
         workspace_id: string;
@@ -138559,7 +138551,6 @@ export interface operations {
                 };
                 window_ids: string[];
               }[];
-              focus_owner?: string | null;
               groups: {
                 frame: {
                   /** Format: double */
@@ -138588,8 +138579,6 @@ export interface operations {
               id: string;
               name: string;
               order: number;
-              /** @enum {string} */
-              purpose: "standard" | "focus";
             }[];
             overrides: {
               bindings?: {
@@ -138698,6 +138687,7 @@ export interface operations {
                   source_revision: number;
                   /** Format: double */
                   weight?: number | null;
+                  zoomed?: boolean;
                 } | null;
                 route: {
                   pathname: string;
@@ -138705,6 +138695,7 @@ export interface operations {
                     [key: string]: unknown;
                   };
                 };
+                zoomed: boolean;
               };
             };
             workspace_id: string;
@@ -139529,7 +139520,6 @@ export interface operations {
                   };
                   window_ids: string[];
                 }[];
-                focus_owner?: string | null;
                 groups: {
                   frame: {
                     /** Format: double */
@@ -139558,8 +139548,6 @@ export interface operations {
                 id: string;
                 name: string;
                 order: number;
-                /** @enum {string} */
-                purpose: "standard" | "focus";
               }[];
               overrides: {
                 bindings?: {
@@ -139668,6 +139656,7 @@ export interface operations {
                     source_revision: number;
                     /** Format: double */
                     weight?: number | null;
+                    zoomed?: boolean;
                   } | null;
                   route: {
                     pathname: string;
@@ -139675,6 +139664,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                   };
+                  zoomed: boolean;
                 };
               };
               workspace_id: string;
@@ -139884,7 +139874,6 @@ export interface operations {
                 };
                 window_ids: string[];
               }[];
-              focus_owner?: string | null;
               groups: {
                 frame: {
                   /** Format: double */
@@ -139913,8 +139902,6 @@ export interface operations {
               id: string;
               name: string;
               order: number;
-              /** @enum {string} */
-              purpose: "standard" | "focus";
             }[];
             overrides: {
               bindings?: {
@@ -140020,6 +140007,7 @@ export interface operations {
                   source_revision: number;
                   /** Format: double */
                   weight?: number | null;
+                  zoomed?: boolean;
                 } | null;
                 route: {
                   pathname: string;
@@ -140027,6 +140015,7 @@ export interface operations {
                     [key: string]: unknown;
                   };
                 };
+                zoomed: boolean;
               };
             };
             workspace_id: string;
@@ -140156,7 +140145,6 @@ export interface operations {
                 };
                 window_ids: string[];
               }[];
-              focus_owner?: string | null;
               groups: {
                 frame: {
                   /** Format: double */
@@ -140185,8 +140173,6 @@ export interface operations {
               id: string;
               name: string;
               order: number;
-              /** @enum {string} */
-              purpose: "standard" | "focus";
             }[];
             overrides: {
               bindings?: {
@@ -140292,6 +140278,7 @@ export interface operations {
                   source_revision: number;
                   /** Format: double */
                   weight?: number | null;
+                  zoomed?: boolean;
                 } | null;
                 route: {
                   pathname: string;
@@ -140299,6 +140286,7 @@ export interface operations {
                     [key: string]: unknown;
                   };
                 };
+                zoomed: boolean;
               };
             };
             workspace_id: string;
@@ -140393,7 +140381,6 @@ export interface operations {
                   };
                   window_ids: string[];
                 }[];
-                focus_owner?: string | null;
                 groups: {
                   frame: {
                     /** Format: double */
@@ -140422,8 +140409,6 @@ export interface operations {
                 id: string;
                 name: string;
                 order: number;
-                /** @enum {string} */
-                purpose: "standard" | "focus";
               }[];
               overrides: {
                 bindings?: {
@@ -140532,6 +140517,7 @@ export interface operations {
                     source_revision: number;
                     /** Format: double */
                     weight?: number | null;
+                    zoomed?: boolean;
                   } | null;
                   route: {
                     pathname: string;
@@ -140539,6 +140525,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                   };
+                  zoomed: boolean;
                 };
               };
               workspace_id: string;
@@ -141708,7 +141695,6 @@ export interface operations {
                 };
                 window_ids: string[];
               }[];
-              focus_owner?: string | null;
               groups: {
                 frame: {
                   /** Format: double */
@@ -141737,8 +141723,6 @@ export interface operations {
               id: string;
               name: string;
               order: number;
-              /** @enum {string} */
-              purpose: "standard" | "focus";
             }[];
             overrides: {
               bindings?: {
@@ -141844,6 +141828,7 @@ export interface operations {
                   source_revision: number;
                   /** Format: double */
                   weight?: number | null;
+                  zoomed?: boolean;
                 } | null;
                 route: {
                   pathname: string;
@@ -141851,6 +141836,7 @@ export interface operations {
                     [key: string]: unknown;
                   };
                 };
+                zoomed: boolean;
               };
             };
             workspace_id: string;
@@ -142186,7 +142172,6 @@ export interface operations {
                   };
                   window_ids: string[];
                 }[];
-                focus_owner?: string | null;
                 groups: {
                   frame: {
                     /** Format: double */
@@ -142215,8 +142200,6 @@ export interface operations {
                 id: string;
                 name: string;
                 order: number;
-                /** @enum {string} */
-                purpose: "standard" | "focus";
               }[];
               overrides: {
                 bindings?: {
@@ -142325,6 +142308,7 @@ export interface operations {
                     source_revision: number;
                     /** Format: double */
                     weight?: number | null;
+                    zoomed?: boolean;
                   } | null;
                   route: {
                     pathname: string;
@@ -142332,6 +142316,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                   };
+                  zoomed: boolean;
                 };
               };
               workspace_id: string;
@@ -142589,7 +142574,6 @@ export interface operations {
                       };
                       window_ids: string[];
                     }[];
-                    focus_owner?: string | null;
                     groups: {
                       frame: {
                         /** Format: double */
@@ -142618,8 +142602,6 @@ export interface operations {
                     id: string;
                     name: string;
                     order: number;
-                    /** @enum {string} */
-                    purpose: "standard" | "focus";
                   }[];
                   overrides: {
                     bindings?: {
@@ -142728,6 +142710,7 @@ export interface operations {
                         source_revision: number;
                         /** Format: double */
                         weight?: number | null;
+                        zoomed?: boolean;
                       } | null;
                       route: {
                         pathname: string;
@@ -142735,6 +142718,7 @@ export interface operations {
                           [key: string]: unknown;
                         };
                       };
+                      zoomed: boolean;
                     };
                   };
                   workspace_id: string;
@@ -142841,6 +142825,12 @@ export interface operations {
                 revision: number;
                 /** @enum {string} */
                 type: "client";
+                workspace_id: string;
+              }
+            | {
+                revision: number;
+                /** @enum {string} */
+                type: "heartbeat";
                 workspace_id: string;
               }
             | {

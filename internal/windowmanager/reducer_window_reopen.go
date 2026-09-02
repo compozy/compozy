@@ -19,6 +19,7 @@ func (r *reducer) reopenWindow(snapshot *Snapshot) bool {
 	for _, window := range reopen {
 		window.DesktopID = desktopID
 		window.Minimized = false
+		window.Zoomed = false
 		window.ReturnAnchor = nil
 		snapshot.Windows[window.ID] = window
 		r.changes.window(window.ID)
@@ -75,11 +76,6 @@ func (r *reducer) reopenDesktop(snapshot *Snapshot, requested DesktopID) Desktop
 	if r.activeDesktop != nil {
 		if _, exists := desktopIndexByID(snapshot, *r.activeDesktop); exists {
 			return *r.activeDesktop
-		}
-	}
-	for _, desktop := range snapshot.Desktops {
-		if desktop.Purpose == DesktopPurposeStandard {
-			return desktop.ID
 		}
 	}
 	return snapshot.Desktops[0].ID

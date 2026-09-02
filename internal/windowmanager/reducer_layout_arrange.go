@@ -34,10 +34,12 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 		removeWindow(snapshot, windowID)
 		window := snapshot.Windows[windowID]
 		window.Minimized = false
+		window.Zoomed = false
 		window.ReturnAnchor = nil
 		snapshot.Windows[windowID] = window
 		r.changes.window(windowID)
 	}
+	r.clearDesktopZoom(snapshot, command.DesktopID)
 	root, err := r.buildArrangement(command.WindowIDs, command.Arrangement)
 	if err != nil {
 		return false, err
@@ -54,6 +56,13 @@ func (r *reducer) arrange(snapshot *Snapshot, command ArrangeLayoutCommand) (boo
 	frame := command.Frame
 	if frame.Width == 0 && frame.Height == 0 {
 		frame = fullRect()
+	}
+	displaced, err := displaceGroupsForFrame(snapshot.Desktops[desktopIndex].Groups, frame)
+	if err != nil {
+		return false, err
+	}
+	for _, displacedID := range displaced {
+		r.changes.group(displacedID)
 	}
 	snapshot.Desktops[desktopIndex].Groups = append(
 		snapshot.Desktops[desktopIndex].Groups,

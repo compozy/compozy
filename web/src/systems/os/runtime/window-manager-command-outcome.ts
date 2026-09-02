@@ -16,17 +16,35 @@ import { windowManagerStore, type WindowManagerBinding } from "../stores/window-
  * through the window-manager store.
  */
 
+/**
+ * Plain-language notices for daemon refusals that arrive as a bare error code.
+ * The daemon speaks in codes; the shell's status pill speaks to a person.
+ */
+const REFUSAL_NOTICES: Readonly<Record<string, string>> = {
+  window_manager_revision_conflict: "Layout changed elsewhere. Refreshed.",
+  window_manager_invalid_command: "That arrangement isn't possible here.",
+  window_manager_invalid_topology: "That arrangement isn't possible here.",
+  window_manager_window_pinned: "Unpin the window first.",
+  window_manager_final_desktop: "The last desktop stays.",
+  window_manager_history_boundary: "Nothing left to undo or redo.",
+  window_manager_unavailable: "The saved window layout is unavailable.",
+  window_manager_slow_consumer: "The live layout fell behind. Reconnecting.",
+};
+const GENERIC_REFUSAL_NOTICE = "The window command failed.";
+
 function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
   if (error instanceof WindowManagerApiError && error.payload?.diagnostics[0]) {
     return error.payload.diagnostics[0];
   }
+  if (error instanceof WindowManagerApiError) {
+    const code = error.payload?.code ?? "command_failed";
+    return { code, path: null, message: REFUSAL_NOTICES[code] ?? GENERIC_REFUSAL_NOTICE };
+  }
   return {
-    code:
-      error instanceof WindowManagerApiError
-        ? (error.payload?.code ?? "command_failed")
-        : "command_failed",
+    code: "command_failed",
     path: null,
-    message: error instanceof Error ? error.message : "The window command failed.",
+    message:
+      error instanceof Error && error.message !== "" ? error.message : GENERIC_REFUSAL_NOTICE,
   };
 }
 

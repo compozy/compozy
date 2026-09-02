@@ -42,16 +42,20 @@ export interface OsTrafficLightsProps extends Omit<React.ComponentProps<"div">, 
   compact?: boolean;
   /** Wraps the interactive zoom button (the zoom-menu hover anchor). */
   wrapZoom?: (button: React.ReactNode) => React.ReactNode;
+  /** The frame currently fills its desktop; the zoom control reads as pressed. */
+  zoomed?: boolean;
 }
 
 function Light({
   action,
   onSelect,
   compact,
+  pressed,
 }: {
   action: OsTrafficLightAction;
   onSelect?: (action: OsTrafficLightAction) => void;
   compact: boolean;
+  pressed?: boolean;
 }) {
   const glyph = cn(
     "rounded-xs border border-line-strong bg-btn-default-fill transition-colors duration-base",
@@ -65,6 +69,7 @@ function Light({
     <button
       type="button"
       aria-label={ACTION_LABEL[action]}
+      aria-pressed={pressed}
       data-action={action}
       className={cn(
         "group/traffic grid place-items-center rounded-xs focus-visible:outline-none",
@@ -88,6 +93,7 @@ export function OsTrafficLights({
   onSelect,
   compact = false,
   wrapZoom,
+  zoomed = false,
   className,
   ...props
 }: OsTrafficLightsProps) {
@@ -104,7 +110,14 @@ export function OsTrafficLights({
       {...props}
     >
       {actions.map(action => {
-        const light = <Light action={action} onSelect={onSelect} compact={compact} />;
+        const light = (
+          <Light
+            action={action}
+            onSelect={onSelect}
+            compact={compact}
+            pressed={action === "zoom" ? zoomed : undefined}
+          />
+        );
         if (action === "zoom" && wrapZoom && onSelect) {
           return <Fragment key={action}>{wrapZoom(light)}</Fragment>;
         }

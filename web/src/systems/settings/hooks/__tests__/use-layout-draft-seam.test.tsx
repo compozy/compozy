@@ -17,8 +17,6 @@ const INITIAL_DESKTOP: WindowManagerLayoutDesktop = {
   id: "desktop-one",
   name: "Build",
   order: 0,
-  purpose: "standard",
-  focusOwner: null,
   floating: [],
   floatingStacks: [],
   groups: [
