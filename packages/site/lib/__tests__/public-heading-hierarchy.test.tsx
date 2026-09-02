@@ -29,6 +29,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+vi.mock("next/server", () => ({
+  connection: vi.fn(),
+}));
+
 vi.mock("@/lib/changelog/github-client", () => ({
   loadChangelogReleases: async () => ({ status: "ready", releases: [] }),
 }));
