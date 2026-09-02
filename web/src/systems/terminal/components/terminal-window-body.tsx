@@ -8,7 +8,11 @@ import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-atta
 import { useTerminalWindowBodyController } from "../hooks/use-terminal-window-body-controller";
 import { exitNoticeFromTerminal } from "../lib/terminal-exit";
 import { terminalLeaseView } from "../lib/terminal-lease";
-import { terminalPipeOutputQuery, terminalScope } from "../lib/query-options";
+import {
+  terminalPipeOutputQuery,
+  terminalScope,
+  type TerminalProfileQueryScope,
+} from "../lib/query-options";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
 import { TerminalExpiredState, TerminalNotFoundState } from "./terminal-empty-states";
@@ -202,10 +206,6 @@ function TerminalPipeWindowBody({
   limit,
 }: TerminalWindowBodyProps) {
   const scope = terminalScope(workspaceId, profile);
-  const output = useQuery({
-    ...terminalPipeOutputQuery(scope, terminal.id),
-    enabled: pipeOutput === undefined,
-  });
   const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
   const lease = terminalLeaseView({
     lease: terminal.lease,
@@ -232,39 +232,62 @@ function TerminalPipeWindowBody({
         terminal={terminal}
         terminalCount={terminalCount}
       />
-      {/* Waiting and failing must never read as an empty log — an empty log is
-          a real state that means the command printed nothing. */}
-      {pipeOutput === undefined && output.isPending ? (
-        <BlockLoading className="flex-1" label="Loading the captured output" surface="bare" />
-      ) : pipeOutput === undefined && output.error ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-          <Empty
-            action={
-              <Button
-                onClick={() => void output.refetch()}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Retry
-              </Button>
-            }
-            className="max-w-md"
-            description={output.error instanceof Error ? output.error.message : undefined}
-            icon={AlertCircle}
-            title="Couldn't load the captured output"
-          />
-        </div>
-      ) : (
+      {pipeOutput ? (
         <TerminalPipeLogPane
           exit={exitNoticeFromTerminal(terminal)}
-          firstLineNumber={pipeOutput?.firstLineNumber ?? 1}
-          lines={pipeOutput?.lines ?? splitTerminalOutput(output.data?.content ?? "")}
+          firstLineNumber={pipeOutput.firstLineNumber}
+          lines={pipeOutput.lines}
           selectionActions={terminalSelectionActions(actions, terminal.id)}
           terminal={terminal}
         />
+      ) : (
+        <TerminalPipeFetchedOutput actions={actions} scope={scope} terminal={terminal} />
       )}
     </>
+  );
+}
+
+function TerminalPipeFetchedOutput({
+  actions,
+  scope,
+  terminal,
+}: {
+  actions: TerminalWindowActions;
+  scope: TerminalProfileQueryScope;
+  terminal: TerminalInfo;
+}) {
+  const output = useQuery(terminalPipeOutputQuery(scope, terminal.id));
+
+  // Waiting and failing must never read as an empty log — an empty log is a
+  // real state that means the command printed nothing.
+  if (output.isPending) {
+    return <BlockLoading className="flex-1" label="Loading the captured output" surface="bare" />;
+  }
+  if (output.error) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button onClick={() => void output.refetch()} size="sm" type="button" variant="outline">
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={output.error instanceof Error ? output.error.message : undefined}
+          icon={AlertCircle}
+          title="Couldn't load the captured output"
+        />
+      </div>
+    );
+  }
+  return (
+    <TerminalPipeLogPane
+      exit={exitNoticeFromTerminal(terminal)}
+      firstLineNumber={1}
+      lines={splitTerminalOutput(output.data.content)}
+      selectionActions={terminalSelectionActions(actions, terminal.id)}
+      terminal={terminal}
+    />
   );
 }
 

@@ -16,6 +16,17 @@ import type { TerminalLeaseView } from "../lib/terminal-lease";
 import type { TerminalExit } from "../types";
 import { TerminalLeaseBadge } from "./terminal-lease-badge";
 
+type SessionTerminalStatus =
+  | { kind: "replay-failed" }
+  | {
+      kind: "exited";
+      code: string;
+      durationLabel?: string;
+      label: string;
+      tone: "success" | "neutral";
+    }
+  | { kind: "running"; startedLabel?: string; stillRunning: boolean };
+
 export interface SessionTerminalBlockProps {
   terminalId: string;
   /**
@@ -114,6 +125,17 @@ function SessionTerminalBlockBody({
   });
 
   const outcome = exit ? terminalExitCopy(exit) : null;
+  const status: SessionTerminalStatus = replay.writeError
+    ? { kind: "replay-failed" }
+    : outcome
+      ? {
+          kind: "exited",
+          code: outcome.code,
+          durationLabel,
+          label: outcome.label,
+          tone: outcome.tone === "success" ? "success" : "neutral",
+        }
+      : { kind: "running", startedLabel, stillRunning };
 
   return (
     <div
@@ -153,30 +175,36 @@ function SessionTerminalBlockBody({
           screenReaderMode
         />
       </div>
-      <div className="flex min-h-7 items-center gap-2 border-line border-t bg-canvas-soft px-2.5 text-micro text-subtle">
-        {replay.writeError ? (
-          <span role="status">{terminalReplayFailedCopy()}</span>
-        ) : outcome ? (
-          <>
-            <Pill size="xs" tone={outcome.tone === "success" ? "success" : "neutral"}>
-              {outcome.label}
-            </Pill>
-            <MonoId size="sm" value={outcome.code} />
-            {durationLabel ? <span>{durationLabel}</span> : null}
-          </>
-        ) : (
-          <>
-            <Pill.Dot aria-hidden="true" pulse size="sm" tone="accent" />
-            <span>
-              {stillRunning
-                ? "still running — the agent continued without waiting"
-                : startedLabel
-                  ? `running · started ${startedLabel}`
-                  : "running"}
-            </span>
-          </>
-        )}
-      </div>
+      <SessionTerminalFooter status={status} />
+    </div>
+  );
+}
+
+function SessionTerminalFooter({ status }: { status: SessionTerminalStatus }) {
+  return (
+    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-canvas-soft px-2.5 text-micro text-subtle">
+      {status.kind === "replay-failed" ? (
+        <span role="status">{terminalReplayFailedCopy()}</span>
+      ) : status.kind === "exited" ? (
+        <>
+          <Pill size="xs" tone={status.tone}>
+            {status.label}
+          </Pill>
+          <MonoId size="sm" value={status.code} />
+          {status.durationLabel ? <span>{status.durationLabel}</span> : null}
+        </>
+      ) : (
+        <>
+          <Pill.Dot aria-hidden="true" pulse size="sm" tone="accent" />
+          <span>
+            {status.stillRunning
+              ? "still running — the agent continued without waiting"
+              : status.startedLabel
+                ? `running · started ${status.startedLabel}`
+                : "running"}
+          </span>
+        </>
+      )}
     </div>
   );
 }

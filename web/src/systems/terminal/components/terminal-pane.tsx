@@ -6,10 +6,12 @@ import {
   type TerminalSelectionRange,
   type TerminalViewHandle,
 } from "@compozy/ui";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import type { TerminalAttachment } from "../hooks/use-terminal-attachment";
-import { exitNoticeFromTerminal, terminalRetentionNote } from "../lib/terminal-exit";
+import { useTerminalPaneStatus } from "../hooks/use-terminal-pane-status";
+import { useTerminalSelection } from "../hooks/use-terminal-selection";
+import { terminalRetentionNote } from "../lib/terminal-exit";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
 import { terminalQuoteFromSelection } from "../lib/terminal-quote";
 import { TERMINAL_MIN_COLS, TERMINAL_MIN_ROWS } from "../lib/terminal-wire";
@@ -19,8 +21,6 @@ import { TerminalConnectingLine } from "./terminal-connecting-line";
 import { TerminalSelectionActions } from "./terminal-quote-block";
 import { TerminalExitBar, TerminalSizeVoteBar } from "./terminal-exit-bar";
 import { TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
-
-const RETENTION_REFRESH_MS = 30_000;
 
 export interface TerminalPaneProps {
   terminal: TerminalInfo;
@@ -94,37 +94,9 @@ export function TerminalPane({
   // A selection is only worth acting on while it exists, so the actions appear
   // with it and leave with it — the range comes from the emulator rather than
   // from a count of newlines, so the numbers match what `--lines` would take.
-  const [selection, setSelection] = useState<TerminalSelectionRange | null>(null);
-  const readSelection = () => {
-    const range = handleRef.current?.getSelectionRange() ?? null;
-    const next = range && range.text.trim() !== "" ? range : null;
-    setSelection(next);
-    onSelectionChange?.(next);
-  };
+  const { readSelection, selection } = useTerminalSelection(handleRef, onSelectionChange);
   const readOnly = !lease.canType || !(pane?.inputEnabled ?? false);
-  // A terminal that exited before this pane attached has no live EXIT frame to
-  // observe. Its outcome is still the daemon's, recorded on the terminal, so the
-  // bar reads from there when the stream has nothing newer to say.
-  const exit = pane?.exit ?? exitNoticeFromTerminal(terminal);
-  const hasExit = exit !== null;
-  // The retention countdown is wall-clock truth: render stays pure by reading a
-  // ticking state, and the tick exists only while an exit bar shows it.
-  const [retentionNow, setRetentionNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!hasExit) return undefined;
-    const timer = window.setInterval(() => setRetentionNow(Date.now()), RETENTION_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [hasExit]);
-
-  const status = pane?.status ?? "connecting";
-  const awaitingFirstFrame = status === "connecting" || status === "idle";
-  // An exited terminal is not "reconnecting" — its exit bar owns the story.
-  const showConnecting =
-    !hasExit && (status === "connecting" || status === "reconnecting" || status === "resyncing");
-  const viewers = pane?.viewers ?? terminal.viewers;
-  const settledCols = pane?.status === "connected" ? pane.cols : null;
-  const settledRows = pane?.status === "connected" ? pane.rows : null;
-  const sizeVoteVisible = settledCols !== null && settledRows !== null && viewers > 1;
+  const display = useTerminalPaneStatus(terminal, pane);
 
   return (
     <div
@@ -137,7 +109,7 @@ export function TerminalPane({
         <TerminalView
           aria-label={terminal.title}
           className={
-            awaitingFirstFrame
+            display.awaitingFirstFrame
               ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
               : "px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
           }
@@ -154,50 +126,95 @@ export function TerminalPane({
           readOnly={readOnly}
           screenReaderMode
         />
-        {showConnecting ? (
-          // The emulator canvas forms its own stacking context, so the line
-          // needs an explicit layer to actually paint above the cells.
-          <div
-            className={
-              awaitingFirstFrame
-                ? "absolute inset-0 z-10 bg-terminal-bg"
-                : "pointer-events-none absolute inset-x-0 top-0 z-10"
-            }
-          >
-            <TerminalConnectingLine status={status} />
-          </div>
-        ) : null}
+        <TerminalPaneConnectionOverlay
+          awaitingFirstFrame={display.awaitingFirstFrame}
+          show={display.showConnecting}
+          status={display.status}
+        />
       </div>
-      {selection && selectionActions ? (
-        <TerminalSelectionActions
-          hasActiveSession={selectionActions.hasActiveSession}
-          onChooseSession={() => selectionActions.onChooseSession(selection)}
-          onCopy={() => selectionActions.onCopy(selection)}
-          onSendToConversation={() => selectionActions.onSendToConversation(selection)}
-          onStartSession={() => selectionActions.onStartSession(selection)}
-          quote={terminalQuoteFromSelection(terminal.id, selection)}
-        />
-      ) : null}
+      <TerminalPaneSelectionBar
+        actions={selectionActions}
+        selection={selection}
+        terminalId={terminal.id}
+      />
       {requestRegion}
-      {pane?.errorCode ? (
-        <TerminalStreamNotice
-          code={pane.errorCode}
-          // The daemon's own sentence when there is one; the code is the last
-          // resort, not the default.
-          message={pane.errorMessage ?? pane.errorCode}
-          onReconnect={onReconnect}
-          onViewJournal={onViewJournal}
-        />
-      ) : null}
-      {exit ? (
+      <TerminalPaneStreamStatus
+        onReconnect={onReconnect}
+        onViewJournal={onViewJournal}
+        pane={pane}
+      />
+      {display.exit ? (
         <TerminalExitBar
-          exit={exit}
-          retentionNote={terminalRetentionNote(terminal, exitRetentionMs, retentionNow)}
+          exit={display.exit}
+          retentionNote={terminalRetentionNote(terminal, exitRetentionMs, display.retentionNow)}
           terminal={terminal}
         />
-      ) : sizeVoteVisible && settledCols !== null && settledRows !== null ? (
-        <TerminalSizeVoteBar cols={settledCols} rows={settledRows} />
+      ) : display.showSizeVote && display.settledCols !== null && display.settledRows !== null ? (
+        <TerminalSizeVoteBar cols={display.settledCols} rows={display.settledRows} />
       ) : null}
     </div>
+  );
+}
+
+function TerminalPaneConnectionOverlay({
+  awaitingFirstFrame,
+  show,
+  status,
+}: {
+  awaitingFirstFrame: boolean;
+  show: boolean;
+  status: TerminalPaneState["status"];
+}) {
+  if (!show) return null;
+  return (
+    // The emulator canvas forms its own stacking context, so the line needs an
+    // explicit layer to actually paint above the cells.
+    <div
+      className={
+        awaitingFirstFrame
+          ? "absolute inset-0 z-10 bg-terminal-bg"
+          : "pointer-events-none absolute inset-x-0 top-0 z-10"
+      }
+    >
+      <TerminalConnectingLine status={status} />
+    </div>
+  );
+}
+
+function TerminalPaneSelectionBar({
+  actions,
+  selection,
+  terminalId,
+}: {
+  actions?: TerminalPaneSelectionActions;
+  selection: TerminalSelectionRange | null;
+  terminalId: string;
+}) {
+  if (!selection || !actions) return null;
+  return (
+    <TerminalSelectionActions
+      hasActiveSession={actions.hasActiveSession}
+      onChooseSession={() => actions.onChooseSession(selection)}
+      onCopy={() => actions.onCopy(selection)}
+      onSendToConversation={() => actions.onSendToConversation(selection)}
+      onStartSession={() => actions.onStartSession(selection)}
+      quote={terminalQuoteFromSelection(terminalId, selection)}
+    />
+  );
+}
+
+function TerminalPaneStreamStatus({
+  onReconnect,
+  onViewJournal,
+  pane,
+}: Pick<TerminalPaneProps, "onReconnect" | "onViewJournal" | "pane">) {
+  if (!pane?.errorCode) return null;
+  return (
+    <TerminalStreamNotice
+      code={pane.errorCode}
+      message={pane.errorMessage ?? pane.errorCode}
+      onReconnect={onReconnect}
+      onViewJournal={onViewJournal}
+    />
   );
 }

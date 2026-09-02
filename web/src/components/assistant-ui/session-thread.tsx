@@ -1,14 +1,12 @@
-import { ThreadPrimitive, useAui } from "@assistant-ui/react";
+import { ThreadPrimitive } from "@assistant-ui/react";
 
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
 
-import { useSessionComposerState } from "./hooks/use-session-composer-state";
-import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
 import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
 import { SessionThreadReadOnlyProvider } from "./session-thread-read-only-provider";
-import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
+import { useSessionThreadState } from "./hooks/use-session-thread-state";
 import { ThreadContentRail } from "./session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "./session-thread-content-rail-constants";
 import { ThreadViewport } from "./session-thread-viewport";
@@ -16,7 +14,6 @@ import { WorkingIndicator } from "./session-working-row";
 import {
   SessionDecisionDock,
   SessionTerminalQuoteSlot,
-  useSessionFirstPrompt,
   type SessionFailurePayload,
   type SessionState,
 } from "@/systems/session";
@@ -89,35 +86,25 @@ export function SessionThread({
   promptEmbeddedContextCapability = "unknown",
   readOnly = false,
 }: SessionThreadProps) {
-  const aui = useAui();
-  const reducedMotion = usePrefersReducedMotion();
-  const composerState = useSessionComposerState(sessionId);
-  const promptDispatch = useSessionPromptDispatch();
-  const promptDispatchPending = promptDispatch.pending;
-  const renderedComposerState = promptDispatch.canceled
-    ? { ...composerState, isRunning: false }
-    : composerState;
-  const runtimeRunning =
-    isSessionRunning || renderedComposerState.isRunning || promptDispatchPending;
-  const startupFailed =
-    sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
-  const lifecycleCanPrompt =
-    !readOnly && canPrompt && sessionState !== "starting" && !startupFailed;
-  useSessionFirstPrompt({ canPrompt: lifecycleCanPrompt, sessionId });
-  const handleCancelPrompt = () => {
-    aui.thread.cancelRun();
-    promptDispatch.cancelPending();
-    onCancelPrompt?.();
-  };
+  const thread = useSessionThreadState({
+    acpSessionId,
+    canPrompt,
+    isSessionRunning,
+    onCancelPrompt,
+    readOnly,
+    sessionFailure: failure,
+    sessionId,
+    sessionState,
+  });
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SessionThreadReadOnlyProvider readOnly={readOnly}>
-        <SessionComposerPrefillProvider setComposerText={composerState.prefillComposer}>
+        <SessionComposerPrefillProvider setComposerText={thread.composer.prefillComposer}>
           {workspaceId && sessionState !== "starting" ? (
             <ThreadContentRail inset={contentInset}>
               <SessionGoalHeaderContainer
                 enabled={liveDataEnabled}
-                onPrefillComposer={readOnly ? undefined : composerState.prefillComposer}
+                onPrefillComposer={readOnly ? undefined : thread.composer.prefillComposer}
                 sessionId={sessionId}
                 workspaceId={workspaceId}
               />
@@ -126,19 +113,19 @@ export function SessionThread({
           <ThreadViewport
             agentName={agentName}
             sessionId={sessionId}
-            isSessionRunning={runtimeRunning}
+            isSessionRunning={thread.runtimeRunning}
             contentInset={contentInset}
             sessionState={sessionState}
             failure={failure}
-            startupFailed={startupFailed}
+            startupFailed={thread.startupFailed}
           />
           <ThreadContentRail inset={contentInset} className="pt-2">
             <SessionGoalCommandErrorNotice sessionId={sessionId} />
-            {runtimeRunning ? (
+            {thread.runtimeRunning ? (
               <WorkingIndicator
                 liveDataEnabled={liveDataEnabled}
                 startedAt={workingStartedAt}
-                reducedMotion={reducedMotion}
+                reducedMotion={thread.reducedMotion}
               />
             ) : null}
           </ThreadContentRail>
@@ -146,7 +133,7 @@ export function SessionThread({
             <SessionComposer
               sessionId={sessionId}
               quoteSlot={readOnly ? null : <SessionTerminalQuoteSlot sessionId={sessionId} />}
-              composerState={renderedComposerState}
+              composerState={thread.renderedComposer}
               contentInset={contentInset}
               decisionDock={
                 workspaceId ? (
@@ -157,13 +144,13 @@ export function SessionThread({
                   />
                 ) : undefined
               }
-              canPrompt={lifecycleCanPrompt}
-              onCancelPrompt={handleCancelPrompt}
+              canPrompt={thread.lifecycleCanPrompt}
+              onCancelPrompt={thread.handleCancelPrompt}
               onQueuePrompt={onQueuePrompt}
               onInterruptPrompt={onInterruptPrompt}
               onSteerPrompt={onSteerPrompt}
               isBusyInputPending={isBusyInputPending}
-              isSessionRunning={runtimeRunning}
+              isSessionRunning={thread.runtimeRunning}
               allowBusyInput={allowBusyInput}
               busyInputFenceAvailable={busyInputFenceAvailable}
               queuedPrompts={queuedPrompts}
@@ -173,7 +160,7 @@ export function SessionThread({
               inactivePlaceholder={
                 sessionState === "starting"
                   ? "Session is starting…"
-                  : startupFailed
+                  : thread.startupFailed
                     ? "Session failed to start"
                     : undefined
               }

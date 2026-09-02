@@ -1,31 +1,11 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import {
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
-  type Connection,
-  type EdgeChange,
-  type NodeChange,
-} from "@xyflow/react";
-import { toast } from "sonner";
+import type { Connection, EdgeChange, NodeChange } from "@xyflow/react";
 
 import { useLoop, useLoopAnnotations } from "./use-loops";
 import { usePatchLoop, usePutLoopAnnotations, useValidateLoop } from "./use-loop-actions";
+import type { EditorEdge, EditorNode } from "../lib/codec";
+import type { DslLine } from "../lib/loop-dsl";
 import {
-  definitionToGraph,
-  editorEdgeId,
-  graphToDefinition,
-  type EditorEdge,
-  type EditorNode,
-} from "../lib/codec";
-import { buildDslView, type DslLine } from "../lib/loop-dsl";
-import {
-  copyEditorSelection,
-  pasteEditorClipboard,
-  type LoopEditorClipboardContent,
-} from "../lib/loop-editor-clipboard";
-import {
-  editorDefinitionFromLoop,
   withLoopContractField,
   withLoopContractPath,
   type EditableLoopContractField,
@@ -33,13 +13,8 @@ import {
 import { isNodeIdPath, renameNodeId, type NodeFieldEdit } from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
-import {
-  forwardNodeIds,
-  reconcileRouteEdges,
-  removeRouteTargets,
-  updateRouteTarget,
-} from "../lib/loop-editor-route-edges";
-import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
+import type { FieldPath, FieldSpec } from "../lib/loop-node-schema";
+import { loopEditorViewModel, type LoopEditorStatus } from "../lib/loop-editor-view-model";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail, LoopValidationIssue } from "../types";
 import {
@@ -47,16 +22,11 @@ import {
   type LoopEditorSidebarTab,
   type LoopEditorView,
 } from "./use-loop-editor-state";
+import { useLoopEditorClipboard } from "./use-loop-editor-clipboard";
+import { useLoopEditorSynchronization } from "./use-loop-editor-synchronization";
+import { useLoopEditorGraphActions } from "./use-loop-editor-graph-actions";
 
-export type LoopEditorStatus = "no-workspace" | "loading" | "error" | "ready";
-
-function selectedNodeIds(nodes: readonly EditorNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    if (node.selected) ids.push(node.id);
-  }
-  return ids;
-}
+export type { LoopEditorStatus } from "../lib/loop-editor-view-model";
 export type { LoopEditorSidebarTab, LoopEditorView } from "./use-loop-editor-state";
 
 export interface UseLoopEditorResult {
@@ -176,50 +146,15 @@ export function useLoopEditor(
 
   const [revealSeq, setRevealSeq] = useState(0);
 
-  const [clipboard, setClipboard] = useState<LoopEditorClipboardContent | null>(null);
-
-  const handlePublished = useEffectEvent((loop: LoopDetail) => {
-    onPublished?.(loop);
-  });
-
-  // Seed the editable draft once the definition + settled sidecar arrive. This syncs
-  // server state into local editor state (a legit external-system → draft sync).
-  //
-  // A same-name Fork changes only `source`; include it so the workspace copy re-seeds the draft.
-  useEffect(() => {
-    const loop = loopQuery.data;
-    if (!loop || annotationsQuery.isLoading) return;
-    const definition = editorDefinitionFromLoop(loop);
-    const key = `${workspaceId}:${name}:${loop.source}`;
-    if (initializedSourceKey === key) return;
-    const graph = definitionToGraph(definition);
-    const laid = layoutEditorGraph(graph.nodes, graph.edges, annotationsQuery.data ?? []);
-    store.trigger.draftInitialized({ definition, edges: graph.edges, nodes: laid, sourceKey: key });
-  }, [
-    loopQuery.data,
-    annotationsQuery.data,
-    annotationsQuery.isLoading,
-    workspaceId,
-    name,
+  useLoopEditorSynchronization({
+    annotationsQuery,
     initializedSourceKey,
+    loopQuery,
+    name,
+    onPublished,
     store,
-  ]);
-
-  // Positions are cosmetic (auto-layout is the fallback), but a broken sidecar should be
-  // observable, not silently swallowed. Surface it once per error, non-blocking.
-  useEffect(() => {
-    store.trigger.annotationsStatusObserved({
-      failed: annotationsQuery.isError,
-      notify: () => toast.error("Could not load saved node positions — using auto-layout."),
-    });
-  }, [annotationsQuery.isError, store]);
-
-  useEffect(() => {
-    const published = store.on("publishCompleted", event => handlePublished(event.loop));
-    return () => {
-      published.unsubscribe();
-    };
-  }, [store]);
+    workspaceId,
+  });
 
   const runValidation = (options: { notify?: boolean } = {}) =>
     requestValidation(
@@ -244,96 +179,20 @@ export function useLoopEditor(
     });
   }, [enabled, store, structuralRevision]);
 
-  useEffect(() => () => store.trigger.lifecycleDisposed(), [store]);
-
   // Positions live in the annotations sidecar and remain editable for read-only definitions.
   const definitionEditable = loopQuery.data?.source === "workspace";
-
-  const onNodesChange = (changes: NodeChange<EditorNode>[]) => {
-    // Drop structural changes on a read-only definition; keep position/selection changes so the
-    // canvas stays readable and layout (a sidecar concern) still works.
-    const allowed = definitionEditable
-      ? changes
-      : changes.filter(change => change.type !== "remove");
-    if (allowed.length === 0) return;
-
-    const removals: string[] = [];
-    const rest: NodeChange<EditorNode>[] = [];
-    for (const change of allowed) {
-      if (change.type === "remove") removals.push(change.id);
-      else rest.push(change);
-    }
-    if (rest.length > 0) {
-      const positionsChanged = rest.some(change => change.type === "position");
-      applyGraphNodes(applyNodeChanges(rest, nodes), positionsChanged, false);
-    }
-    if (removals.length > 0) deleteNodes(removals);
-  };
-
-  const onNodesDelete = (deleted: EditorNode[]) => {
-    if (!definitionEditable || deleted.length === 0) return;
-    deleteNodes(deleted.map(node => node.id));
-  };
-
-  const copyNodes = (nodeIds: string[]) => {
-    if (nodeIds.length === 0) return;
-    setClipboard(copyEditorSelection(nodes, edges, nodeIds));
-  };
-
-  const pasteFromClipboard = () => {
-    if (!definitionEditable || !clipboard) return;
-    const pasted = pasteEditorClipboard(nodes, edges, clipboard);
-    if (!pasted) return;
-    pasteNodes(pasted.edges, pasted.nodes, pasted.selectedNodeId);
-  };
-
-  const duplicateNodes = (nodeIds: string[]) => {
-    if (!definitionEditable || nodeIds.length === 0) return;
-    const pasted = pasteEditorClipboard(nodes, edges, copyEditorSelection(nodes, edges, nodeIds));
-    if (!pasted) return;
-    pasteNodes(pasted.edges, pasted.nodes, pasted.selectedNodeId);
-  };
-
-  const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
-    const allowed = definitionEditable
-      ? changes
-      : changes.filter(change => change.type !== "remove");
-    if (allowed.length === 0) return;
-    const removedEdges = allowed.flatMap(change => {
-      if (change.type !== "remove") return [];
-      const edge = edges.find(candidate => candidate.id === change.id);
-      return edge ? [edge] : [];
-    });
-    if (removedEdges.length > 0) {
-      let nextNodes = nodes;
-      let nextEdges = applyEdgeChanges(allowed, edges);
-      for (const edge of removedEdges) {
-        nextNodes = removeRouteTargets(nextNodes, new Set([edge.target]), edge.source);
-        nextEdges = reconcileRouteEdges(nextNodes, nextEdges, edge.source);
-      }
-      changeNodeField(nextNodes, nextEdges);
-      return;
-    }
-    applyGraphEdges(applyEdgeChanges(allowed, edges), false);
-  };
-
-  const onConnect = (connection: Connection) => {
-    if (!definitionEditable) return;
-    const { source, sourceHandle, target } = connection;
-    if (!source || !target) return;
-    const routeNodes = updateRouteTarget(nodes, source, sourceHandle, target);
-    if (routeNodes !== nodes && routeNodes.some((node, index) => node !== nodes[index])) {
-      changeNodeField(routeNodes, reconcileRouteEdges(routeNodes, edges, source));
-      return;
-    }
-    const edge: EditorEdge = {
-      id: editorEdgeId(source, target, edges.length),
-      source,
-      target,
-      data: { raw: { from: source, to: target } },
-    };
-    connectNodes(addEdge(edge, edges));
-  };
+  const clipboard = useLoopEditorClipboard({
+    definitionEditable,
+    edges,
+    nodes,
+    pasteNodes,
+  });
+  const graphActions = useLoopEditorGraphActions({
+    actions: { applyGraphEdges, applyGraphNodes, changeNodeField, connectNodes, deleteNodes },
+    definitionEditable,
+    edges,
+    nodes,
+  });
 
   const selectNode = (id: string | null) => {
     selectEditorNode(id);
@@ -399,39 +258,31 @@ export function useLoopEditor(
       annotationsMutation.mutateAsync({ workspaceId, name, data: { annotations } })
     );
 
-  const selectedNode = nodes.find(node => node.id === selectedNodeId) ?? null;
-  const selectedFields = selectedNode
-    ? buildNodeFields(selectedNode.data.raw, baseDefinition ?? undefined, {
-        forwardNodeIds: forwardNodeIds(nodes, edges, selectedNode.id),
-      })
-    : [];
-  const dslBase = baseDefinition;
-  // Only serialize when the DSL panel is visible — skip graph conversion + YAML
-  // emission entirely while editing on the Graph canvas.
-  const dslLines =
-    dslBase && view === "dsl"
-      ? buildDslView(graphToDefinition(dslBase, nodes, edges), lint.byNode)
-      : [];
-
-  const status: LoopEditorStatus =
-    workspaceId === ""
-      ? "no-workspace"
-      : loopQuery.isLoading
-        ? "loading"
-        : loopQuery.error || !loopQuery.data
-          ? "error"
-          : "ready";
+  const viewModel = loopEditorViewModel({
+    baseDefinition,
+    busy,
+    definitionEditable,
+    edges,
+    lint,
+    loop: loopQuery.data,
+    queryError: loopQuery.error,
+    queryLoading: loopQuery.isLoading,
+    nodes,
+    selectedNodeId,
+    view,
+    workspaceId,
+  });
 
   return {
-    status,
+    status: viewModel.status,
     loop: loopQuery.data,
-    definition: baseDefinition ?? loopQuery.data?.definition,
-    errorMessage: loopQuery.error?.message,
-    version: baseDefinition?.meta.version ?? loopQuery.data?.version,
+    definition: viewModel.definition,
+    errorMessage: viewModel.errorMessage,
+    version: viewModel.version,
     nodes,
     edges,
-    selectedNode,
-    selectedFields,
+    selectedNode: viewModel.selectedNode,
+    selectedFields: viewModel.selectedFields,
     selectionSeq,
     sidebarTab,
     selectSidebarTab,
@@ -445,17 +296,17 @@ export function useLoopEditor(
     // Gated on known blocking errors only: when no verdict exists (e.g. validate is
     // unreachable) Publish stays enabled because publish runs the shared linter atomically
     // and returns a 422 the editor maps onto nodes — no invalid definition can ship.
-    publishDisabled: !definitionEditable || lint.hasBlockingErrors || busy,
+    publishDisabled: viewModel.publishDisabled,
     busy,
     publishError,
     publishFailureKind,
     publishRejectedIssues,
     publishRejectedDockStale,
     revealSeq,
-    dslLines,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
+    dslLines: viewModel.dslLines,
+    onNodesChange: graphActions.onNodesChange,
+    onEdgesChange: graphActions.onEdgesChange,
+    onConnect: graphActions.onConnect,
     selectNode,
     revealNode,
     changeField,
@@ -470,17 +321,17 @@ export function useLoopEditor(
       if (!definitionEditable) return;
       addNodeWithEdge(item, position, source);
     },
-    onNodesDelete,
+    onNodesDelete: graphActions.onNodesDelete,
     deleteNodes: (nodeIds: string[]) => {
       if (!definitionEditable) return;
       deleteNodes(nodeIds);
     },
 
-    selectedNodeIds: selectedNodeIds(nodes),
-    copyNodes,
-    duplicateNodes,
-    pasteNodes: pasteFromClipboard,
-    canPaste: clipboard !== null,
+    selectedNodeIds: viewModel.selectedNodeIds,
+    copyNodes: clipboard.copyNodes,
+    duplicateNodes: clipboard.duplicateNodes,
+    pasteNodes: clipboard.pasteNodes,
+    canPaste: clipboard.canPaste,
     autoLayout,
     validate: () => runValidation({ notify: true }),
     publish,

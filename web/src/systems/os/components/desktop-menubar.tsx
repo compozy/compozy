@@ -1,15 +1,12 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
-import { loopRequestLocation } from "@/systems/loops";
-import { terminalAttentionLocation } from "@/systems/terminal";
 import { usePaletteCommand } from "../hooks/use-palette-registry";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
-import type { OsAttentionRow } from "../lib/attention-model";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
-import { useOsShell } from "../hooks/use-os-shell";
-import { useAttentionJump } from "../hooks/use-attention-jump";
+import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
 import { useDesktop } from "../hooks/use-desktop";
+import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
@@ -21,8 +18,6 @@ import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
 import {
-  GLOBAL_SCOPE_COPY,
-  globalScopeTooltipOn,
   workspaceMonogram,
   type ActiveWorktreeSelection,
   type WorkspaceChipIdentity,
@@ -107,101 +102,38 @@ export function DesktopMenubar({
   onRemoveWorktree,
   profileSwitcher,
 }: DesktopMenubarProps) {
-  const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
-  const jumpToSession = useAttentionJump();
-  const globalOn = scope === "global";
-  if (rememberedWorkspaceName === undefined) {
-    rememberedWorkspaceName = activeWorkspace ? activeWorkspace.name : null;
-  }
-  const workspaceSlot =
-    chip ??
-    (activeWorkspace
-      ? { name: activeWorkspace.name, monogram: workspaceMonogram(activeWorkspace.name) }
-      : { name: GLOBAL_SCOPE_COPY.chipLabel, monogram: GLOBAL_SCOPE_COPY.chipMonogram });
-  // While resolution is pending nothing is claimable — neutral tooltip, no reason.
-  const toggleTooltip = scopePending
-    ? GLOBAL_SCOPE_COPY.tooltipOff
-    : toggleLocked
-      ? GLOBAL_SCOPE_COPY.tooltipLocked
-      : globalOn
-        ? rememberedWorkspaceName
-          ? globalScopeTooltipOn(rememberedWorkspaceName)
-          : GLOBAL_SCOPE_COPY.tooltipPickWorkspace
-        : GLOBAL_SCOPE_COPY.tooltipOff;
-  const toggleLockedReason = scopePending
-    ? undefined
-    : toggleLocked
-      ? GLOBAL_SCOPE_COPY.tooltipLocked
-      : globalOn && !canDisableGlobal
-        ? GLOBAL_SCOPE_COPY.tooltipPickWorkspace
-        : undefined;
-  const fallback = globalOn ? null : (worktreeSelection?.fallback ?? null);
-  const fallbackNotice =
-    fallback?.reason === "missing"
-      ? `${fallback.name ?? "The selected worktree"} is missing — new work runs at the workspace root`
-      : `${fallback?.name ?? "The selected worktree"} is unavailable — new work runs at the workspace root`;
+  const scopeModel = desktopMenubarScopeModel({
+    activeWorkspace,
+    canDisableGlobal,
+    chip,
+    rememberedWorkspaceName,
+    scope,
+    scopePending,
+    toggleLocked,
+    worktreeSelection,
+  });
   const overlay = (id: DesktopOverlay) => ({
     open: activeOverlay === id,
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
   });
 
-  const focusAttentionRow = (row: OsAttentionRow) => {
-    onOverlayOpenChange("bell", false);
-    if (row.kind === "session") {
-      jumpToSession({
-        sessionId: row.id,
-        agentName: row.agentName,
-        workspaceId: row.workspaceId,
-      });
-      return;
-    }
-    if (row.kind === "loop-node") {
-      void coordinator.userOpen({
-        app: "loops",
-        route: { pathname: "/loop-runs", search: { nodes: row.state } },
-      });
-      return;
-    }
-    if (row.kind === "loop-request") {
-      void coordinator.userOpen({
-        app: "loops",
-        route: loopRequestLocation(row),
-      });
-      return;
-    }
-    if (row.kind === "terminal-input") {
-      void coordinator.userOpen({
-        app: "terminal",
-        instanceKey: row.terminalId,
-        route: terminalAttentionLocation(row.terminalId),
-      });
-      return;
-    }
-    void coordinator.userOpen({
-      app: "tasks",
-      route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
-    });
-  };
+  const focusAttentionRow = useMenubarAttentionSelection(onOverlayOpenChange);
 
   return (
     <OsMenuBar
       className={className}
-      workspace={{
-        ...workspaceSlot,
-        // Global cannot bind a worktree; only a ready project worktree reaches the chip.
-        worktree: globalOn ? null : (worktreeSelection?.activeWorktree?.name ?? null),
-      }}
+      workspace={scopeModel.workspace}
       scopeNotice={
-        fallback ? (
+        scopeModel.fallback ? (
           <span
             role="status"
             data-testid="os-worktree-fallback-notice"
             className="inline-flex items-center gap-1.5 rounded-md bg-info-tint px-2 py-1 text-form-label text-info"
           >
-            {fallbackNotice}
+            {scopeModel.fallbackNotice}
           </span>
         ) : null
       }
@@ -224,11 +156,11 @@ export function DesktopMenubar({
       )}
       scopeControl={
         <GlobalScopeToggle
-          checked={globalOn}
-          locked={scopePending || toggleLocked || (globalOn && !canDisableGlobal)}
-          lockedReason={toggleLockedReason}
+          checked={scopeModel.globalOn}
+          locked={scopePending || toggleLocked || (scopeModel.globalOn && !canDisableGlobal)}
+          lockedReason={scopeModel.toggleLockedReason}
           onCheckedChange={() => onToggleGlobalScope?.()}
-          tooltip={toggleTooltip}
+          tooltip={scopeModel.toggleTooltip}
         />
       }
       workspaceMenu={trigger => (
@@ -236,15 +168,17 @@ export function DesktopMenubar({
           trigger={trigger}
           {...overlay("workspace-menu")}
           workspaces={workspaces}
-          activeWorkspaceId={globalOn ? undefined : activeWorkspace?.id}
-          globalScopeOn={globalOn}
+          activeWorkspaceId={scopeModel.globalOn ? undefined : activeWorkspace?.id}
+          globalScopeOn={scopeModel.globalOn}
           monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
           onRun={onRunCommand}
           onAddWorkspace={onAddWorkspace}
           worktreesByWorkspace={worktreesByWorkspace}
           userHomeDir={userHomeDir}
-          selectedWorktreeId={globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)}
+          selectedWorktreeId={
+            scopeModel.globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)
+          }
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}
           onResolveMissingWorktree={onResolveMissingWorktree}

@@ -24,6 +24,43 @@ export type { TerminalWindowActions } from "../lib/terminal-window-actions";
 
 const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 
+type TerminalPrimarySurface =
+  | { kind: "journal" }
+  | { kind: "missing"; onOpenTerminal?: () => void; onViewJournal: () => void }
+  | { kind: "execute-only"; onViewJournal: () => void }
+  | { kind: "resolving" }
+  | { kind: "empty"; onOpenTerminal?: () => void }
+  | { kind: "active" };
+
+function resolveTerminalPrimarySurface({
+  active,
+  interactiveAvailable,
+  journalOpen,
+  missingRequested,
+  openJournal,
+  openTerminal,
+  resolving,
+}: {
+  active: TerminalInfo | null;
+  interactiveAvailable: boolean;
+  journalOpen: boolean;
+  missingRequested: boolean;
+  openJournal: () => void;
+  openTerminal?: () => void;
+  resolving: boolean;
+}): TerminalPrimarySurface {
+  if (journalOpen) return { kind: "journal" };
+  if (missingRequested) {
+    return { kind: "missing", onOpenTerminal: openTerminal, onViewJournal: openJournal };
+  }
+  if (!interactiveAvailable && active === null) {
+    return { kind: "execute-only", onViewJournal: openJournal };
+  }
+  if (active !== null) return { kind: "active" };
+  if (resolving) return { kind: "resolving" };
+  return { kind: "empty", onOpenTerminal: openTerminal };
+}
+
 export interface TerminalWindowAppProps {
   workspaceId: string;
   /** The project's display name, for the journal's identity row. */
@@ -139,6 +176,15 @@ export function TerminalWindowApp({
     onViewJournal,
     onLeaveJournal,
   });
+  const primarySurface = resolveTerminalPrimarySurface({
+    active,
+    interactiveAvailable,
+    journalOpen,
+    missingRequested,
+    openJournal,
+    openTerminal,
+    resolving,
+  });
 
   return (
     <div
@@ -159,45 +205,39 @@ export function TerminalWindowApp({
           {journal}
         </div>
       </Activity>
-      {journalOpen ? null : missingRequested ? (
-        <TerminalNotFoundState onOpenTerminal={openTerminal} onViewJournal={openJournal} />
-      ) : !interactiveAvailable && active === null ? (
-        <TerminalExecuteOnlyState onViewJournal={openJournal} />
-      ) : active === null && resolving ? (
-        <BlockLoading className="flex-1" label="Opening a terminal" surface="bare" />
-      ) : active === null ? (
-        <TerminalEmptyState onOpenTerminal={openTerminal} />
-      ) : (
-        <TerminalWindowBody
-          actions={{ ...actions, onOpenTerminal: openTerminal }}
-          compact={compact}
-          detachedTtl={detachedTtl}
-          engineLoader={engineLoader}
-          exitRetentionMs={exitRetentionMs}
-          hostChrome={hostChrome}
-          inputRequestTitles={inputRequestTitles}
-          inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
-          resolvedInputRequests={resolvedInputRequests.filter(
-            request => request.terminal_id === active.id
-          )}
-          // Keyed by the full scoped identity: the same terminal id under a
-          // different profile is a different terminal, and must not inherit
-          // the previous one's in-flight confirmation.
-          key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
-          onViewJournal={openJournal}
-          pipeOutput={pipeOutput?.[active.id]}
-          profile={activeProfile}
-          readOnly={readOnly}
-          recording={recordings?.[active.id] ?? null}
-          socketFactory={socketFactory}
-          terminal={active}
-          terminalCount={destinationTerminals.length}
-          limit={limit}
-          viewerId={viewerId}
-          viewerToken={viewerToken}
-          workspaceId={workspaceId}
-        />
-      )}
+      <TerminalPrimarySurfaceView surface={primarySurface}>
+        {active ? (
+          <TerminalWindowBody
+            actions={{ ...actions, onOpenTerminal: openTerminal }}
+            compact={compact}
+            detachedTtl={detachedTtl}
+            engineLoader={engineLoader}
+            exitRetentionMs={exitRetentionMs}
+            hostChrome={hostChrome}
+            inputRequestTitles={inputRequestTitles}
+            inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
+            resolvedInputRequests={resolvedInputRequests.filter(
+              request => request.terminal_id === active.id
+            )}
+            // Keyed by the full scoped identity: the same terminal id under a
+            // different profile is a different terminal, and must not inherit
+            // the previous one's in-flight confirmation.
+            key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
+            onViewJournal={openJournal}
+            pipeOutput={pipeOutput?.[active.id]}
+            profile={activeProfile}
+            readOnly={readOnly}
+            recording={recordings?.[active.id] ?? null}
+            socketFactory={socketFactory}
+            terminal={active}
+            terminalCount={destinationTerminals.length}
+            limit={limit}
+            viewerId={viewerId}
+            viewerToken={viewerToken}
+            workspaceId={workspaceId}
+          />
+        ) : null}
+      </TerminalPrimarySurfaceView>
       {!readOnly && limit !== undefined ? (
         <TerminalLimitDialog
           limit={limit}
@@ -210,4 +250,32 @@ export function TerminalWindowApp({
       ) : null}
     </div>
   );
+}
+
+function TerminalPrimarySurfaceView({
+  children,
+  surface,
+}: {
+  children: React.ReactNode;
+  surface: TerminalPrimarySurface;
+}) {
+  switch (surface.kind) {
+    case "journal":
+      return null;
+    case "missing":
+      return (
+        <TerminalNotFoundState
+          onOpenTerminal={surface.onOpenTerminal}
+          onViewJournal={surface.onViewJournal}
+        />
+      );
+    case "execute-only":
+      return <TerminalExecuteOnlyState onViewJournal={surface.onViewJournal} />;
+    case "resolving":
+      return <BlockLoading className="flex-1" label="Opening a terminal" surface="bare" />;
+    case "empty":
+      return <TerminalEmptyState onOpenTerminal={surface.onOpenTerminal} />;
+    case "active":
+      return children;
+  }
 }

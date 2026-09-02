@@ -1,22 +1,14 @@
-import { ComposerPrimitive, useAuiState } from "@assistant-ui/react";
+import { ComposerPrimitive } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  attachmentsFromPromptMessageParts,
-  composeSessionPromptWithTerminalQuote,
-  discardSessionTerminalQuote,
-  useSessionTerminalQuote,
-  type QueuedPrompt,
-} from "@/systems/session";
+import type { QueuedPrompt } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
-import { createSessionCommandFormatter } from "./session-command-formatter";
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionCommandChip } from "./session-composer-chip";
 import {
   SessionComposerCommandMenu,
-  type CommandCatalogScope,
   type SessionComposerCommandCatalog,
 } from "./session-composer-command-menu";
 import {
@@ -31,27 +23,22 @@ import { SessionComposerDropRoot } from "./session-attachment-drop-overlay";
 import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import { SessionComposerActionRow } from "./session-composer-action-row";
 import {
-  useSessionBusyInputActions,
-  type SessionBusyInputHandler,
-} from "./hooks/use-session-busy-input-actions";
-import { usePendingCommandAction } from "./hooks/use-pending-command-action";
+  useSessionComposerActionsContext,
+  useSessionComposerMetaContext,
+  useSessionComposerStateContext,
+} from "./hooks/use-session-composer-context";
+import type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
-import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "./session-thread-content-rail-constants";
+import { SessionComposerProvider } from "./session-composer-provider";
 
 export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 
-const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
-
 export interface SessionComposerProps {
-  /** Daemon-owned commands projected by the session page into the composer. */
   commandCatalog?: SessionComposerCommandCatalog;
-  /** "loading" while the command catalog query has not resolved yet. */
   commandCatalogStatus?: "loading" | "ready";
-  /** Notifies session orchestration when the native command catalog opens. */
   onCommandCatalogOpen?: () => void;
-  /** Executes a standalone catalog action without inserting it into the prompt. */
   onCommandAction?: (token: string) => boolean;
   canPrompt: boolean;
   onCancelPrompt: () => void;
@@ -68,228 +55,176 @@ export interface SessionComposerProps {
   onSteerQueuedPrompt?: (prompt: QueuedPrompt) => void;
   contentInset?: SessionThreadContentInset;
   inactivePlaceholder?: string;
-  /** Pending decision panel fused onto the composer top (permission/clarification dock). */
   decisionDock?: ReactNode;
-  /** Runtime picker that applies to the next submitted prompt. */
   runtimeControl?: ReactNode;
-  /** States where the session runs. Sits beside the runtime chip in the control row. */
   environmentControl?: ReactNode;
-  /** Agent input support for the targeted runtime binding. */
   promptImageCapability?: SessionPromptCapability;
-  /** Agent embedded-context support for the targeted runtime binding. */
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
-  /** Sourced quote chip stacked above the annotation field. */
   quoteSlot?: ReactNode;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
 
-/**
- * The session prompt composer. Idle: an accent Send disc submits to the runtime.
- * While a turn runs the phase changes coherently — Enter queues the draft (with a
- * visible hint), the primary disc becomes a danger Stop, and Queue/Interrupt stay
- * available. A direct Steer action replaces the fenced active turn with the current draft;
- * queued follow-ups keep their separate steer/edit/remove actions.
- */
-export function SessionComposer({
-  composerState,
-  contentInset,
-  canPrompt,
-  onCancelPrompt,
-  onQueuePrompt,
-  onInterruptPrompt,
-  onSteerPrompt,
-  isBusyInputPending = false,
-  isSessionRunning = false,
-  allowBusyInput = true,
-  busyInputFenceAvailable = true,
-  queuedPrompts = EMPTY_QUEUED_PROMPTS,
-  onRemoveQueuedPrompt,
-  onReplaceQueuedPrompt,
-  onSteerQueuedPrompt,
-  inactivePlaceholder = "Session is not active",
-  decisionDock,
-  runtimeControl,
-  environmentControl,
-  commandCatalog,
-  commandCatalogStatus,
-  onCommandCatalogOpen,
-  onCommandAction,
-  promptImageCapability = "unknown",
-  promptEmbeddedContextCapability = "unknown",
-  sessionId,
-  quoteSlot,
-}: SessionComposerProps & { composerState: SessionComposerState }) {
-  const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
-    composerState;
-  const pendingCommandActionRef = usePendingCommandAction(composerText);
-  const [commandScope, setCommandScope] = useState<CommandCatalogScope>("inline");
-  const commandFormatter = createSessionCommandFormatter(
-    commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
-  );
-  const stagedQuote = useSessionTerminalQuote(sessionId);
-  const trimmedComposerText = composerText.trim();
-  const promptText = composeSessionPromptWithTerminalQuote(sessionId, trimmedComposerText);
-  const composerAttachments = useAuiState(state => state.composer.attachments);
-  const promptAttachments = composerAttachments.flatMap(attachment =>
-    attachmentsFromPromptMessageParts(attachment.content)
-  );
-  const attachmentBlocker = sessionComposerSendBlocker({
-    attachments: composerAttachments,
-    promptEmbeddedContextCapability,
-    promptImageCapability,
-  });
-  const runtimeRunning = isRunning || isSessionRunning;
-  const canSubmitBusyInput =
-    runtimeRunning &&
-    canPrompt &&
-    allowBusyInput &&
-    (trimmedComposerText.length > 0 || promptAttachments.length > 0 || Boolean(stagedQuote)) &&
-    attachmentBlocker === null &&
-    !isBusyInputPending;
-  const showBusyControls = runtimeRunning || isBusyInputPending;
-  const canQueueFromInput = allowBusyInput && Boolean(onQueuePrompt);
-  const hasQueuedPrompts = queuedPrompts.length > 0;
-  const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
-
-  const {
-    handleEditQueuedPrompt,
-    handleInterruptAction,
-    handleQueueAction,
-    handleRemoveQueuedPrompt,
-    handleSteerAction,
-  } = useSessionBusyInputActions({
-    canSubmitBusyInput,
-    clearComposer,
-    onInterruptPrompt,
-    onQueuePrompt,
-    onRemoveQueuedPrompt,
-    onReplaceQueuedPrompt,
-    onSteerPrompt,
-    queuedPrompts,
-    sessionId,
-    setComposerText,
-    draft: { attachments: promptAttachments, message: promptText },
-    onDraftConsumed: () => discardSessionTerminalQuote(sessionId),
-  });
-
+export function SessionComposer(
+  props: SessionComposerProps & { composerState: SessionComposerState }
+) {
   return (
-    // The composer zone continues the canvas — no top border; the transcript's
-    // scroll edge does the separation.
+    <SessionComposerProvider {...props}>
+      <SessionComposerSurface />
+    </SessionComposerProvider>
+  );
+}
+
+function SessionComposerSurface() {
+  const state = useSessionComposerStateContext();
+  const meta = useSessionComposerMetaContext();
+  return (
     <div className="bg-canvas" data-testid="composer-shell">
       <ThreadContentRail
-        inset={contentInset ?? SESSION_THREAD_CONTENT_INSET_DEFAULT}
+        inset={meta.contentInset ?? SESSION_THREAD_CONTENT_INSET_DEFAULT}
         className="pt-1.5 pb-4"
       >
         <div className="group/composer relative flex min-w-0 flex-col">
-          {decisionDock}
-          {showQueuedStrip ? (
-            <SessionComposerQueuedPrompts
-              prompts={queuedPrompts}
-              onSteer={onSteerQueuedPrompt!}
-              onEdit={handleEditQueuedPrompt}
-              onRemove={handleRemoveQueuedPrompt}
-              disabled={isBusyInputPending}
-              editDisabled={!onReplaceQueuedPrompt}
-              steerDisabled={!busyInputFenceAvailable}
-            />
-          ) : null}
-          <ComposerPrimitive.Unstable_TriggerPopoverRoot>
-            <SessionComposerCommandMenu
-              catalog={commandCatalog}
-              scope={commandScope}
-              isCatalogLoading={commandCatalogStatus === "loading"}
-              onOpen={onCommandCatalogOpen}
-            />
-            <SessionComposerDropRoot disabled={!canPrompt}>
-              <ComposerPrimitive.Root
-                className={cn(
-                  "tm-composer-stack flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
-                  "pt-[11px] pr-2.5 pb-2 pl-3.5",
-                  "transition-colors duration-base ease-out",
-                  "hover:border-line-strong focus-within:border-accent-dim",
-                  "group-data-[dragging=true]/drop:border-accent-dim",
-                  "group-has-[[data-slot=dock]]/composer:rounded-t-none",
-                  showQueuedStrip ? "rounded-t-none" : null
-                )}
-                data-testid="session-composer-stack"
-              >
-                {quoteSlot}
-                <SessionAttachmentStrip
-                  promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-                  promptImageCapability={promptImageCapability}
-                />
-                <LexicalComposerInput
-                  data-testid="composer-input"
-                  inert={!canPrompt}
-                  placeholder={canPrompt ? "Send a message…" : inactivePlaceholder}
-                  submitMode="enter"
-                  formatter={commandFormatter}
-                  directiveChip={SessionCommandChip}
-                  directivePluginProps={{
-                    onDirectiveSelect: item => {
-                      const token = commandItemPresentation(item).token;
-                      if (!onCommandAction?.(token)) return;
-                      pendingCommandActionRef.current = { beforeSelection: composerText, token };
-                    },
-                  }}
-                  className={cn(
-                    "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
-                    !canPrompt ? "opacity-60" : null
-                  )}
-                >
-                  <SessionComposerHandleBridge
-                    onHandle={setComposerInputElement}
-                    editableAriaLabel="Session prompt"
-                  />
-                  <SessionBusyEnterPlugin
-                    queueActive={runtimeRunning && canQueueFromInput}
-                    steerActive={
-                      runtimeRunning &&
-                      allowBusyInput &&
-                      Boolean(onSteerPrompt) &&
-                      busyInputFenceAvailable
-                    }
-                    onQueue={handleQueueAction}
-                    onSteer={handleSteerAction}
-                  />
-                  <SessionCommandScopePlugin setScope={setCommandScope} />
-                  <SessionDirectiveBoundaryPlugin />
-                  <SessionComposerPastePlugin />
-                </LexicalComposerInput>
-                <SessionComposerActionRow
-                  hasStagedQuote={Boolean(stagedQuote)}
-                  sessionId={sessionId}
-                  actionState={{
-                    prompt: canPrompt ? "enabled" : "disabled",
-                    enterHint: runtimeRunning && canQueueFromInput ? "queue" : "send",
-                    controls: showBusyControls
-                      ? {
-                          kind: "busy",
-                          submission: canSubmitBusyInput ? "enabled" : "disabled",
-                          fence: busyInputFenceAvailable ? "available" : "unavailable",
-                        }
-                      : { kind: "send" },
-                  }}
-                  composerAttachmentCount={composerAttachments.length}
-                  environmentControl={environmentControl}
-                  handleInterruptAction={handleInterruptAction}
-                  handleQueueAction={handleQueueAction}
-                  handleSteerAction={handleSteerAction}
-                  onCancelPrompt={onCancelPrompt}
-                  onInterruptPrompt={allowBusyInput ? onInterruptPrompt : undefined}
-                  onQueuePrompt={allowBusyInput ? onQueuePrompt : undefined}
-                  onSteerPrompt={allowBusyInput ? onSteerPrompt : undefined}
-                  promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-                  promptImageCapability={promptImageCapability}
-                  runtimeControl={runtimeControl}
-                />
-              </ComposerPrimitive.Root>
-            </SessionComposerDropRoot>
-          </ComposerPrimitive.Unstable_TriggerPopoverRoot>
+          {meta.decisionDock}
+          {state.showQueuedStrip ? <SessionComposerQueue /> : null}
+          <SessionComposerEditor />
         </div>
       </ThreadContentRail>
     </div>
+  );
+}
+
+function SessionComposerQueue() {
+  const actions = useSessionComposerActionsContext();
+  const meta = useSessionComposerMetaContext();
+  return (
+    <SessionComposerQueuedPrompts
+      prompts={meta.queuedPrompts}
+      onSteer={meta.onSteerQueuedPrompt!}
+      onEdit={actions.handleEditQueuedPrompt}
+      onRemove={actions.handleRemoveQueuedPrompt}
+      disabled={meta.isBusyInputPending}
+      editDisabled={!meta.onReplaceQueuedPrompt}
+      steerDisabled={!meta.busyInputFenceAvailable}
+    />
+  );
+}
+
+function SessionComposerEditor() {
+  const state = useSessionComposerStateContext();
+  const meta = useSessionComposerMetaContext();
+  return (
+    <ComposerPrimitive.Unstable_TriggerPopoverRoot>
+      <SessionComposerCommandMenu
+        catalog={meta.commandCatalog}
+        scope={state.commandScope}
+        isCatalogLoading={meta.commandCatalogStatus === "loading"}
+        onOpen={meta.onCommandCatalogOpen}
+      />
+      <SessionComposerDropRoot disabled={!meta.canPrompt}>
+        <ComposerPrimitive.Root
+          className={cn(
+            "tm-composer-stack flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
+            "pt-[11px] pr-2.5 pb-2 pl-3.5",
+            "transition-colors duration-base ease-out",
+            "hover:border-line-strong focus-within:border-accent-dim",
+            "group-data-[dragging=true]/drop:border-accent-dim",
+            "group-has-[[data-slot=dock]]/composer:rounded-t-none",
+            state.showQueuedStrip ? "rounded-t-none" : null
+          )}
+          data-testid="session-composer-stack"
+        >
+          {meta.quoteSlot}
+          <SessionAttachmentStrip
+            promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
+            promptImageCapability={meta.promptImageCapability}
+          />
+          <SessionComposerInput />
+          <SessionComposerControls />
+        </ComposerPrimitive.Root>
+      </SessionComposerDropRoot>
+    </ComposerPrimitive.Unstable_TriggerPopoverRoot>
+  );
+}
+
+function SessionComposerInput() {
+  const state = useSessionComposerStateContext();
+  const actions = useSessionComposerActionsContext();
+  const meta = useSessionComposerMetaContext();
+  return (
+    <LexicalComposerInput
+      data-testid="composer-input"
+      inert={!meta.canPrompt}
+      placeholder={meta.canPrompt ? "Send a message…" : meta.inactivePlaceholder}
+      submitMode="enter"
+      formatter={state.commandFormatter}
+      directiveChip={SessionCommandChip}
+      directivePluginProps={{
+        onDirectiveSelect: item => {
+          const token = commandItemPresentation(item).token;
+          if (!meta.onCommandAction?.(token)) return;
+          actions.recordPendingCommandAction(token, state.composerText);
+        },
+      }}
+      className={cn(
+        "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
+        !meta.canPrompt ? "opacity-60" : null
+      )}
+    >
+      <SessionComposerHandleBridge
+        onHandle={actions.setComposerInputElement}
+        editableAriaLabel="Session prompt"
+      />
+      <SessionBusyEnterPlugin
+        queueActive={state.runtimeRunning && state.canQueueFromInput}
+        steerActive={
+          state.runtimeRunning &&
+          meta.allowBusyInput &&
+          Boolean(meta.onSteerPrompt) &&
+          meta.busyInputFenceAvailable
+        }
+        onQueue={actions.handleQueueAction}
+        onSteer={actions.handleSteerAction}
+      />
+      <SessionCommandScopePlugin setScope={actions.setCommandScope} />
+      <SessionDirectiveBoundaryPlugin />
+      <SessionComposerPastePlugin />
+    </LexicalComposerInput>
+  );
+}
+
+function SessionComposerControls() {
+  const state = useSessionComposerStateContext();
+  const actions = useSessionComposerActionsContext();
+  const meta = useSessionComposerMetaContext();
+  return (
+    <SessionComposerActionRow
+      hasStagedQuote={state.hasStagedQuote}
+      sessionId={meta.sessionId}
+      actionState={{
+        prompt: meta.canPrompt ? "enabled" : "disabled",
+        enterHint: state.runtimeRunning && state.canQueueFromInput ? "queue" : "send",
+        controls: state.showBusyControls
+          ? {
+              kind: "busy",
+              submission: state.canSubmitBusyInput ? "enabled" : "disabled",
+              fence: meta.busyInputFenceAvailable ? "available" : "unavailable",
+            }
+          : { kind: "send" },
+      }}
+      composerAttachmentCount={state.composerAttachmentCount}
+      environmentControl={meta.environmentControl}
+      handleInterruptAction={actions.handleInterruptAction}
+      handleQueueAction={actions.handleQueueAction}
+      handleSteerAction={actions.handleSteerAction}
+      onCancelPrompt={meta.onCancelPrompt}
+      onInterruptPrompt={meta.allowBusyInput ? meta.onInterruptPrompt : undefined}
+      onQueuePrompt={meta.allowBusyInput ? meta.onQueuePrompt : undefined}
+      onSteerPrompt={meta.allowBusyInput ? meta.onSteerPrompt : undefined}
+      promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
+      promptImageCapability={meta.promptImageCapability}
+      runtimeControl={meta.runtimeControl}
+    />
   );
 }

@@ -22,28 +22,42 @@ export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprov
     return <TerminalTypingGrantDetail detail={detail} terminalTitle={terminalTitle} />;
   }
   if (detail.kind === "open") {
-    return (
-      <div className="flex items-start gap-2" data-testid="terminal-open-approval-detail">
-        <SquareTerminal aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
-        <div className="flex min-w-0 flex-col gap-1.5">
-          {detail.title ? (
-            <span className="text-form-input text-fg">Open {detail.title}</span>
-          ) : null}
-          {detail.cwd || detail.shell ? (
-            <span className="flex items-center gap-1.25 font-mono text-micro text-subtle">
-              {detail.cwd ? (
-                <>
-                  <Folder aria-hidden="true" className="size-2.5" />
-                  {detail.cwd}
-                </>
-              ) : null}
-              {detail.shell ? <span>{detail.cwd ? `· ${detail.shell}` : detail.shell}</span> : null}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    );
+    return <TerminalOpenApprovalDetail detail={detail} />;
   }
+  return <TerminalExecApprovalDetail detail={detail} />;
+}
+
+function TerminalOpenApprovalDetail({
+  detail,
+}: {
+  detail: Extract<TerminalPermissionDetail, { kind: "open" }>;
+}) {
+  return (
+    <div className="flex items-start gap-2" data-testid="terminal-open-approval-detail">
+      <SquareTerminal aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {detail.title ? <span className="text-form-input text-fg">Open {detail.title}</span> : null}
+        {detail.cwd || detail.shell ? (
+          <span className="flex items-center gap-1.25 font-mono text-micro text-subtle">
+            {detail.cwd ? (
+              <>
+                <Folder aria-hidden="true" className="size-2.5" />
+                {detail.cwd}
+              </>
+            ) : null}
+            {detail.shell ? <span>{detail.cwd ? `· ${detail.shell}` : detail.shell}</span> : null}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TerminalExecApprovalDetail({
+  detail,
+}: {
+  detail: Extract<TerminalPermissionDetail, { kind: "exec" }>;
+}) {
   const danger = detail.risk === "irreversible";
   return (
     <div className="flex items-start gap-2" data-testid="terminal-approval-detail">

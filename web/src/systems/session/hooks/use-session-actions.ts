@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -37,6 +36,7 @@ import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-ru
 import { useActiveWorkspace } from "@/systems/workspace";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 import { notifyUser } from "@/lib/user-feedback";
+import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {
@@ -80,33 +80,6 @@ function resolveWorkspaceId(
   runtimeWorkspaceId: string | null | undefined
 ): string | null {
   return workspaceId ?? runtimeWorkspaceId ?? null;
-}
-
-function useAbortableMutationRequest() {
-  const controllersRef = useRef<Set<AbortController> | null>(null);
-  if (controllersRef.current === null) controllersRef.current = new Set();
-
-  useEffect(
-    () => () => {
-      const controllers = controllersRef.current;
-      if (controllers === null) return;
-      for (const controller of controllers) controller.abort();
-      controllers.clear();
-    },
-    []
-  );
-
-  return async <T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const controllers = controllersRef.current;
-    if (controllers === null) {
-      throw new Error("Session mutation controller registry is unavailable");
-    }
-    const controller = new AbortController();
-    controllers.add(controller);
-    return Promise.resolve()
-      .then(() => request(controller.signal))
-      .finally(() => controllers.delete(controller));
-  };
 }
 
 export function useCreateSession() {

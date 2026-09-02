@@ -1,39 +1,25 @@
-import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
 import {
   networkParticipationDraftFromValues,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
 
 import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
-import { sessionCreateBinding } from "../lib/session-create-binding";
-import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
-import {
-  claimPendingTerminalQuoteForCreate,
-  clearPendingTerminalQuote,
-  restorePendingTerminalQuoteAfterFailedCreate,
-  stageChosenSessionTerminalQuote,
-} from "../lib/session-terminal-quote";
+import { restorePendingTerminalQuoteAfterFailedCreate } from "../lib/session-terminal-quote";
+import { resolveSessionCreateDestination } from "../lib/session-create-destination";
 import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
-import { sessionStore } from "../stores/session-store";
-import type { CreateSessionParams, SessionPayload } from "../types";
-import { useCreateSession } from "./use-session-actions";
 import { useSessionEnvironment, type SessionEnvironmentModel } from "./use-session-environment";
 import { type AgentPayload, useAgents } from "@/systems/agent";
-import type { TerminalQuote } from "@/systems/terminal/parts";
 import {
-  GLOBAL_SCOPE_COPY,
-  destinationLabel,
   useUserHomeDir,
   type WorkspaceScopeMode,
   type WorkspacePayload,
 } from "@/systems/workspace";
+import { useSessionCreateSubmit } from "./use-session-create-submit";
+import { useSessionCreateDialogActions } from "./use-session-create-dialog-actions";
 
 interface SessionCreateDialogContext {
   agents: AgentPayload[] | undefined;
@@ -84,21 +70,6 @@ export interface SessionCreateDialogController {
   store: SessionCreateStore;
 }
 
-async function openCreatedSession(
-  session: SessionPayload,
-  currentWorkspaceId: string | null,
-  scope: WorkspaceScopeMode,
-  navigate: ReturnType<typeof useNavigate>
-): Promise<void> {
-  activateCreatedSessionWorkspace(session, currentWorkspaceId, {
-    skip: scope === "global",
-  });
-  await navigate({
-    to: "/agents/$name/sessions/$id",
-    params: { name: session.agent_name, id: session.id },
-  });
-}
-
 /** Provides the shared session-create store controller used by dialog hosts. */
 export function useSessionCreateDialogController(): SessionCreateDialogController {
   return { store: useStore(sessionCreateStoreLogic) };
@@ -115,8 +86,6 @@ export function useSessionCreateDialogViewModel(
   }: SessionCreateDialogContext,
   store: SessionCreateStore
 ): SessionCreateDialogApi {
-  const navigate = useNavigate();
-  const createSession = useCreateSession();
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft } = flow;
@@ -125,34 +94,22 @@ export function useSessionCreateDialogViewModel(
   const pendingWorkspaceId =
     flow.operation.status === "submitting" ? flow.operation.workspaceId : null;
   const { pendingSubmit } = flow;
-  const scope: WorkspaceScopeMode = requestedScope ?? (activeWorkspace ? "workspace" : "global");
-  const runtimeWorkspaceId = activeWorkspace?.id ?? null;
-  const binding = sessionCreateBinding({
-    scope,
-    projectWorkspaceId:
-      scope === "workspace"
-        ? (projectWorkspaceId ?? runtimeWorkspaceId)
-        : (projectWorkspaceId ?? null),
-    homeWorkspaceId:
-      homeWorkspaceId ?? (scope === "global" ? (runtimeWorkspaceId ?? undefined) : undefined),
+  const destination = resolveSessionCreateDestination({
+    activeWorkspace,
+    homeWorkspaceId,
+    projectWorkspaceId,
+    requestedScope,
     userHomeDir,
   });
-  const destinationReady = binding !== null;
-  const sessionRoot = scope === "global" ? (userHomeDir ?? "~") : (activeWorkspace?.root_dir ?? "");
-  const landingLabel = destinationLabel(
-    scope,
-    scope === "global" ? GLOBAL_SCOPE_COPY.chipLabel : activeWorkspace?.name
-  );
-  const environmentWorkspaceId =
-    scope === "workspace" ? (projectWorkspaceId ?? runtimeWorkspaceId ?? "") : "";
 
-  const workspaceAgentsQuery = useAgents(runtimeWorkspaceId ?? "", {
-    enabled: runtimeWorkspaceId !== null && runtimeWorkspaceId.length > 0,
+  const workspaceAgentsQuery = useAgents(destination.runtimeWorkspaceId ?? "", {
+    enabled: destination.runtimeWorkspaceId !== null && destination.runtimeWorkspaceId.length > 0,
   });
-  const agentList = workspaceAgentsQuery.data ?? (runtimeWorkspaceId ? (agents ?? []) : []);
+  const agentList =
+    workspaceAgentsQuery.data ?? (destination.runtimeWorkspaceId ? (agents ?? []) : []);
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
-    workspaceId: environmentWorkspaceId,
+    workspaceId: destination.environmentWorkspaceId,
     target: draft.environment,
     onTargetChange: next => {
       restorePendingTerminalQuoteAfterFailedCreate(
@@ -160,128 +117,23 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled: flow.open && scope === "workspace" && destinationReady,
+    enabled: flow.open && destination.scope === "workspace" && destination.binding !== null,
   });
 
-  // `mutateAsync` is stable across renders while the mutation object is not, so
-  // the armed-submit effect can depend on it without re-entering every keystroke.
-  const createSessionAsync = createSession.mutateAsync;
-  const worktreeId = environment.worktreeId;
-
-  const previousEnvironment =
-    draft.environment.kind === "new" ? draft.environment.previous : undefined;
-
-  // The worktree is created by this submit, so the request outlives the click.
-  // Everything needed to finish it was captured when it was armed, which is why
-  // this can resume without reading the draft the operator may still be editing.
-  useEffect(() => {
-    if (!pendingSubmit) return;
-    if (environment.status === "creating" || environment.status === "pending") return;
-    if (environment.status !== "ready" || !worktreeId) {
-      restorePendingTerminalQuoteAfterFailedCreate(pendingSubmit.terminalQuote);
-      store.trigger.environmentSettled({});
-      return;
-    }
-    const {
-      agentName,
-      pendingPrompt,
-      request,
-      terminalQuote,
-      workspaceId: submitWorkspaceId,
-    } = pendingSubmit;
-    store.trigger.submissionRequested({
-      agentName,
-      workspaceId: submitWorkspaceId,
-      execute: () =>
-        executeCreatedSession(
-          createSessionAsync({ ...request, worktree: worktreeId }),
-          pendingPrompt,
-          terminalQuote
-        ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
-    });
-  }, [
-    createSessionAsync,
-    environment.status,
-    navigate,
-    pendingSubmit,
-    runtimeWorkspaceId,
-    scope,
+  const submit = useSessionCreateSubmit({
+    agents: agentList,
+    binding: destination.binding,
+    environment,
+    environmentWorkspaceId: destination.environmentWorkspaceId,
+    runtimeWorkspaceId: destination.runtimeWorkspaceId,
+    scope: destination.scope,
     store,
-    worktreeId,
-  ]);
-
-  const submit = () => {
-    if (!binding || flow.operation.status !== "idle" || pendingSubmit !== null) return;
-    const agentName = selectedAgentName.trim();
-    if (agentName.length === 0) {
-      store.trigger.validationFailed({ message: "Select an agent before starting the session." });
-      return;
-    }
-    if (!agentList.some(agent => agent.name === agentName)) {
-      store.trigger.validationFailed({ message: "Select an agent before starting the session." });
-      return;
-    }
-
-    const networkParticipation = networkParticipationDraftFromValues(
-      draft.networkParticipationMode,
-      draft.networkChannelId,
-      draft.networkChannelStrategy
-    );
-    const participationError = networkParticipationValidationMessage(networkParticipation, [
-      "named",
-    ]);
-    if (participationError) {
-      store.trigger.validationFailed({ message: participationError });
-      return;
-    }
-
-    const sessionName = draft.sessionName.trim();
-    const request: CreateSessionParams = {
-      agent_name: agentName,
-      ...binding,
-      ...(sessionName.length > 0 ? { name: sessionName } : {}),
-      network_participation: serializeNetworkParticipation(networkParticipation),
-    };
-    const pendingPrompt = flow.pendingPrompt;
-
-    if (scope === "workspace") {
-      const readiness = environment.ensureReady();
-      if (readiness === "blocked") {
-        store.trigger.validationFailed({
-          message: "Choose an available environment before starting the session.",
-        });
-        return;
-      }
-      if (readiness === "materializing") {
-        store.trigger.environmentAwaited({
-          agentName,
-          pendingPrompt,
-          previousEnvironment: previousEnvironment ?? { kind: "root" },
-          request,
-          terminalQuote: claimPendingTerminalQuoteForCreate(),
-          workspaceId: runtimeWorkspaceId ?? environmentWorkspaceId,
-        });
-        return;
-      }
-    }
-
-    const terminalQuote = claimPendingTerminalQuoteForCreate();
-    store.trigger.submissionRequested({
-      agentName,
-      workspaceId: runtimeWorkspaceId ?? "",
-      execute: () =>
-        executeCreatedSession(
-          createSessionAsync({
-            ...request,
-            ...(scope === "workspace" && worktreeId ? { worktree: worktreeId } : {}),
-          }),
-          pendingPrompt,
-          terminalQuote
-        ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
-    });
-  };
+  });
+  const actions = useSessionCreateDialogActions({
+    environment,
+    runtimeWorkspaceId: destination.runtimeWorkspaceId,
+    store,
+  });
 
   return {
     open: flow.open,
@@ -289,11 +141,11 @@ export function useSessionCreateDialogViewModel(
     mode: flow.mode,
     agents: agentList,
     workspace: activeWorkspace,
-    workspaceId: runtimeWorkspaceId,
-    scope,
-    destinationLabel: landingLabel,
-    sessionRoot,
-    destinationReady,
+    workspaceId: destination.runtimeWorkspaceId,
+    scope: destination.scope,
+    destinationLabel: destination.destinationLabel,
+    sessionRoot: destination.sessionRoot,
+    destinationReady: destination.binding !== null,
     sessionName: draft.sessionName,
     selectedAgentName,
     isSubmitting,
@@ -301,35 +153,11 @@ export function useSessionCreateDialogViewModel(
     pendingAgentName,
     pendingWorkspaceId,
     userHomeDir,
-    environment: scope === "workspace" ? environment.field : undefined,
+    environment: destination.scope === "workspace" ? environment.field : undefined,
     environmentListingState: environment.listingState,
     environmentListingError: environment.listingError,
     isAwaitingEnvironment: pendingSubmit !== null,
-    onCancelEnvironment: () => {
-      // Abandons the checkout without dismissing the launch details.
-      restorePendingTerminalQuoteAfterFailedCreate(pendingSubmit?.terminalQuote ?? null);
-      const restoreTarget = pendingSubmit?.previousEnvironment ?? { kind: "root" };
-      environment.cancelPending(restoreTarget);
-      store.trigger.environmentRestored({ environment: restoreTarget });
-    },
-    onOpenChange: open => {
-      // Dismissing mid-creation must not strand a half-built worktree.
-      if (!open) environment.cancelPending();
-      store.trigger.dialogOpenChanged({ open });
-      if (!open && store.getSnapshot().context.operation.status !== "submitting") {
-        clearPendingTerminalQuote();
-      }
-    },
-    onModeChange: mode => store.trigger.modeSelected({ mode }),
-    onAgentChange: agentName =>
-      store.trigger.agentSelected({ agentName, workspaceId: runtimeWorkspaceId ?? "" }),
-    onSessionNameChange: sessionName => store.trigger.sessionNameChanged({ sessionName }),
-    onNetworkParticipationChange: next =>
-      store.trigger.networkParticipationSelected({
-        networkParticipationMode: next.mode,
-        networkChannelId: next.channelId,
-        networkChannelStrategy: next.channelStrategy,
-      }),
+    ...actions,
     networkParticipation: networkParticipationDraftFromValues(
       draft.networkParticipationMode,
       draft.networkChannelId,
@@ -337,34 +165,6 @@ export function useSessionCreateDialogViewModel(
     ),
     submit,
   };
-}
-
-function queuePendingPrompt(sessionID: string, prompt: string | null): void {
-  if (prompt === null || prompt.trim() === "") return;
-  sessionStore.trigger.firstPromptQueued({ sessionId: sessionID, text: prompt });
-}
-
-async function executeCreatedSession(
-  create: Promise<SessionPayload>,
-  pendingPrompt: string | null,
-  quote: TerminalQuote | null
-): Promise<SessionPayload> {
-  try {
-    return finishCreatedSession(await create, pendingPrompt, quote);
-  } catch (error) {
-    restorePendingTerminalQuoteAfterFailedCreate(quote);
-    throw error;
-  }
-}
-
-function finishCreatedSession(
-  session: SessionPayload,
-  pendingPrompt: string | null,
-  quote: TerminalQuote | null
-): SessionPayload {
-  if (quote) stageChosenSessionTerminalQuote(session.id, quote);
-  queuePendingPrompt(session.id, pendingPrompt);
-  return session;
 }
 
 export type { SessionCreateDialogDraft };
