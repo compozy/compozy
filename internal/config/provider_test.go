@@ -1309,9 +1309,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			ReasoningEffort: providerHighKey,
 			Prompt:          "prompt",
 		})
-		if err == nil || !strings.Contains(err.Error(), "does not support reasoning effort") {
-			t.Fatalf("ResolveAgent() error = %v, want reasoning unsupported error", err)
-		}
+		assertErrorContains(t, err, "does not support reasoning effort")
 	})
 
 	t.Run("Should reject reasoning effort when provider reasoning apply is omitted", func(t *testing.T) {
@@ -1334,9 +1332,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			ReasoningEffort: providerHighKey,
 			Prompt:          "prompt",
 		})
-		if err == nil || !strings.Contains(err.Error(), "does not support reasoning effort") {
-			t.Fatalf("ResolveAgent() error = %v, want reasoning unsupported error", err)
-		}
+		assertErrorContains(t, err, "does not support reasoning effort")
 	})
 }
 

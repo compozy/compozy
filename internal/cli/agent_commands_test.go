@@ -515,6 +515,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			current := AgentRecord{
 				Name:             "coder",
 				Provider:         "claude",
+				Command:          "claude-runtime",
 				Model:            "claude-sonnet-5",
 				ReasoningEffort:  "high",
 				Prompt:           "Code.",
@@ -534,6 +535,9 @@ func TestAgentUpdateCommand(t *testing.T) {
 				) (AgentRecord, error) {
 					if request.Agent.Provider != "mock" {
 						t.Fatalf("UpdateAgent() provider = %q, want mock", request.Agent.Provider)
+					}
+					if request.Agent.Command != "" {
+						t.Fatalf("UpdateAgent() command = %q, want empty", request.Agent.Command)
 					}
 					if request.Agent.Model != "" {
 						t.Fatalf("UpdateAgent() model = %q, want empty", request.Agent.Model)
