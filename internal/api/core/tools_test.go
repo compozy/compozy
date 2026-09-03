@@ -351,6 +351,60 @@ func TestToolErrorResponses(t *testing.T) {
 		}
 	})
 
+	t.Run("Should describe a missing skill resource without reporting the tool missing", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			toolspkg.ToolIDSkillView,
+			`skill resource "references/terminal.md" not found`,
+			toolspkg.ErrToolNotFound,
+			toolspkg.ReasonSkillResourceNotFound,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusNotFound ||
+			payload.Error.Code != toolspkg.ErrorCodeNotFound ||
+			payload.Error.ToolID != toolspkg.ToolIDSkillView ||
+			payload.Error.Message != "skill resource not found" ||
+			!slices.Equal(
+				payload.Error.ReasonCodes,
+				[]toolspkg.ReasonCode{toolspkg.ReasonSkillResourceNotFound},
+			) {
+			t.Fatalf("missing skill resource payload = %#v status=%d, want reason-aware 404", payload.Error, status)
+		}
+		if strings.Contains(payload.Error.Message, "tool not found") {
+			t.Fatalf(
+				"missing skill resource message = %q, must not identify the tool as missing",
+				payload.Error.Message,
+			)
+		}
+	})
+
+	t.Run("Should describe malformed skill frontmatter as an invalid definition", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolspkg.ToolIDSkillView,
+			"internal parser detail",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSkillDefinitionInvalid,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusBadRequest ||
+			payload.Error.Message != "skill definition is invalid" ||
+			!slices.Equal(
+				payload.Error.ReasonCodes,
+				[]toolspkg.ReasonCode{toolspkg.ReasonSkillDefinitionInvalid},
+			) {
+			t.Fatalf("invalid skill definition payload = %#v status=%d, want reason-aware 400", payload.Error, status)
+		}
+	})
+
 	t.Run("Should let the error code control the message before a mismatched reason", func(t *testing.T) {
 		t.Parallel()
 

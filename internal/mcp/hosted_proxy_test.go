@@ -549,6 +549,29 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if want := "config_path_not_found: config path not found"; got != want {
 			t.Fatalf("hostedToolErrorMessage(missing config path) = %q, want %q", got, want)
 		}
+
+		invalidSkillResponse := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
+			Code:        tools.ErrorCodeInvalidInput,
+			ToolID:      tools.ToolIDSkillView,
+			Message:     "skill definition is invalid",
+			ReasonCodes: []tools.ReasonCode{tools.ReasonSkillDefinitionInvalid},
+			Details: map[string]json.RawMessage{
+				contract.ToolOperatorCauseDetailKey: json.RawMessage(
+					`"/workspace/.agents/skills/broken/SKILL.md: yaml: line 2"`,
+				),
+				contract.ToolOperatorRecoveryDetailKey: json.RawMessage(
+					`"Fix the SKILL.md YAML frontmatter and retry skill_view."`,
+				),
+			},
+		}}
+		invalidSkillErr := hostedToolResponseError{response: invalidSkillResponse}
+		if got := hostedToolErrorMessage(invalidSkillErr); got !=
+			"skill_definition_invalid: skill definition is invalid" {
+			t.Fatalf("hostedToolErrorMessage(invalid skill) = %q, want actionable reason", got)
+		}
+		if got := hostedToolErrorStructuredContent(invalidSkillErr); !reflect.DeepEqual(got, invalidSkillResponse) {
+			t.Fatalf("hostedToolErrorStructuredContent(invalid skill) = %#v, want %#v", got, invalidSkillResponse)
+		}
 	})
 }
 

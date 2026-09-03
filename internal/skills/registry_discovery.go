@@ -17,6 +17,7 @@ import (
 
 type resourceSkillProjection struct {
 	globalSkills                      map[string]*Skill
+	bundledRuntimeSkills              map[string]*Skill
 	profileSkills                     map[string]map[string]*Skill
 	workspaceSkills                   map[string]map[string]*Skill
 	workspaceProfileSkills            map[string]map[string]*Skill
@@ -173,6 +174,7 @@ func (r *Registry) applyResourceProjectionLocked(revision int64, projection reso
 	r.resourceWorkspaceCommandCandidates = projection.workspaceCommandCandidates
 	r.resourceWorkspaceProfileCommandCandidates = projection.workspaceProfileCommandCandidates
 	r.globalSkills = projection.globalSkills
+	r.bundledRuntimeSkills = cloneSkillMap(projection.bundledRuntimeSkills)
 	r.wsCache = make(map[string]*wsCache)
 	r.globalLoaded = true
 	r.globalVersion.Add(1)
@@ -283,6 +285,19 @@ func (r *Registry) projectResourceSkillRecords(
 		if err := r.projectResourceSkillRecord(&projection, record); err != nil {
 			return resourceSkillProjection{}, err
 		}
+	}
+	projection.bundledRuntimeSkills = bundledRuntimeSkillsFromCandidates(
+		projection.globalCommandCandidates,
+	)
+	protectBundledRuntimeSkillMap(projection.globalSkills, projection.bundledRuntimeSkills)
+	for _, skillsByName := range projection.profileSkills {
+		removeBundledRuntimeOverrides(skillsByName, projection.bundledRuntimeSkills)
+	}
+	for _, skillsByName := range projection.workspaceSkills {
+		removeBundledRuntimeOverrides(skillsByName, projection.bundledRuntimeSkills)
+	}
+	for _, skillsByName := range projection.workspaceProfileSkills {
+		removeBundledRuntimeOverrides(skillsByName, projection.bundledRuntimeSkills)
 	}
 	return projection, nil
 }

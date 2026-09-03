@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"path/filepath"
+	"slices"
 
 	"strings"
 
@@ -161,7 +162,50 @@ func (n *daemonNativeTools) resolveSkill(
 			return skill, nil
 		}
 	}
-	return nil, fmt.Errorf("daemon: skill %q not found", trimmedName)
+	definitionErr, found, err := n.invalidSkillDefinition(ctx, scope, workspaceID, trimmedName)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return nil, skillViewDefinitionError(toolspkg.ToolIDSkillView, definitionErr)
+	}
+	return nil, nativeCommandNotFoundError(
+		toolspkg.ToolIDSkillView,
+		fmt.Sprintf("skill %q not found", trimmedName),
+	)
+}
+
+func (n *daemonNativeTools) invalidSkillDefinition(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	workspaceID string,
+	name string,
+) (error, bool, error) {
+	registry, ok := n.deps.Skills.(nativeSkillDiagnosticsRegistry)
+	if !ok {
+		return nil, false, nil
+	}
+	resolved, err := n.nativeSkillWorkspace(ctx, scope.ProfileID, workspaceID)
+	if err != nil {
+		return nil, false, err
+	}
+	diagnostics, err := registry.SkillDiagnostics(ctx, resolved, strings.TrimSpace(scope.AgentName))
+	if err != nil {
+		return nil, false, err
+	}
+	index := slices.IndexFunc(diagnostics, func(diagnostic skills.SkillDiagnostic) bool {
+		return diagnostic.Name == name && diagnostic.Failure != nil &&
+			diagnostic.Failure.Code == skills.SkillFailureCodeDefinitionInvalid
+	})
+	if index < 0 {
+		return nil, false, nil
+	}
+	diagnostic := diagnostics[index]
+	message := strings.TrimSpace(diagnostic.Failure.Message)
+	if message == "" {
+		message = fmt.Sprintf("skills: invalid definition %q", diagnostic.Path)
+	}
+	return errors.New(message), true, nil
 }
 
 func (n *daemonNativeTools) workspaceID(ctx context.Context, ref string) (string, error) {

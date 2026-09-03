@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"strings"
 
@@ -150,6 +151,12 @@ func (n *daemonNativeTools) skillView(
 		content, err = n.deps.Skills.LoadContent(ctx, skill)
 	}
 	if err != nil {
+		if file != "" {
+			return toolspkg.ToolResult{}, skillViewResourceError(req.ToolID, file, err)
+		}
+		if errors.Is(err, skillspkg.ErrInvalidDefinition) {
+			return toolspkg.ToolResult{}, skillViewDefinitionError(req.ToolID, err)
+		}
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
@@ -181,6 +188,38 @@ func (n *daemonNativeTools) skillView(
 	}
 	result.Content = []toolspkg.ToolContent{{Type: nativeToolsTextKey, Text: content}}
 	return result, nil
+}
+
+func skillViewResourceError(id toolspkg.ToolID, file string, err error) error {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		message := fmt.Sprintf("skill resource %q not found", file)
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			id,
+			message,
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
+			toolspkg.ReasonSkillResourceNotFound,
+		)
+	case errors.Is(err, skillspkg.ErrResourcePathRequired),
+		errors.Is(err, skillspkg.ErrResourcePathRelative),
+		errors.Is(err, skillspkg.ErrResourcePathOutside):
+		return nativeCommandInvalidInputError(id, fmt.Sprintf("skill resource path %q is invalid", file))
+	default:
+		return fmt.Errorf("daemon: load skill resource %q: %w", file, err)
+	}
+}
+
+func skillViewDefinitionError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewOperatorToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		"skill definition is invalid",
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		err.Error(),
+		"Fix the SKILL.md YAML frontmatter and retry skill_view.",
+		toolspkg.ReasonSkillDefinitionInvalid,
+	)
 }
 
 func sourceQualifiedSkillViewPayload(

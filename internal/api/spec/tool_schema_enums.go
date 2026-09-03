@@ -59,6 +59,8 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonToolsetCycle),
 		string(tools.ReasonToolUnknown),
 		string(tools.ReasonConfigPathNotFound),
+		string(tools.ReasonSkillResourceNotFound),
+		string(tools.ReasonSkillDefinitionInvalid),
 	}
 	values = appendUniqueStrings(values, contract.TerminalErrorCodeValues()...)
 	sort.Strings(values)

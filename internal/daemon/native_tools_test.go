@@ -2661,6 +2661,192 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
 	})
 
+	t.Run("Should classify skill resource lookup failures", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			input      json.RawMessage
+			wantCode   toolspkg.ErrorCode
+			wantCause  error
+			wantReason toolspkg.ReasonCode
+		}{
+			{
+				name:       "Should report a missing skill resource as not found",
+				input:      json.RawMessage(`{"name":"compozy","file":"references/missing.md"}`),
+				wantCode:   toolspkg.ErrorCodeNotFound,
+				wantCause:  toolspkg.ErrToolNotFound,
+				wantReason: toolspkg.ReasonSkillResourceNotFound,
+			},
+			{
+				name:       "Should reject a skill resource path outside its skill",
+				input:      json.RawMessage(`{"name":"compozy","file":"../terminal.md"}`),
+				wantCode:   toolspkg.ErrorCodeInvalidInput,
+				wantCause:  toolspkg.ErrToolInvalidInput,
+				wantReason: toolspkg.ReasonSchemaInvalid,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(
+					filepath.Join(t.TempDir(), compozyconfig.DirName),
+				)
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Skills:    newLoadedNativeSkillRegistry(t),
+					HomePaths: homePaths,
+				}, nativeApproveAllPolicyInputs())
+				_, err = registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDSkillView, Input: tt.input},
+				)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok {
+					t.Fatalf("Registry.Call(skill_view) error = %v, want *tools.ToolError", err)
+				}
+				if toolErr.Code != tt.wantCode {
+					t.Fatalf("Registry.Call(skill_view) code = %q, want %q", toolErr.Code, tt.wantCode)
+				}
+				if !errors.Is(err, tt.wantCause) {
+					t.Fatalf("Registry.Call(skill_view) error = %v, want cause %v", err, tt.wantCause)
+				}
+				if tt.wantReason != "" && !slices.Contains(toolErr.ReasonCodes, tt.wantReason) {
+					t.Fatalf(
+						"Registry.Call(skill_view) reasons = %v, want %q",
+						toolErr.ReasonCodes,
+						tt.wantReason,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should classify malformed skill frontmatter as invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		skillsRoot := t.TempDir()
+		skillDir := filepath.Join(skillsRoot, "semantic-commit")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill directory) error = %v", err)
+		}
+		skillPath := filepath.Join(skillDir, "SKILL.md")
+		validContent := "---\nname: semantic-commit\ndescription: Records worktree changes.\n---\nBody.\n"
+		if err := os.WriteFile(skillPath, []byte(validContent), 0o600); err != nil {
+			t.Fatalf("WriteFile(valid skill) error = %v", err)
+		}
+		skillRegistry := skills.NewRegistry(skills.RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{{
+			Dir: skillsRoot, SourceSlug: compozyconfig.SkillSourceCompozy,
+			Kind:          compozyconfig.RootKindBuiltin,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}}})
+		if err := skillRegistry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		malformedContent := "---\nname: semantic-commit\ndescription: Records the worktree: it never edits code.\n---\nBody.\n"
+		if err := os.WriteFile(skillPath, []byte(malformedContent), 0o600); err != nil {
+			t.Fatalf("WriteFile(malformed skill) error = %v", err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), compozyconfig.DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: skillRegistry, HomePaths: homePaths,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"name":"semantic-commit"}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok {
+			t.Fatalf("Registry.Call(skill_view) error = %v, want *tools.ToolError", err)
+		}
+		if toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSkillDefinitionInvalid) {
+			t.Fatalf("Registry.Call(skill_view) error = %#v, want invalid skill definition", toolErr)
+		}
+		if toolErr.Operator == nil ||
+			!strings.Contains(toolErr.Operator.Cause, skillPath) ||
+			!strings.Contains(toolErr.Operator.Cause, "yaml: line 2") ||
+			!strings.Contains(toolErr.Operator.Recovery, "Fix the SKILL.md YAML frontmatter") {
+			t.Fatalf(
+				"Registry.Call(skill_view) operator detail = %#v, want path, YAML line, and recovery",
+				toolErr.Operator,
+			)
+		}
+	})
+
+	t.Run("Should classify a malformed skill withheld during discovery", func(t *testing.T) {
+		t.Parallel()
+
+		skillsRoot := t.TempDir()
+		skillDir := filepath.Join(skillsRoot, "withheld-skill")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill directory) error = %v", err)
+		}
+		skillPath := filepath.Join(skillDir, "SKILL.md")
+		malformedContent := "---\nname: [withheld-skill\ndescription: Invalid YAML.\n---\nBody.\n"
+		if err := os.WriteFile(skillPath, []byte(malformedContent), 0o600); err != nil {
+			t.Fatalf("WriteFile(malformed skill) error = %v", err)
+		}
+		skillRegistry := skills.NewRegistry(skills.RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{{
+			Dir: skillsRoot, SourceSlug: compozyconfig.SkillSourceCompozy,
+			Kind:          compozyconfig.RootKindBuiltin,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}}})
+		if err := skillRegistry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		if _, ok := skillRegistry.Get("withheld-skill"); ok {
+			t.Fatal("Get(withheld-skill) found = true, want malformed definition withheld")
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), compozyconfig.DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: skillRegistry, HomePaths: homePaths,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"name":"withheld-skill"}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok {
+			t.Fatalf("Registry.Call(skill_view) error = %v, want *tools.ToolError", err)
+		}
+		if toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSkillDefinitionInvalid) {
+			t.Fatalf("Registry.Call(skill_view) error = %#v, want invalid skill definition", toolErr)
+		}
+		if toolErr.Operator == nil ||
+			!strings.Contains(toolErr.Operator.Cause, skillPath) ||
+			!strings.Contains(toolErr.Operator.Cause, "yaml: line ") {
+			t.Fatalf(
+				"Registry.Call(skill_view) operator detail = %#v, want path and YAML line",
+				toolErr.Operator,
+			)
+		}
+	})
+
 	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
 		t.Parallel()
 

@@ -101,7 +101,10 @@ const skillViewInputSchema = `{
 			"description":"Source-qualified session command id. Provide exactly one of command_id or name."
 		},
 		"workspace":{"type":"string"},
-		"file":{"type":"string"}
+		"file":{
+			"type":"string",
+			"description":"Skill-relative resource path exactly as listed by the skill, for example references/terminal.md."
+		}
 	},
 	"not":{"required":["name","command_id"]},
 	"additionalProperties":false

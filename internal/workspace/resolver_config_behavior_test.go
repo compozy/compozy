@@ -181,6 +181,41 @@ func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *tes
 		t.Parallel()
 		testResolveGlobalHomeWorkspaceProfileResources(t)
 	})
+	t.Run("Should withhold malformed skill definitions from the resolved catalog", func(t *testing.T) {
+		t.Parallel()
+		testResolveWithholdsMalformedSkillDefinitions(t)
+	})
+}
+
+func testResolveWithholdsMalformedSkillDefinitions(t *testing.T) {
+	t.Helper()
+
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	skillsRoot := filepath.Join(root, ".agents", compozyconfig.SkillsDirName)
+	writeSkill(t, filepath.Join(skillsRoot, "healthy"))
+	writeFile(
+		t,
+		filepath.Join(skillsRoot, "semantic-commit", skillDefinitionFile),
+		"---\nname: semantic-commit\ndescription: Records the worktree: it never edits code.\n---\nBody.\n",
+	)
+	store := newMockWorkspaceStore(Workspace{ID: "ws_skills", RootDir: root, Name: "repo"})
+	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+	resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
+
+	for range 2 {
+		resolved, err := resolver.Resolve(t.Context(), "ws_skills")
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if got := skillPathSourceByName(resolved.Skills, "healthy"); got != compozyconfig.SkillSourceAgents {
+			t.Fatalf("healthy skill source = %q, want %q", got, compozyconfig.SkillSourceAgents)
+		}
+		if got := skillPathSourceByName(resolved.Skills, "semantic-commit"); got != "" {
+			t.Fatalf("malformed skill source = %q, want withheld", got)
+		}
+		resolver.Invalidate("ws_skills")
+	}
 }
 
 func testResolveGlobalHomeWorkspaceProfileResources(t *testing.T) {

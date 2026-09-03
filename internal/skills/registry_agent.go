@@ -100,6 +100,7 @@ func (r *Registry) ForAgentDefSession(
 	}
 	skillsByName := cloneSkillMapFromList(baseSkills)
 	if strings.TrimSpace(agent.SourcePath) == "" {
+		protectBundledRuntimeSkillMap(skillsByName, r.bundledRuntimeSkillsSnapshot())
 		applyForcedDisabledSkills(skillsByName, agent.Skills.Disabled)
 		return r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, mergedSkillList(nil, skillsByName))
 	}
@@ -132,6 +133,7 @@ func (r *Registry) ForAgentDefSession(
 	for _, skill := range agentLocalSkills {
 		r.overlaySkill(skillsByName, skill)
 	}
+	protectBundledRuntimeSkillMap(skillsByName, r.bundledRuntimeSkillsSnapshot())
 	applyForcedDisabledSkills(skillsByName, agent.Skills.Disabled)
 
 	return r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, mergedSkillList(nil, skillsByName))

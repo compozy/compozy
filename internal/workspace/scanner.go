@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -317,16 +316,10 @@ func scanSkillSource(
 		skillDir := filepath.Dir(skillFile)
 		skillName, err := loadWorkspaceSkillName(skillFile)
 		if err != nil {
-			skillName = filepath.Base(skillDir)
-			slog.Warn(
-				"workspace: falling back to skill directory name",
-				"path",
-				skillFile,
-				"name",
-				skillName,
-				"error",
-				err,
-			)
+			if errors.Is(err, errInvalidWorkspaceSkillDefinition) {
+				continue
+			}
+			return fmt.Errorf("workspace: load skill identity %q: %w", skillFile, err)
 		}
 
 		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {

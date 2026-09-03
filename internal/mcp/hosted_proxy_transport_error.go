@@ -9,6 +9,11 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+type hostedToolResponseProvider interface {
+	error
+	Response() contract.ToolErrorResponse
+}
+
 func hostedToolErrorStructuredContent(err error) any {
 	type terminalEnvelopeProvider interface {
 		error
@@ -30,6 +35,9 @@ func hostedToolErrorStructuredContent(err error) any {
 			PartialResult: toolErr.PartialResult,
 		}}
 	}
+	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
+		return provider.Response()
+	}
 	return nil
 }
 
@@ -45,11 +53,7 @@ func hostedToolErrorMessage(err error) string {
 			return string(toolErr.Code) + ": " + toolErr.Error()
 		}
 	}
-	type responseProvider interface {
-		error
-		Response() contract.ToolErrorResponse
-	}
-	if provider, ok := errors.AsType[responseProvider](err); ok && provider != nil {
+	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
 		payload := provider.Response().Error
 		message := strings.TrimSpace(payload.Message)
 		if len(payload.ReasonCodes) > 0 {

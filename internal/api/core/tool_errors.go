@@ -157,6 +157,9 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 		if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
 			return "config path not found"
 		}
+		if slices.Contains(reasons, toolspkg.ReasonSkillResourceNotFound) {
+			return "skill resource not found"
+		}
 		return "tool not found"
 	case toolspkg.ErrorCodeConflict:
 		return "tool conflict"
@@ -167,6 +170,9 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspk
 	case toolspkg.ErrorCodeApprovalRequired:
 		return "tool approval required"
 	case toolspkg.ErrorCodeInvalidInput:
+		if slices.Contains(reasons, toolspkg.ReasonSkillDefinitionInvalid) {
+			return "skill definition is invalid"
+		}
 		return "invalid tool request"
 	case toolspkg.ErrorCodeModelNotFound:
 		return "provider model not found"

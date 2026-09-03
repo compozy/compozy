@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa; docs/qa/reports/2026-09-01-terminal-rework.md
-last_report: docs/qa/reports/2026-09-01-terminal-rework.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa;docs/qa/reports/2026-09-01-terminal-rework.md;/Users/pedronauck/dev/qa-labs/compozy-skill-terminal-recovery-20260902-205559-939126-lab/qa-artifacts/qa/test-cases/terminal-prompt-replay.md;dev-session:sess-795e2e3bb8afc603
+last_report: docs/qa/reports/2026-09-02-skill-terminal-recovery.md
 overlaps: ET-terminal-session-block-handoff; ET-terminal-window-native-flow
 ---
 
@@ -33,3 +33,12 @@ Walk:
    output in the transcript — no terminal blocks, no windows, no catalog entries.
 6. Ask the agent to run a hidden pipe execution that outlives the yield window and confirm it lists
    as a pipe terminal without materializing a window.
+
+QA impact 2026-09-02: reset because the official Compozy skill now permits a bounded descriptor-based
+recovery after repeated reference-read failures. Re-walk the original ordinary-language prompt and
+confirm the agent reaches a visible terminal instead of stopping on the missing-reference branch.
+Charter: `CH-terminal-reference-recovery`.
+
+Retest 2026-09-02: pass. The exact `/agents:compozy` prompt loaded the current bundled terminal
+reference despite a stale physical workspace copy, opened `term-2b7ed0bb80ea`, ran two safe command
+sequences, waited for idle, and yielded the visible terminal to the operator.

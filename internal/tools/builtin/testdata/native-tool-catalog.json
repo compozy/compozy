@@ -2796,7 +2796,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f646503ec390df98ec1737a9e00c6db2d55a16c7176df6d40e0d065bd07973fd",
+    "input_schema_digest": "dc1a683fe39428e9e4eddf29e6e878dfcf3b7ec434175cf02abcf6e0d0280545",
     "output_schema_digest": "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b"
   },
   {

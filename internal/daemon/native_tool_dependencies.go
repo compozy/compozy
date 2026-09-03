@@ -36,6 +36,14 @@ type daemonNativeSkillsRegistry interface {
 	) ([]*skillspkg.Skill, error)
 }
 
+type nativeSkillDiagnosticsRegistry interface {
+	SkillDiagnostics(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]skillspkg.SkillDiagnostic, error)
+}
+
 type extensionPublishSecretResolver interface {
 	ResolveRef(context.Context, string) (string, error)
 }
