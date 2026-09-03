@@ -179,7 +179,7 @@ graph:
                   triage:
                     enum: [valid, invalid]
                   resolution:
-                    enum: [fixed, documented]
+                    enum: [fixed, documented, unresolved, blocked]
                   summary:
                     type: string
       session:

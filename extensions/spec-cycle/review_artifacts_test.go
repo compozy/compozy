@@ -365,11 +365,13 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Finalize() error = %v", err)
 		}
-		if output.Resolved != 2 || output.Invalid != 1 || output.Pending != 1 {
-			t.Fatalf("Finalize() = %#v", output)
+		if output.Resolved != 1 || output.Invalid != 1 || output.Pending != 1 {
+			t.Fatalf("Finalize() = %#v, want Resolved=1, Invalid=1, Pending=1", output)
 		}
 		assertOnlyReviewStatusChanged(t, validBefore, readReviewArtifact(t, workspace, written.Files[0].Path))
-		assertOnlyReviewStatusChanged(t, invalidBefore, readReviewArtifact(t, workspace, written.Files[1].Path))
+		if got := readReviewArtifact(t, workspace, written.Files[1].Path); got != invalidBefore {
+			t.Fatalf("Finalize() mutated invalid issue bytes:\n%s", got)
+		}
 	})
 
 	t.Run("Should leave pending files untouched and counted", func(t *testing.T) {
@@ -388,6 +390,37 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		}
 		if pendingAfter := readReviewArtifact(t, workspace, written.Files[2].Path); pendingAfter != pendingBefore {
 			t.Fatal("Finalize() changed pending issue bytes")
+		}
+	})
+
+	t.Run("Should leave unresolved and blocked valid findings as pending and counted in Pending", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := newReviewArtifactWorkspace(t)
+		store := fixedReviewArtifactStore()
+		written, err := store.Write(t.Context(), reviewArtifactScope(workspace), writeReviewArtifactsInput{
+			TaskName: "delivery",
+			Issues: []ReviewIssue{
+				{Title: "Unresolved", Body: "External blocker", Severity: "high"},
+				{Title: "Blocked", Body: "Dependency issue", Severity: "medium"},
+				{Title: "Valid But Unresolved", Body: "Not an issue with code", Severity: "low"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+		rewriteReviewStatus(t, workspace, written.Files[0].Path, "unresolved", "UNRESOLVED")
+		rewriteReviewStatus(t, workspace, written.Files[1].Path, "blocked", "BLOCKED")
+		rewriteReviewStatus(t, workspace, written.Files[2].Path, "valid", "UNRESOLVED")
+
+		output, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), finalizeReviewRoundInput{
+			TaskName: "delivery", Round: 1,
+		})
+		if err != nil {
+			t.Fatalf("Finalize() error = %v", err)
+		}
+		if output.Resolved != 0 || output.Invalid != 0 || output.Pending != 3 {
+			t.Fatalf("Finalize() = %#v, want Resolved=0, Invalid=0, Pending=3", output)
 		}
 	})
 
