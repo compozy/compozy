@@ -1660,3 +1660,177 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 	}
 	return m.promptCalls[0]
 }
+
+func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("1. successful model output returns normal text without error", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{Type: acp.EventTypeAgentMessage, Text: `{"status":"ok"}`},
+			},
+		}
+		res, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if res.Text != `{"status":"ok"}` {
+			t.Fatalf("res.Text = %q, want {\"status\":\"ok\"}", res.Text)
+		}
+	})
+
+	t.Run("2. valid model response with non-JSON text is preserved for output validation", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{Type: acp.EventTypeAgentMessage, Text: `not a json object`},
+			},
+		}
+		res, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if res.Text != `not a json object` {
+			t.Fatalf("res.Text = %q, want 'not a json object'", res.Text)
+		}
+	})
+
+	t.Run("3. provider quota failure returns structured action failure instead of text", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type: acp.EventTypeError,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: "You've hit your usage limit with codex",
+					},
+					Text: "You've hit your usage limit with codex",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want quota error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "prompt_failure" && failure.Code != "quota_exceeded" {
+			t.Fatalf("failure.Code = %q, want prompt_failure or quota_exceeded", failure.Code)
+		}
+		if !strings.Contains(failure.Cause, "usage limit") {
+			t.Fatalf("failure.Cause = %q, want usage limit", failure.Cause)
+		}
+	})
+
+	t.Run("4. provider auth failure returns structured auth failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type:  acp.EventTypeError,
+					Error: "Failed to authenticate: OAuth session expired and could not be refreshed",
+					Text:  "Failed to authenticate: OAuth session expired and could not be refreshed",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want auth error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "provider_auth_failure" {
+			t.Fatalf("failure.Code = %q, want provider_auth_failure", failure.Code)
+		}
+	})
+
+	t.Run("5. ACP transport/protocol failure returns transport failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type: acp.EventTypeError,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailureTransport,
+						Summary: "peer disconnected before response",
+					},
+					Text: "peer disconnected",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want transport error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "transport_failure" {
+			t.Fatalf("failure.Code = %q, want transport_failure", failure.Code)
+		}
+	})
+
+	t.Run("6. model refusal returns refusal action failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					PromptStopReason: acp.PromptStopReasonRefusal,
+					Text:             "I cannot assist with that request",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want refusal error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "model_refusal" {
+			t.Fatalf("failure.Code = %q, want model_refusal", failure.Code)
+		}
+	})
+}
