@@ -2237,9 +2237,6 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	})
 
 	t.Run("Should install-marketplace-skill-joins-temp-dir-cleanup-errors", func(t *testing.T) {
-		if os.Geteuid() == 0 {
-			t.Skip("permission-denied cleanup test is not reliable as root")
-		}
 		env := newSkillTestEnv(t, nil)
 		t.Cleanup(func() {
 			if chmodErr := os.Chmod(
