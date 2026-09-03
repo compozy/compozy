@@ -102,7 +102,7 @@ type ActionExecutionInput struct {
 	Namespace        map[string]any
 	Contract         *dsl.Contract
 	ToolScope        tools.Scope
-	Actor            task.ActorContext
+	Actor            *task.ActorContext
 	CorrelationID    string
 	RuntimeSelection *ActionRuntimeSelection
 	Environment      *dsl.EnvironmentSpec
@@ -152,6 +152,14 @@ func (in ActionExecutionInput) RuntimeSelectionOrZero() ActionRuntimeSelection {
 		return ActionRuntimeSelection{}
 	}
 	return *in.RuntimeSelection
+}
+
+// ActorOrZero returns the authenticated actor without copying it through each action helper.
+func (in ActionExecutionInput) ActorOrZero() task.ActorContext {
+	if in.Actor == nil {
+		return task.ActorContext{}
+	}
+	return *in.Actor
 }
 
 // ActionRawResult captures backend-specific action output before harvest policy.

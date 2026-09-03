@@ -28,6 +28,9 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return err
 	}
+	if state.terminalPermissions != nil {
+		state.terminalPermissions.bind(approvalBridge)
+	}
 	workspaceBinder := nativeWorkspaceAccessBinderForBoot(state)
 	var registry *toolspkg.RuntimeRegistry
 	providers, err := d.bootToolProviders(state, func() toolspkg.Registry { return registry })
@@ -47,17 +50,7 @@ func (d *Daemon) bootToolRegistry(
 		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
 		toolspkg.WithApprovalBridge(approvalBridge),
 		toolspkg.WithWorkspaceAccessPolicy(state.accessPolicy),
-		toolspkg.WithWorkspaceIDResolver(func(ctx context.Context, ref string) (string, error) {
-			resolved, resolveErr := state.workspaceResolver.Resolve(ctx, ref)
-			if resolveErr != nil {
-				return "", resolveErr
-			}
-			workspaceID, resolveErr := nativeResolvedRegistryWorkspaceID(&resolved)
-			if resolveErr != nil {
-				return "", resolveErr
-			}
-			return workspaceID, nil
-		}),
+		toolspkg.WithWorkspaceIDResolver(nativeWorkspaceIDResolver(state)),
 		toolspkg.WithCallInputBinder(workspaceBinder),
 		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
@@ -90,6 +83,16 @@ func (d *Daemon) bootToolRegistry(
 	state.deps.Toolsets = registry
 	state.deps.ToolApprovals = approvalTokens
 	return nil
+}
+
+func nativeWorkspaceIDResolver(state *bootState) func(context.Context, string) (string, error) {
+	return func(ctx context.Context, ref string) (string, error) {
+		resolved, err := state.workspaceResolver.Resolve(ctx, ref)
+		if err != nil {
+			return "", err
+		}
+		return nativeResolvedRegistryWorkspaceID(&resolved)
+	}
 }
 
 func optionalDaemonSessionProfileResolver(

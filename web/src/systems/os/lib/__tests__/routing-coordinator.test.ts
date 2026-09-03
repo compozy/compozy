@@ -768,6 +768,44 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[current.id]?.instanceKey).toBe("sess-b");
   });
 
+  it("Should let the latest overlapping retarget own browser history", async () => {
+    const current = windowFixture("terminal", "/terminals/term-a", "term-a");
+    const { coordinator, router, store } = createCoordinator([current]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    let settleFirst: ((accepted: boolean) => void) | undefined;
+    let settleSecond: ((accepted: boolean) => void) | undefined;
+    const firstCompletion = new Promise<boolean>(resolve => {
+      settleFirst = resolve;
+    });
+    const secondCompletion = new Promise<boolean>(resolve => {
+      settleSecond = resolve;
+    });
+    store.retargetWindow
+      .mockReturnValueOnce({ accepted: true, completion: firstCompletion })
+      .mockReturnValueOnce({ accepted: true, completion: secondCompletion });
+    const firstRoute = route("/terminals/term-b");
+    const latestRoute = route("/terminals/term-c");
+
+    const first = coordinator.userRetarget(current.id, {
+      app: "terminal",
+      instanceKey: "term-b",
+      route: firstRoute,
+    });
+    const latest = coordinator.userRetarget(current.id, {
+      app: "terminal",
+      instanceKey: "term-c",
+      route: latestRoute,
+    });
+    settleSecond?.(true);
+    await expect(latest).resolves.toBe(true);
+    settleFirst?.(true);
+    await expect(first).resolves.toBe(true);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(latestRoute);
+  });
+
   it("Should focus the target session's existing window instead of duplicating it", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const other = windowFixture("session", "/agents/coder/sessions/sess-b", "sess-b");

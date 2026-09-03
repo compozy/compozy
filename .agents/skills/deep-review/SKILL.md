@@ -23,7 +23,7 @@ Steps 1–4 drive an idempotent artifact pipeline under `<out>`: every stage gat
 | `--files <p1,p2>` | Restrict review to these paths | full diff |
 | `--spec <path>` | Spec file or directory; its contract-bearing artifacts become the conformance baseline (spec-parity sweep + verdict gate) | — |
 | `--subagent <runtime>` | Step 3 reviewer runtime: `native` \| `claude-opus` \| `grok` \| `codex` — non-native runs cross-LLM via `compozy exec` | `native` |
-| `--max-cohort-files <n>` | Maximum files assigned to one cohort; the ~6,000 changed-line cap still applies | `100` |
+| `--max-cohort-files <n>` | Maximum files assigned to one cohort; the ~15,000 changed-line cap still applies | `200` |
 | `--publish` | Post walkthrough + review to the PR | off — local report only |
 | `--full` | Ignore prior state; review the whole diff again | incremental when state exists |
 | `--out <dir>` | Artifact directory | `.deep-review/<target>/` |
@@ -78,7 +78,7 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
    ```
 
    Read every source left pending in `<out>/rules.template.json` in full, including direct references of selected project skills. Write `<out>/rules.json` with every source marked applied or not-applicable (reason required), then extract verdict-bearing rules verbatim with scope globs. Assemble `<out>/context-pack.md` and run/fold the detected linter lanes.
-2. Read `<skill-dir>/references/orchestration.md` (cohort rules, sweep triggers) and `<skill-dir>/references/output-contracts.md` (walkthrough anatomy, effort scale) in full. Write `<out>/plan.json` — cohorts of up to `<max-cohort-files>` files (default 100) / ~6,000 changed lines plus any sweep whose trigger fires — and `<out>/walkthrough.md`.
+2. Read `<skill-dir>/references/orchestration.md` (cohort rules, sweep triggers) and `<skill-dir>/references/output-contracts.md` (walkthrough anatomy, effort scale) in full. Write `<out>/plan.json` — broad cohorts of up to `<max-cohort-files>` files (default 200) / ~15,000 changed lines plus any sweep whose trigger fires — and `<out>/walkthrough.md`.
 3. Run the bootstrap plan gate (reads repo artifacts, writes only under `<out>`):
 
    ```bash
@@ -86,7 +86,7 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
      [--max-cohort-files N]
    ```
 
-   It rejects incomplete source accounting, proves defect ownership, derives smaller polish cohorts (≤20 files / 1,200 changed lines), injects bound rules into every lane and sweep, and materializes `<out>/jobs.json`.
+   It rejects incomplete source accounting, proves defect ownership, derives broad polish cohorts (≤200 files / 15,000 changed lines), injects bound rules into every lane and sweep, and materializes `<out>/jobs.json`.
 
 *Done when:* build_jobs.py exits 0, every discovered source has an audited decision in rules.json, context-pack.md lists applied source/rule and linter outcomes without copying the full registry, and walkthrough.md satisfies its contract.
 

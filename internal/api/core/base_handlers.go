@@ -68,6 +68,7 @@ type BaseHandlerConfig struct {
 	WindowManager                WindowManagerProvider
 	// WindowManagerPingInterval spaces stream pings and heartbeat frames; zero keeps the default.
 	WindowManagerPingInterval   time.Duration
+	Terminal                    TerminalProvider
 	Onboarding                  OnboardingStore
 	AgentCatalog                AgentCatalog
 	AgentDefinitionSync         AgentDefinitionSync
@@ -156,6 +157,7 @@ type BaseHandlers struct {
 	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerProvider
+	Terminal                     TerminalProvider
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -206,6 +208,8 @@ type BaseHandlers struct {
 	activeSessionStreams      atomic.Int64
 	windowManagerStreams      *windowManagerStreamLifecycle
 	windowManagerPingInterval time.Duration
+	terminalStreams           *terminalStreamLifecycle
+	terminalCatalog           *terminalCatalog
 }
 
 // NewBaseHandlers builds a shared handler set with transport-specific defaults applied.
@@ -219,6 +223,10 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
 	handlers.windowManagerPingInterval = cfg.WindowManagerPingInterval
+	handlers.terminalStreams = newTerminalStreamLifecycle()
+	if cfg.Terminal != nil {
+		handlers.terminalCatalog = newTerminalCatalog(cfg.Terminal)
+	}
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
 }
@@ -264,6 +272,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Worktrees:                    cfg.Worktrees,
 		WorkspaceAccess:              cfg.WorkspaceAccess,
 		WindowManager:                cfg.WindowManager,
+		Terminal:                     cfg.Terminal,
 		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
@@ -391,6 +400,9 @@ func (h *BaseHandlers) SetStreamDone(done <-chan struct{}) {
 	if h.windowManagerStreams != nil {
 		h.windowManagerStreams.reset()
 	}
+	if h.terminalStreams != nil {
+		h.terminalStreams.reset()
+	}
 }
 
 // ShutdownWindowManagerStreams stops upgrades and waits for every window-manager stream.
@@ -399,4 +411,12 @@ func (h *BaseHandlers) ShutdownWindowManagerStreams(ctx context.Context) error {
 		return nil
 	}
 	return h.windowManagerStreams.shutdown(ctx)
+}
+
+// ShutdownTerminalStreams stops upgrades and waits for every terminal stream.
+func (h *BaseHandlers) ShutdownTerminalStreams(ctx context.Context) error {
+	if h == nil || h.terminalStreams == nil {
+		return nil
+	}
+	return h.terminalStreams.shutdown(ctx)
 }

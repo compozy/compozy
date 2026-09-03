@@ -34,6 +34,10 @@ var (
 	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")
 	// ErrWorkspaceValidation reports an invalid mutable workspace field.
 	ErrWorkspaceValidation = errors.New("workspace validation failed")
+	// ErrWorkspaceDeletionIntentNotFound reports that no pending deletion owns the workspace id.
+	ErrWorkspaceDeletionIntentNotFound = errors.New("workspace deletion intent not found")
+	// ErrWorkspaceDeletionPending reports that workspace deletion still owns external resources.
+	ErrWorkspaceDeletionPending = errors.New("workspace deletion is pending")
 	// ErrOperatorHomeWorkspace reports that the operator home cannot be registered as a workspace.
 	ErrOperatorHomeWorkspace = errors.New("the home folder cannot be registered as a workspace")
 )
@@ -48,6 +52,12 @@ type Workspace struct {
 	SandboxRef     string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+// DeletionIntent preserves the registration snapshot required to finish external cleanup.
+type DeletionIntent struct {
+	Workspace   Workspace
+	RequestedAt time.Time
 }
 
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.

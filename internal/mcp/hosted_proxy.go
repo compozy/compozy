@@ -284,7 +284,8 @@ func callHostedTool(
 			Content: []sdkmcp.Content{
 				&sdkmcp.TextContent{Text: hostedToolErrorMessage(err)},
 			},
-			IsError: true,
+			StructuredContent: hostedToolErrorStructuredContent(err),
+			IsError:           true,
 		}, nil
 	}
 	return hostedToolResult(response.Result)

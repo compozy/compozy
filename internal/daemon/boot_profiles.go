@@ -91,7 +91,11 @@ func (p profileDesktopPartitions) registry() (*windowManagerRegistry, error) {
 }
 
 func (r *daemonProfileEventRecorder) RecordProfileEvent(event profile.Event) {
-	if r == nil || r.writer == nil {
+	if r == nil {
+		return
+	}
+	r.archiveTerminalProfile(event)
+	if r.writer == nil {
 		return
 	}
 	payload, err := json.Marshal(event)
@@ -125,6 +129,15 @@ func (r *daemonProfileEventRecorder) republishProfileSkills(event profile.Event)
 	defer cancel()
 	if err := syncSkillResources(syncCtx, r.state.agentSkillResources); err != nil {
 		r.warn(event, "skill_resources", err)
+	}
+}
+
+func (r *daemonProfileEventRecorder) archiveTerminalProfile(event profile.Event) {
+	if event.Name != eventspkg.ProfileArchived || r.state == nil || r.state.terminals == nil {
+		return
+	}
+	if err := r.state.terminals.ArchiveProfile(context.Background(), event.ProfileID); err != nil {
+		r.warn(event, "archive terminals", err)
 	}
 }
 

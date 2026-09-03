@@ -32,6 +32,8 @@ export interface SettingsByteFieldProps {
   /** Accessible label, e.g. "Global storage cap". */
   label: string;
   disabled?: boolean;
+  minBytes?: number;
+  onValidityChange?: (message: string | null) => void;
   "data-testid"?: string;
 }
 
@@ -44,6 +46,8 @@ export function SettingsByteField({
   onChange,
   label,
   disabled = false,
+  minBytes = 0,
+  onValidityChange,
   "data-testid": testId,
 }: SettingsByteFieldProps) {
   const [unit, setUnit] = useState<SettingsByteUnit>(() => preferredUnit(value));
@@ -51,8 +55,16 @@ export function SettingsByteField({
 
   const commit = (nextDraft: string, nextUnit: SettingsByteUnit) => {
     const scaled = Number.parseFloat(nextDraft);
-    if (!Number.isFinite(scaled) || scaled < 0) return;
-    onChange(Math.round(scaled * UNIT_FACTOR[nextUnit]));
+    const bytes = Math.round(scaled * UNIT_FACTOR[nextUnit]);
+    const message =
+      !Number.isFinite(scaled) || scaled < 0
+        ? "Enter a byte size."
+        : bytes < minBytes
+          ? `Value must be ${minBytes.toLocaleString()} byte${minBytes === 1 ? "" : "s"} or greater.`
+          : null;
+    onValidityChange?.(message);
+    if (message) return;
+    onChange(bytes);
   };
 
   return (

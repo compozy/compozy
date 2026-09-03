@@ -8,6 +8,7 @@ func CloneConfig(source *Config) Config {
 
 	cloned := *source
 	cloned.WindowManager = cloneWindowManagerConfig(source.WindowManager)
+	cloned.Terminal = source.Terminal
 	cloned.CmdPalette = CloneCmdPaletteConfig(source.CmdPalette)
 	cloned.MCPServers = cloneMCPServers(source.MCPServers)
 	cloned.Providers = cloneProviders(source.Providers)

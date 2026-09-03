@@ -19,6 +19,7 @@ import (
 var sqlcPackagePaths = []string{
 	"internal/store/globaldb",
 	"internal/store/sessiondb",
+	"internal/store/workspacedb",
 }
 
 // GenerateSQLC regenerates every store query package with the pinned Go tool.

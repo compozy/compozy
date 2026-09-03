@@ -1,0 +1,46 @@
+---
+title: "compozy terminal input-requests"
+description: "List pending terminal input requests"
+---
+
+## compozy terminal input-requests
+
+List pending terminal input requests
+
+```
+compozy terminal input-requests [flags]
+```
+
+### Options
+
+```
+      --all-profiles       Read across every profile and include owner labels
+  -h, --help               help for input-requests
+      --terminal string    Filter by terminal id
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy terminal input-requests -o json
+```

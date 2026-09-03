@@ -92,12 +92,12 @@ is_ci_full_trigger() {
   esac
 }
 
-# Docs, agent instructions, and CI definitions exercise no verify lane.
+# Docs and agent instructions exercise no verify lane; extension and skill resource manifests do.
 is_no_lane() {
   case "$1" in
     extensions/* | skills/*) return 1 ;;
 		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
-    *.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc) return 0 ;;
+		*.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -262,6 +262,14 @@ go_race_gcflags() {
   printf '%s\n' '-gcflags=modernc.org/...=-d=checkptr=0'
 }
 
+normalized_go_scopes() {
+	if printf '%s' "$GO_SCOPES" | grep -Fxq './...'; then
+		printf './...\n'
+		return
+	fi
+	printf '%s' "$GO_SCOPES" | sort -u
+}
+
 turbo_concurrency() {
   local cpu maximum concurrency
   cpu="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)"
@@ -278,7 +286,7 @@ turbo_concurrency() {
 # cross-package fallout in unchanged dependents.
 run_go_lanes() {
 	local scope_args gcflags
-	scope_args="$(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+	scope_args="$(normalized_go_scopes | tr '\n' ' ')"
 	gcflags="$(go_race_gcflags)"
 	if [ -n "$GO_SCOPES" ]; then
 		run_lane go-lint env "COMPOZY_GO_LINT_SCOPES=$scope_args" make go-lint
@@ -319,8 +327,8 @@ print_classification() {
 		log "changes requiring the full PR CI gate:"
 		printf '%s' "$CI_FULL_REASONS" | sort -u | sed 's/^/[gate]   /'
   fi
-  if [ -n "$GO_SCOPES" ]; then
-    log "go scopes: $(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+	if [ -n "$GO_SCOPES" ]; then
+		log "go scopes: $(normalized_go_scopes | tr '\n' ' ')"
   fi
   if [ "$SDK_GO" -eq 1 ]; then
     log "sdk/go lane: separate module (go -C sdk/go)"
@@ -399,9 +407,9 @@ cmd_plan() {
 		log "would run: CGO_ENABLED=1 go test -race -p $(go_test_p) -parallel $(go_test_parallel) -timeout 15m -tags=integration ./scripts"
 		log "would run: CGO_ENABLED=1 go test -race -p $(go_test_p) -parallel $(go_test_parallel) -timeout 15m -tags=mage ./magefiles"
 	fi
-  if [ -n "$GO_SCOPES" ]; then
+	if [ -n "$GO_SCOPES" ]; then
 		local scopes gcflags
-    scopes="$(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+		scopes="$(normalized_go_scopes | tr '\n' ' ')"
 		gcflags="$(go_race_gcflags)"
 		log "would run: env COMPOZY_GO_LINT_SCOPES='$scopes' make go-lint && CGO_ENABLED=1 go test -race $gcflags -p $(go_test_p) -parallel $(go_test_parallel) -timeout 45m $scopes"
   fi

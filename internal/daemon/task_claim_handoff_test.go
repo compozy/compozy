@@ -47,7 +47,7 @@ func TestTaskClaimHandoffRuntime(t *testing.T) {
 			t.Fatalf("PromptSynthetic() call = %#v, want bound run handoff", prompt)
 		}
 
-		runtime.onTurnEnd("sess-bootstrap")
+		runtime.onTurnEnd(t.Context(), "sess-bootstrap")
 		if runtime.HasPending("sess-bootstrap") {
 			t.Fatal("HasPending(bootstrap) = true, want consumed handoff")
 		}
@@ -83,12 +83,12 @@ func TestTaskClaimHandoffRuntime(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Activate() error = %v", err)
 		}
-		runtime.onTurnEnd("sess-bootstrap")
+		runtime.onTurnEnd(t.Context(), "sess-bootstrap")
 		if !runtime.HasPending("sess-bootstrap") {
 			t.Fatal("HasPending(bootstrap) = false, want retryable failed stop")
 		}
 		sessions.setStopError(nil)
-		runtime.onTurnEnd("sess-bootstrap")
+		runtime.onTurnEnd(t.Context(), "sess-bootstrap")
 		if runtime.HasPending("sess-bootstrap") {
 			t.Fatal("HasPending(bootstrap) = true, want successful retry consumed")
 		}

@@ -1,6 +1,7 @@
 import { type EnqueueObject, type ExtractEvents } from "@xstate/store";
 
 import type { EditorEdge, EditorNode } from "../lib/codec";
+import type { NodeFieldEdit } from "../lib/loop-editor-draft";
 import { emptyLintState, type LoopLintState } from "../lib/loop-editor-lint";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail, LoopValidationIssue, ValidateLoopResult } from "../types";
@@ -83,6 +84,7 @@ export type LoopEditorEvents = {
     source: string;
   };
   nodeFieldChanged: { edges?: EditorEdge[]; nodes: EditorNode[] };
+  nodeFieldsEdited: { edits: NodeFieldEdit[]; nodeId: string };
 
   nodesDeleted: { nodeIds: string[] };
 

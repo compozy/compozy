@@ -373,7 +373,7 @@ func actionExecutionInput(
 		Namespace:        namespace,
 		Contract:         &contract,
 		ToolScope:        actionToolScope(loopRun, actor),
-		Actor:            actor,
+		Actor:            &actor,
 		CorrelationID:    strings.TrimSpace(taskRun.ID),
 		RuntimeSelection: &ActionRuntimeSelection{
 			Defaults:    effective.RuntimeDefaults,

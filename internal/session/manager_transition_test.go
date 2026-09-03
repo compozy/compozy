@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +21,28 @@ import (
 )
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
+
+func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T) {
+	t.Parallel()
+
+	payload, title := permissionInteractionPayload(acp.AgentEvent{
+		Title: "Terminal Exec",
+		Raw: []byte(`{
+			"tool_id":"compozy__terminal_exec",
+			"options":[{"decision":"allow-once"}],
+			"tool_call":{"title":"Terminal Exec"}
+		}`),
+	})
+	if got, want := title, "Terminal Exec"; got != want {
+		t.Fatalf("title = %q, want %q", got, want)
+	}
+	if got, want := payload.ToolID, "compozy__terminal_exec"; got != want {
+		t.Fatalf("tool id = %q, want %q", got, want)
+	}
+	if got, want := payload.Decisions, []string{"allow-once"}; !slices.Equal(got, want) {
+		t.Fatalf("decisions = %#v, want %#v", got, want)
+	}
+}
 
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()

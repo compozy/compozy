@@ -1,0 +1,410 @@
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { destroyTerminalInstances, type TerminalEngine } from "@compozy/ui";
+
+import { buildTerminalQuote } from "../../lib/terminal-quote";
+import { terminalReplayFailedCopy } from "../../lib/terminal-copy";
+import { DEV_SERVER_TERMINAL, MAKE_GATE_TERMINAL } from "../../mocks/terminal-fixtures";
+import { SessionTerminalBlock } from "../session-terminal-block";
+import { TerminalExpiredState } from "../terminal-empty-states";
+import type { TerminalPaneSelectionActions } from "../terminal-pane";
+import { TerminalPipeLogPane } from "../terminal-pipe-log-pane";
+import { TerminalQuoteBlock, TerminalSelectionActions } from "../terminal-quote-block";
+import { stubEngineLoader } from "./terminal-window-harness";
+
+function stubThrowingEngineLoader(error: Error) {
+  return async (): Promise<TerminalEngine> => {
+    const engine = await stubEngineLoader();
+    return {
+      ...engine,
+      createTerminal: options => {
+        const terminal = engine.createTerminal(options);
+        return Object.assign(terminal, {
+          write: () => {
+            throw error;
+          },
+        });
+      },
+    };
+  };
+}
+
+afterEach(() => destroyTerminalInstances(() => true));
+
+/**
+ * Canonical suite for what a selection can become (part of UT-117).
+ *
+ * Invariant: a selection always leads somewhere. With a conversation open it
+ * offers to send; without one it offers to pick or start a conversation, and
+ * copying the same sourced block either way. The bytes of the block itself are
+ * asserted where the serializer lives.
+ */
+
+const QUOTE = buildTerminalQuote({
+  terminalId: DEV_SERVER_TERMINAL.id,
+  fromLine: 214,
+  lines: ["12:41:04 [vite] Internal server error"],
+});
+
+describe("TerminalSelectionActions", () => {
+  it("Should offer sending to the conversation that is already open", async () => {
+    const onSendToConversation = vi.fn();
+    const onCopy = vi.fn();
+    render(
+      <TerminalSelectionActions
+        hasActiveSession
+        onChooseSession={vi.fn()}
+        onCopy={onCopy}
+        onSendToConversation={onSendToConversation}
+        onStartSession={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("group", { name: "Selection actions" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("menuitem")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Send to conversation" }));
+    expect(onSendToConversation).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(onCopy).toHaveBeenCalledOnce();
+  });
+
+  it("Should offer a way in when no conversation is open", async () => {
+    const onChooseSession = vi.fn();
+    const onStartSession = vi.fn();
+    const onCopy = vi.fn();
+    render(
+      <TerminalSelectionActions
+        hasActiveSession={false}
+        onChooseSession={onChooseSession}
+        onCopy={onCopy}
+        onSendToConversation={vi.fn()}
+        onStartSession={onStartSession}
+      />
+    );
+
+    // Never a dead end: the gesture says what is missing and offers both ways
+    // to fix it, with copying as the fallback that always works.
+    expect(screen.getByTestId("terminal-selection-actions-no-session")).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Selection actions — no active session" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("menuitem")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Choose a session…" }));
+    expect(onChooseSession).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: "Start a session with this quote" }));
+    expect(onStartSession).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy as quoted block" }));
+    expect(onCopy).toHaveBeenCalledOnce();
+  });
+
+  it("Should copy the sourced block when the quote is supplied", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopy = vi.fn();
+    render(
+      <TerminalSelectionActions
+        hasActiveSession={false}
+        quote={QUOTE}
+        onChooseSession={vi.fn()}
+        onCopy={onCopy}
+        onSendToConversation={vi.fn()}
+        onStartSession={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy as quoted block" }));
+    expect(writeText).toHaveBeenCalledWith(QUOTE.text);
+    expect(onCopy).not.toHaveBeenCalled();
+  });
+});
+
+describe("SessionTerminalBlock", () => {
+  it("Should not let two blocks for the same terminal share one screen", async () => {
+    const { container } = render(
+      <>
+        <SessionTerminalBlock
+          blockId="tool-call-1"
+          engineLoader={stubEngineLoader}
+          preview="first"
+          terminalId={DEV_SERVER_TERMINAL.id}
+          title="dev server"
+        />
+        <SessionTerminalBlock
+          blockId="tool-call-2"
+          engineLoader={stubEngineLoader}
+          preview="second"
+          terminalId={DEV_SERVER_TERMINAL.id}
+          title="dev server"
+        />
+      </>
+    );
+
+    // The same command scrolled past twice is two screens. One emulator between
+    // them would move its host node from the first to the second and mix their
+    // bytes into one.
+    await waitFor(() =>
+      expect(container.querySelectorAll("[data-slot='terminal-view']")).toHaveLength(2)
+    );
+    const grids = container.querySelectorAll("[data-slot='terminal-view']");
+    expect(grids[0].firstElementChild).not.toBe(grids[1].firstElementChild);
+  });
+
+  it("Should paint a running session block as live, not succeeded", async () => {
+    render(
+      <SessionTerminalBlock
+        blockId="tool-call-running"
+        engineLoader={stubEngineLoader}
+        preview="ready"
+        stillRunning
+        terminalId={DEV_SERVER_TERMINAL.id}
+        title="dev server"
+      />
+    );
+
+    const block = screen.getByTestId(`session-terminal-block-${DEV_SERVER_TERMINAL.id}`);
+    await waitFor(() => {
+      expect(block.querySelector("[data-tone='accent']")).not.toBeNull();
+    });
+    expect(block.querySelector("[data-tone='success']")).toBeNull();
+    expect(block).toHaveTextContent("still running — the agent continued without waiting");
+  });
+
+  it("Should say a terminal was cleaned up without inventing how long it waited", () => {
+    const { rerender } = render(<TerminalExpiredState />);
+
+    // `[terminal].detached_ttl` is configurable and this surface cannot read
+    // it, so it says what happened and leaves the number out.
+    expect(screen.getByTestId("terminal-expired")).not.toHaveTextContent(/\d+\s*(hours|h)\b/);
+
+    rerender(<TerminalExpiredState idleFor="6 hours" />);
+    expect(screen.getByTestId("terminal-expired")).toHaveTextContent(
+      "reclaimed after 6 hours without viewers"
+    );
+    expect(screen.getByTestId("terminal-expired")).not.toHaveTextContent("Nobody was watching");
+  });
+
+  it("Should show a write failure on the block and not reject the replay", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+      unhandled.push(event.reason);
+    };
+    window.addEventListener("unhandledrejection", onUnhandled);
+    render(
+      <SessionTerminalBlock
+        blockId="tool-call-write-error"
+        engineLoader={stubThrowingEngineLoader(new Error("emulator parse failed"))}
+        preview="ready"
+        terminalId={DEV_SERVER_TERMINAL.id}
+        title="dev server"
+      />
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(terminalReplayFailedCopy());
+    expect(unhandled).toEqual([]);
+    window.removeEventListener("unhandledrejection", onUnhandled);
+  });
+});
+
+describe("TerminalQuoteBlock", () => {
+  it("Should show the terminal and the lines the excerpt was true for", () => {
+    render(<TerminalQuoteBlock onRemove={vi.fn()} quote={QUOTE} />);
+
+    const block = screen.getByTestId("terminal-quote-block");
+    expect(block).toHaveTextContent(DEV_SERVER_TERMINAL.id);
+    // Scrollback numbering shifts as old output is trimmed, which is exactly
+    // why the block records the range it was taken from.
+    expect(block).toHaveTextContent("214");
+  });
+
+  it("Should let the excerpt be taken back out", async () => {
+    const onRemove = vi.fn();
+    render(<TerminalQuoteBlock onRemove={onRemove} quote={QUOTE} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /remove/i }));
+
+    expect(onRemove).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * Invariant: pipe-log quote actions follow this pane's Selection API — mouse,
+ * keyboard, and touch all land on `selectionchange` — and clear when the
+ * selection collapses or leaves the pane. Line numbers keep `firstLineNumber`.
+ * Owner: `TerminalPipeLogPane`.
+ * Canonical suite: this file (what a selection can become).
+ */
+describe("TerminalPipeLogPane selection", () => {
+  const LINE_TEXT = "ok   internal/store  4.021s";
+
+  function selectionActions(
+    overrides: Partial<TerminalPaneSelectionActions> = {}
+  ): TerminalPaneSelectionActions {
+    return {
+      hasActiveSession: true,
+      onChooseSession: vi.fn(),
+      onCopy: vi.fn(),
+      onSendToConversation: vi.fn(),
+      onStartSession: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  function renderPane(
+    actions = selectionActions(),
+    terminal = MAKE_GATE_TERMINAL,
+    firstLineNumber = 412
+  ) {
+    render(
+      <TerminalPipeLogPane
+        firstLineNumber={firstLineNumber}
+        lines={[LINE_TEXT, "web:test: 227 passed"]}
+        selectionActions={actions}
+        terminal={terminal}
+      />
+    );
+    return actions;
+  }
+
+  function mockSelection(partial: {
+    anchorNode: Node | null;
+    focusNode?: Node | null;
+    collapsed?: boolean;
+    text?: string;
+  }) {
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: partial.collapsed ?? false,
+      anchorNode: partial.anchorNode,
+      focusNode: partial.focusNode ?? partial.anchorNode,
+      toString: () => partial.text ?? LINE_TEXT,
+    } as Selection);
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should offer send and copy from a pane selection without a mouseup", async () => {
+    const actions = renderPane();
+    const line = document.querySelector("[data-line='412']");
+    expect(line).not.toBeNull();
+    mockSelection({ anchorNode: line });
+
+    expect(await screen.findByRole("group", { name: "Selection actions" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send to conversation" }));
+    expect(actions.onSendToConversation).toHaveBeenCalledWith({
+      startLine: 412,
+      endLine: 412,
+      text: LINE_TEXT,
+    });
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(actions.onCopy).not.toHaveBeenCalled();
+  });
+
+  it("Should offer choose and start when no conversation is open", async () => {
+    const actions = renderPane(selectionActions({ hasActiveSession: false }));
+    const line = document.querySelector("[data-line='412']");
+    mockSelection({ anchorNode: line });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Choose a session…" }));
+    expect(actions.onChooseSession).toHaveBeenCalledWith({
+      startLine: 412,
+      endLine: 412,
+      text: LINE_TEXT,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a session with this quote" }));
+    expect(actions.onStartSession).toHaveBeenCalledWith({
+      startLine: 412,
+      endLine: 412,
+      text: LINE_TEXT,
+    });
+  });
+
+  it("Should clear actions when the selection collapses or leaves the pane", async () => {
+    renderPane();
+    const line = document.querySelector("[data-line='412']");
+    mockSelection({ anchorNode: line });
+    expect(await screen.findByRole("group", { name: "Selection actions" })).toBeInTheDocument();
+
+    mockSelection({ anchorNode: line, collapsed: true });
+    await waitFor(() => {
+      expect(screen.queryByRole("group", { name: "Selection actions" })).toBeNull();
+    });
+
+    mockSelection({ anchorNode: line });
+    expect(await screen.findByRole("group", { name: "Selection actions" })).toBeInTheDocument();
+
+    mockSelection({ anchorNode: document.body, focusNode: document.body, text: "outside" });
+    await waitFor(() => {
+      expect(screen.queryByRole("group", { name: "Selection actions" })).toBeNull();
+    });
+  });
+
+  it("Should not leak actions to another pipe pane", async () => {
+    const first = selectionActions();
+    const second = selectionActions();
+    render(
+      <>
+        <TerminalPipeLogPane
+          firstLineNumber={412}
+          lines={[LINE_TEXT]}
+          selectionActions={first}
+          terminal={MAKE_GATE_TERMINAL}
+        />
+        <TerminalPipeLogPane
+          firstLineNumber={10}
+          lines={["other pane"]}
+          selectionActions={second}
+          terminal={DEV_SERVER_TERMINAL}
+        />
+      </>
+    );
+    const line = document.querySelector(
+      `[data-testid="terminal-pipe-pane-${MAKE_GATE_TERMINAL.id}"] [data-line='412']`
+    );
+    mockSelection({ anchorNode: line });
+
+    expect(await screen.findByRole("group", { name: "Selection actions" })).toBeInTheDocument();
+    expect(screen.getAllByRole("group", { name: "Selection actions" })).toHaveLength(1);
+    expect(
+      screen.getByTestId(`terminal-pipe-pane-${DEV_SERVER_TERMINAL.id}`)
+    ).not.toHaveTextContent("Send to conversation");
+  });
+
+  it("Should remove the selectionchange listener on unmount", () => {
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    const { unmount } = render(
+      <TerminalPipeLogPane
+        firstLineNumber={412}
+        lines={[LINE_TEXT]}
+        selectionActions={selectionActions()}
+        terminal={MAKE_GATE_TERMINAL}
+      />
+    );
+    const listener = add.mock.calls.find(call => call[0] === "selectionchange")?.[1];
+    expect(listener).toEqual(expect.any(Function));
+    unmount();
+    expect(remove).toHaveBeenCalledWith("selectionchange", listener);
+  });
+});

@@ -8,6 +8,7 @@ import { StorybookWorkspaceSetup } from "@/storybook/route-story-meta";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
   emptyToolApprovalGrantsResponseFixture,
+  terminalInclusiveToolApprovalGrantsResponseFixture,
   toolApprovalGrantsResponseFixture,
 } from "@/systems/tool-approvals/mocks";
 
@@ -73,6 +74,18 @@ type Story = StoryObj<typeof meta>;
 
 /** Populated -- agent-wide, tool-wide, and exact decisions from daemon truth. */
 export const Populated: Story = { args: {} };
+
+/** Terminal permissions share this list and keep their permission-specific wording. */
+export const TerminalPermissions: Story = {
+  args: {},
+  parameters: storybookMswParameters({
+    "tool-approvals": [
+      compozyApiMock.get("/api/tool-approval-grants", () =>
+        HttpResponse.json(terminalInclusiveToolApprovalGrantsResponseFixture)
+      ),
+    ],
+  }),
+};
 
 /** Empty -- no remembered decisions for the active workspace yet. */
 export const Empty: Story = {

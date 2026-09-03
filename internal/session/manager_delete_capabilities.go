@@ -25,8 +25,23 @@ func (m *Manager) acquireSessionDeleteCapabilities(
 	owner store.SessionDBOwner,
 	originalPath string,
 ) (*sessionDeleteCapabilities, error) {
-	dbPath := store.SessionDBFile(originalPath)
-	familyLease, resumeQueries, err := m.acquireOwnedSessionDBFamily(ctx, owner, dbPath, dbPath)
+	return m.acquireSessionDeleteCapabilitiesAt(ctx, owner, originalPath, originalPath)
+}
+
+func (m *Manager) acquireSessionDeleteCapabilitiesAt(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	canonicalPath string,
+	boundPath string,
+) (*sessionDeleteCapabilities, error) {
+	canonicalDBPath := store.SessionDBFile(canonicalPath)
+	boundDBPath := store.SessionDBFile(boundPath)
+	familyLease, resumeQueries, err := m.acquireOwnedSessionDBFamily(
+		ctx,
+		owner,
+		canonicalDBPath,
+		boundDBPath,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("session: acquire owned event store for delete %q: %w", owner.SessionID, err)
 	}
@@ -42,7 +57,7 @@ func (m *Manager) acquireSessionDeleteCapabilities(
 		return closeErr
 	})
 
-	capabilities.database, err = familyLease.BindOwnedFile(ctx, owner, dbPath)
+	capabilities.database, err = familyLease.BindOwnedFile(ctx, owner, boundDBPath)
 	if err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("session: bind owned event store for delete %q: %w", owner.SessionID, err),
@@ -56,16 +71,16 @@ func (m *Manager) acquireSessionDeleteCapabilities(
 			capabilities.Release(),
 		)
 	}
-	capabilities.directory, err = capabilities.parentDirectory.OpenDirectoryForMove(filepath.Base(originalPath))
+	capabilities.directory, err = capabilities.parentDirectory.OpenDirectoryForMove(filepath.Base(boundPath))
 	if err != nil {
 		return nil, errors.Join(
-			fmt.Errorf("session: bind session directory %q for delete: %w", originalPath, err),
+			fmt.Errorf("session: bind session directory %q for delete: %w", boundPath, err),
 			capabilities.Release(),
 		)
 	}
 	if err := requireSessionDBInDirectory(capabilities.database, capabilities.directory); err != nil {
 		return nil, errors.Join(
-			fmt.Errorf("session: bind owned event store to directory %q: %w", originalPath, err),
+			fmt.Errorf("session: bind owned event store to directory %q: %w", boundPath, err),
 			capabilities.Release(),
 		)
 	}

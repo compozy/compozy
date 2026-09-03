@@ -121,18 +121,16 @@ func TestLoopGoalContextRuntimeShouldUseLatestTypedSessionEvidence(t *testing.T)
 		used := int64(8)
 		size := int64(10)
 		reader := staticLoopSessionEventReader{events: []store.SessionEvent{
-			managedGoalContextEvent(t, 1, acp.AgentEvent{
+			managedGoalContextEvent(t, 1, (acp.AgentEvent{
 				Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate,
-				AvailableCommands: acp.NewAvailableCommandSet([]store.SessionAdvertisedCommand{{Name: "compact"}}),
-			}),
+			}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: "compact"}})),
 			managedGoalContextEvent(t, 2, acp.AgentEvent{
 				Type:  acp.EventTypeUsage,
 				Usage: &acp.TokenUsage{ContextUsed: &used, ContextSize: &size},
 			}),
-			managedGoalContextEvent(t, 3, acp.AgentEvent{
+			managedGoalContextEvent(t, 3, (acp.AgentEvent{
 				Type: acp.EventTypeAvailableCommands, Title: acp.SystemEventTitleAvailableCommandsUpdate,
-				AvailableCommands: acp.NewAvailableCommandSet([]store.SessionAdvertisedCommand{{Name: "review"}}),
-			}),
+			}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: "review"}})),
 		}}
 		runtime := &loopGoalContextRuntime{sessions: reader}
 		binding := looppkg.ActionSessionBinding{SessionID: "session-context"}

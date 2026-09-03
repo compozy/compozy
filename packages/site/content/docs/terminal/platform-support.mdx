@@ -1,0 +1,28 @@
+---
+title: Platform support
+description: Interactive and execute-only terminal capabilities across local and sandbox workspaces.
+---
+
+Terminal records report `capabilities.interactive`. Clients must use that value instead of assuming
+support from the route, operating-system label, or presence of a Terminal launcher.
+
+| Environment    | Execute commands | Interactive terminal, attach, resize, shared control | Recording                                |
+| -------------- | ---------------- | ---------------------------------------------------- | ---------------------------------------- |
+| Local macOS    | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Local Linux    | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Local Windows  | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Remote sandbox | Yes              | No                                                   | No                                       |
+
+Remote sandboxes use `compozy terminal exec` without `--visible`. They still return bounded,
+structured output and write command journal rows. Opening an interactive terminal or requesting a
+visible run returns `terminal_interactive_unavailable`; the UI omits interactive actions rather than
+opening a terminal that cannot work.
+
+macOS, Linux, and Windows use the full local terminal path. Windows runs through ConPTY, with the
+process tree owned by a Job Object so closing a terminal also ends its descendants. Remote sandboxes
+keep the same public API and capability shape while reporting execute-only support.
+
+Limits are also explicit. Terminal count, viewer count, dimensions, frame size, scrollback, and
+recording retention come from the daemon configuration. Hitting a limit returns a typed error such as
+`terminal_limit_reached` or `subscriber_limit_reached`; CompozyOS does not silently queue an
+interactive terminal.

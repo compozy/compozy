@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
-const resolve = createRequire(join(root, "web/package.json")).resolve;
+const resolve = createRequire(join(root, "packages/ui/package.json")).resolve;
 const files = [
   { source: "emojibase-data/en/data.json", output: "web/public/assets/emojibase/en/data.json" },
   {

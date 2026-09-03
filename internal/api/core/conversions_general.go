@@ -20,5 +20,17 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 		},
 		Daemon: settingsDaemonPayload(value.Daemon),
 		Redact: contract.SettingsRedactPayload{Enabled: value.Redact.Enabled},
+		Terminal: contract.SettingsTerminalPayload{
+			DefaultShell:           value.Terminal.DefaultShell,
+			ShellIntegration:       value.Terminal.ShellIntegration,
+			ScrollbackBytes:        value.Terminal.ScrollbackBytes,
+			DetachedTTL:            value.Terminal.DetachedTTL.String(),
+			ExitRetention:          value.Terminal.ExitRetention.String(),
+			Recording:              value.Terminal.Recording,
+			RecordingRetentionDays: value.Terminal.RecordingRetentionDays,
+			MaxPerWorkspace:        value.Terminal.MaxPerWorkspace,
+			MaxPerDaemon:           value.Terminal.MaxPerDaemon,
+			MaxSubscribers:         value.Terminal.MaxSubscribers,
+		},
 	}
 }

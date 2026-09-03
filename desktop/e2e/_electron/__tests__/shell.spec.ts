@@ -17,6 +17,7 @@ import {
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
+import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = resolve(testDirectory, "../../../..");
@@ -118,6 +119,90 @@ async function invokeGlobalShortcut(desktop: DesktopInstance, accelerator: strin
     return invoke(value) === true;
   }, accelerator);
   if (!invoked) throw new Error(`Global shortcut ${accelerator} is not registered.`);
+}
+
+async function pressProductAccelerator(desktop: DesktopInstance, keyCode: string): Promise<void> {
+  await desktop.app.evaluate(({ BrowserWindow }, key) => {
+    const productWindow = BrowserWindow.getAllWindows().find(window =>
+      /^https?:/u.test(window.webContents.getURL())
+    );
+    if (!productWindow) throw new Error("Product window missing before accelerator input.");
+    const modifiers: Electron.InputEvent["modifiers"] = [
+      process.platform === "darwin" ? "meta" : "control",
+    ];
+    productWindow.webContents.sendInputEvent({ type: "keyDown", keyCode: key, modifiers });
+    productWindow.webContents.sendInputEvent({ type: "keyUp", keyCode: key, modifiers });
+  }, keyCode);
+}
+
+async function connectDesktopTerminalWatcher(
+  page: Page,
+  workspaceID: string,
+  terminalID: string
+): Promise<{ cols: number; rows: number }> {
+  return await page.evaluate(
+    async input => {
+      const ticketResponse = await fetch(
+        `/api/workspaces/${encodeURIComponent(input.workspaceID)}/terminals/${encodeURIComponent(
+          input.terminalID
+        )}/attach-ticket?profile=default`,
+        {
+          body: JSON.stringify({ mode: "read" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }
+      );
+      if (!ticketResponse.ok) {
+        throw new Error(`Terminal watcher ticket failed with ${ticketResponse.status}.`);
+      }
+      const payload = (await ticketResponse.json()) as { ticket?: unknown };
+      if (typeof payload.ticket !== "string" || payload.ticket === "") {
+        throw new Error("Terminal watcher ticket is missing.");
+      }
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const socket = new WebSocket(
+        `${protocol}//${window.location.host}/api/workspaces/${encodeURIComponent(
+          input.workspaceID
+        )}/terminals/${encodeURIComponent(
+          input.terminalID
+        )}/stream?mode=read&flow=drop&ticket=${encodeURIComponent(payload.ticket)}`,
+        input.subprotocol
+      );
+      socket.binaryType = "arraybuffer";
+      const attached = await new Promise<{ cols: number; rows: number }>((resolve, reject) => {
+        const timeout = window.setTimeout(
+          () => reject(new Error("Terminal watcher did not receive its attached frame.")),
+          20_000
+        );
+        socket.onmessage = event => {
+          if (!(event.data instanceof ArrayBuffer)) return;
+          const bytes = new Uint8Array(event.data);
+          if (bytes[0] !== 0x02) return;
+          window.clearTimeout(timeout);
+          const frame = JSON.parse(new TextDecoder().decode(bytes.subarray(1))) as {
+            cols: number;
+            rows: number;
+          };
+          resolve(frame);
+        };
+        socket.onerror = () => {
+          window.clearTimeout(timeout);
+          reject(new Error("Terminal watcher failed to connect."));
+        };
+      });
+      Reflect.set(globalThis, "__compozyDesktopTerminalWatcher", socket);
+      return attached;
+    },
+    { subprotocol: TERMINAL_SUBPROTOCOL, terminalID, workspaceID }
+  );
+}
+
+async function closeDesktopTerminalWatcher(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const socket = Reflect.get(globalThis, "__compozyDesktopTerminalWatcher");
+    if (socket instanceof WebSocket) socket.close();
+    Reflect.deleteProperty(globalThis, "__compozyDesktopTerminalWatcher");
+  });
 }
 
 async function copyPaletteExtensionFixture(home: string): Promise<string> {
@@ -808,6 +893,7 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
   ).toHaveText([
     "General",
+    "Terminal",
     "Defaults",
     "Appearance",
     "Layouts",
@@ -983,8 +1069,8 @@ test("E2E-013 E2E-014: running deep links navigate valid paths and collapse host
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
-  await desktop.spawnSecondary(["compozyos://open/sessions/e2e-session"]);
-  await expect(product).toHaveURL(/\/sessions\/e2e-session(?:\?|$)/u);
+  await desktop.spawnSecondary(["compozyos://open/agents"]);
+  await expect(product).toHaveURL(/\/agents(?:\?|$)/u);
   await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
   await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
   for (const hostile of [
@@ -1053,6 +1139,138 @@ test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain age
   } finally {
     await rm(extracted, { recursive: true, force: true });
   }
+});
+
+test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, refit, and IME", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const workspaceID = await ensureProjectWorkspaceID(desktop, product);
+
+  await product.locator('[data-slot="os-dock-item"][data-app="terminal"]').click();
+  const terminalWindow = product.getByTestId("terminal-window");
+  await expect(terminalWindow).toBeVisible();
+  // Opening the Terminal app resolves straight into a live PTY; there is no
+  // empty state to click through.
+  const terminalGrid = terminalWindow.getByRole("log");
+  await expect(terminalGrid).toBeVisible();
+  await expect(terminalGrid).toHaveAttribute("data-renderer", /^(dom|webgl)$/u);
+  await expect(terminalGrid).toHaveAttribute("data-readonly", "false");
+  const acceleratorModifier = process.platform === "darwin" ? "Meta" : "Control";
+  await terminalGrid.click();
+  await product.keyboard.type("echo desktop-shell-echo");
+  await product.keyboard.press("Enter");
+  await expect(terminalGrid).toContainText("desktop-shell-echo");
+
+  const pasteCommand = "echo desktop-clipboard-paste";
+  await product.evaluate(async value => await navigator.clipboard.writeText(value), pasteCommand);
+  await terminalGrid.click();
+  await product.keyboard.press(`${acceleratorModifier}+V`);
+  await product.keyboard.press("Enter");
+  const pastedRow = terminalWindow
+    .locator(".xterm-accessibility-tree > div", { hasText: "desktop-clipboard-paste" })
+    .last();
+  await expect(pastedRow).toBeVisible();
+  const pastedBox = await pastedRow.boundingBox();
+  if (!pastedBox) throw new Error("Pasted terminal output has no layout box.");
+  await product.mouse.move(pastedBox.x - 1, pastedBox.y + pastedBox.height / 2);
+  await product.mouse.down();
+  await product.mouse.move(pastedBox.x + pastedBox.width + 1, pastedBox.y + pastedBox.height / 2, {
+    steps: 8,
+  });
+  await product.mouse.up();
+  await product.keyboard.press(`${acceleratorModifier}+C`);
+  await expect
+    .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
+    .toContain("desktop-clipboard-paste");
+
+  const terminalList = await jsonCommand(desktop, [
+    "terminal",
+    "list",
+    "--workspace",
+    workspaceID,
+    "-o",
+    "json",
+  ]);
+  const terminals = terminalList.terminals;
+  if (!Array.isArray(terminals) || terminals.length !== 1) {
+    throw new Error("Desktop Terminal test did not produce exactly one terminal.");
+  }
+  const terminalID = Reflect.get(terminals[0], "id");
+  if (typeof terminalID !== "string" || terminalID === "") {
+    throw new Error("Desktop Terminal test terminal has no stable id.");
+  }
+  const initialGrid = await connectDesktopTerminalWatcher(product, workspaceID, terminalID);
+  try {
+    await expect(terminalWindow.getByTestId("terminal-size-vote")).toContainText(
+      `${initialGrid.cols}×${initialGrid.rows}`
+    );
+
+    const productZoomFactor = async () =>
+      await desktop.app.evaluate(({ BrowserWindow }) => {
+        const productWindow = BrowserWindow.getAllWindows().find(window =>
+          /^https?:/u.test(window.webContents.getURL())
+        );
+        if (!productWindow) throw new Error("Product window missing before terminal zoom probe.");
+        return productWindow.webContents.getZoomFactor();
+      });
+    const initialZoomFactor = await productZoomFactor();
+    await pressProductAccelerator(desktop, "=");
+    await expect.poll(productZoomFactor).not.toBe(initialZoomFactor);
+    await expect
+      .poll(async () => await terminalWindow.getByTestId("terminal-size-vote").textContent())
+      .not.toContain(`${initialGrid.cols}×${initialGrid.rows}`);
+    await pressProductAccelerator(desktop, "-");
+  } finally {
+    await closeDesktopTerminalWatcher(product);
+  }
+
+  await product.keyboard.press(`${acceleratorModifier}+K`);
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  await expect(terminalGrid).toContainText("desktop-shell-echo");
+  await product.keyboard.press("Escape");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeHidden();
+
+  const terminalInput = terminalWindow.locator(".xterm-helper-textarea");
+  await terminalInput.focus();
+  const imeEvidencePath = join(desktop.home, "terminal-ime-evidence.txt");
+  const imePayload = `node -e "require('node:fs').appendFileSync(process.argv[1], '漢字\\n'); process.stdout.write('\\x1b[2J\\x1b[H漢字\\n')" ${JSON.stringify(imeEvidencePath)}`;
+  await terminalInput.evaluate(input => {
+    input.addEventListener(
+      "compositionend",
+      () => {
+        input.dataset.e2eCompositionEnded = "true";
+      },
+      { once: true }
+    );
+  });
+  const cdp = await product.context().newCDPSession(product);
+  await cdp.send("Input.imeSetComposition", {
+    text: imePayload,
+    selectionStart: imePayload.length,
+    selectionEnd: imePayload.length,
+  });
+  await cdp.send("Input.insertText", { text: imePayload });
+  await expect(terminalInput).toHaveAttribute("data-e2e-composition-ended", "true");
+  await expect(
+    terminalWindow.locator(".xterm-accessibility-tree > div", { hasText: "appendFileSync" }).last()
+  ).toBeVisible();
+  await product.keyboard.press("Enter");
+  await expect(terminalGrid).toContainText("漢字");
+  await expect
+    .poll(async () => {
+      try {
+        return await readFile(imeEvidencePath, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+        throw error;
+      }
+    })
+    .toBe("漢字\n");
 });
 
 test("E2E-034: packaged windows enforce security boundaries and intentional debugging", async ({
@@ -1165,27 +1383,96 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     return Array.isArray(violations) ? violations : [];
   });
   expect(initialCSPViolations.filter(directive => directive.startsWith("font-src"))).toEqual([]);
-  const cspProbe = await product.evaluate(async () => {
-    const directives: string[] = [];
-    const onViolation = (event: SecurityPolicyViolationEvent) => {
-      directives.push(event.violatedDirective);
+  const cspProbe = await product.evaluate(async terminalSubprotocol => {
+    const observeViolations = async (
+      probe: () => Promise<void> | void,
+      expectedViolation: boolean
+    ) => {
+      const directives: string[] = [];
+      let resolveViolation: () => void = () => undefined;
+      const violation = new Promise<void>(resolve => {
+        resolveViolation = resolve;
+      });
+      const onViolation = (event: SecurityPolicyViolationEvent) => {
+        directives.push(event.violatedDirective);
+        resolveViolation();
+      };
+      document.addEventListener("securitypolicyviolation", onViolation);
+      try {
+        await probe();
+        if (expectedViolation) {
+          await Promise.race([
+            violation,
+            new Promise<void>(resolve => window.setTimeout(resolve, 2_000)),
+          ]);
+        } else {
+          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        }
+        return directives;
+      } finally {
+        document.removeEventListener("securitypolicyviolation", onViolation);
+      }
     };
-    document.addEventListener("securitypolicyviolation", onViolation);
     Reflect.deleteProperty(globalThis, "__compozyInlineScriptRan");
-    const script = document.createElement("script");
-    script.textContent = "globalThis.__compozyInlineScriptRan = true";
-    document.body.append(script);
-    await fetch("https://example.com/compozy-csp-probe", { mode: "no-cors" }).catch(() => {});
-    await new Promise(resolveDelay => setTimeout(resolveDelay, 50));
-    document.removeEventListener("securitypolicyviolation", onViolation);
+    const inlineScriptDirectives = await observeViolations(() => {
+      const script = document.createElement("script");
+      script.textContent = "globalThis.__compozyInlineScriptRan = true";
+      document.body.append(script);
+      script.remove();
+    }, true);
+    const attemptSocket = async (url: string) => {
+      await new Promise<void>(resolveAttempt => {
+        let socket: WebSocket | null = null;
+        let timeout: number | undefined;
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timeout !== undefined) window.clearTimeout(timeout);
+          resolveAttempt();
+        };
+        try {
+          socket = new WebSocket(url, terminalSubprotocol);
+        } catch {
+          finish();
+          return;
+        }
+        timeout = window.setTimeout(() => {
+          socket?.close();
+          finish();
+        }, 2_000);
+        socket.onopen = () => {
+          socket.close();
+          finish();
+        };
+        socket.onerror = finish;
+      });
+    };
+    const socketProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const sameOriginSocketDirectives = await observeViolations(
+      () =>
+        attemptSocket(
+          `${socketProtocol}//${window.location.host}/api/workspaces/csp-probe/terminals/term-probe/stream?mode=read&ticket=invalid`
+        ),
+      false
+    );
+    const crossOriginSocketDirectives = await observeViolations(
+      () => attemptSocket(`${socketProtocol}//example.com/compozy-terminal-cross-origin`),
+      true
+    );
     return {
-      directives,
+      inlineScriptDirectives,
+      sameOriginSocketDirectives,
+      crossOriginSocketDirectives,
       inlineScriptRan: Reflect.get(globalThis, "__compozyInlineScriptRan") === true,
     };
-  });
+  }, TERMINAL_SUBPROTOCOL);
   expect(cspProbe.inlineScriptRan).toBe(false);
-  expect(cspProbe.directives.some(directive => directive.startsWith("script-src"))).toBe(true);
-  expect(cspProbe.directives).toContain("connect-src");
+  expect(
+    cspProbe.inlineScriptDirectives.some(directive => directive.startsWith("script-src"))
+  ).toBe(true);
+  expect(cspProbe.sameOriginSocketDirectives).not.toContain("connect-src");
+  expect(cspProbe.crossOriginSocketDirectives).toContain("connect-src");
 
   await desktop.closeShell();
   const productionHome = await mkdtemp(join(tmpdir(), "compozy-electron-security-"));

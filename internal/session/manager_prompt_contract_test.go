@@ -247,7 +247,7 @@ func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 			return recorder, nil
 		}))
 		turnEnds := 0
-		h.manager.SetTurnEndNotifier(func(string) { turnEnds++ })
+		h.manager.SetTurnEndNotifier(func(context.Context, PromptRunIdentity) { turnEnds++ })
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 1)
 			go func() {

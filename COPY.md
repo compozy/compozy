@@ -186,7 +186,7 @@ Good CompozyOS copy often has this shape:
 
 Example:
 
-> Agents should not stop working when a terminal tab closes. CompozyOS keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
+> Agents should not stop working when a session window closes. CompozyOS keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
 
 ## 6. Vocabulary & Naming
 
@@ -267,6 +267,7 @@ Three rules bind every row:
 | `control surface`                             | — drop from UI                       | Internal vocabulary. It stays the runtime term in specs and docs, and never reaches an end-user label.                                                                                                                                               |
 | `capability`                                  | keep + define on first use           | Wire identity `(peer_id, capability_id)` is unchanged. Forbidden synonyms (`recipe`, `procedure`, `playbook`) stay forbidden everywhere.                                                                                                             |
 | `session`                                     | keep + gloss on first use            | Already everyday English; it earns a gloss, not an alias.                                                                                                                                                                                            |
+| `terminal`                                    | "Terminal"                           | First-class product surface. Never label it "console" or "shell pane".                                                                                                                                                                               |
 | `Loop`                                        | — pending owner decision             | Do not alias. `workflow` is no longer a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off in the glossary. No alias until the owner decides.                                                         |
 | `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision             | Do not rename. Dock titles stay as they are until the owner decides.                                                                                                                                                                                 |
 | settings group `Operator`                     | "Personal"                           | Group label only.                                                                                                                                                                                                                                    |

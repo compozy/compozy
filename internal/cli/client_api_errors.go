@@ -271,6 +271,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseWindowManagerAPIError,
 			parseWorktreeRemovalAPIError,
 			parseGoalCommandAPIError,
+			parseTerminalAPIError,
 			parseDaemonAPIError,
 			parseMemoryAPIError,
 			parseToolAPIError,

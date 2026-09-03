@@ -1,6 +1,9 @@
 package workspace
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // UnregisterPreparation owns reversible external state around deletion of a
 // workspace row and its database-owned children.
@@ -16,21 +19,24 @@ type UnregisterPreparer func(ctx context.Context, workspace Workspace) (Unregist
 // SetUnregisterPreparer installs the late-bound runtime owner for workspace
 // state that lives outside the workspace store, such as session directories.
 func (r *Resolver) SetUnregisterPreparer(preparer UnregisterPreparer) {
-	if r == nil {
+	if r == nil || r.unregister == nil {
 		return
 	}
-	r.unregisterMu.Lock()
-	r.unregisterPreparer = preparer
-	r.unregisterMu.Unlock()
+	r.unregister.preparerMu.Lock()
+	r.unregister.preparer = preparer
+	r.unregister.preparerMu.Unlock()
 }
 
 func (r *Resolver) prepareUnregister(
 	ctx context.Context,
 	workspace Workspace,
 ) (UnregisterPreparation, error) {
-	r.unregisterMu.RLock()
-	preparer := r.unregisterPreparer
-	r.unregisterMu.RUnlock()
+	if r == nil || r.unregister == nil {
+		return nil, errors.New("workspace: unregister coordinator is required")
+	}
+	r.unregister.preparerMu.RLock()
+	preparer := r.unregister.preparer
+	r.unregister.preparerMu.RUnlock()
 	if preparer == nil {
 		return nil, nil
 	}

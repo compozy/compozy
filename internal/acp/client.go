@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/sandbox"
 
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -66,6 +67,7 @@ type Driver struct {
 	launcher             sandbox.Launcher
 	toolHost             sandbox.ToolHost
 	processRegistry      *toolruntime.Registry
+	terminals            TerminalHost
 	providerPreStarter   ProviderPreStarter
 }
 
@@ -123,6 +125,20 @@ func WithProcessRegistry(registry *toolruntime.Registry) Option {
 	return func(driver *Driver) {
 		driver.processRegistry = registry
 	}
+}
+
+// WithTerminalManager injects the daemon-owned terminal core for local ACP commands.
+func WithTerminalManager(manager TerminalHost) Option {
+	return func(driver *Driver) {
+		driver.terminals = manager
+	}
+}
+
+// TerminalHost is the narrow terminal core consumed by ACP's three terminal methods.
+type TerminalHost interface {
+	OpenPipe(context.Context, terminalpkg.PipeRequest) (terminalpkg.Handle, error)
+	Handle(context.Context, string, string, terminalpkg.ID) (terminalpkg.Handle, error)
+	Release(context.Context, string, string, terminalpkg.ID, terminalpkg.Actor) error
 }
 
 // WithProcessRecordTimeout bounds process registry writes for ACP subprocesses.

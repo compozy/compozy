@@ -16,6 +16,7 @@ import (
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -241,6 +242,9 @@ func renderHumanExecutionError(err error) (string, bool) {
 	if rendered, ok := renderProfileExecutionError(err); ok {
 		return rendered, true
 	}
+	if rendered, ok := renderTerminalExecutionError(err); ok {
+		return rendered, true
+	}
 	item, ok := diagnosticspkg.ItemFromError(err)
 	if !ok {
 		return "", false
@@ -303,11 +307,21 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
 		return marshalGoalCommandExecutionError(args, goalErr)
 	}
+	if terminalErr, ok := errors.AsType[interface {
+		error
+		TerminalErrorEnvelope() contract.TerminalErrorResponse
+	}](err); ok {
+		return marshalTerminalExecutionError(args, terminalErr.TerminalErrorEnvelope())
+	}
 	if apiErr, ok := errors.AsType[interface {
 		error
 		errorPayload() contract.ErrorPayload
 	}](err); ok {
 		return marshalDaemonAPIExecutionError(args, apiErr.errorPayload())
+	}
+	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok &&
+		contract.IsTerminalErrorCode(contract.TerminalErrorCode(terminalErr.Code)) {
+		return marshalTerminalExecutionError(args, terminalExecutionErrorPayload(terminalErr))
 	}
 	if !isStructuredAgentCommandError(err) {
 		return marshalDiagnosticExecutionError(args, err)
@@ -447,10 +461,19 @@ func marshalDaemonAPIExecutionError(args []string, payload contract.ErrorPayload
 
 func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	item, ok := diagnosticspkg.ItemFromError(err)
-	if !ok {
+	// Terminal's public contract requires JSON even for Cobra validation errors,
+	// which do not carry a diagnostic item. Keep every other command's existing
+	// human/JSONL error contract unchanged.
+	if !ok && (requestedOutputFormat(args) != OutputJSON || len(args) == 0 || args[0] != terminalCommandKey) {
 		return nil, false
 	}
-	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error()), Diagnostic: &item}
+	if encoded, terminalError := marshalTerminalDiagnosticExecutionError(args, err); terminalError {
+		return encoded, true
+	}
+	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error())}
+	if ok {
+		payload.Diagnostic = &item
+	}
 	switch requestedOutputFormat(args) {
 	case OutputJSON:
 		encoded, marshalErr := json.Marshal(payload)

@@ -151,13 +151,14 @@ describe("useSessionPageControls", () => {
     routeHookMocks.cancelSessionPrompt.mockReset();
     for (const mutation of [
       routeHookMocks.clearMutation,
-      routeHookMocks.deleteMutation,
       routeHookMocks.cancelInputMutation,
       routeHookMocks.promoteInputMutation,
     ]) {
       mutation.isPending = false;
       mutation.mutate.mockReset();
     }
+    routeHookMocks.deleteMutation.isPending = false;
+    routeHookMocks.deleteMutation.mutate.mockReset();
     routeHookMocks.resumeMutation.isPending = false;
     routeHookMocks.resumeMutation.mutateAsync.mockReset();
     routeHookMocks.renameMutation.isPending = false;

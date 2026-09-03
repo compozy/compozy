@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 var _ sandbox.Provider = (*localProvider)(nil)
@@ -25,7 +24,7 @@ type localProvider struct {
 	logger          *slog.Logger
 	stopTimeout     time.Duration
 	permissionMode  compozyconfig.PermissionMode
-	processRegistry *toolruntime.Registry
+	terminalManager acp.TerminalHost
 }
 
 // WithLogger directs provider-created launcher and tool-host diagnostics to logger.
@@ -49,10 +48,10 @@ func WithPermissionMode(mode compozyconfig.PermissionMode) Option {
 	}
 }
 
-// WithProcessRegistry injects the shared process registry used for tool-host terminals.
-func WithProcessRegistry(registry *toolruntime.Registry) Option {
+// WithTerminalManager injects the daemon-owned terminal authority.
+func WithTerminalManager(manager acp.TerminalHost) Option {
 	return func(provider *localProvider) {
-		provider.processRegistry = registry
+		provider.terminalManager = manager
 	}
 }
 
@@ -96,8 +95,11 @@ func (p *localProvider) Prepare(
 		req.LocalRootDir,
 		p.permissionModeFor(req),
 		p.logger,
-		acp.WithLocalProcessRegistry(p.processRegistry),
 		acp.WithLocalAdditionalRoots(req.LocalAdditionalDirs...),
+		acp.WithLocalTerminalManager(p.terminalManager, acp.LocalTerminalScope{
+			WorkspaceID: req.WorkspaceID, ProfileID: req.ProfileID, SessionID: req.SessionID,
+			Generation: req.RuntimeGeneration, ActorID: req.AgentName,
+		}),
 	)
 	if err != nil {
 		return sandbox.Prepared{}, fmt.Errorf("sandbox/local: create tool host: %w", err)

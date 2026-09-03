@@ -327,6 +327,51 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryBody()).not.toBeNull();
   });
 
+  it("Should render a supervised terminal as its own block, not a generic tool row", async () => {
+    render(
+      artifactRow(
+        "ws-terminal",
+        makeToolMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "bun run dev" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: "term-4f21c9a03b7e",
+              output: "VITE ready in 412 ms",
+              still_running: true,
+            },
+          },
+        })
+      )
+    );
+
+    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
+    expect(queryRoot()).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy tool payload" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
+  });
+
+  it("Should intercept a hosted-MCP terminal open carrying a string envelope", async () => {
+    render(
+      artifactRow(
+        "ws-terminal",
+        makeToolMessage({
+          toolName: "mcp__compozy-hosted-tools__compozy__terminal_open",
+          toolInput: {},
+          toolResult: {
+            rawOutput: {
+              content: '{"terminal_id":"term-51e7b88e4515"}',
+              raw_output: '{"terminal_id":"term-51e7b88e4515"}',
+            },
+          },
+        })
+      )
+    );
+
+    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
+    expect(queryRoot()).toBeNull();
+  });
+
   it("Should render the existing Output dispatcher inside the inline body", () => {
     render(
       <SessionToolCallRow

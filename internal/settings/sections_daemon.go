@@ -1,10 +1,15 @@
 package settings
 
-import compozyconfig "github.com/compozy/compozy/internal/config"
+import (
+	"reflect"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+)
 
 const (
 	sectionsDaemonKey         = "daemon"
 	sectionsReloadTimeoutsKey = "reload_timeouts"
+	sectionsTerminalKey       = "terminal"
 )
 
 func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
@@ -42,7 +47,23 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	if cfg.Redact.Enabled != desired.Redact.Enabled {
 		changed = append(changed, "redact.enabled")
 	}
+	changed = append(changed, diffTerminalSettings(cfg.Terminal, desired.Terminal)...)
 	return changed
+}
+
+func diffTerminalSettings(current, desired compozyconfig.TerminalConfig) []string {
+	if current == desired {
+		return nil
+	}
+	paths := make([]string, 0, 10)
+	currentFields := terminalSettingUpdates(current)
+	desiredFields := terminalSettingUpdates(desired)
+	for index, field := range desiredFields {
+		if !reflect.DeepEqual(currentFields[index].value, field.value) {
+			paths = append(paths, field.path[0]+"."+field.path[1])
+		}
+	}
+	return paths
 }
 
 func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralSettings) error {
@@ -74,7 +95,29 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		},
 		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
 	}
+	updates = append(updates, terminalSettingUpdates(settings.Terminal)...)
 	return applyValueUpdates(editor, updates)
+}
+
+func terminalSettingUpdates(settings compozyconfig.TerminalConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{sectionsTerminalKey, "default_shell"}, value: settings.DefaultShell},
+		{path: []string{sectionsTerminalKey, "shell_integration"}, value: settings.ShellIntegration},
+		{path: []string{sectionsTerminalKey, "scrollback_bytes"}, value: settings.ScrollbackBytes},
+		{path: []string{sectionsTerminalKey, "detached_ttl"}, value: settings.DetachedTTL.String()},
+		{path: []string{sectionsTerminalKey, "exit_retention"}, value: settings.ExitRetention.String()},
+		{path: []string{sectionsTerminalKey, "recording"}, value: settings.Recording},
+		{path: []string{sectionsTerminalKey, "recording_retention_days"}, value: settings.RecordingRetentionDays},
+		{path: []string{sectionsTerminalKey, "max_per_workspace"}, value: settings.MaxPerWorkspace},
+		{path: []string{sectionsTerminalKey, "max_per_daemon"}, value: settings.MaxPerDaemon},
+		{path: []string{sectionsTerminalKey, "max_subscribers"}, value: settings.MaxSubscribers},
+	}
 }
 
 func normalizeDaemonReloadTimeouts(

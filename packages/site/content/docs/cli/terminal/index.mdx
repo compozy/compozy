@@ -1,0 +1,50 @@
+---
+title: "compozy terminal"
+description: "Open and manage workspace terminals"
+---
+
+## compozy terminal
+
+Open and manage workspace terminals
+
+### Options
+
+```
+  -h, --help   help for terminal
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                              | Description                                 |
+| -------------------------------------------------------------------- | ------------------------------------------- |
+| [compozy terminal attach](/docs/cli/terminal/attach)                 | Attach to a running terminal                |
+| [compozy terminal exec](/docs/cli/terminal/exec)                     | Run a command in the workspace              |
+| [compozy terminal get](/docs/cli/terminal/get)                       | Show one terminal                           |
+| [compozy terminal input-requests](/docs/cli/terminal/input-requests) | List pending terminal input requests        |
+| [compozy terminal journal](/docs/cli/terminal/journal)               | Query the terminal command journal          |
+| [compozy terminal kill](/docs/cli/terminal/kill)                     | Terminate a terminal                        |
+| [compozy terminal list](/docs/cli/terminal/list)                     | List workspace terminals                    |
+| [compozy terminal open](/docs/cli/terminal/open)                     | Open an interactive terminal                |
+| [compozy terminal quote](/docs/cli/terminal/quote)                   | Print a terminal excerpt for a conversation |
+| [compozy terminal record](/docs/cli/terminal/record)                 | Start or stop terminal recording            |
+| [compozy terminal respond](/docs/cli/terminal/respond)               | Answer or reject a pending input request    |
+| [compozy terminal signal](/docs/cli/terminal/signal)                 | Send a signal without closing the terminal  |

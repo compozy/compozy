@@ -63,6 +63,17 @@ func Signal(pid int, sig syscall.Signal) error {
 	}
 }
 
+// TerminateProcessHandle terminates the process identified by an already-owned handle.
+func TerminateProcessHandle(handle uintptr, exitCode uint32) error {
+	if handle == 0 {
+		return errors.New("procutil: terminate process handle: handle is required")
+	}
+	if err := syscall.TerminateProcess(syscall.Handle(handle), exitCode); err != nil {
+		return fmt.Errorf("procutil: terminate process handle: %w", err)
+	}
+	return nil
+}
+
 // IsProcessMissingError reports whether a signal failed because its target no longer exists.
 func IsProcessMissingError(err error) bool {
 	return errors.Is(err, windows.ERROR_INVALID_PARAMETER) || errors.Is(err, os.ErrProcessDone)

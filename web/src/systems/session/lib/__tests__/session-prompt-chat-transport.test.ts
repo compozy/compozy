@@ -213,4 +213,70 @@ describe("session prompt chat transport", () => {
     const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
     expect(body.attachments).toEqual([attachment]);
   });
+
+  it("reuses the prepared user message when the same submission is retried", async () => {
+    const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => streamResponse()
+    );
+    const latest = userMessage("message-quote", "What failed?");
+    let prepares = 0;
+    const transport = createSessionPromptChatTransport({
+      api: "/prompt",
+      fetch,
+      prepareUserMessage: () => {
+        prepares += 1;
+        return userMessage("message-quote", `<envelope>${prepares}</envelope>\n\nWhat failed?`);
+      },
+    });
+
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: "session-001",
+      messageId: undefined,
+      messages: [latest],
+      trigger: "submit-message",
+    });
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: "session-001",
+      messageId: undefined,
+      messages: [latest],
+      trigger: "submit-message",
+    });
+
+    const first = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as { messages: unknown[] };
+    const second = JSON.parse(String(fetch.mock.calls[1]?.[1]?.body)) as { messages: unknown[] };
+    expect(prepares).toBe(1);
+    expect(second.messages).toEqual(first.messages);
+  });
+
+  it("prepares the latest user message before the prompt body is built", async () => {
+    const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => streamResponse()
+    );
+    const latest = userMessage("message-quote", "What failed?");
+    const prepared = userMessage(
+      "message-quote",
+      '<terminal_context terminal="term-4f21c9a03b7e" lines="1-1">\n1 | FAIL\n</terminal_context>\n\nWhat failed?'
+    );
+    const transport = createSessionPromptChatTransport({
+      api: "/prompt",
+      fetch,
+      prepareUserMessage: message => {
+        expect(message).toEqual(latest);
+        return prepared;
+      },
+    });
+
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: "session-001",
+      messageId: undefined,
+      messages: [latest],
+      trigger: "submit-message",
+    });
+
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(body.messages).toEqual([prepared]);
+  });
 });

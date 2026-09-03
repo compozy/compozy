@@ -281,7 +281,13 @@ test.describe("E2E-013 Settings → Attention", () => {
     const failed = await createFailedSession(runtime, workspace);
     await reloadShell(page);
     await page.goto(runtime.url("/settings/attention"));
+    const muted = page.waitForResponse(
+      response =>
+        response.request().method() === "PATCH" &&
+        response.url().includes("/api/settings/attention")
+    );
     await page.getByTestId("settings-attention-mute-picker").selectOption(workspace.id);
+    expect((await muted).ok()).toBe(true);
     await expect(page.getByTestId(`settings-attention-unmute-${workspace.id}`)).toBeVisible();
 
     await page.locator(bell.trigger).click();

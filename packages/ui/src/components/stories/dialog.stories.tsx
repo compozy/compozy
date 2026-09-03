@@ -14,7 +14,6 @@ import {
 import { Button } from "../button";
 import { Input } from "../input";
 import { Label } from "../label";
-import { UIProvider } from "../custom/ui-provider";
 
 const meta: Meta<typeof Dialog> = {
   title: "components/ui/Dialog",
@@ -24,7 +23,7 @@ const meta: Meta<typeof Dialog> = {
     docs: {
       description: {
         component:
-          "Modal dialog built on Base UI with motion-driven enter/exit animations via `AnimatePresence`. Respects the `reducedMotion` setting from `UIProvider`.",
+          "Modal dialog built on Base UI. Its portal mounts and unmounts directly without a separate exit-animation lifecycle.",
       },
     },
   },
@@ -57,28 +56,13 @@ function BasicDialog() {
   );
 }
 
+/** Standard dialog composition with title, description, form field, and actions. */
 export const Default: Story = {
   args: {},
   render: () => <BasicDialog />,
 };
 
-export const ReducedMotion: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "With `UIProvider reducedMotion='always'`, motion drops the scale transform and animates only opacity on open/close.",
-      },
-    },
-  },
-  render: () => (
-    <UIProvider reducedMotion="always">
-      <BasicDialog />
-    </UIProvider>
-  ),
-};
-
+/** Interaction contract for focus and immediate portal unmount on Escape. */
 export const OpenAndFocus: Story = {
   args: {},
   render: () => <BasicDialog />,
@@ -98,6 +82,7 @@ export const OpenAndFocus: Story = {
   },
 };
 
+/** Dialog whose visible close affordance is supplied by its action row. */
 export const HiddenCloseButton: Story = {
   args: {},
   render: () => (
@@ -114,6 +99,7 @@ export const HiddenCloseButton: Story = {
   ),
 };
 
+/** Ruled-header variant for dialogs whose body owns its padding. */
 export const RuledHeader: Story = {
   args: {},
   parameters: {

@@ -30,6 +30,24 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose Terminal as its own navigable app", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		terminal := byID["app.open.terminal"]
+		if terminal.Title != "Open Terminal" || terminal.Action.Kind != cmdpalette.ActionKindNavigate ||
+			terminal.Action.App != "terminal" || !slices.Contains(terminal.Keywords, "terminal") {
+			t.Fatalf("app.open.terminal = %#v, want canonical Terminal navigation", terminal)
+		}
+		session := byID["app.open.session"]
+		if slices.Contains(session.Keywords, "terminal") {
+			t.Fatalf("app.open.session keywords = %#v, want no terminal alias", session.Keywords)
+		}
+	})
+
 	t.Run("Should give every shell-only palette row a bindable id [UT-002]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -107,5 +107,70 @@ describe("DropdownMenu", () => {
     await user.click(await screen.findByRole("menuitemradio", { name: "Warning" }));
     expect(handleChange).toHaveBeenCalledTimes(1);
     expect(handleChange).toHaveBeenCalledWith("warning", expect.anything());
+  });
+
+  it("Should dismiss on Escape and return focus to the trigger", async () => {
+    const user = userEvent.setup();
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Rename</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+    const trigger = screen.getByRole("button", { name: "Open" });
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull(), {
+      timeout: 1500,
+    });
+    expect(trigger).toHaveFocus();
+  });
+
+  it("Should dismiss on outside press", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <button type="button">Outside</button>
+        <DropdownMenu>
+          <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Rename</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </>
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull(), {
+      timeout: 1500,
+    });
+  });
+
+  it("Should return focus to the trigger after an item is chosen", async () => {
+    const user = userEvent.setup();
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Rename</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+    const trigger = screen.getByRole("button", { name: "Open" });
+    await user.click(trigger);
+    await user.click(await screen.findByRole("menuitem", { name: "Rename" }));
+
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull(), {
+      timeout: 1500,
+    });
+    expect(trigger).toHaveFocus();
   });
 });

@@ -20,96 +20,112 @@ import (
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should allow established session rebinds and reject expired first binds without leaks", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should require a new launch for provider rebinds and reject expired binds without leaks",
+		func(t *testing.T) {
+			t.Parallel()
 
-		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-		executable := hostedTestExecutable(t, "compozy")
-		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
-		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+			now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+			executable := hostedTestExecutable(t, "compozy")
+			registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+			service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 
-		launch, err := service.Launch(t.Context(), HostedLaunchRequest{
-			SessionID:   "sess-1",
-			ProfileID:   "profile-a",
-			WorkspaceID: "ws-1",
-			AgentName:   "codex",
-		})
-		if err != nil {
-			t.Fatalf("Launch() error = %v", err)
-		}
-		nonce := hostedLaunchNonce(t, launch.Args)
-		peer := hostedTestPeer(executable)
-		now = now.Add(time.Minute)
-		_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
-		if !errors.Is(err, ErrHostedNonceInvalid) {
-			t.Fatalf("Bind(before ArmLaunch) error = %v, want ErrHostedNonceInvalid", err)
-		}
-		if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
-			t.Fatalf("ArmLaunch() error = %v", err)
-		}
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{
+				SessionID:   "sess-1",
+				ProfileID:   "profile-a",
+				WorkspaceID: "ws-1",
+				AgentName:   "codex",
+			})
+			if err != nil {
+				t.Fatalf("Launch() error = %v", err)
+			}
+			nonce := hostedLaunchNonce(t, launch.Args)
+			peer := hostedTestPeer(executable)
+			now = now.Add(time.Minute)
+			_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
+			if !errors.Is(err, ErrHostedNonceInvalid) {
+				t.Fatalf("Bind(before ArmLaunch) error = %v, want ErrHostedNonceInvalid", err)
+			}
+			if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+				t.Fatalf("ArmLaunch() error = %v", err)
+			}
 
-		bind, err := service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
-		if err != nil {
-			t.Fatalf("Bind() error = %v", err)
-		}
-		if bind.Scope.ProfileID != "profile-a" || bind.Scope.SessionID != "sess-1" ||
-			bind.Scope.WorkspaceID != "ws-1" || bind.Scope.AgentName != "codex" {
-			t.Fatalf("bind scope = %#v, want launch scope", bind.Scope)
-		}
+			bind, err := service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
+			if err != nil {
+				t.Fatalf("Bind() error = %v", err)
+			}
+			if bind.Scope.ProfileID != "profile-a" || bind.Scope.SessionID != "sess-1" ||
+				bind.Scope.WorkspaceID != "ws-1" || bind.Scope.AgentName != "codex" {
+				t.Fatalf("bind scope = %#v, want launch scope", bind.Scope)
+			}
 
-		now = now.Add(3 * time.Second)
-		restartedPeer := peer
-		restartedPeer.PID++
-		restarted, err := service.Bind(
-			t.Context(),
-			HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
-			restartedPeer,
-		)
-		if err != nil {
-			t.Fatalf("Bind(restarted provider after launch TTL) error = %v", err)
-		}
-		if restarted.BindID == bind.BindID {
-			t.Fatalf("restarted BindID = %q, want a distinct peer-bound bind", restarted.BindID)
-		}
+			now = now.Add(3 * time.Second)
+			restartedPeer := peer
+			restartedPeer.PID++
+			_, err = service.Bind(
+				t.Context(),
+				HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+				restartedPeer,
+			)
+			if !errors.Is(err, ErrHostedNonceInvalid) {
+				t.Fatalf("Bind(restarted provider with consumed launch) error = %v, want ErrHostedNonceInvalid", err)
+			}
+			relaunch, err := service.Launch(t.Context(), HostedLaunchRequest{
+				SessionID: "sess-1", ProfileID: "profile-a", WorkspaceID: "ws-1", AgentName: "codex",
+			})
+			if err != nil {
+				t.Fatalf("Launch(restarted provider) error = %v", err)
+			}
+			restartedNonce := hostedLaunchNonce(t, relaunch.Args)
+			if err = service.ArmLaunch(t.Context(), "sess-1"); err != nil {
+				t.Fatalf("ArmLaunch(restarted provider) error = %v", err)
+			}
+			restarted, err := service.Bind(
+				t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: restartedNonce}, restartedPeer,
+			)
+			if err != nil || restarted.BindID == bind.BindID {
+				t.Fatalf("Bind(restarted provider) = %#v error=%v, want distinct bind", restarted, err)
+			}
 
-		_, err = service.Bind(
-			t.Context(),
-			HostedBindRequest{SessionID: "sess-1", Nonce: "wrong-nonce"},
-			restartedPeer,
-		)
-		if !errors.Is(err, ErrHostedNonceInvalid) {
-			t.Fatalf("Bind(wrong established nonce) error = %v, want ErrHostedNonceInvalid", err)
-		}
+			_, err = service.Bind(
+				t.Context(),
+				HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+				restartedPeer,
+			)
+			if !errors.Is(err, ErrHostedNonceInvalid) {
+				t.Fatalf("Bind(stale launch nonce) error = %v, want ErrHostedNonceInvalid", err)
+			}
 
-		expiring, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-expired"})
-		if err != nil {
-			t.Fatalf("Launch(expired) error = %v", err)
-		}
-		expiredNonce := hostedLaunchNonce(t, expiring.Args)
-		now = now.Add(time.Minute)
-		if err = service.ArmLaunch(t.Context(), "sess-expired"); err != nil {
-			t.Fatalf("ArmLaunch(expired) error = %v", err)
-		}
-		now = now.Add(3 * time.Second)
+			expiring, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-expired"})
+			if err != nil {
+				t.Fatalf("Launch(expired) error = %v", err)
+			}
+			expiredNonce := hostedLaunchNonce(t, expiring.Args)
+			now = now.Add(time.Minute)
+			if err = service.ArmLaunch(t.Context(), "sess-expired"); err != nil {
+				t.Fatalf("ArmLaunch(expired) error = %v", err)
+			}
+			now = now.Add(3 * time.Second)
 
-		_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-expired", Nonce: expiredNonce}, peer)
-		if !errors.Is(err, ErrHostedNonceExpired) {
-			t.Fatalf("expired Bind() error = %v, want ErrHostedNonceExpired", err)
-		}
-		if strings.Contains(err.Error(), expiredNonce) {
-			t.Fatalf("expired Bind() leaked nonce in error: %q", err.Error())
-		}
+			_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-expired", Nonce: expiredNonce}, peer)
+			if !errors.Is(err, ErrHostedNonceExpired) {
+				t.Fatalf("expired Bind() error = %v, want ErrHostedNonceExpired", err)
+			}
+			if strings.Contains(err.Error(), expiredNonce) {
+				t.Fatalf("expired Bind() leaked nonce in error: %q", err.Error())
+			}
 
-		service.ReleaseSession("sess-1")
-		_, err = service.Bind(
-			t.Context(),
-			HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
-			restartedPeer,
-		)
-		if !errors.Is(err, ErrHostedNonceInvalid) {
-			t.Fatalf("Bind(after ReleaseSession) error = %v, want ErrHostedNonceInvalid", err)
-		}
-	})
+			service.ReleaseSession("sess-1")
+			_, err = service.Bind(
+				t.Context(),
+				HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+				restartedPeer,
+			)
+			if !errors.Is(err, ErrHostedNonceInvalid) {
+				t.Fatalf("Bind(after ReleaseSession) error = %v, want ErrHostedNonceInvalid", err)
+			}
+		},
+	)
 }
 
 func TestHostedProjectionResponse(t *testing.T) {
@@ -280,6 +296,26 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 				bind.Digest,
 			)
 		}
+		_, err = service.Call(t.Context(), HostedCallRequest{
+			BindID: bind.BindID, ToolName: tools.ToolIDTerminalOpen.String(),
+		}, peer)
+		if !errors.Is(err, ErrHostedRunRequired) {
+			t.Fatalf("Call(terminal before BindRun) error = %v, want ErrHostedRunRequired", err)
+		}
+		_, err = service.Call(t.Context(), HostedCallRequest{
+			BindID: bind.BindID, ToolName: "compozy__alpha",
+		}, peer)
+		if err != nil {
+			t.Fatalf("Call(session tool before BindRun) error = %v", err)
+		}
+		preRunScope, preRunCall := registry.lastCall(t)
+		if preRunScope.RunID != "" || preRunScope.Generation != 0 ||
+			preRunCall.RunID != "" || preRunCall.Generation != 0 {
+			t.Fatalf("session call identity = scope:%#v call:%#v, want no active run", preRunScope, preRunCall)
+		}
+		if err = service.BindRun(t.Context(), "sess-1", "run-1", 17); err != nil {
+			t.Fatalf("BindRun() error = %v", err)
+		}
 
 		_, err = service.Call(t.Context(), HostedCallRequest{
 			BindID:        bind.BindID,
@@ -293,19 +329,21 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		}
 
 		scope, call := registry.lastCall(t)
-		if scope.SessionID != "sess-1" || scope.WorkspaceID != "ws-1" || scope.AgentName != "codex" {
+		if scope.SessionID != "sess-1" || scope.WorkspaceID != "ws-1" || scope.AgentName != "codex" ||
+			scope.RunID != "run-1" || scope.Generation != 17 {
 			t.Fatalf("registry call scope = %#v, want hosted launch scope", scope)
 		}
-		if call.ToolID != "compozy__alpha" || call.ToolCallID != "call-1" || call.CorrelationID != "corr-1" {
+		if call.ToolID != "compozy__alpha" || call.ToolCallID != "call-1" || call.CorrelationID != "corr-1" ||
+			call.RunID != "run-1" || call.Generation != 17 {
 			t.Fatalf("registry call identity = %#v, want hosted call identity", call)
 		}
 		if call.ApprovalToken != "" {
 			t.Fatalf("registry call ApprovalToken = %q, want empty", call.ApprovalToken)
 		}
 		directCalls, bootstrapCalls := registry.callCounts()
-		if directCalls != 0 || bootstrapCalls != 1 {
+		if directCalls != 0 || bootstrapCalls != 2 {
 			t.Fatalf(
-				"registry call counts = direct:%d bootstrap:%d, want direct:0 bootstrap:1",
+				"registry call counts = direct:%d bootstrap:%d, want direct:0 bootstrap:2",
 				directCalls,
 				bootstrapCalls,
 			)
@@ -799,6 +837,9 @@ func TestHostedServiceCallUsesRegistryApprovalBridge(t *testing.T) {
 		if !slices.Contains(hostedToolIDs(bind.Tools), mutateID.String()) {
 			t.Fatalf("bind tools = %#v, want approval-mediated tool", hostedToolIDs(bind.Tools))
 		}
+		if err = service.BindRun(t.Context(), "sess-approval", "run-approval", 19); err != nil {
+			t.Fatalf("BindRun() error = %v", err)
+		}
 
 		_, err = service.Call(t.Context(), HostedCallRequest{
 			BindID:   bind.BindID,
@@ -809,10 +850,12 @@ func TestHostedServiceCallUsesRegistryApprovalBridge(t *testing.T) {
 			t.Fatalf("Call(approval mediated) error = %v", err)
 		}
 		scope, call, view := bridge.last(t)
-		if scope.SessionID != "sess-approval" || scope.WorkspaceID != "ws-approval" || scope.AgentName != "codex" {
+		if scope.SessionID != "sess-approval" || scope.WorkspaceID != "ws-approval" || scope.AgentName != "codex" ||
+			scope.RunID != "run-approval" || scope.Generation != 19 {
 			t.Fatalf("approval scope = %#v, want hosted session scope", scope)
 		}
-		if call.ToolID != mutateID || call.ApprovalToken != "" {
+		if call.ToolID != mutateID || call.ApprovalToken != "" ||
+			call.RunID != "run-approval" || call.Generation != 19 {
 			t.Fatalf("approval call = %#v, want hosted call without approval token", call)
 		}
 		if view == nil || view.Descriptor.ID != mutateID || !view.Decision.ApprovalRequired {
@@ -985,6 +1028,9 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		localRegistry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
 		service := newHostedTestService(t, executable, localRegistry, func() time.Time { return now })
 		bind := hostedTestBind(t, service, "sess-empty-input", peer)
+		if err := service.BindRun(t.Context(), "sess-empty-input", "run-empty-input", 23); err != nil {
+			t.Fatalf("BindRun() error = %v", err)
+		}
 		if _, err := service.Call(t.Context(), HostedCallRequest{
 			BindID:   bind.BindID,
 			ToolName: "compozy__hosted_echo",
@@ -1212,10 +1258,14 @@ func hostedViewByID(views []tools.ToolView, id tools.ToolID) *tools.ToolView {
 }
 
 type hostedApprovalBridge struct {
-	mu     sync.Mutex
-	scopes []tools.Scope
-	calls  []tools.CallRequest
-	views  []tools.ToolView
+	mu      sync.Mutex
+	records []hostedApprovalRecord
+}
+
+type hostedApprovalRecord struct {
+	scope tools.Scope
+	call  *tools.CallRequest
+	view  *tools.ToolView
 }
 
 var _ tools.ApprovalBridge = (*hostedApprovalBridge)(nil)
@@ -1223,16 +1273,21 @@ var _ tools.ApprovalBridge = (*hostedApprovalBridge)(nil)
 func (b *hostedApprovalBridge) RequestToolApproval(
 	_ context.Context,
 	scope tools.Scope,
-	call tools.CallRequest,
+	call *tools.CallRequest,
 	view *tools.ToolView,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.scopes = append(b.scopes, scope)
-	b.calls = append(b.calls, call)
-	if view != nil {
-		b.views = append(b.views, *view)
+	record := hostedApprovalRecord{scope: scope}
+	if call != nil {
+		cloned := *call
+		record.call = &cloned
 	}
+	if view != nil {
+		cloned := *view
+		record.view = &cloned
+	}
+	b.records = append(b.records, record)
 	return nil
 }
 
@@ -1241,11 +1296,14 @@ func (b *hostedApprovalBridge) last(t *testing.T) (tools.Scope, tools.CallReques
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if len(b.calls) == 0 {
+	if len(b.records) == 0 {
 		t.Fatal("approval bridge was not called")
 	}
-	view := b.views[len(b.views)-1]
-	return b.scopes[len(b.scopes)-1], b.calls[len(b.calls)-1], &view
+	record := b.records[len(b.records)-1]
+	if record.call == nil {
+		t.Fatal("last approval bridge call did not include a tool call")
+	}
+	return record.scope, *record.call, record.view
 }
 
 type hostedRegistryStub struct {

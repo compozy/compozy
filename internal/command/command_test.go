@@ -297,8 +297,11 @@ func TestBuildInvokedSkillsBlock(t *testing.T) {
 		}
 		if !strings.Contains(block, `command-id="skill:workspace::review"`) ||
 			!strings.Contains(block, `scope="workspace"`) ||
+			!strings.Contains(block, `command_id="skill:workspace::review"`) ||
+			!strings.Contains(block, "Do not replace command_id with the skill name") ||
+			!strings.Contains(block, "Read only file paths explicitly named by this skill body") ||
 			!strings.Contains(block, "Review carefully.") {
-			t.Fatalf("BuildInvokedSkillsBlock() = %q, want identity and instructions", block)
+			t.Fatalf("BuildInvokedSkillsBlock() = %q, want source-bound resource loading and instructions", block)
 		}
 	})
 

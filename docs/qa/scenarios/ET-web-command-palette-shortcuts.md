@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
 entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog; Settings > Layouts > Shortcuts (whole-registry table, source filter, alias column); [window_manager.shortcuts] + [cmd_palette.aliases] in config.toml
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260829-command-palette-portal-remains-mounted
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png; docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05
-last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+evidence: /Users/pedronauck/.config/browser-harness/agent-workspace/recordings/integrated-terminal-profile-retest; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/qa-audit-report.md; docs/qa/reports/2026-08-16-herdr-parity.md
+last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle; ET-palette-nested-views; ET-palette-sessions-view-switch
 ---
 
@@ -59,6 +59,16 @@ Walk (task_11 plan — flat root + whole-registry keyboard truth):
    items, and the cheatsheet without reload; the cheatsheet groups extension bindings by source.
 5. Confirm workspace rows never include `$HOME` and Global-scope toggles keep their documented
    palette wording.
+
+2026-08-29 qa-impact: The shared Dialog portal could remain mounted after a command executed, leaving
+an invisible overlay above the focused destination window. The working-tree fix makes the portal's
+lifetime follow the root open state and adds component and OS-shell regression coverage. This
+scenario was reset until the isolated browser walk was recorded below.
+
+2026-08-29 targeted re-walk: passed. A trusted Chromium action opened Terminal through the palette,
+focused the destination, and found zero palette or overlay nodes after settlement. The existing broader
+shortcut/settings evidence remains valid; this walk reverified the shared overlay lifecycle changed by
+the remediation. The strict QA evidence audit passed and teardown was clean.
 
 Expected evidence: screenshots of the source-filtered table, the named-conflict block and flagged
 loser, the alias on a palette row, and the cheatsheet grouping; note the chord used for the live

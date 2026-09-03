@@ -2796,7 +2796,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f646503ec390df98ec1737a9e00c6db2d55a16c7176df6d40e0d065bd07973fd",
+    "input_schema_digest": "dc1a683fe39428e9e4eddf29e6e878dfcf3b7ec434175cf02abcf6e0d0280545",
     "output_schema_digest": "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b"
   },
   {
@@ -3202,6 +3202,182 @@
     "open_world": false,
     "input_schema_digest": "adefd2f68ec27fc89d215385d44374be5e72db3fb84a94dfe75503e1edc6a4df",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__terminal_claim",
+    "native_name": "terminal_claim",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
+    "output_schema_digest": "0679f871b025660a7b2552ec9c9887f51942a259767519df23b6eacf7d610700",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_close",
+    "native_name": "terminal_close",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
+    "output_schema_digest": "a94ce4556526bd1d9e3c072d8b69cc88810870e441a115fb50bd23c690bfb603",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_exec",
+    "native_name": "terminal_exec",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "28c2405718ec8d1610672ad613203f06e82e60209108dedf6358d6fc19d25503",
+    "output_schema_digest": "3af893632743c35d2901ae1d03f9e60d0bab9c836f1a5d8a8d3cebb376abcee9",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_list",
+    "native_name": "terminal_list",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "3afc2395dcad5b3efd66ee3fdd9d89b7779116c205e83eefff47090c95b902f3",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_open",
+    "native_name": "terminal_open",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "3ffb64034cc02d21a8e8de70c0844e904911a156156dcacab5e66a5b038069a5",
+    "output_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_read",
+    "native_name": "terminal_read",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0f82991e995929a32627dd641851dba5cdf01a921e564b2e9ec933cfbdb84db8",
+    "output_schema_digest": "9536d993ac271b8de22557fd0cf75b0b76768fb73bb40d756ad61cd0497cf088",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_request_input",
+    "native_name": "terminal_request_input",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "79dad381c09b5885257d017896085d73dfd58d5939d246a40d8080daca17dd90",
+    "output_schema_digest": "7049c8c0e5d926b7e99683b54b2f79a01c0f8f93698b98473cc32e88bce98e4f",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_signal",
+    "native_name": "terminal_signal",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "52e022a585e918cd72fb2f30f34218b46bc75b41ec4c8998575ad93d4e155a76",
+    "output_schema_digest": "4b4a84403358d391dba7405be1b2bea748ac3038c257742cdc8adb90652a7fb8",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_wait",
+    "native_name": "terminal_wait",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0f15870e471057c7ef0dd660b2b6308f18bae33ad85e9737139cb1a7ffddf585",
+    "output_schema_digest": "ede92fc041eed7d6a742975152e5494a7d6d476173e1ed8beca894a9ec77c09d",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_write",
+    "native_name": "terminal_write",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "52337098cce1357edea9e57741546a131c569dc50859377d0c8412d5cb340b00",
+    "output_schema_digest": "38e18f3d35f5ef562498c9a3f19dbbcdfc75b4a8b828ef88f1f7834f10296bed",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_yield",
+    "native_name": "terminal_yield",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "711ef4548cc9ffd4c3f5c03600d18df91cce643019faf9667f2dc32d22a06473",
+    "output_schema_digest": "0679f871b025660a7b2552ec9c9887f51942a259767519df23b6eacf7d610700",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
   },
   {
     "tool_id": "compozy__tool_approvals_list",

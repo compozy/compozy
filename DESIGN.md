@@ -1,6 +1,7 @@
 ---
 # Generated from:
 #   packages/ui/src/tokens.css         (runtime)
+#   packages/ui/src/terminal-tokens.css (terminal runtime)
 #   packages/site/app/global.css       (site extensions)
 # by scripts/sync-design-md.mjs.
 # Do not edit by hand. Run make codegen to refresh.
@@ -119,9 +120,29 @@ tokens:
       sidebar-ring: "var(--color-line-strong)"
       shell-glass: "var(--shell-glass)"
       shell-glass-pop: "var(--shell-glass-pop)"
+      terminal-bg: "var(--terminal-bg)"
+      terminal-fg: "var(--terminal-fg)"
+      terminal-cursor: "var(--terminal-cursor)"
+      terminal-selection: "var(--terminal-selection)"
+      terminal-ansi-0: "var(--terminal-ansi-0)"
+      terminal-ansi-1: "var(--terminal-ansi-1)"
+      terminal-ansi-2: "var(--terminal-ansi-2)"
+      terminal-ansi-3: "var(--terminal-ansi-3)"
+      terminal-ansi-4: "var(--terminal-ansi-4)"
+      terminal-ansi-5: "var(--terminal-ansi-5)"
+      terminal-ansi-6: "var(--terminal-ansi-6)"
+      terminal-ansi-7: "var(--terminal-ansi-7)"
+      terminal-ansi-8: "var(--terminal-ansi-8)"
+      terminal-ansi-9: "var(--terminal-ansi-9)"
+      terminal-ansi-10: "var(--terminal-ansi-10)"
+      terminal-ansi-11: "var(--terminal-ansi-11)"
+      terminal-ansi-12: "var(--terminal-ansi-12)"
+      terminal-ansi-13: "var(--terminal-ansi-13)"
+      terminal-ansi-14: "var(--terminal-ansi-14)"
+      terminal-ansi-15: "var(--terminal-ansi-15)"
     fonts:
       sans: '"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif'
-      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace'
+      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace'
       display: "var(--font-sans)"
       keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif'
       weight-normal: "400"
@@ -212,6 +233,7 @@ tokens:
       hairline: "0 0 0 1px var(--color-line-soft)"
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
+      danger-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)"
       window: "0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)"
       window-unfocused: "0 18px 50px -22px rgba(0, 0, 0, 0.55)"
       window-head-scrolled: "0 10px 18px -14px rgba(0, 0, 0, 0.55)"
@@ -728,6 +750,44 @@ new tone map at each feature boundary.
 
 <!-- END:tokens:status-tone -->
 
+### Terminal emulator ramp
+
+The terminal grid is the one surface in the product that owns a solid
+sub-canvas ground: `--terminal-bg` sits a step below `--color-canvas`, because a
+terminal is a byte well, not a card.
+
+The ramp follows the shell-glass shape — one literal, two names. The canonical
+`--terminal-*` variables below are the identity the `TerminalView` theme bridge
+resolves through `getComputedStyle` and hands to the emulator. Each has a
+mechanical `@theme` adapter, `--color-terminal-X: var(--terminal-X)`, so
+terminal chrome uses generated utilities (`bg-terminal-bg`,
+`text-terminal-ansi-8`) like any other colour in the system. The values live in
+exactly one place.
+
+Indices 1, 2, 3 and their bright pairs 9, 10, 11 ride the danger, success and
+warning lanes so a red test failure in the grid is the same red as a danger
+chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
+(~0.68–0.72) so no ANSI color outshouts the signal palette. Index 8 is
+dim-by-design (~3.5:1) — that is terminal convention for dim text, and it is
+never a legal color for UI copy.
+
+<!-- BEGIN:tokens:terminal-ansi -->
+
+| Token                | Value     | Token                  | Value                       |
+| -------------------- | --------- | ---------------------- | --------------------------- |
+| `--terminal-bg`      | `#131211` | `--terminal-fg`        | `#e3e1de`                   |
+| `--terminal-cursor`  | `#f7f6f4` | `--terminal-selection` | `rgba(255, 255, 255, 0.16)` |
+| `--terminal-ansi-0`  | `#2a2927` | `--terminal-ansi-1`    | `#e0635a`                   |
+| `--terminal-ansi-2`  | `#5fbf85` | `--terminal-ansi-3`    | `#d6a647`                   |
+| `--terminal-ansi-4`  | `#7d9bc8` | `--terminal-ansi-5`    | `#b48ec6`                   |
+| `--terminal-ansi-6`  | `#6fb5ab` | `--terminal-ansi-7`    | `#c9c7c3`                   |
+| `--terminal-ansi-8`  | `#6f6d68` | `--terminal-ansi-9`    | `#ef837b`                   |
+| `--terminal-ansi-10` | `#7fd3a2` | `--terminal-ansi-11`   | `#e8c06a`                   |
+| `--terminal-ansi-12` | `#9db9e3` | `--terminal-ansi-13`   | `#cdaade`                   |
+| `--terminal-ansi-14` | `#8fd0c6` | `--terminal-ansi-15`   | `#f7f6f4`                   |
+
+<!-- END:tokens:terminal-ansi -->
+
 ## 3. Typography and eyebrow contract
 
 Geist Variable (wght) is the runtime typeface. JetBrains Mono is reserved
@@ -765,17 +825,17 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:fonts -->
 
-| Token                    | Value                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`             |
-| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace`         |
-| `--font-display`         | `var(--font-sans)`                                                              |
-| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif` |
-| `--font-weight-normal`   | `400`                                                                           |
-| `--font-weight-medium`   | `510`                                                                           |
-| `--font-weight-semibold` | `600`                                                                           |
-| `--font-weight-bold`     | `700`                                                                           |
-| `--font-weight-display`  | `620`                                                                           |
+| Token                    | Value                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`                               |
+| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace` |
+| `--font-display`         | `var(--font-sans)`                                                                                |
+| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif`                   |
+| `--font-weight-normal`   | `400`                                                                                             |
+| `--font-weight-medium`   | `510`                                                                                             |
+| `--font-weight-semibold` | `600`                                                                                             |
+| `--font-weight-bold`     | `700`                                                                                             |
+| `--font-weight-display`  | `620`                                                                                             |
 
 <!-- END:tokens:fonts -->
 
@@ -836,8 +896,8 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--tracking-modal-title`  | `-0.012em` | `--tracking-section-head` | `-0.008em` |
 | `--tracking-tight`        | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
 | `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
-| `--tracking-kbd`          | `0.03em`   | `--tracking-body`         | `-0.006em` |
-| `--tracking-row-title`    | `-0.01em`  |                           |            |
+| `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
+| `--tracking-body`         | `-0.006em` | `--tracking-row-title`    | `-0.01em`  |
 
 <!-- END:tokens:tracking-ladder -->
 
@@ -968,15 +1028,16 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                       | Value                                                                         | Token                           | Value                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
-| `--shadow-overlay`          | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`            | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
-| `--shadow-focus-ring`       | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`          | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
-| `--shadow-hairline`         | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`       | `inset 0 0 0 1px var(--color-line-soft)`                                      |
-| `--shadow-inset-strong`     | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` |
-| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                       | `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       |
-| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                        | `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                              |
-| `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`     | `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                      |
+| Token                           | Value                                                                         | Token                       | Value                                                                       |
+| ------------------------------- | ----------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
+| `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                  |
+| `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                  |
+| `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                    |
+| `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-danger-inset`     | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)` |
+| `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` | `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                     |
+| `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       | `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                      |
+| `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                              | `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`   |
+| `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                      |                             |                                                                             |
 
 <!-- END:tokens:shadows -->
 

@@ -177,6 +177,9 @@ func (m *Manager) Begin(
 	if m.revision[targetKey] != revision || currentGeneration != generation {
 		return BeginResult{}, ErrLoginSessionStale
 	}
+	if previous, ok := m.byTarget[targetKey]; ok {
+		m.removeSessionLocked(targetKey, previous)
+	}
 	m.byTarget[targetKey] = &loginSession{
 		state:                 state,
 		expiresAt:             expiresAt,

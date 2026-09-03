@@ -1,0 +1,457 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn } from "storybook/test";
+
+import { buildTerminalQuote } from "../../lib/terminal-quote";
+import {
+  ANSWERED_PASSWORD_REQUEST,
+  CONFIRMATION_REQUEST,
+  DEV_SERVER_TERMINAL,
+  EXPIRED_PASSWORD_REQUEST,
+  JOURNAL_FIXTURES,
+  PASSWORD_REQUEST,
+  PSQL_TERMINAL,
+  RECORDING_FIXTURE,
+  REJECTED_PASSWORD_REQUEST,
+  SUPERSEDED_PASSWORD_REQUEST,
+  TERMINAL_GRANT_FIXTURES,
+} from "../../mocks/terminal-fixtures";
+import { TerminalApprovalDetail } from "../terminal-approval-detail";
+import { TerminalGrantRow } from "../terminal-grant-row";
+import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-input-request";
+import { TerminalInputRequestStack } from "../terminal-input-request-stack";
+import { TerminalJournalHead, TerminalJournalPanel } from "../terminal-journal-panel";
+import { TerminalGapSeam, TerminalStreamNotice } from "../terminal-notices";
+import { TerminalQuoteBlock, TerminalSelectionActions } from "../terminal-quote-block";
+import { TerminalRecordingPlayer } from "../terminal-recording-player";
+import { TerminalVisualStage } from "./terminal-visual-stage";
+
+/**
+ * The surfaces around the grid: questions, approvals, the journal, and replay.
+ */
+const meta: Meta = {
+  title: "systems/terminal/components/TerminalSurfaces",
+  parameters: { layout: "fullscreen" },
+};
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const NOOP = fn();
+
+/**
+ * One minute into the request's frozen fifteen-minute lifetime, so the capture
+ * reads the same on any day.
+ */
+const ONE_MINUTE_IN = Date.parse(PASSWORD_REQUEST.requested_at) + 60_000;
+
+/**
+ * VC-08 — a redacted question, pinned to its terminal.
+ *
+ * The pin names the requester the daemon published. A watcher sees the same
+ * question with no write row — take control lives on the header.
+ */
+export const InputRequestRedacted: Story = {
+  name: "VC-08 · Redacted question",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputRequestCard
+        canAnswerDirectly
+        now={ONE_MINUTE_IN}
+        onAnswer={NOOP}
+        onReject={NOOP}
+        request={PASSWORD_REQUEST}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** A plain question keeps the same anatomy without the hidden field. */
+export const InputRequestPlain: Story = {
+  name: "Plain question",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputRequestCard
+        canAnswerDirectly
+        now={Date.parse(CONFIRMATION_REQUEST.requested_at) + 60_000}
+        onAnswer={NOOP}
+        onReject={NOOP}
+        request={CONFIRMATION_REQUEST}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** A watcher still sees the question; the write row is absent. */
+export const InputRequestWatcher: Story = {
+  name: "Watcher — question only",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputRequestCard
+        canAnswerDirectly={false}
+        now={ONE_MINUTE_IN}
+        onAnswer={NOOP}
+        onReject={NOOP}
+        request={PASSWORD_REQUEST}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** Origin is named only when more than one terminal is asking. */
+export const InputRequestStacked: Story = {
+  name: "Stacked cross-terminal origin",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputRequestStack
+        canAnswerDirectly
+        now={ONE_MINUTE_IN}
+        onAnswer={NOOP}
+        onReject={NOOP}
+        pending={[PASSWORD_REQUEST, CONFIRMATION_REQUEST]}
+        titles={
+          new Map([
+            [PASSWORD_REQUEST.terminal_id, PSQL_TERMINAL.title],
+            [CONFIRMATION_REQUEST.terminal_id, "ssh staging"],
+          ])
+        }
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** VC-09 — the four resolved outcomes, each with its own copy. */
+export const InputRequestResolved: Story = {
+  name: "VC-09 · Four quiet outcomes",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputResolvedRow request={ANSWERED_PASSWORD_REQUEST} />
+      <TerminalInputResolvedRow request={REJECTED_PASSWORD_REQUEST} />
+      <TerminalInputResolvedRow request={SUPERSEDED_PASSWORD_REQUEST} supersededBy="Marina" />
+      <TerminalInputResolvedRow request={EXPIRED_PASSWORD_REQUEST} />
+    </TerminalVisualStage>
+  ),
+};
+
+/**
+ * The exec detail on its own.
+ *
+ * The normative VC-10 row is captured from the shipped decision surface —
+ * `systems/session/components/PermissionDock` → `TerminalExec` — because the
+ * title and the decisions belong to the dock. This story isolates the part the
+ * terminal system owns.
+ */
+export const ExecApproval: Story = {
+  name: "Exec approval — detail only",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="px-3.5 py-3">
+        <TerminalApprovalDetail
+          detail={{
+            kind: "exec",
+            command: "bun add @xterm/xterm @xterm/addon-fit",
+            cwd: "~/dev/atlas-api",
+            terminalId: DEV_SERVER_TERMINAL.id,
+            risk: "ordinary",
+          }}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+};
+
+/** The irreversible detail on its own; VC-11 is captured from the dock. */
+export const IrreversibleApproval: Story = {
+  name: "Irreversible command — detail only",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="px-3.5 py-3">
+        <TerminalApprovalDetail
+          detail={{
+            kind: "exec",
+            command: "rm -rf /var/lib/atlas/journal-backups",
+            cwd: "~/dev/atlas-api",
+            terminalId: DEV_SERVER_TERMINAL.id,
+            risk: "irreversible",
+          }}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+};
+
+/** The typing detail on its own; VC-12a is captured from the dock. */
+export const TypingGrant: Story = {
+  name: "Typing permission — detail only",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="px-3.5 py-3">
+        <TerminalApprovalDetail
+          detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null }}
+          terminalTitle={PSQL_TERMINAL.title}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+};
+
+/**
+ * VC-12b — what those permissions look like once remembered.
+ *
+ * The board labels these rows "Can type in psql" and "Always allowed: bun add
+ * …". The daemon stores a digest of the exact tool input, never the input, the
+ * terminal id, or the command. Rows say what the decision covers and show the
+ * digest. Authorized runtime-truth delta.
+ */
+export const GrantRows: Story = {
+  name: "VC-12b · Remembered permissions",
+  render: () => (
+    <TerminalVisualStage>
+      {TERMINAL_GRANT_FIXTURES.map(grant => (
+        <TerminalGrantRow grant={grant} key={grant.id} onRevoke={NOOP} />
+      ))}
+    </TerminalVisualStage>
+  ),
+};
+
+const JOURNAL_ACTIONS = {
+  onFiltersChange: NOOP,
+  onLoadMore: NOOP,
+  onOpenNewTerminal: NOOP,
+  onOpenTerminal: NOOP,
+  onReplay: NOOP,
+};
+
+const ALL_PROFILE_JOURNAL_FIXTURES = JOURNAL_FIXTURES.map((entry, index) => ({
+  ...entry,
+  profile_name: ["work", "staging", "release"][index % 3],
+}));
+
+/** VC-13 — the populated journal, with mixed detection confidence. */
+export const Journal: Story = {
+  name: "VC-13 · Journal",
+  parameters: {
+    docs: {
+      description: {
+        story: "Stopped and Ended use the hollow outline plate. A failed exit stays a filled tint.",
+      },
+    },
+  },
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[{ id: "actor", field: "actor", operator: "is", values: ["agent"] }]}
+        entries={JOURNAL_FIXTURES}
+        hasMore
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** VC-14a — nothing has run, and the way out is a terminal. */
+export const JournalEmpty: Story = {
+  name: "VC-14a · Empty journal",
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel {...JOURNAL_ACTIONS} chips={[]} entries={[]} hasMore={false} />
+    </TerminalVisualStage>
+  ),
+};
+
+/** VC-14b — nothing matched, which is a different fact and a different offer. */
+export const JournalFilteredEmpty: Story = {
+  name: "VC-14b · Filtered to nothing",
+  args: {},
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[
+          { id: "result", field: "result", operator: "is", values: ["failed"] },
+          { id: "actor", field: "actor", operator: "is", values: ["human"] },
+        ]}
+        entries={[]}
+        examinedCount={50}
+        hasMore
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+const FROZEN_CLOCK = () => () => undefined;
+
+/** Selected row as an elevated plate, with the record rail open. */
+export const JournalSelectedRecord: Story = {
+  name: "VC-13b · Selected record",
+  args: {},
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[]}
+        entries={JOURNAL_FIXTURES}
+        hasMore
+        selectedCommandId="cmd-77c1d0"
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** Replay stays inside the journal — the table chrome is not replaced. */
+export const JournalReplayInTable: Story = {
+  name: "VC-22b · Replay in journal",
+  args: {},
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[]}
+        entries={JOURNAL_FIXTURES}
+        hasMore
+        replay={
+          <TerminalRecordingPlayer
+            autoPlay
+            onOpenJournal={NOOP}
+            recordedAtLabel="12:47"
+            recordingId="rec-9f21ac"
+            retentionNote="kept for 30 days"
+            schedule={FROZEN_CLOCK}
+            source={RECORDING_FIXTURE}
+            title="make gate"
+          />
+        }
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** VC-18 — the read-only all-profiles view labels every row's owner. */
+export const JournalAllProfiles: Story = {
+  name: "VC-18 · All profiles (non-normative)",
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Non-normative: the boards predate profile segmentation and contain no profile state, so this has no reference to compare against. The contract is `_uiux.md` US-033.AC-3/AC-4 plus the `DESIGN.md` grammar. Every row is labelled with its owning profile, and the view offers no mutating action.",
+      },
+    },
+  },
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[]}
+        entries={ALL_PROFILE_JOURNAL_FIXTURES}
+        hasMore
+        showOwner
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** VC-20 — output was skipped, and a viewer that kept falling behind. */
+export const SkippedContent: Story = {
+  name: "VC-20 · Skipped content and falling behind",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-code-block text-terminal-fg">
+        <span className="block">
+          <span className="text-terminal-ansi-8">12:44:01</span> GET /api/journal 200 4.1ms
+        </span>
+        <TerminalGapSeam gap={{ droppedBytes: 49_152, fromSeq: 100n, toSeq: 49_252n }} />
+        <span className="block">
+          <span className="text-terminal-ansi-8">12:44:09</span> GET /api/terminals 200 1.9ms
+        </span>
+      </div>
+      <TerminalStreamNotice
+        code="slow_consumer"
+        message="viewer queue was full for 10s"
+        onReconnect={NOOP}
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/**
+ * VC-22 — a recording, mid-replay.
+ *
+ * The clock is frozen by handing the player a scheduler that never fires, then
+ * seeking: the replay is genuinely playing and genuinely at 0:51, so the
+ * capture reads the same on every run instead of racing the wall clock.
+ */
+export const RecordingReplay: Story = {
+  name: "VC-22 · Replay",
+  render: () => (
+    <TerminalVisualStage>
+      <div className="flex h-[360px] flex-col">
+        <TerminalRecordingPlayer
+          autoPlay
+          onOpenJournal={NOOP}
+          recordedAtLabel="12:47"
+          recordingId="rec-9f21ac"
+          retentionNote="kept for 30 days"
+          schedule={FROZEN_CLOCK}
+          source={RECORDING_FIXTURE}
+          title="make gate"
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+  play: async ({ canvas, userEvent }) => {
+    const thumb = await canvas.findByRole("slider", { name: "Playback position" });
+    await userEvent.click(thumb);
+    await userEvent.keyboard("{ArrowRight>510/}");
+    await expect(canvas.getByTestId("terminal-recording-clock")).toHaveTextContent("0:51 / 2:29");
+  },
+  tags: ["play-fn"],
+};
+
+/** The quote a selection becomes, waiting in the composer. */
+export const QuoteBlock: Story = {
+  name: "Quote in the composer",
+  render: () => (
+    <TerminalVisualStage width="block">
+      <div className="p-4">
+        <TerminalQuoteBlock
+          onRemove={NOOP}
+          quote={buildTerminalQuote({
+            terminalId: DEV_SERVER_TERMINAL.id,
+            fromLine: 214,
+            lines: [
+              "12:41:04 [vite] Internal server error: Failed to resolve import",
+              '"@compozy/ui/terminal-view" from "src/systems/terminal/terminal-pane.tsx"',
+            ],
+          })}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+};
+
+/** With no session, the gesture offers a way in rather than dead-ending. */
+export const SelectionWithoutSession: Story = {
+  name: "Selection — no active session",
+  render: () => (
+    <TerminalVisualStage width="block">
+      <div className="p-4">
+        <TerminalSelectionActions
+          hasActiveSession={false}
+          onChooseSession={NOOP}
+          onCopy={NOOP}
+          onSendToConversation={NOOP}
+          onStartSession={NOOP}
+        />
+      </div>
+    </TerminalVisualStage>
+  ),
+};

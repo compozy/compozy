@@ -4,7 +4,7 @@ area: ET
 title: Navigate the desktop app registry
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; the registry labels read Bridges (route `/bridges`) and Sandbox (route `/sandbox`), and every dock tooltip, Go menu entry, window title, and palette hit shows the same label from the one descriptor; Marketplace owns its Extensions, Skills, and MCP routes; Sandbox and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
+expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; the registry labels read Bridges (route `/bridges`) and Sandbox (route `/sandbox`), and every dock tooltip, Go menu entry, window title, and palette hit shows the same label from the one descriptor; Marketplace owns its Extensions, Skills, and MCP routes; the dock splits after Terminal so Agents, Network, Tasks, Loops, Jobs, and Triggers share one division, then Marketplace/Bridges/Knowledge, then Sandbox/Vault; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
 entry_points: web desktop dock; command palette; settings cog; Catalog and System destinations
 qa_status: untested
 bug_ids: BUG-20260802-retired-marketplace-kind-alias
@@ -47,3 +47,7 @@ One array feeds the dock, the Go menu, window titles, and the command palette, s
 question is consistency: a persona searching the palette for "Bridges" must find the bridges app,
 and no surface may still say Connections or Permissions for those two apps. `Loops`, `Jobs`,
 `Triggers`, and `Network` were deliberately left alone pending an owner decision on the alias table.
+
+QA impact 2026-09-01: the dock now draws a group seam after Terminal so Agents, Network, Tasks,
+Loops, Jobs, and Triggers share one visual division (matching the catalog groups and the Go menu).
+Confirm the three seams: after Terminal, after Triggers, and after Knowledge.

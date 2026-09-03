@@ -687,9 +687,11 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   const palette = appPage.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
   const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
-  await search.fill("tasks");
-  await paletteRow(palette, "app.open.tasks").click();
-  await expect(appWindow(appPage, "tasks")).toBeVisible();
+  await search.fill("terminal");
+  await paletteRow(palette, "app.open.terminal").click();
+  await expect(appWindow(appPage, "terminal")).toBeVisible();
+  await expect(palette).toHaveCount(0);
+  await expect(appPage.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
 
   await appPage.keyboard.press("ControlOrMeta+K");
   await search.fill("Palette target");
@@ -2786,7 +2788,7 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   await expect(restored).toHaveCount(1);
   await expect(restored.getByTestId("permission-dock")).toBeVisible();
   await restored.getByTestId("permission-reject-menu-trigger").click();
-  await restored.getByTestId("permission-reject-always").click();
+  await appPage.getByTestId("permission-reject-always").click();
   await expect(restored.getByTestId("permission-dock")).toBeHidden();
   await expect(
     appPage.getByRole("button", { name: "Sessions" }).locator('[data-slot="os-dock-badge"]')

@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 2643f4aba
 evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/info-compozy.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
 last_report: docs/qa/reports/2026-08-25-skill-sources.md
-overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates
+overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates; SITE-terminal-docs-truth
 ---
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: the bundled skill was read through CLI only; the scenario requires agreement across all listed surfaces.
@@ -57,3 +57,12 @@ QA impact 2026-08-10: the official skill gained `references/desktop.md` and desk
 its public prose moved to CompozyOS. Reset to `untested`; Task 07 owns the cross-plane re-walk.
 
 QA impact 2026-08-25 (skill sources): already `untested`, and this cycle adds a reason to walk it. Task_07 rewrote two of the bundled skill's references — `references/configuration.md` (the two source keys, their scopes, and the agent-write claim) and `references/tools-and-skills.md` (origins, precedence, suppression, exposure). The scenario's promise is that every read plane agrees on one `compozy` entry; this cycle's specific risk is that the served body now describes behavior the runtime does not implement. Read the configuration reference against the shipped tool surface, not just against itself — see `ET-skill-source-agent-parity` for the agent-write discrepancy this cycle found. Rides along in `CH-skill-sources-agent-plane`.
+
+QA impact 2026-08-26 (integrated-terminal): the official skill gained `references/terminal.md` with a
+terminal dispatch row and reference-inventory entry, and task 08 changed the platform fact it teaches
+(local Windows now reports interactive capability; Windows sandbox workspaces stay execute-only). The
+re-walk must confirm the router resolves that reference on every read plane and that its tool ids,
+platform facts, and safety rules agree with both the daemon and the public terminal pages. The current
+pass verdict predates the terminal reference, so this change resets the scenario to `untested`.
+`CH-terminal-docs-first-success` walks it alongside `SITE-terminal-docs-truth`, which owns the public
+pages so this file is not duplicated for them.

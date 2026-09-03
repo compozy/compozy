@@ -133,7 +133,7 @@ func (n *daemonNativeTools) memoryShow(
 		"filename":              location.Filename,
 		nativeToolsScopeKey:     location.Scope,
 		nativeToolsWorkspaceKey: location.Workspace,
-		"content":               redactedContent,
+		nativeToolsContentKey:   redactedContent,
 		nativeToolsRedactedKey:  redactedContent != string(content),
 	}, location.Filename)
 }
@@ -187,7 +187,7 @@ func (n *daemonNativeTools) memoryNote(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	content, err := requiredNativeString(req.ToolID, "content", input.Content)
+	content, err := requiredNativeString(req.ToolID, nativeToolsContentKey, input.Content)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

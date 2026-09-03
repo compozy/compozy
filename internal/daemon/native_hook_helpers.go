@@ -285,7 +285,7 @@ func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 		"priority":                   decl.Priority,
 		"executor_kind":              string(decl.ExecutorKind),
 		"command":                    decl.Command,
-		"args":                       append([]string(nil), decl.Args...),
+		nativeToolsArgsKey:           append([]string(nil), decl.Args...),
 		"env":                        cloneStringMap(decl.Env),
 		"secret_env":                 cloneStringMap(decl.SecretEnv),
 		"matcher":                    decl.Matcher,

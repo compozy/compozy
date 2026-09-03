@@ -42,6 +42,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("udsapi: shutdown window-manager streams: %w", err))
 		}
+		if err := s.handlers.ShutdownTerminalStreams(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("udsapi: shutdown terminal streams: %w", err))
+		}
 	}
 	if listener != nil {
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {

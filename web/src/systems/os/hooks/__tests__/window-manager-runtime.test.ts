@@ -248,6 +248,27 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should not republish an unchanged load error", () => {
+    const runtime = new WindowManagerRuntime(new QueryClient());
+    runtime.start();
+    const onProjection = vi.fn();
+    const unsubscribe = runtime.subscribe(onProjection);
+
+    runtime.setLoadError(null);
+    expect(onProjection).not.toHaveBeenCalled();
+
+    const loadError = new Error("window manager unavailable");
+    runtime.setLoadError(loadError);
+    runtime.setLoadError(loadError);
+    expect(onProjection).toHaveBeenCalledOnce();
+
+    runtime.setLoadError(null);
+    runtime.setLoadError(null);
+    expect(onProjection).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    runtime.stop();
+  });
+
   it("Should keep gesture samples off the runtime projection channel", () => {
     const runtime = new WindowManagerRuntime(new QueryClient());
     runtime.start();
@@ -356,6 +377,132 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should share one in-flight semantic open instead of creating a duplicate window", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const deepLink = runtime.openOrFocus({
+      app: "network",
+      route: { pathname: "/network", search: {} },
+    });
+    const dock = runtime.openOrFocus({ app: "network" });
+
+    expect(dock.windowId).toBe(deepLink.windowId);
+    await expect(Promise.all([deepLink.completion, dock.completion])).resolves.toEqual([
+      true,
+      true,
+    ]);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      SNAPSHOT.revision,
+      expect.objectContaining({
+        commandId: "window.open",
+        payload: expect.objectContaining({
+          window: expect.objectContaining({ app: "network" }),
+        }),
+      })
+    );
+    runtime.stop();
+  });
+
+  it("Should reject a semantic-open continuation after the runtime binding changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    let resolveOpen!: (result: Awaited<ReturnType<typeof executeWindowManagerCommand>>) => void;
+    vi.mocked(executeWindowManagerCommand).mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveOpen = resolve;
+      })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.openOrFocus({
+      app: "session",
+      instanceKey: "session-pending",
+      route: { pathname: "/sessions/session-pending", search: { tab: "messages" } },
+    });
+    const continuation = runtime.openOrFocus({
+      app: "session",
+      instanceKey: "session-pending",
+      route: { pathname: "/sessions/session-pending", search: { tab: "events" } },
+    });
+    await flushCommandQueue();
+
+    const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
+    queryClient.setQueryData(
+      windowManagerKeys.snapshot("workspace:next", "marketing"),
+      nextSnapshot
+    );
+    queryClient.setQueryData(windowManagerKeys.config("workspace:next", "client:next"), {
+      ...SETTINGS_SECTION,
+      workspaceId: "workspace:next",
+    });
+    runtime.bind({
+      workspaceId: "workspace:next",
+      profileId: "marketing",
+      clientId: "client:next",
+    });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:next",
+      clientId: "client:next",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    resolveOpen({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+
+    await expect(first.completion).resolves.toBe(true);
+    await expect(continuation.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    runtime.stop();
+  });
+
   it("Should dispatch frame resizes as wire rects for windows and islands", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
@@ -447,6 +594,7 @@ describe("WindowManagerRuntime", () => {
     const second = runtime.navigateWindow("app:agents", opsRoute);
 
     const routeWhileQueued = runtime.getState().windows["app:agents"]?.route;
+    expect(runtime.getState().windows["app:agents"]?.instanceKey).toBeNull();
     await flushCommandQueue();
     resolveFirst({
       snapshot: snapshotWithAgentsRoute(releaseRoute, 8),
@@ -481,6 +629,51 @@ describe("WindowManagerRuntime", () => {
     expect(runtime.getState().windows["app:agents"]?.route).toEqual(opsRoute);
     runtime.stop();
   });
+
+  it.each([
+    { label: "named", instanceKey: "reviewer", projectedInstanceKey: "reviewer" },
+    { label: "empty", instanceKey: "", projectedInstanceKey: null },
+  ])(
+    "Should project a pending $label retarget as one semantic route and instance identity",
+    async ({ instanceKey, projectedInstanceKey }) => {
+      const initialRoute = { pathname: "/agents", search: {} };
+      const retargetRoute = { pathname: "/agents/reviewer", search: {} };
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(
+        windowManagerKeys.snapshot("workspace:test", "marketing"),
+        snapshotWithAgentsRoute(initialRoute)
+      );
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockReturnValue(
+        new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
+      );
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: "app:agents",
+        focusOrder: ["app:agents"],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.retargetWindow("app:agents", instanceKey, retargetRoute);
+      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
+
+      expect(runtime.getState().windows["app:agents"]).toMatchObject({
+        instanceKey: projectedInstanceKey,
+        route: retargetRoute,
+      });
+      runtime.stop();
+    }
+  );
 
   it("Should restore the authoritative route when navigation is rejected", async () => {
     const initialRoute = { pathname: "/agents", search: { q: "release" } };
@@ -741,6 +934,33 @@ describe("WindowManagerRuntime", () => {
       presentationRevision: 2,
       activeDesktopId: "desktop:two",
     });
+    runtime.stop();
+  });
+
+  it("Should retain the local attachment token across tokenless stream updates", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    const view = {
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId: "client:web",
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    };
+
+    runtime.setClient({ ...view, presentationRevision: 1 });
+    runtime.setClient({ ...view, presentationRevision: 1, attachmentToken: "attachment-token" });
+    runtime.setClient({ ...view, presentationRevision: 2 });
+
+    expect(runtime.getState().clientAttachmentToken).toBe("attachment-token");
+    runtime.setClient(null);
+    expect(runtime.getState().clientAttachmentToken).toBeNull();
     runtime.stop();
   });
 

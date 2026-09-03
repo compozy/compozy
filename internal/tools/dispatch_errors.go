@@ -39,7 +39,6 @@ func normalizeBackendError(id ToolID, err error) error {
 		id,
 		fmt.Sprintf("tool %q backend failed", id),
 		fmt.Errorf("%w: %w", ErrToolBackendFailed, err),
-		ReasonBackendUnhealthy,
 	))
 }
 
@@ -86,7 +85,6 @@ func normalizeToolError(id ToolID, err error) error {
 		id,
 		fmt.Sprintf("tool %q failed", id),
 		fmt.Errorf("%w: %w", ErrToolBackendFailed, err),
-		ReasonBackendUnhealthy,
 	)
 }
 

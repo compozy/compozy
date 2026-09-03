@@ -7,6 +7,11 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@tanstack/react-query", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  return { ...actual, useQuery: vi.fn() };
+});
+vi.mock("@/systems/profiles", () => ({ useProfileReadScope: vi.fn() }));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() }));
 // The list preference decides the order the modal query asks for; its own
 // round-trip is covered where it lives.
@@ -57,6 +62,8 @@ vi.mock("../use-attention-policy", () => ({
 }));
 
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
+import { useQuery } from "@tanstack/react-query";
+import { useProfileReadScope } from "@/systems/profiles";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
@@ -145,6 +152,15 @@ describe("useOsAttention", () => {
       isLoading: false,
     } as never);
     vi.mocked(useTasks).mockReturnValue({ data: [], isError: false, isLoading: false } as never);
+    vi.mocked(useProfileReadScope).mockReturnValue({
+      destination: { profile: "work" },
+      destinationOwner: { id: "profile-work" },
+    } as never);
+    vi.mocked(useQuery).mockReturnValue({
+      data: { pending: [], resolved: [] },
+      isError: false,
+      isLoading: false,
+    } as never);
     vi.mocked(useAttentionSummary).mockReturnValue({
       summary: { needsYou: 0, finished: 0 },
       stale: false,
@@ -156,6 +172,7 @@ describe("useOsAttention", () => {
       disconnected: false,
       loading: false,
     });
+    vi.mocked(useLoopNodeExists).mockImplementation(() => false);
   });
 
   it("Should read the archive only through the modal catalog leg", () => {
@@ -300,5 +317,120 @@ describe("useOsAttention", () => {
     expect(result.current.notificationCount).toBe(6);
     expect(result.current.loopRequestsDisconnected).toBe(true);
     expect(result.current.sections.needsYou[0]).toMatchObject({ kind: "loop-request" });
+  });
+
+  it("Should count only terminal approvals owned by the current workspace and profile", () => {
+    const current = waitingSession("sess-current");
+    current.profile_id = "profile-work";
+    current.pending_interactions = [
+      {
+        interaction_id: "interaction-terminal",
+        kind: "permission",
+        provider_request_id: "request-terminal",
+        title: "Terminal Exec",
+        tool_id: "compozy__terminal_exec",
+        status: "pending",
+        created_at: "2026-08-25T12:00:00Z",
+      },
+      {
+        interaction_id: "interaction-other",
+        kind: "permission",
+        provider_request_id: "request-other",
+        title: "Workspace Update",
+        tool_id: "compozy__workspace_update",
+        status: "pending",
+        created_at: "2026-08-25T12:00:00Z",
+      },
+    ];
+    const foreign = waitingSession("sess-foreign");
+    foreign.workspace_id = "workspace-foreign";
+    foreign.profile_id = "profile-personal";
+    foreign.pending_interactions = [
+      { ...current.pending_interactions[0]!, interaction_id: "foreign" },
+    ];
+    vi.mocked(useSessions)
+      .mockReturnValueOnce(sessionsQuery({ data: [current, foreign] }))
+      .mockReturnValueOnce(sessionsQuery({ data: [] }))
+      .mockReturnValueOnce(sessionsQuery({ data: [] }));
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges.terminal).toBe(1);
+  });
+
+  it("Should surface pending terminal input in Needs you and the attention count", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        pending: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            profile_id: "profile-work",
+            profile_name: "work",
+            reason: "I need the staging database password",
+            prompt_excerpt: "Password for user atlas:",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester: { kind: "agent", id: "claude-code" },
+          },
+        ],
+        resolved: [],
+      },
+      isError: false,
+      isLoading: false,
+    } as never);
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges.terminal).toBe(1);
+    expect(result.current.notificationCount).toBe(1);
+    expect(result.current.sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "terminal-input",
+        id: "req-3f8a",
+        title: "Password requested",
+        agentName: "claude-code",
+        terminalId: "term-9cd7e14b2a66",
+        workspaceId: workspace.id,
+        workspaceLabel: "alpha",
+        stale: false,
+      }),
+    ]);
+  });
+
+  it("Should keep a healthy terminal count when the session stream is stale", () => {
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 3, finished: 0 },
+      stale: true,
+      loading: false,
+    });
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        pending: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            profile_id: "profile-work",
+            profile_name: "work",
+            reason: "I need the staging database password",
+            prompt_excerpt: "Password for user atlas:",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester: { kind: "agent", id: "claude-code" },
+          },
+        ],
+        resolved: [],
+      },
+      isError: false,
+      isLoading: false,
+    } as never);
+
+    const { result } = renderHook(() => useOsAttention(workspace, "stale", false));
+
+    expect(result.current.badges.sessions).toBeUndefined();
+    expect(result.current.badges.terminal).toBe(1);
+    expect(result.current.notificationCount).toBe(1);
   });
 });

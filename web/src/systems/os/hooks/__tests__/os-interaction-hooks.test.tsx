@@ -13,7 +13,6 @@ import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
-import { WindowLiveDataContext } from "../../contexts/window-live-data-context";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
@@ -194,6 +193,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
   const state: OsDesktopRuntimeStore = {
     snapshot: authoritative ? SNAPSHOT : null,
     windowManagerConfig: authoritative ? CONFIG : null,
+    clientAttachmentToken: null,
     client: authoritative
       ? {
           workspaceId: "workspace:test",
@@ -650,23 +650,33 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toBe(true);
   });
 
-  it("Should derive a retained descendant's live lease from its own window", () => {
+  it("Should lease live data to the focused and most recent visible background window", () => {
     const shell = createShell();
-    const Shell = shell.wrapper;
-    const LiveDataProvider = ({ children }: { children: ReactNode }) => {
-      const liveDataEnabled = useWindowLiveDataEnabled("window:primary");
-      return <WindowLiveDataContext value={liveDataEnabled}>{children}</WindowLiveDataContext>;
-    };
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <Shell>
-        <LiveDataProvider>{children}</LiveDataProvider>
-      </Shell>
+    const third = windowFixture("window:third", 3);
+    const { result } = renderHook(
+      () => ({
+        primary: useWindowLiveDataEnabled("window:primary"),
+        peer: useWindowLiveDataEnabled("window:peer"),
+        third: useWindowLiveDataEnabled("window:third"),
+      }),
+      { wrapper: shell.wrapper }
     );
-    const { result } = renderHook(() => useCurrentWindowLiveDataEnabled(), { wrapper });
 
-    expect(result.current).toBe(true);
+    expect(result.current).toEqual({ primary: true, peer: true, third: false });
+    act(() =>
+      shell.setRuntimeState({
+        windows: { ...shell.state.windows, [third.id]: third },
+        focusedId: third.id,
+        client: {
+          ...shell.state.client!,
+          focusedWindowId: third.id,
+          focusOrder: [third.id, "window:primary", "window:peer"],
+        },
+      })
+    );
+    expect(result.current).toEqual({ primary: true, peer: false, third: true });
     act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
-    expect(result.current).toBe(false);
+    expect(result.current).toEqual({ primary: false, peer: false, third: false });
   });
 
   it("Should disable retained window work while the browser document is hidden", () => {

@@ -43,6 +43,7 @@ type Option func(*Registry)
 type Registry struct {
 	mu                                        sync.RWMutex
 	globalSkills                              map[string]*Skill
+	bundledRuntimeSkills                      map[string]*Skill
 	globalCommandCandidates                   []*Skill
 	resourceAuthority                         bool
 	resourceRevision                          int64
@@ -113,6 +114,7 @@ func WithEventSummaryStore(events store.EventSummaryStore) Option {
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
 		globalSkills:                              make(map[string]*Skill),
+		bundledRuntimeSkills:                      make(map[string]*Skill),
 		resourceWorkspaces:                        make(map[string]map[string]*Skill),
 		resourceProfiles:                          make(map[string]map[string]*Skill),
 		resourceWorkspaceProfiles:                 make(map[string]map[string]*Skill),

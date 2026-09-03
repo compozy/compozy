@@ -147,87 +147,89 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 }
 
 func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should delegate the task run lifecycle in order", func(t *testing.T) {
+		t.Parallel()
 
-	calls := make([]string, 0, 3)
-	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+		calls := make([]string, 0, 3)
+		now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
-	tasks := &testutil.StubTaskManager{
-		EnqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			calls = append(calls, "enqueue")
-			return &taskpkg.Run{
-				ID:             "run-1",
-				TaskID:         spec.TaskID,
-				Status:         taskpkg.TaskRunStatusQueued,
-				Attempt:        1,
-				Origin:         actor.Origin,
-				IdempotencyKey: spec.IdempotencyKey,
-				QueuedAt:       now,
-			}, nil
-		},
-		StartRunFn: func(_ context.Context, runID string, _ taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			calls = append(calls, "start")
-			return &taskpkg.Run{
-				ID:        runID,
-				TaskID:    "task-1",
-				Status:    taskpkg.TaskRunStatusRunning,
-				Attempt:   1,
-				SessionID: "sess-1",
-				Origin:    actor.Origin,
-				QueuedAt:  now,
-				StartedAt: now.Add(2 * time.Minute),
-			}, nil
-		},
-		CompleteRunFn: func(_ context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			calls = append(calls, "complete")
-			return &taskpkg.Run{
-				ID:       runID,
-				TaskID:   "task-1",
-				Status:   taskpkg.TaskRunStatusCompleted,
-				Attempt:  1,
-				Origin:   actor.Origin,
-				QueuedAt: now,
-				EndedAt:  now.Add(3 * time.Minute),
-				Result:   result.Value,
-			}, nil
-		},
-	}
+		tasks := &testutil.StubTaskManager{
+			EnqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
+				calls = append(calls, "enqueue")
+				return &taskpkg.Run{
+					ID:             "run-1",
+					TaskID:         spec.TaskID,
+					Status:         taskpkg.TaskRunStatusQueued,
+					Attempt:        1,
+					Origin:         actor.Origin,
+					IdempotencyKey: spec.IdempotencyKey,
+					QueuedAt:       now,
+				}, nil
+			},
+			StartRunFn: func(_ context.Context, runID string, _ taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
+				calls = append(calls, "start")
+				return &taskpkg.Run{
+					ID:        runID,
+					TaskID:    "task-1",
+					Status:    taskpkg.TaskRunStatusRunning,
+					Attempt:   1,
+					SessionID: "sess-1",
+					Origin:    actor.Origin,
+					QueuedAt:  now,
+					StartedAt: now.Add(2 * time.Minute),
+				}, nil
+			},
+			CompleteRunFn: func(_ context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
+				calls = append(calls, "complete")
+				return &taskpkg.Run{
+					ID:       runID,
+					TaskID:   "task-1",
+					Status:   taskpkg.TaskRunStatusCompleted,
+					Attempt:  1,
+					Origin:   actor.Origin,
+					QueuedAt: now,
+					EndedAt:  now.Add(3 * time.Minute),
+					Result:   &result.Value,
+				}, nil
+			},
+		}
 
-	fixture := newHandlerFixtureWithTasks(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		tasks,
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
-		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
-	}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+			return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+		}
 
-	resp := performRequest(
-		t,
-		fixture.Engine,
-		"POST",
-		"/tasks/task-1/runs",
-		[]byte(`{"idempotency_key":"key-1"}`),
-	)
-	if resp.Code != 201 {
-		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, 201, resp.Body.String())
-	}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			"POST",
+			"/tasks/task-1/runs",
+			[]byte(`{"idempotency_key":"key-1"}`),
+		)
+		if resp.Code != 201 {
+			t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, 201, resp.Body.String())
+		}
 
-	resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/start", []byte(`{}`))
-	if resp.Code != 200 {
-		t.Fatalf("start status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
-	}
+		resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/start", []byte(`{}`))
+		if resp.Code != 200 {
+			t.Fatalf("start status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
+		}
 
-	resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/complete", []byte(`{"result":{"ok":true}}`))
-	if resp.Code != 200 {
-		t.Fatalf("complete status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
-	}
+		resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/complete", []byte(`{"result":{"ok":true}}`))
+		if resp.Code != 200 {
+			t.Fatalf("complete status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
+		}
 
-	if want := []string{"enqueue", "start", "complete"}; !reflect.DeepEqual(calls, want) {
-		t.Fatalf("call order = %#v, want %#v", calls, want)
-	}
+		if want := []string{"enqueue", "start", "complete"}; !reflect.DeepEqual(calls, want) {
+			t.Fatalf("call order = %#v, want %#v", calls, want)
+		}
+	})
 }

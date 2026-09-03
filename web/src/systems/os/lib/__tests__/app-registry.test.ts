@@ -48,6 +48,14 @@ describe("app registry", () => {
     expect(pickLastCreatedSession([archivedNewer])).toBeNull();
   });
 
+  it("Should resolve each terminal path as its own lazy app instance", () => {
+    const resolved = resolveAppForPath("/terminal/term-4aa01f22e6c3");
+    expect(resolved?.app.id).toBe("terminal");
+    expect(resolved?.instanceKey).toBe("term-4aa01f22e6c3");
+    expect(OS_APPS.terminal.matchInstance?.("/terminal/term-other")).toBe("term-other");
+    expect(resolveAppForPath("/terminal")?.app.id).toBe("terminal");
+  });
+
   it("Should own the desktop root exactly (no prefix bleed)", () => {
     expect(resolveAppForPath("/")?.app.id).toBe("dashboard");
     expect(resolveAppForPath("/tasks")?.app.id).toBe("tasks");

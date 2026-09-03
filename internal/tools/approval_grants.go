@@ -67,6 +67,13 @@ func (r ApprovalGrantSetRequest) BuildGrant(profileID string, workspaceID string
 	if err := r.ToolID.Validate(); err != nil {
 		return ApprovalGrant{}, fmt.Errorf("%w: tool_id: %v", ErrApprovalGrantInvalid, err)
 	}
+	if r.ToolID == ToolIDTerminalWrite || r.ToolID == ToolIDTerminalExec {
+		return ApprovalGrant{}, fmt.Errorf(
+			"%w: %s requires an exact prompt-origin grant",
+			ErrApprovalGrantInvalid,
+			r.ToolID,
+		)
+	}
 	switch r.Decision {
 	case ApprovalGrantAllow, ApprovalGrantReject:
 	default:

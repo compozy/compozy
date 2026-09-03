@@ -1,12 +1,17 @@
 import { useState } from "react";
 
+import { isTerminalBroaderDecisionForbidden } from "@/systems/terminal/parts";
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import type { ToolApprovalGrant, ToolApprovalGrantSetRequest } from "../types";
 import {
   useRevokeToolApprovalGrant,
   useSetToolApprovalGrant,
 } from "./use-tool-approval-grant-actions";
 import { useToolApprovalGrants } from "./use-tool-approval-grants";
-import { useActiveWorkspace } from "@/systems/workspace";
+
+const TERMINAL_BROADER_DECISION_ERROR =
+  "Terminal run and typing decisions come from a prompt, not a broader remembered allow.";
 
 export type ToolApprovalGrantsState = "loading" | "error" | "empty" | "ready";
 
@@ -65,6 +70,7 @@ function setRequestFromDraft(draft: ToolApprovalGrantSetDraft): ToolApprovalGran
   const toolId = draft.toolId.trim();
   const agentName = draft.agentName.trim();
   if (toolId === "" || draft.decision === "" || draft.scope === "") return null;
+  if (isTerminalBroaderDecisionForbidden(toolId)) return null;
   if (draft.scope === "agent" && agentName === "") return null;
   return {
     tool_id: toolId,
@@ -85,23 +91,6 @@ export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
   const hasWorkspace = workspaceId !== "";
 
   const { data, error: queryErrorRaw, isLoading, refetch } = useToolApprovalGrants(workspaceId);
-  const {
-    mutate: revokeMutate,
-    reset: revokeReset,
-    isPending: revokePending,
-    error: revokeErrorRaw,
-  } = useRevokeToolApprovalGrant();
-  const {
-    mutate: setMutate,
-    reset: setReset,
-    isPending: setPending,
-    error: setErrorRaw,
-  } = useSetToolApprovalGrant();
-  const [target, setTarget] = useState<ToolApprovalGrant | null>(null);
-  const [setDraft, setSetDraft] = useState<ToolApprovalGrantSetDraft>(EMPTY_SET_DRAFT);
-  const [setWorkspaceId, setSetWorkspaceId] = useState("");
-  const [isSetOpen, setIsSetOpen] = useState(false);
-
   const grants = data?.grants ?? [];
   const total = data?.total ?? 0;
   const queryError = queryErrorRaw instanceof Error ? queryErrorRaw : null;
@@ -120,59 +109,8 @@ export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
     void refetch();
   }
 
-  function open(grant: ToolApprovalGrant) {
-    revokeReset();
-    setTarget(grant);
-  }
-
-  function close() {
-    if (revokePending) return;
-    revokeReset();
-    setTarget(null);
-  }
-
-  function confirm() {
-    if (!target || revokePending) return;
-    // Bind the revoke to the grant's own workspace, not the workspace active at
-    // confirmation time — a workspace switch between opening and confirming must
-    // not revoke against (or invalidate) the wrong workspace's list.
-    revokeMutate(
-      { id: target.id, workspaceId: target.workspace_id },
-      { onSuccess: () => setTarget(null) }
-    );
-  }
-
-  function openSet() {
-    if (!hasWorkspace) return;
-    setReset();
-    setSetDraft(EMPTY_SET_DRAFT);
-    setSetWorkspaceId(workspaceId);
-    setIsSetOpen(true);
-  }
-
-  function closeSet() {
-    if (setPending) return;
-    setReset();
-    setIsSetOpen(false);
-  }
-
-  function changeSet(draft: ToolApprovalGrantSetDraft) {
-    setSetDraft(draft.scope === "tool" ? { ...draft, agentName: "" } : draft);
-  }
-
-  const setRequest = setRequestFromDraft(setDraft);
-  const canSubmitSet = setRequest !== null;
-
-  function submitSet() {
-    if (setRequest === null || setPending || setWorkspaceId === "") return;
-    setMutate(
-      {
-        workspaceId: setWorkspaceId,
-        request: setRequest,
-      },
-      { onSuccess: () => setIsSetOpen(false) }
-    );
-  }
+  const set = useToolApprovalGrantSetModel({ hasWorkspace, workspaceId });
+  const revoke = useToolApprovalGrantRevokeModel();
 
   return {
     hasWorkspace,
@@ -181,25 +119,85 @@ export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
     total,
     error: queryError,
     onRetry,
-    set: {
-      draft: setDraft,
-      isOpen: isSetOpen,
-      isPending: setPending,
-      canSubmit: canSubmitSet,
-      error: setErrorRaw instanceof Error ? setErrorRaw.message : null,
-      open: openSet,
-      close: closeSet,
-      change: changeSet,
-      submit: submitSet,
+    set,
+    revoke,
+  };
+}
+
+function useToolApprovalGrantRevokeModel(): ToolApprovalGrantsRevokeViewModel {
+  const mutation = useRevokeToolApprovalGrant();
+  const [target, setTarget] = useState<ToolApprovalGrant | null>(null);
+
+  return {
+    target,
+    isOpen: target !== null,
+    isPending: mutation.isPending,
+    error: mutation.error instanceof Error ? mutation.error.message : null,
+    open: grant => {
+      mutation.reset();
+      setTarget(grant);
     },
-    revoke: {
-      target,
-      isOpen: target !== null,
-      isPending: revokePending,
-      error: revokeErrorRaw instanceof Error ? revokeErrorRaw.message : null,
-      open,
-      close,
-      confirm,
+    close: () => {
+      if (mutation.isPending) return;
+      mutation.reset();
+      setTarget(null);
+    },
+    confirm: () => {
+      if (!target || mutation.isPending) return;
+      // Bind the revoke to the grant's own workspace, not the workspace active at
+      // confirmation time — a workspace switch between opening and confirming must
+      // not revoke against (or invalidate) the wrong workspace's list.
+      mutation.mutate(
+        { id: target.id, workspaceId: target.workspace_id },
+        { onSuccess: () => setTarget(null) }
+      );
+    },
+  };
+}
+
+function useToolApprovalGrantSetModel({
+  hasWorkspace,
+  workspaceId,
+}: {
+  hasWorkspace: boolean;
+  workspaceId: string;
+}): ToolApprovalGrantsSetViewModel {
+  const mutation = useSetToolApprovalGrant();
+  const [draft, setDraft] = useState<ToolApprovalGrantSetDraft>(EMPTY_SET_DRAFT);
+  const [boundWorkspaceId, setBoundWorkspaceId] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const request = setRequestFromDraft(draft);
+
+  return {
+    draft,
+    isOpen,
+    isPending: mutation.isPending,
+    canSubmit: request !== null,
+    error:
+      mutation.error instanceof Error
+        ? mutation.error.message
+        : isTerminalBroaderDecisionForbidden(draft.toolId.trim())
+          ? TERMINAL_BROADER_DECISION_ERROR
+          : null,
+    open: () => {
+      if (!hasWorkspace) return;
+      mutation.reset();
+      setDraft(EMPTY_SET_DRAFT);
+      setBoundWorkspaceId(workspaceId);
+      setIsOpen(true);
+    },
+    close: () => {
+      if (mutation.isPending) return;
+      mutation.reset();
+      setIsOpen(false);
+    },
+    change: next => setDraft(next.scope === "tool" ? { ...next, agentName: "" } : next),
+    submit: () => {
+      if (request === null || mutation.isPending || boundWorkspaceId === "") return;
+      mutation.mutate(
+        { workspaceId: boundWorkspaceId, request },
+        { onSuccess: () => setIsOpen(false) }
+      );
     },
   };
 }

@@ -68,6 +68,9 @@ func (s *Server) shutdownGeneration(ctx context.Context, generation *serverGener
 			if err := s.handlers.ShutdownWindowManagerStreams(ctx); err != nil {
 				shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown window-manager streams: %w", err))
 			}
+			if err := s.handlers.ShutdownTerminalStreams(ctx); err != nil {
+				shutdownErrs = append(shutdownErrs, fmt.Errorf("httpapi: shutdown terminal streams: %w", err))
+			}
 		}
 		joinedServe := waitForServeDone(ctx, generation.serveDone)
 		if joinedServe != nil {

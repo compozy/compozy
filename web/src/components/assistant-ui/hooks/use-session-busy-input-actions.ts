@@ -2,10 +2,12 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { sessionBusyInputLogic } from "./session-busy-input-store";
-import type {
-  QueuedPrompt,
-  SessionBusyInputDraft,
-  SessionBusyInputHandler,
+import {
+  splitQuotedPrompt,
+  stageChosenSessionTerminalQuote,
+  type QueuedPrompt,
+  type SessionBusyInputDraft,
+  type SessionBusyInputHandler,
 } from "@/systems/session";
 
 export type { SessionBusyInputHandler } from "@/systems/session";
@@ -19,8 +21,11 @@ interface UseSessionBusyInputActionsOptions {
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
   onSteerPrompt?: SessionBusyInputHandler;
   queuedPrompts: QueuedPrompt[];
+  sessionId: string;
   setComposerText: (text: string) => void;
   draft: SessionBusyInputDraft;
+  /** Fires after a queued, steered, or interrupt draft is accepted. */
+  onDraftConsumed?: () => void;
 }
 
 function describeComposerActionError(error: unknown, fallback: string): string {
@@ -45,8 +50,10 @@ export function useSessionBusyInputActions({
   onReplaceQueuedPrompt,
   onSteerPrompt,
   queuedPrompts,
+  sessionId,
   setComposerText,
   draft,
+  onDraftConsumed,
 }: UseSessionBusyInputActionsOptions) {
   const store = useStore(sessionBusyInputLogic);
   const editingQueuedPromptId = useSelector(
@@ -72,7 +79,10 @@ export function useSessionBusyInputActions({
           toast.error(describeComposerActionError(error, failureMessage));
         }
       },
-      onSuccess,
+      onSuccess: () => {
+        onDraftConsumed?.();
+        onSuccess?.();
+      },
     });
   };
 
@@ -116,7 +126,11 @@ export function useSessionBusyInputActions({
       toast.warning("Send or clear the current draft before editing a queued prompt.");
       return;
     }
-    setComposerText(prompt.text);
+    const { annotation, quote } = splitQuotedPrompt(prompt.text);
+    if (quote) {
+      stageChosenSessionTerminalQuote(sessionId, quote);
+    }
+    setComposerText(annotation);
     store.trigger.editStarted({ id: prompt.id });
   };
 

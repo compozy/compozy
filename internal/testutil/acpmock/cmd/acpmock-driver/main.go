@@ -131,7 +131,10 @@ func (a *mockAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (a
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
-func (a *mockAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+func (a *mockAgent) Initialize(
+	_ context.Context,
+	_ acpsdk.InitializeRequest,
+) (acpsdk.InitializeResponse, error) {
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{

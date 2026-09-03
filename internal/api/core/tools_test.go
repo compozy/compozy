@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -296,6 +297,35 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {
+		t.Parallel()
+
+		controller := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "client:web"}
+		domainErr := &terminalpkg.Error{
+			Code: terminalpkg.ErrorCodeLimitReached, Message: "opaque terminal refusal",
+			Current: 8, Max: 10, Controller: &controller, Path: "/workspace",
+			Mode: terminalpkg.ModePTY, Platform: "windows", Err: terminalpkg.ErrLimitReached,
+		}
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCode(terminalpkg.ErrorCodeLimitReached),
+			toolspkg.ToolIDTerminalOpen,
+			domainErr.Error(),
+			domainErr,
+			toolspkg.ReasonCode(terminalpkg.ErrorCodeLimitReached),
+		)
+		payload := core.ToolErrorResponseForError(err, http.StatusConflict, true)
+		want := map[string]string{
+			"current": "8", "max": "10",
+			"controller": `{"kind":"human","id":"client:web"}`,
+			"path":       `"/workspace"`, "mode": `"pty"`, "platform": `"windows"`,
+		}
+		for key, value := range want {
+			if got := string(payload.Error.Details[key]); got != value {
+				t.Fatalf("terminal tool detail %q = %q, want %q", key, got, value)
+			}
+		}
+	})
+
 	t.Run("Should describe a missing config path without reporting the tool missing", func(t *testing.T) {
 		t.Parallel()
 
@@ -318,6 +348,60 @@ func TestToolErrorResponses(t *testing.T) {
 		}
 		if strings.Contains(payload.Error.Message, "tool not found") {
 			t.Fatalf("missing config message = %q, must not identify the tool as missing", payload.Error.Message)
+		}
+	})
+
+	t.Run("Should describe a missing skill resource without reporting the tool missing", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			toolspkg.ToolIDSkillView,
+			`skill resource "references/terminal.md" not found`,
+			toolspkg.ErrToolNotFound,
+			toolspkg.ReasonSkillResourceNotFound,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusNotFound ||
+			payload.Error.Code != toolspkg.ErrorCodeNotFound ||
+			payload.Error.ToolID != toolspkg.ToolIDSkillView ||
+			payload.Error.Message != "skill resource not found" ||
+			!slices.Equal(
+				payload.Error.ReasonCodes,
+				[]toolspkg.ReasonCode{toolspkg.ReasonSkillResourceNotFound},
+			) {
+			t.Fatalf("missing skill resource payload = %#v status=%d, want reason-aware 404", payload.Error, status)
+		}
+		if strings.Contains(payload.Error.Message, "tool not found") {
+			t.Fatalf(
+				"missing skill resource message = %q, must not identify the tool as missing",
+				payload.Error.Message,
+			)
+		}
+	})
+
+	t.Run("Should describe malformed skill frontmatter as an invalid definition", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolspkg.ToolIDSkillView,
+			"internal parser detail",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSkillDefinitionInvalid,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusBadRequest ||
+			payload.Error.Message != "skill definition is invalid" ||
+			!slices.Equal(
+				payload.Error.ReasonCodes,
+				[]toolspkg.ReasonCode{toolspkg.ReasonSkillDefinitionInvalid},
+			) {
+			t.Fatalf("invalid skill definition payload = %#v status=%d, want reason-aware 400", payload.Error, status)
 		}
 	})
 
@@ -1155,9 +1239,12 @@ type apiTestApprovalBridge struct {
 func (b apiTestApprovalBridge) RequestToolApproval(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	call toolspkg.CallRequest,
+	call *toolspkg.CallRequest,
 	_ *toolspkg.ToolView,
 ) error {
+	if call == nil {
+		return toolspkg.ErrToolApprovalRequired
+	}
 	if b.approvals == nil {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeApprovalRequired,
@@ -1168,7 +1255,7 @@ func (b apiTestApprovalBridge) RequestToolApproval(
 			toolspkg.ReasonApprovalTokenMissing,
 		)
 	}
-	return b.approvals.ConsumeToolApproval(ctx, scope, call)
+	return b.approvals.ConsumeToolApproval(ctx, scope, *call)
 }
 
 func testToolDescriptor(

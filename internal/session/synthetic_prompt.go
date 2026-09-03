@@ -145,15 +145,37 @@ func (m *Manager) parseSyntheticPromptRequest(
 			return promptRequest{}, err
 		}
 	}
+	runID := promptMetaRunID(meta)
+	if runID == "" {
+		runID, err = m.newPromptRunID()
+		if err != nil {
+			return promptRequest{}, err
+		}
+	}
 
 	return promptRequest{
 		turnID:          turnID,
+		runID:           runID,
 		target:          target,
 		message:         message,
 		authoredMessage: message,
 		turnSource:      TurnSourceSynthetic,
 		meta:            meta,
 	}, nil
+}
+
+func promptMetaRunID(meta acp.PromptMeta) string {
+	normalized := meta.Normalize()
+	if normalized.Synthetic == nil {
+		return ""
+	}
+	if runID := strings.TrimSpace(normalized.Synthetic.TaskRunID); runID != "" {
+		return runID
+	}
+	if normalized.Synthetic.Goal != nil {
+		return strings.TrimSpace(normalized.Synthetic.Goal.RunID)
+	}
+	return ""
 }
 
 func (m *Manager) enqueueSyntheticPrompt(ctx context.Context, req promptRequest) <-chan acp.AgentEvent {

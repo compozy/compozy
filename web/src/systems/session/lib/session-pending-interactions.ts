@@ -2,12 +2,15 @@
  * Reads over the sanitized pending-interaction projection the daemon embeds on
  * every session payload. These are the only source of a needs-you *reason* on
  * any surface — the bell row, the toast body, and the sidebar precedence note
- * all quote `title`, never invented copy.
+ * all quote that projection. Terminal tool-id titles are rewritten to the
+ * board's verb; every other title stays as published.
  *
  * A session can hold several pending questions and permissions at once, so the
  * badge derives from counts (`waiting-for-auth` outranks `waiting-for-input`)
  * and the masked side stays visible as a note rather than disappearing.
  */
+import { terminalAttentionReason } from "@/systems/terminal/parts";
+
 import type { SessionPayload, SessionPendingInteraction } from "../types";
 
 const PENDING_STATUSES: ReadonlySet<string> = new Set(["pending", "orphaned"]);
@@ -40,6 +43,8 @@ export function pendingInteractionReason(session: SessionPayload): string | null
   if (rows.length === 0) return null;
   const preferred =
     rows.find(interaction => interaction.kind === "permission") ?? rows[rows.length - 1] ?? rows[0];
+  const rewritten = terminalAttentionReason(preferred?.title, preferred?.tool_id);
+  if (rewritten) return rewritten;
   const title = preferred?.title?.trim();
   return title ? title : null;
 }

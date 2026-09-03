@@ -1,0 +1,47 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "terminal-generation-bump",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You exercise terminal runtime-generation recovery.",
+            "load_session": false,
+            "turns": [
+                {
+                    "name": "recover-terminal-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "recover the terminal generation",
+                        "raw_user_text_contains": "<compozy_context_replay>"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "terminal generation recovered"
+                        }
+                    ]
+                },
+                {
+                    "name": "disconnect-terminal-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "recover the terminal generation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "terminal work started before recovery"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "disconnect"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

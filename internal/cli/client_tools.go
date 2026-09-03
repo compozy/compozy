@@ -238,7 +238,7 @@ func (c *daemonClient) InvokeTool(
 	request.CorrelationID = strings.TrimSpace(request.CorrelationID)
 	request.SensitiveInputFields = trimNonEmptyStrings(request.SensitiveInputFields)
 	path := "/api/tools/" + url.PathEscape(strings.TrimSpace(id)) + "/invoke"
-	response, err := c.doRequest(ctx, http.MethodPost, path, nil, request)
+	response, err := c.doRequest(ctx, http.MethodPost, path, request)
 	if err != nil {
 		return ToolInvokeResponseRecord{}, err
 	}

@@ -177,6 +177,7 @@ type PendingInteractionPayload struct {
 	Title             string     `json:"title,omitempty"`
 	Choices           []string   `json:"choices,omitempty"`
 	Decisions         []string   `json:"decisions,omitempty"`
+	ToolID            string     `json:"tool_id,omitempty"`
 	Status            string     `json:"status"`
 	CreatedAt         time.Time  `json:"created_at"`
 	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`

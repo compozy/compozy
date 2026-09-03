@@ -435,6 +435,128 @@ describe("session timeline derivation", () => {
     expect(permissionRow.part.name).toBe("data-compozy-permission");
   });
 
+  it("Should keep a settled deliberate terminal block outside a turn fold and summary", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-terminal", timestamp: "2026-08-26T12:00:00Z" }),
+        tool(2, { turnId: "turn-terminal", timestamp: "2026-08-26T12:00:01Z" }),
+        tool(3, {
+          toolName: "compozy__terminal_exec",
+          args: { command: "bun run dev" },
+          result: {
+            rawOutput: { terminal_id: "term-4f21c9a03b7e", output: "ready", still_running: true },
+          },
+          turnId: "turn-terminal",
+          timestamp: "2026-08-26T12:00:02Z",
+        }),
+        text("terminal-answer", "The server is up.", "turn-terminal", "2026-08-26T12:00:05Z"),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "work", "text"]);
+    const [foldRow, terminalRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || terminalRow?.kind !== "work") {
+      throw new Error("expected a fold followed by a persistent terminal work row");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(terminalRow.summary).toBeNull();
+    expect(terminalRow.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_exec"]);
+    const foldedWork = foldRow.rows[0];
+    if (foldedWork?.kind !== "work") throw new Error("expected folded work");
+    expect(foldedWork.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+    expect(foldedWork.summary?.label).toBe("Read 2 files");
+  });
+
+  it("Should keep a settled terminal open outside a turn fold and summary", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-open", timestamp: "2026-08-26T12:00:00Z" }),
+        tool(2, { turnId: "turn-open", timestamp: "2026-08-26T12:00:01Z" }),
+        tool(3, {
+          toolName: "compozy__terminal_open",
+          args: { title: "Build logs" },
+          result: { rawOutput: { terminal_id: "term-a03b558d21f0" } },
+          turnId: "turn-open",
+          timestamp: "2026-08-26T12:00:02Z",
+        }),
+        text("open-answer", "The terminal is open.", "turn-open", "2026-08-26T12:00:05Z"),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "work", "text"]);
+    const [foldRow, terminalRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || terminalRow?.kind !== "work") {
+      throw new Error("expected a fold followed by a persistent terminal work row");
+    }
+    expect(terminalRow.summary).toBeNull();
+    expect(terminalRow.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_open"]);
+    const foldedWork = foldRow.rows[0];
+    if (foldedWork?.kind !== "work") throw new Error("expected folded work");
+    expect(foldedWork.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+  });
+
+  it("Should keep a running terminal as its own live row beside the live tail", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-live-terminal", timestamp: "2026-08-26T12:00:00Z" }),
+        tool(2, { turnId: "turn-live-terminal", timestamp: "2026-08-26T12:00:01Z" }),
+        tool(3, {
+          toolName: "compozy__terminal_exec",
+          status: "running",
+          args: { command: "bun run dev" },
+          turnId: "turn-live-terminal",
+          timestamp: "2026-08-26T12:00:02Z",
+        }),
+      ],
+      { activeTurnId: "turn-live-terminal" }
+    );
+
+    const work = rows.filter(row => row.kind === "work");
+    expect(work).toHaveLength(2);
+    expect(work[0]?.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+    expect(work[0]?.summary).toBeNull();
+    expect(work[0]?.active).toBe(true);
+    expect(work[1]?.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_exec"]);
+    expect(work[1]?.summary).toBeNull();
+    expect(work[1]?.active).toBe(true);
+  });
+
+  it("Should fold generic data events into a settled turn", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-generic-data", timestamp: "2026-08-26T12:00:00Z" }),
+        {
+          kind: "data",
+          id: "runtime-progress-1",
+          name: "data-compozy-event",
+          data: {
+            type: "terminal_output",
+            text: "12 tests passed\n",
+          },
+          turnId: "turn-generic-data",
+          timestamp: "2026-08-26T12:00:04Z",
+          state: "done",
+        },
+        text(
+          "terminal-reported",
+          "The terminal report is complete.",
+          "turn-generic-data",
+          "2026-08-26T12:00:05Z"
+        ),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+    const [foldRow] = rows;
+    if (foldRow?.kind !== "turn-fold") {
+      throw new Error("expected the settled turn to fold its data event");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work", "data"]);
+  });
+
   it("Should keep every text segment visible when a permission splits the response", () => {
     const rows = deriveSessionRows(
       [

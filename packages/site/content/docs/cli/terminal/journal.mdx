@@ -1,0 +1,51 @@
+---
+title: "compozy terminal journal"
+description: "Query the terminal command journal"
+---
+
+## compozy terminal journal
+
+Query the terminal command journal
+
+```
+compozy terminal journal [flags]
+```
+
+### Options
+
+```
+      --actor string       Filter by human or agent
+      --all-profiles       Read across every profile and include owner labels
+      --cursor string      Continue from the previous page
+      --failed             Show only failed commands
+  -h, --help               help for journal
+      --limit int          Maximum journal rows (default 50)
+      --since string       Filter by age, such as 24h
+      --terminal string    Filter by terminal id
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy terminal journal -o json
+```

@@ -213,8 +213,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 		return nil, cmdpalette.ErrNoAttachedShell
 	}
 	payload, err := json.Marshal(map[string]any{
-		nativeActionKey: request.Descriptor.Action,
-		"args":          mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
+		nativeActionKey:    request.Descriptor.Action,
+		nativeToolsArgsKey: mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: encode client command: %w", err)

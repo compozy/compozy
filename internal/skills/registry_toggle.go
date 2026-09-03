@@ -99,6 +99,7 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalLoaded = true
 	r.globalSkills = loaded
+	r.bundledRuntimeSkills = bundledRuntimeSkillsFromCandidates(commandCandidates)
 	r.globalCommandCandidates = cloneCommandSkillSlice(commandCandidates)
 	r.globalVersion.Add(1)
 	shadowEvents := r.buildSkillShadowSummariesFromResolved(

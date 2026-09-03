@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -37,6 +36,7 @@ import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-ru
 import { useActiveWorkspace } from "@/systems/workspace";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 import { notifyUser } from "@/lib/user-feedback";
+import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {
@@ -80,26 +80,6 @@ function resolveWorkspaceId(
   runtimeWorkspaceId: string | null | undefined
 ): string | null {
   return workspaceId ?? runtimeWorkspaceId ?? null;
-}
-
-function useAbortableMutationRequest() {
-  const controllersRef = useRef(new Set<AbortController>());
-
-  useEffect(
-    () => () => {
-      for (const controller of controllersRef.current) controller.abort();
-      controllersRef.current.clear();
-    },
-    []
-  );
-
-  return async <T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const controller = new AbortController();
-    controllersRef.current.add(controller);
-    return Promise.resolve()
-      .then(() => request(controller.signal))
-      .finally(() => controllersRef.current.delete(controller));
-  };
 }
 
 export function useCreateSession() {
@@ -162,7 +142,7 @@ export function useDeleteSession(
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
       options.onDeleteSuccess?.();
 
-      return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+      void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },
     onSettled: (_data, _error, id) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });

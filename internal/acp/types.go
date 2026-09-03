@@ -71,6 +71,10 @@ const (
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
 	AgentName            string
+	CompozySessionID     string
+	WorkspaceID          string
+	ProfileID            string
+	RuntimeGeneration    int64
 	Command              string
 	Cwd                  string
 	AdditionalDirs       []string
@@ -170,6 +174,8 @@ func (o StartOpts) validateBase() error {
 // PromptRequest describes one prompt turn sent to an active ACP session.
 type PromptRequest struct {
 	TurnID                    string
+	RunID                     string
+	Generation                int64
 	Message                   string
 	Attachments               []PromptAttachment
 	Meta                      PromptMeta
@@ -188,6 +194,10 @@ type PromptAttachment struct {
 func (r PromptRequest) Validate() error {
 	if strings.TrimSpace(r.TurnID) == "" {
 		return errors.New("acp: prompt turn id is required")
+	}
+	runID := strings.TrimSpace(r.RunID)
+	if (runID == "") != (r.Generation == 0) || r.Generation < 0 {
+		return errors.New("acp: prompt run identity is incomplete")
 	}
 	if strings.TrimSpace(r.Message) == "" && len(r.Attachments) == 0 {
 		return errors.New("acp: prompt message is required")

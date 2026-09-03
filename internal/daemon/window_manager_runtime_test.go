@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -218,6 +219,116 @@ func TestWindowManagerHookBridge(t *testing.T) {
 func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resume a durable deletion intent after installing runtime owners", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		if err := fixture.database.StageWorkspaceDeletion(ctx, fixture.workspace.ID); err != nil {
+			t.Fatalf("StageWorkspaceDeletion() error = %v", err)
+		}
+		sessionPreparation := &windowManagerSessionRemovalPreparation{}
+		sessions := &windowManagerRemovalSessionManager{
+			fakeSessionManager: &fakeSessionManager{},
+			workspaceID:        fixture.workspace.ID,
+			preparation:        sessionPreparation,
+		}
+		terminals, err := terminalpkg.NewManager(terminalpkg.WithJournal(nativeTerminalJournalStub{}))
+		if err != nil {
+			t.Fatalf("terminal.NewManager() error = %v", err)
+		}
+		if err := terminals.Start(ctx); err != nil {
+			t.Fatalf("terminal manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+			defer cancel()
+			if err := terminals.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("terminal manager Shutdown() error = %v", err)
+			}
+		})
+		state := &bootState{
+			windowManagerBootState: windowManagerBootState{
+				windowManagerStoreResolver: fixture.storeResolver,
+				windowManagerStore:         fixture.engine,
+				windowManagers:             fixture.registry,
+			},
+			workspaceResolver: fixture.resolver,
+			terminals:         terminals,
+		}
+		cleanup := &bootCleanup{}
+		if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
+			t.Fatalf("configureWorkspaceDeletionLifecycle() error = %v", err)
+		}
+		if _, err := fixture.database.GetWorkspaceDeletionIntent(
+			ctx, fixture.workspace.ID,
+		); !errors.Is(err, workspacepkg.ErrWorkspaceDeletionIntentNotFound) {
+			t.Fatalf("GetWorkspaceDeletionIntent() error = %v, want finalized intent", err)
+		}
+		if sessionPreparation.commits != 1 {
+			t.Fatalf("session preparation commits = %d, want 1", sessionPreparation.commits)
+		}
+		if err := fixture.resolver.DrainUnregisters(ctx); err != nil {
+			t.Fatalf("DrainUnregisters() error = %v", err)
+		}
+	})
+
+	t.Run("Should drain terminal runtime before workspace deletion commits", func(t *testing.T) {
+		t.Parallel()
+		terminal := &recordingTerminalWorkspaceRemovalPreparation{}
+		preparation := workspaceRemovalPreparation{
+			windowManager: &windowManagerSessionRemovalPreparation{},
+			session:       &windowManagerSessionRemovalPreparation{},
+			terminal:      terminal,
+			workspaceID:   "workspace-a",
+		}
+		if err := preparation.BeforeDelete(t.Context()); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		if terminal.beforeDeletes != 1 || len(terminal.workspaceIDs) != 0 {
+			t.Fatalf("terminal preparation after BeforeDelete = %#v, want staged without archive", terminal)
+		}
+		if err := preparation.Commit(t.Context()); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if terminal.commits != 1 || len(terminal.workspaceIDs) != 1 || terminal.workspaceIDs[0] != "workspace-a" {
+			t.Fatalf("terminal preparation after Commit = %#v, want one archive", terminal)
+		}
+	})
+
+	t.Run("Should retry only the external owner whose commit failed", func(t *testing.T) {
+		t.Parallel()
+
+		terminal := &recordingTerminalWorkspaceRemovalPreparation{}
+		window := &windowManagerSessionRemovalPreparation{}
+		commitErr := errors.New("session cleanup failed")
+		session := &windowManagerSessionRemovalPreparation{commitErr: commitErr}
+		preparation := &workspaceRemovalPreparation{
+			windowManager: window,
+			session:       session,
+			terminal:      terminal,
+			workspaceID:   "workspace-a",
+		}
+		if err := preparation.BeforeDelete(t.Context()); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		if err := preparation.Commit(t.Context()); !errors.Is(err, commitErr) {
+			t.Fatalf("Commit(first) error = %v, want %v", err, commitErr)
+		}
+		session.commitErr = nil
+		if err := preparation.Commit(t.Context()); err != nil {
+			t.Fatalf("Commit(retry) error = %v", err)
+		}
+		if terminal.commits != 1 || window.commits != 1 || session.commits != 2 {
+			t.Fatalf(
+				"commit calls = terminal %d, window %d, session %d; want 1, 1, 2",
+				terminal.commits,
+				window.commits,
+				session.commits,
+			)
+		}
+	})
+
 	t.Run("Should purge topology clients and subscriptions before same-id recreation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -239,6 +350,30 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceID:        fixture.workspace.ID,
 			preparation:        sessionPreparation,
 		}
+		terminals, err := terminalpkg.NewManager(terminalpkg.WithJournal(nativeTerminalJournalStub{}))
+		if err != nil {
+			t.Fatalf("terminal.NewManager() error = %v", err)
+		}
+		if err := terminals.Start(ctx); err != nil {
+			t.Fatalf("terminal manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+			defer cancel()
+			if err := terminals.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("terminal manager Shutdown() error = %v", err)
+			}
+		})
+		terminalHandle, err := terminals.OpenPipe(ctx, terminalpkg.PipeRequest{
+			WS: fixture.workspace.ID, Argv: []string{"sh", "-c", "sleep 30"}, Cwd: t.TempDir(),
+			Actor: terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindHuman, ID: terminalpkg.OperatorActorID,
+				ProfileID: store.DefaultProfileID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("terminal OpenPipe() error = %v", err)
+		}
 		state := &bootState{
 			windowManagerBootState: windowManagerBootState{
 				windowManagerStoreResolver: fixture.storeResolver,
@@ -248,6 +383,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceResolver: fixture.resolver,
 			deadEntities:      deadEntities,
 			mcpToolProvider:   mcpRetirer,
+			terminals:         terminals,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
@@ -287,6 +423,11 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 
 		if err := fixture.resolver.Unregister(ctx, fixture.workspace.ID); err != nil {
 			t.Fatalf("Unregister() error = %v", err)
+		}
+		if _, err := terminals.Handle(
+			ctx, fixture.workspace.ID, store.DefaultProfileID, terminalHandle.Info().ID,
+		); !errors.Is(err, terminalpkg.ErrExpired) {
+			t.Fatalf("terminal Handle() after unregister error = %v, want ErrExpired", err)
 		}
 		if sessionPreparation.commits != 1 || sessionPreparation.rollbacks != 0 {
 			t.Fatalf(
@@ -532,6 +673,30 @@ func (m *windowManagerRemovalSessionManager) PrepareWorkspaceRemoval(
 type windowManagerSessionRemovalPreparation struct {
 	commits   int
 	rollbacks int
+	commitErr error
+}
+
+type recordingTerminalWorkspaceRemovalPreparation struct {
+	workspaceIDs  []string
+	beforeDeletes int
+	commits       int
+	rollbacks     int
+}
+
+func (r *recordingTerminalWorkspaceRemovalPreparation) BeforeDelete(context.Context) error {
+	r.beforeDeletes++
+	return nil
+}
+
+func (r *recordingTerminalWorkspaceRemovalPreparation) Commit(_ context.Context) error {
+	r.commits++
+	r.workspaceIDs = append(r.workspaceIDs, "workspace-a")
+	return nil
+}
+
+func (r *recordingTerminalWorkspaceRemovalPreparation) Rollback(context.Context) error {
+	r.rollbacks++
+	return nil
 }
 
 type windowManagerMCPStateRetirer struct {
@@ -559,7 +724,7 @@ func (*windowManagerSessionRemovalPreparation) BeforeDelete(context.Context) err
 
 func (p *windowManagerSessionRemovalPreparation) Commit(context.Context) error {
 	p.commits++
-	return nil
+	return p.commitErr
 }
 
 func (p *windowManagerSessionRemovalPreparation) Rollback(context.Context) error {

@@ -50,6 +50,9 @@ func (c *Config) validateCore() error {
 	if err := c.WindowManager.Validate(); err != nil {
 		return err
 	}
+	if err := c.Terminal.Validate(); err != nil {
+		return err
+	}
 	c.CmdPalette.normalizeFallbackTargets()
 	if err := c.CmdPalette.Validate(); err != nil {
 		return err

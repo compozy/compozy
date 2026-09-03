@@ -22,6 +22,27 @@ func agentCredentialsFromEnv(deps commandDeps) agentidentity.Credentials {
 	}
 }
 
+func agentIdentityEnvironmentPresent(deps commandDeps) bool {
+	credentials := agentCredentialsFromEnv(deps)
+	return credentials.SessionID != "" || credentials.AgentName != ""
+}
+
+func resolveAgentCallerFromEnvForWorkspace(
+	ctx context.Context,
+	deps commandDeps,
+	client agentSessionClient,
+	originRef string,
+	workspaceID string,
+) (agentidentity.Caller, error) {
+	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
+		Credentials:         agentCredentialsFromEnv(deps),
+		Lookup:              agentSessionLookup(client),
+		ExpectedWorkspaceID: strings.TrimSpace(workspaceID),
+		OriginKind:          taskpkg.OriginKindCLI,
+		OriginRef:           originRef,
+	})
+}
+
 func resolveAgentCallerFromEnv(
 	ctx context.Context,
 	deps commandDeps,

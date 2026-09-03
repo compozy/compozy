@@ -68,6 +68,9 @@ func registerOperatorRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnl
 	registerWorkspaceRoutes(api, handlers)
 	registerWorktreeRoutes(api, handlers)
 	registerWindowManagerRoutes(api, handlers)
+	if includeLocalOnlyTaskLifecycle {
+		registerTerminalRoutes(api, handlers)
+	}
 	registerCmdPaletteRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentManagementRoutes(api, handlers)

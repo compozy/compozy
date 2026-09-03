@@ -6,7 +6,9 @@ const q = String.fromCharCode(96);
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
 const designPath = join(root, "DESIGN.md");
-const runtimeCss = readFileSync(join(root, "packages/ui/src/tokens.css"), "utf8");
+const runtimeCss = ["tokens.css", "terminal-tokens.css"]
+  .map(file => readFileSync(join(root, "packages/ui/src", file), "utf8"))
+  .join("\n");
 const siteCss = readFileSync(join(root, "packages/site/app/global.css"), "utf8");
 const design = readFileSync(designPath, "utf8");
 const colorGroups = {
@@ -23,7 +25,10 @@ const componentSizeTokenPattern =
 // Matched against every declaration, not just @theme: `--font-weight-display`
 // lives in `:root` (L-023).
 const fontTokenPattern = /^font-/;
-const runtimeTheme = parseTheme(runtimeCss, "packages/ui/src/tokens.css");
+const runtimeTheme = parseTheme(
+  runtimeCss,
+  "packages/ui/src/tokens.css + packages/ui/src/terminal-tokens.css"
+);
 const runtimeDecls = parseDecls(runtimeCss);
 const siteTheme = parseTheme(siteCss, "packages/site/app/global.css");
 const siteDecls = parseDecls(siteCss);
@@ -42,9 +47,9 @@ if (!designIsCurrent) process.stdout.write(diffWindow(design, nextDesign));
 if (!siteAuditPassed || (args.has("--check") && !designIsCurrent)) process.exit(1);
 
 function parseTheme(css, label) {
-  const match = css.match(/@theme(?:\s+inline)?\s*\{([\s\S]*?)\n\}/);
-  if (!match) throw new Error("Could not locate @theme block in " + label);
-  return parseDecls(match[1]);
+  const matches = Array.from(css.matchAll(/@theme(?:\s+inline)?\s*\{([\s\S]*?)\n\}/g));
+  if (matches.length === 0) throw new Error("Could not locate @theme block in " + label);
+  return matches.flatMap(match => parseDecls(match[1]));
 }
 
 function parseDecls(css) {
@@ -67,6 +72,7 @@ function replaceGeneratedSections(text) {
     ["signal", signalTable()],
     ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
     ["status-tone", tokenTable(prefixRows(runtimeTheme, "color-kind-"))],
+    ["terminal-ansi", tokenTable(terminalRampRows())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],
     ["type-ladder", typeTable()],
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
@@ -114,6 +120,15 @@ function shellGlassRows() {
     ["--" + stem, runtime.get(stem)],
     ["--color-" + stem, runtime.get("color-" + stem)],
   ]);
+}
+
+// The terminal ramp follows the shell-glass shape: canonical `:root --terminal-*`
+// literals with mechanical `@theme --color-terminal-*` adapters. The table
+// documents the canonical names — the identity the emulator bridge resolves —
+// because the alias is `var(--terminal-X)` for every one of them and listing
+// forty rows to say that twenty times would bury the palette.
+function terminalRampRows() {
+  return namedRows(runtimeDecls, /^terminal-/);
 }
 
 function namedRows(decls, re) {
@@ -191,6 +206,7 @@ function emitFrontmatter() {
     "---",
     "# Generated from:",
     "#   packages/ui/src/tokens.css         (runtime)",
+    "#   packages/ui/src/terminal-tokens.css (terminal runtime)",
     "#   packages/site/app/global.css       (site extensions)",
     "# by scripts/sync-design-md.mjs.",
     "# Do not edit by hand. Run make codegen to refresh.",

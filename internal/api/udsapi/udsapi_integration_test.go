@@ -31,7 +31,10 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -3293,6 +3296,48 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
+	terminalDatabases, err := workspacedb.NewPool(func(
+		resolveCtx context.Context,
+		workspaceID string,
+	) (workspacedb.ResolvedRoot, error) {
+		resolved, resolveErr := resolver.Resolve(resolveCtx, workspaceID)
+		if resolveErr != nil {
+			return workspacedb.ResolvedRoot{}, resolveErr
+		}
+		return workspacedb.ResolvedRoot{
+			RootDir:     resolved.RootDir,
+			WorkspaceID: resolved.WorkspaceID,
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("workspacedb.NewPool() error = %v", err)
+	}
+	journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{
+		Databases: terminalDatabases,
+		HomeDir:   homePaths.HomeDir,
+		Logger:    discardLogger(),
+	})
+	if err != nil {
+		t.Fatalf("terminaljournal.New() error = %v", err)
+	}
+	terminalManager, err := terminalpkg.NewManager(
+		terminalpkg.WithWorkspaceResolver(resolver),
+		terminalpkg.WithLogger(discardLogger()),
+		terminalpkg.WithJournal(journal),
+	)
+	if err != nil {
+		t.Fatalf("terminal.NewManager() error = %v", err)
+	}
+	if err := terminalManager.Start(context.Background()); err != nil {
+		t.Fatalf("terminalManager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+		defer cancel()
+		if err := terminalManager.Shutdown(ctx); err != nil {
+			t.Errorf("terminalManager.Shutdown() error = %v", err)
+		}
+	})
 	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
@@ -3465,6 +3510,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),
 		WithWindowManagerProvider(apitestutil.SingleProfileWindowManagers{Manager: windowManager}),
+		WithTerminalProvider(terminalManager),
 		WithPollInterval(10*time.Millisecond),
 	)
 	if err != nil {

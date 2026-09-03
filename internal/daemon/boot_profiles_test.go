@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 func TestDaemonProfileEventRecorder(t *testing.T) {
@@ -40,7 +42,6 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 			t.Fatalf("stored profile event subject = %#v, want %#v", payload, event)
 		}
 	})
-
 	t.Run("Should republish profile-owned skills after the lifecycle event is durable", func(t *testing.T) {
 		t.Parallel()
 
@@ -62,6 +63,48 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 
 		if syncCalls != 1 {
 			t.Fatalf("profile skill republication calls = %d, want 1", syncCalls)
+		}
+	})
+
+	t.Run("Should sweep terminal runtime state when a profile is archived", func(t *testing.T) {
+		t.Parallel()
+		manager, err := terminalpkg.NewManager(terminalpkg.WithJournal(nativeTerminalJournalStub{}))
+		if err != nil {
+			t.Fatalf("terminal.NewManager() error = %v", err)
+		}
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatalf("terminal manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Errorf("terminal manager Shutdown() error = %v", err)
+			}
+		})
+		handle, err := manager.OpenPipe(t.Context(), terminalpkg.PipeRequest{
+			WS: "workspace-a", Cwd: t.TempDir(), Argv: []string{"sh", "-c", "sleep 300"},
+			Actor: terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+				SessionID: "session-a", RunID: "run-a", Generation: 1,
+			},
+		})
+		if err != nil {
+			t.Fatalf("OpenPipe() error = %v", err)
+		}
+		recorder := &daemonProfileEventRecorder{
+			writer: &profileEventSummaryWriterStub{}, state: &bootState{terminals: manager},
+		}
+		recorder.RecordProfileEvent(profile.Event{
+			Name:        eventspkg.ProfileArchived,
+			ProfileID:   "profile-a",
+			ProfileName: "marketing",
+			OperationID: "op-archive",
+		})
+		items, err := manager.List(t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"})
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(items) != 0 || handle.Info().Exit == nil {
+			t.Fatalf("after archive items=%d exit=%#v, want empty and drained", len(items), handle.Info().Exit)
 		}
 	})
 }

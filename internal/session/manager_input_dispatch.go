@@ -140,6 +140,11 @@ func (m *Manager) newQueuedInputPromptRequest(
 		}
 	}
 	req.turnID = turnID
+	var err error
+	req.runID, err = m.newPromptRunID()
+	if err != nil {
+		return req, err
+	}
 	return req, nil
 }
 

@@ -2320,6 +2320,37 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep hosted tool calls on the long-lived client", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("CallHostedMCP() used the bounded JSON client")
+				return nil, nil
+			})},
+			streamClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPost || req.URL.Path != "/api/internal/hosted-mcp/tools/call" {
+					t.Fatalf("hosted call request = %s %s", req.Method, req.URL.Path)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"result":{"structured":{"ok":true},"preview":"ok","bytes":2,"duration_ms":1}}`,
+				), nil
+			})},
+		}
+
+		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+			BindID: "bind-1", ToolName: "skill_view", Input: json.RawMessage(`{"ok":true}`),
+		})
+		if err != nil {
+			t.Fatalf("CallHostedMCP() error = %v", err)
+		}
+		if compactJSON(call.Result.Structured) != `{"ok":true}` {
+			t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
+		}
+	})
+
 	t.Run("Should redact hosted MCP stream errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -5708,7 +5739,7 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 		httpClient: &http.Client{},
 	}
 
-	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil, nil)
+	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil)
 	if response != nil {
 		defer func() {
 			if closeErr := response.Body.Close(); closeErr != nil {

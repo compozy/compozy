@@ -2,7 +2,7 @@ import type * as React from "react";
 import { Kbd } from "@compozy/ui";
 import { fn } from "storybook/test";
 
-import { OsDockZone, type OsDockEntry, type OsDockItemData } from "../os-dock";
+import { OsDockZone, type OsDockEntry } from "../os-dock";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
@@ -10,17 +10,19 @@ import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 const DOCK_DEFS = [
   { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+  { id: "terminal", name: "Terminal", icon: "terminal" },
+  { id: "sep-1", sep: true as const },
   { id: "agents", name: "Agents", icon: "agents" },
   { id: "network", name: "Network", icon: "network" },
   { id: "tasks", name: "Tasks", icon: "tasks" },
   { id: "loops", name: "Loops", icon: "loops" },
   { id: "jobs", name: "Jobs", icon: "jobs" },
   { id: "triggers", name: "Triggers", icon: "triggers" },
-  { id: "sep-1", sep: true as const },
+  { id: "sep-2", sep: true as const },
   { id: "marketplace", name: "Marketplace", icon: "marketplace" },
   { id: "bridges", name: "Bridges", icon: "bridges" },
   { id: "knowledge", name: "Knowledge", icon: "knowledge" },
-  { id: "sep-2", sep: true as const },
+  { id: "sep-3", sep: true as const },
   { id: "sandbox", name: "Sandbox", icon: "sandbox" },
   { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
@@ -55,11 +57,6 @@ export function buildDeskItems(opts?: {
 
 /** Default resting fixture used by wallpaper/menubar shells (no windows open). */
 export const DESK_ITEMS: OsDockEntry[] = buildDeskItems();
-
-/** Flat app items only (no separators) — for badge-cap stories. */
-export const DESK_APP_ITEMS: OsDockItemData[] = DESK_ITEMS.filter(
-  (e): e is OsDockItemData => !("sep" in e && e.sep)
-);
 
 export interface DesktopShellProps {
   children?: React.ReactNode;

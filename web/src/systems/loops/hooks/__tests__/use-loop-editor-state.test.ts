@@ -350,6 +350,29 @@ describe("loopEditorLogic", () => {
     expect(after.validationGeneration).toBe(before.validationGeneration + 1);
   });
 
+  it("Should preserve sequential field edits dispatched before React can render", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDefinitionFixture();
+    store.trigger.draftInitialized({
+      definition,
+      edges: [],
+      nodes: [editorNode("execute", 40)],
+    });
+
+    store.trigger.nodeFieldsEdited({
+      nodeId: "execute",
+      edits: [{ path: ["retry", "max_attempts"], value: 3 }],
+    });
+    store.trigger.nodeFieldsEdited({
+      nodeId: "execute",
+      edits: [{ path: ["retry", "backoff", "base"], value: "20s" }],
+    });
+
+    expect(store.getSnapshot().context.nodes[0]?.data.raw).toMatchObject({
+      retry: { max_attempts: 3, backoff: { base: "20s" } },
+    });
+  });
+
   it("Should prune every incident edge when nodes are deleted", () => {
     const store = loopEditorLogic.createStore(undefined);
     const definition = loopDefinitionFixture();

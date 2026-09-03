@@ -490,12 +490,14 @@ type recordingSandboxConnection struct {
 	releaseCalled     bool
 	releaseContextErr error
 	createRequest     acpsdk.CreateTerminalRequest
+	notifications     []acpsdk.SessionNotification
 }
 
 func (c *recordingSandboxConnection) SessionUpdate(
-	context.Context,
-	acpsdk.SessionNotification,
+	_ context.Context,
+	notification acpsdk.SessionNotification,
 ) error {
+	c.notifications = append(c.notifications, notification)
 	return nil
 }
 

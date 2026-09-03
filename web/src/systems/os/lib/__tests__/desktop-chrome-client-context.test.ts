@@ -73,6 +73,7 @@ describe("selectPaletteDestinationRoute", () => {
       snapshot: null,
       windowManagerConfig: null,
       client: null,
+      clientAttachmentToken: null,
       desktops: [],
       projections: {},
       frames: {},

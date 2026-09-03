@@ -5,6 +5,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 // OnSessionCreated forwards the full runtime session to the downstream
@@ -130,6 +131,15 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoveryStarted(
 	ctx context.Context,
 	payload hookspkg.SessionRuntimeRecoveryStartedPayload,
 ) (hookspkg.SessionRuntimeRecoveryStartedPayload, error) {
+	if terminals := n.terminalRuntime(); terminals != nil && payload.Generation > 1 {
+		previous := terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindAgent, ID: payload.AgentName, ProfileID: payload.ProfileID,
+			SessionID: payload.SessionID, RunID: payload.RunID, Generation: payload.Generation - 1,
+		}
+		current := previous
+		current.Generation = payload.Generation
+		terminals.RuntimeRecovered(ctx, payload.WorkspaceID, previous, current)
+	}
 	return dispatchRuntime(
 		ctx, n, hookspkg.HookSessionRuntimeRecoveryStarted, payload,
 		hookRuntime.DispatchSessionRuntimeRecoveryStarted,

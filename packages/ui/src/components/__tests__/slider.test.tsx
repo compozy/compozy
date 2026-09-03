@@ -85,4 +85,15 @@ describe("Slider", () => {
     expect(container.querySelector("[data-slot=slider-range]")).not.toBeNull();
     expect(container.querySelector("[data-slot=slider-thumb]")).not.toBeNull();
   });
+
+  it("Should mark a quiet fill as a neutral tone", () => {
+    const { container } = render(
+      <Slider aria-label="Playback position" defaultValue={20} tone="neutral" />
+    );
+
+    expect(container.querySelector("[data-slot=slider-range]")).toHaveAttribute(
+      "data-tone",
+      "neutral"
+    );
+  });
 });

@@ -217,6 +217,8 @@ type ParameterSpec struct {
 	Kind        string
 	Format      string
 	Enum        []string
+	Pattern     string
+	MaxLength   *uint64
 	Maximum     *float64
 }
 

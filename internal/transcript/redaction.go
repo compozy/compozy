@@ -36,8 +36,8 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
 	redacted.Goal = redactGoalPromptMeta(event.Goal)
-	if event.AvailableCommands != nil {
-		redacted.AvailableCommands = acp.NewAvailableCommandSet(event.AvailableCommands.Values())
+	if commands := event.AvailableCommandSet(); commands != nil {
+		redacted = redacted.WithAvailableCommands(commands.Values())
 	}
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
 	redacted = redacted.WithPromptRuntime(event.PromptRuntimeSnapshot())

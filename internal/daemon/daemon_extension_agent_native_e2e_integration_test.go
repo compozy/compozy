@@ -314,11 +314,14 @@ var _ toolspkg.ApprovalBridge = (*agentNativeExtensionApprovalBridge)(nil)
 func (b *agentNativeExtensionApprovalBridge) RequestToolApproval(
 	_ context.Context,
 	_ toolspkg.Scope,
-	call toolspkg.CallRequest,
+	call *toolspkg.CallRequest,
 	view *toolspkg.ToolView,
 ) error {
+	if call == nil {
+		return fmt.Errorf("approval request did not carry a tool call")
+	}
 	if view == nil || !view.Decision.ApprovalRequired {
-		return fmt.Errorf("approval request for %s did not carry an approval-required decision", call.ToolID)
+		return fmt.Errorf("approval request for tool %q did not carry an approval-required decision", call.ToolID)
 	}
 	if b.counts == nil {
 		b.counts = make(map[toolspkg.ToolID]int)

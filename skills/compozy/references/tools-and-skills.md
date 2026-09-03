@@ -201,6 +201,10 @@ Skills whose winning copy already lives in a root the session's own provider rea
 omitted from that session's injected catalog only — `claude` reads the `claude` origin, `openclaw`
 and `hermes` read `agents`. They remain in the command catalog, in every list, and in explicit reads.
 
+The bundled runtime skill named `compozy` is reserved. Same-named external definitions may keep a
+source-qualified command such as `/agents:compozy`, but that command resolves the daemon's current
+bundled body and resources. External copies never replace this control-plane contract.
+
 ## Session Command Catalog
 
 Read the command catalog for the exact session before referring an operator to a slash command:
@@ -236,7 +240,8 @@ Bundled `spec-cycle` globally publishes exactly `cy-create-spec`, `cy-create-tas
 
 Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
 
-When multiple declarations use the same skill name, CompozyOS keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
+Except for the reserved `compozy` runtime skill, multiple declarations use normal precedence and
+record losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 
     compozy skill where <name> --workspace <ref> --for-agent <agent>
     GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<agent>
@@ -260,6 +265,7 @@ and local staging state before performing manual cleanup.
 ## Native CompozyOS Tool Map
 
 Inside CompozyOS, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
+Terminal discovery starts from its complete toolset entry there; operating rules stay in references/terminal.md.
 
 ## Management-Surface Exceptions
 

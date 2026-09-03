@@ -73,6 +73,31 @@ export const Default: Story = {
   ),
 };
 
+/** A fixed table that already truncates must not grow a sideways scroll. */
+export const FixedNoSidewaysScroll: Story = {
+  args: {},
+  render: () => (
+    <Table className="table-fixed" overflowX="hidden">
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-24">When</TableHead>
+          <TableHead>Command</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>12:47</TableCell>
+          <TableCell className="min-w-0">
+            <span className="block truncate font-mono">
+              psql -h staging.internal -U atlas atlas_api --very-long-flags-that-must-not-widen
+            </span>
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  ),
+};
+
 export const Empty: Story = {
   args: {},
   render: () => (

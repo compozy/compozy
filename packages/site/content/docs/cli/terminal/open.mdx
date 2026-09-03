@@ -1,0 +1,50 @@
+---
+title: "compozy terminal open"
+description: "Open an interactive terminal"
+---
+
+## compozy terminal open
+
+Open an interactive terminal
+
+```
+compozy terminal open [flags]
+```
+
+### Options
+
+```
+      --cols uint16        Initial columns (default 80)
+      --cwd string         Working directory under the workspace
+      --detach             Open without attaching
+  -h, --help               help for open
+      --rows uint16        Initial rows (default 24)
+      --shell string       Shell executable
+      --title string       Pinned terminal title
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+Without `--detach`, this command writes an interactive terminal stream. Add `--detach` before selecting a structured output format.
+
+| Format  | Command result                                                |
+| ------- | ------------------------------------------------------------- |
+| `human` | Interactive terminal rendering, or a detached terminal record |
+| `json`  | Detached terminal record                                      |
+| `jsonl` | Detached terminal record                                      |
+| `toon`  | Detached terminal record                                      |
+
+Example:
+
+```bash
+compozy terminal open --detach -o json
+```

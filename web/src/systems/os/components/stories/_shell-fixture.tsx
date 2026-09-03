@@ -111,6 +111,7 @@ export function createLiveStoryShell({
   const state: OsDesktopRuntimeStore = {
     snapshot: SNAPSHOT,
     windowManagerConfig,
+    clientAttachmentToken: "attachment-token",
     client: {
       workspaceId: "workspace-compozy",
       clientId: "client:story",

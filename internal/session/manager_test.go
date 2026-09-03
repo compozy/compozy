@@ -138,6 +138,9 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 			t.Fatalf("resolver Resolve() call %d arg = %q, want %q", index, got, h.workspaceID)
 		}
 	}
+	if got := h.resolver.profileResolveNames; !slices.Equal(got, []string{"default"}) {
+		t.Fatalf("resolver profile names = %#v, want default for session creation", got)
+	}
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 0 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 0", got)
 	}
@@ -1260,7 +1263,7 @@ func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {
 func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should resolve or register a default-profile workspace path once", func(t *testing.T) {
+	t.Run("Should resolve or register a default-profile workspace path through its profile layer", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -1288,10 +1291,13 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 			t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
 		}
 		if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
-			t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
+			t.Fatalf("resolver ResolveOrRegisterForProfile() calls = %d, want 1", got)
 		}
 		if got, want := h.resolver.resolveOrRegisterCalls[0], normalizeResolverPath(workspacePath); got != want {
 			t.Fatalf("resolver ResolveOrRegister() arg = %q, want %q", got, want)
+		}
+		if got := h.resolver.profileRegisterNames; !slices.Equal(got, []string{"default"}) {
+			t.Fatalf("resolver profile registrations = %#v, want default", got)
 		}
 		if got, want := session.Info().Workspace, normalizeResolverPath(workspacePath); got != want {
 			t.Fatalf("session workspace = %q, want %q", got, want)

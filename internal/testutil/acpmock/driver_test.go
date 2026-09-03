@@ -14,7 +14,9 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
@@ -107,12 +109,14 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 		filepath.Join(t.TempDir(), "runner-diagnostics.jsonl"),
 	)
 
-	driver := acp.New()
+	driver := acp.New(acp.WithTerminalManager(newDriverTerminalManager(t, nil)))
 	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
 		AgentName:   "runner",
 		Command:     command,
 		Cwd:         root,
 		Permissions: compozyconfig.PermissionModeApproveAll,
+		WorkspaceID: "workspace-acpmock",
+		ProfileID:   "profile-acpmock",
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -121,9 +125,11 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	defer stopDriverProcess(t, driver, proc)
 
 	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-		TurnID:  "turn-network-sandbox",
-		Message: "run sandbox",
-		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
+		TurnID:     "turn-network-sandbox",
+		RunID:      "run-network-sandbox",
+		Generation: 1,
+		Message:    "run sandbox",
+		Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
 	})
 	if err != nil {
 		t.Fatalf("driver.Prompt() error = %v", err)
@@ -150,6 +156,39 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	}) {
 		t.Fatalf("events = %#v, want network-ok assistant output", events)
 	}
+}
+
+type driverTerminalJournal struct {
+	terminalpkg.Journal
+}
+
+func (driverTerminalJournal) RegisterTerminal(terminalpkg.Info, func(bool), func(terminalpkg.Event)) {
+}
+func (driverTerminalJournal) CloseTerminal(context.Context, terminalpkg.Info) error { return nil }
+func (driverTerminalJournal) ObserveOutput(terminalpkg.Info, []byte)                {}
+func (driverTerminalJournal) Shutdown(context.Context) error                        { return nil }
+
+func newDriverTerminalManager(t testing.TB, registry *toolruntime.Registry) *terminalpkg.Service {
+	t.Helper()
+	options := []terminalpkg.Option{terminalpkg.WithJournal(driverTerminalJournal{})}
+	if registry != nil {
+		options = append(options, terminalpkg.WithProcessRegistry(registry))
+	}
+	manager, err := terminalpkg.NewManager(options...)
+	if err != nil {
+		t.Fatalf("terminal.NewManager() error = %v", err)
+	}
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("terminal.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("terminal.Shutdown() error = %v", err)
+		}
+	})
+	return manager
 }
 
 func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {

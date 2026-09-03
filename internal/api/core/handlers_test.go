@@ -92,7 +92,7 @@ func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts,
 			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
 		}},
 		{Profile: profilepkg.Profile{
-			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Emoji: "📣",
+			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
 			State: profilepkg.StateArchived,
 		}},
 	}, nil

@@ -11,6 +11,7 @@ import {
   Radio,
   Route,
   SlidersHorizontal,
+  Terminal,
   UsersRound,
   UserRoundCog,
   Webhook,
@@ -37,6 +38,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: SlidersHorizontal,
     group: "workspace",
     keywords: "defaults permissions session timeout update version runtime socket",
+  },
+  {
+    slug: "terminal",
+    label: "Terminal",
+    icon: Terminal,
+    group: "workspace",
+    keywords:
+      "terminal shell scrollback recording retention detached ttl subscribers daemon workspace default_shell",
   },
   {
     slug: "defaults",

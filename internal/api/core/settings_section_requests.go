@@ -144,11 +144,11 @@ func parseUpdateSettingsGeneralRequest(c *gin.Context) (settingspkg.SectionUpdat
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	payload, err := body.Config.validatedPayload()
+	payload, terminalProvided, err := body.Config.validatedPayload()
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	config, err := generalSettingsFromPayload(payload)
+	config, err := generalSettingsFromPayload(payload, terminalProvided)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}

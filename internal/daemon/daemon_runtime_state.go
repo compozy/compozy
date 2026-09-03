@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -33,6 +34,7 @@ type daemonRuntimeState struct {
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor
 	runtimeWorkers         daemonRuntimeWorkers
+	terminals              *terminalpkg.Service
 	localMemoryProvider    memoryProviderShutdowner
 	situationContext       *situation.Service
 	sessions               SessionManager
@@ -63,9 +65,9 @@ type daemonRuntimeState struct {
 	httpServer             Server
 	udsServer              Server
 	dreamRuntime           *consolidation.Runtime
-	workspaceResolver      workspacepkg.RuntimeResolver
-	worktrees              *worktree.Service
-	sandboxRegistry        *sandbox.Registry
+	workspaceRuntimeState
+	worktrees       *worktree.Service
+	sandboxRegistry *sandbox.Registry
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry
 	modelCatalog      *modelCatalogRuntime
@@ -81,4 +83,13 @@ type daemonRuntimeState struct {
 	viewPatches       *extensionCmdPaletteProvider
 	startedAt         time.Time
 	info              Info
+}
+
+type workspaceUnregisterFinalizer interface {
+	DrainUnregisters(context.Context) error
+}
+
+type workspaceRuntimeState struct {
+	workspaceResolver  workspacepkg.RuntimeResolver
+	workspaceFinalizer workspaceUnregisterFinalizer
 }

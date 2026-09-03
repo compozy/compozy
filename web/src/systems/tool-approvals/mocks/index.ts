@@ -1,5 +1,6 @@
 export {
   emptyToolApprovalGrantsResponseFixture,
+  terminalInclusiveToolApprovalGrantsResponseFixture,
   toolApprovalGrantFixtures,
   toolApprovalGrantsResponseFixture,
 } from "./fixtures";

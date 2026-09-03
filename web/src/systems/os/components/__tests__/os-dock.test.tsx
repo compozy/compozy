@@ -15,6 +15,7 @@ import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
+import { isOsDockSeparator } from "../../lib/os-dock-model";
 import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
@@ -125,6 +126,7 @@ function desktopState(
   return {
     snapshot: SNAPSHOT,
     windowManagerConfig: CONFIG,
+    clientAttachmentToken: null,
     client: {
       workspaceId: "workspace:test",
       clientId: "client:web",
@@ -247,6 +249,8 @@ describe("OsDock", () => {
       <OsDock
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard", badge: 0 },
+          { id: "terminal", name: "Terminal", icon: "terminal", badge: 1 },
+          { id: "sessions", name: "Sessions", icon: "sessions", badge: 3 },
           { id: "tasks", name: "Tasks", icon: "tasks", badge: 12 },
         ]}
         onSelect={vi.fn()}
@@ -254,7 +258,9 @@ describe("OsDock", () => {
     );
 
     expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveTextContent("0");
-    expect(screen.getByRole("button", { name: "Tasks" })).toHaveTextContent("9+");
+    expect(screen.getByRole("button", { name: "Terminal — 1 needs you" })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Sessions — 3 need you" })).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: "Tasks — 12 need you" })).toHaveTextContent("9+");
   });
 
   it("Should show the launcher name in a tooltip on focus", async () => {
@@ -396,6 +402,33 @@ describe("OsDock", () => {
     });
   });
 
+  it("Should keep Agents through Triggers in one dock division after Terminal", () => {
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    const ids = result.current.entries.map(entry =>
+      isOsDockSeparator(entry) ? `sep:${entry.id}` : entry.id
+    );
+
+    expect(ids).toEqual([
+      "session",
+      "dashboard",
+      "terminal",
+      "sep:sep-1",
+      "agents",
+      "network",
+      "tasks",
+      "loops",
+      "jobs",
+      "triggers",
+      "sep:sep-2",
+      "marketplace",
+      "bridges",
+      "knowledge",
+      "sep:sep-3",
+      "sandbox",
+      "vault",
+    ]);
+  });
+
   it("Should launch a new session from the dock when the catalog is empty", () => {
     const onNewSession = vi.fn();
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
@@ -520,6 +553,27 @@ describe("OsDock", () => {
 
     expect(onNewSession).toHaveBeenCalledOnce();
     expect(jumpToSession).not.toHaveBeenCalled();
+  });
+
+  it("Should mark Terminal running from catalog truth rather than an open window", () => {
+    const open = windowFixture("window:terminal", "terminal");
+    const { result, rerender } = renderHook(
+      (live: boolean) => useDesktopDock({}, { onNewSession: vi.fn(), terminalLive: live }),
+      { initialProps: true }
+    );
+    setDockState(desktopState());
+    rerender(true);
+
+    expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
+      running: true,
+    });
+
+    setDockState(desktopState({ [open.id]: open }, open.id, [open.id]));
+    rerender(false);
+
+    expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
+      running: false,
+    });
   });
 
   it("Should mark the sessions dock icon minimized when every session window is minimized", () => {

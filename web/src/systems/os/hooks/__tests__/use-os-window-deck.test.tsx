@@ -96,6 +96,7 @@ function runtimeFixture(windows: Record<string, OsWindow>): OsDesktopRuntimeStor
     snapshot: null,
     windowManagerConfig: null,
     client: null,
+    clientAttachmentToken: null,
     desktops: [],
     projections: {},
     frames: {},

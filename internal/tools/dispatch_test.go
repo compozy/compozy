@@ -81,8 +81,9 @@ func (s *recordingToolEventSink) snapshot() []ToolCallEvent {
 }
 
 type recordingApprovalBridge struct {
-	err   error
-	calls []approvalBridgeCall
+	err           error
+	approvalLabel string
+	calls         []approvalBridgeCall
 }
 
 type approvalBridgeCall struct {
@@ -129,14 +130,19 @@ var _ ApprovalBridge = (*recordingApprovalBridge)(nil)
 func (b *recordingApprovalBridge) RequestToolApproval(
 	_ context.Context,
 	scope Scope,
-	req CallRequest,
+	req *CallRequest,
 	view *ToolView,
 ) error {
 	recorded := ToolView{}
 	if view != nil {
 		recorded = cloneToolView(view)
 	}
-	b.calls = append(b.calls, approvalBridgeCall{scope: scope, req: req, view: recorded})
+	if req != nil {
+		if b.approvalLabel != "" {
+			req.ApprovalLabel = b.approvalLabel
+		}
+		b.calls = append(b.calls, approvalBridgeCall{scope: scope, req: *req, view: recorded})
+	}
 	return b.err
 }
 
@@ -363,7 +369,7 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		bridge := &recordingApprovalBridge{}
+		bridge := &recordingApprovalBridge{approvalLabel: "approved_by_operator"}
 		called := false
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -372,6 +378,13 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 				called = true
 				if string(req.Input) != `{"query":"patched"}` {
 					t.Fatalf("provider input = %s, want patched approval input", req.Input)
+				}
+				if !req.ApprovalGranted || req.ApprovalLabel != "approved_by_operator" {
+					t.Fatalf(
+						"provider approval = %t/%q, want granted/approved_by_operator",
+						req.ApprovalGranted,
+						req.ApprovalLabel,
+					)
 				}
 				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
 			},
@@ -903,8 +916,15 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		if !postErrorCalled {
 			t.Fatal("post-error hook was not called")
 		}
+		toolErr, ok := errors.AsType[*ToolError](err)
+		if !ok || len(toolErr.ReasonCodes) != 0 {
+			t.Fatalf("untyped provider failure = %#v, want backend failure without invented health reason", err)
+		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallFailed}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+		if reasons := events.snapshot()[1].ReasonCodes; len(reasons) != 0 {
+			t.Fatalf("untyped provider failure event reasons = %#v, want none", reasons)
 		}
 	})
 

@@ -39,6 +39,9 @@ type modelCatalogRuntime struct {
 
 	refreshLoopOnce  sync.Once
 	newRefreshTicker func(time.Duration) modelCatalogRefreshTicker
+
+	backgroundRefreshMu      sync.Mutex
+	backgroundRefreshRunning bool
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)

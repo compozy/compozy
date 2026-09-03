@@ -6,6 +6,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -68,6 +69,13 @@ func (d *Daemon) nativeToolsDeps(
 		Automation:            state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
+		},
+		TerminalExecApprover: state.terminalPermissions,
+		Terminals: func() terminalpkg.Manager {
+			if state.terminals == nil {
+				return nil
+			}
+			return state.terminals
 		},
 	}
 	d.populateNativeExtensionDeps(&deps, state)

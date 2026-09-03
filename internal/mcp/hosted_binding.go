@@ -135,6 +135,9 @@ func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer Pe
 	if err := toolID.Validate(); err != nil {
 		return HostedCallResponse{}, err
 	}
+	if tools.IsTerminalTool(toolID) && (strings.TrimSpace(record.runID) == "" || record.generation <= 0) {
+		return HostedCallResponse{}, ErrHostedRunRequired
+	}
 	input := cloneRaw(req.Input)
 	if len(input) == 0 {
 		input = json.RawMessage(`{}`)
@@ -149,6 +152,8 @@ func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer Pe
 		SessionID:     record.sessionID,
 		WorkspaceID:   record.workspaceID,
 		AgentName:     record.agentName,
+		RunID:         record.runID,
+		Generation:    record.generation,
 		CorrelationID: strings.TrimSpace(req.CorrelationID),
 		Input:         input,
 	}
@@ -162,6 +167,48 @@ func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer Pe
 		return HostedCallResponse{}, err
 	}
 	return HostedCallResponse{Result: result}, nil
+}
+
+// BindRun installs the authoritative active run identity for a hosted session.
+func (s *HostedService) BindRun(ctx context.Context, sessionID, runID string, generation int64) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	runID = strings.TrimSpace(runID)
+	if sessionID == "" || runID == "" || generation <= 0 {
+		return errors.New("mcp: hosted run identity is incomplete")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if launch := s.launches[sessionID]; launch != nil {
+		launch.runID = runID
+		launch.generation = generation
+		if bind := s.binds[launch.bindID]; bind != nil {
+			bind.runID = runID
+			bind.generation = generation
+		}
+	}
+	return nil
+}
+
+// ReleaseRun removes a matching active run identity from a hosted session.
+func (s *HostedService) ReleaseRun(sessionID, runID string, generation int64) {
+	if s == nil {
+		return
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	runID = strings.TrimSpace(runID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if launch := s.launches[sessionID]; launch != nil && launch.runID == runID && launch.generation == generation {
+		launch.runID = ""
+		launch.generation = 0
+		if bind := s.binds[launch.bindID]; bind != nil && bind.runID == runID && bind.generation == generation {
+			bind.runID = ""
+			bind.generation = 0
+		}
+	}
 }
 
 // ReleaseBind removes one active bind record.

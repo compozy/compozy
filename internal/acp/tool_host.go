@@ -12,7 +12,6 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 // ToolHost abstracts ACP file, permission, and terminal operations for a runtime.
@@ -24,6 +23,7 @@ const (
 	permissionReadTextFile     = sandbox.PermissionOperationReadTextFile
 	permissionWriteTextFile    = sandbox.PermissionOperationWriteTextFile
 	permissionCreateTerminal   = sandbox.PermissionOperationCreateTerminal
+	permissionCloseTerminal    = sandbox.PermissionOperationCloseTerminal
 	permissionRequestToolGrant = sandbox.PermissionOperationRequestToolGrant
 )
 
@@ -46,17 +46,27 @@ type localToolHost struct {
 }
 
 type localRuntimeConfig struct {
-	processRegistry *toolruntime.Registry
+	terminalManager TerminalHost
+	terminalScope   LocalTerminalScope
 	additionalRoots []string
+}
+
+type LocalTerminalScope struct {
+	WorkspaceID  string
+	ProfileID    string
+	SessionID    string
+	Generation   int64
+	ActorID      string
+	AllowedRoots []string
 }
 
 // LocalRuntimeOption customizes local ACP runtime helpers.
 type LocalRuntimeOption func(*localRuntimeConfig)
 
-// WithLocalProcessRegistry injects the shared tool process registry.
-func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption {
+func WithLocalTerminalManager(manager TerminalHost, scope LocalTerminalScope) LocalRuntimeOption {
 	return func(cfg *localRuntimeConfig) {
-		cfg.processRegistry = registry
+		cfg.terminalManager = manager
+		cfg.terminalScope = scope
 	}
 }
 
@@ -121,7 +131,7 @@ func newLocalToolHostFromPolicy(
 	return &localToolHost{
 		cwd:         root,
 		permissions: policy,
-		terminals:   newTerminalManager(ctx, logger, cfg.processRegistry),
+		terminals:   newTerminalManager(ctx, logger, cfg.terminalManager, cfg.terminalScope),
 	}
 }
 
@@ -175,7 +185,7 @@ func (h *localToolHost) CreateTerminal(
 	ctx context.Context,
 	req acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
-	return h.createTerminal(ctx, req, terminalOwnership{})
+	return h.createTerminal(ctx, req, terminalOwnership{systemOwned: true})
 }
 
 func (h *localToolHost) createTerminal(
@@ -201,18 +211,26 @@ func (h *localToolHost) createTerminal(
 }
 
 func (h *localToolHost) KillTerminal(id string) error {
-	return h.terminals.kill(id)
+	return h.killTerminalWithContext(h.terminals.lifecycle, id)
+}
+
+func (h *localToolHost) killTerminalWithContext(ctx context.Context, id string) error {
+	if err := h.Authorize(permissionCloseTerminal); err != nil {
+		return err
+	}
+	return h.terminals.kill(ctx, id)
 }
 
 func (h *localToolHost) TerminalOutput(id string) (string, error) {
-	output, _, _, err := h.terminalOutputStatus(id)
+	output, _, _, err := h.terminalOutputStatusWithContext(h.terminals.lifecycle, id)
 	return output, err
 }
 
-func (h *localToolHost) terminalOutputStatus(
+func (h *localToolHost) terminalOutputStatusWithContext(
+	ctx context.Context,
 	id string,
 ) (string, bool, *acpsdk.TerminalExitStatus, error) {
-	return h.terminals.output(id)
+	return h.terminals.output(ctx, id)
 }
 
 func (h *localToolHost) WaitForTerminalExit(ctx context.Context, id string) (int, error) {
@@ -240,7 +258,11 @@ func (h *localToolHost) waitForTerminalExitStatus(
 }
 
 func (h *localToolHost) ReleaseTerminal(id string) error {
-	return h.terminals.release(id)
+	return h.releaseTerminalWithContext(h.terminals.lifecycle, id)
+}
+
+func (h *localToolHost) releaseTerminalWithContext(ctx context.Context, id string) error {
+	return h.terminals.releaseWithContext(ctx, id)
 }
 
 func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) {
@@ -248,11 +270,7 @@ func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) 
 	if err != nil {
 		return terminalOwnership{}, err
 	}
-	return terminalOwnership{
-		networkOwned:   term.networkOwned,
-		ownerSessionID: term.ownerSessionID,
-		ownerTurnID:    term.ownerTurnID,
-	}, nil
+	return term.ownership, nil
 }
 
 func (h *localToolHost) Close() {

@@ -12,8 +12,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
-const PermissionRequestIDMetaKey = "request_id"
+const (
+	// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
+	PermissionRequestIDMetaKey = "request_id"
+	// PermissionToolIDMetaKey preserves the canonical Compozy tool identity for attention projections.
+	PermissionToolIDMetaKey = "compozy_tool_id"
+)
 
 var (
 	// ErrPermissionDenied reports that the configured static policy rejected an operation.
@@ -65,6 +69,7 @@ func (r ApproveRequest) Validate() error {
 
 type permissionEventRaw struct {
 	RequestID string                  `json:"request_id"`
+	ToolID    string                  `json:"tool_id,omitempty"`
 	Decision  string                  `json:"decision,omitempty"`
 	ToolInput json.RawMessage         `json:"tool_input,omitempty"`
 	Options   []permissionEventOption `json:"options,omitempty"`

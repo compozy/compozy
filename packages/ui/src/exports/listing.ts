@@ -112,6 +112,7 @@ export {
   DETAIL_INSPECTOR_INLINE_BREAKPOINT,
   DETAIL_INSPECTOR_INLINE_WIDTH,
 } from "../components/custom/detail-inspector-constants";
+export { useInlineLayout } from "../components/custom/hooks/use-inline-layout";
 export { PropertyRow, type PropertyRowProps } from "../components/custom/property-row";
 export {
   StatusCard,

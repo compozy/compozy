@@ -333,6 +333,12 @@ func (e *EffectivePolicyEvaluator) isTrustedReadOnlySource(d Descriptor) bool {
 }
 
 func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision *EffectiveToolDecision) {
+	if d.ID == ToolIDTerminalWrite {
+		// Terminal writes use the generation-fenced, per-terminal typing grant.
+		// A generic tool approval would duplicate that prompt and cannot be
+		// reused for subsequent writes to the same controller generation.
+		return
+	}
 	switch e.permissionMode() {
 	case PermissionModeApproveAll:
 		return

@@ -244,11 +244,15 @@ type recordingUnregisterPreparation struct {
 	beforeDeletes int
 	commits       int
 	rollbacks     int
+	staged        bool
+	committed     bool
+	commitErr     error
 	order         *[]string
 }
 
 func (p *recordingUnregisterPreparation) BeforeDelete(context.Context) error {
 	p.beforeDeletes++
+	p.staged = true
 	if p.order != nil {
 		*p.order = append(*p.order, "before_delete")
 	}
@@ -257,6 +261,11 @@ func (p *recordingUnregisterPreparation) BeforeDelete(context.Context) error {
 
 func (p *recordingUnregisterPreparation) Commit(context.Context) error {
 	p.commits++
+	if p.commitErr != nil {
+		return p.commitErr
+	}
+	p.staged = false
+	p.committed = true
 	if p.order != nil {
 		*p.order = append(*p.order, "commit")
 	}
@@ -265,6 +274,7 @@ func (p *recordingUnregisterPreparation) Commit(context.Context) error {
 
 func (p *recordingUnregisterPreparation) Rollback(context.Context) error {
 	p.rollbacks++
+	p.staged = false
 	if p.order != nil {
 		*p.order = append(*p.order, "rollback")
 	}
@@ -287,9 +297,11 @@ func removedWorkspaceRoot(t *testing.T) string {
 type mockWorkspaceStore struct {
 	mu sync.Mutex
 
-	workspaces map[string]Workspace
-	deleteErr  error
-	deleteHook func()
+	workspaces  map[string]Workspace
+	intents     map[string]DeletionIntent
+	deleteErr   error
+	completeErr error
+	deleteHook  func()
 
 	insertCalls       []Workspace
 	updateCalls       []Workspace
@@ -308,6 +320,7 @@ type nameCollisionOnceStore struct {
 func newMockWorkspaceStore(workspaces ...Workspace) *mockWorkspaceStore {
 	store := &mockWorkspaceStore{
 		workspaces: make(map[string]Workspace, len(workspaces)),
+		intents:    make(map[string]DeletionIntent),
 	}
 	for _, ws := range workspaces {
 		store.workspaces[ws.ID] = cloneWorkspace(ws)
@@ -391,6 +404,72 @@ func (m *mockWorkspaceStore) DeleteWorkspace(_ context.Context, id string) error
 		return ErrWorkspaceNotFound
 	}
 	delete(m.workspaces, id)
+	return nil
+}
+
+func (m *mockWorkspaceStore) StageWorkspaceDeletion(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.deleteCalls = append(m.deleteCalls, id)
+	if m.deleteHook != nil {
+		m.deleteHook()
+	}
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	ws, ok := m.workspaces[id]
+	if !ok {
+		return ErrWorkspaceNotFound
+	}
+	m.intents[id] = DeletionIntent{
+		Workspace: cloneWorkspace(ws), RequestedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	delete(m.workspaces, id)
+	return nil
+}
+
+func (m *mockWorkspaceStore) GetWorkspaceDeletionIntent(
+	_ context.Context,
+	id string,
+) (DeletionIntent, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	intent, ok := m.intents[id]
+	if !ok {
+		return DeletionIntent{}, ErrWorkspaceDeletionIntentNotFound
+	}
+	intent.Workspace = cloneWorkspace(intent.Workspace)
+	return intent, nil
+}
+
+func (m *mockWorkspaceStore) ListWorkspaceDeletionIntents(context.Context) ([]DeletionIntent, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	intents := make([]DeletionIntent, 0, len(m.intents))
+	for _, intent := range m.intents {
+		intent.Workspace = cloneWorkspace(intent.Workspace)
+		intents = append(intents, intent)
+	}
+	slices.SortFunc(intents, func(left, right DeletionIntent) int {
+		return strings.Compare(left.Workspace.ID, right.Workspace.ID)
+	})
+	return intents, nil
+}
+
+func (m *mockWorkspaceStore) CompleteWorkspaceDeletion(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.completeErr != nil {
+		return m.completeErr
+	}
+	if _, ok := m.intents[id]; !ok {
+		return ErrWorkspaceDeletionIntentNotFound
+	}
+	delete(m.intents, id)
 	return nil
 }
 
@@ -529,6 +608,13 @@ func (s *concurrentUnregisterStore) DeleteWorkspace(ctx context.Context, id stri
 	return ErrWorkspaceNotFound
 }
 
+func (s *concurrentUnregisterStore) StageWorkspaceDeletion(ctx context.Context, id string) error {
+	if err := s.mockWorkspaceStore.StageWorkspaceDeletion(ctx, id); err != nil {
+		return err
+	}
+	return ErrWorkspaceNotFound
+}
+
 type cancelOnInsertStore struct {
 	*mockWorkspaceStore
 	cancel context.CancelFunc
@@ -546,6 +632,25 @@ func (s *concurrentPathStore) UpdateWorkspace(context.Context, Workspace) error 
 }
 
 func (s *concurrentPathStore) DeleteWorkspace(context.Context, string) error {
+	return nil
+}
+
+func (s *concurrentPathStore) StageWorkspaceDeletion(context.Context, string) error {
+	return nil
+}
+
+func (s *concurrentPathStore) GetWorkspaceDeletionIntent(
+	context.Context,
+	string,
+) (DeletionIntent, error) {
+	return DeletionIntent{}, ErrWorkspaceDeletionIntentNotFound
+}
+
+func (s *concurrentPathStore) ListWorkspaceDeletionIntents(context.Context) ([]DeletionIntent, error) {
+	return nil, nil
+}
+
+func (s *concurrentPathStore) CompleteWorkspaceDeletion(context.Context, string) error {
 	return nil
 }
 

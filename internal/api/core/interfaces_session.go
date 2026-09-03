@@ -17,6 +17,7 @@ type SessionManager interface {
 	List() []*session.Info
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
+	ActivePromptRun(ctx context.Context, id string) (session.PromptRunIdentity, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	LatestSessionEventByType(ctx context.Context, id string, eventType string) (*store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,11 +39,15 @@ func (b *toolApprovalBridge) consumeDurableToolApproval(
 	if !found {
 		return false, nil
 	}
+	if terminalApprovalRequiresExactGrant(toolID) &&
+		(grant.AgentName != key.AgentName || grant.InputDigest != key.InputDigest) {
+		return false, nil
+	}
 	switch grant.Decision {
 	case toolspkg.ApprovalGrantAllow:
 		return true, nil
 	case toolspkg.ApprovalGrantReject:
-		return true, toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return true, toolApprovalRejectedError(toolID)
 	default:
 		b.logger.Warn(
 			"daemon: ignore invalid durable tool approval decision",
@@ -59,6 +64,7 @@ func (b *toolApprovalBridge) applyToolApprovalOutcome(
 	call toolspkg.CallRequest,
 	toolID toolspkg.ToolID,
 	outcome acpsdk.RequestPermissionOutcome,
+	remember bool,
 ) error {
 	if err := outcome.Validate(); err != nil {
 		return toolApprovalError(toolID, "tool approval returned no outcome", toolspkg.ReasonApprovalUnreachable)
@@ -70,10 +76,24 @@ func (b *toolApprovalBridge) applyToolApprovalOutcome(
 	case toolApprovalAllowOnceID:
 		return nil
 	case toolApprovalRejectOnceID:
-		return toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return toolApprovalRejectedError(toolID)
 	case toolApprovalAllowAlwaysID:
+		if !remember {
+			return toolApprovalError(
+				toolID,
+				"tool approval selected an unavailable option",
+				toolspkg.ReasonApprovalUnreachable,
+			)
+		}
 		return b.persistToolApprovalGrant(ctx, scope, call, toolID, toolspkg.ApprovalGrantAllow)
 	case toolApprovalRejectAlwaysID:
+		if !remember {
+			return toolApprovalError(
+				toolID,
+				"tool approval selected an unavailable option",
+				toolspkg.ReasonApprovalUnreachable,
+			)
+		}
 		if err := b.persistToolApprovalGrant(
 			ctx,
 			scope,
@@ -83,7 +103,7 @@ func (b *toolApprovalBridge) applyToolApprovalOutcome(
 		); err != nil {
 			return err
 		}
-		return toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return toolApprovalRejectedError(toolID)
 	default:
 		return toolApprovalError(toolID, "tool approval selected an unknown option", toolspkg.ReasonApprovalUnreachable)
 	}
@@ -125,7 +145,7 @@ func toolApprovalGrantKey(
 	if agentName == "" {
 		agentName = strings.TrimSpace(scope.AgentName)
 	}
-	inputDigest, err := toolspkg.ApprovalInputDigest(call.Input, "")
+	inputDigest, err := toolApprovalInputDigest(call.Input, toolID)
 	if err != nil {
 		return toolspkg.ApprovalGrantKey{}, err
 	}
@@ -140,6 +160,45 @@ func toolApprovalGrantKey(
 		return toolspkg.ApprovalGrantKey{}, err
 	}
 	return key, nil
+}
+
+func terminalApprovalRequiresExactGrant(toolID toolspkg.ToolID) bool {
+	return toolID == toolspkg.ToolIDTerminalExec || toolID == toolspkg.ToolIDTerminalWrite
+}
+
+func toolApprovalInputDigest(input json.RawMessage, toolID toolspkg.ToolID) (string, error) {
+	switch toolID {
+	case toolspkg.ToolIDTerminalExec:
+		var decoded terminalExecInput
+		if err := json.Unmarshal(input, &decoded); err != nil {
+			return "", fmt.Errorf("decode terminal exec approval shape: %w", err)
+		}
+		shape, err := json.Marshal(struct {
+			Command string            `json:"command"`
+			Args    []string          `json:"args,omitempty"`
+			Cwd     string            `json:"cwd,omitempty"`
+			Env     map[string]string `json:"env,omitempty"`
+		}{Command: decoded.Command, Args: decoded.Args, Cwd: decoded.Cwd, Env: decoded.Env})
+		if err != nil {
+			return "", fmt.Errorf("encode terminal exec approval shape: %w", err)
+		}
+		return toolspkg.ApprovalInputDigest(shape, "")
+	case toolspkg.ToolIDTerminalWrite:
+		var decoded struct {
+			TerminalID      string `json:"terminal_id"`
+			GrantGeneration uint64 `json:"grant_generation"`
+		}
+		if err := json.Unmarshal(input, &decoded); err != nil {
+			return "", fmt.Errorf("decode terminal write approval identity: %w", err)
+		}
+		identity, err := json.Marshal(decoded)
+		if err != nil {
+			return "", fmt.Errorf("encode terminal write approval identity: %w", err)
+		}
+		return toolspkg.ApprovalInputDigest(identity, "")
+	default:
+		return toolspkg.ApprovalInputDigest(input, "")
+	}
 }
 
 func toolApprovalGrantBackendError(id toolspkg.ToolID, err error) error {

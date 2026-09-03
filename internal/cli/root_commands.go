@@ -34,6 +34,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newMarketplaceCommand(deps),
 		newWorkspaceCommand(deps),
 		newDesktopCommand(deps),
+		newTerminalCommand(deps),
 		newWorktreeCommand(deps),
 		newWindowCommand(deps),
 		newLayoutCommand(deps),

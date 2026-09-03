@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, Terminal, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1
@@ -15,7 +15,7 @@ This body routes to the matching reference. Load it before acting.
 
 ## Required Reading Router
 
-Match the task to the row. Read the listed files in full before producing output. They are not appendices. Inline reminders in this file are only tripwires.
+Match the task to the row. Read the listed files in full before producing output unless the bounded descriptor fallback in Error Handling applies. They are not appendices. Inline reminders in this file are only tripwires.
 
 | Task                                                                                                                           | MUST read                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -26,6 +26,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Configure provider authentication or run provider authentication login                                                         | references/agent-definitions.md + references/native-tools.md       |
 | Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
+| Open, inspect, attach to, execute in, or control CompozyOS terminals; answer terminal input or audit terminal commands         | references/terminal.md + references/native-tools.md                |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                  | references/runtime-operations.md                                   |
 | Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
@@ -47,6 +48,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
+- references/terminal.md - deliberate terminal activation, native tool IDs, approval and control leases, input handoff, untrusted output, journal, profile, and platform rules.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
@@ -62,16 +64,21 @@ Match the task to the row. Read the listed files in full before producing output
 
 ## Operating Loop
 
-1. Read every reference selected by the router before acting.
+1. Read every reference selected by the router before acting, or qualify for the bounded descriptor fallback below.
 2. Prefer CompozyOS-native tools and structured outputs over prose, logs, or direct internal access when managing CompozyOS.
 3. Keep authority with the daemon: task state, review verdicts, session lifecycle, memory, extension lifecycle, hooks, and network sends must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
 4. After a mutation, confirm the result through a structured read instead of assuming success.
 
 ## Error Handling
 
-If a required reference is missing or unreadable, stop the affected operation and report its exact
-path instead of guessing. For runtime failures, preserve the structured error, follow the diagnostic
-order in `references/runtime-operations.md`, and never bypass daemon-owned state.
+If a required resource read fails, retry `compozy__skill_view` once with the exact router path. Correct
+`tool_not_found` or `tool_invalid_input` before retrying; retry `tool_backend_failed` once without
+changing the request. After a second failure, proceed only when one native call's live descriptor
+fully defines the requested operation, risk, and result handling. A visible `terminal_exec` qualifies
+for a one-command terminal demonstration; multi-step terminal control still requires
+`references/terminal.md`. Otherwise stop
+the affected operation and report the exact path. Preserve structured runtime errors, follow the
+diagnostic order in `references/runtime-operations.md`, and keep daemon-owned state authoritative.
 
 **STOP. Read references/tools-and-skills.md and references/native-tools.md in full before discovering, invoking, creating, or modifying any CompozyOS tool or skill.** The catalog in this file is only a router.
 

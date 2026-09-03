@@ -5,6 +5,7 @@ import type { OsAppId } from "./os-types";
 const DOCK_ICON_IDS = [
   "sessions",
   "dashboard",
+  "terminal",
   "agents",
   "network",
   "tasks",
@@ -23,6 +24,7 @@ export type DockIconId = (typeof DOCK_ICON_IDS)[number];
 const DOCK_ICON_BY_APP = {
   session: "sessions",
   dashboard: "dashboard",
+  terminal: "terminal",
   agents: "agents",
   network: "network",
   tasks: "tasks",
@@ -50,10 +52,17 @@ export function dockBadgeFor(
   return app.badge ? badges[app.badge] : undefined;
 }
 
+/** OpenDesign dock name: app title, plus the exact needs-you count when present. */
+export function dockItemAccessibleName(item: Pick<OsDockItemData, "name" | "badge">): string {
+  const count = item.badge;
+  if (count === undefined || count <= 0) return item.name;
+  return count === 1 ? `${item.name} — 1 needs you` : `${item.name} — ${count} need you`;
+}
+
 export interface OsDockItemData {
   /** Stable app key. */
   id: string;
-  /** Accessible app name (also the tooltip). */
+  /** App title used for the tooltip; the button name may append needs-you. */
   name: string;
   /** Presentational glyph identifier resolved by the dock component layer. */
   icon: DockIconId;

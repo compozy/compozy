@@ -33,7 +33,28 @@ func (c *daemonClient) doJSON(
 	requestBody any,
 	responseBody any,
 ) (err error) {
-	response, err := c.doRequest(ctx, method, path, query, requestBody)
+	return c.doJSONWithClient(ctx, method, path, query, requestBody, responseBody, c.httpClient)
+}
+
+func (c *daemonClient) doJSONWithClient(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	responseBody any,
+	client *http.Client,
+) (err error) {
+	response, err := c.doRequestWithCredentialsAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		"",
+		clientAgentCredentials(ctx),
+		client,
+	)
 	if err != nil {
 		return err
 	}
@@ -97,7 +118,7 @@ func (c *daemonClient) doSSE(
 		query,
 		nil,
 		lastEventID,
-		agentidentity.Credentials{},
+		clientAgentCredentials(ctx),
 		c.streamHTTPClient(),
 	)
 	if err != nil {
@@ -142,18 +163,34 @@ func (c *daemonClient) doRequest(
 	ctx context.Context,
 	method string,
 	path string,
-	query url.Values,
 	requestBody any,
 ) (*http.Response, error) {
 	return c.doRequestWithCredentials(
 		ctx,
 		method,
 		path,
-		query,
+		nil,
 		requestBody,
 		"",
-		agentidentity.Credentials{},
+		clientAgentCredentials(ctx),
 	)
+}
+
+type clientAgentCredentialsContextKey struct{}
+
+func withClientAgentCredentials(ctx context.Context, credentials agentidentity.Credentials) context.Context {
+	return context.WithValue(ctx, clientAgentCredentialsContextKey{}, credentials)
+}
+
+func clientAgentCredentials(ctx context.Context) agentidentity.Credentials {
+	if ctx == nil {
+		return agentidentity.Credentials{}
+	}
+	credentials, ok := ctx.Value(clientAgentCredentialsContextKey{}).(agentidentity.Credentials)
+	if !ok {
+		return agentidentity.Credentials{}
+	}
+	return credentials
 }
 
 func (c *daemonClient) doRequestWithCredentials(
@@ -177,7 +214,7 @@ func (c *daemonClient) doRequestWithCredentials(
 	)
 }
 
-// doRequestWithCredentialsAndClient lets SSE streams opt out of the JSON request timeout.
+// doRequestWithCredentialsAndClient lets long-lived requests opt out of the JSON request timeout.
 func (c *daemonClient) doRequestWithCredentialsAndClient(
 	ctx context.Context,
 	method string,
@@ -318,6 +355,9 @@ func isLocalOnlyClientOperation(method string, path string) bool {
 		return true
 	}
 	if hasAPIPathPrefix(normalized, "/api/scheduler") {
+		return true
+	}
+	if strings.HasPrefix(normalized, "/api/workspaces/") && strings.Contains(normalized, "/terminals") {
 		return true
 	}
 	if hasAPIPathPrefix(normalized, "/api/resources") &&

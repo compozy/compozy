@@ -9,6 +9,7 @@
 - Profile tools
 - Workspace boundary
 - Window management tools
+- Terminal tools
 - Skills and memory tools
 - Network tools
 - Task and autonomy tools
@@ -287,6 +288,15 @@ boolean; `window_reopen` needs only the revision. Three existing tools carry tab
 desktop delete, window close, and layout apply carry destructive risk. Discover `window_layout`
 resources with `compozy__resources_list`; `resource_id` is exclusive with inline arrange fields. CLI
 fallbacks are `compozy desktop|window|layout`; read `window-management.md` for multi-step changes.
+
+## Terminal Tools
+
+Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__terminal_open`,
+`compozy__terminal_write`, `compozy__terminal_read`, `compozy__terminal_wait`,
+`compozy__terminal_signal`, `compozy__terminal_close`, `compozy__terminal_list`,
+`compozy__terminal_request_input`, `compozy__terminal_yield`, and `compozy__terminal_claim`.
+Resolve each descriptor before calling it. Read `terminal.md` for activation, approval, lease,
+generation, capability, error, and CLI-fallback rules.
 
 ## Skills And Memory Tools
 

@@ -469,6 +469,10 @@ The daemon-authoritative, workspace-scoped topology and semantic command surface
 
 **Window manager vs memory:** window-manager data is *presentation topology* interpreted by the daemon. `memory` is *agent* knowledge (see Memory above). Window-manager documents hold no agent knowledge, and memory holds no window geometry.
 
+### Terminal
+
+The daemon-owned command surface for visible, interactive, or supervised work. Use **Terminal** as the product name; never use **console** or **shell pane** as aliases. Provider-internal command execution remains session activity and is not a Terminal.
+
 ---
 
 ## Verification & Testing
@@ -530,6 +534,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | `control surface` | — drop from UI | Internal vocabulary; stays the runtime term in specs and docs. |
 | `capability` | keep + define on first use | Wire identity `(peer_id, capability_id)` unchanged. `recipe`, `procedure`, and `playbook` stay forbidden everywhere. |
 | `session` | keep + gloss on first use | Already everyday English. |
+| `terminal` | "Terminal" | First-class product surface. Never label it "console" or "shell pane". |
 | `Loop` | — pending owner decision | Do not alias. `workflow` is released as a forbidden synonym for `capability`, but the historical "workflow" positioning is still warned off (see [Loop](#loop)). |
 | `Jobs` / `Triggers` / `Network` (dock titles) | — pending owner decision | Do not rename. |
 | settings group `Operator` | "Personal" | Group label only. |

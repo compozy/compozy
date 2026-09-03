@@ -174,6 +174,7 @@ type SessionRuntimeRecoveryPayload struct {
 	PayloadBase
 	SessionContext
 	TurnContext
+	RunID         string `json:"run_id"`
 	Attempt       int    `json:"attempt"`
 	MaxAttempts   int    `json:"max_attempts"`
 	Generation    int64  `json:"generation"`

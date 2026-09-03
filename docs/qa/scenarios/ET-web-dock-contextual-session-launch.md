@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/screenshots/dock-last-created.png;/Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/screenshots/dock-empty-create.png;docs/qa/evidence/2026-08-27-session-empty-dock/CH-session-empty-and-dock-last-created-dock-last-created.png
-last_report: docs/qa/reports/2026-08-27-session-empty-dock.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/screenshots/dock-last-created.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/screenshots/session-delete-empty-tab.png; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-web-sessions-catalog-modal; ET-web-desktop-shell-lifecycle
 ---
 

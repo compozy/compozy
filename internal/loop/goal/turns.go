@@ -333,8 +333,8 @@ func (e *Executor) completeTurn(
 		PromptID:             result.PromptID,
 		Result:               result,
 		Verdict:              verdict,
-		DispatchActorKind:    string(segment.input.Actor.Actor.Kind),
-		DispatchActorID:      segment.input.Actor.Actor.Ref,
+		DispatchActorKind:    string(segment.input.ActorOrZero().Actor.Kind),
+		DispatchActorID:      segment.input.ActorOrZero().Actor.Ref,
 	})
 	if err != nil {
 		return Checkpoint{}, fmt.Errorf("goal: complete turn for prompt %q: %w", result.PromptID, err)

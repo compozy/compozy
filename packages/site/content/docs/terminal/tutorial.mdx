@@ -1,0 +1,111 @@
+---
+title: Open and use a terminal
+description: Open a workspace terminal, run a visible command, answer input, and inspect the result.
+---
+
+This walkthrough uses structured CLI output so each step is easy to verify. Replace `my-project`
+with a registered local workspace ID, name, or path whose `capabilities.interactive` value is
+`true`. Remote sandboxes support execute-only terminal commands and cannot open an interactive
+terminal. See [Platform support](/docs/terminal/platform-support).
+
+## 1. Start a visible command
+
+```bash
+compozy terminal exec --workspace my-project --visible --yield 1s -o json -- \
+  sh -c 'printf "Continue? "; read answer; printf "answer=%s\n" "$answer"'
+```
+
+Expected shape:
+
+```json
+{
+  "exit_code": null,
+  "signal": null,
+  "output": "Continue? ",
+  "untrusted": true,
+  "command_id": "cmd-example",
+  "still_running": true,
+  "terminal_id": "term-4aa01f22e6c3"
+}
+```
+
+Keep the returned terminal ID for every later step. The selected profile is the active profile; it
+is not assumed to have a particular name.
+
+## 2. Attach with control
+
+```bash
+compozy terminal attach term-4aa01f22e6c3 --workspace my-project --control
+```
+
+`--control` requests the write lease. Omit it for a read-only attachment. Detach from the local client
+when you are done; the terminal process keeps running until it exits or is closed.
+
+## 3. Inspect the running command
+
+```bash
+compozy terminal get term-4aa01f22e6c3 --workspace my-project -o json
+```
+
+A command that finishes within the yield window returns either an exit code or a signal. The other
+field is `null`; a process cannot report both outcomes:
+
+```json
+{
+  "exit_code": 0,
+  "signal": null,
+  "output": "answer=y\n",
+  "truncated": false,
+  "untrusted": true,
+  "duration_ms": 842,
+  "command_id": "cmd-example",
+  "terminal_id": "term-4aa01f22e6c3"
+}
+```
+
+A longer command returns `"still_running": true` with its `terminal_id`. Open that same terminal in
+the OS shell or attach through the CLI to keep watching it. See
+[`compozy terminal exec`](/docs/cli/terminal/exec) for output shaping and environment flags.
+
+## 4. Answer a requested input
+
+From the agent session that controls this terminal, call `compozy__terminal_request_input` with the
+returned terminal ID, a reason, and the visible `Continue?` prompt excerpt. That operation creates
+the pending request and blocks until the request is answered, rejected, superseded, or expires. It
+does not yield the terminal lease. Then list requests in the selected profile:
+
+```bash
+compozy terminal input-requests --workspace my-project -o json
+```
+
+Then pipe one line to the waiting terminal:
+
+```bash
+printf 'y\n' | compozy terminal respond term-4aa01f22e6c3 \
+  --workspace my-project --request input-example -o json
+```
+
+Expected result:
+
+```json
+{
+  "request_id": "input-example",
+  "outcome": "answered",
+  "delivered_bytes": 1,
+  "redacted": false
+}
+```
+
+Use `--reject` instead of stdin when the program should not continue.
+
+## 5. Verify the journal
+
+```bash
+compozy terminal journal --workspace my-project --terminal term-4aa01f22e6c3 -o json
+```
+
+The response contains `entries` and a nullable `next` cursor. Each entry records the actor, command,
+working directory, timing, exit cause, approval, output byte count, and command-boundary detection.
+`detected_by` is `exact`, `marker`, or `idle`. `exact` comes from the execution boundary,
+`marker` comes from an authenticated shell marker, and `idle` is an explicitly approximate fallback
+that the UI labels estimated.

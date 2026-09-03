@@ -14,7 +14,7 @@ func streams(root string) []stream {
 		newStreamWithSource(root, "global", "internal/store/globaldb", "definitions"),
 		newStream(root, "session", "internal/store/sessiondb"),
 		newStream(root, "memory", "internal/memory"),
-		newStream(root, "workspace", "internal/store/workspacedb"),
+		newStreamWithSource(root, "workspace", "internal/store/workspacedb", "definitions"),
 	}
 }
 

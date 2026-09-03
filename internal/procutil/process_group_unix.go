@@ -22,6 +22,26 @@ const (
 
 var errProcessGroupEnumerationUnavailable = errors.New("process group enumeration unavailable")
 
+// ConfigureCommandSession starts the command in a new Unix session.
+func ConfigureCommandSession(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setsid = true
+}
+
+// ConfigureCommandTerminalSession starts the command in a new session with a controlling terminal.
+func ConfigureCommandTerminalSession(cmd *exec.Cmd) {
+	ConfigureCommandSession(cmd)
+	if cmd == nil {
+		return
+	}
+	cmd.SysProcAttr.Setctty = true
+}
+
 // ConfigureCommandProcessGroup starts the command in its own process group so
 // callers can signal and observe the full descendant tree.
 func ConfigureCommandProcessGroup(cmd *exec.Cmd) {

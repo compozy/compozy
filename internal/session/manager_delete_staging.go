@@ -29,6 +29,8 @@ type stagedSessionDelete struct {
 	capabilities                *sessionDeleteCapabilities
 	attachments                 *stagedAttachmentDelete
 	windowReconciliationPending bool
+	phase                       deleteCommitPhase
+	logicalRemovalPublished     bool
 }
 
 type workspaceUnregisterPreparation struct {
@@ -36,6 +38,7 @@ type workspaceUnregisterPreparation struct {
 	staged                       []stagedSessionDelete
 	attachments                  *stagedAttachmentDelete
 	conversationOperationUnlocks []func()
+	mu                           sync.Mutex
 	release                      sync.Once
 }
 
@@ -221,11 +224,16 @@ func (p *workspaceUnregisterPreparation) Commit(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
-	defer p.releaseResources()
-	return errors.Join(
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	err := errors.Join(
 		p.manager.commitStagedSessionDeletes(ctx, p.staged),
-		commitStagedAttachmentDelete(p.attachments),
+		p.manager.commitStagedAttachmentDelete(ctx, p.attachments),
 	)
+	if err == nil {
+		p.releaseResources()
+	}
+	return err
 }
 
 func (*workspaceUnregisterPreparation) BeforeDelete(context.Context) error {
@@ -236,6 +244,8 @@ func (p *workspaceUnregisterPreparation) Rollback(ctx context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	defer p.releaseResources()
 	return errors.Join(
 		p.manager.rollbackStagedSessionDeletes(ctx, p.staged),
@@ -380,45 +390,6 @@ func (m *Manager) stageSessionDirectoryDeleteWithAttachmentStaging(
 	}
 	entry.attachments = attachments
 	return entry, nil
-}
-
-func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {
-	var cleanupErr error
-	for _, entry := range staged {
-		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
-			cleanupErr = errors.Join(cleanupErr, err)
-		} else {
-			result, moveErr := entry.capabilities.directory.MoveTo(
-				entry.capabilities.parentDirectory,
-				filepath.Base(entry.committedPath),
-				false,
-			)
-			cleanupErr = errors.Join(cleanupErr, moveErr, result.PostCommitErr)
-			if result.Committed() {
-				verifyErr := entry.capabilities.database.VerifyOwnerAt(
-					ctx,
-					entry.owner,
-					store.SessionDBFile(entry.committedPath),
-				)
-				cleanupErr = errors.Join(cleanupErr, verifyErr)
-				attachmentErr := commitStagedAttachmentDelete(entry.attachments)
-				cleanupErr = errors.Join(cleanupErr, attachmentErr)
-				if verifyErr == nil && attachmentErr == nil && !entry.windowReconciliationPending {
-					cleanupErr = errors.Join(
-						cleanupErr,
-						m.removeStagedSessionDelete(entry, entry.committedPath),
-					)
-				}
-			}
-		}
-		cleanupErr = errors.Join(cleanupErr, entry.capabilities.Release(), entry.attachments.Release())
-		if entry.info != nil {
-			m.publishWaitSessionGone(entry.info)
-			m.remove(entry.info.ID)
-			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventDeleted, entry.info))
-		}
-	}
-	return cleanupErr
 }
 
 func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {

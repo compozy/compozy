@@ -22,7 +22,9 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	if err != nil {
 		return nil, err
 	}
-	return r.projectSkillActivation(ctx, skills, ActivationTarget{
+	skillsByName := cloneSkillMapFromList(skills)
+	protectBundledRuntimeSkillMap(skillsByName, r.bundledRuntimeSkillsSnapshot())
+	return r.projectSkillActivation(ctx, mergedSkillList(nil, skillsByName), ActivationTarget{
 		ProfileID:   resolvedSkillProfileID(resolved),
 		WorkspaceID: resourceWorkspaceKey(resolved),
 	})
@@ -84,6 +86,7 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 	if err != nil {
 		return nil, err
 	}
+	removeBundledRuntimeOverrides(workspaceSkills, r.bundledRuntimeSkillsSnapshot())
 
 	r.mu.Lock()
 	skills, shadowEvents := r.refreshWorkspaceCacheLocked(

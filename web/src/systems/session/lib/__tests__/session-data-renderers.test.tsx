@@ -75,4 +75,17 @@ describe("CompozyEventDataRenderer", () => {
 
     expect(screen.getByTestId("runtime-activity-notice")).toBeInTheDocument();
   });
+
+  it("Should keep command-style events off any terminal rendering path", () => {
+    renderWithContext({
+      type: "terminal_output",
+      session_id: SESSION_ID,
+      turn_id: "turn-legacy",
+      title: "bun test",
+      text: "$ bun test\n12 tests passed\n",
+    });
+
+    expect(screen.queryByText("reported by agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("log")).not.toBeInTheDocument();
+  });
 });

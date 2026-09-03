@@ -32,6 +32,11 @@ const SECTION_PAGES = {
       default: m.GeneralSettingsPage,
     }))
   ),
+  terminal: lazy(() =>
+    import("@/routes/_app/settings/-terminal-settings-page").then(m => ({
+      default: m.TerminalSettingsPage,
+    }))
+  ),
   defaults: lazy(() =>
     import("@/routes/_app/settings/-defaults-settings-page").then(m => ({
       default: m.DefaultsSettingsPage,

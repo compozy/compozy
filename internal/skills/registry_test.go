@@ -2937,6 +2937,97 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 	})
 }
 
+func TestRegistryProtectsBundledRuntimeSkillFromWorkspaceCopies(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep qualified aliases on the current bundled contract", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID  = "ws-runtime-skill"
+			canonicalRef = "Current terminal contract"
+		)
+		bundledFS := fstest.MapFS{
+			"compozy/SKILL.md": &fstest.MapFile{Data: []byte(strings.Join([]string{
+				"---",
+				"name: compozy",
+				"description: Current runtime skill",
+				"metadata:",
+				"  compozy:",
+				"    kind: runtime",
+				"    bundled: true",
+				"---",
+				"Read references/terminal.md before terminal work.",
+			}, "\n"))},
+			"compozy/references/terminal.md": &fstest.MapFile{Data: []byte(canonicalRef)},
+		}
+		registry := newTestRegistry(t, RegistryConfig{BundledFS: bundledFS})
+		records := []resources.Record[SkillResourceSpec]{
+			{
+				ID:    "bundled:compozy",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: SkillResourceSpec{
+					Name: "compozy", Description: "Current runtime skill", Source: skillSourceName(SourceBundled),
+					Dir: "compozy", FilePath: "compozy/SKILL.md", Enabled: true,
+					Metadata: map[string]any{"compozy": map[string]any{"kind": "runtime", "bundled": true}},
+				},
+			},
+			{
+				ID:    "workspace:agents:compozy",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspaceID},
+				Spec: SkillResourceSpec{
+					Name: "compozy", Description: "Stale workspace copy", Source: skillSourceName(SourceWorkspace),
+					Dir:      "/workspace/.agents/skills/compozy",
+					FilePath: "/workspace/.agents/skills/compozy/SKILL.md", Enabled: true,
+					Origin: "agents", RootID: "agents-root",
+				},
+			},
+		}
+		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+
+		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: workspaceID}}
+		effective, err := registry.ForAgentDefSession(
+			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-runtime-skill",
+		)
+		if err != nil {
+			t.Fatalf("ForAgentDefSession() error = %v", err)
+		}
+		runtimeSkill := findSkill(t, effective, "compozy")
+		if runtimeSkill.Source != SourceBundled || runtimeSkill.Meta.Description != "Current runtime skill" {
+			t.Fatalf("effective compozy = %#v, want current bundled runtime skill", runtimeSkill)
+		}
+
+		candidates, err := registry.CommandCandidatesForAgentDefSession(
+			t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-runtime-skill",
+		)
+		if err != nil {
+			t.Fatalf("CommandCandidatesForAgentDefSession() error = %v", err)
+		}
+		var agentsAlias *Skill
+		for _, candidate := range candidates {
+			if candidate.Qualified && candidate.SourceID == "agents" && candidate.Skill != nil &&
+				candidate.Skill.Meta.Name == "compozy" {
+				agentsAlias = candidate.Skill
+				break
+			}
+		}
+		if agentsAlias == nil {
+			t.Fatal("qualified /agents:compozy candidate not found")
+		}
+		if agentsAlias.Source != SourceBundled || agentsAlias.RootID != "agents-root" {
+			t.Fatalf("/agents:compozy skill = %#v, want bundled content with workspace command identity", agentsAlias)
+		}
+		content, err := registry.LoadResource(t.Context(), agentsAlias, "references/terminal.md")
+		if err != nil {
+			t.Fatalf("LoadResource(/agents:compozy, terminal) error = %v", err)
+		}
+		if content != canonicalRef {
+			t.Fatalf("LoadResource(/agents:compozy, terminal) = %q, want %q", content, canonicalRef)
+		}
+	})
+}
+
 func TestCloneSkillPreservesNilProvenance(t *testing.T) {
 	t.Parallel()
 

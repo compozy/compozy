@@ -4709,6 +4709,37 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 			t.Fatalf("shutdown order = %v, want %v", order, want)
 		}
 	})
+
+	t.Run("Should drain workspace deletion ownership before session shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		order := make([]string, 0, 3)
+		manager := &fakeSessionManager{
+			waitFinalizationsHook: func() { order = append(order, "session-finalizations") },
+			shutdownHook:          func() { order = append(order, "session-manager") },
+		}
+		finalizer := workspaceUnregisterFinalizerFunc(func(context.Context) error {
+			order = append(order, "workspace-finalizations")
+			return nil
+		})
+		d := &Daemon{}
+		var shutdownErrs []error
+
+		d.shutdownRuntimeWorkers(testutil.Context(t), &shutdownTargets{
+			daemonRuntimeState: daemonRuntimeState{
+				workspaceRuntimeState: workspaceRuntimeState{workspaceFinalizer: finalizer},
+				sessions:              manager,
+			},
+		}, &shutdownErrs)
+
+		if err := errors.Join(shutdownErrs...); err != nil {
+			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
+		}
+		want := []string{"workspace-finalizations", "session-finalizations", "session-manager"}
+		if !slices.Equal(order, want) {
+			t.Fatalf("shutdown order = %v, want %v", order, want)
+		}
+	})
 }
 
 func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
@@ -7129,6 +7160,12 @@ func (f memoryProviderShutdownerFunc) Shutdown(ctx context.Context) error {
 	return f(ctx)
 }
 
+type workspaceUnregisterFinalizerFunc func(context.Context) error
+
+func (f workspaceUnregisterFinalizerFunc) DrainUnregisters(ctx context.Context) error {
+	return f(ctx)
+}
+
 type supportBundleShutdownerFunc func(context.Context) error
 
 func (f supportBundleShutdownerFunc) Shutdown(ctx context.Context) error {
@@ -7152,6 +7189,7 @@ type fakeSessionManager struct {
 	syntheticPromptCalls     []fakeSyntheticPromptCall
 	syntheticPromptHook      func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	promptHook               func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	activePromptRunHook      func(context.Context, string) (session.PromptRunIdentity, error)
 	healthRows               map[string]heartbeat.SessionHealth
 	promptStarted            chan struct{}
 	promptRelease            <-chan struct{}
@@ -7170,6 +7208,7 @@ type fakeSessionManager struct {
 	shutdownHook             func()
 	compactionHandler        session.CompactionHandler
 	workspaceAccessPolicy    workspaceaccess.Policy
+	turnEndNotifier          session.TurnEndNotifier
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
@@ -7365,6 +7404,16 @@ func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info
 		}
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (f *fakeSessionManager) ActivePromptRun(
+	ctx context.Context,
+	id string,
+) (session.PromptRunIdentity, error) {
+	if f.activePromptRunHook != nil {
+		return f.activePromptRunHook(ctx, id)
+	}
+	return session.PromptRunIdentity{}, session.ErrPromptNotActive
 }
 
 func (f *blockingStatusSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
@@ -7936,7 +7985,28 @@ func (f *fakeSessionManager) ApprovePermission(
 
 func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
 
-func (f *fakeSessionManager) SetTurnEndNotifier(session.TurnEndNotifier) {}
+func (f *fakeSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
+	f.mu.Lock()
+	f.turnEndNotifier = fn
+	f.mu.Unlock()
+}
+
+func (f *fakeSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if fn == nil {
+		return
+	}
+	f.mu.Lock()
+	previous := f.turnEndNotifier
+	if previous == nil {
+		f.turnEndNotifier = fn
+	} else {
+		f.turnEndNotifier = func(ctx context.Context, identity session.PromptRunIdentity) {
+			previous(ctx, identity)
+			fn(ctx, identity)
+		}
+	}
+	f.mu.Unlock()
+}
 
 func (f *fakeSessionManager) PromptNetwork(
 	context.Context,
@@ -8116,6 +8186,23 @@ func (f *fakeNetworkBindableSessionManager) SetTurnEndNotifier(fn session.TurnEn
 	f.turnEndNotifier = fn
 }
 
+func (f *fakeNetworkBindableSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if fn == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	previous := f.turnEndNotifier
+	if previous == nil {
+		f.turnEndNotifier = fn
+		return
+	}
+	f.turnEndNotifier = func(ctx context.Context, identity session.PromptRunIdentity) {
+		previous(ctx, identity)
+		fn(ctx, identity)
+	}
+}
+
 func (f *fakeNetworkBindableSessionManager) currentTurnEndNotifier() session.TurnEndNotifier {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -8162,6 +8249,12 @@ type nonBindableHarnessSessionManager struct {
 	SessionManager
 	syntheticPrompter     syntheticPrompter
 	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m nonBindableHarnessSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if registrar, ok := m.SessionManager.(turnEndNotifierRegistrar); ok {
+		registrar.AddTurnEndNotifier(fn)
+	}
 }
 
 func (m nonBindableHarnessSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
@@ -8218,6 +8311,12 @@ func (m nonBindableHarnessSessionManager) StopWithCause(
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
 	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m sessionManagerWithoutWorkspaceRemoval) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if registrar, ok := m.SessionManager.(turnEndNotifierRegistrar); ok {
+		registrar.AddTurnEndNotifier(fn)
+	}
 }
 
 func (m sessionManagerWithoutWorkspaceRemoval) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
@@ -8704,6 +8803,7 @@ type recordingRegistry struct {
 	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
 	mu                        sync.Mutex
 	workspaces                map[string]workspacepkg.Workspace
+	workspaceDeletionIntents  map[string]workspacepkg.DeletionIntent
 	deadEntities              map[store.DeadEntityKey]store.DeadEntity
 	networkAvailability       store.NetworkAvailability
 	networkAvailabilityWrites []bool
@@ -9297,6 +9397,63 @@ func (r *recordingRegistry) DeleteWorkspace(_ context.Context, id string) error 
 		return workspacepkg.ErrWorkspaceNotFound
 	}
 	delete(r.workspaces, id)
+	return nil
+}
+
+func (r *recordingRegistry) StageWorkspaceDeletion(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	ws, ok := r.workspaces[id]
+	if !ok {
+		return workspacepkg.ErrWorkspaceNotFound
+	}
+	if r.workspaceDeletionIntents == nil {
+		r.workspaceDeletionIntents = make(map[string]workspacepkg.DeletionIntent)
+	}
+	r.workspaceDeletionIntents[id] = workspacepkg.DeletionIntent{Workspace: cloneRecordingWorkspace(ws)}
+	delete(r.workspaces, id)
+	return nil
+}
+
+func (r *recordingRegistry) GetWorkspaceDeletionIntent(
+	_ context.Context,
+	id string,
+) (workspacepkg.DeletionIntent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	intent, ok := r.workspaceDeletionIntents[id]
+	if !ok {
+		return workspacepkg.DeletionIntent{}, workspacepkg.ErrWorkspaceDeletionIntentNotFound
+	}
+	intent.Workspace = cloneRecordingWorkspace(intent.Workspace)
+	return intent, nil
+}
+
+func (r *recordingRegistry) ListWorkspaceDeletionIntents(
+	context.Context,
+) ([]workspacepkg.DeletionIntent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	intents := make([]workspacepkg.DeletionIntent, 0, len(r.workspaceDeletionIntents))
+	for _, intent := range r.workspaceDeletionIntents {
+		intent.Workspace = cloneRecordingWorkspace(intent.Workspace)
+		intents = append(intents, intent)
+	}
+	sort.Slice(intents, func(i, j int) bool {
+		return intents[i].Workspace.ID < intents[j].Workspace.ID
+	})
+	return intents, nil
+}
+
+func (r *recordingRegistry) CompleteWorkspaceDeletion(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.workspaceDeletionIntents[id]; !ok {
+		return workspacepkg.ErrWorkspaceDeletionIntentNotFound
+	}
+	delete(r.workspaceDeletionIntents, id)
 	return nil
 }
 

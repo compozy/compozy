@@ -136,6 +136,7 @@ func (r *Registry) commandCandidateSnapshot(
 				appendCommandSkill(result, skill)
 			}
 		}
+		protectBundledRuntimeCommandMap(result, r.bundledRuntimeSkills)
 		return result
 	}
 	for _, skill := range r.resourceGlobalCommandCandidates {
@@ -150,6 +151,7 @@ func (r *Registry) commandCandidateSnapshot(
 	for _, skill := range r.workspaceProfileCommandCandidatesForResolved(resolved) {
 		appendCommandSkill(result, skill)
 	}
+	protectBundledRuntimeCommandMap(result, r.bundledRuntimeSkills)
 	return result
 }
 

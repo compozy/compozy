@@ -1,7 +1,7 @@
-import { use, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { notifyUser } from "@/lib/user-feedback";
 import { useSessionPromptFallback } from "@/systems/session";
+import { clearChooseSessionTerminalQuote } from "@/systems/terminal/parts";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { usePaletteRegistry } from "./use-palette-registry";
@@ -14,15 +14,11 @@ import {
   type PaletteSection,
 } from "../lib/cmd-palette-sections";
 import type { PaletteDispatchOutcome } from "../lib/cmd-palette-dispatch";
-import { workspaceSwitchFeedback } from "../lib/cmd-palette-feedback";
 import type { PaletteRowAction, PaletteRowSources } from "../lib/cmd-palette-row-actions";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../lib/cmd-palette-types";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
-import { windowManagerStore } from "../stores/window-manager-store";
-import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useAttentionJump } from "./use-attention-jump";
 import { useOsPaletteDomainOpen } from "./use-os-palette-domain-open";
-import { useOsShell } from "./use-os-shell";
 import {
   useOsPaletteEntities,
   type OsPaletteEntities,
@@ -35,6 +31,8 @@ import {
   type OsPaletteDomainSection,
 } from "./use-os-palette-domain-search";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
+import { useOsPaletteLandingActions } from "./use-os-palette-landing-actions";
+import { useOsPaletteDispatchActions } from "./use-os-palette-dispatch-actions";
 
 export interface OsPaletteRootModel {
   readonly registry: PaletteRegistry;
@@ -81,6 +79,41 @@ export interface UseOsPaletteRootOptions {
   setPinned(command: ResolvedPaletteCommand, pinned: boolean): void;
 }
 
+function visiblePaletteFallback(
+  fallback: PaletteAgentFallback | null,
+  sectionCount: number,
+  entities: OsPaletteEntities,
+  domainSections: readonly OsPaletteDomainSection[]
+): PaletteAgentFallback | null {
+  const hasDirectResult =
+    sectionCount > 0 ||
+    entities.sessions.length > 0 ||
+    entities.tabs.length > 0 ||
+    entities.worktrees.length > 0 ||
+    domainSections.some(section => section.rows.length > 0);
+  return fallback !== null && hasDirectResult ? null : fallback;
+}
+
+function paletteRowSources({
+  destination,
+  domainSections,
+  entities,
+  sections,
+}: {
+  destination: boolean;
+  domainSections: readonly OsPaletteDomainSection[];
+  entities: OsPaletteEntities;
+  sections: readonly PaletteSection[];
+}): PaletteRowSources {
+  return {
+    commands: sections.flatMap(section => section.commands),
+    sessions: entities.sessions,
+    tabs: destination ? [] : entities.tabs,
+    worktrees: destination ? [] : entities.worktrees,
+    domainRows: domainSections.flatMap(section => section.rows),
+  };
+}
+
 /**
  * The palette root's view-model.
  *
@@ -96,10 +129,8 @@ export function useOsPaletteRoot({
   dispatch,
   setPinned,
 }: UseOsPaletteRootOptions): OsPaletteRootModel {
-  const { manager, coordinator } = useOsShell();
   const registry = usePaletteRegistry();
   const jumpToSession = useAttentionJump();
-  const worktreeDialogs = use(WorktreeDialogActionsContext);
   const workspace = useActiveWorkspace();
   const { activeWorkspaceId, registeredWorkspaces, runtimeWorkspaceId, scope } = workspace;
   const [query, setQuery] = useState("");
@@ -147,16 +178,25 @@ export function useOsPaletteRoot({
   });
 
   const close = () => onOpenChange(false);
+  // The choose-slot is an external store. Closing the picker without a pick
+  // must drop it — consume already took, so this is a no-op on a real land.
+  useEffect(() => {
+    if (!open) clearChooseSessionTerminalQuote();
+  }, [open]);
   const openDomainRow = useOsPaletteDomainOpen(close);
-  const fallback =
-    assembly.fallback !== null &&
-    assembly.sections.length === 0 &&
-    (entities.sessions.length > 0 ||
-      entities.tabs.length > 0 ||
-      entities.worktrees.length > 0 ||
-      domainSections.some(section => section.rows.length > 0))
-      ? null
-      : assembly.fallback;
+  const fallback = visiblePaletteFallback(
+    assembly.fallback,
+    assembly.sections.length,
+    entities,
+    domainSections
+  );
+  const landing = useOsPaletteLandingActions({
+    close,
+    destinationWindowId,
+    entities,
+    registeredWorkspaces,
+    runtimeWorkspaceId,
+  });
   const fallbackSession = useSessionPromptFallback({
     onCreated: session => {
       close();
@@ -168,132 +208,16 @@ export function useOsPaletteRoot({
     },
     onPickerOpened: close,
   });
-  const pickDestination = (target: {
-    app: OsAppId;
-    instanceKey?: string;
-    route?: OsWindowRoute;
-  }) => {
-    if (destinationWindowId === null) return;
-    windowManagerStore.trigger.paletteIntentCleared();
-    void coordinator
-      .userOpen({ ...target, stackTargetWindowId: destinationWindowId })
-      .then(openedId => {
-        // The empty tab hands its place to the picked surface — the open joined
-        // its frame, so closing it leaves the destination behind.
-        if (openedId !== null) void manager.closeWindow(destinationWindowId);
-      });
-  };
-
-  const landSession = (session: OsPaletteSessionResult) => {
-    // A landing that moves the shell to another workspace says so; the context
-    // changing under the operator is never silent (US-017.EC-3).
-    if (session.workspaceId !== "" && session.workspaceId !== runtimeWorkspaceId) {
-      const name =
-        registeredWorkspaces.find(workspace => workspace.id === session.workspaceId)?.name ??
-        session.workspaceLabel ??
-        session.workspaceId;
-      notifyUser(workspaceSwitchFeedback(name, session.title));
-    }
-    // BR-20: one landing implementation for every surface that opens a
-    // session — restore, switch workspace first, mark done-seen.
-    jumpToSession({
-      sessionId: session.sessionId,
-      agentName: session.agentName,
-      workspaceId: session.workspaceId,
-    });
-  };
-
-  const openSession = (session: OsPaletteSessionResult) => {
-    close();
-    if (destination) {
-      pickDestination({ app: "session", instanceKey: session.sessionId, route: session.route });
-      return;
-    }
-    landSession(session);
-  };
-
-  const goToTab = (windowId: string) => {
-    close();
-    void coordinator.userActivateWindow(windowId);
-  };
-
-  const scopeToWorktree = (entry: OsPaletteWorktreeResult) => {
-    close();
-    entities.selectWorktree(entry);
-  };
-
-  /*
-   * The palette closes when the command actually did something, and only then.
-   * A view push stays (it *is* the next level), an argument or confirmation step
-   * stays (it is still asking), a refusal stays (the row and its reason are
-   * still what the operator is looking at), and a daemon invocation holds the
-   * surface open — showing itself as pending — until it lands (US-017.AC-2).
-   */
-  const runCommand = (command: ResolvedPaletteCommand) => {
-    const navigate =
-      destination && command.action.kind === "navigate"
-        ? (app: OsAppId, route: OsWindowRoute | null) =>
-            pickDestination({ app, ...(route === null ? {} : { route }) })
-        : undefined;
-    void dispatch(command, query, navigate).then(outcome => {
-      if (command.action.kind === "view") return;
-      if (outcome.status === "ran" || outcome.status === "invoked") close();
-    });
-  };
-
-  const runRowAction = (action: PaletteRowAction) => {
-    const intent = action.intent;
-    switch (intent.kind) {
-      case "run-command": {
-        const command = registry.byId.get(intent.commandId);
-        if (command !== undefined) runCommand(command);
-        return;
-      }
-      case "pin": {
-        const command = registry.byId.get(intent.commandId);
-        if (command !== undefined) setPinned(command, intent.pinned);
-        return;
-      }
-      case "open-shortcut-settings":
-        close();
-        // The action is offered only while the registry carries the settings
-        // destination, so the deep link cannot point at a page this client
-        // could not open. It carries the command so the table can land on that
-        // row instead of on a registry the operator then has to search
-        // (US-022.AC-1).
-        void coordinator.userOpen({
-          app: "settings",
-          route: { pathname: "/settings/layouts", search: { command: intent.commandId } },
-        });
-        return;
-      case "land-session":
-        close();
-        landSession(intent.session);
-        return;
-      case "go-to-tab":
-        goToTab(intent.windowId);
-        return;
-      case "close-tab":
-        close();
-        void manager.closeWindow(intent.windowId);
-        return;
-      case "scope-worktree":
-        scopeToWorktree(intent.entry);
-        return;
-      case "remove-worktree": {
-        // Removal keeps its shipped confirm dialog; the palette raises it and
-        // steps out of the way.
-        const workspaceId = intent.entry.workspaceId ?? activeWorkspaceId;
-        if (worktreeDialogs === null || workspaceId === null) return;
-        close();
-        worktreeDialogs.requestRemove(workspaceId, intent.entry);
-        return;
-      }
-      case "open-domain-row":
-        openDomainRow(intent.row);
-        return;
-    }
-  };
+  const commandActions = useOsPaletteDispatchActions({
+    activeWorkspaceId,
+    close,
+    dispatch,
+    landing,
+    openDomainRow,
+    query,
+    registry,
+    setPinned,
+  });
 
   return {
     registry,
@@ -306,23 +230,17 @@ export function useOsPaletteRoot({
     ghostTail,
     setQuery,
     pins: rankSignals.data?.pins ?? [],
-    rowSources: {
-      commands: sections.flatMap(section => section.commands),
-      sessions: entities.sessions,
-      tabs: destination ? [] : entities.tabs,
-      worktrees: destination ? [] : entities.worktrees,
-      domainRows: domainSections.flatMap(section => section.rows),
-    },
+    rowSources: paletteRowSources({ destination, domainSections, entities, sections }),
     destinationWindowId,
     destination,
     destinationEmpty:
       destination && sections.length === 0 && entities.sessions.length === 0 && query === "",
-    runCommand,
+    runCommand: commandActions.runCommand,
     runFallback: query => void fallbackSession.run(query),
-    runRowAction,
-    openSession,
-    goToTab,
-    selectWorktree: scopeToWorktree,
+    runRowAction: commandActions.runRowAction,
+    openSession: landing.openSession,
+    goToTab: landing.goToTab,
+    selectWorktree: landing.selectWorktree,
     openDomainRow,
   };
 }

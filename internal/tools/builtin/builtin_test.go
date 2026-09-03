@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -100,6 +101,58 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					)
 				}
 			}
+		}
+	})
+
+	t.Run("Should keep terminal open optional and terminal write non-empty", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		var openSchema struct {
+			Required []string `json:"required"`
+		}
+		if err := json.Unmarshal(descriptors[toolspkg.ToolIDTerminalOpen].InputSchema, &openSchema); err != nil {
+			t.Fatalf("terminal_open input schema unmarshal error = %v", err)
+		}
+		if len(openSchema.Required) != 0 {
+			t.Fatalf("terminal_open required = %v, want none", openSchema.Required)
+		}
+
+		var writeSchema struct {
+			Required   []string `json:"required"`
+			Properties map[string]struct {
+				MinLength uint64 `json:"minLength"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptors[toolspkg.ToolIDTerminalWrite].InputSchema, &writeSchema); err != nil {
+			t.Fatalf("terminal_write input schema unmarshal error = %v", err)
+		}
+		required := slices.Clone(writeSchema.Required)
+		slices.Sort(required)
+		if !slices.Equal(required, []string{"data", "terminal_id"}) || writeSchema.Properties["data"].MinLength != 1 {
+			t.Fatalf(
+				"terminal_write schema = required %v, data minLength %d",
+				required,
+				writeSchema.Properties["data"].MinLength,
+			)
+		}
+	})
+
+	t.Run("Should constrain terminal read cursors to exact decimal uint64", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDTerminalRead]
+		var input nativeObjectSchema
+		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+			t.Fatalf("terminal_read input schema unmarshal error = %v", err)
+		}
+		var since nativeObjectSchema
+		if err := json.Unmarshal(input.Properties["since_seq"], &since); err != nil {
+			t.Fatalf("terminal_read since_seq schema unmarshal error = %v", err)
+		}
+		if since.Pattern != terminalpkg.DecimalUint64Pattern ||
+			since.MaxLength != int(terminalpkg.DecimalUint64MaxLength) {
+			t.Fatalf("terminal_read since_seq schema = pattern %q maxLength %d", since.Pattern, since.MaxLength)
 		}
 	})
 
@@ -979,6 +1032,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			{id: toolspkg.ToolIDResourcesList, capability: "resources.read"},
 			{id: toolspkg.ToolIDResourcesSnapshot, capability: "resources.read"},
 			{id: toolspkg.ToolIDProviderModelsCurate, capability: "providers.models.write"},
+			{id: toolspkg.ToolIDTerminalExec, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalOpen, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalWrite, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalRead, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalWait, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalSignal, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalClose, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalList, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalRequestInput, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalYield, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalClaim, capability: terminalExecCapability},
 		}
 		for _, tc := range cases {
 			descriptor, ok := descriptors[tc.id]
@@ -1792,6 +1856,28 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__task_unblock", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_claim", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_close", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_exec", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_open", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__terminal_read", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_request_input", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_signal", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__terminal_wait", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_write", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_yield", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
@@ -3003,6 +3089,72 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 	}
 }
 
+func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { // IT-026
+	t.Parallel()
+
+	descriptors := descriptorMap(terminalDescriptors())
+	readIDs := []toolspkg.ToolID{
+		toolspkg.ToolIDTerminalList,
+		toolspkg.ToolIDTerminalRead,
+		toolspkg.ToolIDTerminalWait,
+	}
+	patterns := make([]toolspkg.ToolPattern, 0, len(readIDs))
+	for _, id := range readIDs {
+		pattern, err := toolspkg.ParseToolPattern(id.String())
+		if err != nil {
+			t.Fatalf("ParseToolPattern(%s) error = %v", id, err)
+		}
+		patterns = append(patterns, pattern)
+	}
+	universe := make([]toolspkg.ToolID, 0, len(descriptors))
+	for id := range descriptors {
+		universe = append(universe, id)
+	}
+	evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+		SystemPermissionMode: toolspkg.PermissionModeApproveAll,
+		Agent:                toolspkg.AgentToolPolicy{Tools: patterns},
+	}, toolspkg.ToolsetCatalog{}, universe)
+	if err != nil {
+		t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+	}
+
+	for _, id := range readIDs {
+		descriptor := descriptors[id]
+		if !slices.Equal(descriptor.Backend.RequiresCapabilities, []string{terminalObserveCapability}) {
+			t.Fatalf(
+				"%s capabilities = %#v, want [%q]",
+				id,
+				descriptor.Backend.RequiresCapabilities,
+				terminalObserveCapability,
+			)
+		}
+		decision, evaluateErr := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+		if evaluateErr != nil {
+			t.Fatalf("Evaluate(%s) error = %v", id, evaluateErr)
+		}
+		if !decision.Callable {
+			t.Fatalf("Evaluate(%s).Callable = false, want observe-only access: %#v", id, decision)
+		}
+	}
+
+	execDescriptor := descriptors[toolspkg.ToolIDTerminalExec]
+	if !slices.Equal(execDescriptor.Backend.RequiresCapabilities, []string{terminalExecCapability}) {
+		t.Fatalf(
+			"%s capabilities = %#v, want [%q]",
+			toolspkg.ToolIDTerminalExec,
+			execDescriptor.Backend.RequiresCapabilities,
+			terminalExecCapability,
+		)
+	}
+	decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, execDescriptor)
+	if err != nil {
+		t.Fatalf("Evaluate(%s) error = %v", toolspkg.ToolIDTerminalExec, err)
+	}
+	if decision.Callable || !slices.Contains(decision.ReasonCodes, toolspkg.ReasonPolicyDenied) {
+		t.Fatalf("Evaluate(%s) decision = %#v, want policy denial", toolspkg.ToolIDTerminalExec, decision)
+	}
+}
+
 func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
 	t.Parallel()
 
@@ -3425,6 +3577,26 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(resourceTools, toolspkg.ToolIDResourcesSnapshot) ||
 			slices.Contains(resourceTools, toolspkg.ToolID("compozy__resource_list")) {
 			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
+		}
+
+		terminalTools, err := catalog.Expand(toolspkg.ToolsetIDTerminal, universe)
+		if err != nil {
+			t.Fatalf("Expand(terminal) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDTerminalClaim,
+			toolspkg.ToolIDTerminalClose,
+			toolspkg.ToolIDTerminalExec,
+			toolspkg.ToolIDTerminalList,
+			toolspkg.ToolIDTerminalOpen,
+			toolspkg.ToolIDTerminalRead,
+			toolspkg.ToolIDTerminalRequestInput,
+			toolspkg.ToolIDTerminalSignal,
+			toolspkg.ToolIDTerminalWait,
+			toolspkg.ToolIDTerminalWrite,
+			toolspkg.ToolIDTerminalYield,
+		}; !slices.Equal(terminalTools, want) {
+			t.Fatalf("terminal expansion = %#v, want %#v", terminalTools, want)
 		}
 
 		windowManagerTools, err := catalog.Expand(toolspkg.ToolsetIDWindowManager, universe)

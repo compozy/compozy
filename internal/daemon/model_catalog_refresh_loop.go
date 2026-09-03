@@ -114,12 +114,17 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 	if len(targets) == 0 {
 		return
 	}
+	if !r.beginBackgroundRefresh() {
+		return
+	}
 	complete, admitted := r.workers.Begin()
 	if !admitted {
+		r.finishBackgroundRefresh()
 		return
 	}
 	go func() {
 		defer complete()
+		defer r.finishBackgroundRefresh()
 		var refreshes sync.WaitGroup
 		for _, executionContext := range r.catalogExecutionContexts() {
 			for _, target := range targets {
@@ -138,4 +143,20 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 		}
 		refreshes.Wait()
 	}()
+}
+
+func (r *modelCatalogRuntime) beginBackgroundRefresh() bool {
+	r.backgroundRefreshMu.Lock()
+	defer r.backgroundRefreshMu.Unlock()
+	if r.backgroundRefreshRunning {
+		return false
+	}
+	r.backgroundRefreshRunning = true
+	return true
+}
+
+func (r *modelCatalogRuntime) finishBackgroundRefresh() {
+	r.backgroundRefreshMu.Lock()
+	r.backgroundRefreshRunning = false
+	r.backgroundRefreshMu.Unlock()
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -89,6 +90,7 @@ type RuntimeDeps struct {
 	Extensions          udsapi.ExtensionService
 	Resources           core.ResourceService
 	WindowManagers      *windowManagerRegistry
+	Terminals           *terminalpkg.Service
 	Gateway             *gateway.Service
 	GatewayChallenges   *gateway.ChallengeRegistry
 	GatewayAuthLimiter  *gateway.AuthFailureLimiter

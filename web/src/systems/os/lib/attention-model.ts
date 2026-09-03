@@ -27,12 +27,15 @@ import {
 import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
 import type { LoopRequestAttentionItem } from "@/systems/loops";
 
+import { terminalInputAttentionTitle } from "@/systems/terminal";
+
 import { compareAttentionRecency } from "./attention-order";
 
 export interface OsAttentionBadges {
   sessions?: number;
   tasks?: number;
   loops?: number;
+  terminal?: number;
 }
 
 export interface OsSessionAttentionRow {
@@ -83,11 +86,36 @@ export interface OsLoopRequestAttentionRow {
   stale: boolean;
 }
 
+export interface OsTerminalInputAttentionSource {
+  id: string;
+  terminal_id: string;
+  workspace_id?: string;
+  reason: string;
+  redacted: boolean;
+  requested_at: string;
+  requester_id: string;
+}
+
+export interface OsTerminalInputAttentionRow {
+  kind: "terminal-input";
+  id: string;
+  title: string;
+  agentName: string;
+  terminalId: string;
+  workspaceId: string;
+  workspaceLabel: string;
+  reason: string;
+  requestedAt: string;
+  redacted: boolean;
+  stale: boolean;
+}
+
 export type OsAttentionRow =
   | OsSessionAttentionRow
   | OsTaskAttentionRow
   | OsLoopNodeAttentionRow
-  | OsLoopRequestAttentionRow;
+  | OsLoopRequestAttentionRow
+  | OsTerminalInputAttentionRow;
 
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */
@@ -161,6 +189,9 @@ export interface DeriveAttentionSectionsInput {
   loopWaitingPresent: boolean;
   loopAttentionPresent: boolean;
   loopRequests?: readonly LoopRequestAttentionItem[];
+  terminalRequests?: readonly OsTerminalInputAttentionSource[];
+  terminalRowsStale?: boolean;
+  terminalWorkspaceId?: string;
 }
 
 /**
@@ -239,17 +270,38 @@ export function deriveAttentionSections(input: DeriveAttentionSectionsInput): Os
     })
   );
 
+  const terminalRows: OsTerminalInputAttentionRow[] = [];
+  for (const request of input.terminalRequests ?? []) {
+    const workspaceId = request.workspace_id?.trim() || input.terminalWorkspaceId || "";
+    terminalRows.push({
+      kind: "terminal-input",
+      id: request.id,
+      title: terminalInputAttentionTitle(request.redacted),
+      agentName: request.requester_id,
+      terminalId: request.terminal_id,
+      workspaceId,
+      workspaceLabel: input.workspaceLabels.get(workspaceId) ?? workspaceId,
+      reason: request.reason,
+      requestedAt: request.requested_at,
+      redacted: request.redacted,
+      stale: input.terminalRowsStale === true,
+    });
+  }
+
   return {
     needsYou: [
       ...needsYouSessions.map(session => toSessionRow(session, input)),
       ...taskRows,
       ...requestRows,
       ...loopRows,
+      ...terminalRows,
     ],
     finished: finishedSessions.map(session => toSessionRow(session, input)),
   };
 }
 
 export function attentionCount(badges: OsAttentionBadges): number {
-  return (badges.sessions ?? 0) + (badges.tasks ?? 0) + (badges.loops ?? 0);
+  return (
+    (badges.sessions ?? 0) + (badges.tasks ?? 0) + (badges.loops ?? 0) + (badges.terminal ?? 0)
+  );
 }

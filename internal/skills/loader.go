@@ -21,6 +21,8 @@ const (
 const skillFileName = skillscan.SkillFileName
 
 var (
+	// ErrInvalidDefinition reports malformed or incomplete SKILL.md metadata.
+	ErrInvalidDefinition = errors.New("skills: invalid definition")
 	errSkillNameRequired = errors.New("skills: skill name is required")
 )
 
@@ -124,10 +126,15 @@ func readSkillFile(path string) (string, []byte, error) {
 func parseSkillDocument(filePath string, dir string, content []byte, source SkillSource) (*Skill, string, error) {
 	meta, body, err := parseSkillContent(content)
 	if err != nil {
-		return nil, "", fmt.Errorf("skills: parse %q: %w", filePath, err)
+		return nil, "", fmt.Errorf("skills: parse %q: %w: %w", filePath, ErrInvalidDefinition, err)
 	}
 	if meta.Name == "" {
-		return nil, "", fmt.Errorf("skills: parse %q: %w", filePath, errSkillNameRequired)
+		return nil, "", fmt.Errorf(
+			"skills: parse %q: %w: %w",
+			filePath,
+			ErrInvalidDefinition,
+			errSkillNameRequired,
+		)
 	}
 
 	skill := &Skill{

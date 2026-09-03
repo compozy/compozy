@@ -14,9 +14,13 @@ import { cn } from "../lib/utils";
  * - The accessible name reaches the thumb. Base UI puts `role="slider"` on the
  *   thumb, so a label left on the root names a group nobody can operate.
  */
+export type SliderTone = "accent" | "neutral";
+
 type SliderProps<Value extends number | readonly number[]> = SliderPrimitive.Root.Props<Value> & {
   /** Gives each thumb an explicit name when a range needs domain-specific language. */
   getAriaLabel?: NonNullable<SliderPrimitive.Thumb.Props["getAriaLabel"]>;
+  /** Accent is the default fill. Neutral is a quiet scrubber that is not a primary action. */
+  tone?: SliderTone;
 };
 
 function Slider<Value extends number | readonly number[] = number>({
@@ -25,6 +29,7 @@ function Slider<Value extends number | readonly number[] = number>({
   value,
   min = 0,
   max = 100,
+  tone = "accent",
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
   getAriaLabel,
@@ -63,8 +68,12 @@ function Slider<Value extends number | readonly number[] = number>({
           data-slot="slider-track"
         >
           <SliderPrimitive.Indicator
-            className="bg-accent select-none data-horizontal:h-full data-vertical:w-full"
+            className={cn(
+              "select-none data-horizontal:h-full data-vertical:w-full",
+              tone === "neutral" ? "bg-fg-strong" : "bg-accent"
+            )}
             data-slot="slider-range"
+            data-tone={tone}
           />
         </SliderPrimitive.Track>
         {Array.from({ length: thumbCount }, (_, index) => (

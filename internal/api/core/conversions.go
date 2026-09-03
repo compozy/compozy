@@ -153,6 +153,7 @@ func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []co
 			Title:             strings.TrimSpace(value.Title),
 			Choices:           append([]string(nil), value.Payload.Choices...),
 			Decisions:         append([]string(nil), value.Payload.Decisions...),
+			ToolID:            strings.TrimSpace(value.Payload.ToolID),
 			Status:            strings.TrimSpace(value.Status),
 			CreatedAt:         value.CreatedAt.UTC(),
 			ResolvedAt:        cloneTimePtr(value.ResolvedAt),

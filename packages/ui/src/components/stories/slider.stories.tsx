@@ -49,6 +49,16 @@ export const WithReadout: Story = {
   },
 };
 
+/** A quiet fill for playback and other non-primary scrubs. */
+export const NeutralTone: Story = {
+  args: {},
+  render: () => (
+    <div className="w-64">
+      <Slider aria-label="Playback position" defaultValue={40} max={100} min={0} tone="neutral" />
+    </div>
+  ),
+};
+
 export const Disabled: Story = {
   render: () => (
     <div className="w-64">

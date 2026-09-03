@@ -52,6 +52,8 @@ export interface WindowRouteIntent {
   readonly id: string;
   readonly windowId: string;
   readonly route: OsWindowRoute;
+  /** Present when navigation also changes the window's semantic instance. */
+  readonly instanceKey?: string | null;
 }
 
 /**

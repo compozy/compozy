@@ -180,7 +180,7 @@ export interface OsDesktopRuntimeViewInput {
   workArea: PixelRect;
   workAreaOrigin: { x: number; y: number };
   seamPreview: SeamPreview | null;
-  routeIntents: Readonly<Record<string, { route: OsWindowRoute }>>;
+  routeIntents: Readonly<Record<string, { route: OsWindowRoute; instanceKey?: string | null }>>;
   connectionStatus: WindowManagerConnectionStatus;
   loadError: Error | null;
   wallpaper: OsWallpaper;
@@ -232,6 +232,7 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     snapshot,
     windowManagerConfig: config,
     client,
+    clientAttachmentToken: null,
     desktops: snapshot?.desktops ?? [],
     projections,
     frames,
@@ -262,7 +263,7 @@ export function buildWindowManagerWindows(input: {
   workArea: PixelRect;
   projections: Readonly<Record<string, LayoutProjection>>;
   frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
-  routeIntents?: Readonly<Record<string, { route: OsWindowRoute }>>;
+  routeIntents?: Readonly<Record<string, { route: OsWindowRoute; instanceKey?: string | null }>>;
 }): Readonly<Record<string, OsWindow>> {
   if (input.snapshot === null) return {};
   const windows: Record<string, OsWindow> = {};
@@ -283,11 +284,12 @@ export function buildWindowManagerWindows(input: {
     if (resolvedApp === null) continue;
     const projected = projectionMaps.get(authoritative.desktopId)?.get(authoritative.id);
     const frame = frameByMember.get(authoritative.id);
-    const route = input.routeIntents?.[authoritative.id]?.route ?? authoritative.route;
+    const routeIntent = input.routeIntents?.[authoritative.id];
+    const route = routeIntent?.route ?? authoritative.route;
     windows[authoritative.id] = {
       id: authoritative.id,
       app: resolvedApp,
-      instanceKey: authoritative.instanceKey,
+      instanceKey: routeIntent?.instanceKey ?? authoritative.instanceKey,
       route: {
         pathname: route.pathname,
         search: { ...route.search },

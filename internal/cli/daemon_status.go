@@ -7,12 +7,15 @@ import (
 	"os"
 
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/version"
 )
+
+const daemonStopWaitMargin = time.Second
 
 func waitForDaemonStop(
 	ctx context.Context,
@@ -26,7 +29,7 @@ func waitForDaemonStop(
 	client, clientErr := clientFromDeps(deps)
 	return pollUntil(
 		ctx,
-		deps.stopTimeout,
+		daemonStopWaitTimeout(deps.stopTimeout, &runtime.Config),
 		deps.pollInterval,
 		nil,
 		"cli: daemon did not stop before timeout",
@@ -43,6 +46,16 @@ func waitForDaemonStop(
 			}
 			return DaemonStatus{}, false, nil
 		},
+	)
+}
+
+func daemonStopWaitTimeout(configured time.Duration, config *compozyconfig.Config) time.Duration {
+	if configured != defaultStopTimeout {
+		return configured
+	}
+	return max(
+		configured,
+		compozydaemon.GracefulShutdownTimeout(config)+daemonStopWaitMargin,
 	)
 }
 

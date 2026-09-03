@@ -505,7 +505,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			result, executeErr := executor.Execute(testutil.Context(t), fixture.node, looppkg.ActionExecutionInput{
 				WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID,
 				Generation: 1, NodeID: fixture.node.ID, ItemIndex: 0,
-				Actor: fixture.actor, CorrelationID: fixture.workerClaim.Run.ID,
+				Actor: &fixture.actor, CorrelationID: fixture.workerClaim.Run.ID,
 				RuntimeSelection: &looppkg.ActionRuntimeSelection{
 					Defaults: looppkg.RuntimeDefaults{
 						Worker: looppkg.RuntimeSpec{Model: "worker-model"},

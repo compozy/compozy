@@ -39,11 +39,13 @@ let referenceDocument: OpenAPIDocument | null = null;
 
 async function cleanGenerated(): Promise<void> {
   const entries = await fs.readdir(OUT_DIR);
-  await Promise.all(
-    entries
-      .filter(entry => entry.endsWith(".mdx") && !PRESERVE.has(entry))
-      .map(entry => fs.rm(path.join(OUT_DIR, entry), { force: true }))
-  );
+  const removals: Array<Promise<void>> = [];
+  for (const entry of entries) {
+    if (entry.endsWith(".mdx") && !PRESERVE.has(entry)) {
+      removals.push(fs.rm(path.join(OUT_DIR, entry), { force: true }));
+    }
+  }
+  await Promise.all(removals);
 }
 
 async function readRepoFile(...parts: string[]): Promise<string> {

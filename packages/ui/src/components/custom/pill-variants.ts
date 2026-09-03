@@ -22,6 +22,10 @@ const pillVariants = cva(
         false: "font-sans",
       },
       solid: { true: "", false: "" },
+      form: {
+        tint: "",
+        hollow: "",
+      },
       active: { true: "", false: "" },
     },
     compoundVariants: [
@@ -41,12 +45,17 @@ const pillVariants = cva(
         active: true,
         className: "bg-elevated text-fg-strong",
       },
+      {
+        form: "hollow",
+        className: "bg-transparent text-subtle shadow-inset-strong",
+      },
     ],
     defaultVariants: {
       tone: "neutral",
       size: "sm",
       mono: false,
       solid: false,
+      form: "tint",
     },
   }
 );

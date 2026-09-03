@@ -112,6 +112,7 @@ func (r *Registry) ApplyConfigGeneration(
 	r.globalSnapshots = filesnap.Clone(snapshots)
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalSkills = loaded
+	r.bundledRuntimeSkills = bundledRuntimeSkillsFromCandidates(commandCandidates)
 	r.globalCommandCandidates = cloneCommandSkillSlice(commandCandidates)
 	r.globalLoaded = true
 	r.wsCache = make(map[string]*wsCache)

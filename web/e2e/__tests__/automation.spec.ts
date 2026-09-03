@@ -7,7 +7,12 @@ import {
   browserAutomationOperatorFlowScenario,
   seedBrowserAutomationOperatorFlow,
 } from "../fixtures/runtime";
-import { openAppWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
+import {
+  focusWindowThroughPalette,
+  openAppWindow,
+  sessionWindow,
+  windowTitle,
+} from "../fixtures/os-navigation";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
@@ -118,8 +123,10 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(jobsUI.jobsShell).toBeVisible();
+  await focusWindowThroughPalette(appPage, jobsWin);
   await jobsUI.itemLink(seeded.job.id).click();
   await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+  await expect(jobsUI.detailPanel).toBeVisible();
 
   await jobsUI.detailOverflow.click();
   const editJob = appPage.getByTestId("edit-automation-btn");

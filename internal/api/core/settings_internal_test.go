@@ -293,7 +293,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		SessionTimeout: "bad",
 		HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 		Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
-	}); err == nil {
+	}, true); err == nil {
 		t.Fatal("generalSettingsFromPayload(invalid timeout) error = nil, want non-nil")
 	}
 
@@ -310,7 +310,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 				MemoryReportInterval: "invalid",
 			},
 		}
-		if _, err := generalSettingsFromPayload(validGeneral); err == nil {
+		if _, err := generalSettingsFromPayload(validGeneral, true); err == nil {
 			t.Fatal("generalSettingsFromPayload(invalid memory report interval) error = nil, want non-nil")
 		}
 	})
@@ -484,6 +484,7 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 		t.Run(fmt.Sprintf("Should preserve enabled=%t", enabled), func(t *testing.T) {
 			t.Parallel()
 
+			terminal := compozyconfig.DefaultTerminalConfig()
 			payload := contract.SettingsGeneralConfigPayload{
 				Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 				Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
@@ -491,8 +492,20 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 				HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 				Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				Redact:         contract.SettingsRedactPayload{Enabled: enabled},
+				Terminal: contract.SettingsTerminalPayload{
+					DefaultShell:           terminal.DefaultShell,
+					ShellIntegration:       terminal.ShellIntegration,
+					ScrollbackBytes:        terminal.ScrollbackBytes,
+					DetachedTTL:            terminal.DetachedTTL.String(),
+					ExitRetention:          terminal.ExitRetention.String(),
+					Recording:              terminal.Recording,
+					RecordingRetentionDays: terminal.RecordingRetentionDays,
+					MaxPerWorkspace:        terminal.MaxPerWorkspace,
+					MaxPerDaemon:           terminal.MaxPerDaemon,
+					MaxSubscribers:         terminal.MaxSubscribers,
+				},
 			}
-			settings, err := generalSettingsFromPayload(payload)
+			settings, err := generalSettingsFromPayload(payload, true)
 			if err != nil {
 				t.Fatalf("generalSettingsFromPayload() error = %v", err)
 			}
@@ -501,6 +514,12 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 			}
 			if got := settingsGeneralConfigPayload(settings).Redact.Enabled; got != enabled {
 				t.Fatalf("settingsGeneralConfigPayload().Redact.Enabled = %t, want %t", got, enabled)
+			}
+			if settings.Terminal != terminal {
+				t.Fatalf("GeneralSettings.Terminal = %#v, want %#v", settings.Terminal, terminal)
+			}
+			if got := settingsGeneralConfigPayload(settings).Terminal; got != payload.Terminal {
+				t.Fatalf("settingsGeneralConfigPayload().Terminal = %#v, want %#v", got, payload.Terminal)
 			}
 		})
 	}

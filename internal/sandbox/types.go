@@ -147,6 +147,9 @@ type SessionState struct {
 type PrepareRequest struct {
 	SessionID           string
 	WorkspaceID         string
+	ProfileID           string
+	AgentName           string
+	RuntimeGeneration   int64
 	SandboxID           string
 	InstanceID          string
 	LocalRootDir        string
@@ -306,6 +309,8 @@ const (
 	PermissionOperationWriteTextFile PermissionOperation = "fs/write_text_file"
 	// PermissionOperationCreateTerminal authorizes terminal creation.
 	PermissionOperationCreateTerminal PermissionOperation = "terminal/create"
+	// PermissionOperationCloseTerminal authorizes closing a live terminal.
+	PermissionOperationCloseTerminal PermissionOperation = "terminal/close"
 	// PermissionOperationRequestToolGrant authorizes interactive permission requests.
 	PermissionOperationRequestToolGrant PermissionOperation = "session/request_permission"
 )

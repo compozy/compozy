@@ -57,10 +57,20 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 		)
 	case workspacePath != "":
 		if strings.TrimSpace(opts.ProfileID) == "" || strings.TrimSpace(opts.ProfileID) == store.DefaultProfileID {
-			resolved, err := resolver.ResolveOrRegister(ctx, workspacePath)
+			profileResolver, ok := resolver.(workspacepkg.ProfileRegistrationResolver)
+			if !ok {
+				return workspacepkg.ResolvedWorkspace{}, errors.New(
+					"session: workspace resolver does not support profile path registration",
+				)
+			}
+			resolved, err := profileResolver.ResolveOrRegisterForProfile(
+				ctx,
+				workspacePath,
+				sessionDefaultProfileName,
+			)
 			if err != nil {
 				return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-					"session: resolve workspace path %q: %w",
+					"session: resolve default profile workspace path %q: %w",
 					workspacePath,
 					err,
 				)
@@ -151,13 +161,17 @@ func resolveWorkspaceForProfile(
 ) (workspacepkg.ResolvedWorkspace, error) {
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" || profileID == store.DefaultProfileID {
-		var resolved workspacepkg.ResolvedWorkspace
-		var err error
-		if profileResolver, ok := resolver.(workspacepkg.ProfileRuntimeResolver); ok {
-			resolved, err = profileResolver.ResolveForProfile(ctx, workspaceRef, sessionDefaultProfileName)
-		} else {
-			resolved, err = resolver.Resolve(ctx, workspaceRef)
+		profileResolver, ok := resolver.(workspacepkg.ProfileRuntimeResolver)
+		if !ok {
+			return workspacepkg.ResolvedWorkspace{}, errors.New(
+				"session: workspace resolver does not support profile layers",
+			)
 		}
+		resolved, err := profileResolver.ResolveForProfile(
+			ctx,
+			workspaceRef,
+			sessionDefaultProfileName,
+		)
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, err
 		}

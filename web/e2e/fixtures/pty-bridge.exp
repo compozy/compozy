@@ -1,0 +1,40 @@
+#!/usr/bin/expect -f
+
+log_user 1
+set timeout -1
+
+if {$argc < 1} {
+  puts stderr "pty-bridge: command is required"
+  exit 2
+}
+
+set command [lindex $argv 0]
+set arguments [lrange $argv 1 end]
+spawn -noecho $command {*}$arguments
+
+# The caller drives this bridge through pipes, so `interact` cannot put its
+# input into raw mode reliably on macOS. Pump binary stdin explicitly to keep
+# control bytes such as Ctrl-\ byte-exact while the spawned command still owns
+# a real PTY.
+fconfigure stdin -blocking 0 -encoding binary -translation binary
+
+proc forward_stdin {} {
+  if {[eof stdin]} {
+    fileevent stdin readable {}
+    return
+  }
+  set data [read stdin]
+  if {[string length $data] > 0} {
+    send -raw -- $data
+  }
+}
+
+fileevent stdin readable forward_stdin
+expect eof
+
+set wait_status [wait]
+set exit_code [lindex $wait_status 3]
+if {![string is integer -strict $exit_code]} {
+  exit 1
+}
+exit $exit_code

@@ -5,9 +5,12 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch, createStatefulMswStore } from "@/test/msw-fetch";
-import { toolApprovalGrantFixtures } from "@/systems/tool-approvals/mocks/fixtures";
+import {
+  terminalToolApprovalGrantFixtures,
+  toolApprovalGrantFixtures,
+} from "@/systems/tool-approvals/mocks/fixtures";
 
-import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
+import { ToolApprovalGrantsSection, type ToolApprovalGrant } from "@/systems/tool-approvals";
 
 const WS = "ws_default";
 const TEST_ID = "settings-page-general-tool-approvals";
@@ -22,7 +25,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => workspaceMock.value,
 }));
 
-function listHandler(grants: ReadonlyArray<(typeof toolApprovalGrantFixtures)[number]>) {
+function listHandler(grants: ReadonlyArray<ToolApprovalGrant>) {
   return http.get("/api/tool-approval-grants", () =>
     HttpResponse.json({ grants, total: grants.length })
   );
@@ -50,6 +53,76 @@ describe("ToolApprovalGrantsSection", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should list a terminal permission here, reading as a permission not a tool id", async () => {
+    stubFetch([listHandler(terminalToolApprovalGrantFixtures)]);
+    renderSection();
+
+    await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
+
+    const typing = terminalToolApprovalGrantFixtures[0]!;
+    const shape = terminalToolApprovalGrantFixtures[1]!;
+    // Reads as a permission, and says only what the daemon actually recorded:
+    // a digest of one exact input, never a terminal name decoded from a hash.
+    expect(screen.getByTestId(`${TEST_ID}-terminal-group`)).toHaveTextContent("Terminal");
+    expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
+      "Can type in one terminal"
+    );
+    expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
+      typing.input_digest as string
+    );
+    expect(screen.getByTestId(`terminal-grant-row-${shape.id}`)).toHaveTextContent(
+      "Always allowed: this exact command"
+    );
+    expect(
+      screen.getByRole("button", { name: `Revoke Can type in one terminal` })
+    ).toHaveTextContent("Revoke");
+    // One policy surface: terminal permissions live here, not in a second list.
+    expect(screen.queryByTestId("tool-approval-grant-row")).not.toBeInTheDocument();
+  });
+
+  it("Should revoke a terminal permission through the same confirmation", async () => {
+    const typing = terminalToolApprovalGrantFixtures[0]!;
+    const store = createStatefulMswStore([typing]);
+    let revokedGrantID: string | undefined;
+    stubFetch([
+      http.get("/api/tool-approval-grants", () =>
+        HttpResponse.json({ grants: store.all(), total: store.all().length })
+      ),
+      http.delete("/api/tool-approval-grants/:id", ({ params }) => {
+        revokedGrantID = String(params.id);
+        return store.delete(revokedGrantID)
+          ? new HttpResponse(null, { status: 204 })
+          : HttpResponse.json({ error: "not found" }, { status: 404 });
+      }),
+    ]);
+    renderSection();
+    await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId(`terminal-grant-revoke-${typing.id}`));
+    fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
+
+    await waitFor(() => expect(revokedGrantID).toBe(typing.id));
+    expect(screen.queryByTestId(`terminal-grant-row-${typing.id}`)).not.toBeInTheDocument();
+  });
+
+  it("Should keep a terminal rejection in the generic row, where its copy reads right", async () => {
+    const rejectedTerminal = {
+      ...terminalToolApprovalGrantFixtures[1]!,
+      id: "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+      decision: "reject" as const,
+    };
+    stubFetch([listHandler([rejectedTerminal])]);
+    renderSection();
+
+    await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
+
+    // A rejection is not a grant; calling it "always allowed" would invert it.
+    expect(screen.getByTestId("tool-approval-grant-row")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`terminal-grant-row-${rejectedTerminal.id}`)
+    ).not.toBeInTheDocument();
   });
 
   it("Should render each remembered decision with its truthful scope and last-used time", async () => {

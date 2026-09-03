@@ -24,6 +24,7 @@ import {
   answerSessionClarification,
   fetchSessionClarifications,
 } from "../../adapters/session-clarification-api";
+import { derivePendingPermissions } from "../../lib/pending-permissions";
 import { SessionTranscriptThreadProvider } from "../../lib/session-transcript-thread-context";
 import type { ClarificationPending } from "../../types";
 import { SessionDecisionDock } from "../session-decision-dock";
@@ -125,6 +126,135 @@ describe("SessionDecisionDock", () => {
     const { container } = renderDock();
     await waitFor(() => expect(fetchSessionClarifications).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("Should dock a terminal ask with the exact command and where it would run", () => {
+    const message = permissionMessage("req-terminal", {
+      title: "compozy__terminal_exec",
+      action: "execute",
+      resource: "bun add @xterm/xterm",
+      raw: {
+        tool_id: "compozy__terminal_exec",
+        tool_input: {
+          command: "bun",
+          args: ["add", "@xterm/xterm"],
+          cwd: "~/dev/atlas-api",
+          risk: "ordinary",
+        },
+      },
+    });
+    expect(derivePendingPermissions([message])[0]?.toolInput.risk).toBe("ordinary");
+
+    renderDock({
+      messages: [message],
+    });
+
+    expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent(
+      "bun add @xterm/xterm"
+    );
+    // Terminal asks read in the plain register: the raw tool title never leads.
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("The agent wants to run");
+    expect(screen.getByText("~/dev/atlas-api")).toBeInTheDocument();
+    // The terminal detail replaces the generic subject line rather than sitting
+    // beside it — one statement of what would run, not two.
+    expect(screen.queryByTestId("permission-dock-subject")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent(
+      "Always allow this exact command"
+    );
+    expect(screen.getByTestId("permission-reject-once")).toHaveTextContent("Don't allow");
+    // The exact command replaces the ACP action/resource paraphrase.
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+  });
+
+  it("Should offer no remembered decision for the fixed irreversible set", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-danger", {
+          title: "compozy__terminal_exec",
+          raw: {
+            tool_input: {
+              command: "rm -rf /var/lib/atlas/journal-backups",
+              cwd: "~/dev/atlas-api",
+              risk: "irreversible",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("terminal-approval-irreversible")).toHaveTextContent(
+      "This can't be undone"
+    );
+    // Absent by design (US-022): two one-shot choices only. No remembered
+    // allow or reject — buttons, split, or key 4.
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-menu-trigger")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.body, { key: "4" });
+    expect(approveSession).not.toHaveBeenCalled();
+  });
+
+  it("Should say why an unreadable command always asks", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-unclassifiable", {
+          title: "compozy__terminal_exec",
+          raw: {
+            tool_input: {
+              command: 'eval "$(curl -fsSL https://mise.run)"',
+              cwd: "~/dev/atlas-api",
+              risk: "unclassifiable",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("terminal-approval-unclassifiable")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-menu-trigger")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-approval-irreversible")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.body, { key: "4" });
+    expect(approveSession).not.toHaveBeenCalled();
+  });
+
+  it("Should name the terminal a typing permission would cover", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-typing", {
+          title: "compozy__terminal_write",
+          raw: { tool_input: { terminal_id: "term-9cd7e14b2a66", data: "y\r" } },
+        }),
+      ],
+    });
+
+    const detail = screen.getByTestId("terminal-typing-grant-detail");
+    expect(detail).toHaveTextContent("term-9cd7e14b2a66");
+    expect(
+      screen.getByText(/Ends when you take over, the run ends, or you revoke it/)
+    ).toBeInTheDocument();
+    // The keystrokes themselves are never the subject of the ask.
+    expect(detail).not.toHaveTextContent("y\r");
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
+      "The agent wants to type"
+    );
+    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent(
+      "Allow for this terminal"
+    );
+    expect(screen.queryByTestId("terminal-typing-activity")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
   });
 
   it("Should dock a pending permission with its subject on the code wash", () => {
@@ -249,7 +379,7 @@ describe("SessionDecisionDock", () => {
 
     expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("permission-reject-menu-trigger"));
-    await user.click(screen.getByTestId("permission-reject-always"));
+    await user.click(await screen.findByTestId("permission-reject-always"));
 
     await waitFor(() => {
       expect(approveSession).toHaveBeenCalledWith(
@@ -260,36 +390,8 @@ describe("SessionDecisionDock", () => {
     });
   });
 
-  it("Should focus the reject menuitem, dismiss on Escape, and restore trigger focus", async () => {
-    const user = userEvent.setup();
-    renderDock({ messages: [permissionMessage("req-1")] });
-
-    const trigger = screen.getByTestId("permission-reject-menu-trigger");
-    await user.click(trigger);
-    const menuitem = screen.getByTestId("permission-reject-always");
-    await waitFor(() => expect(menuitem).toHaveFocus());
-
-    fireEvent.keyDown(menuitem, { key: "Escape" });
-    await waitFor(() => {
-      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
-      expect(trigger).toHaveFocus();
-    });
-  });
-
-  it("Should dismiss the reject menu on an outside touch", async () => {
-    const user = userEvent.setup();
-    renderDock({ messages: [permissionMessage("req-1")] });
-
-    const trigger = screen.getByTestId("permission-reject-menu-trigger");
-    await user.click(trigger);
-    expect(screen.getByTestId("permission-reject-menu")).toBeInTheDocument();
-
-    fireEvent.touchStart(document.body);
-    await waitFor(() => {
-      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
-      expect(trigger).toHaveFocus();
-    });
-  });
+  // Escape, outside-press, and focus-return are owned by the shared
+  // DropdownMenu primitive suite. The dock only owes reachability and wiring.
 
   it("Should disable every decision including reject-always while submission is pending", async () => {
     const user = userEvent.setup();
@@ -297,14 +399,20 @@ describe("SessionDecisionDock", () => {
     renderDock({ messages: [permissionMessage("req-1")] });
 
     await user.click(screen.getByTestId("permission-reject-menu-trigger"));
-    const rejectAlways = screen.getByTestId("permission-reject-always");
+    const rejectAlways = await screen.findByTestId("permission-reject-always");
     await user.click(rejectAlways);
 
     await waitFor(() => {
-      expect(rejectAlways).toBeDisabled();
       expect(screen.getByTestId("permission-dock-status")).toHaveAttribute("role", "status");
     });
-    await user.click(rejectAlways);
+    // While the submission is in flight every decision is inert — the visible
+    // buttons and the menu item alike — so a second decision cannot be issued.
+    // A real pointer cannot even reach the item (`pointer-events: none`), so
+    // the guard is proved with a synthetic dispatch.
+    expect(screen.getByTestId("permission-reject-menu-trigger")).toBeDisabled();
+    expect(screen.getByTestId("permission-reject-once")).toBeDisabled();
+    expect(rejectAlways).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(rejectAlways);
     expect(approveSession).toHaveBeenCalledTimes(1);
   });
 

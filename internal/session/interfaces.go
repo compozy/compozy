@@ -91,8 +91,17 @@ type WindowReconciler interface {
 	ReconcileDeletedSession(ctx context.Context, profileID, workspaceID, sessionID string) error
 }
 
-// TurnEndNotifier is invoked once after a prompt turn finishes dispatching.
-type TurnEndNotifier func(sessionID string)
+// PromptRunIdentity is the complete authority tuple for one active prompt run.
+type PromptRunIdentity struct {
+	WorkspaceID string
+	ProfileID   string
+	SessionID   string
+	RunID       string
+	Generation  int64
+}
+
+// TurnEndNotifier is invoked once after a prompt run finishes dispatching.
+type TurnEndNotifier func(context.Context, PromptRunIdentity)
 
 // PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
 type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)

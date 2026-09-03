@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -121,65 +120,6 @@ func TestFallbackPermissionEventRaw(t *testing.T) {
 	}
 }
 
-func TestWatchTerminalShutdown(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should exit when terminal finishes first", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		terminalDone := make(chan struct{})
-		shutdownCalls := make(chan struct{}, 1)
-		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
-			shutdownCalls <- struct{}{}
-		})
-
-		close(terminalDone)
-
-		select {
-		case <-watcherDone:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not exit after terminal completion")
-		}
-
-		cancel()
-		select {
-		case <-shutdownCalls:
-			t.Fatal("watchTerminalShutdown() called shutdown after terminal completion")
-		case <-time.After(20 * time.Millisecond):
-		}
-	})
-
-	t.Run("Should run shutdown when manager context cancels first", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		terminalDone := make(chan struct{})
-		shutdownCalls := make(chan struct{}, 1)
-		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
-			shutdownCalls <- struct{}{}
-		})
-
-		cancel()
-
-		select {
-		case <-shutdownCalls:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not run shutdown callback after context cancellation")
-		}
-
-		select {
-		case <-watcherDone:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not exit after context cancellation")
-		}
-	})
-}
-
 func TestNormalizeStartOptsRejectsInvalidAdditionalDirs(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +226,7 @@ func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testing.T) {
+func assertTerminalNetworkTurnRejectsNonAllowlistedCommands(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
@@ -412,6 +352,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	kind := acpsdk.ToolKindEdit
 	request := acpsdk.RequestPermissionRequest{
 		SessionId: "sess-direct",
+		Meta:      map[string]any{PermissionToolIDMetaKey: "compozy__terminal_exec"},
 		Options: []acpsdk.PermissionOption{
 			{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 			{OptionId: "allow-always", Name: "allow always", Kind: acpsdk.PermissionOptionKindAllowAlways},
@@ -472,6 +413,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	}
 	if got := raw.ToolInput["command"]; got != "rm -rf /tmp/demo" {
 		t.Fatalf("raw.tool_input.command = %#v, want %q", got, "rm -rf /tmp/demo")
+	}
+	if raw.ToolID != "compozy__terminal_exec" {
+		t.Fatalf("raw.tool_id = %q, want compozy__terminal_exec", raw.ToolID)
 	}
 
 	if err := proc.ResolvePermission(ApproveRequest{
@@ -908,10 +852,15 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	}
 }
 
-func TestTerminalLifecycleHandlers(t *testing.T) {
+func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+	active, err := proc.beginPromptForRun("turn-terminal-lifecycle", "run-terminal-lifecycle", 17, 8)
+	if err != nil {
+		t.Fatalf("beginPromptForRun() error = %v", err)
+	}
+	t.Cleanup(func() { proc.endPrompt(active) })
 
 	createResult, reqErr := proc.handleInbound(
 		context.Background(),
@@ -929,6 +878,14 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 	createResponse, ok := createResult.(acpsdk.CreateTerminalResponse)
 	if !ok {
 		t.Fatalf("handleInbound(create terminal) type = %T, want CreateTerminalResponse", createResult)
+	}
+	managed, err := proc.terminals.lookup(createResponse.TerminalId)
+	if err != nil {
+		t.Fatalf("terminal lookup error = %v", err)
+	}
+	if managed.actor.RunID != "run-terminal-lifecycle" || managed.actor.Generation != 17 ||
+		managed.actor.RunID == "turn-terminal-lifecycle" {
+		t.Fatalf("terminal actor identity = %#v, want distinct run id and generation 17", managed.actor)
 	}
 
 	waitResult, reqErr := proc.handleInbound(
@@ -991,24 +948,28 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 		t.Fatalf("handleInbound(release terminal) error = %v", reqErr)
 	}
 
-	if _, _, _, err := proc.terminals.output(createResponse.TerminalId); err == nil {
+	if _, _, _, err := proc.terminals.output(t.Context(), createResponse.TerminalId); err == nil {
 		t.Fatal("output(released terminal) error = nil, want terminal not found")
 	}
 }
 
-func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
+func assertNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	// This test mutates PATH with t.Setenv, so it must stay process-serial.
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	turnSource := ""
 	proc.SetTurnSourceProvider(func() string { return turnSource })
 
 	compozyDir := t.TempDir()
-	writeFakeCompozyBinary(t, compozyDir, "printf network-ok")
+	writeFakeCompozyBinary(t, compozyDir, `
+if [ -n "${OPENAI_API_KEY-}" ]; then printf leaked-provider-secret; exit 41; fi
+if [ "${COMPOZY_HOME-}" = "/tmp/redirected" ]; then printf leaked-request-home; exit 42; fi
+if [ -n "${SAFE_NETWORK_OVERRIDE-}" ]; then printf leaked-request-env; exit 43; fi
+printf network-ok`)
 	t.Setenv("PATH", compozyDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
 
 	turnSource = "network"
-	firstTurn, err := proc.beginPrompt("turn-network-1", 4)
+	firstTurn, err := proc.beginPromptForRun("turn-network-1", "run-network-1", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(first network) error = %v", err)
 	}
@@ -1031,20 +992,11 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lookup(network terminal) error = %v", err)
 	}
-	if !networkTerm.networkOwned {
+	if !networkTerm.ownership.networkOwned {
 		t.Fatal("network terminal networkOwned = false, want true")
 	}
-	if networkTerm.ownerTurnID != "turn-network-1" {
-		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownerTurnID, "turn-network-1")
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "OPENAI_API_KEY"); ok {
-		t.Fatalf("network terminal OPENAI_API_KEY = %q, want filtered", got)
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "COMPOZY_HOME"); ok {
-		t.Fatalf("network terminal COMPOZY_HOME = %q, want request env ignored", got)
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "SAFE_NETWORK_OVERRIDE"); ok {
-		t.Fatalf("network terminal SAFE_NETWORK_OVERRIDE = %q, want request env ignored", got)
+	if networkTerm.ownership.ownerTurnID != "turn-network-1" {
+		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownership.ownerTurnID, "turn-network-1")
 	}
 
 	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
@@ -1054,7 +1006,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		t.Fatalf("handleWaitForTerminalExit(same network turn) error = %v", err)
 	}
 
-	networkOutput, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+	networkOutput, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	})
@@ -1068,7 +1020,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	proc.endPrompt(firstTurn)
 
 	turnSource = "user"
-	userTurn, err := proc.beginPrompt("turn-user-1", 4)
+	userTurn, err := proc.beginPromptForRun("turn-user-1", "run-user-1", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(user) error = %v", err)
 	}
@@ -1086,13 +1038,13 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	proc.endPrompt(userTurn)
 
 	turnSource = "network"
-	secondTurn, err := proc.beginPrompt("turn-network-2", 4)
+	secondTurn, err := proc.beginPromptForRun("turn-network-2", "run-network-2", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(second network) error = %v", err)
 	}
 	defer proc.endPrompt(secondTurn)
 
-	if _, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+	if _, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
@@ -1106,14 +1058,14 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
 	}
 
-	if _, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
+	if _, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); err != nil {
 		t.Fatalf("handleKillTerminal(network-owned) error = %v", err)
 	}
 
-	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); err != nil {
@@ -1127,7 +1079,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		{
 			name: "output user terminal",
 			run: func() error {
-				_, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+				_, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1147,7 +1099,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		{
 			name: "kill user terminal",
 			run: func() error {
-				_, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
+				_, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1157,7 +1109,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		{
 			name: "release user terminal",
 			run: func() error {
-				_, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+				_, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1185,14 +1137,6 @@ func TestHelperUtilities(t *testing.T) {
 		t.Fatalf("attachStderr(empty) = %v, want original error", got)
 	}
 
-	env := mergeCommandEnv(
-		[]string{"A=1", "B=2"},
-		[]acpsdk.EnvVariable{{Name: "B", Value: "3"}, {Name: "C", Value: "4"}},
-	)
-	if len(env) != 3 || env[1] != "B=3" || env[2] != "C=4" {
-		t.Fatalf("mergeCommandEnv() = %#v, want overridden env", env)
-	}
-
 	servers := toSDKMCPServers([]compozyconfig.MCPServer{{
 		Name:    "github",
 		Command: "npx",
@@ -1213,11 +1157,6 @@ func TestHelperUtilities(t *testing.T) {
 		acpsdk.ResourceLinkBlock("doc", "file:///tmp/demo.txt"),
 	); got != "file:///tmp/demo.txt" {
 		t.Fatalf("extractContentText(resource_link) = %q", got)
-	}
-
-	trimmed := trimUTF8LeadingBytes([]byte{0xff, 'h', 'i'})
-	if string(trimmed) != "hi" {
-		t.Fatalf("trimUTF8LeadingBytes() = %q, want %q", string(trimmed), "hi")
 	}
 
 	if sliceLines("a\nb\nc", new(2), new(2)) != "b\nc" {
@@ -1280,60 +1219,6 @@ func TestHelperUtilities(t *testing.T) {
 	}
 }
 
-func TestTrimUTF8LeadingBytesPreservesTrailingPartialRune(t *testing.T) {
-	t.Parallel()
-
-	input := append([]byte("hello"), 0xE2)
-	got := trimUTF8LeadingBytes(append([]byte(nil), input...))
-	if !bytes.Equal(got, input) {
-		t.Fatalf("trimUTF8LeadingBytes() = %v, want %v", got, input)
-	}
-}
-
-func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *testing.T) {
-	t.Parallel()
-
-	term := &managedTerminal{
-		output:      bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
-		outputLimit: defaultTerminalOutputLimit,
-	}
-
-	term.appendOutput([]byte{0xE2})
-
-	if !term.truncated {
-		t.Fatal("appendOutput() did not mark output as truncated")
-	}
-	if len(term.output) != defaultTerminalOutputLimit {
-		t.Fatalf("len(term.output) = %d, want %d", len(term.output), defaultTerminalOutputLimit)
-	}
-	if cap(term.output) > defaultTerminalOutputLimit {
-		t.Fatalf("cap(term.output) = %d, want <= %d", cap(term.output), defaultTerminalOutputLimit)
-	}
-	if term.output[len(term.output)-1] != 0xE2 {
-		t.Fatalf("last output byte = 0x%x, want 0xE2", term.output[len(term.output)-1])
-	}
-	if term.output[0] != 'a' {
-		t.Fatalf("first output byte = 0x%x, want 'a'", term.output[0])
-	}
-}
-
-func TestManagedTerminalAppendOutputUsesConfiguredLimit(t *testing.T) {
-	t.Parallel()
-
-	term := &managedTerminal{
-		outputLimit: 4,
-	}
-
-	term.appendOutput([]byte("abcdef"))
-
-	if got, want := string(term.output), "cdef"; got != want {
-		t.Fatalf("string(term.output) = %q, want %q", got, want)
-	}
-	if !term.truncated {
-		t.Fatal("appendOutput() truncated = false, want true")
-	}
-}
-
 func TestWithoutCancelPreservingDeadline(t *testing.T) {
 	t.Parallel()
 
@@ -1381,7 +1266,7 @@ func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T)
 		},
 	}
 
-	active, err := proc.beginPrompt("turn-network-create-failure", 4)
+	active, err := proc.beginPromptForRun("turn-network-create-failure", "run-network-create-failure", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -1430,7 +1315,7 @@ func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
 	}
 	defer proc.endPrompt(active)
 
-	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: "term-external",
 	}); err != nil {
@@ -1661,7 +1546,7 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 		if got, want := events[0].Title, SystemEventTitleAvailableCommandsUpdate; got != want {
 			t.Fatalf("event title = %q, want %q", got, want)
 		}
-		if got, want := events[0].AvailableCommands.Values(), []store.SessionAdvertisedCommand{{
+		if got, want := events[0].AvailableCommandSet().Values(), []store.SessionAdvertisedCommand{{
 			Name:        "compact",
 			Description: "Compact context",
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
@@ -1894,7 +1779,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 	}
 }
 
-func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
+func TestToolHostOrDefaultUsesInjectedTerminalHost(t *testing.T) {
 	t.Parallel()
 
 	if _, err := (&AgentProcess{}).toolHostOrDefault(); !errors.Is(err, errProcessLifecycleUninitialized) {
@@ -1910,6 +1795,7 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
 
+	terminalCore := newACPTestTerminalCore(t, nil)
 	proc := &AgentProcess{
 		Cwd:           root,
 		processCtx:    ctx,
@@ -1920,6 +1806,11 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 		StartedAt:     timeNowUTC(),
 		SessionID:     "sess-direct",
 		AgentName:     "direct",
+		terminalCore:  terminalCore,
+		terminalScope: LocalTerminalScope{
+			WorkspaceID: "acp-test", ProfileID: "acp-test", SessionID: "sess-direct", ActorID: "direct",
+			Generation: 1,
+		},
 	}
 
 	toolHost, err := proc.toolHostOrDefault()
@@ -1930,12 +1821,8 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", toolHost)
 	}
-
-	cancel()
-	select {
-	case <-host.terminals.ctx.Done():
-	case <-time.After(time.Second):
-		t.Fatal("terminal manager context did not close with process lifecycle")
+	if host.terminals == nil || host.terminals.core != terminalCore {
+		t.Fatal("toolHostOrDefault() did not use the injected terminal core")
 	}
 }
 
@@ -1952,13 +1839,19 @@ func newDirectProcess(t *testing.T, mode compozyconfig.PermissionMode) *AgentPro
 	}
 
 	proc := &AgentProcess{
-		AgentName:         "direct",
-		Cwd:               root,
-		SessionID:         "sess-direct",
-		StartedAt:         timeNowUTC(),
-		processCtx:        ctx,
-		permissions:       policy,
-		terminals:         newTerminalManager(ctx, slog.Default()),
+		AgentName:   "direct",
+		Cwd:         root,
+		SessionID:   "sess-direct",
+		StartedAt:   timeNowUTC(),
+		processCtx:  ctx,
+		permissions: policy,
+		terminals: newTerminalManager(
+			ctx, slog.Default(), newACPTestTerminalCore(t, nil),
+			LocalTerminalScope{
+				WorkspaceID: "acp-test", ProfileID: "acp-test", SessionID: "sess-direct", ActorID: "direct",
+				Generation: 1,
+			},
+		),
 		done:              make(chan struct{}),
 		cancelProcess:     cancel,
 		stderr:            &lockedBuffer{},
@@ -2066,6 +1959,7 @@ func writeFakeCompozyBinary(t *testing.T, dir string, body string) {
 
 func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
 	RequestID string                  `json:"request_id"`
+	ToolID    string                  `json:"tool_id"`
 	ToolInput map[string]any          `json:"tool_input"`
 	Options   []permissionEventOption `json:"options"`
 } {
@@ -2073,6 +1967,7 @@ func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
 
 	var payload struct {
 		RequestID string                  `json:"request_id"`
+		ToolID    string                  `json:"tool_id"`
 		ToolInput map[string]any          `json:"tool_input"`
 		Options   []permissionEventOption `json:"options"`
 	}

@@ -396,7 +396,6 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationCreateTerminal,
 		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := approveAll.Authorize(op); err != nil {
@@ -408,7 +407,6 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationCreateTerminal,
 		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := denyAll.Authorize(op); !errors.Is(err, ErrPermissionDenied) {
@@ -458,7 +456,7 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 		t.Fatalf("os.MkdirAll(%q) error = %v", cwd, err)
 	}
 	var missingContext context.Context
-	if _, err := host.CreateTerminal(missingContext, acpsdk.CreateTerminalRequest{
+	if _, err := createACPTestTerminal(missingContext, host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-invalid",
 		Command:   "pwd",
 	}); err == nil {
@@ -471,7 +469,7 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 		t.Fatalf("terminal count after rejected create = %d, want 0", terminalCount)
 	}
 
-	response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
+	response, err := createACPTestTerminal(testutil.Context(t), host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
 		Command:   "pwd",
 		Cwd:       new(cwd),
@@ -503,14 +501,14 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 		root,
 		compozyconfig.PermissionModeApproveAll,
 		testDiscardLogger(),
-		WithLocalProcessRegistry(registry),
+		withACPTestTerminalCore(t, registry),
 	)
 	if err != nil {
 		t.Fatalf("newLocalToolHost() error = %v", err)
 	}
 	t.Cleanup(host.Close)
 
-	response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+	response, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
 		Command:   "pwd",
 	})
@@ -531,8 +529,8 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 		t.Fatalf("records = %d, want %d", got, want)
 	}
 	record := records[0]
-	if record.Source != toolruntime.ProcessSourceACPTerminal {
-		t.Fatalf("record.Source = %q, want acp_terminal", record.Source)
+	if record.Source != toolruntime.ProcessSourceTerminal {
+		t.Fatalf("record.Source = %q, want terminal", record.Source)
 	}
 	if record.Owner.TerminalID != response.TerminalId {
 		t.Fatalf("record.Owner.TerminalID = %q, want %q", record.Owner.TerminalID, response.TerminalId)
@@ -551,7 +549,7 @@ func TestLocalToolHostWaitForTerminalExitSignalOnlyFailure(t *testing.T) {
 
 	t.Run("Should return error for signal-only exit", func(t *testing.T) {
 		host, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
-		response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(testutil.Context(t), host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "kill -TERM $$"},
@@ -592,14 +590,14 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 			root,
 			compozyconfig.PermissionModeApproveAll,
 			testDiscardLogger(),
-			WithLocalProcessRegistry(registry),
+			withACPTestTerminalCore(t, registry),
 		)
 		if err != nil {
 			t.Fatalf("newLocalToolHost() error = %v", err)
 		}
 		t.Cleanup(host.Close)
 
-		first, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		first, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "sleep 5"},
@@ -607,7 +605,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTerminal(first) error = %v", err)
 		}
-		second, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		second, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "sleep 5"},
@@ -1162,7 +1160,7 @@ func newTestLocalToolHost(
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	host, err := newLocalToolHost(ctx, root, mode, testDiscardLogger())
+	host, err := newLocalToolHost(ctx, root, mode, testDiscardLogger(), withACPTestTerminalCore(t, nil))
 	if err != nil {
 		t.Fatalf("newLocalToolHost() error = %v", err)
 	}

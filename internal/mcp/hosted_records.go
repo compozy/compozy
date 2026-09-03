@@ -33,11 +33,15 @@ func (s *HostedService) bindLaunch(
 	if !launch.armed {
 		return nil, ErrHostedNonceInvalid
 	}
-	if !launch.established && !launch.expiresAt.After(now) {
+	if launch.established {
+		return nil, ErrHostedNonceInvalid
+	}
+	if !launch.expiresAt.After(now) {
 		delete(s.launches, sessionID)
 		return nil, ErrHostedNonceExpired
 	}
 	launch.established = true
+	launch.bindID = bindID
 	record := &hostedBindRecord{
 		bindID:        bindID,
 		sessionID:     launch.sessionID,
@@ -48,6 +52,8 @@ func (s *HostedService) bindLaunch(
 		peer:          peer,
 		createdAt:     now,
 		correlationID: launch.correlationID,
+		runID:         launch.runID,
+		generation:    launch.generation,
 	}
 	s.binds[bindID] = record
 	return record.clone(), nil
@@ -71,7 +77,7 @@ func (s *HostedService) recordForBind(
 		return nil, err
 	}
 	s.mu.Lock()
-	record := s.binds[strings.TrimSpace(bindID)]
+	record := s.binds[strings.TrimSpace(bindID)].clone()
 	s.mu.Unlock()
 	if record == nil {
 		return nil, ErrHostedBindNotFound
@@ -79,7 +85,7 @@ func (s *HostedService) recordForBind(
 	if err := record.validatePeer(peer); err != nil {
 		return nil, err
 	}
-	return record.clone(), nil
+	return record, nil
 }
 
 func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord) (HostedProjectionResponse, error) {
@@ -148,6 +154,8 @@ func (r *hostedBindRecord) scope() tools.Scope {
 		SessionID:   r.sessionID,
 		WorkspaceID: r.workspaceID,
 		AgentName:   r.agentName,
+		RunID:       r.runID,
+		Generation:  r.generation,
 	}
 }
 

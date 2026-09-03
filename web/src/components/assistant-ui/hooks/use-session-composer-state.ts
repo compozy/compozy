@@ -81,7 +81,9 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     });
   }, [composerText, draftText, sessionId, syncStore]);
 
-  useAuiEvent("composer.send", clearDraftForSession);
+  useAuiEvent("composer.send", () => {
+    clearDraftForSession();
+  });
 
   return {
     clearComposer,

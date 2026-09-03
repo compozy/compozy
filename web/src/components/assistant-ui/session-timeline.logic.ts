@@ -13,13 +13,10 @@
 // `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
-import { workGroupId, type SessionWorkGroupAnchor } from "./session-timeline-group-identity";
+import type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
-import {
-  MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
-  summarizeToolGroup,
-  type SessionToolGroupSummary,
-} from "./session-timeline-summary";
+import { type SessionToolGroupSummary } from "./session-timeline-summary";
+import { workRowsFromCluster } from "./session-timeline-work";
 
 export { markerClusterKey } from "./session-timeline-markers";
 
@@ -33,6 +30,7 @@ export {
   type SessionToolGroupSummaryPart,
   type SessionToolSummaryCategory,
 } from "./session-timeline-summary";
+export { visibleWorkEntries } from "./session-timeline-work";
 
 export type SessionTimelinePart =
   | SessionTimelineTextPart
@@ -189,8 +187,6 @@ export interface DeriveSessionRowsOptions {
   foldSettledTurns?: boolean;
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
-
-const ACTIVE_WORK_VISIBLE_LIMIT = 4;
 
 // A streaming/live part state. The runtime emits `streaming` on the wire
 // (`internal/transcript/ui_messages.go`) while assistant-ui's own status object
@@ -351,113 +347,6 @@ function findLiveTailClusterStart(
   return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
 }
 
-function workRowsFromCluster(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  liveTailStartId: string | null,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const first = tools[0];
-  if (!first) return [];
-  const live = first.id === liveTailStartId || tools.some(tool => tool.status === "running");
-  return live
-    ? liveWorkRows(tools, options, usedGroupIds)
-    : settledWorkRows(tools, options, usedGroupIds);
-}
-
-// The live tail: one open run, the newest ACTIVE_WORK_VISIBLE_LIMIT rows
-// visible, a "+N previous tool calls" toggle above them when the run overflows.
-function liveWorkRows(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const first = tools[0]!;
-  const groupId = workGroupId(tools, { ...options, usedGroupIds });
-  usedGroupIds.add(groupId);
-  const grouped = tools.length > ACTIVE_WORK_VISIBLE_LIMIT;
-  const expanded = grouped ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false;
-  const workRow: SessionWorkRow = {
-    kind: "work",
-    id: groupId,
-    groupId,
-    turnId: first.turnId,
-    timestamp: first.timestamp,
-    entries: [...tools],
-    summary: null,
-    visibleCount: grouped ? ACTIVE_WORK_VISIBLE_LIMIT : tools.length,
-    grouped,
-    expanded,
-    active: true,
-  };
-  if (!grouped) {
-    return [workRow];
-  }
-  return [
-    {
-      kind: "work-toggle",
-      id: `${groupId}:toggle`,
-      groupId,
-      turnId: first.turnId,
-      timestamp: first.timestamp,
-      hiddenCount: tools.length - ACTIVE_WORK_VISIBLE_LIMIT,
-      expanded,
-    },
-    workRow,
-  ];
-}
-
-// Settled runs rest collapsed: summarizable stretches of 2+ fold into one
-// semantic summary row, while failed/interrupted calls (and lone survivors
-// between them) stay individually visible — a summary never hides a failure.
-function settledWorkRows(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const chunks: { summarizable: boolean; entries: SessionTimelineToolPart[] }[] = [];
-  for (const tool of tools) {
-    const summarizable = tool.isError !== true && tool.status !== "interrupted";
-    const lastChunk = chunks.at(-1);
-    if (lastChunk && lastChunk.summarizable === summarizable) {
-      lastChunk.entries.push(tool);
-    } else {
-      chunks.push({ summarizable, entries: [tool] });
-    }
-  }
-  return chunks.map(chunk => {
-    const summary =
-      chunk.summarizable && chunk.entries.length >= MIN_COLLAPSIBLE_TOOL_GROUP_SIZE
-        ? summarizeToolGroup(chunk.entries)
-        : null;
-    const groupId = workGroupId(chunk.entries, { ...options, usedGroupIds });
-    usedGroupIds.add(groupId);
-    return settledWorkRow(chunk.entries, summary, groupId, options);
-  });
-}
-
-function settledWorkRow(
-  entries: SessionTimelineToolPart[],
-  summary: SessionToolGroupSummary | null,
-  groupId: string,
-  options: DeriveSessionRowsOptions
-): SessionWorkRow {
-  const first = entries[0]!;
-  return {
-    kind: "work",
-    id: groupId,
-    groupId,
-    turnId: first.turnId,
-    timestamp: first.timestamp,
-    entries: [...entries],
-    summary,
-    visibleCount: entries.length,
-    grouped: false,
-    expanded: summary ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false,
-    active: false,
-  };
-}
-
 // Folds consecutive reasoning parts (same turn, uninterrupted by other kinds)
 // into one row: the grouped text is the parts joined by a blank line so nothing
 // is lost, `updateCount` counts the grouped updates, and `streaming` stays
@@ -479,12 +368,4 @@ function reasoningRowFromCluster(parts: SessionTimelineReasoningPart[]): Session
     updateCount: parts.length,
     streaming: parts.some(part => isStreamingState(part.state)),
   };
-}
-
-/** Trailing entries shown while the live tail is collapsed. */
-export function visibleWorkEntries(row: SessionWorkRow): SessionTimelineToolPart[] {
-  if (!row.grouped || row.expanded) {
-    return row.entries;
-  }
-  return row.entries.slice(-row.visibleCount);
 }

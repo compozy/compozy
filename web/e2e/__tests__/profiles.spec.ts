@@ -136,13 +136,18 @@ function desktopNames(snapshot: DesktopSnapshot): string[] {
  * contract is that the operator *can* get there with Tab, not that a particular
  * number of presses does it.
  */
-async function tabUntilFocused(page: Page, target: Locator, limit: number): Promise<void> {
+async function tabUntilFocused(
+  page: Page,
+  target: Locator,
+  limit: number,
+  key: "Tab" | "Shift+Tab" = "Tab"
+): Promise<void> {
   for (let press = 0; press < limit; press += 1) {
     const focused = await target
       .evaluate((node: Element) => node === document.activeElement)
       .catch(() => false);
     if (focused) return;
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(key);
   }
   await expect(target).toBeFocused();
 }
@@ -831,7 +836,7 @@ test.describe("Profiles", () => {
     await appPage.keyboard.press("Enter");
     await expect(ui.switcherMenu).toBeVisible();
     await appPage.keyboard.press("End");
-    await expect(ui.switcherCreate).toHaveAttribute("aria-selected", "true");
+    await expect(ui.switcherCreate).toHaveAttribute("data-selected", "true");
     await appPage.keyboard.press("Enter");
     await expect(ui.createDialog).toBeVisible();
     // Focus is inside the dialog the moment it opens, and stays there.
@@ -875,8 +880,9 @@ test.describe("Profiles", () => {
     await appPage.keyboard.press("Enter");
     await expect(appPage.locator(`#${activeIconId}`)).toHaveAttribute("aria-selected", "true");
 
-    // The palette is a single tab stop, so the hex field is one Tab away from it.
-    await tabUntilFocused(appPage, swatches, 16);
+    // The result grid and color palette are each one tab stop; moving backward
+    // reaches the earlier color controls without circling the whole dialog.
+    await tabUntilFocused(appPage, swatches, 4, "Shift+Tab");
     await appPage.keyboard.press("End");
     const activeSwatchId = await swatches.getAttribute("aria-activedescendant");
     expect(activeSwatchId).not.toBeNull();

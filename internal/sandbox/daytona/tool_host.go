@@ -210,6 +210,9 @@ func (h *daytonaToolHost) CreateTerminal(
 }
 
 func (h *daytonaToolHost) KillTerminal(id string) error {
+	if err := h.Authorize(sandbox.PermissionOperationCloseTerminal); err != nil {
+		return err
+	}
 	terminal, err := h.lookupTerminal(id)
 	if err != nil {
 		return err

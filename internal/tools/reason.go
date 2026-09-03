@@ -152,6 +152,10 @@ const (
 	ReasonToolUnknown ReasonCode = "tool_unknown"
 	// ReasonConfigPathNotFound reports an absent config entry.
 	ReasonConfigPathNotFound ReasonCode = "config_path_not_found"
+	// ReasonSkillResourceNotFound reports an absent file in a resolved skill.
+	ReasonSkillResourceNotFound ReasonCode = "skill_resource_not_found"
+	// ReasonSkillDefinitionInvalid reports malformed SKILL.md metadata.
+	ReasonSkillDefinitionInvalid ReasonCode = "skill_definition_invalid"
 	// ReasonConfigPathForbidden reports an agent-immutable config path.
 	ReasonConfigPathForbidden ReasonCode = "config_path_forbidden"
 	// ReasonConfigSecretPathForbidden reports a secret-bearing config path.
@@ -262,6 +266,8 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonToolsetCycle:                   {},
 	ReasonToolUnknown:                    {},
 	ReasonConfigPathNotFound:             {},
+	ReasonSkillResourceNotFound:          {},
+	ReasonSkillDefinitionInvalid:         {},
 	ReasonConfigPathForbidden:            {},
 	ReasonConfigSecretPathForbidden:      {},
 	ReasonConfigTrustRootForbidden:       {},

@@ -1,4 +1,12 @@
-import { BellOff, Clock3, ListChecks, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  BellOff,
+  Clock3,
+  KeyRound,
+  ListChecks,
+  MessageCircleQuestionMark,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Icon, Time } from "@compozy/ui";
 
@@ -25,26 +33,67 @@ function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
 }
 
 function RowMark({ row }: { row: OsAttentionRow }) {
-  if (row.kind === "session") return <SessionBadgeGlyph badge={row.badge} />;
-  if (row.kind === "task") {
-    return <NonSessionMark icon={ListChecks} tone="bg-danger-tint text-danger" />;
+  switch (row.kind) {
+    case "session":
+      return <SessionBadgeGlyph badge={row.badge} />;
+    case "task":
+      return <NonSessionMark icon={ListChecks} tone="bg-danger-tint text-danger" />;
+    case "loop-request":
+      return <NonSessionMark icon={TriangleAlert} tone="bg-danger-tint text-danger" />;
+    case "terminal-input":
+      return (
+        <NonSessionMark
+          icon={row.redacted ? KeyRound : MessageCircleQuestionMark}
+          tone="bg-warning-tint text-warning"
+        />
+      );
+    case "loop-node":
+      return (
+        <NonSessionMark
+          icon={loopIcon(row.state)}
+          tone={row.state === "waiting" ? "bg-info-tint text-info" : "bg-warning-tint text-warning"}
+        />
+      );
   }
-  if (row.kind === "loop-request") {
-    return <NonSessionMark icon={TriangleAlert} tone="bg-danger-tint text-danger" />;
-  }
-  return (
-    <NonSessionMark
-      icon={loopIcon(row.state)}
-      tone={row.state === "waiting" ? "bg-info-tint text-info" : "bg-warning-tint text-warning"}
-    />
-  );
 }
 
 function rowReason(row: OsAttentionRow): string {
-  if (row.kind === "session") return `${row.agentName} — ${row.reason}`;
-  if (row.kind === "task") return "task approval";
-  if (row.kind === "loop-request") return `${row.loopName} — ${row.requestKind}`;
-  return row.state;
+  switch (row.kind) {
+    case "session":
+      return `${row.agentName} — ${row.reason}`;
+    case "task":
+      return "task approval";
+    case "loop-request":
+      return `${row.loopName} — ${row.requestKind}`;
+    case "terminal-input":
+      return `${row.agentName} — ${row.reason}`;
+    case "loop-node":
+      return row.state;
+  }
+}
+
+function rowWorkspace(row: OsAttentionRow): string | null {
+  switch (row.kind) {
+    case "session":
+    case "loop-request":
+    case "terminal-input":
+      return row.workspaceLabel;
+    case "task":
+    case "loop-node":
+      return null;
+  }
+}
+
+function rowIsStale(row: OsAttentionRow): boolean {
+  switch (row.kind) {
+    case "session":
+    case "loop-request":
+    case "terminal-input":
+      return row.stale;
+    case "task":
+    case "loop-node":
+      return false;
+  }
 }
 
 export interface AttentionBellRowProps {
@@ -61,8 +110,10 @@ export interface AttentionBellRowProps {
 export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
   const isSession = row.kind === "session";
   const isLoopRequest = row.kind === "loop-request";
-  const stale = (isSession || isLoopRequest) && row.stale;
+  const isTerminalInput = row.kind === "terminal-input";
+  const stale = rowIsStale(row);
   const muted = isSession && row.muted;
+  const workspace = rowWorkspace(row);
   return (
     <button
       type="button"
@@ -80,8 +131,8 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         <span className="truncate text-small-body font-medium text-fg-strong">{row.title}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-micro text-subtle">
           <span className="truncate">{rowReason(row)}</span>
-          {isSession || isLoopRequest ? (
-            <span className="shrink-0 font-mono text-micro text-faint">{row.workspaceLabel}</span>
+          {workspace ? (
+            <span className="shrink-0 font-mono text-micro text-faint">{workspace}</span>
           ) : null}
         </span>
       </span>
@@ -90,6 +141,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
           <Icon as={BellOff} size="xs" className="text-faint" aria-label="Notifications muted" />
         ) : null}
         {isSession ? <Time iso={row.changedAt} /> : null}
+        {isTerminalInput ? <Time iso={row.requestedAt} /> : null}
         {isLoopRequest ? (
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />

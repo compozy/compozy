@@ -44,6 +44,7 @@ export class RoutingCoordinator {
   private desktopDefaultViewIntentPending = false;
   private routeReconciliation: RouteReconciliation | null = null;
   private nextReconciliationToken = 0;
+  private nextUserRetargetToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
@@ -238,6 +239,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    const retargetToken = ++this.nextUserRetargetToken;
     const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
       app: target.app,
       instanceKey: target.instanceKey,
@@ -248,19 +250,19 @@ export class RoutingCoordinator {
       }
       const outcome = this.manager.openOrFocus(target);
       if (!(await outcome.completion)) return false;
-      this.pushRoute(target.route);
+      if (retargetToken === this.nextUserRetargetToken) this.pushRoute(target.route);
       return true;
     }
     if (existing && existing.id === windowId) {
       if (sameOsWindowRoute(win.route, target.route)) return true;
       const navigated = this.manager.navigateWindow(windowId, target.route);
       if (!(await navigated.completion)) return false;
-      this.pushRoute(target.route);
+      if (retargetToken === this.nextUserRetargetToken) this.pushRoute(target.route);
       return true;
     }
     const outcome = this.manager.retargetWindow(windowId, target.instanceKey, target.route);
     if (!(await outcome.completion)) return false;
-    this.pushRoute(target.route);
+    if (retargetToken === this.nextUserRetargetToken) this.pushRoute(target.route);
     return true;
   }
 

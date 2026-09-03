@@ -47,12 +47,11 @@ type Resolver struct {
 	changeHook          ChangeHook
 	operatorHomeDir     string
 
-	registrationMu     sync.Mutex
-	reconcileMu        sync.Mutex
-	unregisterMu       sync.RWMutex
-	unregisterPreparer UnregisterPreparer
-	mu                 sync.RWMutex
-	cache              map[string]*cachedEntry
+	registrationMu sync.Mutex
+	reconcileMu    sync.Mutex
+	unregister     *unregisterCoordinator
+	mu             sync.RWMutex
+	cache          map[string]*cachedEntry
 }
 
 var _ RuntimeResolver = (*Resolver)(nil)
@@ -90,6 +89,7 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		idGenerator:         resolvedOpts.idGenerator,
 		changeHook:          resolvedOpts.changeHook,
 		operatorHomeDir:     resolvedOpts.operatorHomeDir,
+		unregister:          newUnregisterCoordinator(),
 		cache:               make(map[string]*cachedEntry),
 	}, nil
 }

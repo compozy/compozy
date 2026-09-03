@@ -21,6 +21,24 @@
                     ]
                 },
                 {
+                    "name": "read-healthy-running",
+                    "match": { "turn_source": "user", "user_text": "read healthy lifecycle" },
+                    "usage": {
+                        "input_tokens": 17,
+                        "output_tokens": 5
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 5000 }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"usage recorded\",\"value\":\"measured\"}\n```"
+                        }
+                    ]
+                },
+                {
                     "name": "retry-healed",
                     "match": {
                         "turn_source": "user",

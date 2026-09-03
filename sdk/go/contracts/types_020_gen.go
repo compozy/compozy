@@ -4,6 +4,20 @@ package contracts
 
 import "time"
 
+type Row struct {
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Subtitle    string            `json:"subtitle,omitempty"`
+	Icon        string            `json:"icon,omitempty"`
+	Badge       *ViewBadge        `json:"badge,omitempty"`
+	Keywords    []string          `json:"keywords,omitempty"`
+	Accessories []string          `json:"accessories,omitempty"`
+	Detail      *DetailBody       `json:"detail,omitempty"`
+	Actions     []RowAction       `json:"actions,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
+}
+
 type RowAction struct {
 	Title        string            `json:"title"`
 	Icon         string            `json:"icon,omitempty"`
@@ -250,33 +264,4 @@ type SandboxSyncBeforePatch struct {
 	Deny            bool     `json:"deny,omitempty"`
 	DenyReason      string   `json:"deny_reason,omitempty"`
 	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
-}
-
-type SandboxSyncBeforePayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	ProfileID       string    `json:"profile_id,omitempty"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	WorktreeID      string    `json:"worktree_id,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	SandboxID       string    `json:"sandbox_id,omitempty"`
-	Backend         string    `json:"backend,omitempty"`
-	Profile         string    `json:"profile,omitempty"`
-	InstanceID      string    `json:"instance_id,omitempty"`
-	RuntimeRootDir  string    `json:"runtime_root,omitempty"`
-	Direction       string    `json:"direction,omitempty"`
-	Reason          string    `json:"reason,omitempty"`
-	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
-	Denied          bool      `json:"denied,omitempty"`
-	DenyReason      string    `json:"deny_reason,omitempty"`
 }

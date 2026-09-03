@@ -311,4 +311,5 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	marketplaceConfigSetPathKinds(),
 	attentionConfigSetPathKinds(),
 	shellConfigSetPathKinds(),
+	terminalConfigSetPathKinds(),
 )

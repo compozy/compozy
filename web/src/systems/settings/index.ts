@@ -22,6 +22,12 @@ export {
   settingsSectionPath,
 } from "./lib/sections";
 export { DEFAULT_SETTINGS_SECTION_SLUG } from "./lib/section-paths";
+export {
+  readTerminalSettings,
+  terminalSettingsInvalidKeyMessage,
+} from "./lib/terminal-settings-projection";
+export type { TerminalSettingsProjection } from "./lib/terminal-settings-projection";
+export type { TerminalSettingsKey } from "./lib/terminal-settings-types";
 
 // MCP page models (status matrix + editor draft)
 export {
@@ -252,6 +258,8 @@ export {
   ProviderLogo,
   ProviderModelCatalogStatus,
   NetworkSettingsSections,
+  TerminalSettingsSections,
+  type TerminalSettingsConfig,
   ProviderRow,
   ProvidersToolbar,
   RoleList,
@@ -388,6 +396,7 @@ export { useSettingsPersonaPage } from "./hooks/use-settings-persona-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
+export { parsePositiveDurationMilliseconds } from "./lib/terminal-settings-duration";
 export {
   settingsUpdateIndicatorAvailable,
   settingsUpdateApplicableTargets,

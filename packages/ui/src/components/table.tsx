@@ -2,9 +2,23 @@ import type * as React from "react";
 
 import { cn } from "../lib/utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+export type TableOverflowX = "auto" | "hidden";
+
+export interface TableProps extends React.ComponentProps<"table"> {
+  /** Sideways scroll is the default. Fixed layouts that already truncate pass `hidden`. */
+  overflowX?: TableOverflowX;
+}
+
+function Table({ className, overflowX = "auto", ...props }: TableProps) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      className={cn(
+        "relative w-full",
+        overflowX === "hidden" ? "overflow-x-hidden" : "overflow-x-auto"
+      )}
+      data-overflow-x={overflowX}
+      data-slot="table-container"
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-small-body text-fg", className)}

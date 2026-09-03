@@ -67,57 +67,7 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 		return errors.New("workspace: workspace id is required")
 	}
 
-	previous, err := r.store.GetWorkspace(ctx, trimmedID)
-	if err != nil {
-		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
-	}
-	preparation, err := r.prepareUnregister(ctx, previous)
-	if err != nil {
-		return fmt.Errorf("workspace: prepare unregister %q: %w", trimmedID, err)
-	}
-	if preparation != nil {
-		if err := preparation.BeforeDelete(ctx); err != nil {
-			rollbackErr := preparation.Rollback(context.WithoutCancel(ctx))
-			return errors.Join(
-				fmt.Errorf("workspace: stage unregister %q: %w", trimmedID, err),
-				wrapUnregisterRollbackError(trimmedID, rollbackErr),
-			)
-		}
-	}
-
-	if err := r.store.DeleteWorkspace(ctx, trimmedID); err != nil {
-		if preparation != nil {
-			rollbackErr := preparation.Rollback(context.WithoutCancel(ctx))
-			return errors.Join(
-				fmt.Errorf("workspace: unregister %q: %w", trimmedID, err),
-				wrapUnregisterRollbackError(trimmedID, rollbackErr),
-			)
-		}
-		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
-	}
-
-	r.Invalidate(trimmedID)
-	if preparation != nil {
-		if err := preparation.Commit(context.WithoutCancel(ctx)); err != nil {
-			r.logger.Warn(
-				"workspace: committed unregister left deferred external cleanup",
-				"workspace_id", trimmedID,
-				"error", err,
-			)
-		}
-	}
-	if err := r.notifyChangeHook(ctx, "unregister", trimmedID); err != nil {
-		// The database and external state are already committed as one logical
-		// deletion. Restoring only the workspace row would manufacture partial
-		// state, so keep the deletion authoritative and let the next projection
-		// sync converge the derived resources.
-		r.logger.Error(
-			"workspace: unregister committed before derived resource sync failed",
-			"workspace_id", trimmedID,
-			"error", err,
-		)
-	}
-	return nil
+	return r.unregisterWorkspace(ctx, trimmedID)
 }
 
 func wrapUnregisterRollbackError(workspaceID string, err error) error {

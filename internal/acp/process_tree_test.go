@@ -56,6 +56,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 		t.Parallel()
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		beginACPTestRun(t, proc, "turn-process-tree")
 		pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
 
 		createResult, reqErr := proc.handleInbound(

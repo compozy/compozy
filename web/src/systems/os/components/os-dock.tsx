@@ -6,7 +6,12 @@ import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { useDockMagnify } from "../hooks/use-dock-magnify";
-import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "../lib/os-dock-model";
+import {
+  dockItemAccessibleName,
+  isOsDockSeparator,
+  type OsDockEntry,
+  type OsDockItemData,
+} from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
 /** OpenDesign tip clearance above the icon (`bottom: calc(100% + 12px)`). */
@@ -142,7 +147,7 @@ function DockItem({
             data-slot="os-dock-item"
             data-app={item.id}
             data-state={state}
-            aria-label={item.name}
+            aria-label={dockItemAccessibleName(item)}
             disabled={disabled}
             className={classes}
             onClick={() => onSelect(item.id)}

@@ -170,6 +170,18 @@ describe("section reads and updates", () => {
         permissions: { mode: "approve-reads" as const },
         redact: { enabled: false },
         session_timeout: "45m",
+        terminal: {
+          default_shell: "",
+          shell_integration: true,
+          scrollback_bytes: 1_048_576,
+          detached_ttl: "24h",
+          exit_retention: "15m",
+          recording: false,
+          recording_retention_days: 30,
+          max_per_workspace: 8,
+          max_per_daemon: 32,
+          max_subscribers: 16,
+        },
       },
     };
 

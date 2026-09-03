@@ -1,0 +1,43 @@
+---
+title: "compozy terminal attach"
+description: "Attach to a running terminal"
+---
+
+## compozy terminal attach
+
+Attach to a running terminal
+
+```
+compozy terminal attach <id> [flags]
+```
+
+### Options
+
+```
+      --after-seq uint     Resume after this byte sequence
+      --cols uint16        Terminal columns (default 80)
+      --control            Attach with the write lease
+      --force              Displace another human controller without confirmation
+  -h, --help               help for attach
+      --rows uint16        Terminal rows (default 24)
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command writes an interactive terminal stream. The inherited `-o, --output` and `--json` flags do not serialize attached terminal bytes.
+
+| Format  | Stream output                  |
+| ------- | ------------------------------ |
+| `human` | Interactive terminal rendering |
+| `json`  | Not supported                  |
+| `jsonl` | Not supported                  |
+| `toon`  | Not supported                  |

@@ -8,6 +8,7 @@
 
 @import "tw-animate-css";
 @import "./tokens-runtime.css";
+@import "./terminal-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -156,7 +157,11 @@
 
   /* Font families. */
   --font-sans: "Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
-  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
+  /* "Symbols Nerd Font Mono" backfills the Private Use Area icons terminals
+     emit (see the @font-face in tokens-runtime.css); JetBrains Mono wins every
+     codepoint it actually covers. */
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace;
   /* Display alias reserved for explicit logo/wordmark surfaces only.
      Keep the `font-display` utility out of type-ramp callers under
      `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
@@ -273,6 +278,8 @@
   --tracking-eyebrow: -0.005em;
   --tracking-eyebrow-caps: 0.06em;
   --tracking-mono-id: 0;
+  /* Masked-entry dots (terminal redacted input): wide so length reads at a glance. */
+  --tracking-redacted: 0.35em;
   /* Key-cap air — a chord renders as one glyph run (⌘⇧P) inside one cap;
      positive tracking keeps adjacent symbols from blobbing into a single
      mark at 12px. One step above --tracking-mono (0.02em): symbol-dense
@@ -324,6 +331,7 @@
   --shadow-hairline: 0 0 0 1px var(--color-line-soft);
   --shadow-hairline-inset: inset 0 0 0 1px var(--color-line-soft);
   --shadow-inset-strong: inset 0 0 0 1px var(--color-line-strong);
+  --shadow-danger-inset: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent);
 
   /* Z-index scale — the only sanctioned stacking values (never bare 999/9999).
      Window-body tiers: menu 40 · scrim 60 · sheet 61. Shell chrome tiers are

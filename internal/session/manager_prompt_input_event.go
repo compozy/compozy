@@ -13,6 +13,7 @@ import (
 
 type promptRequest struct {
 	turnID                 string
+	runID                  string
 	target                 string
 	message                string
 	authoredMessage        string

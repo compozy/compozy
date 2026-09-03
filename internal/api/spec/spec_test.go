@@ -1979,19 +1979,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					propertySchema(t, errorPayload, "code"),
-					"model_not_found",
-					"reasoning_effort_unsupported",
-					"tool_approval_required",
-					"tool_backend_failed",
-					"tool_canceled",
-					"tool_conflict",
-					"tool_denied",
-					"tool_invalid_input",
-					"tool_not_found",
-					"tool_result_persistence_failed",
-					"tool_result_too_large",
-					"tool_timed_out",
-					"tool_unavailable",
+					toolErrorCodeValues()...,
 				)
 				persistenceError := jsonResponseSchema(t, invoke, 507)
 				persistencePayload := propertySchema(t, persistenceError, "error")

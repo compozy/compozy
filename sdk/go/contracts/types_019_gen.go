@@ -84,6 +84,8 @@ type ResourcesSnapshotParams struct {
 	Records       []ResourceSnapshotRecord `json:"records"`
 }
 
+type ResultTrust string
+
 type RetentionHealth struct {
 	Enabled                  bool       `json:"enabled"`
 	RetentionDays            int        `json:"retention_days"`
@@ -121,18 +123,4 @@ type RoutingPolicy struct {
 	IncludePeer   bool `json:"include_peer"`
 	IncludeThread bool `json:"include_thread"`
 	IncludeGroup  bool `json:"include_group"`
-}
-
-type Row struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Subtitle    string            `json:"subtitle,omitempty"`
-	Icon        string            `json:"icon,omitempty"`
-	Badge       *ViewBadge        `json:"badge,omitempty"`
-	Keywords    []string          `json:"keywords,omitempty"`
-	Accessories []string          `json:"accessories,omitempty"`
-	Detail      *DetailBody       `json:"detail,omitempty"`
-	Actions     []RowAction       `json:"actions,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
 }

@@ -20,140 +20,123 @@ import (
 )
 
 func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should delegate expanded task reads with owner and loop provenance", func(t *testing.T) {
+		t.Parallel()
 
-	const taskProfileID = "profile-marketing"
-	now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
-	lastActivity := now.Add(-time.Minute)
-	loopMetadata := []byte(
-		`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
-	)
-	var listQuery taskpkg.CatalogQuery
-	var listActor taskpkg.ActorContext
-	var detailActor taskpkg.ActorContext
-	var runDetailActor taskpkg.ActorContext
-	var timelineQuery taskpkg.TimelineQuery
-	var timelineActor taskpkg.ActorContext
-	var treeActor taskpkg.ActorContext
-	var dashboardQuery observe.TaskDashboardQuery
-	var inboxQuery observe.TaskInboxQuery
-	var inboxActor taskpkg.ActorIdentity
+		const taskProfileID = "profile-marketing"
+		now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
+		lastActivity := now.Add(-time.Minute)
+		loopMetadata := []byte(
+			`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+		)
+		var listQuery taskpkg.CatalogQuery
+		var listActor taskpkg.ActorContext
+		var detailActor taskpkg.ActorContext
+		var runDetailActor taskpkg.ActorContext
+		var timelineQuery taskpkg.TimelineQuery
+		var timelineActor taskpkg.ActorContext
+		var treeActor taskpkg.ActorContext
+		var dashboardQuery observe.TaskDashboardQuery
+		var inboxQuery observe.TaskInboxQuery
+		var inboxActor taskpkg.ActorIdentity
 
-	tasks := &testutil.StubTaskManager{
-		ListTaskCatalogFn: func(
-			_ context.Context,
-			query taskpkg.CatalogQuery,
-			actor taskpkg.ActorContext,
-		) (taskpkg.CatalogPage, error) {
-			listQuery = query
-			listActor = actor
-			return taskpkg.CatalogPage{
-				Tasks: []taskpkg.Summary{{
-					ID:             "task-1",
-					ProfileID:      taskProfileID,
-					Identifier:     "TASK-1",
-					Title:          "Review handlers",
-					Scope:          taskpkg.ScopeWorkspace,
-					WorkspaceID:    "ws-alpha",
-					Priority:       taskpkg.PriorityHigh,
-					Status:         taskpkg.TaskStatusReady,
-					ApprovalState:  taskpkg.ApprovalStatePending,
-					CreatedBy:      actor.Actor,
-					Origin:         actor.Origin,
-					CreatedAt:      now.Add(-2 * time.Hour),
-					UpdatedAt:      now,
-					LastActivityAt: lastActivity,
-					RunProvenance: &taskpkg.RunProvenance{
-						LoopRunID: "looprun-alpha", RunKind: taskpkg.RunKindWorker, Metadata: loopMetadata,
+		tasks := &testutil.StubTaskManager{
+			ListTaskCatalogFn: func(
+				_ context.Context,
+				query taskpkg.CatalogQuery,
+				actor taskpkg.ActorContext,
+			) (taskpkg.CatalogPage, error) {
+				listQuery = query
+				listActor = actor
+				return taskpkg.CatalogPage{
+					Tasks: []taskpkg.Summary{{
+						ID:             "task-1",
+						ProfileID:      taskProfileID,
+						Identifier:     "TASK-1",
+						Title:          "Review handlers",
+						Scope:          taskpkg.ScopeWorkspace,
+						WorkspaceID:    "ws-alpha",
+						Priority:       taskpkg.PriorityHigh,
+						Status:         taskpkg.TaskStatusReady,
+						ApprovalState:  taskpkg.ApprovalStatePending,
+						CreatedBy:      actor.Actor,
+						Origin:         actor.Origin,
+						CreatedAt:      now.Add(-2 * time.Hour),
+						UpdatedAt:      now,
+						LastActivityAt: lastActivity,
+						RunProvenance: &taskpkg.RunProvenance{
+							LoopRunID: "looprun-alpha", RunKind: taskpkg.RunKindWorker, Metadata: loopMetadata,
+						},
+					}},
+					Total: 1,
+					Limit: query.Limit,
+				}, nil
+			},
+			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				detailActor = actor
+				return &taskpkg.View{
+					Summary: taskpkg.Summary{
+						ID:          id,
+						ProfileID:   taskProfileID,
+						Identifier:  "TASK-1",
+						Title:       "Review handlers",
+						Scope:       taskpkg.ScopeWorkspace,
+						WorkspaceID: "ws-alpha",
+						Status:      taskpkg.TaskStatusReady,
+						CreatedBy:   actor.Actor,
+						Origin:      actor.Origin,
+						CreatedAt:   now.Add(-2 * time.Hour),
+						UpdatedAt:   now,
 					},
-				}},
-				Total: 1,
-				Limit: query.Limit,
-			}, nil
-		},
-		GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
-			detailActor = actor
-			return &taskpkg.View{
-				Summary: taskpkg.Summary{
-					ID:          id,
-					ProfileID:   taskProfileID,
-					Identifier:  "TASK-1",
-					Title:       "Review handlers",
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
-					Status:      taskpkg.TaskStatusReady,
-					CreatedBy:   actor.Actor,
-					Origin:      actor.Origin,
-					CreatedAt:   now.Add(-2 * time.Hour),
-					UpdatedAt:   now,
-				},
-				Task: taskpkg.Task{
-					ID:          id,
-					ProfileID:   taskProfileID,
-					Identifier:  "TASK-1",
-					Title:       "Review handlers",
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
-					Status:      taskpkg.TaskStatusReady,
-					CreatedBy:   actor.Actor,
-					Origin:      actor.Origin,
-					CreatedAt:   now.Add(-2 * time.Hour),
-					UpdatedAt:   now,
-					Metadata:    loopMetadata,
-				},
-				Runs: []taskpkg.Run{{
-					ID: "run-loop-alpha", TaskID: id, LoopRunID: "looprun-alpha",
-					RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusQueued,
-					Attempt: 1, Origin: actor.Origin, QueuedAt: now.Add(-time.Hour),
-				}},
-			}, nil
-		},
-		RunDetailFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
-			runDetailActor = actor
-			return &taskpkg.RunDetailView{
-				Run: taskpkg.Run{
-					ID:        id,
-					ProfileID: taskProfileID,
-					TaskID:    "task-1",
-					Status:    taskpkg.TaskRunStatusRunning,
-					Attempt:   1,
-					Origin:    actor.Origin,
-					QueuedAt:  now.Add(-5 * time.Minute),
-				},
-				Task: &taskpkg.Reference{
-					ID:          "task-1",
-					Identifier:  "TASK-1",
-					Title:       "Review handlers",
-					Status:      taskpkg.TaskStatusInProgress,
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
-				},
-			}, nil
-		},
-		TimelineFn: func(_ context.Context, taskID string, query taskpkg.TimelineQuery, actor taskpkg.ActorContext) ([]taskpkg.TimelineItem, error) {
-			timelineQuery = query
-			timelineActor = actor
-			return []taskpkg.TimelineItem{{
-				Sequence: 7,
-				EventID:  "evt-7",
-				Task: taskpkg.Reference{
-					ID:          taskID,
-					Identifier:  "TASK-1",
-					Title:       "Review handlers",
-					Status:      taskpkg.TaskStatusInProgress,
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
-				},
-				EventType: "task.run.started",
-				Actor:     actor.Actor,
-				Origin:    actor.Origin,
-				Timestamp: now,
-			}}, nil
-		},
-		TreeFn: func(_ context.Context, taskID string, actor taskpkg.ActorContext) (*taskpkg.TreeView, error) {
-			treeActor = actor
-			return &taskpkg.TreeView{
-				Root: taskpkg.TreeNode{
+					Task: taskpkg.Task{
+						ID:          id,
+						ProfileID:   taskProfileID,
+						Identifier:  "TASK-1",
+						Title:       "Review handlers",
+						Scope:       taskpkg.ScopeWorkspace,
+						WorkspaceID: "ws-alpha",
+						Status:      taskpkg.TaskStatusReady,
+						CreatedBy:   actor.Actor,
+						Origin:      actor.Origin,
+						CreatedAt:   now.Add(-2 * time.Hour),
+						UpdatedAt:   now,
+						Metadata:    loopMetadata,
+					},
+					Runs: []taskpkg.Run{{
+						ID: "run-loop-alpha", ProfileID: taskProfileID, TaskID: id, LoopRunID: "looprun-alpha",
+						RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusQueued,
+						Attempt: 1, Origin: actor.Origin, QueuedAt: now.Add(-time.Hour),
+					}},
+				}, nil
+			},
+			RunDetailFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
+				runDetailActor = actor
+				return &taskpkg.RunDetailView{
+					Run: taskpkg.Run{
+						ID:        id,
+						ProfileID: taskProfileID,
+						TaskID:    "task-1",
+						Status:    taskpkg.TaskRunStatusRunning,
+						Attempt:   1,
+						Origin:    actor.Origin,
+						QueuedAt:  now.Add(-5 * time.Minute),
+					},
+					Task: &taskpkg.Reference{
+						ID:          "task-1",
+						Identifier:  "TASK-1",
+						Title:       "Review handlers",
+						Status:      taskpkg.TaskStatusInProgress,
+						Scope:       taskpkg.ScopeWorkspace,
+						WorkspaceID: "ws-alpha",
+					},
+				}, nil
+			},
+			TimelineFn: func(_ context.Context, taskID string, query taskpkg.TimelineQuery, actor taskpkg.ActorContext) ([]taskpkg.TimelineItem, error) {
+				timelineQuery = query
+				timelineActor = actor
+				return []taskpkg.TimelineItem{{
+					Sequence: 7,
+					EventID:  "evt-7",
 					Task: taskpkg.Reference{
 						ID:          taskID,
 						Identifier:  "TASK-1",
@@ -162,208 +145,231 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 						Scope:       taskpkg.ScopeWorkspace,
 						WorkspaceID: "ws-alpha",
 					},
-					Depth:          0,
-					LastActivityAt: now,
-				},
-			}, nil
-		},
-	}
-	observer := testutil.StubObserver{
-		QueryTaskDashboardFn: func(_ context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error) {
-			dashboardQuery = query
-			return observe.TaskDashboardView{
-				Totals:     observe.TaskDashboardTotals{TasksTotal: 1, RunsTotal: 1},
-				Cards:      observe.TaskDashboardCards{},
-				Queue:      observe.TaskDashboardQueue{Total: 1, OldestQueuedAt: now, BacklogStatus: "ok"},
-				Health:     observe.TaskDashboardHealth{Status: "ok"},
-				ActiveRuns: observe.TaskDashboardActiveRuns{Total: 1, Running: 1},
-				Freshness: observe.TaskDashboardFreshness{
-					ObservedAt:       now,
-					LatestActivityAt: lastActivity,
-					Status:           "live",
-				},
-			}, nil
-		},
-		QueryTaskInboxFn: func(_ context.Context, query observe.TaskInboxQuery, actor taskpkg.ActorIdentity) (observe.TaskInboxView, error) {
-			inboxQuery = query
-			inboxActor = actor
-			return observe.TaskInboxView{
-				Total:       1,
-				UnreadTotal: 1,
-				Groups: []observe.TaskInboxLaneGroup{{
-					Lane:        observe.TaskInboxLaneApprovals,
-					Count:       1,
-					UnreadCount: 1,
-				}},
-			}, nil
-		},
-	}
-	workspaces := testutil.StubWorkspaceService{
-		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-			if ref != "alpha" {
-				t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
-			}
-			return workspacepkg.Workspace{ID: "ws-alpha", Name: "alpha"}, nil
-		},
-	}
+					EventType: "task.run.started",
+					Actor:     actor.Actor,
+					Origin:    actor.Origin,
+					Timestamp: now,
+				}}, nil
+			},
+			TreeFn: func(_ context.Context, taskID string, actor taskpkg.ActorContext) (*taskpkg.TreeView, error) {
+				treeActor = actor
+				return &taskpkg.TreeView{
+					Root: taskpkg.TreeNode{
+						Task: taskpkg.Reference{
+							ID:          taskID,
+							Identifier:  "TASK-1",
+							Title:       "Review handlers",
+							Status:      taskpkg.TaskStatusInProgress,
+							Scope:       taskpkg.ScopeWorkspace,
+							WorkspaceID: "ws-alpha",
+						},
+						Depth:          0,
+						LastActivityAt: now,
+					},
+				}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTaskDashboardFn: func(_ context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error) {
+				dashboardQuery = query
+				return observe.TaskDashboardView{
+					Totals:     observe.TaskDashboardTotals{TasksTotal: 1, RunsTotal: 1},
+					Cards:      observe.TaskDashboardCards{},
+					Queue:      observe.TaskDashboardQueue{Total: 1, OldestQueuedAt: now, BacklogStatus: "ok"},
+					Health:     observe.TaskDashboardHealth{Status: "ok"},
+					ActiveRuns: observe.TaskDashboardActiveRuns{Total: 1, Running: 1},
+					Freshness: observe.TaskDashboardFreshness{
+						ObservedAt:       now,
+						LatestActivityAt: lastActivity,
+						Status:           "live",
+					},
+				}, nil
+			},
+			QueryTaskInboxFn: func(_ context.Context, query observe.TaskInboxQuery, actor taskpkg.ActorIdentity) (observe.TaskInboxView, error) {
+				inboxQuery = query
+				inboxActor = actor
+				return observe.TaskInboxView{
+					Total:       1,
+					UnreadTotal: 1,
+					Groups: []observe.TaskInboxLaneGroup{{
+						Lane:        observe.TaskInboxLaneApprovals,
+						Count:       1,
+						UnreadCount: 1,
+					}},
+				}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "alpha" {
+					t.Fatalf("workspace ref = %q, want %q", ref, "alpha")
+				}
+				return workspacepkg.Workspace{ID: "ws-alpha", Name: "alpha"}, nil
+			},
+		}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
-	fixture.Handlers.Profiles = sessionProfileServiceStub{}
-	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
-		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
-	}
+		fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+			return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+		}
 
-	listResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&profile=marketing&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2",
-		nil,
-	)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
-	}
-	var listPayload contract.TasksResponse
-	testutil.DecodeJSONResponse(t, listResp, &listPayload)
-	if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" ||
-		listPayload.Tasks[0].ProfileID != taskProfileID ||
-		listPayload.Tasks[0].ProfileName != "marketing" ||
-		listPayload.Tasks[0].ProfileColor != "#E8572A" ||
-		listPayload.Tasks[0].ProfileIcon != "megaphone" {
-		t.Fatalf("list payload = %#v", listPayload)
-	}
-	if listPayload.Tasks[0].Loop == nil || listPayload.Tasks[0].Loop.RunID != "looprun-alpha" ||
-		listPayload.Tasks[0].Loop.Role != contract.LoopProvenanceRoleCell {
-		t.Fatalf("list Loop provenance IT-033 = %#v", listPayload.Tasks[0].Loop)
-	}
-	if listQuery.WorkspaceID != "ws-alpha" || listQuery.Priority != taskpkg.PriorityHigh ||
-		listQuery.ApprovalState != taskpkg.ApprovalStatePending ||
-		listQuery.Search != "review" {
-		t.Fatalf("list query = %#v", listQuery)
-	}
-	if len(listQuery.ExcludeCreatedBy) != 1 || listQuery.ExcludeCreatedBy[0].Kind != taskpkg.ActorKindDaemon ||
-		listQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
-		t.Fatalf("default list exclusion IT-011 = %#v", listQuery.ExcludeCreatedBy)
-	}
-	if listActor.Origin.Ref != "tasks.list" {
-		t.Fatalf("list actor = %#v", listActor)
-	}
-	includeResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&include_loop=false&loop_run_id=looprun-alpha",
-		nil,
-	)
-	if includeResp.Code != http.StatusOK {
-		t.Fatalf(
-			"Loop run list status = %d, want %d; body=%s",
-			includeResp.Code,
-			http.StatusOK,
-			includeResp.Body.String(),
+		listResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/tasks?scope=workspace&workspace=alpha&profile=marketing&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2",
+			nil,
 		)
-	}
-	if listQuery.LoopRunID != "looprun-alpha" || len(listQuery.ExcludeCreatedBy) != 0 {
-		t.Fatalf("Loop run list query IT-012 = %#v", listQuery)
-	}
-
-	detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1?profile=marketing", nil)
-	if detailResp.Code != http.StatusOK {
-		t.Fatalf("detail status = %d, want %d; body=%s", detailResp.Code, http.StatusOK, detailResp.Body.String())
-	}
-	var detailPayload contract.TaskDetailResponse
-	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
-	if detailPayload.Task.Summary.ProfileID != taskProfileID ||
-		detailPayload.Task.Summary.ProfileName != "marketing" ||
-		detailPayload.Task.Summary.ProfileColor != "#E8572A" ||
-		detailPayload.Task.Summary.ProfileIcon != "megaphone" ||
-		detailPayload.Task.Task.ProfileID != taskProfileID ||
-		detailPayload.Task.Task.ProfileName != "marketing" ||
-		detailPayload.Task.Task.ProfileColor != "#E8572A" ||
-		detailPayload.Task.Task.ProfileIcon != "megaphone" {
-		t.Fatalf("detail payload owners = %#v", detailPayload.Task)
-	}
-	if detailActor.Origin.Ref != "tasks.get" {
-		t.Fatalf("detail actor = %#v", detailActor)
-	}
-	var detailPayload contract.TaskDetailResponse
-	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
-	if !reflect.DeepEqual(detailPayload.Task.Task.Loop, listPayload.Tasks[0].Loop) {
-		t.Fatalf(
-			"catalog/detail Loop provenance IT-033 = %#v / %#v",
-			listPayload.Tasks[0].Loop,
-			detailPayload.Task.Task.Loop,
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+		}
+		var listPayload contract.TasksResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" ||
+			listPayload.Tasks[0].ProfileID != taskProfileID ||
+			listPayload.Tasks[0].ProfileName != "marketing" ||
+			listPayload.Tasks[0].ProfileColor != "#E8572A" ||
+			listPayload.Tasks[0].ProfileIcon != "megaphone" {
+			t.Fatalf("list payload = %#v", listPayload)
+		}
+		if listPayload.Tasks[0].Loop == nil || listPayload.Tasks[0].Loop.RunID != "looprun-alpha" ||
+			listPayload.Tasks[0].Loop.Role != contract.LoopProvenanceRoleCell {
+			t.Fatalf("list Loop provenance IT-033 = %#v", listPayload.Tasks[0].Loop)
+		}
+		if listQuery.WorkspaceID != "ws-alpha" || listQuery.Priority != taskpkg.PriorityHigh ||
+			listQuery.ApprovalState != taskpkg.ApprovalStatePending ||
+			listQuery.Search != "review" {
+			t.Fatalf("list query = %#v", listQuery)
+		}
+		if len(listQuery.ExcludeCreatedBy) != 1 || listQuery.ExcludeCreatedBy[0].Kind != taskpkg.ActorKindDaemon ||
+			listQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
+			t.Fatalf("default list exclusion IT-011 = %#v", listQuery.ExcludeCreatedBy)
+		}
+		if listActor.Origin.Ref != "tasks.list" {
+			t.Fatalf("list actor = %#v", listActor)
+		}
+		includeResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/tasks?scope=workspace&workspace=alpha&include_loop=false&loop_run_id=looprun-alpha",
+			nil,
 		)
-	}
+		if includeResp.Code != http.StatusOK {
+			t.Fatalf(
+				"Loop run list status = %d, want %d; body=%s",
+				includeResp.Code,
+				http.StatusOK,
+				includeResp.Body.String(),
+			)
+		}
+		if listQuery.LoopRunID != "looprun-alpha" || len(listQuery.ExcludeCreatedBy) != 0 {
+			t.Fatalf("Loop run list query IT-012 = %#v", listQuery)
+		}
 
-	runResp := performRequest(t, fixture.Engine, http.MethodGet, "/task-runs/run-1", nil)
-	if runResp.Code != http.StatusOK {
-		t.Fatalf("run detail status = %d, want %d; body=%s", runResp.Code, http.StatusOK, runResp.Body.String())
-	}
-	if runDetailActor.Origin.Ref != "tasks.get_run" {
-		t.Fatalf("run detail actor = %#v", runDetailActor)
-	}
+		detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1?profile=marketing", nil)
+		if detailResp.Code != http.StatusOK {
+			t.Fatalf("detail status = %d, want %d; body=%s", detailResp.Code, http.StatusOK, detailResp.Body.String())
+		}
+		var detailPayload contract.TaskDetailResponse
+		testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
+		if detailPayload.Task.Summary.ProfileID != taskProfileID ||
+			detailPayload.Task.Summary.ProfileName != "marketing" ||
+			detailPayload.Task.Summary.ProfileColor != "#E8572A" ||
+			detailPayload.Task.Summary.ProfileIcon != "megaphone" ||
+			detailPayload.Task.Task.ProfileID != taskProfileID ||
+			detailPayload.Task.Task.ProfileName != "marketing" ||
+			detailPayload.Task.Task.ProfileColor != "#E8572A" ||
+			detailPayload.Task.Task.ProfileIcon != "megaphone" {
+			t.Fatalf("detail payload owners = %#v", detailPayload.Task)
+		}
+		if detailActor.Origin.Ref != "tasks.get" {
+			t.Fatalf("detail actor = %#v", detailActor)
+		}
+		if !reflect.DeepEqual(detailPayload.Task.Task.Loop, listPayload.Tasks[0].Loop) {
+			t.Fatalf(
+				"catalog/detail Loop provenance IT-033 = %#v / %#v",
+				listPayload.Tasks[0].Loop,
+				detailPayload.Task.Task.Loop,
+			)
+		}
 
-	timelineResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/tasks/task-1/timeline?after_sequence=5&limit=2",
-		nil,
-	)
-	if timelineResp.Code != http.StatusOK {
-		t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.Code, http.StatusOK, timelineResp.Body.String())
-	}
-	if timelineQuery.AfterSequence != 5 || timelineQuery.Limit != 2 || timelineActor.Origin.Ref != "tasks.timeline" {
-		t.Fatalf("timeline query/actor = %#v / %#v", timelineQuery, timelineActor)
-	}
+		runResp := performRequest(t, fixture.Engine, http.MethodGet, "/task-runs/run-1", nil)
+		if runResp.Code != http.StatusOK {
+			t.Fatalf("run detail status = %d, want %d; body=%s", runResp.Code, http.StatusOK, runResp.Body.String())
+		}
+		if runDetailActor.Origin.Ref != "tasks.get_run" {
+			t.Fatalf("run detail actor = %#v", runDetailActor)
+		}
 
-	treeResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/tree", nil)
-	if treeResp.Code != http.StatusOK {
-		t.Fatalf("tree status = %d, want %d; body=%s", treeResp.Code, http.StatusOK, treeResp.Body.String())
-	}
-	if treeActor.Origin.Ref != "tasks.tree" {
-		t.Fatalf("tree actor = %#v", treeActor)
-	}
-
-	dashboardResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
-		nil,
-	)
-	if dashboardResp.Code != http.StatusOK {
-		t.Fatalf(
-			"dashboard status = %d, want %d; body=%s",
-			dashboardResp.Code,
-			http.StatusOK,
-			dashboardResp.Body.String(),
+		timelineResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/tasks/task-1/timeline?after_sequence=5&limit=2",
+			nil,
 		)
-	}
-	if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.ParticipationChannel != "builders" ||
-		dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || len(dashboardQuery.ExcludeCreatedBy) != 1 ||
-		dashboardQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
-		t.Fatalf("dashboard query = %#v", dashboardQuery)
-	}
+		if timelineResp.Code != http.StatusOK {
+			t.Fatalf(
+				"timeline status = %d, want %d; body=%s",
+				timelineResp.Code,
+				http.StatusOK,
+				timelineResp.Body.String(),
+			)
+		}
+		if timelineQuery.AfterSequence != 5 || timelineQuery.Limit != 2 ||
+			timelineActor.Origin.Ref != "tasks.timeline" {
+			t.Fatalf("timeline query/actor = %#v / %#v", timelineQuery, timelineActor)
+		}
 
-	inboxResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=review&limit=1",
-		nil,
-	)
-	if inboxResp.Code != http.StatusOK {
-		t.Fatalf("inbox status = %d, want %d; body=%s", inboxResp.Code, http.StatusOK, inboxResp.Body.String())
-	}
-	if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
-		inboxQuery.Unread == nil || !*inboxQuery.Unread ||
-		inboxQuery.Search != "review" ||
-		len(inboxQuery.ExcludeCreatedBy) != 1 || inboxQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" ||
-		inboxActor.Ref != "user-1" {
-		t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
-	}
+		treeResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/tree", nil)
+		if treeResp.Code != http.StatusOK {
+			t.Fatalf("tree status = %d, want %d; body=%s", treeResp.Code, http.StatusOK, treeResp.Body.String())
+		}
+		if treeActor.Origin.Ref != "tasks.tree" {
+			t.Fatalf("tree actor = %#v", treeActor)
+		}
+
+		dashboardResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
+			nil,
+		)
+		if dashboardResp.Code != http.StatusOK {
+			t.Fatalf(
+				"dashboard status = %d, want %d; body=%s",
+				dashboardResp.Code,
+				http.StatusOK,
+				dashboardResp.Body.String(),
+			)
+		}
+		if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.ParticipationChannel != "builders" ||
+			dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || len(dashboardQuery.ExcludeCreatedBy) != 1 ||
+			dashboardQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" {
+			t.Fatalf("dashboard query = %#v", dashboardQuery)
+		}
+
+		inboxResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=review&limit=1",
+			nil,
+		)
+		if inboxResp.Code != http.StatusOK {
+			t.Fatalf("inbox status = %d, want %d; body=%s", inboxResp.Code, http.StatusOK, inboxResp.Body.String())
+		}
+		if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
+			inboxQuery.Unread == nil || !*inboxQuery.Unread ||
+			inboxQuery.Search != "review" ||
+			len(inboxQuery.ExcludeCreatedBy) != 1 || inboxQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" ||
+			inboxActor.Ref != "user-1" {
+			t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
+		}
+	})
 }
 
 func TestExpandedTaskReadsRejectForeignNamedProfile(t *testing.T) {

@@ -91,48 +91,7 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 	}
 
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
-		queries := sqlcgen.New(tx)
-		if err := ensureWorkspaceDeletionAllowed(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := deleteWorkspaceMCPState(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := deleteWorkspaceExtensionEnv(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
-			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
-		}
-		if _, err := queries.DeleteGatewayIngressBindingsByWorkspace(ctx, store.SQLNullString(trimmedID)); err != nil {
-			return fmt.Errorf(
-				"store: delete gateway ingress bindings for workspace %q: %w",
-				trimmedID,
-				err,
-			)
-		}
-
-		affected, err := queries.DeleteWorkspace(ctx, trimmedID)
-		if err != nil {
-			return fmt.Errorf(
-				"store: delete workspace %q: %w",
-				trimmedID,
-				mapWorkspaceDeleteConstraintError(err),
-			)
-		}
-
-		if affected == 0 {
-			return fmt.Errorf(
-				"store: workspace %q: %w",
-				trimmedID,
-				compozyworkspace.ErrWorkspaceNotFound,
-			)
-		}
-
-		return nil
+		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID)
 	})
 }
 
@@ -433,11 +392,23 @@ func mapWorkspaceWriteConstraintError(
 	if err == nil {
 		return nil
 	}
+	queries := sqlcgen.New(exec)
+	if isSQLiteTriggerConstraint(err) {
+		_, intentErr := queries.GetWorkspaceDeletionIntent(ctx, workspace.ID)
+		switch {
+		case intentErr == nil:
+			return compozyworkspace.ErrWorkspaceDeletionPending
+		case !errors.Is(intentErr, sql.ErrNoRows):
+			return errors.Join(
+				err,
+				fmt.Errorf("store: classify workspace deletion constraint: %w", intentErr),
+			)
+		}
+	}
 	if !isSQLiteUniqueConstraint(err) {
 		return err
 	}
 
-	queries := sqlcgen.New(exec)
 	byPath, pathErr := queries.GetWorkspaceByPath(ctx, workspace.RootDir)
 	switch {
 	case pathErr == nil && byPath.ID != workspace.ID:

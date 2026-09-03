@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -10,8 +9,6 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
-
-var benchmarkCommandEnv []string
 
 func BenchmarkHandleSessionUpdateAgentMessage(b *testing.B) {
 	proc := &AgentProcess{}
@@ -67,19 +64,6 @@ func BenchmarkHandleInboundReadTextFile(b *testing.B) {
 	}
 }
 
-func BenchmarkManagedTerminalAppendOutputOverflow(b *testing.B) {
-	term := &managedTerminal{}
-	term.output = bytes.Repeat([]byte("x"), defaultTerminalOutputLimit-1024)
-	chunk := bytes.Repeat([]byte("0123456789abcdef"), 256) // 4096 bytes
-
-	b.ReportAllocs()
-	b.SetBytes(int64(len(chunk)))
-
-	for b.Loop() {
-		term.appendOutput(chunk)
-	}
-}
-
 func BenchmarkPermissionPolicyResolvePathExistingRelative(b *testing.B) {
 	root := b.TempDir()
 	target := filepath.Join(root, "nested", "notes.txt")
@@ -102,28 +86,5 @@ func BenchmarkPermissionPolicyResolvePathExistingRelative(b *testing.B) {
 		if _, err := policy.resolvePath(relative); err != nil {
 			b.Fatalf("resolvePath() error = %v", err)
 		}
-	}
-}
-
-func BenchmarkMergeCommandEnvWithOverrides(b *testing.B) {
-	base := []string{
-		"PATH=/usr/bin:/bin",
-		"HOME=/tmp/bench",
-		"LANG=en_US.UTF-8",
-		"TERM=xterm-256color",
-		"NO_COLOR=1",
-		"COMPOZY_BIN=/tmp/compozy",
-	}
-	overrides := []acpsdk.EnvVariable{
-		{Name: "PATH", Value: "/custom/bin:/usr/bin:/bin"},
-		{Name: "LANG", Value: "C.UTF-8"},
-		{Name: "WORKTREE", Value: "/tmp/worktree"},
-		{Name: "NO_COLOR", Value: ""},
-	}
-
-	b.ReportAllocs()
-
-	for b.Loop() {
-		benchmarkCommandEnv = mergeCommandEnv(base, overrides)
 	}
 }

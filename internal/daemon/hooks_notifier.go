@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 type hooksNotifier struct {
@@ -34,6 +35,11 @@ type hooksNotifier struct {
 	networkWatchHooks         []networkWatchObserver
 	coordinatorWatchHooks     []coordinatorWatchObserver
 	eventRecordWatchHooks     []eventRecordWatchObserver
+	terminals                 terminalRuntimeRecovery
+}
+
+type terminalRuntimeRecovery interface {
+	RuntimeRecovered(context.Context, string, terminalpkg.Actor, terminalpkg.Actor) int
 }
 
 type subprocessHealthRuntimeNotifier interface {
@@ -126,6 +132,24 @@ func (n *hooksNotifier) setSubprocessHealthRuntime(runtime subprocessHealthRunti
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.subprocessHealthRuntime = runtime
+}
+
+func (n *hooksNotifier) setTerminalRuntime(runtime terminalRuntimeRecovery) {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.terminals = runtime
+}
+
+func (n *hooksNotifier) terminalRuntime() terminalRuntimeRecovery {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.terminals
 }
 
 func (n *hooksNotifier) subprocessHealthNotifier() subprocessHealthRuntimeNotifier {

@@ -42,6 +42,7 @@ func hookEventFamilyValues() []string {
 		string(hooks.HookEventFamilyTool),
 		string(hooks.HookEventFamilyPermission),
 		string(hooks.HookEventFamilyContext),
+		string(hooks.HookEventFamilyTerminal),
 	}
 }
 

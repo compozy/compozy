@@ -54,6 +54,7 @@ func (d *Daemon) runtimeDeps(
 		Worktrees:           worktrees,
 		WorkspaceAccess:     state.accessPolicy,
 		WindowManagers:      state.windowManagers,
+		Terminals:           state.terminals,
 		ModelCatalog:        state.modelCatalog,
 		MarketplaceCatalog:  state.marketplace,
 		AgentCatalog:        agentCatalog,

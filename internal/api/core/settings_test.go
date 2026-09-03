@@ -2678,6 +2678,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
+					Terminal:       validSettingsTerminalPayload(),
 				},
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
@@ -3040,6 +3041,22 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 		GlobalShortcuts: map[string]string{
 			windowmanager.DefaultGlobalSummonCommandID: windowmanager.DefaultGlobalSummonChord,
 		},
+	}
+}
+
+func validSettingsTerminalPayload() contract.SettingsTerminalPayload {
+	terminal := compozyconfig.DefaultTerminalConfig()
+	return contract.SettingsTerminalPayload{
+		DefaultShell:           terminal.DefaultShell,
+		ShellIntegration:       terminal.ShellIntegration,
+		ScrollbackBytes:        terminal.ScrollbackBytes,
+		DetachedTTL:            terminal.DetachedTTL.String(),
+		ExitRetention:          terminal.ExitRetention.String(),
+		Recording:              terminal.Recording,
+		RecordingRetentionDays: terminal.RecordingRetentionDays,
+		MaxPerWorkspace:        terminal.MaxPerWorkspace,
+		MaxPerDaemon:           terminal.MaxPerDaemon,
+		MaxSubscribers:         terminal.MaxSubscribers,
 	}
 }
 
@@ -4015,6 +4032,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
+					Terminal:       validSettingsTerminalPayload(),
 				},
 			}),
 		},

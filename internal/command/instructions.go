@@ -53,6 +53,12 @@ func BuildInvokedSkillsBlock(skills []InvokedSkill) (string, error) {
 		builder.WriteString(`" scope="`)
 		builder.WriteString(escapeAttribute(skill.Ref.Source.Scope))
 		builder.WriteString("\">\n")
+		builder.WriteString(`<resource-loading command_id="`)
+		builder.WriteString(escapeAttribute(skill.Ref.CommandID))
+		builder.WriteString(
+			`">For every referenced file, call compozy__skill_view with this exact command_id and file path. Do not replace command_id with the skill name. Read only file paths explicitly named by this skill body; do not invent a resource path.</resource-loading>`,
+		)
+		builder.WriteString("\n")
 		builder.WriteString(content)
 		builder.WriteString("\n</skill>\n")
 	}

@@ -470,31 +470,10 @@ export {
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
 // Environment surface — worktree binding, fork, target selection (./environment).
-export {
-  environmentTargetLabel,
-  forkSessionToWorktree,
-  isEnvironmentTargetMissing,
-  NEW_WORKTREE_LABEL,
-  ROOT_ENVIRONMENT_TARGET,
-  selectableWorktrees,
-  SessionEnvironmentChip,
-  SessionEnvironmentControl,
-  SessionEnvironmentField,
-  SessionWorktreeBindingChip,
-  SessionWorktreeForkDialog,
-  useForkSessionToWorktree,
-  useSessionEnvironment,
-  useSessionWorktreeBinding,
-  WORKSPACE_ROOT_LABEL,
-  WORKTREE_COMMAND_TOKEN,
-  type SessionEnvironmentChipState,
-  type SessionEnvironmentControlHandle,
-  type SessionEnvironmentModel,
-  type SessionEnvironmentTarget,
-  type SessionWorktreeBinding,
-} from "./environment";
+export * from "./environment";
 export { findSessionCommand } from "./hooks/use-session-commands";
 export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
 export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";
+export * from "./quote";

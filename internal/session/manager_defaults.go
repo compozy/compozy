@@ -75,6 +75,9 @@ func (m *Manager) applyRuntimeGeneratorDefaults() {
 	if m.newTurnID == nil {
 		m.newTurnID = newIDGenerator("turn")
 	}
+	if m.newRunID == nil {
+		m.newRunID = newIDGenerator("run")
+	}
 	if m.newWaitID == nil {
 		m.newWaitID = newULIDGenerator("wait")
 	}

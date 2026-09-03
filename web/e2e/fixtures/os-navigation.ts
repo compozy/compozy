@@ -29,7 +29,7 @@ export async function openAppWindow(page: Page, title: string, app: string): Pro
       ? page.locator('[data-slot="os-menubar-settings"]')
       : page
           .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
-          .getByRole("button", { exact: true, name: title });
+          .getByRole("button", { name: title });
   if (app === "settings") {
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
       "title",
@@ -75,6 +75,43 @@ export async function windowID(win: Locator): Promise<string> {
     throw new Error("window surface must expose its opaque ID");
   }
   return testID.slice(prefix.length);
+}
+
+function escapeAttributeValue(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+async function authorityWindow(page: Page, win: Locator): Promise<Locator> {
+  const [app, instanceKey] = await Promise.all([
+    win.getAttribute("data-app"),
+    win.getAttribute("data-instance-key"),
+  ]);
+  if (!app) {
+    throw new Error("window surface must expose its authority identity");
+  }
+  const appSelector = `[data-slot="os-window-surface"][data-app="${escapeAttributeValue(app)}"]`;
+  if (instanceKey === null) {
+    return page.locator(appSelector).filter({ visible: true });
+  }
+  return page.locator(`${appSelector}[data-instance-key="${escapeAttributeValue(instanceKey)}"]`);
+}
+
+/** Focus an obscured window through the user-facing palette's exact tab identity. */
+export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
+  if ((await windowFrame(win).getAttribute("data-focused")) !== null) return;
+  const target = await authorityWindow(page, win);
+  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
+  await page.keyboard.press("ControlOrMeta+K");
+  const palette = page.getByTestId("os-command-palette");
+  await expect(palette).toBeVisible();
+  // Opening the palette can reconcile and rematerialize a window. Resolve its
+  // opaque identity only after that transition through its stable app/instance
+  // identity, so the tab row and surface share the same authority snapshot.
+  await expect(target).toBeVisible();
+  const id = await windowID(target);
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
+  await palette.getByTestId(`os-palette-tab-${id}`).click();
+  await expect(windowFrame(target)).toHaveAttribute("data-focused", "");
 }
 
 /** Switch the active workspace and prove the menubar committed the selection. */

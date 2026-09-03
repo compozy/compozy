@@ -1,5 +1,5 @@
 import { Ellipsis } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type * as React from "react";
 
 import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from "@compozy/ui";
@@ -124,7 +124,7 @@ export function DesktopPager({
   ...props
 }: DesktopPagerProps) {
   const controls = pagerControls(desktops, activeDesktopId);
-  const controlRefs = useRef<Map<string, HTMLButtonElement> | null>(null);
+  const controlRefs = new Map<string, HTMLButtonElement>();
   const [rovingKey, setRovingKey] = useState<string>();
   const activeKey = `desktop:${activeDesktopId}`;
   const visibleKeys = new Set(controls.map(control => control.key));
@@ -136,7 +136,7 @@ export function DesktopPager({
     const control = controls[position];
     if (!control) return;
     setRovingKey(control.key);
-    controlRefs.current?.get(control.key)?.focus();
+    controlRefs.get(control.key)?.focus();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, key: string) => {
@@ -183,12 +183,9 @@ export function DesktopPager({
                       <Button
                         ref={node => {
                           if (node) {
-                            const refs =
-                              controlRefs.current ?? new Map<string, HTMLButtonElement>();
-                            controlRefs.current = refs;
-                            refs.set(control.key, node);
+                            controlRefs.set(control.key, node);
                           } else {
-                            controlRefs.current?.delete(control.key);
+                            controlRefs.delete(control.key);
                           }
                         }}
                         type="button"

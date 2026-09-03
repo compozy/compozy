@@ -537,122 +537,119 @@ func TestWriteSDKContracts(t *testing.T) {
 }
 
 func TestWriteAll(t *testing.T) {
-	t.Run("ShouldLeaveExistingArtifactsUnchangedWhenSDKGenerationFails", func(t *testing.T) {
+	t.Run("Should restore every file when file publication fails", func(t *testing.T) {
 		t.Parallel()
 
-		errSDKGeneration := errors.New("sdk generation failed")
 		dir := t.TempDir()
-		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
-		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
-		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
-		originalSDK := []byte("export type Seed = \"sdk\";\n")
-
-		if err := os.MkdirAll(filepath.Dir(openapiPath), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(openapiPath), err)
+		first := filepath.Join(dir, "first.json")
+		second := filepath.Join(dir, "second.ts")
+		originals := map[string][]byte{first: []byte("first-old\n"), second: []byte("second-old\n")}
+		for path, content := range originals {
+			if err := os.WriteFile(path, content, 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+			}
 		}
-		if err := os.MkdirAll(filepath.Dir(sdkContractsPath), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(sdkContractsPath), err)
+		publishErr := errors.New("injected file publication failure")
+		treeCalled := false
+		err := publishAllGeneratedArtifacts(allGeneratedArtifacts{files: []generatedArtifact{
+			{path: first, content: []byte("first-new\n")},
+			{path: second, content: []byte("second-new\n")},
+		}}, filepath.Join(dir, "go-contracts"), func(path string, content []byte) error {
+			if path == second {
+				return publishErr
+			}
+			return publishGeneratedFile(path, content)
+		}, func(string, map[string][]byte) error {
+			treeCalled = true
+			return nil
+		})
+		if !errors.Is(err, publishErr) || treeCalled {
+			t.Fatalf("publishAllGeneratedArtifacts() error/tree = %v/%t, want %v/false", err, treeCalled, publishErr)
 		}
-		if err := os.WriteFile(openapiPath, originalOpenAPI, 0o644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", openapiPath, err)
-		}
-		if err := os.WriteFile(sdkContractsPath, originalSDK, 0o644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", sdkContractsPath, err)
-		}
-
-		err := writeAllWith(
-			context.Background(),
-			openapiPath,
-			sdkContractsPath,
-			func() ([]byte, error) {
-				return []byte("{\"openapi\":\"3.0.3\"}\n"), nil
-			},
-			func(context.Context, string) ([]byte, error) {
-				return nil, errSDKGeneration
-			},
-			publishGeneratedFile,
-		)
-		if !errors.Is(err, errSDKGeneration) {
-			t.Fatalf("writeAllWith() error = %v, want %v", err, errSDKGeneration)
-		}
-
-		gotOpenAPI, err := os.ReadFile(openapiPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", openapiPath, err)
-		}
-		if !bytes.Equal(gotOpenAPI, originalOpenAPI) {
-			t.Fatalf("openapi after sdk generation failure = %q, want %q", string(gotOpenAPI), string(originalOpenAPI))
-		}
-
-		gotSDK, err := os.ReadFile(sdkContractsPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", sdkContractsPath, err)
-		}
-		if !bytes.Equal(gotSDK, originalSDK) {
-			t.Fatalf("sdk contracts after sdk generation failure = %q, want %q", string(gotSDK), string(originalSDK))
-		}
+		assertGeneratedArtifactsEqual(t, originals)
 	})
 
-	t.Run("ShouldRestoreOpenAPIWhenSDKPublishFails", func(t *testing.T) {
+	t.Run("Should restore every file when Go tree publication fails", func(t *testing.T) {
 		t.Parallel()
 
-		errSDKPublish := errors.New("sdk publish failed")
 		dir := t.TempDir()
-		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
-		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
-		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
-		originalSDK := []byte("export type Seed = \"sdk\";\n")
-
-		if err := os.MkdirAll(filepath.Dir(openapiPath), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(openapiPath), err)
+		path := filepath.Join(dir, "artifact.json")
+		goTree := filepath.Join(dir, "go-contracts")
+		originals := map[string][]byte{path: []byte("old\n")}
+		if err := os.WriteFile(path, originals[path], 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 		}
-		if err := os.MkdirAll(filepath.Dir(sdkContractsPath), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(sdkContractsPath), err)
+		if err := os.MkdirAll(goTree, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", goTree, err)
 		}
-		if err := os.WriteFile(openapiPath, originalOpenAPI, 0o644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", openapiPath, err)
+		originalTree := map[string][]byte{
+			"keep.go":   []byte("package contracts\n"),
+			"remove.go": []byte("package contracts\n\nconst Removed = true\n"),
 		}
-		if err := os.WriteFile(sdkContractsPath, originalSDK, 0o644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", sdkContractsPath, err)
+		for name, content := range originalTree {
+			if err := os.WriteFile(filepath.Join(goTree, name), content, 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", name, err)
+			}
 		}
-
-		err := writeAllWith(
-			context.Background(),
-			openapiPath,
-			sdkContractsPath,
-			func() ([]byte, error) {
-				return []byte("{\"openapi\":\"3.0.3\"}\n"), nil
-			},
-			func(context.Context, string) ([]byte, error) {
-				return []byte("export type Value = \"fresh\";\n"), nil
-			},
-			func(path string, content []byte) error {
-				if path == sdkContractsPath {
-					return errSDKPublish
-				}
-				return publishGeneratedFile(path, content)
-			},
-		)
-		if !errors.Is(err, errSDKPublish) {
-			t.Fatalf("writeAllWith() error = %v, want %v", err, errSDKPublish)
+		treeErr := errors.New("injected Go tree publication failure")
+		err := publishAllGeneratedArtifacts(allGeneratedArtifacts{
+			files:   []generatedArtifact{{path: path, content: []byte("new\n")}},
+			goFiles: map[string][]byte{"types.go": []byte("package contracts\n")},
+		}, goTree, publishGeneratedFile, func(treePath string, _ map[string][]byte) error {
+			if err := os.WriteFile(filepath.Join(treePath, "keep.go"), []byte("mutated\n"), 0o600); err != nil {
+				return err
+			}
+			if err := os.Remove(filepath.Join(treePath, "remove.go")); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(treePath, "new.go"), []byte("new\n"), 0o600); err != nil {
+				return err
+			}
+			return treeErr
+		})
+		if !errors.Is(err, treeErr) {
+			t.Fatalf("publishAllGeneratedArtifacts() error = %v, want %v", err, treeErr)
 		}
-
-		gotOpenAPI, err := os.ReadFile(openapiPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", openapiPath, err)
-		}
-		if !bytes.Equal(gotOpenAPI, originalOpenAPI) {
-			t.Fatalf("openapi after sdk publish failure = %q, want %q", string(gotOpenAPI), string(originalOpenAPI))
-		}
-
-		gotSDK, err := os.ReadFile(sdkContractsPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", sdkContractsPath, err)
-		}
-		if !bytes.Equal(gotSDK, originalSDK) {
-			t.Fatalf("sdk contracts after sdk publish failure = %q, want %q", string(gotSDK), string(originalSDK))
-		}
+		assertGeneratedArtifactsEqual(t, originals)
+		assertGeneratedTreeEqual(t, goTree, originalTree)
 	})
+}
+
+func assertGeneratedArtifactsEqual(t *testing.T, expected map[string][]byte) {
+	t.Helper()
+	for path, want := range expected {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("artifact %q after rollback = %q, want %q", path, got, want)
+		}
+	}
+}
+
+func assertGeneratedTreeEqual(t *testing.T, path string, expected map[string][]byte) {
+	t.Helper()
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatalf("os.ReadDir(%q) error = %v", path, err)
+	}
+	if len(entries) != len(expected) {
+		t.Fatalf("generated tree entries = %d, want %d", len(entries), len(expected))
+	}
+	for _, entry := range entries {
+		want, ok := expected[entry.Name()]
+		if !ok {
+			t.Fatalf("unexpected generated tree file %q", entry.Name())
+		}
+		got, readErr := os.ReadFile(filepath.Join(path, entry.Name()))
+		if readErr != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", entry.Name(), readErr)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("generated tree file %q = %q, want %q", entry.Name(), got, want)
+		}
+	}
 }
 
 func TestShutdownSignals(t *testing.T) {

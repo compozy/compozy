@@ -18,6 +18,7 @@
 - Session attachments
 - Auto-title role
 - Window manager
+- Terminal
 - Shell session preferences
 
 ## Desired State And Apply Lifecycle
@@ -306,6 +307,28 @@ mute row through the workspace foreign key.
 
 Use `compozy config get|set attention.toasts|sound|system` for global delivery controls, or the typed
 Settings route above for the complete view. The title count is always on and is not a config key.
+
+## Terminal
+
+Every `[terminal]` path applies live. The ten keys are:
+
+| Key                        | Default   | Validation                                                                                                               |
+| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `default_shell`            | `""`      | Empty, a bare executable name, or an absolute path.                                                                      |
+| `shell_integration`        | `true`    | Boolean.                                                                                                                 |
+| `scrollback_bytes`         | `1048576` | Positive integer.                                                                                                        |
+| `detached_ttl`             | `"24h"`   | Positive duration.                                                                                                       |
+| `exit_retention`           | `"15m"`   | Positive duration.                                                                                                       |
+| `recording`                | `false`   | Boolean; records new terminals created by terminal open operations through supported CLI, API, and native-tool surfaces. |
+| `recording_retention_days` | `30`      | Positive integer.                                                                                                        |
+| `max_per_workspace`        | `8`       | Positive integer, counted per profile and workspace.                                                                     |
+| `max_per_daemon`           | `32`      | Positive integer; daemon-global.                                                                                         |
+| `max_subscribers`          | `16`      | Positive integer per terminal.                                                                                           |
+
+Use `compozy config get|set|unset terminal.<key> -o json`, then read the same path back. The native
+`compozy__config_*` mutation surface does not expose these paths. Profile overlays may set the nine
+profile-scoped keys, but reject `terminal.max_per_daemon` with `profile_config_key_denied` because it
+governs one daemon. Workspace overlays remain valid.
 
 ## Shell Session Preferences
 

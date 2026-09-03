@@ -60,7 +60,7 @@ func translateSessionUpdate(
 	case notification.Update.AvailableCommandsUpdate != nil:
 		event.Type = EventTypeAvailableCommands
 		event.Title = SystemEventTitleAvailableCommandsUpdate
-		event.AvailableCommands = NewAvailableCommandSet(availableCommandNames(
+		event = event.WithAvailableCommands(availableCommandNames(
 			notification.Update.AvailableCommandsUpdate.AvailableCommands,
 		))
 	case notification.Update.CurrentModeUpdate != nil:

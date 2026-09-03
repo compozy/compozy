@@ -11,16 +11,24 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
-	toolApprovalAllowOnceID    acpsdk.PermissionOptionId = "allow_once"
-	toolApprovalAllowAlwaysID  acpsdk.PermissionOptionId = "allow_always"
-	toolApprovalRejectOnceID   acpsdk.PermissionOptionId = "reject_once"
-	toolApprovalRejectAlwaysID acpsdk.PermissionOptionId = "reject_always"
+	toolApprovalAllowOnceID            acpsdk.PermissionOptionId = "allow_once"
+	toolApprovalAllowAlwaysID          acpsdk.PermissionOptionId = "allow_always"
+	toolApprovalRejectOnceID           acpsdk.PermissionOptionId = "reject_once"
+	toolApprovalRejectAlwaysID         acpsdk.PermissionOptionId = "reject_always"
+	toolApprovalApprovedOnceLabel                                = "approved_once"
+	toolApprovalAllowOnceName                                    = "Allow once"
+	toolApprovalRejectOnceName                                   = "Reject once"
+	terminalToolApprovalMinimumTimeout                           = 15 * time.Minute
 )
+
+var errToolApprovalRejected = errors.New("daemon: tool approval rejected")
 
 type sessionPermissionRequester interface {
 	RequestPermission(
@@ -36,6 +44,7 @@ type toolApprovalBridge struct {
 	approvals toolspkg.ApprovalTokenConsumer
 	grants    toolspkg.ApprovalGrantStore
 	logger    *slog.Logger
+	clock     clockwork.Clock
 }
 
 var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
@@ -56,21 +65,38 @@ func newToolApprovalBridge(
 		approvals: approvals,
 		grants:    grants,
 		logger:    logger,
+		clock:     clockwork.NewRealClock(),
 	}
 }
 
 func (b *toolApprovalBridge) RequestToolApproval(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	call toolspkg.CallRequest,
+	request *toolspkg.CallRequest,
 	view *toolspkg.ToolView,
 ) error {
+	if request == nil {
+		return toolApprovalError("", "tool approval request is unavailable", toolspkg.ReasonApprovalUnreachable)
+	}
+	call := *request
 	toolID := toolApprovalID(call, view)
-	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+	promptPolicy, err := terminalApprovalPromptPolicy(call, toolID)
+	if err != nil {
 		return err
 	}
-	if handled, err := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
+	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+		if err == nil {
+			setToolApprovalLabel(request, toolApprovalApprovedOnceLabel)
+		}
 		return err
+	}
+	if !promptPolicy.force {
+		if handled, durableErr := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
+			if durableErr == nil {
+				setToolApprovalLabel(request, "approved_always")
+			}
+			return durableErr
+		}
 	}
 	if b == nil || b.sessions == nil {
 		return toolApprovalError(
@@ -99,11 +125,69 @@ func (b *toolApprovalBridge) RequestToolApproval(
 		)
 	}
 	descriptor := toolApprovalDescriptor(call, view)
-	response, err := b.requestSessionToolApproval(ctx, sessions, sessionID, call, descriptor, view)
+	response, err := b.requestSessionToolApproval(
+		ctx, sessions, sessionID, call, descriptor, view, promptPolicy.remember,
+	)
 	if err != nil {
 		return err
 	}
-	return b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome)
+	err = b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome, promptPolicy.remember)
+	if err == nil {
+		setToolApprovalLabel(request, toolApprovalOutcomeLabel(response.Outcome))
+	}
+	return err
+}
+
+type toolApprovalPromptPolicy struct {
+	force    bool
+	remember bool
+}
+
+func terminalApprovalPromptPolicy(
+	call toolspkg.CallRequest,
+	toolID toolspkg.ToolID,
+) (toolApprovalPromptPolicy, error) {
+	if toolID != toolspkg.ToolIDTerminalExec {
+		return toolApprovalPromptPolicy{remember: true}, nil
+	}
+	var input terminalExecInput
+	if err := json.Unmarshal(call.Input, &input); err != nil {
+		return toolApprovalPromptPolicy{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolID,
+			"terminal command approval input is invalid",
+			errors.Join(toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	classification := terminalpkg.ClassifyArgv(append([]string{input.Command}, input.Args...), nil)
+	if classification.Verdict == terminalpkg.CommandVerdictDenied {
+		return toolApprovalPromptPolicy{}, nativeCommandToolError(
+			toolspkg.ErrorCodeDenied,
+			toolID,
+			"terminal command is blocked by the irreversible-operation policy",
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonPolicyDenied,
+		)
+	}
+	if terminalApprovalMustBeForced(classification) {
+		return toolApprovalPromptPolicy{force: true}, nil
+	}
+	return toolApprovalPromptPolicy{remember: true}, nil
+}
+
+func setToolApprovalLabel(call *toolspkg.CallRequest, label string) {
+	if call != nil {
+		call.ApprovalGranted = true
+		call.ApprovalLabel = label
+	}
+}
+
+func toolApprovalOutcomeLabel(outcome acpsdk.RequestPermissionOutcome) string {
+	if outcome.Selected != nil && outcome.Selected.OptionId == toolApprovalAllowAlwaysID {
+		return "approved_always"
+	}
+	return toolApprovalApprovedOnceLabel
 }
 
 func (b *toolApprovalBridge) requestSessionToolApproval(
@@ -113,21 +197,28 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	call toolspkg.CallRequest,
 	descriptor toolspkg.Descriptor,
 	view *toolspkg.ToolView,
+	remember bool,
 ) (acp.RequestPermissionResponse, error) {
 	toolID := toolApprovalID(call, view)
-	timeout := b.timeout
-	if timeout <= 0 {
-		timeout = 120 * time.Second
+	timeout := b.requestTimeout(toolID)
+	clock := b.clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
 	}
-	approvalCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	approvalCtx, cancel := context.WithCancelCause(ctx)
+	timer := clock.AfterFunc(timeout, func() { cancel(context.DeadlineExceeded) })
+	defer cancel(context.Canceled)
+	defer timer.Stop()
 	requestID := toolApprovalCallID(call)
 
 	response, err := sessions.RequestPermission(
 		approvalCtx,
 		sessionID,
 		acp.RequestPermissionRequest{
-			Meta:      map[string]any{acp.PermissionRequestIDMetaKey: requestID},
+			Meta: map[string]any{
+				acp.PermissionRequestIDMetaKey: requestID,
+				acp.PermissionToolIDMetaKey:    toolID.String(),
+			},
 			SessionId: acpsdk.SessionId(sessionID),
 			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: acpsdk.ToolCallId(requestID),
@@ -136,12 +227,12 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 				RawInput:   toolApprovalRawInput(call.Input),
 				Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 			},
-			Options: toolApprovalOptions(),
+			Options: toolApprovalOptions(remember),
 		},
 	)
 	if err != nil {
 		switch {
-		case errors.Is(approvalCtx.Err(), context.DeadlineExceeded):
+		case errors.Is(context.Cause(approvalCtx), context.DeadlineExceeded):
 			return acp.RequestPermissionResponse{}, toolApprovalError(
 				toolID,
 				"tool approval timed out",
@@ -162,6 +253,17 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 		}
 	}
 	return response, nil
+}
+
+func (b *toolApprovalBridge) requestTimeout(toolID toolspkg.ToolID) time.Duration {
+	timeout := b.timeout
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	if strings.HasPrefix(toolID.String(), "compozy__terminal_") && timeout < terminalToolApprovalMinimumTimeout {
+		return terminalToolApprovalMinimumTimeout
+	}
+	return timeout
 }
 
 func (b *toolApprovalBridge) consumeLocalToolApproval(
@@ -192,11 +294,22 @@ func toolApprovalDescriptor(call toolspkg.CallRequest, view *toolspkg.ToolView) 
 	return toolspkg.Descriptor{ID: call.ToolID}
 }
 
-func toolApprovalOptions() []acpsdk.PermissionOption {
+func toolApprovalOptions(remember bool) []acpsdk.PermissionOption {
+	allowOnce := acpsdk.PermissionOption{
+		Kind: acpsdk.PermissionOptionKindAllowOnce, Name: toolApprovalAllowOnceName,
+		OptionId: toolApprovalAllowOnceID,
+	}
+	rejectOnce := acpsdk.PermissionOption{
+		Kind: acpsdk.PermissionOptionKindRejectOnce, Name: toolApprovalRejectOnceName,
+		OptionId: toolApprovalRejectOnceID,
+	}
+	if !remember {
+		return []acpsdk.PermissionOption{allowOnce, rejectOnce}
+	}
 	return []acpsdk.PermissionOption{
-		{Kind: acpsdk.PermissionOptionKindAllowOnce, Name: "Allow once", OptionId: toolApprovalAllowOnceID},
+		allowOnce,
 		{Kind: acpsdk.PermissionOptionKindAllowAlways, Name: "Allow always", OptionId: toolApprovalAllowAlwaysID},
-		{Kind: acpsdk.PermissionOptionKindRejectOnce, Name: "Reject once", OptionId: toolApprovalRejectOnceID},
+		rejectOnce,
 		{Kind: acpsdk.PermissionOptionKindRejectAlways, Name: "Reject always", OptionId: toolApprovalRejectAlwaysID},
 	}
 }
@@ -249,5 +362,15 @@ func toolApprovalError(id toolspkg.ToolID, message string, reason toolspkg.Reaso
 		toolspkg.ErrToolApprovalRequired,
 		toolspkg.ReasonApprovalRequired,
 		reason,
+	)
+}
+
+func toolApprovalRejectedError(id toolspkg.ToolID) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeApprovalRequired,
+		id,
+		"tool approval was rejected",
+		errors.Join(toolspkg.ErrToolApprovalRequired, errToolApprovalRejected),
+		toolspkg.ReasonApprovalRequired,
 	)
 }

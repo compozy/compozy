@@ -39,6 +39,8 @@ type AgentProcess struct {
 	cancelProcess   context.CancelFunc
 	permissions     permissionPolicy
 	terminals       *terminalManager
+	terminalCore    TerminalHost
+	terminalScope   LocalTerminalScope
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
 

@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
-
-	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	shellquote "github.com/kballard/go-shellquote"
@@ -78,36 +75,6 @@ func (p *AgentProcess) lookupTerminalOwnership(id string) (terminalOwnership, er
 	return ownership, nil
 }
 
-func mergeCommandEnv(base []string, variables []acpsdk.EnvVariable) []string {
-	merged := make(map[string]string, len(base)+len(variables))
-	order := make([]string, 0, len(base)+len(variables))
-
-	for _, entry := range base {
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		name := parts[0]
-		if _, exists := merged[name]; !exists {
-			order = append(order, name)
-		}
-		merged[name] = parts[1]
-	}
-
-	for _, variable := range variables {
-		if _, exists := merged[variable.Name]; !exists {
-			order = append(order, variable.Name)
-		}
-		merged[variable.Name] = variable.Value
-	}
-
-	result := make([]string, 0, len(order))
-	for _, name := range order {
-		result = append(result, name+"="+merged[name])
-	}
-	return result
-}
-
 func cloneNonEmptyStringSlice(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -138,74 +105,11 @@ func cloneIntPtr(value *int) *int {
 	return &cloned
 }
 
-func appendTerminalOutputWindow(dst []byte, src []byte, limit int) ([]byte, bool) {
-	if limit <= 0 {
-		return nil, len(dst) > 0 || len(src) > 0
+func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	detached := context.WithoutCancel(ctx)
+	deadline, ok := ctx.Deadline()
+	if ok {
+		return context.WithDeadline(detached, deadline)
 	}
-	if len(src) == 0 {
-		if len(dst) <= limit {
-			return dst, false
-		}
-		return trimUTF8LeadingBytes(dst[len(dst)-limit:]), true
-	}
-	if len(dst)+len(src) <= limit {
-		return append(dst, src...), false
-	}
-
-	var out []byte
-	if cap(dst) == limit {
-		out = dst[:0]
-	} else {
-		out = make([]byte, 0, limit)
-	}
-
-	if len(src) >= limit {
-		out = append(out, src[len(src)-limit:]...)
-		return trimUTF8LeadingBytes(out), true
-	}
-
-	keepFromDst := limit - len(src)
-	if len(dst) > keepFromDst {
-		dst = dst[len(dst)-keepFromDst:]
-	}
-	out = append(out, dst...)
-	out = append(out, src...)
-	return trimUTF8LeadingBytes(out), true
-}
-
-func trimUTF8LeadingBytes(data []byte) []byte {
-	trim := 0
-	for trim < len(data) && !isValidUTF8LeadingByte(data[trim]) {
-		trim++
-	}
-	if trim == 0 {
-		return data
-	}
-	copy(data, data[trim:])
-	return data[:len(data)-trim]
-}
-
-func isValidUTF8LeadingByte(b byte) bool {
-	return b < utf8.RuneSelf || (b >= 0xC2 && b <= 0xF4)
-}
-
-func watchTerminalShutdown(ctx context.Context, terminalDone <-chan struct{}, onShutdown func()) <-chan struct{} {
-	watcherDone := make(chan struct{})
-	if ctx == nil {
-		close(watcherDone)
-		return watcherDone
-	}
-
-	go func() {
-		defer close(watcherDone)
-		select {
-		case <-ctx.Done():
-			if onShutdown != nil {
-				onShutdown()
-			}
-		case <-terminalDone:
-		}
-	}()
-
-	return watcherDone
+	return context.WithTimeout(detached, defaultStopTimeout)
 }

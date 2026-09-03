@@ -40,6 +40,7 @@ type EventCorrelation struct {
 	WorktreeID           string     `json:"worktree_id,omitempty"`
 	TaskID               string     `json:"task_id,omitempty"`
 	RunID                string     `json:"run_id,omitempty"`
+	Generation           int64      `json:"generation,omitempty"`
 	WorkflowID           string     `json:"workflow_id,omitempty"`
 	ClaimTokenHash       string     `json:"claim_token_hash,omitempty"`
 	LeaseUntil           *time.Time `json:"lease_until,omitempty"`
@@ -58,6 +59,7 @@ func (c EventCorrelation) Normalize() EventCorrelation {
 		WorktreeID:           strings.TrimSpace(c.WorktreeID),
 		TaskID:               strings.TrimSpace(c.TaskID),
 		RunID:                strings.TrimSpace(c.RunID),
+		Generation:           c.Generation,
 		WorkflowID:           strings.TrimSpace(c.WorkflowID),
 		ClaimTokenHash:       strings.TrimSpace(c.ClaimTokenHash),
 		CoordinatorSessionID: strings.TrimSpace(c.CoordinatorSessionID),
@@ -78,6 +80,7 @@ func (c EventCorrelation) IsZero() bool {
 	return normalized.WorktreeID == "" &&
 		normalized.TaskID == "" &&
 		normalized.RunID == "" &&
+		normalized.Generation == 0 &&
 		normalized.WorkflowID == "" &&
 		normalized.ClaimTokenHash == "" &&
 		normalized.LeaseUntil == nil &&

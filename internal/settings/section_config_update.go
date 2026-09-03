@@ -93,6 +93,9 @@ func (s *service) updateGeneralSection(
 	}
 	desired := *req.General
 	desired.Daemon.ReloadTimeouts = normalizeDaemonReloadTimeouts(desired.Daemon.ReloadTimeouts)
+	if desired.Terminal == (compozyconfig.TerminalConfig{}) {
+		desired.Terminal = cfg.Terminal
+	}
 	changed := diffGeneralSettings(&cfg, desired)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyGeneralSettings(editor, desired)

@@ -469,13 +469,14 @@ func (c *daemonClient) CallHostedMCP(
 	request mcppkg.HostedCallRequest,
 ) (mcppkg.HostedCallResponse, error) {
 	var response mcppkg.HostedCallResponse
-	if err := c.doJSON(
+	if err := c.doJSONWithClient(
 		ctx,
 		http.MethodPost,
 		"/api/internal/hosted-mcp/tools/call",
 		nil,
 		request,
 		&response,
+		c.streamHTTPClient(),
 	); err != nil {
 		return mcppkg.HostedCallResponse{}, err
 	}

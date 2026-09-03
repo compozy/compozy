@@ -874,7 +874,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Run("Should preserve a missing registration when durable deletion fails", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		workspace := Workspace{ID: "ws_delete_error", RootDir: removedWorkspaceRoot(t), Name: "delete-error"}
 		store := newMockWorkspaceStore(workspace)
 		deleteErr := errors.New("delete failed")
@@ -899,6 +899,27 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		}
 		if got := store.mustWorkspace(workspace.ID); got.ID != workspace.ID {
 			t.Fatalf("preserved workspace ID = %q, want %q", got.ID, workspace.ID)
+		}
+		if preparation.staged || preparation.committed {
+			t.Fatalf(
+				"failed unregister preparation state = staged %t committed %t, want staged false committed false",
+				preparation.staged,
+				preparation.committed,
+			)
+		}
+		store.deleteErr = nil
+		if err := resolver.Unregister(ctx, workspace.ID); err != nil {
+			t.Fatalf("Unregister(retry) error = %v", err)
+		}
+		if !preparation.committed || preparation.staged {
+			t.Fatalf(
+				"retry unregister preparation state = staged %t committed %t, want staged false committed true",
+				preparation.staged,
+				preparation.committed,
+			)
+		}
+		if got := len(store.deleteCalls); got != 2 {
+			t.Fatalf("DeleteWorkspace() calls after retry = %d, want 2", got)
 		}
 	})
 
@@ -969,6 +990,95 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		}
 		if len(listed) != 0 {
 			t.Fatalf("List(second read) = %#v, want no workspaces", listed)
+		}
+	})
+}
+
+func TestUnregisterFinalizationRecovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry the owned finalization after the workspace row is deleted", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := Workspace{ID: "ws_retry_finalization", RootDir: t.TempDir(), Name: "retry"}
+		store := newMockWorkspaceStore(workspace)
+		commitErr := errors.New("external finalization failed")
+		preparation := &recordingUnregisterPreparation{commitErr: commitErr}
+		resolver := newTestResolver(t, store)
+		resolver.SetUnregisterPreparer(func(context.Context, Workspace) (UnregisterPreparation, error) {
+			return preparation, nil
+		})
+
+		if err := resolver.Unregister(t.Context(), workspace.ID); !errors.Is(err, commitErr) {
+			t.Fatalf("Unregister(first) error = %v, want %v", err, commitErr)
+		}
+		if _, err := store.GetWorkspace(t.Context(), workspace.ID); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("GetWorkspace(after delete) error = %v, want %v", err, ErrWorkspaceNotFound)
+		}
+		getCalls := len(store.getWorkspaceCalls)
+		preparation.commitErr = nil
+		if err := resolver.Unregister(t.Context(), workspace.ID); err != nil {
+			t.Fatalf("Unregister(retry) error = %v", err)
+		}
+		if got := len(store.getWorkspaceCalls); got != getCalls {
+			t.Fatalf("GetWorkspace() calls after retry = %d, want %d", got, getCalls)
+		}
+		if preparation.commits != 2 {
+			t.Fatalf("Commit() calls = %d, want 2", preparation.commits)
+		}
+		if _, err := store.GetWorkspaceDeletionIntent(
+			t.Context(), workspace.ID,
+		); !errors.Is(err, ErrWorkspaceDeletionIntentNotFound) {
+			t.Fatalf("GetWorkspaceDeletionIntent() error = %v, want intent removed", err)
+		}
+	})
+
+	t.Run("Should resume finalization from the durable workspace snapshot after restart", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := Workspace{
+			ID: "ws_restart_finalization", RootDir: t.TempDir(), Name: "restart",
+			AdditionalDirs: []string{t.TempDir()}, DefaultAgent: "coder", SandboxRef: "sandbox-a",
+		}
+		store := newMockWorkspaceStore(workspace)
+		commitErr := errors.New("daemon stopped during finalization")
+		firstPreparation := &recordingUnregisterPreparation{commitErr: commitErr}
+		firstResolver := newTestResolver(t, store)
+		firstResolver.SetUnregisterPreparer(func(context.Context, Workspace) (UnregisterPreparation, error) {
+			return firstPreparation, nil
+		})
+		if err := firstResolver.Unregister(t.Context(), workspace.ID); !errors.Is(err, commitErr) {
+			t.Fatalf("Unregister() error = %v, want %v", err, commitErr)
+		}
+
+		getCalls := len(store.getWorkspaceCalls)
+		var recovered Workspace
+		secondPreparation := &recordingUnregisterPreparation{}
+		secondResolver := newTestResolver(t, store)
+		secondResolver.SetUnregisterPreparer(func(
+			_ context.Context,
+			workspace Workspace,
+		) (UnregisterPreparation, error) {
+			recovered = cloneWorkspace(workspace)
+			return secondPreparation, nil
+		})
+		if err := secondResolver.ResumeUnregisters(t.Context()); err != nil {
+			t.Fatalf("ResumeUnregisters() error = %v", err)
+		}
+		if got := len(store.getWorkspaceCalls); got != getCalls {
+			t.Fatalf("GetWorkspace() calls after restart = %d, want %d", got, getCalls)
+		}
+		if recovered.ID != workspace.ID || recovered.RootDir != workspace.RootDir ||
+			!slices.Equal(recovered.AdditionalDirs, workspace.AdditionalDirs) ||
+			recovered.DefaultAgent != workspace.DefaultAgent || recovered.SandboxRef != workspace.SandboxRef {
+			t.Fatalf("recovered workspace = %#v, want durable snapshot %#v", recovered, workspace)
+		}
+		if secondPreparation.beforeDeletes != 1 || secondPreparation.commits != 1 {
+			t.Fatalf(
+				"recovered preparation calls = (before=%d, commit=%d), want (1, 1)",
+				secondPreparation.beforeDeletes,
+				secondPreparation.commits,
+			)
 		}
 	})
 }

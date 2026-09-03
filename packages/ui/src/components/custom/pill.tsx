@@ -9,7 +9,7 @@ import * as React from "react";
 import { toneBg } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 import { pillVariants } from "./pill-variants";
-import type { PillSize, PillTone } from "./pill-types";
+import type { PillForm, PillSize, PillTone } from "./pill-types";
 
 const PillSizeContext = React.createContext<PillSize | null>(null);
 const PillToneContext = React.createContext<PillTone | null>(null);
@@ -20,7 +20,7 @@ type PillVariantOptions = VariantProps<typeof pillVariants>;
 export interface PillProps
   extends
     Omit<useRender.ComponentProps<"span">, "color">,
-    Pick<PillVariantOptions, "tone" | "size" | "mono" | "solid"> {
+    Pick<PillVariantOptions, "tone" | "size" | "mono" | "solid" | "form"> {
   /** Toggle state. Only meaningful when the Pill is rendered as a control (e.g. `render={<button />}`). */
   active?: boolean;
   /** Propagate a pulsing state to the inner `Pill.Dot` when the dot does not set `pulse` itself. */
@@ -38,6 +38,7 @@ function Pill({
   size: sizeProp,
   mono: monoProp,
   solid: solidProp,
+  form: formProp,
   active,
   pulse,
   className,
@@ -48,12 +49,13 @@ function Pill({
   const size: PillSize = sizeProp ?? "sm";
   const mono = Boolean(monoProp);
   const solid = Boolean(solidProp);
+  const form: PillForm = formProp ?? "tint";
   const pulseEnabled = Boolean(pulse);
   const element = useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
       {
-        className: cn(pillVariants({ tone, size, mono, solid, active }), className),
+        className: cn(pillVariants({ tone, size, mono, solid, form, active }), className),
       } as Record<string, unknown>,
       {
         "data-slot": "pill",
@@ -61,6 +63,7 @@ function Pill({
         "data-size": size,
         "data-mono": mono ? "true" : undefined,
         "data-solid": solid ? "true" : undefined,
+        "data-form": form,
         "data-active": active === true ? "true" : active === false ? "false" : undefined,
         "data-pulse": pulse ? "true" : undefined,
         "aria-pressed": active === true || active === false ? active : undefined,
@@ -68,7 +71,7 @@ function Pill({
       props
     ),
     render,
-    state: { slot: "pill", tone, size, mono, solid, active },
+    state: { slot: "pill", tone, size, mono, solid, form, active },
   });
   return (
     <PillSizeContext value={size}>
@@ -158,4 +161,4 @@ PillRoot.Dot = PillDot;
 PillRoot.Link = PillLink;
 
 export { PillRoot as Pill, PillDot, PillLink };
-export type { PillSize, PillTone };
+export type { PillForm, PillSize, PillTone };

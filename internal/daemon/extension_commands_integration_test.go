@@ -100,15 +100,19 @@ type extensionCommandIntegrationApprovalBridge struct{}
 func (extensionCommandIntegrationApprovalBridge) RequestToolApproval(
 	_ context.Context,
 	_ toolspkg.Scope,
-	request toolspkg.CallRequest,
+	request *toolspkg.CallRequest,
 	_ *toolspkg.ToolView,
 ) error {
-	if request.ApprovalToken == extensionCommandIntegrationApprovalToken {
+	if request != nil && request.ApprovalToken == extensionCommandIntegrationApprovalToken {
 		return nil
+	}
+	toolID := toolspkg.ToolID("")
+	if request != nil {
+		toolID = request.ToolID
 	}
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeApprovalRequired,
-		request.ToolID,
+		toolID,
 		"tool approval is required",
 		toolspkg.ErrToolApprovalRequired,
 		toolspkg.ReasonApprovalRequired,

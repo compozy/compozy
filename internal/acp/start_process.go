@@ -43,6 +43,14 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		)
 	}
 	procCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
+	terminalScope := LocalTerminalScope{
+		WorkspaceID:  normalized.WorkspaceID,
+		ProfileID:    normalized.ProfileID,
+		SessionID:    normalized.CompozySessionID,
+		Generation:   normalized.RuntimeGeneration,
+		ActorID:      normalized.AgentName,
+		AllowedRoots: append([]string{normalized.Cwd}, normalized.AdditionalDirs...),
+	}
 
 	toolHost := normalized.ToolHost
 	if toolHost == nil {
@@ -54,15 +62,47 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 			normalized.Cwd,
 			policy,
 			d.logger,
-			WithLocalProcessRegistry(d.processRegistry),
+			WithLocalTerminalManager(d.terminals, terminalScope),
 		)
 	}
 
-	process := d.newAgentProcess(procCtx, cancelProcess, normalized, command, args, handle, toolHost, policy)
-	if localHost, ok := toolHost.(*localToolHost); ok {
-		if localHost.terminals != nil && localHost.terminals.registry == nil {
-			localHost.terminals.registry = d.processRegistry
+	process := d.newAgentProcess(
+		procCtx,
+		cancelProcess,
+		normalized,
+		command,
+		args,
+		handle,
+		toolHost,
+		policy,
+		terminalScope,
+	)
+	d.configureAgentConnection(process, handle, toolHost)
+
+	if err := d.registerLaunchedAgent(ctx, process, handle); err != nil {
+		return nil, err
+	}
+
+	go process.waitForExit(ctx, d.processRecordTimeout)
+
+	return process, nil
+}
+
+func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle sandbox.Handle) error {
+	if err := d.registerAgentProcess(ctx, process); err != nil {
+		process.cancelProcess()
+		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
+		defer cancelStop()
+		if stopErr := handle.Stop(stopCtx); stopErr != nil {
+			return errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
 		}
+		return err
+	}
+	return nil
+}
+
+func (d *Driver) configureAgentConnection(process *AgentProcess, handle sandbox.Handle, toolHost ToolHost) {
+	if localHost, ok := toolHost.(*localToolHost); ok {
 		process.terminals = localHost.terminals
 	}
 	if localHandle, ok := handle.(*localProcessHandle); ok {
@@ -72,25 +112,9 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		process.handleInbound,
 		handle.Stdin(),
 		handle.Stdout(),
-		acpsdk.ConnectionOptions{
-			NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock,
-		},
+		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
 	)
 	process.conn.SetLogger(d.logger)
-
-	if err := d.registerAgentProcess(ctx, process); err != nil {
-		cancelProcess()
-		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
-		defer cancelStop()
-		if stopErr := handle.Stop(stopCtx); stopErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
-		}
-		return nil, err
-	}
-
-	go process.waitForExit(ctx, d.processRecordTimeout)
-
-	return process, nil
 }
 
 func (d *Driver) newAgentProcess(
@@ -102,6 +126,7 @@ func (d *Driver) newAgentProcess(
 	handle sandbox.Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
+	terminalScope LocalTerminalScope,
 ) *AgentProcess {
 	return &AgentProcess{
 		PID:                  handle.PID(),
@@ -116,6 +141,8 @@ func (d *Driver) newAgentProcess(
 		processCtx:           procCtx,
 		cancelProcess:        cancelProcess,
 		permissions:          policy,
+		terminalCore:         d.terminals,
+		terminalScope:        terminalScope,
 		done:                 make(chan struct{}),
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,

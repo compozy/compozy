@@ -68,7 +68,7 @@ func BenchmarkDoRequestPostJSON(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		response, err := client.doRequest(ctx, http.MethodPost, "/api/sessions", nil, benchmarkRequestBody)
+		response, err := client.doRequest(ctx, http.MethodPost, "/api/sessions", benchmarkRequestBody)
 		if err != nil {
 			b.Fatalf("doRequest() error = %v", err)
 		}

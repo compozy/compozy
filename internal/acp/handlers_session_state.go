@@ -50,7 +50,6 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	if notification.Update.CurrentModeUpdate != nil {
 		p.setConfigOptionCurrent(sessionConfigModeKey, string(notification.Update.CurrentModeUpdate.CurrentModeId))
 	}
-
 	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
 	if err != nil {
 		return err

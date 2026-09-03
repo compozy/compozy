@@ -530,6 +530,14 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolErrorMessage(transportErr); got != want {
 			t.Fatalf("hostedToolErrorMessage(transport) = %q, want reason and public message", got)
 		}
+		terminalEnvelope := contract.TerminalErrorResponse{Error: contract.TerminalErrorDetail{
+			Code: "service_unavailable", Message: "terminal service unavailable",
+			Details: &contract.TerminalErrorDetails{Path: "/workspace", Platform: "windows"},
+		}}
+		gotStructured := hostedToolErrorStructuredContent(hostedTerminalEnvelopeError{response: terminalEnvelope})
+		if !reflect.DeepEqual(gotStructured, terminalEnvelope) {
+			t.Fatalf("hostedToolErrorStructuredContent(terminal) = %#v, want %#v", gotStructured, terminalEnvelope)
+		}
 
 		missingPathResponse := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
 			Code:        tools.ErrorCodeNotFound,
@@ -541,11 +549,38 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if want := "config_path_not_found: config path not found"; got != want {
 			t.Fatalf("hostedToolErrorMessage(missing config path) = %q, want %q", got, want)
 		}
+
+		invalidSkillResponse := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
+			Code:        tools.ErrorCodeInvalidInput,
+			ToolID:      tools.ToolIDSkillView,
+			Message:     "skill definition is invalid",
+			ReasonCodes: []tools.ReasonCode{tools.ReasonSkillDefinitionInvalid},
+			Details: map[string]json.RawMessage{
+				contract.ToolOperatorCauseDetailKey: json.RawMessage(
+					`"/workspace/.agents/skills/broken/SKILL.md: yaml: line 2"`,
+				),
+				contract.ToolOperatorRecoveryDetailKey: json.RawMessage(
+					`"Fix the SKILL.md YAML frontmatter and retry skill_view."`,
+				),
+			},
+		}}
+		invalidSkillErr := hostedToolResponseError{response: invalidSkillResponse}
+		if got := hostedToolErrorMessage(invalidSkillErr); got !=
+			"skill_definition_invalid: skill definition is invalid" {
+			t.Fatalf("hostedToolErrorMessage(invalid skill) = %q, want actionable reason", got)
+		}
+		if got := hostedToolErrorStructuredContent(invalidSkillErr); !reflect.DeepEqual(got, invalidSkillResponse) {
+			t.Fatalf("hostedToolErrorStructuredContent(invalid skill) = %#v, want %#v", got, invalidSkillResponse)
+		}
 	})
 }
 
 type hostedToolResponseError struct {
 	response contract.ToolErrorResponse
+}
+
+type hostedTerminalEnvelopeError struct {
+	response contract.TerminalErrorResponse
 }
 
 type countingHostedToolRegistry struct {
@@ -566,6 +601,14 @@ func (e hostedToolResponseError) Error() string {
 }
 
 func (e hostedToolResponseError) Response() contract.ToolErrorResponse {
+	return e.response
+}
+
+func (e hostedTerminalEnvelopeError) Error() string {
+	return "terminal transport error"
+}
+
+func (e hostedTerminalEnvelopeError) TerminalErrorEnvelope() contract.TerminalErrorResponse {
 	return e.response
 }
 

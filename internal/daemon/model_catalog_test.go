@@ -1000,6 +1000,61 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 				refresh.Force {
 				t.Fatalf("background refresh = %#v, want non-forced Cursor live refresh", refresh)
 			}
+			waitForCondition(t, "catalog background refresh completion", func() bool {
+				runtime.backgroundRefreshMu.Lock()
+				defer runtime.backgroundRefreshMu.Unlock()
+				return !runtime.backgroundRefreshRunning
+			})
+		}
+	})
+
+	t.Run("Should coalesce catalog reads while a background refresh is active", func(t *testing.T) {
+		t.Parallel()
+
+		service := newBlockingCatalogReadRefreshService()
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			time.Now,
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		provider := compozyconfig.BuiltinProviders()["cursor"]
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+
+		for call := range 2 {
+			models, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
+			if listErr != nil {
+				t.Fatalf("ListModels(call %d) error = %v", call+1, listErr)
+			}
+			if !containsCatalogModel(models, "codex", "persisted-model") {
+				t.Fatalf("ListModels(call %d) = %#v, want persisted model", call+1, models)
+			}
+			if call == 0 {
+				waitForCatalogTestSignal(t, service.started, "background refresh start")
+			}
+		}
+
+		select {
+		case <-service.secondStarted:
+			t.Fatal("second background refresh started while the first was active")
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(service.release)
+		waitForCatalogTestSignal(t, service.released, "background refresh release")
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
 
@@ -1587,6 +1642,17 @@ type catalogReadRefreshService struct {
 	refreshes chan modelcatalog.RefreshOptions
 }
 
+type blockingCatalogReadRefreshService struct {
+	started       chan struct{}
+	secondStarted chan struct{}
+	release       chan struct{}
+	released      chan struct{}
+	mu            sync.Mutex
+	refreshCalls  int
+	startOnce     sync.Once
+	releasedOnce  sync.Once
+}
+
 type catalogDynamicSource struct {
 	id string
 }
@@ -1625,6 +1691,52 @@ func (t *manualModelCatalogRefreshTicker) Stop() {
 
 func newCatalogReadRefreshService() *catalogReadRefreshService {
 	return &catalogReadRefreshService{refreshes: make(chan modelcatalog.RefreshOptions, 4)}
+}
+
+func newBlockingCatalogReadRefreshService() *blockingCatalogReadRefreshService {
+	return &blockingCatalogReadRefreshService{
+		started:       make(chan struct{}),
+		secondStarted: make(chan struct{}),
+		release:       make(chan struct{}),
+		released:      make(chan struct{}),
+	}
+}
+
+func (s *blockingCatalogReadRefreshService) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	return []modelcatalog.Model{{ProviderID: "codex", ModelID: "persisted-model"}}, nil
+}
+
+func (s *blockingCatalogReadRefreshService) Refresh(
+	ctx context.Context,
+	_ modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	s.mu.Lock()
+	s.refreshCalls++
+	call := s.refreshCalls
+	s.mu.Unlock()
+	switch call {
+	case 1:
+		s.startOnce.Do(func() { close(s.started) })
+	case 2:
+		close(s.secondStarted)
+	}
+	select {
+	case <-s.release:
+		s.releasedOnce.Do(func() { close(s.released) })
+		return nil, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *blockingCatalogReadRefreshService) ListSourceStatus(
+	context.Context,
+	modelcatalog.StatusOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
 }
 
 func (s *catalogReadRefreshService) ListModels(

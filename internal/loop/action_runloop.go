@@ -55,7 +55,7 @@ func (e *RunLoopActionExecutor) Execute(
 		ParentLoopRunID:      in.LoopRunID,
 		ConfigOverrides:      configOverrides,
 		InheritedEnvironment: cloneEnvironmentSpec(in.EnvironmentValue()),
-	}, in.Actor)
+	}, in.ActorOrZero())
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("start child loop %q: %w", spec.Loop, err)
 	}

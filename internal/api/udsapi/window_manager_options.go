@@ -11,6 +11,7 @@ type udsExtendedServices struct {
 	hostedMCP     *mcppkg.HostedService
 	mcpHostAPI    mcppkg.HostAPIInvoker
 	windowManager core.WindowManagerProvider
+	terminal      core.TerminalProvider
 	gateway       core.GatewayService
 }
 
@@ -18,5 +19,11 @@ type udsExtendedServices struct {
 func WithWindowManagerProvider(provider core.WindowManagerProvider) Option {
 	return func(server *Server) {
 		server.windowManager = provider
+	}
+}
+
+func WithTerminalProvider(provider core.TerminalProvider) Option {
+	return func(server *Server) {
+		server.terminal = provider
 	}
 }

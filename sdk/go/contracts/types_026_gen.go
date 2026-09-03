@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type TaskDetail struct {
+	Summary              TaskSummaryPayload               `json:"summary"`
+	Task                 Task                             `json:"task"`
+	Children             []TaskSummaryPayload             `json:"children,omitempty"`
+	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
+	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
+	Runs                 []TaskRun                        `json:"runs,omitempty"`
+	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
+	Events               []TaskEventPayload               `json:"events,omitempty"`
+}
+
 type TaskEventPayload struct {
 	ID        string          `json:"id"`
 	TaskID    string          `json:"task_id"`
@@ -252,10 +263,4 @@ type TaskRunClaimCriteria struct {
 	AgentName            string   `json:"agent_name,omitempty"`
 	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
 	PriorityMin          int      `json:"priority_min,omitempty"`
-}
-
-type TaskRunCompleteParams struct {
-	ID             string          `json:"id"`
-	Result         json.RawMessage `json:"result,omitempty"`
-	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }

@@ -15,6 +15,7 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -33,6 +34,14 @@ type daemonNativeSkillsRegistry interface {
 		agent compozyconfig.AgentDef,
 		sessionID string,
 	) ([]*skillspkg.Skill, error)
+}
+
+type nativeSkillDiagnosticsRegistry interface {
+	SkillDiagnostics(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]skillspkg.SkillDiagnostic, error)
 }
 
 type extensionPublishSecretResolver interface {
@@ -108,6 +117,8 @@ type daemonNativeToolsDeps struct {
 	Loops                      func() core.LoopService
 	Resources                  core.ResourceService
 	WindowManagers             windowManagerProvider
+	Terminals                  func() terminalpkg.Manager
+	TerminalExecApprover       terminalExecApprover
 }
 
 func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {

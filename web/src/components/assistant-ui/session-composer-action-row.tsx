@@ -12,6 +12,8 @@ import type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-act
 interface SessionComposerActionRowProps {
   actionState: SessionComposerActionState;
   composerAttachmentCount: number;
+  hasStagedQuote?: boolean;
+  sessionId: string;
   handleInterruptAction: () => void;
   handleQueueAction: () => void;
   handleSteerAction: () => void;
@@ -40,6 +42,8 @@ type SessionComposerActionState = {
 export function SessionComposerActionRow({
   actionState,
   composerAttachmentCount,
+  hasStagedQuote = false,
+  sessionId,
   handleInterruptAction,
   handleQueueAction,
   handleSteerAction,
@@ -137,6 +141,8 @@ export function SessionComposerActionRow({
       ) : (
         <SessionComposerSendButton
           canPrompt={canPrompt}
+          hasStagedQuote={hasStagedQuote}
+          sessionId={sessionId}
           promptEmbeddedContextCapability={promptEmbeddedContextCapability}
           promptImageCapability={promptImageCapability}
         />

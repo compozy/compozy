@@ -184,6 +184,8 @@ func (m *Manager) finishPromptPump(
 	out chan<- acp.AgentEvent,
 	fatal *promptPumpFatal,
 ) {
+	identity, identityErr := promptRunIdentity(session, turnState)
+	m.releaseHostedPromptRun(session, turnState)
 	var fatalPromptFailure *store.SessionFailure
 	if fatal != nil {
 		fatalPromptFailure = fatal.failure
@@ -220,10 +222,13 @@ func (m *Manager) finishPromptPump(
 		session.clearCurrentPromptCancel()
 		session.finishCurrentPromptCompletion()
 	}
-	if fatalPromptFailure == nil {
-		notifier := m.currentTurnEndNotifier()
-		if notifier != nil && session != nil {
-			notifier(session.ID)
+	if identityErr == nil {
+		m.clearActivePromptRun(identity)
+		if fatalPromptFailure == nil {
+			notifier := m.currentTurnEndNotifier()
+			if notifier != nil {
+				notifier(lifecycleCtx, identity)
+			}
 		}
 	}
 	if session == nil {

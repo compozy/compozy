@@ -164,6 +164,13 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify terminal settings as live",
+			path:          "terminal.max_subscribers",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   "terminal.*",
+		},
+		{
 			name:          "Should classify network Live bounds as restart required",
 			path:          "network.live.defaults.max_wakes",
 			wantLifecycle: RestartRequired,

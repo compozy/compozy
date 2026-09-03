@@ -27,6 +27,9 @@ const SettingsWindow = lazy(() =>
 const SessionWindow = lazy(() =>
   import("../apps/session/session-window").then(m => ({ default: m.SessionWindow }))
 );
+const TerminalWindow = lazy(() =>
+  import("../apps/terminal/terminal-window").then(m => ({ default: m.TerminalWindow }))
+);
 const TasksWindow = lazy(() =>
   import("../apps/tasks/tasks-window").then(m => ({ default: m.TasksWindow }))
 );
@@ -132,6 +135,10 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   session: {
     ...OS_APP_DESCRIPTORS.session,
     Controller: SessionWindow,
+  },
+  terminal: {
+    ...OS_APP_DESCRIPTORS.terminal,
+    Controller: TerminalWindow,
   },
   "new-tab": {
     ...OS_APP_DESCRIPTORS["new-tab"],

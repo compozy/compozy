@@ -1,0 +1,64 @@
+---
+title: Journal and recordings
+description: Query durable command facts, understand ephemeral output, and opt in to full terminal replay.
+---
+
+CompozyOS separates terminal history into three data classes.
+
+| Data                                             | Default                                     | Lifetime                                                    |
+| ------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------- |
+| Command facts                                    | Always on                                   | Until the workspace is deleted                              |
+| Live output, scrollback, and bounded output tail | Ephemeral and bounded                       | Until terminal or daemon runtime ends                       |
+| Full recording                                   | Off; per terminal or `[terminal].recording` | Until its configured retention expiry or workspace deletion |
+
+The journal writes one row for each command boundary detected in a CompozyOS terminal. It records the
+actor, command, working directory, timing, exit cause, approval, output size, truncation, and detection
+method. While the daemon is running, it may add a bounded typed output tail to recent query results;
+that projection is not stored and disappears on restart. Redacted input contributes only its character
+count, never its bytes. `exact` and `marker` are authenticated boundaries; the wire value `idle` is
+approximate and the UI labels it estimated. The live tail is diagnostic context, not a full replay.
+
+Query recent rows:
+
+```bash
+compozy terminal journal --workspace my-project --since 24h --limit 50 -o json
+```
+
+Add `--actor agent`, `--failed`, or `--terminal <id>` to narrow the page. Continue with `--cursor`
+when `next` is non-null. Use `--all-profiles` for an operator-owned aggregate view with profile owner
+labels. See [`compozy terminal journal`](/docs/cli/terminal/journal).
+
+## Record only when replay is needed
+
+Start and stop one recording explicitly:
+
+```bash
+compozy terminal record start term-4aa01f22e6c3 --workspace my-project -o json
+compozy terminal record stop term-4aa01f22e6c3 --workspace my-project -o json
+```
+
+The response identifies the recording, terminal, owning profile, digest, byte size, timestamps, and
+expiry. The browser journal can open the linked recording. HTTP or UDS clients download it from
+`GET /api/workspaces/{workspace_id}/terminals/recordings/{recording_id}` under the same profile scope.
+
+Set `[terminal].recording = true` to start recording for new terminals created by terminal open
+operations through supported CLI, API, and native-tool surfaces. The default is `false`; changing it
+does not add a recording to terminals that are already open.
+
+Recording uses a bounded writer. Storage failure stops the recording and reports the failure; it does
+not stop the live terminal. Redacted bytes never enter a recording; only the trusted
+`hidden input · N characters` marker does. Output not explicitly recorded cannot be reconstructed
+after its ephemeral buffer is gone.
+
+Spilled bounded-output artifacts follow the same workspace and profile checks. Clients download an
+artifact from `GET /api/workspaces/{workspace_id}/terminals/artifacts/{artifact_id}`; a foreign-profile
+or missing artifact returns the same not-found boundary instead of revealing ownership.
+
+## Quote bounded output
+
+`compozy terminal quote <id> --lines <from>-<to>` prints escaped, line-numbered output inside a
+`<terminal_context>` block. The block records the terminal ID and the scrollback-relative range; it
+is untrusted data, and its line numbers can change after buffer trimming.
+
+With `-o json`, the result is `{terminal_id, from, to, quote, untrusted}`. `quote` contains the same
+escaped `<terminal_context>` block and `untrusted` is always `true`.

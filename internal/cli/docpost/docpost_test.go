@@ -329,6 +329,57 @@ compozy status [flags]
 			t.Fatal("stream output must not advertise unsupported JSON output")
 		}
 	})
+
+	t.Run("Should keep attached terminal streams human-only", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileTerminalInteractive)
+		if !strings.Contains(result, "do not serialize attached terminal bytes") {
+			t.Fatal("expected attached terminal stream warning")
+		}
+		if strings.Contains(result, "compozy status -o json") {
+			t.Fatal("interactive terminal stream must not advertise a JSON example")
+		}
+	})
+
+	t.Run("Should require detach before structured terminal-open output", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileTerminalOpen)
+		if !strings.Contains(result, "compozy status --detach -o json") {
+			t.Fatalf("terminal-open output example = %q, want detached JSON command", result)
+		}
+	})
+
+	t.Run("Should make terminal quote examples executable", func(t *testing.T) {
+		t.Parallel()
+
+		quoteBody := strings.ReplaceAll(body, "compozy status", "compozy terminal quote")
+		result := renderOutputFormatsSection(quoteBody, OutputProfileTerminalQuote)
+		if !strings.Contains(result, "compozy terminal quote --lines 1-5 -o json") {
+			t.Fatalf("terminal quote output example = %q, want an explicit line range", result)
+		}
+		if !strings.Contains(result, "Escaped `<terminal_context>` quote block") ||
+			strings.Contains(result, "Interactive terminal rendering") {
+			t.Fatalf("terminal quote output profile = %q, want truthful quote rendering", result)
+		}
+		if got := strings.Count(result, "`jsonl` | Not supported"); got != 1 {
+			t.Fatalf("terminal quote JSONL profile count = %d, want one unsupported row", got)
+		}
+		if got := strings.Count(result, "`toon` | Not supported"); got != 1 {
+			t.Fatalf("terminal quote TOON profile count = %d, want one unsupported row", got)
+		}
+	})
+
+	t.Run("Should place output flags before a child-command separator", func(t *testing.T) {
+		t.Parallel()
+
+		got := outputExampleCommand("compozy terminal exec -- <command> [args...]")
+		want := "compozy terminal exec -o json -- <command> [args...]"
+		if got != want {
+			t.Fatalf("output example = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRenderSubcommandsSection(t *testing.T) {

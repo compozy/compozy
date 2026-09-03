@@ -56,6 +56,7 @@ type nativeToolAvailabilitySet struct {
 	extensions           toolspkg.NativeAvailabilityFunc
 	marketplace          toolspkg.NativeAvailabilityFunc
 	resources            toolspkg.NativeAvailabilityFunc
+	terminal             toolspkg.NativeAvailabilityFunc
 	windowManager        toolspkg.NativeAvailabilityFunc
 	mcpStatus            toolspkg.NativeAvailabilityFunc
 	mcpAuth              toolspkg.NativeAvailabilityFunc
@@ -63,6 +64,9 @@ type nativeToolAvailabilitySet struct {
 
 func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 	availability := n.baseNativeToolAvailability()
+	availability.terminal = n.dependencyAvailability(func() bool {
+		return n.deps.Terminals != nil && n.deps.Terminals() != nil
+	})
 	availability.windowManager = n.windowManagerAvailability()
 	return availability
 }

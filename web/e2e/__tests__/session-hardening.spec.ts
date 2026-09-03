@@ -276,7 +276,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
       response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/approve"))
   );
   await sessionWin.getByTestId("permission-reject-menu-trigger").click();
-  await sessionWin.getByTestId("permission-reject-always").click();
+  await appPage.getByTestId("permission-reject-always").click();
   expect((await approvalResponsePromise).ok()).toBe(true);
 
   await expect(ui.permissionPrompt).toBeHidden();

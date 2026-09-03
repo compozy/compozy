@@ -47,9 +47,48 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
   },
 ];
 
+/**
+ * Terminal permissions are remembered decisions like any other.
+ *
+ * They are stored in the same place, which is why they appear here rather than
+ * in a second fixture set — only their reading differs.
+ */
+export const terminalToolApprovalGrantFixtures: ToolApprovalGrant[] = [
+  {
+    ...DEFAULT_PROFILE_OWNER,
+    id: "b7c8d9e0-f1a2-4b3c-8d4e-5f6a7b8c9d0e",
+    workspace_id: "ws_default",
+    agent_name: "claude-code",
+    tool_id: "compozy__terminal_write",
+    // A digest of the exact tool input. The daemon validates the `sha256:`
+    // prefix and never returns the input itself, so a terminal id here would be
+    // a shape the runtime cannot produce.
+    input_digest: "sha256:9f21ac04b7e31d5a8c6f0e2b4d7a19c3e58f6b0d2a4c8e1f3b5d7a9c1e3f5b7d",
+    decision: "allow",
+    created_at: "2026-07-15T12:44:00Z",
+    last_used_at: "2026-07-15T12:46:00Z",
+  },
+  {
+    ...DEFAULT_PROFILE_OWNER,
+    id: "d0e1f2a3-b4c5-4d6e-9f0a-1b2c3d4e5f6a",
+    workspace_id: "ws_default",
+    agent_name: "claude-code",
+    tool_id: "compozy__terminal_exec",
+    input_digest: "sha256:1e8f7a55c4020b3d6e9a2c5f8b1d4e7a0c3f6b9d2e5a8c1f4b7d0e3a6c9f2b5d",
+    decision: "allow",
+    created_at: "2026-07-15T12:12:00Z",
+    last_used_at: "2026-07-15T12:40:00Z",
+  },
+];
+
 export const toolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse = {
   grants: toolApprovalGrantFixtures,
   total: toolApprovalGrantFixtures.length,
+};
+
+export const terminalInclusiveToolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse = {
+  grants: [...terminalToolApprovalGrantFixtures, ...toolApprovalGrantFixtures],
+  total: terminalToolApprovalGrantFixtures.length + toolApprovalGrantFixtures.length,
 };
 
 export const emptyToolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse = {

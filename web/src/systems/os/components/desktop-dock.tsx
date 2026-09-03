@@ -1,4 +1,5 @@
 import { useDesktopDock } from "../hooks/use-desktop-dock";
+import { useTerminalDockRunning } from "../hooks/use-terminal-dock-running";
 import type { ReactNode } from "react";
 
 import { cn } from "@compozy/ui";
@@ -12,6 +13,8 @@ import { OsDockTabBar } from "./os-dock-tab-bar";
 export interface DesktopDockProps {
   onNewSession: () => void;
   badges: OsAttentionBadges;
+  /** Catalog truth: a live terminal, independent of an open window. */
+  terminalLive?: boolean;
   /** Modal overlays own keyboard and pointer interaction until they close. */
   contextMenusEnabled: boolean;
   pager: ReactNode;
@@ -33,13 +36,14 @@ const WAKE =
 export function DesktopDock({
   onNewSession,
   badges,
+  terminalLive,
   contextMenusEnabled,
   pager,
   dormant = false,
 }: DesktopDockProps) {
   const { entries, presentation, magnify, commandsAvailable, handleSelect } = useDesktopDock(
     badges,
-    { onNewSession }
+    { onNewSession, terminalLive }
   );
   const dormancy = cn(WAKE, dormant && DORMANT);
 
@@ -77,4 +81,13 @@ export function DesktopDock({
       magnify={magnify}
     />
   );
+}
+
+/**
+ * Production dock: Terminal's live mark reads the catalog, not window-open.
+ * Isolated dock tests keep rendering `DesktopDock` without this query.
+ */
+export function ShellDesktopDock(props: Omit<DesktopDockProps, "terminalLive">) {
+  const terminalLive = useTerminalDockRunning();
+  return <DesktopDock {...props} terminalLive={terminalLive} />;
 }

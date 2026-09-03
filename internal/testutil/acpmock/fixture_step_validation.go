@@ -103,16 +103,23 @@ func validateTextStep(path string, step Step) error {
 }
 
 func validateToolCallStep(path string, step Step) error {
+	if err := validateToolIdentity(path, step); err != nil {
+		return err
+	}
+	if err := validateToolKind(path+".tool_kind", step.ToolKind); err != nil {
+		return err
+	}
+	return validateToolStatus(path+".status", step.Status)
+}
+
+func validateToolIdentity(path string, step Step) error {
 	if strings.TrimSpace(step.ToolCallID) == "" {
 		return fmt.Errorf("acpmock: %s.tool_call_id is required", path)
 	}
 	if strings.TrimSpace(step.Title) == "" {
 		return fmt.Errorf("acpmock: %s.title is required", path)
 	}
-	if err := validateToolKind(path+".tool_kind", step.ToolKind); err != nil {
-		return err
-	}
-	return validateToolStatus(path+".status", step.Status)
+	return nil
 }
 
 func validatePermissionStep(path string, step Step) error {

@@ -24,6 +24,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,
 		runtimeWorkers:         state.runtimeWorkers,
+		terminals:              state.terminals,
 		localMemoryProvider:    localMemoryProvider,
 		situationContext:       state.situationContext,
 		sessions:               state.sessions,
@@ -54,7 +55,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		httpServer:             state.httpServer,
 		udsServer:              state.udsServer,
 		dreamRuntime:           state.dreamRuntime,
-		workspaceResolver:      state.workspaceResolver,
+		workspaceRuntimeState:  newWorkspaceRuntimeState(state.workspaceResolver),
 		worktrees:              state.worktrees,
 		sandboxRegistry:        state.sandboxRegistry,
 		windowManagerRuntime: windowManagerRuntime{

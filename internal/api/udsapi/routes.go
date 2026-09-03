@@ -15,6 +15,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerWorkspaceRoutes(api, handlers)
 	registerWorktreeRoutes(api, handlers)
 	registerWindowManagerRoutes(api, handlers)
+	registerTerminalRoutes(api, handlers)
 	registerCmdPaletteRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)

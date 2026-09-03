@@ -1,0 +1,45 @@
+---
+title: "compozy terminal quote"
+description: "Print a terminal excerpt for a conversation"
+---
+
+## compozy terminal quote
+
+Print a terminal excerpt for a conversation
+
+```
+compozy terminal quote <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for quote
+      --lines string       Scrollback range, such as 120-124
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command renders a bounded terminal excerpt as an escaped quote block or a JSON record. It does not provide JSONL or TOON renderers.
+
+| Format  | Command result                           |
+| ------- | ---------------------------------------- |
+| `human` | Escaped `<terminal_context>` quote block |
+| `json`  | Terminal quote record                    |
+| `jsonl` | Not supported                            |
+| `toon`  | Not supported                            |
+
+Example:
+
+```bash
+compozy terminal quote <id> --lines 1-5 -o json
+```

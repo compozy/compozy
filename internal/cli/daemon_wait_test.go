@@ -359,6 +359,21 @@ func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *tes
 func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
+		t.Parallel()
+
+		config := compozyconfig.Config{Memory: compozyconfig.MemoryConfig{
+			Enabled: true,
+			Extractor: compozyconfig.MemoryExtractorConfig{
+				Deadline: 42 * time.Second,
+			},
+		}}
+		want := compozydaemon.GracefulShutdownTimeout(&config) + daemonStopWaitMargin
+		if got := daemonStopWaitTimeout(defaultStopTimeout, &config); got != want {
+			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
+		}
+	})
+
 	t.Run("Should return stopped status when process exits", func(t *testing.T) {
 		t.Parallel()
 

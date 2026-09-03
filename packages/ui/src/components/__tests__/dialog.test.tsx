@@ -73,6 +73,7 @@ describe("Dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), {
       timeout: 1500,
     });
+    expect(document.body.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
   });
 
   it("Should skip HelpTip on open so Escape dismisses the dialog", async () => {

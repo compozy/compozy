@@ -18,9 +18,9 @@ All job kinds (`cohort`, `polish`, `sweep`) return the same schema: defects, adv
 
 ## Cohort rules (Step 2)
 
-1. Group selected files by package/directory and domain: a source file, its tests, and its types travel together; a file pulled apart from its test loses its reviewer the cheapest evidence.
-2. Size: ≤ `--max-cohort-files` files (default `100`) **and** ≤ ~6,000 changed lines per cohort, whichever binds first. Pass the same value to `build_jobs.py`; a single oversized file becomes its own cohort.
-3. **Oversized-file split** — when one file alone exceeds ~6,000 changed lines, divide the search across sibling reviewers: same file, disjoint slices of its manifest hunks (`hunk_scope`), one cohort per slice. Every slice reviewer reads the whole file for context but judges only its slice; build_jobs.py proves the merged slices cover every hunk line exactly once.
+1. Build broad dependency neighborhoods: keep each source file with its tests and types, then pack adjacent packages/domains together until the next unit would exceed a cap. For selections above 400 files, target 4–8 defect cohorts unless a cap or oversized-file split requires more.
+2. Size: ≤ `--max-cohort-files` files (default `200`) **and** ≤ ~15,000 changed lines per cohort, whichever binds first. Pass the same value to `build_jobs.py`; a single oversized file becomes its own cohort.
+3. **Oversized-file split** — when one file alone exceeds ~15,000 changed lines, divide the search across sibling reviewers: same file, disjoint slices of its manifest hunks (`hunk_scope`), one cohort per slice. Every slice reviewer reads the whole file for context but judges only its slice; build_jobs.py proves the merged slices cover every hunk line exactly once.
 4. Tag each cohort `risk: high|normal|low` — high when it touches storage/migrations, security/auth, public contracts, or concurrency; low for docs/config-only. Risk feeds reviewer emphasis, not selection.
 5. Every selected file in exactly one cohort (or, when sliced, every hunk line in exactly one slice) — build_jobs.py rejects any other shape. `plan.json`:
 
@@ -37,7 +37,7 @@ All job kinds (`cohort`, `polish`, `sweep`) return the same schema: defects, adv
 
 Sweeps are bare keys from the table below (built-in lens text) or `{key, lens}` objects for a custom lens.
 
-`build_jobs.py` derives a second polish partition automatically: ≤20 files and ≤1,200 changed lines, splitting oversized hunks when needed. Every selected hunk line therefore has one defect owner and one polish owner without complicating plan.json.
+`build_jobs.py` derives a second broad polish partition automatically: ≤200 files and ≤15,000 changed lines, splitting oversized hunks when needed. Every selected hunk line therefore has one defect owner and one polish owner without complicating plan.json.
 
 ## Sweep triggers
 

@@ -195,7 +195,7 @@ func (e *PromptStreamEncoder) Start(writer FlushWriter, messageID string) error 
 	e.messageID = messageID
 	e.messageStarted = true
 	return WriteSSE(writer, SSEMessage{
-		Data: promptStartPayload{Type: "start", MessageID: e.messageID},
+		Data: promptStartPayload{Type: taskActionStart, MessageID: e.messageID},
 	})
 }
 

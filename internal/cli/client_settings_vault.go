@@ -126,7 +126,7 @@ func (c *daemonClient) DownloadSupportBundle(
 	if dst == nil {
 		return errors.New("cli: support bundle download writer is required")
 	}
-	response, err := c.doRequest(ctx, http.MethodGet, supportBundleOperationPath(operationID)+"/download", nil, nil)
+	response, err := c.doRequest(ctx, http.MethodGet, supportBundleOperationPath(operationID)+"/download", nil)
 	if err != nil {
 		return err
 	}

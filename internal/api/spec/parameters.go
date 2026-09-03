@@ -2,6 +2,7 @@ package spec
 
 import (
 	"github.com/compozy/compozy/internal/api/contract"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -16,6 +17,10 @@ func headerParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: true}
 }
 
+func optionalHeaderParam(name string, description string) ParameterSpec {
+	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: false}
+}
+
 func optionalLastEventIDHeaderParam(description string) ParameterSpec {
 	return ParameterSpec{
 		Name: specLastEventIDHeader, In: openapi3.ParameterInHeader, Description: description, Required: false,
@@ -24,6 +29,14 @@ func optionalLastEventIDHeaderParam(description string) ParameterSpec {
 
 func queryParam(name string, description string, required bool) ParameterSpec {
 	return ParameterSpec{Name: name, In: specParameterInQuery, Description: description, Required: required}
+}
+
+func decimalUint64QueryParam(name string, description string, required bool) ParameterSpec {
+	maximumLength := terminalpkg.DecimalUint64MaxLength
+	return ParameterSpec{
+		Name: name, In: specParameterInQuery, Description: description, Required: required,
+		Pattern: terminalpkg.DecimalUint64Pattern, MaxLength: &maximumLength,
+	}
 }
 
 func enumQueryParam(name string, description string, values []string) ParameterSpec {

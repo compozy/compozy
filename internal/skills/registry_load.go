@@ -34,6 +34,7 @@ func (r *Registry) loadGlobalSkills(
 	); err != nil {
 		return nil, nil, nil, nil, err
 	}
+	protectBundledRuntimeSkillMap(skills, bundledRuntimeSkillsFromCandidates(candidates))
 
 	return skills, snapshots, diagnostics, candidates, nil
 }

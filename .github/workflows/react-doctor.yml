@@ -23,4 +23,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: millionco/react-doctor@v2
+      - uses: millionco/react-doctor@v2.2.9
+        with:
+          version: "0.9.13"

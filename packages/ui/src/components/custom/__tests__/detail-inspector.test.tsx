@@ -134,6 +134,26 @@ describe("DetailInspector", () => {
     expect(DETAIL_INSPECTOR_INLINE_WIDTH).toBe(320);
   });
 
+  it("Should name the drawer from aria-label and keep a single close", () => {
+    installMatchMedia(false);
+    render(
+      <DetailInspector
+        aria-label="Command record"
+        open
+        onOpenChange={() => {}}
+        title={<span>Record</span>}
+      >
+        <p>drawer body</p>
+      </DetailInspector>
+    );
+
+    const sheet = document.querySelector<HTMLElement>(
+      '[data-slot="detail-inspector"][data-mode="drawer"]'
+    );
+    expect(sheet).toHaveAttribute("aria-label", "Command record");
+    expect(screen.getAllByRole("button", { name: /close/i })).toHaveLength(1);
+  });
+
   it("Should honour a custom inlineBreakpoint when computing the layout mode", () => {
     installMatchMedia(false);
     const { container } = render(

@@ -2,60 +2,90 @@ package acp
 
 import (
 	"context"
-
+	"errors"
 	"fmt"
-	"log/slog"
-
-	"time"
+	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-
-	"github.com/compozy/compozy/internal/toolruntime"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
-func (m *terminalManager) kill(id string) error {
-	term, err := m.lookup(id)
+func (m *terminalManager) kill(ctx context.Context, id string) error {
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return err
+	}
+	managed, err := m.lookup(id)
 	if err != nil {
 		return err
 	}
-	term.checkpointInterrupting(context.Background(), "terminal killed")
-	if err := killManagedProcess(term.cmd); err != nil {
+	if err := managed.handle.Signal(
+		ctx,
+		managed.actor,
+		terminalpkg.SignalHUP,
+	); err != nil &&
+		!errors.Is(err, terminalpkg.ErrExited) {
 		return fmt.Errorf("acp: kill terminal %q: %w", id, err)
 	}
 	return nil
 }
 
-func (m *terminalManager) output(id string) (string, bool, *acpsdk.TerminalExitStatus, error) {
-	term, err := m.lookup(id)
+func (m *terminalManager) output(
+	ctx context.Context,
+	id string,
+) (string, bool, *acpsdk.TerminalExitStatus, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return "", false, nil, err
+	}
+	managed, err := m.lookup(id)
 	if err != nil {
 		return "", false, nil, err
 	}
-	output, truncated, exitStatus := term.snapshot()
-	return output, truncated, exitStatus, nil
+	read, err := managed.handle.Screen(ctx, terminalpkg.ReadOptions{
+		View: "tail", MaxBytes: managed.outputLimit,
+	})
+	if err != nil {
+		return "", false, nil, err
+	}
+	if managed.outputLimit <= 0 {
+		return "", read.Seq > 0 || read.Truncated, terminalExitStatus(managed.handle.Info().Exit), nil
+	}
+	return read.Content, read.Truncated, terminalExitStatus(managed.handle.Info().Exit), nil
 }
 
 func (m *terminalManager) wait(ctx context.Context, id string) (*acpsdk.TerminalExitStatus, error) {
-	term, err := m.lookup(id)
+	managed, err := m.lookup(id)
 	if err != nil {
 		return nil, err
 	}
-	select {
-	case <-term.done:
-		_, _, exitStatus := term.snapshot()
-		return exitStatus, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	result, err := managed.handle.Wait(ctx, terminalpkg.WaitCondition{Until: "exit"})
+	if err != nil {
+		return nil, err
 	}
+	info := managed.handle.Info()
+	if info.Exit != nil {
+		return terminalExitStatus(info.Exit), nil
+	}
+	return &acpsdk.TerminalExitStatus{ExitCode: result.ExitCode}, nil
 }
 
-func (m *terminalManager) release(id string) error {
-	term, err := m.lookup(id)
+func (m *terminalManager) releaseWithContext(ctx context.Context, id string) error {
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return err
+	}
+	managed, err := m.lookup(id)
 	if err != nil {
 		return err
 	}
-	term.checkpointInterrupting(context.Background(), "terminal released")
-	if killErr := killManagedProcess(term.cmd); killErr != nil {
-		m.logTerminalKillError(id, "release", killErr)
+	info := managed.handle.Info()
+	if err := m.core.Release(
+		ctx,
+		info.WS,
+		info.ProfileID,
+		info.ID,
+		managed.actor,
+	); err != nil &&
+		!errors.Is(err, terminalpkg.ErrExited) {
+		return err
 	}
 	m.mu.Lock()
 	delete(m.terminals, id)
@@ -65,130 +95,54 @@ func (m *terminalManager) release(id string) error {
 
 func (m *terminalManager) closeAll() {
 	m.mu.RLock()
-	terminals := make([]*managedTerminal, 0, len(m.terminals))
-	for _, terminal := range m.terminals {
-		terminals = append(terminals, terminal)
+	ids := make([]string, 0, len(m.terminals))
+	for id := range m.terminals {
+		ids = append(ids, id)
 	}
 	m.mu.RUnlock()
-
-	for _, terminal := range terminals {
-		terminal.checkpointInterrupting(context.Background(), "terminal manager closing")
-		if err := killManagedProcess(terminal.cmd); err != nil {
-			m.logTerminalKillError(terminal.id, "close_all", err)
+	for _, id := range ids {
+		cleanupCtx, cancelCleanup := m.cleanupContext()
+		if err := m.releaseWithContext(cleanupCtx, id); err != nil && m.logger != nil {
+			m.logger.Warn("acp: release terminal during close", "terminal_id", id, "error", err)
 		}
+		cancelCleanup()
 	}
 }
 
-func (m *terminalManager) logTerminalKillError(id string, reason string, err error) {
-	if err == nil || m.logger == nil {
-		return
+func (m *terminalManager) cleanupContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(m.lifecycle), defaultStopTimeout)
+}
+
+func terminalRequestContextError(ctx context.Context, operation string) error {
+	if ctx == nil {
+		return fmt.Errorf("acp: terminal %s context is required", operation)
 	}
-	m.logger.Warn("acp: kill terminal", "terminal_id", id, "reason", reason, "error", err)
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
+	return nil
 }
 
 func (m *terminalManager) lookup(id string) (*managedTerminal, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	term, ok := m.terminals[id]
-	if !ok {
+	managed := m.terminals[id]
+	m.mu.RUnlock()
+	if managed == nil {
 		return nil, fmt.Errorf("acp: terminal %q not found", id)
 	}
-	return term, nil
+	return managed, nil
 }
 
-func (w *terminalOutputWriter) Write(p []byte) (int, error) {
-	w.terminal.appendOutput(p)
-	return len(p), nil
-}
-
-func (t *managedTerminal) appendOutput(p []byte) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	var truncated bool
-	t.output, truncated = appendTerminalOutputWindow(t.output, p, t.outputLimit)
-	if truncated {
-		t.truncated = true
+func terminalExitStatus(exit *terminalpkg.Exit) *acpsdk.TerminalExitStatus {
+	if exit == nil {
+		return nil
 	}
-}
-
-func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
-	detached := context.WithoutCancel(ctx)
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return detached, func() {}
-	}
-	return context.WithDeadline(detached, deadline)
-}
-
-func (t *managedTerminal) wait(ctx context.Context) {
-	err := t.cmd.Wait()
-	groupWaitErr := forceManagedProcessGroupExit(t.cmd, 250*time.Millisecond)
-	exitStatus := &acpsdk.TerminalExitStatus{}
-	if t.cmd.ProcessState != nil {
-		exitCode := t.cmd.ProcessState.ExitCode()
-		if exitCode >= 0 {
-			exitStatus.ExitCode = new(exitCode)
+	status := &acpsdk.TerminalExitStatus{ExitCode: exit.Code}
+	if exit.Signal != nil {
+		signal := strings.TrimSpace(*exit.Signal)
+		if signal != "" {
+			status.Signal = &signal
 		}
 	}
-	if err != nil && exitStatus.ExitCode == nil {
-		signalText := err.Error()
-		exitStatus.Signal = &signalText
-	}
-	if groupWaitErr != nil && exitStatus.Signal == nil {
-		signalText := groupWaitErr.Error()
-		exitStatus.Signal = &signalText
-	}
-
-	t.mu.Lock()
-	t.exitStatus = exitStatus
-	t.mu.Unlock()
-	t.completeProcess(ctx, exitStatus, err, groupWaitErr)
-	close(t.done)
-}
-
-func (t *managedTerminal) checkpointInterrupting(ctx context.Context, reason string) {
-	if t == nil || t.processRecord == nil {
-		return
-	}
-	if err := t.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
-		State: toolruntime.ProcessStateInterrupting,
-		Error: reason,
-	}); err != nil {
-		slog.Default().Warn("acp: checkpoint terminal process record", "terminal_id", t.id, "error", err)
-	}
-}
-
-func (t *managedTerminal) completeProcess(
-	ctx context.Context,
-	exitStatus *acpsdk.TerminalExitStatus,
-	waitErr error,
-	groupWaitErr error,
-) {
-	if t == nil || t.processRecord == nil {
-		return
-	}
-	completion := toolruntime.ProcessCompletion{}
-	if exitStatus != nil && exitStatus.ExitCode != nil {
-		completion.ExitCode = exitStatus.ExitCode
-	}
-	if waitErr != nil {
-		completion.Err = waitErr
-	} else if groupWaitErr != nil {
-		completion.Err = groupWaitErr
-	}
-	if err := t.processRecord.Complete(ctx, completion); err != nil {
-		slog.Default().Warn("acp: complete terminal process record", "terminal_id", t.id, "error", err)
-	}
-}
-
-func (t *managedTerminal) snapshot() (string, bool, *acpsdk.TerminalExitStatus) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	output := string(append([]byte(nil), t.output...))
-	var exitStatus *acpsdk.TerminalExitStatus
-	if t.exitStatus != nil {
-		copyStatus := *t.exitStatus
-		exitStatus = &copyStatus
-	}
-	return output, t.truncated, exitStatus
+	return status
 }

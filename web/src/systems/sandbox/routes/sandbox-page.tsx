@@ -11,7 +11,9 @@ import {
 
 import { useSandboxPage } from "../hooks/use-sandbox-page";
 import type { SandboxRouteSearch } from "../lib/sandbox-route-search";
-import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";
+import { SandboxListFilters } from "../components/sandbox-list-filters";
+import { SandboxProfilesList } from "../components/sandbox-profiles-list";
+import { SandboxProfileSheet } from "../components/sandbox-profile-sheet";
 import { SandboxEditor } from "../components/sandbox-editor";
 
 import { SandboxDeleteDialog, SandboxLastActionAlert } from "../components/sandbox-dialogs";

@@ -2,10 +2,8 @@ package toolruntime
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 )
 
@@ -130,25 +128,38 @@ func matchesScope(record ProcessRecord, scope InterruptScope) bool {
 	if scope.ProcessID != "" && record.ID != scope.ProcessID {
 		return false
 	}
-	if scope.SessionID != "" && record.Owner.SessionID != scope.SessionID {
-		return false
-	}
-	if scope.TurnID != "" && record.Owner.TurnID != scope.TurnID {
-		return false
-	}
-	if scope.ToolCallID != "" && record.Owner.ToolCallID != scope.ToolCallID {
-		return false
-	}
-	if scope.TerminalID != "" && record.Owner.TerminalID != scope.TerminalID {
-		return false
-	}
-	if scope.ExtensionName != "" && record.Owner.ExtensionName != scope.ExtensionName {
-		return false
-	}
-	if scope.HookName != "" && record.Owner.HookName != scope.HookName {
+	if !matchesOwnerScope(record.Owner, scope) {
 		return false
 	}
 	if scope.Source != "" && record.Source != scope.Source {
+		return false
+	}
+	return true
+}
+
+func matchesOwnerScope(owner ProcessOwner, scope InterruptScope) bool {
+	if scope.SessionID != "" && owner.SessionID != scope.SessionID {
+		return false
+	}
+	if scope.TurnID != "" && owner.TurnID != scope.TurnID {
+		return false
+	}
+	if scope.RunID != "" && owner.RunID != scope.RunID {
+		return false
+	}
+	if scope.Generation != 0 && owner.Generation != scope.Generation {
+		return false
+	}
+	if scope.ToolCallID != "" && owner.ToolCallID != scope.ToolCallID {
+		return false
+	}
+	if scope.TerminalID != "" && owner.TerminalID != scope.TerminalID {
+		return false
+	}
+	if scope.ExtensionName != "" && owner.ExtensionName != scope.ExtensionName {
+		return false
+	}
+	if scope.HookName != "" && owner.HookName != scope.HookName {
 		return false
 	}
 	return true

@@ -2,6 +2,7 @@ package skills
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 )
 
@@ -9,7 +10,8 @@ const (
 	skillVerificationFailureCriticalWarning = "critical_warning"
 	skillVerificationFailureHashMismatch    = "hash_mismatch"
 	skillVerificationFailureProvenance      = "provenance_verification_failed"
-	skillVerificationFailureDefinition      = "definition_invalid"
+	// SkillFailureCodeDefinitionInvalid identifies a SKILL.md definition that could not be parsed.
+	SkillFailureCodeDefinitionInvalid = "definition_invalid"
 )
 
 // DiagnosticsForSkill returns the diagnostics visible for one effective skill.
@@ -22,12 +24,13 @@ func DiagnosticsForSkill(skill *Skill) []SkillDiagnostic {
 
 func skillDefinitionFailedDiagnostic(path string, source string, loadErr error) SkillDiagnostic {
 	return SkillDiagnostic{
+		Name:               filepath.Base(filepath.Dir(path)),
 		State:              SkillDiagnosticStateVerificationFailed,
 		Source:             strings.TrimSpace(source),
 		Path:               strings.TrimSpace(path),
 		VerificationStatus: SkillVerificationStatusFailed,
 		Failure: &SkillVerificationFailure{
-			Code:    skillVerificationFailureDefinition,
+			Code:    SkillFailureCodeDefinitionInvalid,
 			Message: strings.TrimSpace(loadErr.Error()),
 		},
 	}

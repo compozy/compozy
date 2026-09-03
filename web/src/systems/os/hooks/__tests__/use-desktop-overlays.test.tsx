@@ -58,10 +58,25 @@ describe("useDesktopOverlays", () => {
     expect(viewStack()).toEqual([]);
   });
 
+  it("Should preserve the destination overlay when palette dismissal arrives last", () => {
+    const { result } = renderHook(() => useDesktopOverlays());
+
+    act(() => {
+      result.current.setOverlayOpen("palette", true);
+    });
+    act(() => {
+      result.current.setOverlayOpen("sessions", true);
+      result.current.setOverlayOpen("palette", false);
+    });
+
+    expect(result.current.activeOverlay).toBe("sessions");
+  });
+
   it("Should treat a live destination intent as the palette being open", () => {
     const { result } = renderHook(() => useDesktopOverlays());
 
     act(() => {
+      result.current.setOverlayOpen("bell", true);
       windowManagerStore.trigger.paletteIntentRequested({
         intent: { kind: "destination", windowId: "window:new-tab" },
       });

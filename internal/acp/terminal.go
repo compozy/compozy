@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
-	exec "os/exec"
-
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -25,45 +22,34 @@ const (
 const (
 	defaultTerminalOutputLimit = 64 * 1024
 	networkCommandName         = "network"
+	localToolHostActorID       = "local-tool-host"
 )
 
 type terminalManager struct {
-	ctx      context.Context
-	logger   *slog.Logger
-	registry *toolruntime.Registry
-
-	nextID atomic.Uint64
+	logger    *slog.Logger
+	lifecycle context.Context
+	core      TerminalHost
+	coreErr   error
+	scope     LocalTerminalScope
 
 	mu        sync.RWMutex
 	terminals map[string]*managedTerminal
 }
 
 type managedTerminal struct {
-	id string
-
-	cmd           *exec.Cmd
-	processRecord *toolruntime.Handle
-	outputLimit   int
-
-	networkOwned   bool
-	ownerSessionID string
-	ownerTurnID    string
-
-	mu         sync.RWMutex
-	output     []byte
-	truncated  bool
-	exitStatus *acpsdk.TerminalExitStatus
-	done       chan struct{}
+	handle      terminalpkg.Handle
+	outputLimit int
+	ownership   terminalOwnership
+	actor       terminalpkg.Actor
 }
 
 type terminalOwnership struct {
-	networkOwned   bool
-	ownerSessionID string
-	ownerTurnID    string
-}
-
-type terminalOutputWriter struct {
-	terminal *managedTerminal
+	networkOwned    bool
+	systemOwned     bool
+	ownerSessionID  string
+	ownerTurnID     string
+	ownerRunID      string
+	ownerGeneration int64
 }
 
 func (p *AgentProcess) handleCreateTerminal(
@@ -75,9 +61,12 @@ func (p *AgentProcess) handleCreateTerminal(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 
+	runID, generation := p.activeRunIdentity()
 	ownership := terminalOwnership{
-		ownerSessionID: p.SessionID,
-		ownerTurnID:    p.activeTurnID(),
+		ownerSessionID:  p.SessionID,
+		ownerTurnID:     p.activeTurnID(),
+		ownerRunID:      runID,
+		ownerGeneration: generation,
 	}
 	if p.isNetworkTurn() {
 		argv, err := terminalArgv(request)
@@ -88,9 +77,11 @@ func (p *AgentProcess) handleCreateTerminal(
 			return acpsdk.CreateTerminalResponse{}, ErrToolBlockedForNetworkTurn
 		}
 		ownership = terminalOwnership{
-			networkOwned:   true,
-			ownerSessionID: p.SessionID,
-			ownerTurnID:    p.activeTurnID(),
+			networkOwned:    true,
+			ownerSessionID:  p.SessionID,
+			ownerTurnID:     p.activeTurnID(),
+			ownerRunID:      runID,
+			ownerGeneration: generation,
 		}
 	}
 
@@ -172,6 +163,8 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  ownership.ownerSessionID,
 			TurnID:     ownership.ownerTurnID,
+			RunID:      ownership.ownerRunID,
+			Generation: ownership.ownerGeneration,
 			TerminalID: id,
 		},
 		Command: argv[0],
@@ -182,8 +175,12 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 				return killErr
 			}
 			if handle != nil {
+				completeCtx, cancelComplete := context.WithTimeout(
+					context.WithoutCancel(callbackCtx), defaultStopTimeout,
+				)
+				defer cancelComplete()
 				return handle.Complete(
-					context.WithoutCancel(callbackCtx),
+					completeCtx,
 					toolruntime.ProcessCompletion{Err: errors.New("terminal interrupted")},
 				)
 			}
@@ -232,8 +229,12 @@ func (p *AgentProcess) takeExternalTerminalProcess(id string) *toolruntime.Handl
 }
 
 func (p *AgentProcess) handleKillTerminal(
+	ctx context.Context,
 	request acpsdk.KillTerminalRequest,
 ) (acpsdk.KillTerminalResponse, error) {
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return acpsdk.KillTerminalResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
@@ -241,21 +242,37 @@ func (p *AgentProcess) handleKillTerminal(
 	if err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	if err := host.KillTerminal(request.TerminalId); err != nil {
+	if err := killTerminalWithRequestContext(ctx, host, request.TerminalId); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	p.deleteTerminalOwnership(request.TerminalId)
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{Err: errors.New("terminal killed")},
 	)
 	return acpsdk.KillTerminalResponse{}, nil
 }
 
+func killTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) error {
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.killTerminalWithContext(ctx, id)
+	}
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.KillTerminal(id)
+}
+
 func (p *AgentProcess) handleTerminalOutput(
+	ctx context.Context,
 	request acpsdk.TerminalOutputRequest,
 ) (acpsdk.TerminalOutputResponse, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return acpsdk.TerminalOutputResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
@@ -264,7 +281,7 @@ func (p *AgentProcess) handleTerminalOutput(
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	if localHost, ok := host.(*localToolHost); ok {
-		output, truncated, exitStatus, err := localHost.terminalOutputStatus(request.TerminalId)
+		output, truncated, exitStatus, err := localHost.terminalOutputStatusWithContext(ctx, request.TerminalId)
 		if err != nil {
 			return acpsdk.TerminalOutputResponse{}, err
 		}
@@ -274,13 +291,21 @@ func (p *AgentProcess) handleTerminalOutput(
 			ExitStatus: exitStatus,
 		}, nil
 	}
-	output, err := host.TerminalOutput(request.TerminalId)
+	output, err := outputTerminalWithRequestContext(ctx, host, request.TerminalId)
 	if err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	return acpsdk.TerminalOutputResponse{
 		Output: output,
 	}, nil
+}
+
+func outputTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) (string, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return "", err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.TerminalOutput(id)
 }
 
 func (p *AgentProcess) handleWaitForTerminalExit(
@@ -311,8 +336,10 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{ExitCode: new(exitCode)},
 	)
@@ -322,8 +349,12 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 }
 
 func (p *AgentProcess) handleReleaseTerminal(
+	ctx context.Context,
 	request acpsdk.ReleaseTerminalRequest,
 ) (acpsdk.ReleaseTerminalResponse, error) {
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return acpsdk.ReleaseTerminalResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
@@ -331,16 +362,33 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	if err := host.ReleaseTerminal(request.TerminalId); err != nil {
+	if err := releaseTerminalWithRequestContext(ctx, host, request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
 	p.deleteTerminalOwnership(request.TerminalId)
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{Error: "terminal released"},
 	)
 	return acpsdk.ReleaseTerminalResponse{}, nil
+}
+
+func releaseTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) error {
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.releaseTerminalWithContext(ctx, id)
+	}
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.ReleaseTerminal(id)
+}
+
+func (p *AgentProcess) terminalCompletionContext(requestCtx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(requestCtx), defaultStopTimeout)
 }
 
 func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
@@ -359,7 +407,7 @@ func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
 		p.Cwd,
 		p.permissions,
 		slog.Default(),
-		WithLocalProcessRegistry(p.processRegistry),
+		WithLocalTerminalManager(p.terminalCore, p.terminalScope),
 	)
 	if p.terminals != nil {
 		host.terminals = p.terminals

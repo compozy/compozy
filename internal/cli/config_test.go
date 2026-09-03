@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1469,6 +1470,20 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	); err != nil {
 		t.Fatalf("workspace config set error = %v", err)
 	}
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"terminal.recording",
+		"true",
+		"--scope",
+		"workspace",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("workspace terminal config set error = %v", err)
+	}
 
 	workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 	contents, err := os.ReadFile(workspaceConfig)
@@ -1487,6 +1502,9 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 	if got, want := loaded.Network.Live.Limits.MaxWakes, compozyconfig.DefaultNetworkConfig().Live.Limits.MaxWakes; got != want {
 		t.Fatalf("Network.Live.Limits.MaxWakes = %d, want default %d", got, want)
+	}
+	if !loaded.Terminal.Recording {
+		t.Fatal("Terminal.Recording = false, want workspace config set value")
 	}
 
 	before := string(contents)
@@ -2616,4 +2634,24 @@ func TestGatewayConfigSetPathsExcludeSurfaceAuthority(t *testing.T) {
 			t.Fatal("gateway.public_ui.enabled is config-settable, want durable policy authority only")
 		}
 	})
+}
+
+func TestTerminalConfigSetPathsMatchPublicSurface(t *testing.T) {
+	t.Parallel()
+	want := map[string]configSetValueKind{
+		"terminal.default_shell":            configSetString,
+		"terminal.shell_integration":        configSetBool,
+		"terminal.scrollback_bytes":         configSetInt,
+		"terminal.detached_ttl":             configSetDuration,
+		"terminal.exit_retention":           configSetDuration,
+		"terminal.recording":                configSetBool,
+		"terminal.recording_retention_days": configSetInt,
+		"terminal.max_per_workspace":        configSetInt,
+		"terminal.max_per_daemon":           configSetInt,
+		"terminal.max_subscribers":          configSetInt,
+	}
+	got := terminalConfigSetPathKinds()
+	if !maps.Equal(got, want) {
+		t.Fatalf("terminal config-set paths = %#v, want %#v", got, want)
+	}
 }

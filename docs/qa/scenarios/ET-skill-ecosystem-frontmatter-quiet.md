@@ -9,10 +9,10 @@ entry_points: compozy skill sources; compozy skill sources -o json; compozy skil
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-additional.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-cli.json
-last_report: docs/qa/reports/2026-08-25-skill-sources.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-additional.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-cli.json;/Users/pedronauck/dev/qa-labs/compozy-skill-terminal-recovery-20260902-205559-939126-lab/qa-artifacts/qa/test-cases/malformed-skill-recovery.md
+last_report: docs/qa/reports/2026-09-02-skill-terminal-recovery.md
 overlaps: ET-skill-source-diagnostics-cli; ET-skill-source-symlink-containment
 ---
 
@@ -37,3 +37,8 @@ treated as an error.
 Read the result from both the human table and the structured output, and confirm the per-root
 verification summary explains any gap between what was scanned and what was published — so "scanned
 five, shows three" is always answerable from the product rather than from the logs.
+
+QA impact 2026-09-02: reset because malformed skill definitions are now withheld from the workspace
+catalog instead of falling back to their directory name, and the scanner no longer emits a repeated
+warning for the same malformed file. Re-walk the malformed-neighbor, structured diagnostics, repair,
+and quiet-rescan path. Charter: `CH-malformed-skill-recovery`.

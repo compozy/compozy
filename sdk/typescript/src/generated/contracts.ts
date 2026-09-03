@@ -213,7 +213,18 @@ export type HookEvent =
   | "worktree.pre_remove"
   | "worktree.created"
   | "worktree.adopted"
-  | "worktree.removed";
+  | "worktree.removed"
+  | "terminal.opened"
+  | "terminal.closed"
+  | "terminal.lease_changed"
+  | "terminal.command_started"
+  | "terminal.command_finished"
+  | "terminal.input_requested"
+  | "terminal.input_provided"
+  | "terminal.recording_started"
+  | "terminal.recording_stopped"
+  | "terminal.subscriber_evicted"
+  | "terminal.limit_rejected";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -1998,6 +2009,8 @@ export interface Redaction {
   bytes?: number;
 }
 
+export type ResultTrust = string;
+
 export interface ToolResult {
   content?: ToolContent[];
   structured?: JSONValue;
@@ -2008,6 +2021,7 @@ export interface ToolResult {
   truncated: boolean;
   bytes: number;
   duration_ms: number;
+  trust?: ResultTrust;
 }
 
 export interface ExtensionToolCallResponse {
@@ -2455,7 +2469,8 @@ export type HookEventFamily =
   | "spawn"
   | "network"
   | "window_manager"
-  | "worktree";
+  | "worktree"
+  | "terminal";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -5087,6 +5102,7 @@ export interface SessionRuntimeRecoveryExhaustedPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -5112,6 +5128,7 @@ export interface SessionRuntimeRecoveryStartedPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -5137,6 +5154,7 @@ export interface SessionRuntimeRecoverySucceededPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -5270,6 +5288,7 @@ export interface PendingInteractionPayload {
   title?: string;
   choices?: string[];
   decisions?: string[];
+  tool_id?: string;
   status: string;
   created_at: ISODateTime;
   resolved_at?: ISODateTime;
@@ -6909,6 +6928,205 @@ export interface TasksResponse {
   facets: TaskCatalogFacetsPayload;
 }
 
+export interface TerminalExit {
+  cause: string;
+  code?: number;
+  signal?: string;
+}
+
+export interface TerminalClosedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  exit: TerminalExit;
+  reason: string;
+}
+
+export interface TerminalCommandFinishedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  command_id: string;
+  exit_code?: number;
+  signal?: string;
+  exit_cause: string;
+  duration_ms: number;
+  detected_by: string;
+  approval: string;
+}
+
+export interface TerminalCommandStartedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  command_id: string;
+  command: string;
+  cwd: string;
+  detected_by: string;
+}
+
+export interface TerminalInputProvidedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  request_id: string;
+  redacted: boolean;
+  length: number;
+  outcome: string;
+}
+
+export interface TerminalInputRequestedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  request_id: string;
+  reason: string;
+  redacted: boolean;
+}
+
+export interface TerminalLeaseChangedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  from: string;
+  to: string;
+  reason: string;
+}
+
+export interface TerminalLimitRejectedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  limit: string;
+  current: number;
+  max: number;
+}
+
+export type TerminalObservationPatch = Record<string, never>;
+
+export interface TerminalOpenedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  mode: string;
+  cwd: string;
+  title?: string;
+}
+
+export interface TerminalRecordingStartedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  recording_id: string;
+}
+
+export interface TerminalRecordingStoppedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  recording_id: string;
+  digest: string;
+  bytes: number;
+  reason: string;
+  truncated: boolean;
+}
+
+export interface TerminalSubscriberEvictedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  profile_id: string;
+  terminal_id?: string;
+  actor_kind: string;
+  actor_id: string;
+  session_id?: string;
+  run_id?: string;
+  generation?: number;
+  at: ISODateTime;
+  flow: string;
+  reason: string;
+}
+
 export type BackendKind = string;
 
 export interface BackendRef {
@@ -7709,6 +7927,17 @@ export interface HookPayloadByEvent {
   "worktree.created": WorktreeObservationPayload;
   "worktree.adopted": WorktreeObservationPayload;
   "worktree.removed": WorktreeObservationPayload;
+  "terminal.opened": TerminalOpenedPayload;
+  "terminal.closed": TerminalClosedPayload;
+  "terminal.lease_changed": TerminalLeaseChangedPayload;
+  "terminal.command_started": TerminalCommandStartedPayload;
+  "terminal.command_finished": TerminalCommandFinishedPayload;
+  "terminal.input_requested": TerminalInputRequestedPayload;
+  "terminal.input_provided": TerminalInputProvidedPayload;
+  "terminal.recording_started": TerminalRecordingStartedPayload;
+  "terminal.recording_stopped": TerminalRecordingStoppedPayload;
+  "terminal.subscriber_evicted": TerminalSubscriberEvictedPayload;
+  "terminal.limit_rejected": TerminalLimitRejectedPayload;
 }
 
 export interface HookPatchByEvent {
@@ -7816,6 +8045,17 @@ export interface HookPatchByEvent {
   "worktree.created": WorktreeObservationPatch;
   "worktree.adopted": WorktreeObservationPatch;
   "worktree.removed": WorktreeObservationPatch;
+  "terminal.opened": TerminalObservationPatch;
+  "terminal.closed": TerminalObservationPatch;
+  "terminal.lease_changed": TerminalObservationPatch;
+  "terminal.command_started": TerminalObservationPatch;
+  "terminal.command_finished": TerminalObservationPatch;
+  "terminal.input_requested": TerminalObservationPatch;
+  "terminal.input_provided": TerminalObservationPatch;
+  "terminal.recording_started": TerminalObservationPatch;
+  "terminal.recording_stopped": TerminalObservationPatch;
+  "terminal.subscriber_evicted": TerminalObservationPatch;
+  "terminal.limit_rejected": TerminalObservationPatch;
 }
 
 export interface HostAPIMethodMap {

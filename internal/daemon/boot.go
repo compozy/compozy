@@ -38,6 +38,7 @@ import (
 	"github.com/compozy/compozy/internal/sandbox"
 
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
@@ -86,6 +87,8 @@ type bootState struct {
 	deadEntities           *deadentity.Service
 	loopTargetHealth       *loopTargetHealthSlot
 	processRegistry        *toolruntime.Registry
+	terminals              *terminalpkg.Service
+	terminalPermissions    *terminalPermissionBridge
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
 	worktrees              *worktree.Service

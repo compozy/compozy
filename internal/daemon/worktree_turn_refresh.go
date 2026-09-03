@@ -36,20 +36,20 @@ func worktreeTurnRefreshNotifier(
 	refresher worktreeTurnRefresher,
 	logger *slog.Logger,
 ) session.TurnEndNotifier {
-	return func(sessionID string) {
-		info, err := sessions.Status(context.Background(), sessionID)
+	return func(ctx context.Context, identity session.PromptRunIdentity) {
+		info, err := sessions.Status(ctx, identity.SessionID)
 		if err != nil || info == nil || strings.TrimSpace(info.WorktreeID) == "" {
 			return
 		}
 		if _, err := refresher.Status(
-			context.Background(),
+			ctx,
 			info.WorkspaceID,
 			info.WorktreeID,
 			true,
 		); err != nil && logger != nil {
 			logger.Warn(
 				"daemon: refresh bound worktree after session turn",
-				"session_id", sessionID,
+				"session_id", identity.SessionID,
 				"worktree_id", info.WorktreeID,
 				"error", err,
 			)

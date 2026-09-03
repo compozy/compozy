@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -16,6 +17,12 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary
+	},
+	reflect.TypeFor[contract.TerminalSequence](): func(schema *openapi3.Schema) {
+		*schema = *openapi3.NewStringSchema()
+		schema.Pattern = terminalpkg.DecimalUint64Pattern
+		maxLength := terminalpkg.DecimalUint64MaxLength
+		schema.MaxLength = &maxLength
 	},
 	reflect.TypeFor[dsl.Graph]():        customizeLoopGraphSchema,
 	reflect.TypeFor[dsl.StopWhenSpec](): customizeStopWhenSpecSchema,

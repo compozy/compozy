@@ -32,6 +32,14 @@ type Redaction struct {
 	Bytes  int64      `json:"bytes,omitempty"`
 }
 
+// ResultTrust classifies how a model must treat a tool result independently of its content.
+type ResultTrust string
+
+const (
+	ResultTrustTrusted        ResultTrust = "trusted"
+	ResultTrustUntrustedModel ResultTrust = "untrusted_model_data"
+)
+
 // ToolResult is the canonical result envelope for all backends.
 type ToolResult struct {
 	Content    []ToolContent              `json:"content,omitempty"`
@@ -43,10 +51,14 @@ type ToolResult struct {
 	Truncated  bool                       `json:"truncated"`
 	Bytes      int64                      `json:"bytes"`
 	DurationMS int64                      `json:"duration_ms"`
+	Trust      ResultTrust                `json:"trust,omitempty"`
 }
 
 // Validate checks the public result envelope and metadata safety.
 func (r ToolResult) Validate(maxBytes int64) error {
+	if r.Trust != "" && r.Trust != ResultTrustTrusted && r.Trust != ResultTrustUntrustedModel {
+		return NewValidationError("trust", ReasonSchemaInvalid, "unsupported result trust classification")
+	}
 	if err := validateRawJSON("structured", r.Structured); err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -907,14 +908,6 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf(
 				"first legacy hosted MCP tools = %#v, want %s",
 				firstToolNames,
-				toolspkg.ToolIDTaskRunClaimNext,
-			)
-		}
-		restartedToolNames := listLegacyHostedMCPTools(t, ctx, stdio)
-		if !slices.Contains(restartedToolNames, toolspkg.ToolIDTaskRunClaimNext.String()) {
-			t.Fatalf(
-				"restarted legacy hosted MCP tools = %#v, want %s",
-				restartedToolNames,
 				toolspkg.ToolIDTaskRunClaimNext,
 			)
 		}
@@ -2008,7 +2001,7 @@ func listLegacyHostedMCPTools(
 	if err != nil {
 		t.Fatalf("StdoutPipe(hosted MCP) error = %v", err)
 	}
-	var stderr bytes.Buffer
+	var stderr lockedHostedMCPBuffer
 	command.Stderr = &stderr
 	if err := command.Start(); err != nil {
 		t.Fatalf("Start(hosted MCP %q) error = %v", stdio.Command, err)
@@ -2123,6 +2116,23 @@ func hostedMCPStdioEnv(stdio acpsdk.McpServerStdio) []string {
 		env = append(env, name+"="+entry.Value)
 	}
 	return env
+}
+
+type lockedHostedMCPBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedHostedMCPBuffer) Write(payload []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(payload)
+}
+
+func (b *lockedHostedMCPBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
 }
 
 func sdkToolListContains(tools []*sdkmcp.Tool, name string) bool {

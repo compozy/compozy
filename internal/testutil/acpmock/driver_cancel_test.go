@@ -56,7 +56,10 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 		}`)
 		store := toolruntime.NewMemoryStore()
 		registry := toolruntime.NewRegistry(store)
-		driver := acp.New(acp.WithProcessRegistry(registry))
+		driver := acp.New(
+			acp.WithProcessRegistry(registry),
+			acp.WithTerminalManager(newDriverTerminalManager(t, registry)),
+		)
 		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
 			AgentName: "sandboxer",
 			Command: BuildCommand(
@@ -67,6 +70,8 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 			),
 			Cwd:         t.TempDir(),
 			Permissions: compozyconfig.PermissionModeApproveAll,
+			WorkspaceID: "workspace-acpmock",
+			ProfileID:   "profile-acpmock",
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -75,9 +80,11 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		eventsCh, err := driver.Prompt(ctx, proc, acp.PromptRequest{
-			TurnID:  "turn-sandbox-cancel",
-			Message: "run long sandbox",
-			Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+			TurnID:     "turn-sandbox-cancel",
+			RunID:      "run-sandbox-cancel",
+			Generation: 1,
+			Message:    "run long sandbox",
+			Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 		})
 		if err != nil {
 			t.Fatalf("driver.Prompt() error = %v", err)
@@ -224,7 +231,7 @@ func waitForTerminalRecords(
 
 	for {
 		records, err := store.ListProcessRecords(context.Background(), toolruntime.ProcessQuery{
-			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceACPTerminal},
+			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceTerminal},
 		})
 		if err != nil {
 			t.Fatalf("ListProcessRecords() error = %v", err)

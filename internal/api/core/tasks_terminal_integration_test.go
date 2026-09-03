@@ -57,7 +57,7 @@ func TestTaskRunTerminalHandlersProjectImmutableParticipationSnapshotsIntegratio
 							Origin:          actor.Origin,
 							QueuedAt:        now,
 							EndedAt:         now.Add(time.Minute),
-							Result:          result.Value,
+							Result:          &result.Value,
 							RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
 						}, nil
 					},

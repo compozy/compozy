@@ -18,7 +18,7 @@ func MigrationStream() store.MigrationStream {
 		Bootstrap: &store.MigrationBootstrap{
 			FS:           workspaceschema.Files,
 			MigrationDir: "migrations",
-			SchemaSource: "schema.sql",
+			SchemaSource: "definitions",
 		},
 	}
 }

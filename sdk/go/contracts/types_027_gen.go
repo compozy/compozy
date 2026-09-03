@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TaskRunCompleteParams struct {
+	ID             string          `json:"id"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
+}
+
 type TaskRunCompletedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
@@ -456,9 +462,4 @@ type TaskRunSessionPayload struct {
 	State       string    `json:"state,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type TaskRunStartParams struct {
-	ID             string `json:"id"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }

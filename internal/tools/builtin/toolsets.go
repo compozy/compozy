@@ -247,6 +247,7 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDMarketplace, Tools: []string{toolspkg.ToolIDMarketplaceSearch.String()}},
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"compozy__extensions_*"}},
 	{ID: toolspkg.ToolsetIDResources, Tools: []string{"compozy__resources_*"}},
+	terminalToolset(),
 	{
 		ID: toolspkg.ToolsetIDWindowManager,
 		Tools: []string{
