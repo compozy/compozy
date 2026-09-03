@@ -189,10 +189,15 @@ func validateResolvedAgentRuntime(providerName string, resolved ResolvedAgent) e
 	if strings.TrimSpace(resolved.Command) == "" {
 		return fmt.Errorf("provider %q command is required", providerName)
 	}
-	if strings.TrimSpace(resolved.Permissions) == "" {
-		return nil
+	if strings.TrimSpace(resolved.Permissions) != "" {
+		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {
+			return err
+		}
 	}
-	return PermissionMode(resolved.Permissions).Validate("agent.permissions")
+	if resolved.Reasoning.Apply == ReasoningApplyNone && strings.TrimSpace(resolved.ReasoningEffort) != "" {
+		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
+	}
+	return nil
 }
 
 func resolvedAgentFromProvider(

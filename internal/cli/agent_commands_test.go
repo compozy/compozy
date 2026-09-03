@@ -499,21 +499,62 @@ func TestAgentUpdateCommand(t *testing.T) {
 			},
 		})
 
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"agent",
-			"update",
-			"coder",
-			"--expected-digest",
-			"digest-1",
-			"--disable-skill",
-			"",
-		)
-		if err != nil {
+		if _, _, err := executeRootCommand(
+			t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+			"--disable-skill", "",
+		); err != nil {
 			t.Fatalf("agent update clear disabled skills error = %v", err)
 		}
 	})
+
+	t.Run(
+		"Should clear provider-specific settings when provider changes without explicit override flags",
+		func(t *testing.T) {
+			t.Parallel()
+
+			current := AgentRecord{
+				Name:             "coder",
+				Provider:         "claude",
+				Model:            "claude-sonnet-5",
+				ReasoningEffort:  "high",
+				Prompt:           "Code.",
+				DefinitionDigest: "digest-1",
+				ACPOptions: []contract.AgentACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+				},
+			}
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+					return current, nil
+				},
+				updateAgentFn: func(
+					_ context.Context,
+					_ string,
+					request contract.UpdateAgentRequest,
+				) (AgentRecord, error) {
+					if request.Agent.Provider != "mock" {
+						t.Fatalf("UpdateAgent() provider = %q, want mock", request.Agent.Provider)
+					}
+					if request.Agent.Model != "" {
+						t.Fatalf("UpdateAgent() model = %q, want empty", request.Agent.Model)
+					}
+					if request.Agent.ReasoningEffort != "" {
+						t.Fatalf("UpdateAgent() reasoning_effort = %q, want empty", request.Agent.ReasoningEffort)
+					}
+					if len(request.Agent.ACPOptions) != 0 {
+						t.Fatalf("UpdateAgent() acp_options = %#v, want empty", request.Agent.ACPOptions)
+					}
+					return current, nil
+				},
+			})
+			if _, _, err := executeRootCommand(
+				t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+				"--provider", "mock",
+			); err != nil {
+				t.Fatalf("agent update error = %v", err)
+			}
+		},
+	)
 
 	t.Run("Should name a missing prompt file", func(t *testing.T) {
 		t.Parallel()

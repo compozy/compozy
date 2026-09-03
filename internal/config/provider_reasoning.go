@@ -71,10 +71,15 @@ func (o providerModelsDiscoveryOverlay) Apply(dst *ProviderModelsDiscoveryConfig
 
 // EffectiveReasoningApply returns the provider's explicit strategy or none.
 func (p ProviderModelsConfig) EffectiveReasoningApply() ReasoningApplyStrategy {
-	if p.Reasoning.Apply == "" {
+	return p.Reasoning.EffectiveReasoningApply()
+}
+
+// EffectiveReasoningApply returns the reasoning strategy or none.
+func (r ProviderReasoningConfig) EffectiveReasoningApply() ReasoningApplyStrategy {
+	if r.Apply == "" {
 		return ReasoningApplyNone
 	}
-	return p.Reasoning.Apply
+	return r.Apply
 }
 
 // Validate reports whether the reasoning strategy is supported.
