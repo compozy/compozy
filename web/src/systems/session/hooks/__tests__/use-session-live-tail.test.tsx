@@ -185,7 +185,7 @@ function fileMutationMarkerMessage(id: string): SessionMessage {
         data: {
           type: "transcript_marker.created",
           title: "transcript_marker.file_mutation_unverified",
-          summary: "Compozy could not verify the requested file mutation.",
+          summary: "The requested file mutation could not be verified.",
           marker: { kind: "transcript_marker.file_mutation_unverified" },
         },
       },
