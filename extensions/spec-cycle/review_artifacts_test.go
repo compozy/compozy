@@ -413,6 +413,10 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		rewriteReviewStatus(t, workspace, written.Files[1].Path, "blocked", "BLOCKED")
 		rewriteReviewStatus(t, workspace, written.Files[2].Path, "valid", "UNRESOLVED")
 
+		unresolvedBefore := readReviewArtifact(t, workspace, written.Files[0].Path)
+		blockedBefore := readReviewArtifact(t, workspace, written.Files[1].Path)
+		validUnresolvedBefore := readReviewArtifact(t, workspace, written.Files[2].Path)
+
 		output, err := store.Finalize(t.Context(), reviewArtifactScope(workspace), finalizeReviewRoundInput{
 			TaskName: "delivery", Round: 1,
 		})
@@ -421,6 +425,15 @@ func TestReviewArtifactStoreFinalize(t *testing.T) {
 		}
 		if output.Resolved != 0 || output.Invalid != 0 || output.Pending != 3 {
 			t.Fatalf("Finalize() = %#v, want Resolved=0, Invalid=0, Pending=3", output)
+		}
+		if got := readReviewArtifact(t, workspace, written.Files[0].Path); got != unresolvedBefore {
+			t.Fatalf("Finalize() modified unresolved artifact; got:\n%s\nwant:\n%s", got, unresolvedBefore)
+		}
+		if got := readReviewArtifact(t, workspace, written.Files[1].Path); got != blockedBefore {
+			t.Fatalf("Finalize() modified blocked artifact; got:\n%s\nwant:\n%s", got, blockedBefore)
+		}
+		if got := readReviewArtifact(t, workspace, written.Files[2].Path); got != validUnresolvedBefore {
+			t.Fatalf("Finalize() modified valid-unresolved artifact; got:\n%s\nwant:\n%s", got, validUnresolvedBefore)
 		}
 	})
 
