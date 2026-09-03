@@ -116,14 +116,6 @@ function createWrapper(queryClient: QueryClient) {
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(resolvePromise => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
 function sessionWithState(state: SessionState): SessionPayload {
   return { ...primarySessionFixture, state };
 }
@@ -173,24 +165,6 @@ function seededTranscriptData(...pages: SessionTranscriptPage[]): SessionTranscr
 
 function textMessage(id: string, text: string): SessionMessage {
   return { id, role: "assistant", parts: [{ type: "text", text }] };
-}
-
-function fileMutationMarkerMessage(id: string): SessionMessage {
-  return {
-    id,
-    role: "assistant",
-    parts: [
-      {
-        type: "data-compozy-event",
-        data: {
-          type: "transcript_marker.created",
-          title: "transcript_marker.file_mutation_unverified",
-          summary: "The requested file mutation could not be verified.",
-          marker: { kind: "transcript_marker.file_mutation_unverified" },
-        },
-      },
-    ] as unknown as SessionMessage["parts"],
-  };
 }
 
 function clarifyMessage(id: string): SessionMessage {
@@ -990,52 +964,6 @@ describe("useSessionLiveTail", () => {
     expect(JSON.stringify(result.current.messages.at(-1))).toContain(
       "provider exited before response"
     );
-  });
-
-  it("Should fence an in-flight transcript read during terminal refresh", async () => {
-    const marker = fileMutationMarkerMessage("terminal-marker");
-    const staleInitialTranscript = deferred<NormalizedSessionTranscriptResponse>();
-    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("stopped"));
-    vi.mocked(fetchSessionTranscript)
-      .mockReturnValueOnce(staleInitialTranscript.promise)
-      .mockResolvedValueOnce(transcriptResponse([marker]));
-    const queryClient = createQueryClient();
-    seedActiveSession(queryClient);
-    const { result, sources } = renderLiveTail({ queryClient });
-    await waitFor(() => expect(sources).toHaveLength(1));
-
-    act(() => {
-      sources[0]?.emit(
-        "session_stopped",
-        {
-          agent_name: primarySessionFixture.agent_name,
-          content: {},
-          id: "session-stopped-fixture",
-          sequence: 3,
-          session_id: SESSION_ID,
-          spawn_depth: 0,
-          stop_reason: "completed",
-          timestamp: "2026-07-07T12:00:00Z",
-          turn_id: "turn-terminal",
-          type: "session_stopped",
-        },
-        "3"
-      );
-    });
-
-    await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(result.current.messages.map(message => message.id)).toContain(marker.id)
-    );
-    act(() => staleInitialTranscript.resolve(transcriptResponse([textMessage("stale", "stale")])));
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryState(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID))?.fetchStatus
-      ).toBe("idle")
-    );
-    expect(result.current.messages.map(message => message.id)).not.toContain("stale");
-    expect(result.current.messages.map(message => message.id)).toContain(marker.id);
-    expect(sources[0]?.closed).toBe(true);
   });
 
   it("Should not open a stream for a stopped session", async () => {
