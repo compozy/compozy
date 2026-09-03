@@ -1665,7 +1665,7 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("A. agent default ACP options propagate into session creation opts", func(t *testing.T) {
+	t.Run("Should propagate agent default ACP options into session creation opts", func(t *testing.T) {
 		t.Parallel()
 		agent := compozyconfig.AgentDef{
 			Name:     "opt-worker",
@@ -1709,7 +1709,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 		}
 	})
 
-	t.Run("B. explicit runtime options override agent defaults by option ID", func(t *testing.T) {
+	t.Run("Should override agent defaults with explicit runtime ACP options by option ID", func(t *testing.T) {
 		t.Parallel()
 		agent := compozyconfig.AgentDef{
 			Name:     "override-worker",
@@ -1761,7 +1761,7 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 		}
 	})
 
-	t.Run("C. speed propagation resolves from agent definition", func(t *testing.T) {
+	t.Run("Should resolve speed propagation from agent definition", func(t *testing.T) {
 		t.Parallel()
 		agent := compozyconfig.AgentDef{
 			Name:     "speed-worker",
