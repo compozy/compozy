@@ -215,6 +215,11 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 			page.Nodes = append(page.Nodes, items...)
 		}
 	}
+	for i := range page.Nodes {
+		if source.Run.Status.Terminal() && page.Nodes[i].State == NodeStatePending && len(page.Nodes[i].Attempts) == 0 {
+			page.Nodes[i].State = NodeStateNotTaken
+		}
+	}
 	page.FanoutRollups = buildFanoutRollups(page.Nodes, source.Graph)
 	filtered := filterRosterNodes(page.Nodes, query.State)
 	offset, err := decodeRosterCursor(query.Cursor)
@@ -331,6 +336,9 @@ func applyRosterOutput(view *RosterNode, runID RunID, output GenerationOutput) {
 	state, err := mapOutputState(output.Status)
 	if err == nil {
 		view.State = state
+	}
+	if output.OutputRef == branchSkippedOutputRef {
+		view.State = NodeStateNotTaken
 	}
 	view.Attempt = output.Attempt
 	view.NextRetryAt = output.NextAttemptAt
