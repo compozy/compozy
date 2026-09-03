@@ -118,9 +118,10 @@ func skipBranchDependents(
 			}
 		} else {
 			skippedOutput := GenerationOutput{
-				NodeID:    string(nodeID),
-				ItemIndex: key.itemIndex,
-				Status:    generationOutputSucceeded,
+				Generation: branchOutput.Generation,
+				NodeID:     string(nodeID),
+				ItemIndex:  key.itemIndex,
+				Status:     generationOutputSucceeded,
 			}
 			setGenerationOutputRef(&skippedOutput, branchSkippedOutputRef)
 			*outputs = append(*outputs, skippedOutput)
