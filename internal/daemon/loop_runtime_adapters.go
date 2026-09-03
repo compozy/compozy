@@ -351,7 +351,7 @@ func collectLoopPromptResult(
 		if event.Error != "" && eventError == "" {
 			eventError = event.Error
 		}
-		if event.PromptStopReason != "" {
+		if event.PromptStopReason != "" && stopReason == "" {
 			stopReason = event.PromptStopReason
 		}
 		// Chunks are streaming deltas of one turn, not lines: any injected

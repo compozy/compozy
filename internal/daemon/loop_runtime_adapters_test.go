@@ -1664,7 +1664,7 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	t.Parallel()
 
-	t.Run("1. successful model output returns normal text without error", func(t *testing.T) {
+	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1685,7 +1685,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("2. valid model response with non-JSON text is preserved for output validation", func(t *testing.T) {
+	t.Run("Should preserve valid model response with non-JSON text for output validation", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1706,7 +1706,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("3. provider quota failure returns structured action failure instead of text", func(t *testing.T) {
+	t.Run("Should return structured action failure instead of text on provider prompt failure", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1734,15 +1734,15 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
 		}
 		failure := safeErr.SafeActionFailure()
-		if failure.Code != "prompt_failure" && failure.Code != "quota_exceeded" {
-			t.Fatalf("failure.Code = %q, want prompt_failure or quota_exceeded", failure.Code)
+		if failure.Code != "prompt_failure" {
+			t.Fatalf("failure.Code = %q, want prompt_failure", failure.Code)
 		}
 		if !strings.Contains(failure.Cause, "usage limit") {
 			t.Fatalf("failure.Cause = %q, want usage limit", failure.Cause)
 		}
 	})
 
-	t.Run("4. provider auth failure returns structured auth failure", func(t *testing.T) {
+	t.Run("Should return structured auth failure on provider auth failure", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1772,7 +1772,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("5. ACP transport/protocol failure returns transport failure", func(t *testing.T) {
+	t.Run("Should return transport failure on ACP transport or protocol failure", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1805,7 +1805,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("6. model refusal returns refusal action failure", func(t *testing.T) {
+	t.Run("Should return refusal action failure on model refusal", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
@@ -1831,6 +1831,39 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		failure := safeErr.SafeActionFailure()
 		if failure.Code != "model_refusal" {
 			t.Fatalf("failure.Code = %q, want model_refusal", failure.Code)
+		}
+	})
+
+	t.Run("Should preserve first prompt stop reason when multiple stop reasons occur", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					PromptStopReason: acp.PromptStopReasonRefusal,
+					Text:             "I cannot assist with that request",
+				},
+				{
+					PromptStopReason: acp.PromptStopReasonEndTurn,
+					Text:             "",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want refusal error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "model_refusal" {
+			t.Fatalf("failure.Code = %q, want model_refusal (first stop reason must be preserved)", failure.Code)
 		}
 	})
 }
