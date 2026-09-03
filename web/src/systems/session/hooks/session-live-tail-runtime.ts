@@ -264,6 +264,14 @@ export function createSessionLiveTailRuntime({
         workspace_id: workspaceId,
       });
     },
+    refreshTerminalTranscript: async () => {
+      await queryClient.cancelQueries({ queryKey: transcriptQueryKey, exact: true });
+      await queryClient.refetchQueries({
+        queryKey: transcriptQueryKey,
+        exact: true,
+        type: "active",
+      });
+    },
     refreshTranscript,
   };
 }

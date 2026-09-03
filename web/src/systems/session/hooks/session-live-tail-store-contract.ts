@@ -54,6 +54,7 @@ export interface SessionLiveTailRuntime {
     options: { recovery: boolean; sessionState?: string }
   ) => void;
   refreshTranscript: (signal: AbortSignal) => Promise<void>;
+  refreshTerminalTranscript: () => Promise<void>;
 }
 
 export type ApplyPhase =

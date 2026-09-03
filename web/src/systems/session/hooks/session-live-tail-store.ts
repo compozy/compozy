@@ -287,6 +287,16 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           if (!handles) return;
           handles.runtime.applyTerminal(event.payload, event.sequence);
           handles.runtime.invalidateSessionSurfaces();
+          void handles.runtime
+            .refreshTerminalTranscript()
+            .catch(error =>
+              handles.runtime.recordTranscriptFailure(error, {
+                recovery: true,
+                sessionState: "stopped",
+              })
+            )
+            // The refetch replaces InfiniteData, so restore any synthetic terminal failure last.
+            .finally(() => handles.runtime.applyTerminal(event.payload, event.sequence));
           disposeHandles(handles, "terminal");
         });
         return {
