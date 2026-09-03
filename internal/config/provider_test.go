@@ -1313,6 +1313,31 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			t.Fatalf("ResolveAgent() error = %v, want reasoning unsupported error", err)
 		}
 	})
+
+	t.Run("Should reject reasoning effort when provider reasoning apply is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["omitted-reasoning"] = ProviderConfig{
+			Command: "mock-cli",
+			Models: ProviderModelsConfig{
+				Default: "mock-model",
+			},
+		}
+		_, err = cfg.ResolveAgent(AgentDef{
+			Name:            "coder",
+			Provider:        "omitted-reasoning",
+			ReasoningEffort: providerHighKey,
+			Prompt:          "prompt",
+		})
+		if err == nil || !strings.Contains(err.Error(), "does not support reasoning effort") {
+			t.Fatalf("ResolveAgent() error = %v, want reasoning unsupported error", err)
+		}
+	})
 }
 
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {

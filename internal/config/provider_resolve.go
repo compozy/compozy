@@ -194,7 +194,8 @@ func validateResolvedAgentRuntime(providerName string, resolved ResolvedAgent) e
 			return err
 		}
 	}
-	if resolved.Reasoning.Apply == ReasoningApplyNone && strings.TrimSpace(resolved.ReasoningEffort) != "" {
+	if resolved.Reasoning.EffectiveReasoningApply() == ReasoningApplyNone &&
+		strings.TrimSpace(resolved.ReasoningEffort) != "" {
 		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
 	}
 	return nil
