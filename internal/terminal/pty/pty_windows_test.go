@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	windowsSleepHelperEnv  = "COMPOZY_WINDOWS_PTY_SLEEP_HELPER"
-	windowsSleepTestRunArg = "-test.run=^TestWindowsPTYSleepHelper$"
+	windowsSleepHelperEnv   = "COMPOZY_WINDOWS_PTY_SLEEP_HELPER"
+	windowsSleepTestRunArg  = "-test.run=^TestWindowsPTYSleepHelper$"
+	windowsSleepReadyMarker = "COMPOZY_WINDOWS_PTY_READY"
 )
 
 func TestWindowsPTYSleepHelper(t *testing.T) {
@@ -36,6 +37,13 @@ func TestWindowsPTYSleepHelper(t *testing.T) {
 		t.Parallel()
 		if os.Getenv(windowsSleepHelperEnv) != "1" {
 			return
+		}
+		written, err := os.Stdout.WriteString(windowsSleepReadyMarker)
+		if err != nil {
+			t.Fatalf("write readiness marker: %v", err)
+		}
+		if written != len(windowsSleepReadyMarker) {
+			t.Fatalf("readiness marker bytes = %d, want %d", written, len(windowsSleepReadyMarker))
 		}
 		time.Sleep(5 * time.Minute)
 	})
@@ -123,11 +131,6 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	t.Run("Should unblock a parked read within 200ms while the child is alive", func(t *testing.T) {
 		proc := startWindowsSleepTestProc(t, ModePTY)
 		readDone := startWindowsReadAfterStartup(t, proc)
-		select {
-		case err := <-readDone:
-			t.Fatalf("live-child read returned before close: %v", err)
-		case <-time.After(30 * time.Millisecond):
-		}
 		started := time.Now()
 		if err := proc.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
@@ -202,11 +205,6 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	t.Run("Should resize while another goroutine is reading", func(t *testing.T) {
 		proc := startWindowsSleepTestProc(t, ModePTY)
 		readDone := startWindowsReadAfterStartup(t, proc)
-		select {
-		case err := <-readDone:
-			t.Fatalf("live-child read returned before resize: %v", err)
-		case <-time.After(30 * time.Millisecond):
-		}
 		if err := proc.Resize(140, 40); err != nil {
 			t.Fatalf("Resize() error = %v", err)
 		}
@@ -350,30 +348,40 @@ func startWindowsTestProcWithEnv(t *testing.T, mode Mode, argv []string, env map
 
 func startWindowsReadAfterStartup(t *testing.T, proc Proc) <-chan error {
 	t.Helper()
-	startupDeadline := time.NewTimer(2 * time.Second)
-	defer startupDeadline.Stop()
+	windowsTerminal, ok := proc.(*windowsProc)
+	if !ok {
+		t.Fatal("Windows PTY process has an unexpected concrete type")
+	}
+	reader := bufio.NewReader(proc.Reader())
+	readWindowsUntil(t, proc, reader, windowsSleepReadyMarker)
+
+	readDone := make(chan error, 1)
+	go func() {
+		buffer := make([]byte, 256)
+		_, err := reader.Read(buffer)
+		readDone <- err
+	}()
+	activeDeadline := time.NewTimer(2 * time.Second)
+	defer activeDeadline.Stop()
 	for {
-		readDone := make(chan error, 1)
-		readStarted := make(chan struct{})
-		go func() {
-			close(readStarted)
-			buffer := make([]byte, 256)
-			_, err := proc.Reader().Read(buffer)
-			readDone <- err
-		}()
-		<-readStarted
-		quiet := time.NewTimer(100 * time.Millisecond)
+		windowsTerminal.outputIO.mu.Lock()
+		active := windowsTerminal.outputIO.activeDone != nil
+		windowsTerminal.outputIO.mu.Unlock()
+		if active {
+			select {
+			case err := <-readDone:
+				t.Fatalf("live-child read returned before becoming active: %v", err)
+			default:
+				return readDone
+			}
+		}
 		select {
 		case err := <-readDone:
-			quiet.Stop()
-			if err != nil {
-				t.Fatalf("read ConPTY startup output: %v", err)
-			}
-		case <-quiet.C:
-			return readDone
-		case <-startupDeadline.C:
-			quiet.Stop()
-			t.Fatal("ConPTY startup output did not become quiet within 2s")
+			t.Fatalf("live-child read returned before becoming active: %v", err)
+		case <-activeDeadline.C:
+			t.Fatal("ConPTY read did not become active within 2s")
+		default:
+			runtime.Gosched()
 		}
 	}
 }
