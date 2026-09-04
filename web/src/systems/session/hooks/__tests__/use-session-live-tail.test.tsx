@@ -298,6 +298,87 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should finish an active transcript recovery before applying a terminal frame", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSession)
+      .mockResolvedValueOnce(sessionWithState("active"))
+      .mockResolvedValue(sessionWithState("stopped"));
+    let recoveryResolved = false;
+    let abortedBeforeResolution = false;
+    let resolveRecovery: ((response: NormalizedSessionTranscriptResponse) => void) | undefined;
+    vi.mocked(fetchSessionTranscript)
+      .mockRejectedValueOnce(new Error("transcript endpoint returned 500"))
+      .mockImplementationOnce(
+        (_workspaceId, _sessionId, _query, signal) =>
+          new Promise((resolve, reject) => {
+            resolveRecovery = resolve;
+            signal?.addEventListener(
+              "abort",
+              () => {
+                abortedBeforeResolution = !recoveryResolved;
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          })
+      );
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.isError).toBe(true));
+      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(2));
+    });
+
+    act(() => {
+      sources[0]?.emit(
+        "session_stopped",
+        {
+          agent_name: primarySessionFixture.agent_name,
+          content: {},
+          id: "session-stopped-during-recovery",
+          sequence: 2,
+          session_id: SESSION_ID,
+          spawn_depth: 0,
+          timestamp: "2026-07-07T12:00:00Z",
+          turn_id: "turn-terminal",
+          type: "session_stopped",
+        },
+        "2"
+      );
+    });
+
+    expect(sources[0]?.closed).toBe(true);
+    expect(abortedBeforeResolution).toBe(false);
+    expect(resolveRecovery).toBeTypeOf("function");
+
+    await act(async () => {
+      queryClient.setQueryData(
+        sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+        seededTranscriptData(transcriptPage([]))
+      );
+      await vi.waitFor(() => expect(result.current.isError).toBe(false));
+    });
+    expect(
+      queryClient.getQueryData<SessionPayload>(sessionKeys.detail(WORKSPACE_ID, SESSION_ID))?.state
+    ).toBe("active");
+
+    await act(async () => {
+      recoveryResolved = true;
+      resolveRecovery?.(transcriptResponse([sessionTranscriptFixture[0]!]));
+      await vi.waitFor(() =>
+        expect(
+          queryClient.getQueryData<SessionPayload>(sessionKeys.detail(WORKSPACE_ID, SESSION_ID))
+            ?.state
+        ).toBe("stopped")
+      );
+    });
+    expect(result.current.messages).toHaveLength(1);
+    expect(abortedBeforeResolution).toBe(false);
+  });
+
   it("Should append older pages and preserve them across a same-fence snapshot", async () => {
     vi.mocked(fetchSessionTranscript)
       .mockResolvedValueOnce(
@@ -964,6 +1045,53 @@ describe("useSessionLiveTail", () => {
     expect(JSON.stringify(result.current.messages.at(-1))).toContain(
       "provider exited before response"
     );
+  });
+
+  it("Should apply accepted transcript frames before closing on a terminal frame", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse(sessionTranscriptFixture.slice(0, 2))
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.status).toBe("success"));
+    });
+
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          cursor: 3,
+          entries: [{ message: sessionTranscriptFixture[2]!, sequence: 3, start_sequence: 3 }],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 3,
+          session_id: SESSION_ID,
+        },
+        "3"
+      );
+      sources[0]?.emit(
+        "session_stopped",
+        {
+          agent_name: primarySessionFixture.agent_name,
+          content: {},
+          id: "session-stopped-after-delta",
+          sequence: 4,
+          session_id: SESSION_ID,
+          spawn_depth: 0,
+          timestamp: "2026-07-07T12:00:00Z",
+          turn_id: "turn-terminal",
+          type: "session_stopped",
+        },
+        "4"
+      );
+    });
+
+    await waitFor(() => expect(result.current.messages).toHaveLength(3));
+    expect(result.current.messages.at(-1)?.id).toBe(sessionTranscriptFixture[2]?.id);
+    expect(sources[0]?.closed).toBe(true);
   });
 
   it("Should not open a stream for a stopped session", async () => {

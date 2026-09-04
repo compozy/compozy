@@ -147,3 +147,66 @@ export function scheduleBlockingRepair(
     transportPhase: "connecting",
   };
 }
+
+export function closeStreamForTerminal(handles: SessionLiveTailHandles, reason: string): void {
+  clearTimer(handles.queryRecoveryTimer);
+  clearTimer(handles.reconnectTimer);
+  clearTimer(handles.repairTimer);
+  clearTimer(handles.surfaceRefreshTimer);
+  closeStream(handles, reason);
+}
+
+export function completePendingTerminal(
+  context: SessionLiveTailContext,
+  enqueue: SessionLiveTailEnqueue
+): SessionLiveTailContext {
+  const terminal = context.pendingTerminal;
+  if (!terminal) return context;
+  if (context.queryRecoveryPhase === "refreshing") {
+    return { ...context, applyPhase: "idle" };
+  }
+
+  enqueue.effect(({ trigger }) => {
+    const handles = handlesByTrigger.get(trigger);
+    if (!handles) return;
+    handles.runtime.applyTerminal(terminal.payload, terminal.sequence);
+    handles.runtime.invalidateSessionSurfaces();
+    disposeHandles(handles, "terminal");
+  });
+  return {
+    ...context,
+    applyPhase: "idle",
+    generation: context.generation + 1,
+    overflowed: false,
+    pendingFrames: [],
+    pendingTerminal: null,
+    queryRecoveryPhase: "idle",
+    surfaceRefreshScheduled: false,
+    transportPhase: "terminal",
+  };
+}
+
+export function refreshBeforePendingTerminal(
+  context: SessionLiveTailContext,
+  enqueue: SessionLiveTailEnqueue
+): SessionLiveTailContext {
+  enqueue.effect(async ({ trigger }) => {
+    const handles = handlesByTrigger.get(trigger);
+    if (!handles) return;
+    try {
+      await handles.runtime.refreshTranscript(handles.abortController.signal);
+    } catch (error) {
+      handles.runtime.recordTranscriptFailure(error, { recovery: true });
+    }
+    trigger.terminalRefreshFinished({ generation: context.generation });
+  });
+  return {
+    ...context,
+    applyPhase: "terminal-refreshing",
+    overflowed: false,
+    pendingFrames: [],
+    queryRecoveryPhase: "idle",
+    surfaceRefreshScheduled: false,
+    transportPhase: "terminal",
+  };
+}
