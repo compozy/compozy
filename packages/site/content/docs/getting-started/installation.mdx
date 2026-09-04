@@ -46,8 +46,8 @@ Download the package whose name matches your machine from the CompozyOS GitHub r
 On macOS, open the matching notarized `.dmg`, then drag CompozyOS to Applications. On Linux,
 verify the package against the release `checksums.txt` before installing or running it.
 
-AppImage mounting requires FUSE 2. On Ubuntu and Debian, install `libfuse2`; newer distributions may
-name the package `libfuse2t64`. If FUSE is unavailable, use the built-in extraction fallback:
+The AppImage carries a static runtime, so no `libfuse2` package is required. Where kernel FUSE
+support is unavailable, such as inside some containers, use the built-in extraction fallback:
 
 ```bash
 ./CompozyOS-<version>-linux-x64.AppImage --appimage-extract-and-run

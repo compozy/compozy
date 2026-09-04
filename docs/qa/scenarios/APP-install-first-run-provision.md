@@ -11,8 +11,8 @@ bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-st
 fix_status: fixed
 retest_status: pass
 fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; 107890a0; c38ba0fa; 94e2ce7; 1a0b52d; 560cd17
-evidence: docs/qa/reports/2026-08-17-electron-shell.md
-last_report: docs/qa/reports/2026-08-17-electron-shell.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md; docs/qa/reports/2026-09-03-appimage-static-runtime.md
+last_report: docs/qa/reports/2026-09-03-appimage-static-runtime.md
 overlaps:
 ---
 
@@ -46,3 +46,14 @@ signed, uploaded, and publicly re-read the beta.16 desktop channel and every ref
 QA impact 2026-08-16: Electron packages the lockstep runtime and verifies its embedded digest before
 the first write. Reset for offline bundled provisioning on macOS and Linux; the prior channel-backed
 first-run evidence no longer settles this behavior.
+
+QA impact 2026-09-03: the Linux AppImage now ships the static AppImage runtime
+(`toolsets.appimage` pinned in `desktop/electron-builder.yml`) instead of the legacy toolset that
+linked against libfuse2. Reset because the Linux install-and-launch walk produced its evidence with
+the previous runtime. See APP-appimage-fuseless-launch for the host matrix.
+
+QA result 2026-09-03: the Linux leg re-walked on the static-runtime AppImage. From an empty home the
+app verified the bundled runtime digest, provisioned `~/.compozy/bin/compozy`, and started exactly
+one daemon reachable over its socket and HTTP port. Evidence:
+docs/qa/reports/2026-09-03-appimage-static-runtime.md. The macOS leg is untouched by the packaging
+change and keeps its prior evidence.
