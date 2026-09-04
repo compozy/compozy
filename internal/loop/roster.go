@@ -332,6 +332,9 @@ func applyRosterOutput(view *RosterNode, runID RunID, output GenerationOutput) {
 	if err == nil {
 		view.State = state
 	}
+	if output.OutputRef == branchSkippedOutputRef {
+		view.State = NodeStateNotTaken
+	}
 	view.Attempt = output.Attempt
 	view.NextRetryAt = output.NextAttemptAt
 	view.ChildLoopRunID = output.ChildLoopRunID

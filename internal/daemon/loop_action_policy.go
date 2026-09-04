@@ -91,6 +91,20 @@ func (g *loopSessionPolicyGate) applyResolved(
 	opts.Provider = strings.TrimSpace(resolvedAgent.Provider)
 	opts.Model = strings.TrimSpace(resolvedAgent.Model)
 	opts.ReasoningEffort = strings.TrimSpace(resolvedAgent.ReasoningEffort)
+	if opts.Speed == "" {
+		opts.Speed = resolvedAgent.SpeedValue()
+	}
+	agentOptions := session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue())
+	mergedACPOptions, err := session.MergeRuntimeACPOptions(agentOptions, opts.ACPOptions)
+	if err != nil {
+		return loopSessionPolicyResolution{}, fmt.Errorf(
+			"%w: merge loop session ACP options for %q: %w",
+			looppkg.ErrValidation,
+			strings.TrimSpace(agentName),
+			err,
+		)
+	}
+	opts.ACPOptions = mergedACPOptions
 	if runtimeMode := normalizeSessionRuntimeMode(policy.Runtime.Mode); runtimeMode != "" {
 		opts.RuntimeMode = string(runtimeMode)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1659,4 +1660,384 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 		t.Fatalf("PromptWithOpts call count = %d, want 1", len(m.promptCalls))
 	}
 	return m.promptCalls[0]
+}
+func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return normal text without error on successful model output", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{Type: acp.EventTypeAgentMessage, Text: `{"status":"ok"}`},
+			},
+		}
+		res, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if res.Text != `{"status":"ok"}` {
+			t.Fatalf("res.Text = %q, want {\"status\":\"ok\"}", res.Text)
+		}
+	})
+
+	t.Run("Should preserve valid model response with non-JSON text for output validation", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{Type: acp.EventTypeAgentMessage, Text: `not a json object`},
+			},
+		}
+		res, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if res.Text != `not a json object` {
+			t.Fatalf("res.Text = %q, want 'not a json object'", res.Text)
+		}
+	})
+
+	t.Run("Should return structured action failure instead of text on provider prompt failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type:  acp.EventTypeError,
+					Error: "You've hit your usage limit with codex",
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: "You've hit your usage limit with codex",
+					},
+					Text: "You've hit your usage limit with codex",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			t.Context(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want quota error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "quota_exceeded" {
+			t.Fatalf("failure.Code = %q, want quota_exceeded", failure.Code)
+		}
+		if !strings.Contains(failure.Cause, "usage limit") {
+			t.Fatalf("failure.Cause = %q, want usage limit", failure.Cause)
+		}
+	})
+
+	t.Run("Should return structured auth failure on provider auth failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type:  acp.EventTypeError,
+					Error: "Failed to authenticate: OAuth session expired and could not be refreshed",
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: "Failed to authenticate: OAuth session expired and could not be refreshed",
+					},
+					Text: "Failed to authenticate: OAuth session expired and could not be refreshed",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			t.Context(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want auth error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "provider_auth_failure" {
+			t.Fatalf("failure.Code = %q, want provider_auth_failure", failure.Code)
+		}
+	})
+
+	t.Run("Should preserve prompt failure for model token limit errors", func(t *testing.T) {
+		t.Parallel()
+		const diagnostic = "maximum token count exceeded for the model context window"
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type:  acp.EventTypeError,
+					Error: diagnostic,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: diagnostic,
+					},
+					Text: diagnostic,
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			t.Context(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want prompt error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "prompt_failure" {
+			t.Fatalf("failure.Code = %q, want prompt_failure", failure.Code)
+		}
+	})
+
+	t.Run("Should return transport failure on ACP transport or protocol failure", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type: acp.EventTypeError,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailureTransport,
+						Summary: "peer disconnected before response",
+					},
+					Text: "peer disconnected",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want transport error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "transport_failure" {
+			t.Fatalf("failure.Code = %q, want transport_failure", failure.Code)
+		}
+	})
+
+	t.Run("Should return refusal action failure on model refusal", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					PromptStopReason: acp.PromptStopReasonRefusal,
+					Text:             "I cannot assist with that request",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want refusal error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "model_refusal" {
+			t.Fatalf("failure.Code = %q, want model_refusal", failure.Code)
+		}
+	})
+
+	t.Run("Should preserve first prompt stop reason when multiple stop reasons occur", func(t *testing.T) {
+		t.Parallel()
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					PromptStopReason: acp.PromptStopReasonRefusal,
+					Text:             "I cannot assist with that request",
+				},
+				{
+					PromptStopReason: acp.PromptStopReasonEndTurn,
+					Text:             "",
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			context.Background(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want refusal error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "model_refusal" {
+			t.Fatalf("failure.Code = %q, want model_refusal (first stop reason must be preserved)", failure.Code)
+		}
+	})
+}
+func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should propagate agent default ACP options into session creation opts", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "opt-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Work.",
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+			{ID: "thinking", ValueID: "high"},
+			{ID: "context_window", ValueID: "1m"},
+		})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-opt"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-opt"),
+			Agent:       "opt-worker",
+			Handle:      "worker",
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if len(createCall.ACPOptions) != 2 {
+			t.Fatalf("CreateOpts.ACPOptions = %#v, want 2 options", createCall.ACPOptions)
+		}
+		if createCall.ACPOptions[0].ID != "context_window" || createCall.ACPOptions[0].ValueID != "1m" {
+			t.Fatalf("ACPOptions[0] = %#v, want context_window=1m", createCall.ACPOptions[0])
+		}
+		if createCall.ACPOptions[1].ID != "thinking" || createCall.ACPOptions[1].ValueID != "high" {
+			t.Fatalf("ACPOptions[1] = %#v, want thinking=high", createCall.ACPOptions[1])
+		}
+	})
+
+	t.Run("Should override agent defaults with explicit runtime ACP options by option ID", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "override-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Work.",
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+			{ID: "thinking", ValueID: "low"},
+			{ID: "fast_mode", BoolValue: new(bool)},
+		})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-override"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		trueVal := true
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-override"),
+			Agent:       "override-worker",
+			Handle:      "worker",
+			Runtime: &looppkg.RuntimeSpec{
+				ACPOptions: []dsl.ACPOptionSelection{
+					{ID: "thinking", ValueID: "max"},
+					{ID: "fast_mode", BoolValue: &trueVal},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if len(createCall.ACPOptions) != 2 {
+			t.Fatalf("CreateOpts.ACPOptions = %#v, want 2 options", createCall.ACPOptions)
+		}
+		if createCall.ACPOptions[1].ID != "thinking" || createCall.ACPOptions[1].ValueID != "max" {
+			t.Fatalf("ACPOptions[1] = %#v, want thinking=max", createCall.ACPOptions[1])
+		}
+		if createCall.ACPOptions[0].ID != "fast_mode" || createCall.ACPOptions[0].BoolValue == nil ||
+			!*createCall.ACPOptions[0].BoolValue {
+			t.Fatalf("ACPOptions[0] = %#v, want fast_mode=true", createCall.ACPOptions[0])
+		}
+	})
+
+	t.Run("Should resolve speed propagation from agent definition", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "speed-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Speedy.",
+		}
+		agent.SetSpeed(speedpkg.SpeedFast)
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-speed"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-speed"),
+			Agent:       "speed-worker",
+			Handle:      "speedy",
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if createCall.Speed != "fast" {
+			t.Fatalf("createCall.Speed = %q, want fast", createCall.Speed)
+		}
+	})
 }

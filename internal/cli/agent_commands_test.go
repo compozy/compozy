@@ -499,19 +499,133 @@ func TestAgentUpdateCommand(t *testing.T) {
 			},
 		})
 
-		_, _, err := executeRootCommand(
-			t,
-			deps,
-			"agent",
-			"update",
-			"coder",
-			"--expected-digest",
-			"digest-1",
-			"--disable-skill",
-			"",
-		)
-		if err != nil {
+		if _, _, err := executeRootCommand(
+			t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+			"--disable-skill", "",
+		); err != nil {
 			t.Fatalf("agent update clear disabled skills error = %v", err)
+		}
+	})
+
+	t.Run(
+		"Should clear provider-specific settings when provider changes without explicit override flags",
+		func(t *testing.T) {
+			t.Parallel()
+
+			current := AgentRecord{
+				Name:             "coder",
+				Provider:         "claude",
+				Command:          "claude-runtime",
+				Model:            "claude-sonnet-5",
+				ReasoningEffort:  "high",
+				Prompt:           "Code.",
+				DefinitionDigest: "digest-1",
+				ACPOptions: []contract.AgentACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+				},
+			}
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+					return current, nil
+				},
+				updateAgentFn: func(
+					_ context.Context,
+					_ string,
+					request contract.UpdateAgentRequest,
+				) (AgentRecord, error) {
+					if request.Agent.Provider != "mock" {
+						t.Fatalf("UpdateAgent() provider = %q, want mock", request.Agent.Provider)
+					}
+					if request.Agent.Command != "" {
+						t.Fatalf("UpdateAgent() command = %q, want empty", request.Agent.Command)
+					}
+					if request.Agent.Model != "" {
+						t.Fatalf("UpdateAgent() model = %q, want empty", request.Agent.Model)
+					}
+					if request.Agent.ReasoningEffort != "" {
+						t.Fatalf("UpdateAgent() reasoning_effort = %q, want empty", request.Agent.ReasoningEffort)
+					}
+					if len(request.Agent.ACPOptions) != 0 {
+						t.Fatalf("UpdateAgent() acp_options = %#v, want empty", request.Agent.ACPOptions)
+					}
+					return current, nil
+				},
+			})
+			if _, _, err := executeRootCommand(
+				t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+				"--provider", "mock",
+			); err != nil {
+				t.Fatalf("agent update error = %v", err)
+			}
+		},
+	)
+
+	t.Run("Should preserve provider-specific settings for equivalent provider names", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name              string
+			currentProvider   string
+			requestedProvider string
+		}{
+			{
+				name:              "Should preserve settings across a provider alias",
+				currentProvider:   "kimi",
+				requestedProvider: "moonshot",
+			},
+			{
+				name:              "Should preserve settings across provider casing",
+				currentProvider:   "CLAUDE",
+				requestedProvider: "claude",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				current := AgentRecord{
+					Name:             "coder",
+					Provider:         test.currentProvider,
+					Command:          "provider-runtime",
+					Model:            "provider-model",
+					ReasoningEffort:  "high",
+					Prompt:           "Code.",
+					DefinitionDigest: "digest-1",
+					ACPOptions: []contract.AgentACPOptionSelection{
+						{ID: "context", ValueID: "1m"},
+					},
+				}
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+						return current, nil
+					},
+					updateAgentFn: func(
+						_ context.Context,
+						_ string,
+						request contract.UpdateAgentRequest,
+					) (AgentRecord, error) {
+						if request.Agent.Provider != test.requestedProvider {
+							t.Fatalf(
+								"UpdateAgent() provider = %q, want %q",
+								request.Agent.Provider,
+								test.requestedProvider,
+							)
+						}
+						if request.Agent.Command != current.Command || request.Agent.Model != current.Model ||
+							request.Agent.ReasoningEffort != current.ReasoningEffort ||
+							!slices.Equal(request.Agent.ACPOptions, current.ACPOptions) {
+							t.Fatalf("UpdateAgent() runtime settings = %#v, want %#v", request.Agent, current)
+						}
+						return current, nil
+					},
+				})
+				if _, _, err := executeRootCommand(
+					t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+					"--provider", test.requestedProvider,
+				); err != nil {
+					t.Fatalf("agent update error = %v", err)
+				}
+			})
 		}
 	})
 

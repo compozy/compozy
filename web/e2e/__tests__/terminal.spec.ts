@@ -260,10 +260,12 @@ async function terminalScreen(runtime: BrowserRuntime, workspaceId: string, term
 async function takeTerminalControl(window: Locator): Promise<Locator> {
   const log = window.locator('[role="log"]:visible').last();
   await expect(log).toBeVisible();
-  await expect(log).toHaveAttribute("data-readonly", /^(true|false)$/);
-  if ((await log.getAttribute("data-readonly")) === "true") {
-    const takeControl = window.getByTestId("terminal-take-control").last();
-    await expect(takeControl).toBeVisible();
+  const takeControl = window.getByTestId("terminal-take-control").last();
+  // The head reflects the catalog's last read until the attachment's OWNER
+  // frame names the lease. Wait for that answer — this browser already holds
+  // control, or the head offers it — instead of reading the state in between.
+  await expect(log.and(window.locator('[data-readonly="false"]')).or(takeControl)).toBeVisible();
+  if (await takeControl.isVisible()) {
     await takeControl.click();
   }
   await expect(log).toHaveAttribute("data-readonly", "false");

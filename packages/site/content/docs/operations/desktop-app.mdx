@@ -45,9 +45,8 @@ The default home is `~/.compozy`.
 
 ## Linux launch failures
 
-Install the package for your x64 Linux system. For an AppImage, FUSE 2 may be required; Ubuntu and
-Debian provide `libfuse2`, with `libfuse2t64` on distributions using the time64 package name.
-When FUSE mounting is unavailable:
+Install the package for your x64 Linux system. The AppImage carries a static runtime and needs no
+`libfuse2` package. Where kernel FUSE support is unavailable:
 
 ```bash
 ./CompozyOS-<version>-linux-x64.AppImage --appimage-extract-and-run

@@ -21,8 +21,8 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 2. Read and triage the scoped issue files.
    - Read every listed issue file completely before editing code.
-   - Update each issue file frontmatter `status` from `pending` to `valid` or `invalid`.
-   - Record concrete technical reasoning in `## Triage`: state why the issue is valid or invalid, identify the root cause if valid, and outline the intended fix approach.
+   - Update each issue file frontmatter `status` from `pending` to `valid`, `invalid`, `unresolved`, or `blocked`.
+   - Record concrete technical reasoning in `## Triage`: state why the issue is valid or invalid, identify the root cause if valid, outline the intended fix approach, or explain why it is unresolved/blocked.
 
 3. Fix valid issues completely.
    - Fix issues in severity order: critical first, then high, medium, low. This ensures the most impactful fixes land even if the batch is interrupted.
@@ -34,6 +34,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 4. Close out issue files correctly.
    - Leave a `valid` issue at frontmatter `status: valid` after the code and focused verification are done.
    - Leave an `invalid` issue at frontmatter `status: invalid` after documenting why it is invalid.
+   - For a valid finding that cannot be resolved in this cycle because it requires an external change or an out-of-scope dependency, set frontmatter `status: unresolved` (or `blocked`), document the blocker in `## Triage` with `- Decision: UNRESOLVED` (or `BLOCKED`), and return `resolution: unresolved` (or `blocked`).
    - Never set `status: resolved`; the Loop's Go finalizer owns that transition after the batch completes.
 
 5. Verify before completion.

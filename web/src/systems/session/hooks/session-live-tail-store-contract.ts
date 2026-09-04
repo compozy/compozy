@@ -62,7 +62,8 @@ export type ApplyPhase =
   | "applying"
   | "repair-scheduled"
   | "repairing"
-  | "repair-waiting";
+  | "repair-waiting"
+  | "terminal-refreshing";
 export type QueryRecoveryPhase = "idle" | "waiting" | "refreshing";
 export type TransportPhase = "disabled" | "connecting" | "live" | "waiting-reconnect" | "terminal";
 
@@ -72,6 +73,10 @@ export interface SessionLiveTailContext {
   lastTranscriptError: unknown | null;
   overflowed: boolean;
   pendingFrames: readonly SessionLiveTailFrame[];
+  pendingTerminal: {
+    payload: SessionEventPayload | null;
+    sequence: number;
+  } | null;
   queryRecoveryPhase: QueryRecoveryPhase;
   reconnectAttempt: number;
   surfaceRefreshScheduled: boolean;
@@ -103,6 +108,7 @@ export type SessionLiveTailEvents = {
     payload: SessionEventPayload | null;
     sequence: number;
   };
+  terminalRefreshFinished: { generation: number };
   transcriptObserved: { error: unknown | null; sessionState?: string };
 };
 
@@ -130,4 +136,5 @@ export interface SessionLiveTailTrigger {
   streamError: (event: SessionLiveTailEvents["streamError"]) => void;
   surfaceRefreshElapsed: (event: SessionLiveTailEvents["surfaceRefreshElapsed"]) => void;
   terminalReceived: (event: SessionLiveTailEvents["terminalReceived"]) => void;
+  terminalRefreshFinished: (event: SessionLiveTailEvents["terminalRefreshFinished"]) => void;
 }

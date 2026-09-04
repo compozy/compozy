@@ -10,13 +10,16 @@ import type {
 } from "./session-live-tail-store-contract";
 import {
   clearTimer,
+  closeStreamForTerminal,
   closeStream,
+  completePendingTerminal,
   createHandles,
   disposeHandles,
   enqueueApplyStart,
   handlesByTrigger,
   openStream,
   reconnectAfter,
+  refreshBeforePendingTerminal,
   scheduleBlockingRepair,
   scheduleQueryRecovery,
   scheduleSurfaceRefresh,
@@ -30,6 +33,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       lastTranscriptError: null,
       overflowed: false,
       pendingFrames: [],
+      pendingTerminal: null,
       queryRecoveryPhase: "idle",
       reconnectAttempt: 0,
       surfaceRefreshScheduled: false,
@@ -54,6 +58,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           generation,
           overflowed: false,
           pendingFrames: [],
+          pendingTerminal: null,
           queryRecoveryPhase:
             event.enabled && context.lastTranscriptError !== null ? "waiting" : "idle",
           reconnectAttempt: 0,
@@ -74,6 +79,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           generation,
           overflowed: false,
           pendingFrames: [],
+          pendingTerminal: null,
           queryRecoveryPhase: "idle",
           reconnectAttempt: 0,
           surfaceRefreshScheduled: false,
@@ -162,10 +168,26 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       },
       applyCompleted: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "applying") return;
-        if (event.result === "mismatch") return reconnectAfter(context, enqueue);
-        if (event.result === "cancelled") return { ...context, applyPhase: "idle" };
-        if (context.overflowed) return scheduleBlockingRepair(context, enqueue);
-        if (context.pendingFrames.length === 0) return { ...context, applyPhase: "idle" };
+        if (event.result === "mismatch") {
+          return context.pendingTerminal
+            ? refreshBeforePendingTerminal(context, enqueue)
+            : reconnectAfter(context, enqueue);
+        }
+        if (event.result === "cancelled") {
+          return context.pendingTerminal
+            ? completePendingTerminal(context, enqueue)
+            : { ...context, applyPhase: "idle" };
+        }
+        if (context.overflowed) {
+          return context.pendingTerminal
+            ? refreshBeforePendingTerminal(context, enqueue)
+            : scheduleBlockingRepair(context, enqueue);
+        }
+        if (context.pendingFrames.length === 0) {
+          return context.pendingTerminal
+            ? completePendingTerminal(context, enqueue)
+            : { ...context, applyPhase: "idle" };
+        }
         enqueueApplyStart(enqueue, context.generation);
         return { ...context, applyPhase: "scheduled" };
       },
@@ -177,6 +199,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           closeStream(handles, "apply-failure");
           handles.runtime.recordApplyFailure(event.frame, event.error);
         });
+        if (context.pendingTerminal) return refreshBeforePendingTerminal(context, enqueue);
         return scheduleBlockingRepair(context, enqueue);
       },
       repairStarted: (context, event, enqueue) => {
@@ -197,6 +220,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       },
       repairSucceeded: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "repairing") return;
+        if (context.pendingTerminal) return completePendingTerminal(context, enqueue);
         enqueue.effect(({ trigger }) => {
           const handles = handlesByTrigger.get(trigger);
           if (handles) openStream(handles, trigger, context.generation);
@@ -222,6 +246,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             TRANSCRIPT_RECOVERY_DELAY_MS
           );
         });
+        if (context.pendingTerminal) return completePendingTerminal(context, enqueue);
         return { ...context, applyPhase: "repair-waiting" };
       },
       repairElapsed: (context, event, enqueue) => {
@@ -279,28 +304,44 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         return { ...context, reconnectAttempt: 0, transportPhase: "live" };
       },
       terminalReceived: (context, event, enqueue) => {
-        if (event.generation !== context.generation || context.transportPhase === "disabled")
+        if (
+          event.generation !== context.generation ||
+          context.transportPhase === "disabled" ||
+          context.pendingTerminal
+        )
           return;
-        const generation = context.generation + 1;
         enqueue.effect(({ trigger }) => {
           const handles = handlesByTrigger.get(trigger);
           if (!handles) return;
-          handles.runtime.applyTerminal(event.payload, event.sequence);
-          handles.runtime.invalidateSessionSurfaces();
-          disposeHandles(handles, "terminal");
+          closeStreamForTerminal(handles, "terminal-received");
         });
-        return {
+        const terminalContext: SessionLiveTailContext = {
           ...context,
-          applyPhase: "idle",
-          generation,
-          overflowed: false,
-          pendingFrames: [],
-          queryRecoveryPhase: "idle",
+          pendingTerminal: { payload: event.payload, sequence: event.sequence },
+          queryRecoveryPhase: context.queryRecoveryPhase === "refreshing" ? "refreshing" : "idle",
           surfaceRefreshScheduled: false,
           transportPhase: "terminal",
         };
+        if (context.applyPhase === "idle" && context.pendingFrames.length === 0) {
+          return completePendingTerminal(terminalContext, enqueue);
+        }
+        if (context.applyPhase === "repair-waiting") {
+          return refreshBeforePendingTerminal(terminalContext, enqueue);
+        }
+        return terminalContext;
+      },
+      terminalRefreshFinished: (context, event, enqueue) => {
+        if (
+          event.generation !== context.generation ||
+          context.applyPhase !== "terminal-refreshing" ||
+          !context.pendingTerminal
+        ) {
+          return;
+        }
+        return completePendingTerminal(context, enqueue);
       },
       transcriptObserved: (context, event, enqueue) => {
+        const recoveryActive = context.queryRecoveryPhase === "refreshing";
         if (event.error === null) {
           enqueue.effect(({ trigger }) => {
             const handles = handlesByTrigger.get(trigger);
@@ -308,7 +349,11 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             clearTimer(handles.queryRecoveryTimer);
             handles.queryRecoveryTimer = null;
           });
-          return { ...context, lastTranscriptError: null, queryRecoveryPhase: "idle" };
+          return {
+            ...context,
+            lastTranscriptError: null,
+            queryRecoveryPhase: recoveryActive ? "refreshing" : "idle",
+          };
         }
         if (Object.is(event.error, context.lastTranscriptError)) return;
         enqueue.effect(({ trigger }) => {
@@ -318,15 +363,20 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             recovery: false,
             sessionState: event.sessionState,
           });
-          if (context.transportPhase !== "disabled" && context.transportPhase !== "terminal") {
+          if (
+            !recoveryActive &&
+            context.transportPhase !== "disabled" &&
+            context.transportPhase !== "terminal"
+          ) {
             scheduleQueryRecovery(handles, trigger, context.generation);
           }
         });
         return {
           ...context,
           lastTranscriptError: event.error,
-          queryRecoveryPhase:
-            context.transportPhase === "disabled" || context.transportPhase === "terminal"
+          queryRecoveryPhase: recoveryActive
+            ? "refreshing"
+            : context.transportPhase === "disabled" || context.transportPhase === "terminal"
               ? "idle"
               : "waiting",
         };
@@ -352,14 +402,26 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         });
         return { ...context, queryRecoveryPhase: "refreshing" };
       },
-      queryRecoverySucceeded: (context, event) => {
+      queryRecoverySucceeded: (context, event, enqueue) => {
         if (
           event.generation !== context.generation ||
           context.queryRecoveryPhase !== "refreshing"
         ) {
           return;
         }
-        return { ...context, lastTranscriptError: null, queryRecoveryPhase: "idle" };
+        const recoveredContext = {
+          ...context,
+          lastTranscriptError: null,
+          queryRecoveryPhase: "idle" as const,
+        };
+        if (
+          context.pendingTerminal &&
+          context.applyPhase === "idle" &&
+          context.pendingFrames.length === 0
+        ) {
+          return completePendingTerminal(recoveredContext, enqueue);
+        }
+        return recoveredContext;
       },
       queryRecoveryFailed: (context, event, enqueue) => {
         if (
@@ -376,8 +438,16 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             scheduleQueryRecovery(handles, trigger, context.generation);
           }
         });
+        const recoveredContext = { ...context, queryRecoveryPhase: "idle" as const };
+        if (
+          context.pendingTerminal &&
+          context.applyPhase === "idle" &&
+          context.pendingFrames.length === 0
+        ) {
+          return completePendingTerminal(recoveredContext, enqueue);
+        }
         return {
-          ...context,
+          ...recoveredContext,
           queryRecoveryPhase:
             context.transportPhase === "disabled" || context.transportPhase === "terminal"
               ? "idle"

@@ -144,7 +144,7 @@ graph:
           - Read every listed issue file completely before editing code.
           - Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,
             or resolve an artifact; edit only its existing triage content and change frontmatter from
-            `pending` to `valid` or `invalid`.
+            `pending` to `valid`, `invalid`, `unresolved`, or `blocked`.
           - Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must
             receive one structured result.
 
@@ -153,15 +153,19 @@ graph:
           2. For a valid finding, implement the root-cause fix and focused regression coverage, or name
              the existing canonical suite that owns the invariant.
           3. For an invalid finding, document the disproving evidence and use `resolution: documented`.
-          4. Run the repository's required verification for every touched surface.
+          4. For a valid finding that cannot be fixed in this cycle because of an external change or
+             out-of-scope dependency, preserve it with `status: unresolved` or `status: blocked` and
+             return the matching `resolution: unresolved` or `resolution: blocked`.
+          5. Run the repository's required verification for every touched surface.
           {{ if .inputs.auto_commit -}}
-          5. Create exactly one local commit for this batch after verification. Do not push.
+          6. Create exactly one local commit for this batch after verification. Do not push.
           {{ else -}}
-          5. Leave the verified changes uncommitted for manual review. Do not push.
+          6. Leave the verified changes uncommitted for manual review. Do not push.
           {{ end }}
 
-          Return `results` with exactly one entry per issue file. A valid issue uses
-          `resolution: fixed`; an invalid issue uses `resolution: documented`.
+          Return `results` with exactly one entry per issue file. A fixed valid issue uses
+          `resolution: fixed`; an invalid issue uses `resolution: documented`; a valid issue that
+          remains open uses `resolution: unresolved` or `resolution: blocked`.
         output_schema:
           type: object
           additionalProperties: false
@@ -179,9 +183,26 @@ graph:
                   triage:
                     enum: [valid, invalid]
                   resolution:
-                    enum: [fixed, documented]
+                    enum: [fixed, documented, unresolved, blocked]
                   summary:
                     type: string
+                allOf:
+                  - if:
+                      properties:
+                        triage:
+                          const: valid
+                    then:
+                      properties:
+                        resolution:
+                          enum: [fixed, unresolved, blocked]
+                  - if:
+                      properties:
+                        triage:
+                          const: invalid
+                    then:
+                      properties:
+                        resolution:
+                          const: documented
       session:
         isolated: true
       timeout: 45m

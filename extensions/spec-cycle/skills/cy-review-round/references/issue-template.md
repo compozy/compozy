@@ -31,7 +31,7 @@ and a suggested fix with a concise code snippet if helpful>
 ## Field Definitions
 
 - **NNN**: Three-digit zero-padded issue number (001, 002, ...).
-- **status**: Starts as `pending`, then moves through `valid` or `invalid`, and ends as `resolved`.
+- **status**: Starts as `pending`. Triage changes it to `valid`, `invalid`, `unresolved`, or `blocked`; the finalizer changes only a fixed `valid` issue to `resolved`.
 - **title**: One-line summary of the problem. Maximum 72 characters.
 - **file**: Relative path from repository root to the affected source file.
   Use `unknown` only when the issue is purely architectural and not tied to a

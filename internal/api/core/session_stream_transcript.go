@@ -321,8 +321,7 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 				h.writeTranscriptStreamError(writer, err)
 				return
 			}
-			if event.Type == session.EventTypeSessionStopped ||
-				(currentInfo != nil && currentInfo.State == session.StateStopped) {
+			if event.Type == session.EventTypeSessionStopped {
 				h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, currentInfo))
 				return
 			}

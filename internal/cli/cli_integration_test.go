@@ -37,6 +37,7 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
@@ -5716,11 +5717,20 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	defer func() {
 		joinRunError("close global db", registry.Close(context.Background()))
 	}()
+	profiles, err := profilepkg.NewManager(
+		profilepkg.WithStore(registry),
+		profilepkg.WithHomePaths(d.homePaths),
+		profilepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		return fmt.Errorf("new profile manager: %w", err)
+	}
 
 	fanout := &integrationNotifierFanout{}
 	resolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(d.homePaths),
+		workspacepkg.WithProfileAvailabilityChecker(profiles),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return d.cfg, nil }),
 		workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) {
@@ -5918,6 +5928,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		udsapi.WithHeartbeatStatus(heartbeatStatus),
 		udsapi.WithSessionHealthReader(manager),
 		udsapi.WithHeartbeatWakeEventReader(registry),
+		udsapi.WithProfileService(profiles),
 	)
 	if err != nil {
 		return fmt.Errorf("new uds server: %w", err)

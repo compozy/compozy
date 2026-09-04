@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-loop-run-headless
 expected: The briefing, complete node roster, and durable timeline agree on current run truth over HTTP, UDS, and CLI; unblocker commands execute verbatim, attempt history survives recovery, timeline resume has no gaps or duplicates, and foreign positions fail deterministically.
 entry_points: compozy loop why <run-id>; compozy loop nodes --run <run-id> --all; compozy loop events <run-id> --after <seq> --follow --view <notable|all>; GET /api/workspaces/:workspace_id/loop-runs/:run_id/{briefing,nodes,timeline}; skills/compozy/references/loops.md; /docs/cli/loop/why; /docs/cli/loop/nodes; /docs/cli/loop/events
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: BUG-20260719-autonomous-progress-unobservable; BUG-20260821-loop-unblocker-invalid-json; BUG-20260821-loop-timeline-head-omitted; BUG-20260901-filtered-fanout-phantom-rows
 fix_status: fixed
 retest_status: pass
 fix_commits: a53f470; b0eaf22; 37c101d; e96962c
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-506-filtered-fanout-roster-20260901-131013-477371-lab/qa-artifacts/qa/logs/parity-summary.json
-last_report: docs/qa/reports/2026-09-01-issue-506-filtered-fanout.md
+evidence:
+last_report:
 overlaps: LP-runs-roster-server-ordering; LP-terminal-loop-settlement
 ---
 
@@ -67,3 +67,9 @@ QA impact 2026-09-02: review remediation made terminal follows drain every fixed
 before stopping and kept JSON catch-up records structured. The focused CLI regressions covered both
 cases; the race-enabled disconnect/resume E2E re-walk passed with no timeline gaps or duplicates.
 Command: `go test -race -tags=integration -run '^TestDaemonE2ELoopRunReadCLIJourneys/Should_disconnect_resume_and_wait_for_the_first_event_E2E-003$' -count=1 ./internal/daemon`.
+
+QA impact 2026-09-04: reset because branch-skipped terminal nodes now require durable
+`branch_skipped` evidence, while output-less nodes remain pending for every terminal outcome. The
+PR owner explicitly prohibited local E2E, so verification requires a human-run isolated lab. Re-run
+`CH-loop-legibility-run-read-resume` and compare `compozy loop nodes --all -o json` over CLI, HTTP,
+and UDS for a completed false branch and a failed run with an unfinished node.

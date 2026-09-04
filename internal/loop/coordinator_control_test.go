@@ -1086,9 +1086,13 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			t.Fatalf("Terminal = %#v, want done; outputs=%#v", plan.Terminal, payload.Outputs)
 		}
 		outputs := outputsByNodeAndItemForTest(payload.Outputs)
-		for _, key := range []string{"fan/0", "collect/0", "finalize/0"} {
-			if got, want := outputs[key].OutputRef, branchSkippedOutputRef; got != want {
+		for _, key := range []string{"fan/0", "work/0", "collect/0", "finalize/0"} {
+			output := outputs[key]
+			if got, want := output.OutputRef, branchSkippedOutputRef; got != want {
 				t.Fatalf("%s output_ref = %q, want %q", key, got, want)
+			}
+			if got, want := output.Generation, 1; got != want {
+				t.Fatalf("%s generation = %d, want %d", key, got, want)
 			}
 		}
 	})

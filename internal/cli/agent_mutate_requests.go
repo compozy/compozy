@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -210,13 +211,32 @@ func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload
 	}
 }
 
+func sanitizeProviderChangeSettings(cmd *cobra.Command, payload *contract.CreateAgentPayload) {
+	if !cmd.Flags().Changed(agentModelKey) {
+		payload.Model = ""
+	}
+	if !cmd.Flags().Changed(agentCommandKey) {
+		payload.Command = ""
+	}
+	if !cmd.Flags().Changed(agentReasoningEffortKey) {
+		payload.ReasoningEffort = ""
+	}
+	if !cmd.Flags().Changed(runtimeACPOptionFlag) && !cmd.Flags().Changed(runtimeACPToggleFlag) {
+		payload.ACPOptions = nil
+	}
+}
+
 func applyAgentDefinitionOverrides(
 	cmd *cobra.Command,
 	payload *contract.CreateAgentPayload,
 	flags agentDefinitionFlags,
 ) error {
 	if cmd.Flags().Changed(cliProviderKey) {
+		oldProvider := compozyconfig.CanonicalProviderName(payload.Provider)
 		payload.Provider = strings.TrimSpace(flags.provider)
+		if compozyconfig.CanonicalProviderName(payload.Provider) != oldProvider {
+			sanitizeProviderChangeSettings(cmd, payload)
+		}
 	}
 	if cmd.Flags().Changed(agentCommandKey) {
 		payload.Command = strings.TrimSpace(flags.command)

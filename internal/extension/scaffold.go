@@ -237,9 +237,23 @@ type scaffoldSDKReferences struct {
 	typescript string
 }
 
+// gitDescribeSuffix marks a `git describe` output that is past or beside a tag
+// (`v0.3.0-4-g1a2b3c4`, `v0.3.0-dirty`), which no published SDK matches.
+var gitDescribeSuffix = regexp.MustCompile(`-\d+-g[0-9a-f]{7,}(?:-dirty)?$|-dirty$`)
+
+// isReleaseBuildVersion reports whether a build version names a published
+// release the SDK registries carry. A bare short commit hash such as
+// `42917551` is valid semver to `semver.IsValid`, so canonical form is required.
+func isReleaseBuildVersion(version string) bool {
+	if !semver.IsValid(version) || semver.Canonical(version) != version {
+		return false
+	}
+	return !gitDescribeSuffix.MatchString(version)
+}
+
 func resolveScaffoldSDKReferences(buildVersion string, startDir string) (scaffoldSDKReferences, error) {
 	releaseVersion := strings.TrimPrefix(strings.TrimSpace(buildVersion), "v")
-	if semver.IsValid("v" + releaseVersion) {
+	if isReleaseBuildVersion("v" + releaseVersion) {
 		return scaffoldSDKReferences{
 			goVersion:  "v" + releaseVersion,
 			typescript: releaseVersion,

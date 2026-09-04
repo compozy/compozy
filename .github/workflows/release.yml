@@ -502,7 +502,9 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
+          sudo apt-get remove --yes libfuse2
           sudo apt-get install -y \
+            fuse3 \
             libasound2 \
             libgtk-3-0 \
             libnss3 \
@@ -524,6 +526,18 @@ jobs:
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}" \
             "${{ needs.dry-run-identity.outputs.release_version }}"
+
+      - name: Verify Linux AppImage extraction fallback
+        if: matrix.platform == 'linux'
+        env:
+          RELEASE_CHANNEL: beta
+        run: |
+          bash scripts/smoke-desktop-release-artifact.sh \
+            "${{ matrix.platform }}" \
+            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "${{ needs.dry-run-identity.outputs.release_version }}" \
+            "${{ needs.dry-run-identity.outputs.release_version }}" \
+            extract
 
       - name: Upload smoke diagnostics on failure
         if: failure()
@@ -1345,8 +1359,9 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
+          sudo apt-get remove --yes libfuse2
           sudo apt-get install -y \
-            libfuse2 \
+            fuse3 \
             xdg-utils \
             xvfb
 
@@ -1366,6 +1381,19 @@ jobs:
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${RELEASE_VERSION}" \
             "${RELEASE_VERSION}"
+
+      - name: Verify Linux AppImage extraction fallback
+        if: matrix.platform == 'linux'
+        env:
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
+            "${{ matrix.platform }}" \
+            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "${RELEASE_VERSION}" \
+            "${RELEASE_VERSION}" \
+            extract
 
       - name: Upload smoke diagnostics on failure
         if: failure()

@@ -27,3 +27,5 @@ e2e: Owning Loop persistence/projection suite plus a browser replay of a bundled
 2026-07-13: Passed same-persona retest in browser-created run `looprun-b165c15b174e3d40`. Both failed generations rendered the bounded missing-pattern cause and concrete retry guidance, and the public run API persisted the structured `action_failure` payload.
 
 2026-07-21: qa_status reset to untested — the opendesign redesigns restructured this scenario's web entry surface (task detail/run detail 3-tab IA, settings takeover shell, or providers page); the pass verdict predates that surface.
+
+2026-09-04: PR #545 changes provider-backed Loop failure classification. The scenario remains blocked-verify because proving real quota and OAuth failures requires live provider account state, and this PR explicitly forbids local E2E. The canonical daemon regression covers failure-before-output-validation ordering; an authorized QA cycle still needs to walk the public Loop/API surface.

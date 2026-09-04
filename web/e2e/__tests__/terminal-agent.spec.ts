@@ -18,7 +18,6 @@ import {
 import {
   ensureAppWindow,
   focusWindowThroughPalette,
-  openAppWindow,
   sessionWindow,
   windowFrame,
 } from "../fixtures/os-navigation";
@@ -190,6 +189,17 @@ async function ensureTerminalWindow(page: Page): Promise<Locator> {
   const terminalWindow = await ensureAppWindow(page, "Terminal", "terminal");
   await focusWindowThroughPalette(page, terminalWindow);
   return terminalWindow;
+}
+
+/**
+ * The window hosting one terminal, keyed by the authority's `instance_key`.
+ * Every agent-opened terminal materializes its own window, so the app-wide
+ * locator is ambiguous once a session has opened more than one.
+ */
+function terminalWindowFor(page: Page, terminalId: string): Locator {
+  return page.locator(
+    `[data-slot="os-window-surface"][data-app="terminal"][data-instance-key="${terminalId}"]`
+  );
 }
 
 async function openAgentTerminal(
@@ -656,12 +666,16 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await approveOnce(harness, appPage);
 
     await ensureProjectWorkspace(appPage, runtime);
-    // Adoption lands on the input terminal — the only running one — so the
-    // pending question is pinned right under its grid; the dock badge is the
-    // cross-window attention surface.
-    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    // Both agent-opened terminals were materialized as their own windows, so
+    // the dock activation restores them rather than adopting one. The pending
+    // question is pinned right under the input terminal's grid; the dock badge
+    // is the cross-window attention surface.
     const terminalLauncher = appPage.locator('[data-slot="os-dock-item"][data-app="terminal"]');
-    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
+    await terminalLauncher.click();
+    let terminalWindow = terminalWindowFor(appPage, inputTerminalId);
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(terminalWindow.getByTestId("terminal-input-request-stack")).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
 
@@ -714,8 +728,10 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await expect(profiles.switcher).toContainText("default");
     // Back on default, its own desktop returns with the original window still
     // showing the input terminal and its pending question.
-    terminalWindow = await ensureTerminalWindow(appPage);
-    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
+    terminalWindow = terminalWindowFor(appPage, inputTerminalId);
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
     expect(
       (await terminalScreen(runtime, harness.workspace.id, defaultTerminalId)).content
@@ -724,7 +740,9 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcher.click();
     await profiles.switcherAll.click();
     await expect(profiles.switcher).toContainText("All profiles");
-    terminalWindow = await ensureTerminalWindow(appPage);
+    // The aggregate lens changes the data, not the desktop: the default
+    // profile's windows stay, and any of them journals every owner.
+    terminalWindow = terminalWindowFor(appPage, inputTerminalId);
     await expect(terminalWindow.getByTestId("terminal-journal-toggle")).toBeVisible();
     await terminalWindow.getByTestId("terminal-journal-toggle").click();
     const aggregateJournal = terminalWindow.getByTestId("terminal-journal");
@@ -741,9 +759,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(inputTerminalId)}`), {
       waitUntil: "domcontentloaded",
     });
-    terminalWindow = appPage.locator(
-      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
-    );
+    terminalWindow = terminalWindowFor(appPage, inputTerminalId);
     await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible({
       timeout: 20_000,
     });
