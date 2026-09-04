@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-01
 expected: Running implement-tasks with mode=orchestrated and implementer=custom_implementer uses the bundled orchestrator in one continuous Goal session, starts every worker with that exact Agent and its Agent-local sentinel skill, gives every task its category-selected runtime, proves completed task frontmatter on disk, stops every spawned worker, marks the per-task branch not_taken, and settles done. Omitting implementer selects code_implementer.
 entry_points: compozy loop run --name implement-tasks --input slug=<slug> --input mode=orchestrated --input implementer=custom_implementer; compozy loop status; compozy session list --parent <goal-session> --agent custom_implementer; web /loop-runs/:run_id detail
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260826-optional-runtime-run-fails
 fix_status: fixed
 retest_status: pass
@@ -31,3 +31,7 @@ point, provider access and a human-run charter remained required before the scen
 2026-09-01: `pass` — typed entity validation resolves the acting Profile, and exact daemon-issued Agent identity plus nested session commands preserve that Profile without widening other CLI namespaces. Secret-safe sandbox diagnostics retained the red `compozy me` boundary (exit 69, session not found). The green public E2E proves conductor success, three engineer workers, Agent-local sentinel visibility, ordered task completion, stopped settlement, and zero surviving workers.
 
 2026-09-02: `pass` after resetting the stale verdict. The targeted runtime E2E re-walk proved that the Profile conductor can run `session status`, `session prompt`, and `session stop` for each spawned worker before the Loop settles done.
+
+QA impact 2026-09-04 (PR #542): Loop-managed workers now materialize the selected Agent's effective
+Speed and typed ACP-option defaults before pinning the immutable creation profile. Reset for a fresh
+orchestrated-mode public-surface walk; focused daemon and session regression suites own automated coverage.
