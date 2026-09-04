@@ -341,6 +341,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         return completePendingTerminal(context, enqueue);
       },
       transcriptObserved: (context, event, enqueue) => {
+        const recoveryActive = context.queryRecoveryPhase === "refreshing";
         if (event.error === null) {
           enqueue.effect(({ trigger }) => {
             const handles = handlesByTrigger.get(trigger);
@@ -348,7 +349,11 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             clearTimer(handles.queryRecoveryTimer);
             handles.queryRecoveryTimer = null;
           });
-          return { ...context, lastTranscriptError: null, queryRecoveryPhase: "idle" };
+          return {
+            ...context,
+            lastTranscriptError: null,
+            queryRecoveryPhase: recoveryActive ? "refreshing" : "idle",
+          };
         }
         if (Object.is(event.error, context.lastTranscriptError)) return;
         enqueue.effect(({ trigger }) => {
@@ -358,15 +363,20 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             recovery: false,
             sessionState: event.sessionState,
           });
-          if (context.transportPhase !== "disabled" && context.transportPhase !== "terminal") {
+          if (
+            !recoveryActive &&
+            context.transportPhase !== "disabled" &&
+            context.transportPhase !== "terminal"
+          ) {
             scheduleQueryRecovery(handles, trigger, context.generation);
           }
         });
         return {
           ...context,
           lastTranscriptError: event.error,
-          queryRecoveryPhase:
-            context.transportPhase === "disabled" || context.transportPhase === "terminal"
+          queryRecoveryPhase: recoveryActive
+            ? "refreshing"
+            : context.transportPhase === "disabled" || context.transportPhase === "terminal"
               ? "idle"
               : "waiting",
         };

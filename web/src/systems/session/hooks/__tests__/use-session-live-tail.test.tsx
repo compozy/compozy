@@ -300,6 +300,9 @@ describe("useSessionLiveTail", () => {
 
   it("Should finish an active transcript recovery before applying a terminal frame", async () => {
     vi.useFakeTimers();
+    vi.mocked(fetchSession)
+      .mockResolvedValueOnce(sessionWithState("active"))
+      .mockResolvedValue(sessionWithState("stopped"));
     let recoveryResolved = false;
     let abortedBeforeResolution = false;
     let resolveRecovery: ((response: NormalizedSessionTranscriptResponse) => void) | undefined;
@@ -352,10 +355,27 @@ describe("useSessionLiveTail", () => {
     expect(resolveRecovery).toBeTypeOf("function");
 
     await act(async () => {
+      queryClient.setQueryData(
+        sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+        seededTranscriptData(transcriptPage([]))
+      );
+      await vi.waitFor(() => expect(result.current.isError).toBe(false));
+    });
+    expect(
+      queryClient.getQueryData<SessionPayload>(sessionKeys.detail(WORKSPACE_ID, SESSION_ID))?.state
+    ).toBe("active");
+
+    await act(async () => {
       recoveryResolved = true;
       resolveRecovery?.(transcriptResponse([sessionTranscriptFixture[0]!]));
-      await vi.waitFor(() => expect(result.current.messages).toHaveLength(1));
+      await vi.waitFor(() =>
+        expect(
+          queryClient.getQueryData<SessionPayload>(sessionKeys.detail(WORKSPACE_ID, SESSION_ID))
+            ?.state
+        ).toBe("stopped")
+      );
     });
+    expect(result.current.messages).toHaveLength(1);
     expect(abortedBeforeResolution).toBe(false);
   });
 
