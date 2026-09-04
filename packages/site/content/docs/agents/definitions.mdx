@@ -152,6 +152,10 @@ compozy agent update code-reviewer \
   -o json
 ```
 
+When `--provider` selects a different underlying provider, the CLI clears an omitted `--command`,
+`--model`, `--reasoning-effort`, and ACP option flags so settings from the old provider do not carry
+over. Built-in aliases and case variants that resolve to the same provider keep those settings.
+
 See [`compozy agent update`](/docs/cli/agent/update) for the generated flag reference. The
 HTTP equivalent is `PUT /api/agents/:name` with the full `agent` payload, `workspace`, and
 `expected_digest`. The same mutation targets an extension-local definition when that definition is

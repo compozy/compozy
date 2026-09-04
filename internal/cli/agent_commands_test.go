@@ -560,6 +560,75 @@ func TestAgentUpdateCommand(t *testing.T) {
 		},
 	)
 
+	t.Run("Should preserve provider-specific settings for equivalent provider names", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name              string
+			currentProvider   string
+			requestedProvider string
+		}{
+			{
+				name:              "Should preserve settings across a provider alias",
+				currentProvider:   "kimi",
+				requestedProvider: "moonshot",
+			},
+			{
+				name:              "Should preserve settings across provider casing",
+				currentProvider:   "CLAUDE",
+				requestedProvider: "claude",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				current := AgentRecord{
+					Name:             "coder",
+					Provider:         test.currentProvider,
+					Command:          "provider-runtime",
+					Model:            "provider-model",
+					ReasoningEffort:  "high",
+					Prompt:           "Code.",
+					DefinitionDigest: "digest-1",
+					ACPOptions: []contract.AgentACPOptionSelection{
+						{ID: "context", ValueID: "1m"},
+					},
+				}
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+						return current, nil
+					},
+					updateAgentFn: func(
+						_ context.Context,
+						_ string,
+						request contract.UpdateAgentRequest,
+					) (AgentRecord, error) {
+						if request.Agent.Provider != test.requestedProvider {
+							t.Fatalf(
+								"UpdateAgent() provider = %q, want %q",
+								request.Agent.Provider,
+								test.requestedProvider,
+							)
+						}
+						if request.Agent.Command != current.Command || request.Agent.Model != current.Model ||
+							request.Agent.ReasoningEffort != current.ReasoningEffort ||
+							!slices.Equal(request.Agent.ACPOptions, current.ACPOptions) {
+							t.Fatalf("UpdateAgent() runtime settings = %#v, want %#v", request.Agent, current)
+						}
+						return current, nil
+					},
+				})
+				if _, _, err := executeRootCommand(
+					t, deps, "agent", "update", "coder", "--expected-digest", "digest-1",
+					"--provider", test.requestedProvider,
+				); err != nil {
+					t.Fatalf("agent update error = %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should name a missing prompt file", func(t *testing.T) {
 		t.Parallel()
 

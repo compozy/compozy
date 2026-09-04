@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -231,9 +232,9 @@ func applyAgentDefinitionOverrides(
 	flags agentDefinitionFlags,
 ) error {
 	if cmd.Flags().Changed(cliProviderKey) {
-		oldProvider := payload.Provider
+		oldProvider := compozyconfig.CanonicalProviderName(payload.Provider)
 		payload.Provider = strings.TrimSpace(flags.provider)
-		if payload.Provider != oldProvider {
+		if compozyconfig.CanonicalProviderName(payload.Provider) != oldProvider {
 			sanitizeProviderChangeSettings(cmd, payload)
 		}
 	}
