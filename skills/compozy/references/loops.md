@@ -679,11 +679,11 @@ Optional `reviewer` and `fixer` inputs select agents; `auto_commit` defaults to 
 The reviewer returns source-agnostic structured issues. `ext__spec_cycle__write_review_artifacts`
 creates the next exclusive `.compozy/tasks/<task>/reviews-NNN/` round inside the authenticated
 workspace, validates file containment, and returns complete batches of issue-file paths. The fixer
-reads each batch and changes `status: pending` only to `valid` or `invalid`; it never creates,
-renames, timestamps, or resolves an issue file. `ext__spec_cycle__finalize_review_round` alone changes
-triaged statuses to `resolved` and returns structured `{resolved, invalid, pending}` counts. The next
-generation reviews the task again; an empty `issues` array ends the run. Neither artifact tool input
-accepts a workspace root.
+reads each batch and changes `status: pending` only to `valid`, `invalid`, `unresolved`, or `blocked`;
+it never creates, renames, timestamps, or resolves an issue file. The finalizer changes only a fixed
+`valid` issue to `resolved`, preserves invalid and open findings, and returns structured
+`{resolved, invalid, pending}` counts. The next generation reviews the task again; an empty `issues`
+array ends the run. Neither artifact tool input accepts a workspace root.
 
 Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
 `skip_missed`. Explicit recurring schedule policies are `skip_missed`, `coalesce`, `replay`, and

@@ -87,16 +87,20 @@ func finalizeReviewIssue(root *reviewArtifactRoot, path string, round int) (int,
 		)
 	}
 	status := strings.ToLower(strings.TrimSpace(meta.Status))
-	invalid := 0
-	if status == reviewStatusInvalid || reviewBodyDecisionIsInvalid(body) {
-		invalid = 1
-	}
 	switch status {
-	case reviewStatusPending:
-		return 0, invalid, 1, nil
+	case reviewStatusPending, reviewStatusUnresolved, reviewStatusBlocked:
+		return 0, 0, 1, nil
 	case reviewStatusResolved:
-		return 1, invalid, 0, nil
-	case reviewStatusValid, reviewStatusInvalid:
+		return 1, 0, 0, nil
+	case reviewStatusInvalid:
+		return 0, 1, 0, nil
+	case reviewStatusValid:
+		if reviewBodyDecisionIsInvalid(body) {
+			return 0, 1, 0, nil
+		}
+		if reviewBodyDecisionIsUnresolved(body) {
+			return 0, 0, 1, nil
+		}
 		rewritten, rewriteErr := frontmatter.RewriteStringField(content, "status", reviewStatusResolved)
 		if rewriteErr != nil {
 			return 0, 0, 0, fmt.Errorf("spec-cycle: rewrite review issue %q: %w", path, rewriteErr)
@@ -104,7 +108,7 @@ func finalizeReviewIssue(root *reviewArtifactRoot, path string, round int) (int,
 		if writeErr := root.root.WriteFile(path, []byte(rewritten), 0o600); writeErr != nil {
 			return 0, 0, 0, fmt.Errorf("spec-cycle: write review issue %q: %w", path, writeErr)
 		}
-		return 1, invalid, 0, nil
+		return 1, 0, 0, nil
 	default:
 		return 0, 0, 0, fmt.Errorf(
 			"spec-cycle: review issue %q has unsupported status %q",
@@ -158,6 +162,18 @@ func reviewBodyDecisionIsInvalid(body string) bool {
 	for line := range strings.SplitSeq(body, "\n") {
 		normalized := strings.ToLower(strings.TrimSpace(line))
 		if normalized == "- decision: `invalid`" || normalized == "- decision: invalid" {
+			return true
+		}
+	}
+	return false
+}
+
+func reviewBodyDecisionIsUnresolved(body string) bool {
+	for line := range strings.SplitSeq(body, "\n") {
+		normalized := strings.ToLower(strings.TrimSpace(line))
+		if normalized == "- decision: `unresolved`" || normalized == "- decision: unresolved" ||
+			normalized == "- decision: `blocked`" || normalized == "- decision: blocked" ||
+			normalized == "- decision: `unreviewed`" || normalized == "- decision: unreviewed" {
 			return true
 		}
 	}

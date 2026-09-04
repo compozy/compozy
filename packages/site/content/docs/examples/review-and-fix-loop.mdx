@@ -1,19 +1,20 @@
 ---
 title: Review-and-fix loop
-description: Review a named task with an agent, write inspectable findings, and remediate every one of them until a review round comes back clean.
+description: Review a named task with an agent, write inspectable findings, and preserve anything that cannot be resolved until a review round comes back clean.
 maturity: shipped
 ---
 
 ## What you build
 
 A standing review gate for any task in your workspace. One agent reviews the work and returns
-structured findings; a second agent triages each finding against local evidence, fixes the valid
-ones at the root cause, and documents the invalid ones. The loop repeats until a review round
-returns **zero issues** — and the daemon enforces the exit: an iteration cap of 3, a no-progress
-check over the last 2 rounds, and a named terminal state either way.
+structured findings; a second agent triages each finding against local evidence, fixes what it can
+at the root cause, documents invalid findings, and preserves valid findings that remain unresolved
+or blocked. The loop repeats until a review round returns **zero issues** — and the daemon enforces
+the exit: an iteration cap of 3, a no-progress check over the last 2 rounds, and a named terminal
+state either way.
 
-Use it when you want the work on a task reviewed by an agent and every finding remediated until a
-round comes back clean.
+Use it when you want the work on a task reviewed by an agent, every finding triaged, and anything
+that remains open preserved until a round comes back clean.
 
 ## The artifact
 
@@ -167,7 +168,7 @@ graph:
           - Read every listed issue file completely before editing code.
           - Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,
             or resolve an artifact; edit only its existing triage content and change frontmatter from
-            `pending` to `valid` or `invalid`.
+            `pending` to `valid`, `invalid`, `unresolved`, or `blocked`.
           - Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must
             receive one structured result.
 
@@ -176,15 +177,19 @@ graph:
           2. For a valid finding, implement the root-cause fix and focused regression coverage, or name
              the existing canonical suite that owns the invariant.
           3. For an invalid finding, document the disproving evidence and use `resolution: documented`.
-          4. Run the repository's required verification for every touched surface.
+          4. For a valid finding that cannot be fixed in this cycle because of an external change or
+             out-of-scope dependency, preserve it with `status: unresolved` or `status: blocked` and
+             return the matching `resolution: unresolved` or `resolution: blocked`.
+          5. Run the repository's required verification for every touched surface.
           {{ if .inputs.auto_commit -}}
-          5. Create exactly one local commit for this batch after verification. Do not push.
+          6. Create exactly one local commit for this batch after verification. Do not push.
           {{ else -}}
-          5. Leave the verified changes uncommitted for manual review. Do not push.
+          6. Leave the verified changes uncommitted for manual review. Do not push.
           {{ end }}
 
-          Return `results` with exactly one entry per issue file. A valid issue uses
-          `resolution: fixed`; an invalid issue uses `resolution: documented`.
+          Return `results` with exactly one entry per issue file. A fixed valid issue uses
+          `resolution: fixed`; an invalid issue uses `resolution: documented`; a valid issue that
+          remains open uses `resolution: unresolved` or `resolution: blocked`.
         output_schema:
           type: object
           additionalProperties: false
@@ -202,9 +207,26 @@ graph:
                   triage:
                     enum: [valid, invalid]
                   resolution:
-                    enum: [fixed, documented]
+                    enum: [fixed, documented, unresolved, blocked]
                   summary:
                     type: string
+                allOf:
+                  - if:
+                      properties:
+                        triage:
+                          const: valid
+                    then:
+                      properties:
+                        resolution:
+                          enum: [fixed, unresolved, blocked]
+                  - if:
+                      properties:
+                        triage:
+                          const: invalid
+                    then:
+                      properties:
+                        resolution:
+                          const: documented
       session:
         isolated: true
       timeout: 45m
@@ -319,12 +341,14 @@ signed webhook. An agent can start this Loop through the same contracts you just
   </WorkflowStep>
   <WorkflowStep title="Fix each batch — `fix_batches` to `fix_batch`">
     A fan-out runs the fixer agent once per batch, sequentially. Valid findings get root-cause fixes
-    and regression coverage; invalid ones get documented disproving evidence. The batch is
-    all-or-nothing: every issue file receives exactly one structured result.
+    and regression coverage; invalid ones get documented disproving evidence; valid findings that
+    cannot be fixed in the current cycle remain unresolved or blocked. The batch is all-or-nothing:
+    every issue file receives exactly one structured result.
   </WorkflowStep>
   <WorkflowStep title="Close the round — `collect_fixes` to `finalize_round`">
-    Batch results are collected and the round is finalized with resolved, invalid, and pending
-    counts. The next generation starts again at step 1 — until a round comes back clean.
+    Batch results are collected. The finalizer resolves only fixed valid findings, preserves invalid
+    and open findings, and returns resolved, invalid, and pending counts. The next generation starts
+    again at step 1 — until a round comes back clean.
   </WorkflowStep>
   <WorkflowStep title="The daemon enforces the exit">
     `iteration_cap: 3`, a no-progress window of 2 rounds hashed over the issue list, and
