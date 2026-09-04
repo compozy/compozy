@@ -4,6 +4,7 @@
 
 - Tool-first operating model
 - Discovery loop
+- Operator profile scope
 - Tool presentation metadata
 - Oversized tool results
 - Marketplace discovery
@@ -42,6 +43,13 @@ currently callable set, then
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 
 `compozy skill` commands reject accidental use while `COMPOZY_SESSION_ID` or `COMPOZY_AGENT` is present and point to native skill tools. Treat this as a supported-path guard, not authorization: clearing environment markers or opening the same-user operator socket is outside this guard.
+
+## Operator Profile Scope
+
+For operator tool and toolset commands, use `--profile <name>` with `--workspace <id>` to select
+both boundaries. HTTP/UDS tool and toolset routes accept the `profile` query selector; they require
+one profile and reject `all_profiles=true`. An approval token belongs to its minting profile as well
+as its tool, session, workspace, agent, and input. Keep that scope unchanged when invoking it.
 
 ## Oversized Tool Results
 
