@@ -966,6 +966,53 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should apply accepted transcript frames before closing on a terminal frame", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse(sessionTranscriptFixture.slice(0, 2))
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.status).toBe("success"));
+    });
+
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          cursor: 3,
+          entries: [{ message: sessionTranscriptFixture[2]!, sequence: 3, start_sequence: 3 }],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 3,
+          session_id: SESSION_ID,
+        },
+        "3"
+      );
+      sources[0]?.emit(
+        "session_stopped",
+        {
+          agent_name: primarySessionFixture.agent_name,
+          content: {},
+          id: "session-stopped-after-delta",
+          sequence: 4,
+          session_id: SESSION_ID,
+          spawn_depth: 0,
+          timestamp: "2026-07-07T12:00:00Z",
+          turn_id: "turn-terminal",
+          type: "session_stopped",
+        },
+        "4"
+      );
+    });
+
+    await waitFor(() => expect(result.current.messages).toHaveLength(3));
+    expect(result.current.messages.at(-1)?.id).toBe(sessionTranscriptFixture[2]?.id);
+    expect(sources[0]?.closed).toBe(true);
+  });
+
   it("Should not open a stream for a stopped session", async () => {
     const queryClient = createQueryClient();
     queryClient.setQueryData(
