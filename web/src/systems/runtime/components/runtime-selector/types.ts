@@ -138,6 +138,8 @@ export interface RuntimeModelOption {
   id: string;
   provider: string;
   name: string;
+  /** The effective provider default resolved by Compozy. */
+  default?: boolean;
   context_window?: number | null;
   cost_input?: number | null;
   cost_output?: number | null;

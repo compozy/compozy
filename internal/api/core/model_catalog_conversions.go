@@ -49,6 +49,7 @@ func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelP
 		Compozy: contract.OpenAIModelCompozyPayload{
 			ProviderID:             model.ProviderID,
 			ModelID:                model.ModelID,
+			Default:                model.Default,
 			DisplayName:            model.DisplayName,
 			Sources:                sourceIDsFromRefs(model.Sources),
 			Available:              model.Available,

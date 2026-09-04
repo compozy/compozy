@@ -85,10 +85,10 @@ export function useRuntimeSelector({
   // or accepted as mutations here.
   const validKeys = new Set(modelByKey.keys());
   const favorites = useRuntimeFavorites(validKeys);
+  const activeProvider = providerById.get(value.provider);
   const selectedModel = value.model
     ? modelByKey.get(runtimeModelKey(value.provider, value.model))
-    : undefined;
-  const activeProvider = providerById.get(value.provider);
+    : models.find(model => model.provider === value.provider && model.default);
   const reasoningState = resolveReasoningState(selectedModel);
   const effectiveACPOptions = acpOptions ?? selectedModel?.acp_options;
   const advancedOptions = advancedRuntimeOptions(effectiveACPOptions);
@@ -110,6 +110,10 @@ export function useRuntimeSelector({
         : { acp_options: undefined }
       : {}),
   };
+  const listValue =
+    value.model === "" && selectedModel
+      ? { ...normalizedValue, model: selectedModel.id }
+      : normalizedValue;
 
   const isFavoriteModel = (model: RuntimeModelOption) =>
     favorites.isFavorite(runtimeModelKey(model.provider, model.id));
@@ -134,7 +138,7 @@ export function useRuntimeSelector({
     models,
     modelByKey,
     providerById,
-    value: normalizedValue,
+    value: listValue,
     activeCustomProvider,
     allowCustomProvider,
     recentKeys: favorites.recents,

@@ -46024,6 +46024,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
+              default: boolean;
               /** @enum {string|null} */
               default_reasoning_effort?:
                 | "none"
@@ -46424,6 +46425,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
+              default: boolean;
               /** @enum {string|null} */
               default_reasoning_effort?:
                 | "none"
@@ -46748,6 +46750,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
+              default: boolean;
               /** @enum {string|null} */
               default_reasoning_effort?:
                 | "none"
@@ -49746,6 +49749,7 @@ export interface operations {
                   /** Format: double */
                   reasoning_per_million?: number | null;
                 } | null;
+                default: boolean;
                 /** @enum {string|null} */
                 default_reasoning_effort?:
                   | "none"

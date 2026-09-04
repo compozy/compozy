@@ -38,6 +38,7 @@ func mergeModelGroup(rows []ModelRow, opts MergeOptions) Model {
 	model := Model{
 		ProviderID:        first.ProviderID,
 		ModelID:           first.ModelID,
+		Default:           opts.isDefaultModel(first.ProviderID, first.ModelID),
 		AvailabilityState: AvailabilityStateUnknown,
 		RefreshedAt:       first.RefreshedAt,
 		Sources:           make([]SourceRef, 0, len(rows)),

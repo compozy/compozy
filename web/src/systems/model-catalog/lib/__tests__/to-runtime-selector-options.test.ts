@@ -13,6 +13,7 @@ function payload(
 ): ProviderModelPayload {
   return {
     provider_id: "codex",
+    default: false,
     availability_state: "available_live",
     available: true,
     curated: true,
@@ -116,7 +117,13 @@ describe("toRuntimeModelOptions", () => {
 
     expect(result.find(option => option.id === "unknown-false")?.availability).toBe("unavailable");
     expect(result.find(option => option.id === "unknown-true")?.availability).toBe("live");
-    expect(result.find(option => option.id === "unknown-null")?.availability).toBe("live");
+    expect(result.find(option => option.id === "unknown-null")?.availability).toBe("unavailable");
+  });
+
+  it("Should preserve the effective Compozy default marker", () => {
+    const [option] = toRuntimeModelOptions([payload({ model_id: "gpt", default: true })]);
+
+    expect(option.default).toBe(true);
   });
 
   it("Should mark unavailable models as disabled with an Unavailable reason", () => {

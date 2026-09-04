@@ -186,6 +186,11 @@ func findReasoningConfigOption(options []SessionConfigOption) (SessionConfigOpti
 	return findSelectConfigOptionByCategory(options, string(acpsdk.SessionConfigOptionCategoryThoughtLevel))
 }
 
+// ReasoningConfigOption returns the ACP select option that controls reasoning effort.
+func ReasoningConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
+	return findReasoningConfigOption(options)
+}
+
 func findSelectConfigOptionByCategory(options []SessionConfigOption, category string) (SessionConfigOption, bool) {
 	for _, option := range options {
 		if option.Kind == SessionConfigOptionKindSelect && strings.TrimSpace(option.Category) == category {

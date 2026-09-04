@@ -45,7 +45,7 @@ function toAvailability(state: string, available: boolean | null | undefined): R
     case "unavailable_stale":
       return "unavailable";
     default:
-      return available === false ? "unavailable" : "live";
+      return available === true ? "live" : "unavailable";
   }
 }
 
@@ -182,6 +182,7 @@ export function toRuntimeModelOptions(
       id,
       provider: model.provider_id,
       name: model.display_name?.trim() || id,
+      default: model.default,
       context_window: model.context_window ?? null,
       cost_input: model.cost?.input_per_million ?? null,
       cost_output: model.cost?.output_per_million ?? null,

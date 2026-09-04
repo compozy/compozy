@@ -107911,6 +107911,9 @@
                           "curated": {
                             "type": "boolean"
                           },
+                          "default": {
+                            "type": "boolean"
+                          },
                           "default_reasoning_effort": {
                             "enum": [
                               "none",
@@ -108037,6 +108040,7 @@
                           "availability_state",
                           "available",
                           "curated",
+                          "default",
                           "deprecated",
                           "featured",
                           "hidden",
@@ -108948,6 +108952,9 @@
                           "curated": {
                             "type": "boolean"
                           },
+                          "default": {
+                            "type": "boolean"
+                          },
                           "default_reasoning_effort": {
                             "enum": [
                               "none",
@@ -109074,6 +109081,7 @@
                           "availability_state",
                           "available",
                           "curated",
+                          "default",
                           "deprecated",
                           "featured",
                           "hidden",
@@ -109792,6 +109800,9 @@
                         "curated": {
                           "type": "boolean"
                         },
+                        "default": {
+                          "type": "boolean"
+                        },
                         "default_reasoning_effort": {
                           "enum": [
                             "none",
@@ -109918,6 +109929,7 @@
                         "availability_state",
                         "available",
                         "curated",
+                        "default",
                         "deprecated",
                         "featured",
                         "hidden",
@@ -117642,6 +117654,9 @@
                                 },
                                 "type": "object"
                               },
+                              "default": {
+                                "type": "boolean"
+                              },
                               "default_reasoning_effort": {
                                 "enum": [
                                   "none",
@@ -117716,6 +117731,7 @@
                             "required": [
                               "availability_state",
                               "available",
+                              "default",
                               "model_id",
                               "provider_id",
                               "sources",

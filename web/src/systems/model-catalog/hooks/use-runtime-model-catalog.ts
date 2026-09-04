@@ -9,7 +9,7 @@ import type { RuntimeModelOption } from "@/systems/runtime";
 
 export interface RuntimeCatalogProvider {
   id: string;
-  /** When the provider needs sign-in every one of its model rows is disabled. */
+  /** Providers that need sign-in contribute no selectable model rows. */
   needsAuth?: boolean;
 }
 
@@ -39,12 +39,16 @@ function describeCatalogError(error: unknown): string {
   return "Failed to load provider models.";
 }
 
+function isSelectableCatalogModel(model: ProviderModelPayload, needsAuth: boolean): boolean {
+  return !needsAuth && model.available === true && model.startable !== false;
+}
+
 /**
  * Load the cross-provider catalog with a SINGLE aggregate `view=all` request
  * (`GET /api/model-catalog/models`) rather than fanning out per provider. Rows
  * are filtered down to the providers a surface allows — a workspace agent or
  * session flow can therefore never select a provider outside its workspace
- * provider set — and each row is disabled when its provider needs sign-in.
+ * provider set — and only rows confirmed by an availability authority are shown.
  * Browsing shows the curated subset while search reaches the full set; both span
  * every allowed provider per `_spec.md` §6.1 behavior rule 4. Refresh targets the
  * aggregate refresh endpoint so the visible affordance truthfully refreshes the
@@ -59,7 +63,7 @@ export function useRuntimeModelCatalog(
   const refreshMutation = useRefreshAllModels();
 
   // Ordered allow-list: preserves the surface's provider order and carries each
-  // provider's auth state so rows for a signed-out provider render disabled.
+  // provider's auth state so signed-out providers contribute no selector rows.
   const allowed = new Map<string, boolean>();
   for (const provider of providers) {
     const id = provider.id.trim();
@@ -80,14 +84,23 @@ export function useRuntimeModelCatalog(
   for (const [providerId, needsAuth] of allowed) {
     const bucket = payloadsByProvider[providerId];
     if (!bucket) continue;
-    models.push(...toRuntimeModelOptions(bucket, { providerNeedsAuth: needsAuth }));
+    const selectable = bucket.filter(model => isSelectableCatalogModel(model, needsAuth));
+    models.push(...toRuntimeModelOptions(selectable));
   }
 
-  const stale = Object.values(payloadsByProvider).some(bucket => bucket.some(model => model.stale));
+  const stale = [...allowed].some(([providerId, needsAuth]) =>
+    (payloadsByProvider[providerId] ?? []).some(
+      model => isSelectableCatalogModel(model, needsAuth) && model.stale
+    )
+  );
   const missingAllowedProvider =
     query.isSuccess &&
     [...allowed].some(
-      ([providerId, needsAuth]) => !needsAuth && payloadsByProvider[providerId] === undefined
+      ([providerId, needsAuth]) =>
+        !needsAuth &&
+        !(payloadsByProvider[providerId] ?? []).some(model =>
+          isSelectableCatalogModel(model, needsAuth)
+        )
     );
   const initialRefresh = useInitialModelCatalogRefresh({
     enabled,

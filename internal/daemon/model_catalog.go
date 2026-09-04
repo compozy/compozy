@@ -355,13 +355,11 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 	if err != nil {
 		return err
 	}
-	reasoningApply, err := effectiveCatalogReasoningApply(&state.cfg)
+	mergeOptions, err := effectiveCatalogMergeOptions(&state.cfg)
 	if err != nil {
 		return err
 	}
-	service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{
-		ReasoningApply: reasoningApply,
-	})
+	service, err := modelcatalog.NewService(store, sources, mergeOptions)
 	if err != nil {
 		return fmt.Errorf("daemon: create model catalog service: %w", err)
 	}

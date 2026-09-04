@@ -57,6 +57,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			ProviderID:             "codex",
 			ModelID:                "gpt-5.4",
 			DisplayName:            "GPT-5.4",
+			Default:                true,
 			Available:              nil,
 			AvailabilityState:      modelcatalog.AvailabilityStateUnknown,
 			Stale:                  true,
@@ -101,6 +102,9 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		if payload.DefaultReasoningEffort == nil || *payload.DefaultReasoningEffort != "high" {
 			t.Fatalf("DefaultReasoningEffort = %#v, want high", payload.DefaultReasoningEffort)
 		}
+		if !payload.Default {
+			t.Fatal("Default = false, want true")
+		}
 		if len(payload.Configurations) != 1 || payload.Configurations[0].ReasoningEffort == nil ||
 			*payload.Configurations[0].ReasoningEffort != contract.ReasoningEffort("high") ||
 			payload.Configurations[0].Fast == nil || !*payload.Configurations[0].Fast {
@@ -125,6 +129,11 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		if strings.Contains(string(encoded), "private-provider-alias") ||
 			strings.Contains(string(encoded), "transport_model_id") {
 			t.Fatalf("payload JSON leaked private transport binding: %s", encoded)
+		}
+
+		openAIPayload := OpenAIModelPayloadFromModel(model)
+		if !openAIPayload.Compozy.Default {
+			t.Fatal("OpenAI Compozy.Default = false, want true")
 		}
 	})
 

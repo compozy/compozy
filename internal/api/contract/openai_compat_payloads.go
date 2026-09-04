@@ -19,6 +19,7 @@ type OpenAIModelPayload struct {
 type OpenAIModelCompozyPayload struct {
 	ProviderID             string                   `json:"provider_id"`
 	ModelID                string                   `json:"model_id"`
+	Default                bool                     `json:"default"`
 	DisplayName            string                   `json:"display_name,omitempty"`
 	Sources                []string                 `json:"sources"`
 	Available              *bool                    `json:"available"`

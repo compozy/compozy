@@ -93,7 +93,7 @@ func (s *LiveProviderSource) listACP(
 			s.providerID,
 		)
 	}
-	return rows, nil
+	return applyACPConfigOptions(rows, options), nil
 }
 
 func nativeCLIACPEnv(

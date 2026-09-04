@@ -24,6 +24,7 @@ func ProviderModel(model modelcatalog.Model) contract.ProviderModelPayload {
 	payload := contract.ProviderModelPayload{
 		ProviderID:             model.ProviderID,
 		ModelID:                model.ModelID,
+		Default:                model.Default,
 		DisplayName:            model.DisplayName,
 		Sources:                SourceRefs(model.Sources),
 		Available:              model.Available,

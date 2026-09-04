@@ -230,6 +230,21 @@ describe("RuntimeSelector single-button trigger", () => {
     expect(trigger).toHaveAttribute("data-open", "false");
   });
 
+  it("Should show the concrete model carrying the Compozy default", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [model("gpt-a", { name: "GPT A", default: true })],
+    });
+
+    expect(screen.getByTestId("rt-trigger")).toHaveTextContent("GPT A");
+    await openSelector(user);
+
+    expect(row("gpt-a")).toHaveTextContent("GPT A");
+    expect(row("gpt-a")).toHaveTextContent("Default");
+    expect(row("gpt-a")).toHaveAttribute("aria-selected", "true");
+  });
+
   it.each([
     ["Meta", "metaKey"],
     ["Control", "ctrlKey"],
@@ -1982,7 +1997,7 @@ describe("RuntimeSelector provider rail filtering", () => {
 // ---------------------------------------------------------------------------
 
 describe("RuntimeSelector single-line row", () => {
-  it("Should render no metadata chips — the name is the only visible row text", async () => {
+  it("Should omit rich metadata from the compact model row", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },

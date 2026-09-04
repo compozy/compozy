@@ -110,18 +110,30 @@ func TestLiveProviderSources(t *testing.T) {
 		provider := compozyconfig.BuiltinProviders()["claude"]
 		provider.Command = "claude-acp"
 		provider.AuthMode = compozyconfig.ProviderAuthModeNone
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
-			ID:       "model",
-			Category: "model",
-			Kind:     acp.SessionConfigOptionKindSelect,
-			Values: []acp.SessionConfigOptionValue{
-				{Value: "default", Label: "Default"},
-				{Value: "sonnet", Label: "Sonnet"},
-				{Value: "opus[1m]", Label: "Opus 5 1M"},
-				{Value: "haiku", Label: "Haiku"},
-				{Value: "claude-future-6", Label: "Claude Future 6"},
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{
+			{
+				ID:       "model",
+				Category: "model",
+				Kind:     acp.SessionConfigOptionKindSelect,
+				Values: []acp.SessionConfigOptionValue{
+					{Value: "default", Label: "Default"},
+					{Value: "sonnet", Label: "Sonnet"},
+					{Value: "opus[1m]", Label: "Opus 5 1M"},
+					{Value: "haiku", Label: "Haiku"},
+					{Value: "claude-future-6", Label: "Claude Future 6"},
+				},
 			},
-		}}}
+			{
+				ID:             "thinking_level",
+				Category:       "thought_level",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "high",
+				Values: []acp.SessionConfigOptionValue{
+					{Value: "low", Label: "Low"},
+					{Value: "high", Label: "High"},
+				},
+			},
+		}}
 		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
 			BaseEnv:  []string{"PATH=/bin"},
 			ACPProbe: probe,
@@ -145,6 +157,28 @@ func TestLiveProviderSources(t *testing.T) {
 		sonnet := requireModelRow(t, rows, "claude-sonnet-5")
 		if sonnet.DisplayName != "Claude Sonnet 5" {
 			t.Fatalf("Claude Sonnet display name = %q, want canonical seed label", sonnet.DisplayName)
+		}
+		if got, want := sonnet.ReasoningEfforts, []ReasoningEffort{
+			ReasoningEffortLow,
+			ReasoningEffortHigh,
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("Claude Sonnet reasoning efforts = %#v, want %#v", got, want)
+		}
+		if sonnet.DefaultReasoningEffort == nil || *sonnet.DefaultReasoningEffort != ReasoningEffortHigh {
+			t.Fatalf("Claude Sonnet default reasoning effort = %v, want high", sonnet.DefaultReasoningEffort)
+		}
+		if len(sonnet.ConfigOptions) != 2 {
+			t.Fatalf("Claude Sonnet config options = %#v, want model and reasoning descriptors", sonnet.ConfigOptions)
+		}
+		merged := requireSingleModel(t, MergeRows(
+			[]ModelRow{sonnet},
+			MergeOptions{ReasoningApply: map[string]bool{"claude": true}},
+		))
+		if merged.ReasoningSource != ReasoningSourceACP {
+			t.Fatalf("Claude Sonnet reasoning source = %q, want acp", merged.ReasoningSource)
 		}
 		assertClaudeTransportBinding(t, sonnet, "default")
 		assertClaudeTransportBinding(t, sonnet, "sonnet")

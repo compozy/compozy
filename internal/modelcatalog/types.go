@@ -169,6 +169,7 @@ type SourceRef struct {
 type Model struct {
 	ProviderID               string
 	ModelID                  string
+	Default                  bool
 	DisplayName              string
 	Sources                  []SourceRef
 	Available                *bool

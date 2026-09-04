@@ -4,9 +4,9 @@ area: RT
 title: Model picker offers only models a session can start
 persona: Ada
 journey: J-session-start
-expected: Every Claude row the picker leaves enabled starts a session; when live discovery is degraded, those rows render disabled with a stated reason, the provider default still starts, and no enabled row is refused at session start.
+expected: The picker shows only models confirmed available and startable by live discovery, marks the concrete Compozy default model, exposes ACP reasoning levels, and every visible row starts a session; signed-out providers and metadata-only rows remain absent from the picker but inspectable through the catalog API.
 entry_points: web model picker; GET /api/model-catalog/models; POST /api/workspaces/:workspace_id/sessions
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -20,11 +20,15 @@ With Claude Code reachable, read `GET /api/model-catalog/models?provider_id=clau
 every row carrying a fresh `provider_live:claude` source reports `"startable": true`. Start a session on
 one of those models and confirm it launches.
 
+Confirm the API marks the model resolved from `providers.claude.models.default` with `"default": true`,
+projects the ACP reasoning selector as `"reasoning_source": "acp"`, and the picker renders the concrete
+model name with its Default marker and reasoning controls.
+
 Then degrade live discovery: point `providers.claude.command` at a command that never answers, refresh the
-catalog, and re-read the list. The same rows must now report `"startable": false` with
-`"start_blocked_reason": "live_discovery_unavailable"`, the picker must render them disabled with a stated
-reason rather than hiding them, and the provider default must still start a session. Confirm no row the
-picker leaves enabled is refused by session start.
+catalog, and re-read the list. The same rows must report `"startable": false` with
+`"start_blocked_reason": "live_discovery_unavailable"`, remain inspectable through the API, and disappear
+from the picker. Repeat with a configured but signed-out provider and confirm its metadata-only rows do
+not appear. Confirm no row the picker leaves visible is refused by session start.
 
 Finally, curate one model from settings (toggle `hidden`) and confirm the other curated models keep their
 display names, context windows, and prices — a one-model edit must not flatten the rest of the set.
@@ -35,3 +39,6 @@ startable under their logical ids while thirteen `models_dev`-only rows stayed b
 left the other four intact; and a session pinned to `claude-sonnet-5` reached `active`. Browser verification
 of the disabled badge was blocked (no browser CLI on the host) and is covered by the selector unit suite
 instead. See `docs/qa/reports/2026-09-04-model-picker-startability.md`.
+
+QA impact 2026-09-04: the picker now omits signed-out and metadata-only rows, marks the concrete Compozy
+default, and projects reasoning levels discovered from ACP. Reset for API and browser verification.

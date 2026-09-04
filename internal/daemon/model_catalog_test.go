@@ -377,6 +377,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			containsCatalogModel(result.models, "cursor", "live-a") {
 			t.Fatalf("ListModels(after config B) = %#v, want only generation B rows", result.models)
 		}
+		defaultModel, ok := findCatalogModel(result.models, "config-b")
+		if !ok || !defaultModel.Default {
+			t.Fatalf("config-b model = %#v, want effective Compozy default", defaultModel)
+		}
 		if got, want := probe.commands(), []string{"cursor-a", "cursor-b"}; !slices.Equal(got, want) {
 			t.Fatalf("discovery commands = %#v, want %#v", got, want)
 		}

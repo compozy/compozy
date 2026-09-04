@@ -44,6 +44,7 @@ type ProviderModelStatusResponse struct {
 type ProviderModelPayload struct {
 	ProviderID             string                              `json:"provider_id"`
 	ModelID                string                              `json:"model_id"`
+	Default                bool                                `json:"default"`
 	DisplayName            string                              `json:"display_name,omitempty"`
 	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
 	Available              *bool                               `json:"available"`

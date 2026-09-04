@@ -1,6 +1,9 @@
 package modelcatalog
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOptions) {
 	profileRow, hasProfile := explicitReasoningProfileRow(rows)
@@ -14,7 +17,7 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 			value := true
 			model.SupportsReasoning = &value
 		}
-		model.ReasoningSource = reasoningSourceForKind(profileRow.SourceKind)
+		model.ReasoningSource = reasoningSourceForRow(profileRow)
 	}
 	if defaultEffort := explicitDefaultReasoningEffort(rows); defaultEffort != nil &&
 		slices.Contains(model.ReasoningEfforts, *defaultEffort) {
@@ -53,11 +56,22 @@ func explicitDefaultReasoningEffort(rows []ModelRow) *ReasoningEffort {
 	return nil
 }
 
-func reasoningSourceForKind(kind SourceKind) ReasoningSource {
-	if kind == SourceKindACPSession {
+func reasoningSourceForRow(row ModelRow) ReasoningSource {
+	if row.SourceKind == SourceKindACPSession ||
+		(row.SourceKind == SourceKindProviderLive && hasACPReasoningOption(row.ConfigOptions)) {
 		return ReasoningSourceACP
 	}
 	return ReasoningSourceCatalog
+}
+
+func hasACPReasoningOption(options []ModelOptionDescriptor) bool {
+	for _, option := range options {
+		id := strings.TrimSpace(option.ID)
+		if id == "reasoning_effort" || id == "effort" || strings.TrimSpace(option.Category) == "thought_level" {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneBoolPtr(value *bool) *bool {

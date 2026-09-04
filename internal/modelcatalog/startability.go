@@ -35,10 +35,9 @@ func ModelStartability(model Model) (bool, StartBlockedReason) {
 	if model.Available != nil && !*model.Available {
 		return false, StartBlockedUnavailable
 	}
-	// Providers addressed by a logical id resolve it through a transport binding the
-	// live agent advertises. Without a fresh binding the id cannot reach the agent,
-	// whatever the offline sources claim about the model.
-	if !ProviderRequiresLiveBinding(model.ProviderID) {
+	// Some providers' offline (builtin/config/models_dev) rows are placeholders that must
+	// never outrank what the live agent, once reachable, actually offers.
+	if !ProviderRequiresLiveConfirmation(model.ProviderID) {
 		return true, ""
 	}
 	source, found := ProviderLiveSourceRef(model)
@@ -47,7 +46,12 @@ func ModelStartability(model Model) (bool, StartBlockedReason) {
 		return false, StartBlockedLiveDiscoveryUnavailable
 	case source.Stale:
 		return false, StartBlockedLiveDiscoveryStale
-	case !modelHasTransportBinding(model):
+	}
+	// Beyond live confirmation, a provider addressed by a CompozyOS logical id also needs a
+	// transport binding the live agent advertises, since the logical id itself never reaches
+	// the agent. Providers without that split (their model id IS the transport id) need
+	// nothing more than the fresh source above.
+	if ProviderRequiresLiveBinding(model.ProviderID) && !modelHasTransportBinding(model) {
 		return false, StartBlockedNotAdvertised
 	}
 	return true, ""

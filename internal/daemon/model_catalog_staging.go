@@ -19,18 +19,18 @@ type stagedLiveProviderConfigs struct {
 }
 
 type stagedModelCatalogGeneration struct {
-	service        modelCatalogGenerationService
-	plan           *modelcatalog.RefreshPlan
-	providers      map[string]compozyconfig.ProviderConfig
-	reasoningApply map[string]bool
-	live           stagedLiveProviderConfigs
+	service      modelCatalogGenerationService
+	plan         *modelcatalog.RefreshPlan
+	providers    map[string]compozyconfig.ProviderConfig
+	mergeOptions modelcatalog.MergeOptions
+	live         stagedLiveProviderConfigs
 }
 
 func (r *modelCatalogRuntime) stageModelCatalogGeneration(
 	ctx context.Context,
 	cfg *compozyconfig.Config,
 ) (stagedModelCatalogGeneration, error) {
-	reasoningApply, err := effectiveCatalogReasoningApply(cfg)
+	mergeOptions, err := effectiveCatalogMergeOptions(cfg)
 	if err != nil {
 		return stagedModelCatalogGeneration{}, err
 	}
@@ -67,11 +67,11 @@ func (r *modelCatalogRuntime) stageModelCatalogGeneration(
 		return stagedModelCatalogGeneration{}, err
 	}
 	return stagedModelCatalogGeneration{
-		service:        service,
-		plan:           plan,
-		providers:      providers,
-		reasoningApply: reasoningApply,
-		live:           live,
+		service:      service,
+		plan:         plan,
+		providers:    providers,
+		mergeOptions: mergeOptions,
+		live:         live,
 	}, nil
 }
 
@@ -140,7 +140,7 @@ func refreshStagedLive(
 func (r *modelCatalogRuntime) publishModelCatalogGeneration(generation stagedModelCatalogGeneration) {
 	r.configSource.ReplaceProviders(generation.providers)
 	if updater, ok := r.service.(modelCatalogMergeOptionsUpdater); ok {
-		updater.UpdateMergeOptions(modelcatalog.MergeOptions{ReasoningApply: generation.reasoningApply})
+		updater.UpdateMergeOptions(generation.mergeOptions)
 	}
 	for providerID, source := range r.liveSources {
 		source.ReplaceProvider(generation.live.effective[providerID])

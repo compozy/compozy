@@ -25,6 +25,7 @@ function payload(
   return {
     provider_id: providerId,
     model_id: modelId,
+    default: false,
     availability_state: "available_live",
     available: true,
     curated: true,
@@ -118,7 +119,7 @@ describe("useRuntimeModelCatalog", () => {
     });
   });
 
-  it("Should disable every row of a needs-auth provider", async () => {
+  it("Should hide every row of a needs-auth provider", async () => {
     mockModels([payload("codex", "gpt-5.6")]);
 
     const { result } = renderHook(
@@ -126,9 +127,34 @@ describe("useRuntimeModelCatalog", () => {
       { wrapper: createWrapper() }
     );
 
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.models).toEqual([]);
+    expect(vi.mocked(refreshAllModels)).not.toHaveBeenCalled();
+  });
+
+  it("Should refresh when an allowed provider has only unconfirmed metadata", async () => {
+    const offline = payload("codex", "gpt-offline", {
+      availability_state: "unknown",
+      available: null,
+    });
+    const live = payload("codex", "gpt-live");
+    vi.mocked(listAllModels)
+      .mockResolvedValueOnce({ models: [offline] } as Awaited<ReturnType<typeof listAllModels>>)
+      .mockResolvedValueOnce({ models: [offline, live] } as Awaited<
+        ReturnType<typeof listAllModels>
+      >);
+    vi.mocked(refreshAllModels).mockResolvedValue({ sources: [] } as Awaited<
+      ReturnType<typeof refreshAllModels>
+    >);
+
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "codex" }]), {
+      wrapper: createWrapper(),
+    });
+
     await waitFor(() => expect(result.current.models).toHaveLength(1));
-    expect(result.current.models[0]?.disabled).toBe(true);
-    expect(result.current.models[0]?.disabled_reason).toBe("Sign in");
+    expect(result.current.models.map(model => model.id)).toEqual(["gpt-live"]);
+    expect(vi.mocked(refreshAllModels)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(listAllModels)).toHaveBeenCalledTimes(2);
   });
 
   it("Should project a stale source as stale", async () => {

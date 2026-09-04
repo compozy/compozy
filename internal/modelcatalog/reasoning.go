@@ -67,14 +67,24 @@ func IsValidEffort(value string) bool {
 // MergeOptions supplies provider capabilities needed to keep catalog claims truthful.
 type MergeOptions struct {
 	ReasoningApply map[string]bool
+	DefaultModels  map[string]string
 }
 
 func (o MergeOptions) canApplyReasoning(providerID string) bool {
 	return o.ReasoningApply[strings.TrimSpace(providerID)]
 }
 
+func (o MergeOptions) isDefaultModel(providerID string, modelID string) bool {
+	defaultModel := strings.TrimSpace(o.DefaultModels[strings.TrimSpace(providerID)])
+	return defaultModel != "" && defaultModel == strings.TrimSpace(modelID)
+}
+
 func cloneMergeOptions(options MergeOptions) MergeOptions {
-	cloned := MergeOptions{ReasoningApply: make(map[string]bool, len(options.ReasoningApply))}
+	cloned := MergeOptions{
+		ReasoningApply: make(map[string]bool, len(options.ReasoningApply)),
+		DefaultModels:  make(map[string]string, len(options.DefaultModels)),
+	}
 	maps.Copy(cloned.ReasoningApply, options.ReasoningApply)
+	maps.Copy(cloned.DefaultModels, options.DefaultModels)
 	return cloned
 }

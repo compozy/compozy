@@ -220,6 +220,10 @@ refreshes keep the last successful rows as stale data. An explicit curated set m
 out of the default view, so use `view=all` before concluding it is absent. OpenClaw is provider-managed
 and exposes no fabricated model controls. Refresh through `compozy__provider_models_refresh` or
 `compozy provider models refresh <provider>`.
+Treat curation as browse metadata, not availability. Interactive pickers show only rows confirmed
+available by an availability authority and startable by the runtime; signed-out providers and
+metadata-only rows remain visible through catalog inspection instead. The public `default` field marks the concrete model resolved from
+`providers.<id>.models.default`, and ACP reasoning options are projected as `reasoning_source=acp`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only
 writes do not invoke the provider.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.

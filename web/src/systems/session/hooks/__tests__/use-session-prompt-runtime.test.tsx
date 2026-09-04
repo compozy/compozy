@@ -41,6 +41,7 @@ import { useSessionPromptRuntime } from "../use-session-prompt-runtime";
 
 function model(providerId: string, modelId: string): ProviderModelPayload {
   return {
+    default: false,
     availability_state: "available_live",
     available: true,
     startable: true,
@@ -167,10 +168,7 @@ describe("useSessionPromptRuntime", () => {
     expect(result.current.catalog.models.find(entry => entry.provider === "codex")?.disabled).toBe(
       false
     );
-    expect(result.current.catalog.models.find(entry => entry.provider === "groq")).toMatchObject({
-      disabled: true,
-      disabled_reason: "Sign in",
-    });
+    expect(result.current.catalog.models.some(entry => entry.provider === "groq")).toBe(false);
     expect(result.current.catalog.models.some(entry => entry.provider === "claude")).toBe(false);
 
     act(() => {

@@ -4301,6 +4301,7 @@ export type ReasoningSource = "acp" | "catalog";
 export interface ProviderModelPayload {
   provider_id: string;
   model_id: string;
+  default: boolean;
   display_name?: string;
   sources: ModelCatalogSourceRefPayload[];
   available?: boolean;

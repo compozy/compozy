@@ -59,9 +59,11 @@ without a CompozyOS code change when the provider advertises it through ACP, `cu
 configured discovery source, or an extension `model.source`. The built-in catalog is only an offline
 fallback; it includes Claude Opus 5 so that model remains visible before the first successful live refresh.
 
-An explicit `models.curated` set still controls the default curated view. A newly discovered model may
-first appear only under `view=all` until it is featured or added to that set. OpenClaw is provider-managed:
-its Gateway owns model selection, so CompozyOS does not fabricate catalog controls for it.
+An explicit `models.curated` set still controls the default browse view. It is presentation policy:
+it keeps the picker focused and lets operators hide, feature, label, or price known models. It is not
+proof that the current provider account can use a model. A newly discovered model may first appear only
+under `view=all` until it is featured or added to that set. OpenClaw is provider-managed: its Gateway owns
+model selection, so CompozyOS does not fabricate catalog controls for it.
 
 `models.curated` entries overlay the built-in set **by model id**. An entry sets only the fields you
 write and leaves the rest of that model's built-in metadata in place, and models you never mention stay
@@ -88,15 +90,21 @@ live truth is visible instead of collapsed:
 | `unknown`            | Only catalog/builtin/config metadata is known.                     | `null`          | depends     |
 
 Manual model entry remains valid even when no source advertises the model. `models.curated` is
-metadata, never an allowlist.
+metadata, never an allowlist. Interactive model pickers are stricter than catalog inspection: they show
+only rows whose availability authority reports `available: true`, and omit signed-out providers and
+metadata-only rows with unknown availability. Use `view=all` through the API or CLI to inspect those rows.
 
 ## Startability
 
 Availability describes what the sources reported. `startable` answers a narrower question: can a
-session launch against this row right now. The two differ for `claude` and `cursor`, whose models
-carry a CompozyOS logical id that only reaches the agent through a transport id discovered from the
-live agent. For those providers an offline row names a model the runtime cannot address, so it is not
-startable however complete its metadata looks.
+session launch against this row right now. It differs from availability for every provider whose
+models are addressed by a CompozyOS logical id and require the agent itself, once reachable, to
+confirm that id — `claude` and `cursor`, whose logical ids only resolve through a transport id the
+live agent discovers, and the native-CLI ACP providers `codex`, `opencode`, `hermes`, and `pi`, whose
+curated or built-in rows are placeholders until a live session actually offers them. For those
+providers an offline row names a model that has never been confirmed, so it is not startable however
+complete its metadata looks — this is what keeps a signed-out Codex or OpenCode account from
+presenting its entire catalog as ready to use.
 
 | `start_blocked_reason`       | Meaning                                                     |
 | ---------------------------- | ----------------------------------------------------------- |
@@ -105,11 +113,13 @@ startable however complete its metadata looks.
 | `live_discovery_stale`       | The provider's live source is serving stale rows.           |
 | `not_advertised`             | A fresh live source did not advertise the model.            |
 
-Every other provider stays startable on offline metadata, since its model ids reach the API unchanged.
+Every other provider stays startable on offline metadata, since its model ids reach the API unchanged
+and nothing about them depends on a live agent's own confirmation.
 
-The model picker and session start read this same verdict, so the picker cannot offer a model the
-runtime will then refuse. When live discovery is degraded, affected rows render disabled with the
-reason instead of disappearing, and the provider default still starts. Raise
+The model picker requires both `available: true` and `startable: true`, so it cannot offer a model the
+runtime will then refuse. When live discovery is degraded or the provider is signed out, affected rows
+do not appear in the picker; they remain inspectable through catalog APIs with their structured reason.
+Raise
 `providers.<id>.models.discovery.timeout` when a cold first refresh needs longer than the ten-second
 default.
 
@@ -171,6 +181,7 @@ The native list response shape is:
       "provider_id": "codex",
       "model_id": "gpt-5.6-sol",
       "display_name": "GPT-5.6 Sol",
+      "default": true,
       "sources": [
         {
           "source_id": "config",
@@ -213,7 +224,7 @@ The native list response shape is:
       "hidden": false,
       "featured": true,
       "release_date": "2026-06-26",
-      "reasoning_source": "catalog"
+      "reasoning_source": "acp"
     }
   ]
 }
@@ -234,8 +245,10 @@ fields; omitted fields remain unpriced:
 }
 ```
 
-The built-in curated seeds are metadata, not an account-level availability promise. ACP live options
-remain authoritative when a session starts.
+The `default` field marks the concrete model selected by `providers.<id>.models.default`; the picker
+renders that marker beside the model name instead of presenting an unnamed default choice. The built-in
+curated seeds are metadata, not an account-level availability promise. ACP live model and reasoning
+options remain authoritative when a session starts.
 
 | Provider | Canonical model ID          | Flags             | Context / output    | Input / output $ per MTok | Seeded efforts                            |
 | -------- | --------------------------- | ----------------- | ------------------- | ------------------------- | ----------------------------------------- |
