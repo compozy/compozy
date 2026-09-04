@@ -298,6 +298,67 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should finish an active transcript recovery before applying a terminal frame", async () => {
+    vi.useFakeTimers();
+    let recoveryResolved = false;
+    let abortedBeforeResolution = false;
+    let resolveRecovery: ((response: NormalizedSessionTranscriptResponse) => void) | undefined;
+    vi.mocked(fetchSessionTranscript)
+      .mockRejectedValueOnce(new Error("transcript endpoint returned 500"))
+      .mockImplementationOnce(
+        (_workspaceId, _sessionId, _query, signal) =>
+          new Promise((resolve, reject) => {
+            resolveRecovery = resolve;
+            signal?.addEventListener(
+              "abort",
+              () => {
+                abortedBeforeResolution = !recoveryResolved;
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          })
+      );
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.isError).toBe(true));
+      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(2));
+    });
+
+    act(() => {
+      sources[0]?.emit(
+        "session_stopped",
+        {
+          agent_name: primarySessionFixture.agent_name,
+          content: {},
+          id: "session-stopped-during-recovery",
+          sequence: 2,
+          session_id: SESSION_ID,
+          spawn_depth: 0,
+          timestamp: "2026-07-07T12:00:00Z",
+          turn_id: "turn-terminal",
+          type: "session_stopped",
+        },
+        "2"
+      );
+    });
+
+    expect(sources[0]?.closed).toBe(true);
+    expect(abortedBeforeResolution).toBe(false);
+    expect(resolveRecovery).toBeTypeOf("function");
+
+    await act(async () => {
+      recoveryResolved = true;
+      resolveRecovery?.(transcriptResponse([sessionTranscriptFixture[0]!]));
+      await vi.waitFor(() => expect(result.current.messages).toHaveLength(1));
+    });
+    expect(abortedBeforeResolution).toBe(false);
+  });
+
   it("Should append older pages and preserve them across a same-fence snapshot", async () => {
     vi.mocked(fetchSessionTranscript)
       .mockResolvedValueOnce(

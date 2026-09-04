@@ -162,6 +162,9 @@ export function completePendingTerminal(
 ): SessionLiveTailContext {
   const terminal = context.pendingTerminal;
   if (!terminal) return context;
+  if (context.queryRecoveryPhase === "refreshing") {
+    return { ...context, applyPhase: "idle" };
+  }
 
   enqueue.effect(({ trigger }) => {
     const handles = handlesByTrigger.get(trigger);

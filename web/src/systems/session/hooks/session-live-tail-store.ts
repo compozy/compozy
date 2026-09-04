@@ -318,7 +318,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         const terminalContext: SessionLiveTailContext = {
           ...context,
           pendingTerminal: { payload: event.payload, sequence: event.sequence },
-          queryRecoveryPhase: "idle",
+          queryRecoveryPhase: context.queryRecoveryPhase === "refreshing" ? "refreshing" : "idle",
           surfaceRefreshScheduled: false,
           transportPhase: "terminal",
         };
@@ -392,14 +392,26 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         });
         return { ...context, queryRecoveryPhase: "refreshing" };
       },
-      queryRecoverySucceeded: (context, event) => {
+      queryRecoverySucceeded: (context, event, enqueue) => {
         if (
           event.generation !== context.generation ||
           context.queryRecoveryPhase !== "refreshing"
         ) {
           return;
         }
-        return { ...context, lastTranscriptError: null, queryRecoveryPhase: "idle" };
+        const recoveredContext = {
+          ...context,
+          lastTranscriptError: null,
+          queryRecoveryPhase: "idle" as const,
+        };
+        if (
+          context.pendingTerminal &&
+          context.applyPhase === "idle" &&
+          context.pendingFrames.length === 0
+        ) {
+          return completePendingTerminal(recoveredContext, enqueue);
+        }
+        return recoveredContext;
       },
       queryRecoveryFailed: (context, event, enqueue) => {
         if (
@@ -416,8 +428,16 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
             scheduleQueryRecovery(handles, trigger, context.generation);
           }
         });
+        const recoveredContext = { ...context, queryRecoveryPhase: "idle" as const };
+        if (
+          context.pendingTerminal &&
+          context.applyPhase === "idle" &&
+          context.pendingFrames.length === 0
+        ) {
+          return completePendingTerminal(recoveredContext, enqueue);
+        }
         return {
-          ...context,
+          ...recoveredContext,
           queryRecoveryPhase:
             context.transportPhase === "disabled" || context.transportPhase === "terminal"
               ? "idle"
