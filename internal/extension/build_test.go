@@ -981,6 +981,26 @@ func TestScaffoldExtension(t *testing.T) {
 		releaseReferences.typescript != "0.3.0-beta.7" {
 		t.Fatalf("release SDK references = %#v, want release-aligned versions", releaseReferences)
 	}
+	// Development stamps that `semver.IsValid` accepts must still resolve the
+	// checkout's SDKs: an all-digit short commit hash and describe suffixes.
+	for _, buildVersion := range []string{"42917551", "v0.3.0-4-g1a2b3c4", "v0.3.0-beta.7-dirty", "dev"} {
+		t.Run("Should use checkout SDKs for "+buildVersion, func(t *testing.T) {
+			t.Parallel()
+
+			developmentReferences, err := resolveScaffoldSDKReferences(buildVersion, "")
+			if err != nil {
+				t.Fatalf("resolveScaffoldSDKReferences(%q) error = %v", buildVersion, err)
+			}
+			if developmentReferences.goVersion != "v0.0.0" || developmentReferences.goReplace == "" ||
+				!strings.HasPrefix(developmentReferences.typescript, "file:") {
+				t.Fatalf(
+					"SDK references for %q = %#v, want development checkout references",
+					buildVersion,
+					developmentReferences,
+				)
+			}
+		})
+	}
 
 	for _, template := range expectedTemplates {
 		t.Run("Should Render "+string(template)+" Without Dual Declaration", func(t *testing.T) {
