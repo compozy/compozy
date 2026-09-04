@@ -1777,6 +1777,41 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve prompt failure for model token limit errors", func(t *testing.T) {
+		t.Parallel()
+		const diagnostic = "maximum token count exceeded for the model context window"
+		sessions := &loopActionBinderSessionManager{
+			events: []acp.AgentEvent{
+				{
+					Type:  acp.EventTypeError,
+					Error: diagnostic,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: diagnostic,
+					},
+					Text: diagnostic,
+				},
+			},
+		}
+		_, err := collectLoopPromptResult(
+			t.Context(),
+			sessions,
+			"sess-1",
+			looppkg.ActionPromptRequest{Message: "hello"},
+		)
+		if err == nil {
+			t.Fatal("collectLoopPromptResult() error = nil, want prompt error")
+		}
+		safeErr, ok := err.(looppkg.SafeActionFailureProvider)
+		if !ok {
+			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
+		}
+		failure := safeErr.SafeActionFailure()
+		if failure.Code != "prompt_failure" {
+			t.Fatalf("failure.Code = %q, want prompt_failure", failure.Code)
+		}
+	})
+
 	t.Run("Should return transport failure on ACP transport or protocol failure", func(t *testing.T) {
 		t.Parallel()
 		sessions := &loopActionBinderSessionManager{

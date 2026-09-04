@@ -22,7 +22,15 @@ func classifyProviderEventErrorCode(eventError string) string {
 		strings.Contains(normalized, "unauthorized"),
 		strings.Contains(normalized, "oauth"),
 		strings.Contains(normalized, "forbidden"),
-		strings.Contains(normalized, "token"):
+		strings.Contains(normalized, "access token"),
+		strings.Contains(normalized, "auth token"),
+		strings.Contains(normalized, "authentication token"),
+		strings.Contains(normalized, "api token"),
+		strings.Contains(normalized, "bearer token"),
+		strings.Contains(normalized, "token expired"),
+		strings.Contains(normalized, "expired token"),
+		strings.Contains(normalized, "token refresh"),
+		strings.Contains(normalized, "refresh token"):
 		return "provider_auth_failure"
 	case strings.Contains(normalized, "timeout"),
 		strings.Contains(normalized, "deadline"):
