@@ -1927,6 +1927,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
 					assertResponseStatus(t, operation, http.StatusBadRequest)
 					assertResponseStatus(t, operation, http.StatusNotFound)
+					assertResponseStatus(t, operation, http.StatusConflict)
 				}
 				if schema := jsonResponseSchema(
 					t,
@@ -1936,6 +1937,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					schema.OneOf,
 				) != 2 {
 					t.Fatalf("profile-scoped tool error variants = %d, want 2", len(schema.OneOf))
+				}
+				if schema := jsonResponseSchema(
+					t,
+					operationFor(t, doc, "/api/tools/{id}/invoke", "POST"),
+					http.StatusConflict,
+				); len(
+					schema.OneOf,
+				) != 2 {
+					t.Fatalf("profile-scoped tool conflict variants = %d, want 2", len(schema.OneOf))
 				}
 				listSchema := jsonResponseSchema(t, listTools, 200)
 				assertRequired(t, listSchema, "tools")

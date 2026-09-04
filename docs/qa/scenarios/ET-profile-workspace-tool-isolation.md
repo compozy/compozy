@@ -1,5 +1,5 @@
 ---
-id: ET-profile-scoped-operator-tool-catalog
+id: ET-profile-workspace-tool-isolation
 area: ET
 title: Project operator tools in the selected Profile and Workspace
 persona: Bruno
@@ -16,4 +16,6 @@ last_report:
 overlaps: ET-compozy-native-tool-invocation; LP-extension-action-schema-scope
 ---
 
-QA impact 2026-09-04: added for the Profile selector regression on operator tool and toolset projections. A focused isolated runtime walk must prove the owning Profile/Workspace, default and peer isolation, and structured permission denial before this scenario can pass.
+QA impact 2026-09-04: added for the Profile selector regression on operator tool and toolset
+projections. The targeted isolated walk must prove owning Profile/Workspace visibility, default and
+peer isolation, public CLI/API parity, approval-token Profile/Workspace binding, and clean teardown.

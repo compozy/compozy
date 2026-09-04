@@ -232412,6 +232412,40 @@
             },
             "description": "Profile not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -234099,6 +234133,40 @@
               }
             },
             "description": "Profile not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
           },
           "500": {
             "content": {
@@ -235876,6 +235944,40 @@
             },
             "description": "Tool or profile not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -237600,6 +237702,40 @@
               }
             },
             "description": "Tool or profile not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
           },
           "500": {
             "content": {
@@ -240154,373 +240290,404 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "error": {
+                  "oneOf": [
+                    {
                       "properties": {
-                        "code": {
-                          "enum": [
-                            "approval_rejected",
-                            "generation_fenced",
-                            "input_answer_requires_write",
-                            "input_request_already_answered",
-                            "input_request_limit_reached",
-                            "input_request_not_found",
-                            "input_request_requires_hidden_input",
-                            "input_request_superseded",
-                            "invalid_cwd",
-                            "journal_unavailable",
-                            "lease_revoked",
-                            "model_not_found",
-                            "profile_archived",
-                            "profile_selection_conflict",
-                            "profile_session_conflict",
-                            "profile_unavailable",
-                            "reasoning_effort_unsupported",
-                            "recording_already_started",
-                            "recording_not_active",
-                            "recording_unavailable",
-                            "slow_consumer",
-                            "subscriber_limit_reached",
-                            "terminal_exited",
-                            "terminal_expired",
-                            "terminal_interactive_unavailable",
-                            "terminal_limit_reached",
-                            "terminal_not_found",
-                            "terminal_not_interactive",
-                            "terminal_requires_workspace",
-                            "ticket_expired",
-                            "ticket_invalid",
-                            "timeout_out_of_range",
-                            "tool_approval_required",
-                            "tool_backend_failed",
-                            "tool_canceled",
-                            "tool_conflict",
-                            "tool_denied",
-                            "tool_invalid_input",
-                            "tool_not_found",
-                            "tool_result_persistence_failed",
-                            "tool_result_too_large",
-                            "tool_timed_out",
-                            "tool_unavailable",
-                            "typing_grant_rejected",
-                            "write_owner_held"
-                          ],
-                          "type": "string"
-                        },
-                        "details": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "layer": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "partial_result": {
-                          "nullable": true,
+                        "error": {
                           "properties": {
-                            "artifacts": {
-                              "items": {
-                                "properties": {
-                                  "bytes": {
-                                    "format": "int64",
-                                    "type": "integer"
-                                  },
-                                  "mime_type": {
-                                    "type": "string"
-                                  },
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "sha256": {
-                                    "type": "string"
-                                  },
-                                  "uri": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "uri"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "bytes": {
-                              "format": "int64",
-                              "type": "integer"
-                            },
-                            "content": {
-                              "items": {
-                                "properties": {
-                                  "data": {},
-                                  "metadata": {
-                                    "additionalProperties": {},
-                                    "type": "object"
-                                  },
-                                  "mime_type": {
-                                    "type": "string"
-                                  },
-                                  "text": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "type"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "duration_ms": {
-                              "format": "int64",
-                              "type": "integer"
-                            },
-                            "metadata": {
-                              "additionalProperties": {},
-                              "type": "object"
-                            },
-                            "preview": {
+                            "action": {
                               "type": "string"
                             },
-                            "redactions": {
-                              "items": {
-                                "properties": {
-                                  "bytes": {
-                                    "format": "int64",
-                                    "type": "integer"
-                                  },
-                                  "path": {
-                                    "type": "string"
-                                  },
-                                  "reason": {
-                                    "enum": [
-                                      "approval_canceled",
-                                      "approval_rejected",
-                                      "approval_required",
-                                      "approval_timed_out",
-                                      "approval_token_expired",
-                                      "approval_token_mismatch",
-                                      "approval_token_missing",
-                                      "approval_token_replayed",
-                                      "approval_unreachable",
-                                      "backend_not_executable",
-                                      "backend_unhealthy",
-                                      "call_canceled",
-                                      "call_timed_out",
-                                      "config_path_not_found",
-                                      "conflicted_id",
-                                      "conflicted_sanitized_name",
-                                      "dependency_missing",
-                                      "extension_capability_missing",
-                                      "extension_inactive",
-                                      "extension_runtime_mismatch",
-                                      "generation_fenced",
-                                      "handler_missing",
-                                      "hook_denied",
-                                      "id_empty",
-                                      "id_empty_segment",
-                                      "id_invalid_format",
-                                      "id_too_long",
-                                      "input_answer_requires_write",
-                                      "input_request_already_answered",
-                                      "input_request_limit_reached",
-                                      "input_request_not_found",
-                                      "input_request_requires_hidden_input",
-                                      "input_request_superseded",
-                                      "invalid_cwd",
-                                      "journal_unavailable",
-                                      "lease_revoked",
-                                      "loop_source_immutable",
-                                      "loop_version_conflict",
-                                      "mcp_auth_expired",
-                                      "mcp_auth_invalid",
-                                      "mcp_auth_refresh_failed",
-                                      "mcp_auth_required",
-                                      "mcp_auth_unconfigured",
-                                      "mcp_unreachable",
-                                      "policy_denied",
-                                      "profile_archived",
-                                      "profile_selection_conflict",
-                                      "profile_session_conflict",
-                                      "profile_unavailable",
-                                      "recording_already_started",
-                                      "recording_not_active",
-                                      "recording_unavailable",
-                                      "reserved_conflict",
-                                      "reserved_namespace",
-                                      "result_budget_exceeded",
-                                      "result_persistence_failed",
-                                      "runtime_descriptor_mismatch",
-                                      "runtime_descriptor_missing",
-                                      "schema_invalid",
-                                      "secret_metadata",
-                                      "session_denied",
-                                      "skill_definition_invalid",
-                                      "skill_resource_not_found",
-                                      "slow_consumer",
-                                      "source_disabled",
-                                      "subscriber_limit_reached",
-                                      "terminal_exited",
-                                      "terminal_expired",
-                                      "terminal_interactive_unavailable",
-                                      "terminal_limit_reached",
-                                      "terminal_not_found",
-                                      "terminal_not_interactive",
-                                      "terminal_requires_workspace",
-                                      "ticket_expired",
-                                      "ticket_invalid",
-                                      "timeout_out_of_range",
-                                      "tool_artifact_corrupt",
-                                      "tool_artifact_not_found",
-                                      "tool_unknown",
-                                      "toolset_cycle",
-                                      "toolset_unknown",
-                                      "typing_grant_rejected",
-                                      "visibility_denied",
-                                      "write_owner_held"
-                                    ],
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "path",
-                                  "reason"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
+                            "code": {
+                              "type": "string"
                             },
-                            "structured": {},
-                            "truncated": {
-                              "type": "boolean"
-                            },
-                            "trust": {
+                            "message": {
                               "type": "string"
                             }
                           },
                           "required": [
-                            "bytes",
-                            "duration_ms",
-                            "truncated"
+                            "action",
+                            "code",
+                            "message"
                           ],
                           "type": "object"
-                        },
-                        "reason_codes": {
-                          "items": {
-                            "enum": [
-                              "approval_canceled",
-                              "approval_rejected",
-                              "approval_required",
-                              "approval_timed_out",
-                              "approval_token_expired",
-                              "approval_token_mismatch",
-                              "approval_token_missing",
-                              "approval_token_replayed",
-                              "approval_unreachable",
-                              "backend_not_executable",
-                              "backend_unhealthy",
-                              "call_canceled",
-                              "call_timed_out",
-                              "config_path_not_found",
-                              "conflicted_id",
-                              "conflicted_sanitized_name",
-                              "dependency_missing",
-                              "extension_capability_missing",
-                              "extension_inactive",
-                              "extension_runtime_mismatch",
-                              "generation_fenced",
-                              "handler_missing",
-                              "hook_denied",
-                              "id_empty",
-                              "id_empty_segment",
-                              "id_invalid_format",
-                              "id_too_long",
-                              "input_answer_requires_write",
-                              "input_request_already_answered",
-                              "input_request_limit_reached",
-                              "input_request_not_found",
-                              "input_request_requires_hidden_input",
-                              "input_request_superseded",
-                              "invalid_cwd",
-                              "journal_unavailable",
-                              "lease_revoked",
-                              "loop_source_immutable",
-                              "loop_version_conflict",
-                              "mcp_auth_expired",
-                              "mcp_auth_invalid",
-                              "mcp_auth_refresh_failed",
-                              "mcp_auth_required",
-                              "mcp_auth_unconfigured",
-                              "mcp_unreachable",
-                              "policy_denied",
-                              "profile_archived",
-                              "profile_selection_conflict",
-                              "profile_session_conflict",
-                              "profile_unavailable",
-                              "recording_already_started",
-                              "recording_not_active",
-                              "recording_unavailable",
-                              "reserved_conflict",
-                              "reserved_namespace",
-                              "result_budget_exceeded",
-                              "result_persistence_failed",
-                              "runtime_descriptor_mismatch",
-                              "runtime_descriptor_missing",
-                              "schema_invalid",
-                              "secret_metadata",
-                              "session_denied",
-                              "skill_definition_invalid",
-                              "skill_resource_not_found",
-                              "slow_consumer",
-                              "source_disabled",
-                              "subscriber_limit_reached",
-                              "terminal_exited",
-                              "terminal_expired",
-                              "terminal_interactive_unavailable",
-                              "terminal_limit_reached",
-                              "terminal_not_found",
-                              "terminal_not_interactive",
-                              "terminal_requires_workspace",
-                              "ticket_expired",
-                              "ticket_invalid",
-                              "timeout_out_of_range",
-                              "tool_artifact_corrupt",
-                              "tool_artifact_not_found",
-                              "tool_unknown",
-                              "toolset_cycle",
-                              "toolset_unknown",
-                              "typing_grant_rejected",
-                              "visibility_denied",
-                              "write_owner_held"
-                            ],
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "tool_id": {
-                          "type": "string"
                         }
                       },
                       "required": [
-                        "code",
-                        "message"
+                        "error"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "approval_rejected",
+                                "generation_fenced",
+                                "input_answer_requires_write",
+                                "input_request_already_answered",
+                                "input_request_limit_reached",
+                                "input_request_not_found",
+                                "input_request_requires_hidden_input",
+                                "input_request_superseded",
+                                "invalid_cwd",
+                                "journal_unavailable",
+                                "lease_revoked",
+                                "model_not_found",
+                                "profile_archived",
+                                "profile_selection_conflict",
+                                "profile_session_conflict",
+                                "profile_unavailable",
+                                "reasoning_effort_unsupported",
+                                "recording_already_started",
+                                "recording_not_active",
+                                "recording_unavailable",
+                                "slow_consumer",
+                                "subscriber_limit_reached",
+                                "terminal_exited",
+                                "terminal_expired",
+                                "terminal_interactive_unavailable",
+                                "terminal_limit_reached",
+                                "terminal_not_found",
+                                "terminal_not_interactive",
+                                "terminal_requires_workspace",
+                                "ticket_expired",
+                                "ticket_invalid",
+                                "timeout_out_of_range",
+                                "tool_approval_required",
+                                "tool_backend_failed",
+                                "tool_canceled",
+                                "tool_conflict",
+                                "tool_denied",
+                                "tool_invalid_input",
+                                "tool_not_found",
+                                "tool_result_persistence_failed",
+                                "tool_result_too_large",
+                                "tool_timed_out",
+                                "tool_unavailable",
+                                "typing_grant_rejected",
+                                "write_owner_held"
+                              ],
+                              "type": "string"
+                            },
+                            "details": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "layer": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "partial_result": {
+                              "nullable": true,
+                              "properties": {
+                                "artifacts": {
+                                  "items": {
+                                    "properties": {
+                                      "bytes": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "mime_type": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "sha256": {
+                                        "type": "string"
+                                      },
+                                      "uri": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "uri"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "bytes": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "content": {
+                                  "items": {
+                                    "properties": {
+                                      "data": {},
+                                      "metadata": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "mime_type": {
+                                        "type": "string"
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "duration_ms": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "metadata": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "preview": {
+                                  "type": "string"
+                                },
+                                "redactions": {
+                                  "items": {
+                                    "properties": {
+                                      "bytes": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "enum": [
+                                          "approval_canceled",
+                                          "approval_rejected",
+                                          "approval_required",
+                                          "approval_timed_out",
+                                          "approval_token_expired",
+                                          "approval_token_mismatch",
+                                          "approval_token_missing",
+                                          "approval_token_replayed",
+                                          "approval_unreachable",
+                                          "backend_not_executable",
+                                          "backend_unhealthy",
+                                          "call_canceled",
+                                          "call_timed_out",
+                                          "config_path_not_found",
+                                          "conflicted_id",
+                                          "conflicted_sanitized_name",
+                                          "dependency_missing",
+                                          "extension_capability_missing",
+                                          "extension_inactive",
+                                          "extension_runtime_mismatch",
+                                          "generation_fenced",
+                                          "handler_missing",
+                                          "hook_denied",
+                                          "id_empty",
+                                          "id_empty_segment",
+                                          "id_invalid_format",
+                                          "id_too_long",
+                                          "input_answer_requires_write",
+                                          "input_request_already_answered",
+                                          "input_request_limit_reached",
+                                          "input_request_not_found",
+                                          "input_request_requires_hidden_input",
+                                          "input_request_superseded",
+                                          "invalid_cwd",
+                                          "journal_unavailable",
+                                          "lease_revoked",
+                                          "loop_source_immutable",
+                                          "loop_version_conflict",
+                                          "mcp_auth_expired",
+                                          "mcp_auth_invalid",
+                                          "mcp_auth_refresh_failed",
+                                          "mcp_auth_required",
+                                          "mcp_auth_unconfigured",
+                                          "mcp_unreachable",
+                                          "policy_denied",
+                                          "profile_archived",
+                                          "profile_selection_conflict",
+                                          "profile_session_conflict",
+                                          "profile_unavailable",
+                                          "recording_already_started",
+                                          "recording_not_active",
+                                          "recording_unavailable",
+                                          "reserved_conflict",
+                                          "reserved_namespace",
+                                          "result_budget_exceeded",
+                                          "result_persistence_failed",
+                                          "runtime_descriptor_mismatch",
+                                          "runtime_descriptor_missing",
+                                          "schema_invalid",
+                                          "secret_metadata",
+                                          "session_denied",
+                                          "skill_definition_invalid",
+                                          "skill_resource_not_found",
+                                          "slow_consumer",
+                                          "source_disabled",
+                                          "subscriber_limit_reached",
+                                          "terminal_exited",
+                                          "terminal_expired",
+                                          "terminal_interactive_unavailable",
+                                          "terminal_limit_reached",
+                                          "terminal_not_found",
+                                          "terminal_not_interactive",
+                                          "terminal_requires_workspace",
+                                          "ticket_expired",
+                                          "ticket_invalid",
+                                          "timeout_out_of_range",
+                                          "tool_artifact_corrupt",
+                                          "tool_artifact_not_found",
+                                          "tool_unknown",
+                                          "toolset_cycle",
+                                          "toolset_unknown",
+                                          "typing_grant_rejected",
+                                          "visibility_denied",
+                                          "write_owner_held"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "path",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "structured": {},
+                                "truncated": {
+                                  "type": "boolean"
+                                },
+                                "trust": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "bytes",
+                                "duration_ms",
+                                "truncated"
+                              ],
+                              "type": "object"
+                            },
+                            "reason_codes": {
+                              "items": {
+                                "enum": [
+                                  "approval_canceled",
+                                  "approval_rejected",
+                                  "approval_required",
+                                  "approval_timed_out",
+                                  "approval_token_expired",
+                                  "approval_token_mismatch",
+                                  "approval_token_missing",
+                                  "approval_token_replayed",
+                                  "approval_unreachable",
+                                  "backend_not_executable",
+                                  "backend_unhealthy",
+                                  "call_canceled",
+                                  "call_timed_out",
+                                  "config_path_not_found",
+                                  "conflicted_id",
+                                  "conflicted_sanitized_name",
+                                  "dependency_missing",
+                                  "extension_capability_missing",
+                                  "extension_inactive",
+                                  "extension_runtime_mismatch",
+                                  "generation_fenced",
+                                  "handler_missing",
+                                  "hook_denied",
+                                  "id_empty",
+                                  "id_empty_segment",
+                                  "id_invalid_format",
+                                  "id_too_long",
+                                  "input_answer_requires_write",
+                                  "input_request_already_answered",
+                                  "input_request_limit_reached",
+                                  "input_request_not_found",
+                                  "input_request_requires_hidden_input",
+                                  "input_request_superseded",
+                                  "invalid_cwd",
+                                  "journal_unavailable",
+                                  "lease_revoked",
+                                  "loop_source_immutable",
+                                  "loop_version_conflict",
+                                  "mcp_auth_expired",
+                                  "mcp_auth_invalid",
+                                  "mcp_auth_refresh_failed",
+                                  "mcp_auth_required",
+                                  "mcp_auth_unconfigured",
+                                  "mcp_unreachable",
+                                  "policy_denied",
+                                  "profile_archived",
+                                  "profile_selection_conflict",
+                                  "profile_session_conflict",
+                                  "profile_unavailable",
+                                  "recording_already_started",
+                                  "recording_not_active",
+                                  "recording_unavailable",
+                                  "reserved_conflict",
+                                  "reserved_namespace",
+                                  "result_budget_exceeded",
+                                  "result_persistence_failed",
+                                  "runtime_descriptor_mismatch",
+                                  "runtime_descriptor_missing",
+                                  "schema_invalid",
+                                  "secret_metadata",
+                                  "session_denied",
+                                  "skill_definition_invalid",
+                                  "skill_resource_not_found",
+                                  "slow_consumer",
+                                  "source_disabled",
+                                  "subscriber_limit_reached",
+                                  "terminal_exited",
+                                  "terminal_expired",
+                                  "terminal_interactive_unavailable",
+                                  "terminal_limit_reached",
+                                  "terminal_not_found",
+                                  "terminal_not_interactive",
+                                  "terminal_requires_workspace",
+                                  "ticket_expired",
+                                  "ticket_invalid",
+                                  "timeout_out_of_range",
+                                  "tool_artifact_corrupt",
+                                  "tool_artifact_not_found",
+                                  "tool_unknown",
+                                  "toolset_cycle",
+                                  "toolset_unknown",
+                                  "typing_grant_rejected",
+                                  "visibility_denied",
+                                  "write_owner_held"
+                                ],
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "tool_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "error"
                       ],
                       "type": "object"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
-            "description": "Tool conflict"
+            "description": "Tool or profile conflict"
           },
           "422": {
             "content": {
@@ -242351,6 +242518,40 @@
             },
             "description": "Profile not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -243807,6 +244008,40 @@
               }
             },
             "description": "Toolset or profile not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "action": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Profile selection conflict"
           },
           "500": {
             "content": {

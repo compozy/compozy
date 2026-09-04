@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-run-extension-commands
-  scenarios: [ET-discover-extension-command-tree, ET-run-extension-projected-flags, ET-run-extension-command-raw-input, ET-enforce-extension-command-approval, ET-refuse-extension-command-group, ET-extension-manifest-v2-surfaces]
+  scenarios: [ET-discover-extension-command-tree, ET-run-extension-projected-flags, ET-run-extension-command-raw-input, ET-enforce-extension-command-approval, ET-refuse-extension-command-group, ET-extension-manifest-v2-surfaces, ET-profile-workspace-tool-isolation]
   tour: Feature Tour
   time_box_minutes: 60
   guidance:

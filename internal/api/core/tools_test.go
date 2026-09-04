@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -170,27 +171,10 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 	t.Parallel()
 
-	registry := newAPITestToolRegistry(t, false)
-	registry.restrictListTo("profile-marketing", "ws-owner")
-	homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:      "api-core-test",
-		Profiles:           sessionProfileServiceStub{},
-		Tools:              registry,
-		Toolsets:           registry,
-		ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
-		HomePaths:          homePaths,
-		Config:             cfg,
-		Logger:             testutil.DiscardLogger(),
-		StartedAt:          time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
-		Now:                func() time.Time { return time.Date(2026, 9, 4, 12, 0, 1, 0, time.UTC) },
-		PollInterval:       time.Millisecond,
-		StreamDone:         make(chan struct{}),
-		MaskInternalErrors: false,
-	})
-	engine := newToolCoreEngine(t, handlers)
-
 	t.Run("Should expose tools only in the owning profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
 		response := performRequest(
 			t,
 			engine,
@@ -213,6 +197,9 @@ func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 	})
 
 	t.Run("Should isolate the default profile", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
 		response := performRequest(t, engine, http.MethodGet, "/tools?workspace_id=ws-owner", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("default scope status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
@@ -228,6 +215,9 @@ func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 	})
 
 	t.Run("Should isolate a peer workspace", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
 		response := performRequest(
 			t,
 			engine,
@@ -243,9 +233,15 @@ func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 		if got := len(payload.Tools); got != 0 {
 			t.Fatalf("peer scope tool count = %d, want 0", got)
 		}
+		if scope := registry.lastList(); scope.ProfileID != "profile-marketing" || scope.WorkspaceID != "ws-peer" {
+			t.Fatalf("peer scope = %#v, want selected profile and peer workspace", scope)
+		}
 	})
 
 	t.Run("Should reject an all-profile tool projection", func(t *testing.T) {
+		t.Parallel()
+		_, engine := newProfileScopedToolCoreEngine(t)
+
 		response := performRequest(t, engine, http.MethodGet, "/tools?all_profiles=true", nil)
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("all-profile status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body)
@@ -256,6 +252,9 @@ func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 	})
 
 	t.Run("Should preserve the selected profile across operator tool paths", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
 		search := performRequest(
 			t,
 			engine,
@@ -351,6 +350,30 @@ func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
 			t.Fatalf("get toolset scope = %#v, want selected profile and workspace", scope)
 		}
 	})
+}
+
+func newProfileScopedToolCoreEngine(t *testing.T) (*apiTestToolRegistry, *gin.Engine) {
+	t.Helper()
+
+	registry := newAPITestToolRegistry(t, false)
+	registry.restrictListTo("profile-marketing", "ws-owner")
+	homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName:      "api-core-test",
+		Profiles:           sessionProfileServiceStub{},
+		Tools:              registry,
+		Toolsets:           registry,
+		ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+		HomePaths:          homePaths,
+		Config:             cfg,
+		Logger:             testutil.DiscardLogger(),
+		StartedAt:          time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
+		Now:                func() time.Time { return time.Date(2026, 9, 4, 12, 0, 1, 0, time.UTC) },
+		PollInterval:       time.Millisecond,
+		StreamDone:         make(chan struct{}),
+		MaskInternalErrors: false,
+	})
+	return registry, newToolCoreEngine(t, handlers)
 }
 
 func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
@@ -748,6 +771,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
+			Profiles:      sessionProfileServiceStub{},
 			Sessions:      testutil.StubSessionManager{},
 			Observer:      testutil.StubObserver{},
 			Tasks:         &testutil.StubTaskManager{},
@@ -769,7 +793,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/invoke",
+			"/tools/ext__ask_tool/invoke?profile=marketing",
 			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if missingTokenResp.Code != http.StatusAccepted {
@@ -794,7 +818,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/approvals?session_id=sess-query",
+			"/tools/ext__ask_tool/approvals?profile=marketing&session_id=sess-query",
 			[]byte(`{"session_id":"sess-body","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if conflictResp.Code != http.StatusBadRequest {
@@ -815,7 +839,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/approvals",
+			"/tools/ext__ask_tool/approvals?profile=marketing",
 			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if approvalResp.Code != http.StatusCreated {
@@ -834,7 +858,36 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 
 		body := []byte(`{"session_id":"sess-1","workspace_id":"ws-1","approval_token":"` +
 			approval.Approval.ApprovalToken + `","input":{"message":"hello"}}`)
-		invokeResp := performRequest(t, engine, http.MethodPost, "/tools/ext__ask_tool/invoke", body)
+		workspaceMismatchBody := []byte(`{"session_id":"sess-1","workspace_id":"ws-2","approval_token":"` +
+			approval.Approval.ApprovalToken + `","input":{"message":"hello"}}`)
+		workspaceMismatchResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=marketing",
+			workspaceMismatchBody,
+		)
+		assertToolApprovalRejection(t, workspaceMismatchResp, toolspkg.ReasonApprovalTokenMismatch)
+
+		crossProfileResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=default",
+			body,
+		)
+		assertToolApprovalRejection(t, crossProfileResp, toolspkg.ReasonApprovalTokenMismatch)
+		if registry.callCount("ext__ask_tool") != 0 {
+			t.Fatal("mismatched Workspace or Profile executed the approval-required tool")
+		}
+
+		invokeResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=marketing",
+			body,
+		)
 		if invokeResp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", invokeResp.Code, http.StatusOK, invokeResp.Body.String())
 		}
@@ -847,21 +900,30 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t.Fatalf("registry call count = %d, want 1", registry.callCount("ext__ask_tool"))
 		}
 
-		replayResp := performRequest(t, engine, http.MethodPost, "/tools/ext__ask_tool/invoke", body)
-		if replayResp.Code != http.StatusForbidden {
-			t.Fatalf(
-				"replay status = %d, want %d; body=%s",
-				replayResp.Code,
-				http.StatusForbidden,
-				replayResp.Body.String(),
-			)
-		}
-		var replay contract.ToolErrorResponse
-		decodeToolJSON(t, replayResp.Body.Bytes(), &replay)
-		if !containsReason(replay.Error.ReasonCodes, toolspkg.ReasonApprovalTokenReplayed) {
-			t.Fatalf("replay error = %#v, want replay reason", replay.Error)
+		replayResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=default",
+			body,
+		)
+		assertToolApprovalRejection(t, replayResp, toolspkg.ReasonApprovalTokenReplayed)
+		if registry.callCount("ext__ask_tool") != 1 {
+			t.Fatalf("registry call count after replay = %d, want 1", registry.callCount("ext__ask_tool"))
 		}
 	})
+}
+
+func assertToolApprovalRejection(t *testing.T, response *httptest.ResponseRecorder, reason toolspkg.ReasonCode) {
+	t.Helper()
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("approval rejection status = %d, want %d; body=%s", response.Code, http.StatusForbidden, response.Body)
+	}
+	var payload contract.ToolErrorResponse
+	decodeToolJSON(t, response.Body.Bytes(), &payload)
+	if !containsReason(payload.Error.ReasonCodes, reason) {
+		t.Fatalf("approval rejection = %#v, want reason %q", payload.Error, reason)
+	}
 }
 
 func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
