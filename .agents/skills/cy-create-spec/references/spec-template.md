@@ -141,7 +141,7 @@ External services and system boundaries. Include only when the design integrates
 | ----------- | ------------------------- | ----------------------------- | --------------- |
 | [component] | [new/modified/deprecated] | [what changes and risk level] | [action needed] |
 
-Breaking changes list their **delete targets** — code, storage, APIs, CLI, extensions, specs, and `.compozy/tasks/*` artifacts that disappear in the same change. Include "no fallback / no compat shim / no placeholder" clauses where drift is likely.
+Breaking changes list their **delete targets** — code, storage, APIs, CLI, extensions, specs, and `.compozy/tasks/*` artifacts that disappear — each tagged with its SD-013 regime and ladder outcome: user state migrates losslessly in the same change; public surfaces auto-migrate or keep the old shape one release behind the new one (shim at the boundary, removal release named); internal code hard-cuts in the same change. Include "no fallback / no compat shim / no placeholder" clauses for internal targets where drift is likely.
 
 ## Extensibility Integration Plan
 

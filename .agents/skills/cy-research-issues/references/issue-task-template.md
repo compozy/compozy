@@ -63,7 +63,9 @@ it matters. This is the issue's "Problem" statement.]
 
 ## Implementation Details
 [Integration points and constraints. Reference `_spec.md §<section>` for the design.
-List delete targets explicitly when replacing code — zero-legacy, no compat shims.]
+List delete targets explicitly when replacing code, each with its SD-013 regime: internal
+code hard-cuts with no compat shims; public surfaces name the boundary shim and its removal
+release; user state names its lossless migration.]
 
 ### Relevant Files
 - `path/to/file` — [why it changes]

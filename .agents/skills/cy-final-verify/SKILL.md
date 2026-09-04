@@ -142,8 +142,8 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 
 1. Complete the pre-commit gate, review the diff, and confirm no unrelated files are staged.
 2. Push the current head and create or update a draft PR.
-3. Run `gh pr checks --watch --interval 20`; do not close or hand off while checks are pending.
-4. On red CI, inspect the failed job, repair the production source, rerun the affected local gate, commit, push, and watch the new head again.
+3. Monitor all required checks at the current PR head. Start diagnosing a completed failure as soon as it appears, while other jobs continue; a whole-run wait must not delay failure handling.
+4. For each failed job, inspect its log, repair the production source, rerun the affected local gate, commit, push, and monitor the new head. Keep each result tied to its head SHA; pending jobs still block delivery.
 5. Record the PR URL and exact head SHA only after every required check is green. If no required-check rules are configured, require every reported non-skipped PR check to be green.
 
 An opened PR with pending/red CI is an in-progress checkpoint, not delivery. Its author remains on the hook until green or a proven external blocker.

@@ -4,9 +4,18 @@ CompozyOS is an agent operating system: a Go single-binary daemon that manages A
 
 **Core premise:** every capability must be both extensible by the runtime and manageable by agents (CLI/HTTP/UDS with structured output). A feature that only works through internal Go calls or the web UI is incomplete.
 
-## Greenfield Alpha — Zero Legacy Tolerance
+<most_critical>Avoid creating excessive test files. Create a new test file only when required by repository conventions or when no existing file is a suitable home. Avoid unrelated cleanup and unnecessary complexity. Reuse suitable existing utilities. Read relevant repository instructions and inspect nearby code, tests, documentation, and CI. Follow established conventions. The goal is clean,
+mergeable code.</most_critical>
 
-No production deployments to preserve (pre-1.0 beta). Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change spec MUST list its delete targets.
+## Compatibility Policy
+
+Real users run every release; releases stay upgradeable. Three regimes by contract ownership (SD-013, L-040):
+
+- **User state never breaks** (SQLite streams, `config.toml`, workspace files, persisted layouts): every shape change ships a lossless auto-migration in the same change. Data loss requires the user's recorded ADR sign-off plus a release-note migration block.
+- **Public surfaces deprecate before they delete** (CLI verbs/flags, HTTP/UDS routes and DTOs, hook events, extension/bridge SDKs, config keys, `compozy__*` tool IDs): auto-migrate losslessly when possible; otherwise the old shape keeps working for one release after the new one ships, with a warning naming the replacement, then is deleted. Only surfaces documented `experimental` may break without a window.
+- **Internal code stays hard-cut** (Go packages, `web/`, `@compozy/ui`, specs, `.compozy/tasks/*`): rename every consumer in one change; no aliases, dual fields, or legacy branches — delete obsolete code.
+
+Compat lives at the boundary (loader, decoder, alias table, migration SQL), never as a branch in domain code; one shim generation at a time, each naming its removal release. Every breaking-change spec lists its delete targets and the regime of each.
 
 ## Critical Rules
 

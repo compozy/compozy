@@ -245,6 +245,7 @@ exit 0
 			{path: "vitest.config.ts", want: "js lane: all workspaces"},
 			{path: ".vscode/tasks.json", want: "no-lane"},
 			{path: ".repoclone.rc", want: "no-lane"},
+			{path: "skills-lock.json", want: "no-lane"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.path, func(t *testing.T) {

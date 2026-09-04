@@ -1,5 +1,7 @@
 # L-025 — On greenfield, hard-cut the current protocol version — don't bump to a new one
 
+> **Scope narrowed 2026-09-04** (SD-013, [L-040](L-040-real-users-end-zero-legacy-posture.md)). "No published peers" held for Compozy Network at the time. Once a wire shape has shipped to real users, a change follows the public-surface ladder — old shape accepted for one release, then deleted — instead of a silent in-place redefinition. The versioning rule itself — version identifiers are interop tokens, not feature labels — is unchanged.
+
 **Class:** Project posture / RFC discipline
 **Date discovered:** 2026-05-13 (workspace-isolation hard-cut follow-up; PR #145 on branch `workspace-fix`)
 **Evidence sources:** Commits `76afabb8`, `6fb41e8d`, `de247cc4` on branch `workspace-fix`; ledger

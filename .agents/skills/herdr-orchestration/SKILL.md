@@ -227,7 +227,10 @@ changing focus:
 - Read worker tabs read-only (`agent read <name> --source recent-unwrapped
   --lines 200`); ask a worker for a concise status summary when output is
   unclear.
-- Re-open cited files locally to verify high-impact findings.
+- Re-open cited files locally to verify high-impact findings. For visual output,
+  open the delivered images and their named visual references side by side;
+  file counts, dimensions, and a worker's verdict do not establish visual fit.
+  Check one representative image before expanding an expensive generation batch.
 - Re-run claimed test results with fresh controller commands when the result
   gates completion.
 - Review the final diff before accepting any worker patch.

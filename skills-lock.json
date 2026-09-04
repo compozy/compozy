@@ -137,10 +137,9 @@
             "computedHash": "ad03e8d4ea3cbbff66420eb7ba3cc375b5cbe1821a2449b53e863256cf5b5cde"
         },
         "herdr-orchestration": {
-            "source": "pedronauck/skills",
-            "sourceType": "github",
-            "skillPath": "skills/mine/herdr-orchestration/SKILL.md",
-            "computedHash": "277758b6bf87e6d7d3b230e6d6214bfd80cbc7cdb0466f91c5eaee8fde70771d"
+            "source": "../skills/skills/mine",
+            "sourceType": "local",
+            "computedHash": "d3a0c119d555dae767cb0e2fdbd60a72855837e575bb3de972ccabf0809a21b4"
         },
         "humanizer": {
             "source": "pedronauck/skills",
@@ -242,6 +241,12 @@
             "sourceType": "github",
             "skillPath": "skills/skeeper/SKILL.md",
             "computedHash": "fee0e0b10b743d95df50c6ba27d6babf72c1edc9d2b3870de575b60a1e820cc5"
+        },
+        "skill-doctor": {
+            "source": "warpdotdev/common-skills",
+            "sourceType": "github",
+            "skillPath": ".agents/skills/skill-doctor/SKILL.md",
+            "computedHash": "fe604ed149880afd660599983aaf0ce8e2d8e705f1b411af532eb8d1fdeeef21"
         },
         "state-management": {
             "source": "statelyai/skills",

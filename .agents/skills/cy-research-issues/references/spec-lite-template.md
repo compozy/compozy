@@ -23,10 +23,11 @@ owning analysis section. This section is the contract that fixes address causes,
 ## 3. Target Architecture / Design
 [Per surface (data layer, backend, UI...): the end-state design. Reference competitor patterns by
 exact path when copying. Include the project-rule guardrails that constrain the design (design
-tokens, signal palette, zero-legacy, etc.). Diagrams/row-models inline when they fit in ~20 lines.]
+tokens, signal palette, SD-013 compatibility regimes, etc.). Diagrams/row-models inline when they fit in ~20 lines.]
 
-## 4. Delete Targets (zero-legacy)
-[Table: what gets removed → what replaces it. Every breaking change lists its delete targets.]
+## 4. Delete Targets & Compatibility Plan
+[Table: what gets removed → what replaces it → SD-013 regime and ladder outcome (user state: lossless
+migration; public surface: auto-migrate or boundary shim + removal release; internal: hard cut).]
 
 ## 5. Sequencing (waves)
 [Numbered waves mapping to task ids: W1 = correctness/bug critical path, then perf, then redesign,

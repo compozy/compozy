@@ -33,6 +33,7 @@ output or running commands. They are load-bearing, not appendices.
 | Run or script a CLI command, choose flags                     | `references/commands.md`                                           |
 | Understand or debug the release lifecycle / CI behavior       | `references/release-workflow.md`                                   |
 | Write commit messages or add custom release notes             | `references/release-notes.md`                                      |
+| Correct notes for an already-published release                | `references/published-release-repair.md` + `references/release-workflow.md` |
 | A release step failed or behaved unexpectedly                 | `references/troubleshooting.md`                                    |
 
 ## Reference Index

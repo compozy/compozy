@@ -23,20 +23,9 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ---
 
-## SD-002 — Remove Legacy Alpha Compatibility Code
+## SD-002 — Remove Legacy Alpha Compatibility Code (SUPERSEDED 2026-09-04 by SD-013)
 
-**Posture.** Compozy is a greenfield pre-1.0 beta with no production deployments to preserve. Compat shims, nil-receiver legacy stubs, legacy-meta no-ops, and dual code paths for "old behavior" are forbidden. **Delete the old thing.** This is a stronger, perpetual application of the CLAUDE.md "Greenfield Alpha — Zero Legacy Tolerance" rule.
-
-**Required behavior:**
-
-- Strip nil-receiver fallbacks, `legacySessionMeta` mappers, no-op compat methods, and "preserve old field name" branches.
-- Renames are **hard cuts**: code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` artifacts in the same change. No aliases, no dual fields.
-- Distinguish "still useful current logic" (`Reconcile` at composition root) from "legacy support" (delete). Composition-root reconciliation is NOT legacy.
-- One-pass legacy repair is allowed only in the narrow case where the cost of "delete the old thing" is "every developer rebuilds their local SQLite". Document the boundary in an ADR (e.g., `session-driver-override/adrs/adr-005.md`) and switch to strict semantics immediately after repair.
-
-**Source:** `.codex/plans/remove-legacy-alpha.md` (undated standing directive). Multiple ADRs reinforce.
-
-**Triggers re-evaluation when:** any PR proposing schema-version branching, `// legacy` markers, dual-naming, or "preserve for compat" logic.
+**Status.** Retired. Its premise — "a greenfield pre-1.0 beta with no production deployments to preserve" — stopped being true on 2026-08-22, when real users began running every release, and v0.3.0 shipped hard cuts that discarded their data (L-040). The internal-code half of SD-002 survives as regime 3 of SD-013: delete obsolete code, no `// legacy` branches or dual-naming inside Go / `web/` / `@compozy/ui`, hard-cut internal renames, and "composition-root `Reconcile` is current logic, not legacy" (SD-008). Its user-state and public-surface halves are replaced by regimes 1 and 2 of SD-013. Historical text: `.codex/plans/remove-legacy-alpha.md`.
 
 ---
 
@@ -202,3 +191,27 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 **Source:** agent-comms post-mortem 2026-09-01: 8-feature spec, layer-split graph, all UI in one 7-hour task, gates deferred to a tail task that never named them — first browser verification ~28h after first commit, ~700 review findings (~350 post-SHIP), 9 feature vs 52 repair commits, motivating problem never delivered. Spec set archived at [`compozy-specs/_archived/2026-08-19-agent-comms/`](https://github.com/compozy/compozy-specs/tree/main/_archived/2026-08-19-agent-comms); execution trail on the unmerged `agent-comms` branch (remote only, draft PR [compozy/compozy#497](https://github.com/compozy/compozy/pull/497)). Lessons L-036..L-039.
 
 **Triggers re-evaluation when:** any change to `cy-create-tasks` sizing rules, the QA tail pair, `cy-loop-tasks` phase machine, or a proposed `_tasks.md` whose graph groups work by layer.
+
+---
+
+## SD-013 — Tiered Compatibility: User State Never Breaks
+
+**Posture.** Compozy has had real users since 2026-08-22 and ships on a constant release cadence. The greenfield premise behind SD-002 ("no production deployments to preserve") is false, and v0.3.0 shipped hard cuts that discarded user data (L-040). Compatibility is a contract tiered by who owns the surface — not a binary between "break everything" and "preserve everything". Code quality still wins inside the codebase; users never pay for it.
+
+**Required behavior:**
+
+- **Regime 1 — user state never breaks.** SQLite streams (`compozy.db`, `events.db`, workspace databases), `config.toml`, workspace files, and persisted layouts/profiles always upgrade losslessly. Every shape change ships its migration in the same change, extending the Goose append-only model (L-008, L-021) to every persisted datum. Dropping or truncating user data is allowed only with the user's sign-off recorded in an ADR and a `Migration notes` block in the release note.
+- **Regime 2 — public scripted surfaces deprecate before they delete.** CLI verbs/flags and structured output, HTTP/UDS routes and DTOs, hook events, extension/bridge SDK contracts, `config.toml` keys, and `compozy__*` tool IDs. Decision ladder, in order: (a) auto-migrate losslessly at the boundary — the change is free; (b) otherwise keep the old shape working for one release after the new one ships, emit a deprecation warning naming the replacement, delete in the following release; (c) eternal compat is never an option. A surface documented as `experimental` in its docs and CLI help may break without a window; every other surface shipped in a tagged release is `stable`.
+- **Regime 3 — internal code stays hard-cut.** Go packages, `web/`, `@compozy/ui`, specs, RFCs, `.compozy/tasks/*`: rename every consumer in one change, delete obsolete code, no aliases, dual fields, or `// legacy` branches. SD-002's internal discipline lives on here.
+- **Compat is translation at the boundary.** A shim is a loader/decoder/alias-table entry at the edge (config loader, HTTP/UDS decoder, CLI verb table, migration SQL) — never an `if oldShape` branch in domain code. Only one shim generation exists at a time (N-1, never stacked); each shim's code comment and release note name the release that removes it.
+- **Every breaking-change spec lists its delete targets and the regime of each**, with the ladder outcome (auto-migrate / deprecate N→N+1 / `experimental` break) decided before approval. L-006 still governs the enumeration.
+
+**Enforcement (planned, not yet built — do not cite as existing gates):**
+
+- Upgrade-path test lane in release CI: boot the release candidate over the previous release's full `COMPOZY_HOME` fixture; assert zero data loss and zero refused opens.
+- Central deprecation registry (shim → replacement → removal release) read by a gate that fails a release still shipping an expired shim, and that generates the release-note "Breaking & migrations" section.
+- Stability label rendered in generated CLI, API, and site references.
+
+**Source:** user decision 2026-09-04 confirming the 2026-08-22 proposal; v0.3.0 release notes under `.release-notes/archive/v0.3.0/` — `loop-feedback-semantics-*.md` ("greenfield hard cut that discards existing Loop run history"), `window-tabs-in-the-os-shell-*.md`, `runtime-speed-is-part-of-the-runtime-*.md`, `the-desktop-app-is-now-electron-*.md`, `implement-tasks-replaces-software-delivery-*.md`. Lesson L-040.
+
+**Triggers re-evaluation when:** any migration drops or truncates rows; any PR removes or renames a CLI verb/flag, HTTP/UDS route, DTO field, hook event, config key, or tool ID without a deprecation window; any shim lacks a removal release; any `// legacy` or `if oldShape` branch appears inside domain code.

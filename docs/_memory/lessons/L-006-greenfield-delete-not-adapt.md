@@ -1,5 +1,7 @@
 # L-006 — Greenfield + zero-legacy means _delete_, not _adapt_
 
+> **Scope narrowed 2026-09-04** (SD-013, [L-040](L-040-real-users-end-zero-legacy-posture.md)). The rule below — enumerate delete targets — still binds every breaking-change spec. Its "no migration code, no aliases" posture now applies to internal code only: user state migrates losslessly and public surfaces deprecate one release before deletion.
+
 **Class:** Project posture
 **Date discovered:** 2026-04-17 (harness TechSpec review, Portuguese-language reviewer)
 **Evidence sources:** Harness review + `remove-legacy-alpha.md` standing directive + repeated architecture reviews.

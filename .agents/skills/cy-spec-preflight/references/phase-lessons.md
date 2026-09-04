@@ -15,6 +15,7 @@ Stage 2 — Surface + Part II (Technical):
 - `L-004-manual-equals-peer.md` — manual + autonomous converge on same primitives.
 - `L-005-authoritative-primitive-exclusivity.md` — observe ≠ own.
 - `L-006-greenfield-delete-not-adapt.md` — name delete targets explicitly.
+- `L-040-real-users-end-zero-legacy-posture.md` — tag each delete target with its SD-013 regime: user state migrates losslessly, public surfaces deprecate before deletion, internal code hard-cuts.
 - `L-008-schema-migrations-mandatory.md` — declarative schema + appended Goose SQL; no boot reconciliation.
 - `L-012-techspec-prose-only-rework.md` — six quality markers required.
 
@@ -34,7 +35,7 @@ Stage 2 — Surface + Part II (Technical):
 
 ## Always-on (every phase)
 
-- `docs/_memory/standing_directives.md` (SD-001..SD-011).
+- `docs/_memory/standing_directives.md` (SD-001..SD-013).
 - `docs/_memory/glossary.md` (vocabulary discipline).
 - `docs/_memory/spec-authoring-playbook.md` (canonical playbook).
 - `CLAUDE.md` (Architecture, Autonomy Contracts, Security Invariants, Workflow Rules).

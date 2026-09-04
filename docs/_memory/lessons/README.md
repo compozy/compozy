@@ -47,6 +47,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-037](L-037-vertical-slices-gates-travel-with-the-slice.md)   | Deliver in vertical slices; verification gates travel with the slice             | Spec authoring / Workflow / Process |
 | [L-038](L-038-qa-scenarios-need-reachability-and-visual-axes.md) | QA scenarios need a reachability and visual-language axis, not only data truth  | Testing / QA / Design system     |
 | [L-039](L-039-self-asserted-quality-and-inverted-goldens.md)    | Self-asserted quality is no gate; a green test can bless the bug                 | Process / Testing / Verification |
+| [L-040](L-040-real-users-end-zero-legacy-posture.md)            | Real users end the zero-legacy posture; compatibility is tiered by contract owner | Project posture / Release / Process |
 
 ## How to use
 

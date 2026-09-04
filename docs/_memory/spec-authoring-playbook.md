@@ -10,8 +10,8 @@ Mandatory preflight reading for `$cy-create-spec` and `$cy-create-tasks`. Distil
 
 Applies to Spec + Tasks alike. See `docs/_memory/standing_directives.md` for full text.
 
-- **Greenfield-alpha = name delete targets.** Every breaking-change spec lists what disappears. No compat shims, no aliases, no schema fallbacks. → `lessons/L-006`, SD-002.
-- **Hard-cut renames.** Renames sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts in the same change. → `analysis/analysis_codex_plans.md` Theme 4.
+- **Tiered compatibility = name delete targets and their regime.** User state (SQLite, `config.toml`, workspace files) always migrates losslessly; public surfaces (CLI, HTTP/UDS, hooks, SDKs, config keys) auto-migrate or deprecate one release before deletion; internal code hard-cuts. Every breaking-change spec lists what disappears and the ladder outcome per target. → `lessons/L-006`, `lessons/L-040`, SD-013.
+- **Hard-cut internal renames.** Inside Go, `web/`, `@compozy/ui`, specs, RFCs, AND `.compozy/tasks/*`, a rename sweeps every consumer in the same change — no aliases. Public-surface renames follow the SD-013 ladder: boundary alias for one release, then delete. → `analysis/analysis_codex_plans.md` Theme 4, SD-013.
 - **Extensible and agent-manageable by design.** Every create/update/remove feature decision includes extension-surface impact, agent-operable CLI/HTTP/UDS support, and `config.toml` lifecycle impact. → SD-011.
 - **Final decisions on the spec.** No "TBD" / "we'll decide later" — every fork is resolved before approval. → codex_sessions §Engineering Principle 3.
 - **Cite competitor refs.** Every spec that draws on `.resources/<repo>` lists the file paths so the implementer reads them too. → codex_sessions §Engineering Principle 4.
@@ -77,7 +77,7 @@ The autonomy spec is the high-water mark. Six markers correlate with **clean exe
 #### MUST also contain
 
 - **Forensic frame** when the spec attacks a real incident: open with confirmed reproduction (timestamp, command, observed evidence). → SD-006, `analysis/analysis_codex_plans.md` Pattern 1.
-- **"No fallback / no compat shim / no placeholder" clauses** that pre-empt drift. → `analysis/analysis_codex_plans.md` Pattern 2.
+- **Compatibility Plan** for every changed user-state or public surface: the SD-013 ladder outcome (auto-migrate / deprecate N→N+1 / `experimental` break), the boundary where the shim lives, and its removal release. Internal changes carry "no fallback / no compat shim / no placeholder" clauses that pre-empt drift. → `analysis/analysis_codex_plans.md` Pattern 2, `lessons/L-040`, SD-013.
 - **Phased plan**: safe cleanup phases separated from behavior-changing edits. Each phase has its own verification gate. → Pattern 3.
 - **Testing Approach = strategy only**; every concrete case lives in `_tests.md` with verification commands (`make verify`, `make gate`, etc.). Not "tests will pass". → Pattern 4.
 - **Developer Experience index** into `_dx.md`/`_uiux.md` — never a restated copy. The client-visible examples live in the surface contracts.
@@ -94,7 +94,7 @@ The autonomy spec is the high-water mark. Six markers correlate with **clean exe
 - Parallel queue alongside `task_runs`. Add columns + side-tables instead. → `lessons/L-003`.
 - Hooks that tail event tables. Hooks dispatch at the call site. → CLAUDE.md.
 - Duplicate ownership state in JSON metadata. → `lessons/L-003`.
-- Compat shims, `@deprecated` stubs, dual-naming, schema fallback paths. → `lessons/L-006`, SD-002.
+- Compat shims, `@deprecated` stubs, or dual-naming on internal surfaces; on public surfaces, shims outside the boundary, stacked (N-2) shims, or shims without a named removal release; migrations that drop user data without recorded sign-off. → `lessons/L-006`, `lessons/L-040`, SD-013.
 - Manual paths and autonomous paths as separate code. They converge on same primitives. → `lessons/L-004`.
 - Authoritative state transitions replicated across peer packages. → `lessons/L-005`.
 - UI-only manageability for an agent-operated capability. Agents need structured CLI/HTTP/UDS paths. → SD-011.
@@ -190,8 +190,8 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 - **Generic event bus / reflection routing / speculative remote-carrier infrastructure.**
 - **Parallel queue alongside `task_runs`.**
 - **Hooks tailing event tables** (instead of dispatching at call sites).
-- **`@deprecated` stubs, dual-naming, "preserve old" branches.**
-- **Compat shims** for unreleased alpha state.
+- **`@deprecated` stubs, dual-naming, "preserve old" branches** inside internal code, or `if oldShape` branches in domain code for any surface. → SD-013.
+- **Compat shims** for never-released state, stacked shims, or shims with no removal release; **data-dropping migrations** without recorded user sign-off. → `lessons/L-040`, SD-013.
 - **TUI quit auto-stops session** (already reverted; do not re-introduce).
 - **Boolean-prop proliferation** in UI components (favor many small components).
 - **Cron / schedule CI workflows** (heavy tests live in release PR `dry-run`). → user-memory `feedback_ci_no_cron.md`.
@@ -217,8 +217,8 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 
 | Topic                                       | Where to read                                                          |
 | ------------------------------------------- | ---------------------------------------------------------------------- |
-| Standing posture                            | `docs/_memory/standing_directives.md` (SD-001..SD-012)                 |
-| Lessons (incident → rule)                   | `docs/_memory/lessons/README.md` (L-001..L-039)                        |
+| Standing posture                            | `docs/_memory/standing_directives.md` (SD-001..SD-013)                 |
+| Lessons (incident → rule)                   | `docs/_memory/lessons/README.md` (L-001..L-040)                        |
 | Vocabulary                                  | `docs/_memory/glossary.md`                                             |
 | Cross-source synthesis                      | `docs/_memory/_synthesis.md` and `docs/_memory/analysis/analysis_*.md` |
 | Spec quality evidence                       | `docs/_memory/lessons/L-012-techspec-prose-only-rework.md`             |
