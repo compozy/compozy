@@ -6,13 +6,13 @@ persona: Ada
 journey: J-session-start
 expected: Every Claude row the picker leaves enabled starts a session; when live discovery is degraded, those rows render disabled with a stated reason, the provider default still starts, and no enabled row is refused at session start.
 entry_points: web model picker; GET /api/model-catalog/models; POST /api/workspaces/:workspace_id/sessions
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_commits: d4428ab8
+evidence: /home/glkifer/dev/qa-labs/compozy-model-picker-startability-20260904-144612-742622-lab/qa-artifacts/qa/evidence
+last_report: docs/qa/reports/2026-09-04-model-picker-startability.md
 overlaps:
 ---
 
@@ -28,3 +28,10 @@ picker leaves enabled is refused by session start.
 
 Finally, curate one model from settings (toggle `hidden`) and confirm the other curated models keep their
 display names, context windows, and prices — a one-model edit must not flatten the rest of the set.
+
+2026-09-04 walk (isolated lab, binary at `d4428ab8`): pass. The cold home reported every curated Claude row
+`startable: false` / `live_discovery_unavailable`; a forced refresh made exactly the four advertised models
+startable under their logical ids while thirteen `models_dev`-only rows stayed blocked; curating one model
+left the other four intact; and a session pinned to `claude-sonnet-5` reached `active`. Browser verification
+of the disabled badge was blocked (no browser CLI on the host) and is covered by the selector unit suite
+instead. See `docs/qa/reports/2026-09-04-model-picker-startability.md`.
