@@ -744,6 +744,129 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bind a Claude model from stored rows without forcing a refresh", func(t *testing.T) {
+		t.Parallel()
+
+		const logicalModel = "claude-opus-5"
+		var refreshRequests int
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			models: []modelcatalog.Model{liveClaudeCatalogModel(logicalModel, "opus")},
+			onList: func(opts modelcatalog.ListOptions) {
+				if opts.Refresh {
+					refreshRequests++
+				}
+			},
+		}))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     logicalModel,
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if refreshRequests != 0 {
+			t.Fatalf("forced catalog refreshes = %d, want 0 when the stored rows already bind", refreshRequests)
+		}
+	})
+
+	t.Run("Should refresh once then reject a Claude model with no live binding", func(t *testing.T) {
+		t.Parallel()
+
+		var refreshRequests int
+		// A builtin-only row: the picker can show it, but no live transport binding exists.
+		offline := modelcatalog.Model{
+			ProviderID:        runtimeProviderClaude,
+			ModelID:           "claude-sonnet-5",
+			AvailabilityState: modelcatalog.AvailabilityStateUnknown,
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceIDBuiltin,
+				SourceKind: modelcatalog.SourceKindBuiltin,
+			}},
+		}
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			models: []modelcatalog.Model{offline, liveClaudeCatalogModel("claude-opus-5", "opus")},
+			onList: func(opts modelcatalog.ListOptions) {
+				if opts.Refresh {
+					refreshRequests++
+				}
+			},
+		}))
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     "claude-sonnet-5",
+			Workspace: h.workspaceID,
+		})
+		if err == nil || !strings.Contains(err.Error(), "not advertised by the live ACP catalog") {
+			t.Fatalf("Create() error = %v, want a catalog-membership rejection", err)
+		}
+		if !strings.Contains(err.Error(), "claude-opus-5") {
+			t.Fatalf("Create() error = %v, want the startable models listed as valid choices", err)
+		}
+		if refreshRequests != 1 {
+			t.Fatalf("forced catalog refreshes = %d, want exactly one recovery refresh", refreshRequests)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want no ACP launch", got)
+		}
+	})
+
+	t.Run("Should pass through a Claude model id the catalog carries no row for", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			models: []modelcatalog.Model{liveClaudeCatalogModel("claude-opus-5", "opus")},
+		}))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     "sonnet",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v, want a raw Claude transport value to pass through", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != "sonnet" {
+			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, "sonnet")
+		}
+	})
+
+	t.Run("Should start when the model catalog cannot answer at all", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{err: errors.New("catalog offline")}))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     "sonnet",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v, want pre-validation to step aside for an unreachable catalog", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != "sonnet" {
+			t.Fatalf("StartOpts.PreferredModel = %q, want the unvalidated model passed through", got)
+		}
+	})
+
 	t.Run("Should resolve a logical Claude model to its live transport alias at start", func(t *testing.T) {
 		t.Parallel()
 
@@ -1197,9 +1320,24 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	})
 }
 
+func liveClaudeCatalogModel(modelID string, transportModelID string) modelcatalog.Model {
+	return modelcatalog.Model{
+		ProviderID:        runtimeProviderClaude,
+		ModelID:           modelID,
+		Available:         new(true),
+		AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+		TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: transportModelID}},
+		Sources: []modelcatalog.SourceRef{{
+			SourceID:   modelcatalog.SourceKindProviderLiveID(runtimeProviderClaude),
+			SourceKind: modelcatalog.SourceKindProviderLive,
+		}},
+	}
+}
+
 type modelCatalogStub struct {
 	models []modelcatalog.Model
 	onList func(modelcatalog.ListOptions)
+	err    error
 }
 
 func (s modelCatalogStub) ListModels(
@@ -1208,6 +1346,9 @@ func (s modelCatalogStub) ListModels(
 ) ([]modelcatalog.Model, error) {
 	if s.onList != nil {
 		s.onList(opts)
+	}
+	if s.err != nil {
+		return nil, s.err
 	}
 	models := make([]modelcatalog.Model, 0, len(s.models))
 	for _, model := range s.models {

@@ -20,6 +20,7 @@ func ProviderModelList(models []modelcatalog.Model) contract.ProviderModelListRe
 
 // ProviderModel converts one catalog model without exposing transport aliases.
 func ProviderModel(model modelcatalog.Model) contract.ProviderModelPayload {
+	startable, blockedReason := modelcatalog.ModelStartability(model)
 	payload := contract.ProviderModelPayload{
 		ProviderID:             model.ProviderID,
 		ModelID:                model.ModelID,
@@ -27,6 +28,8 @@ func ProviderModel(model modelcatalog.Model) contract.ProviderModelPayload {
 		Sources:                SourceRefs(model.Sources),
 		Available:              model.Available,
 		AvailabilityState:      string(model.AvailabilityState),
+		Startable:              startable,
+		StartBlockedReason:     string(blockedReason),
 		Stale:                  model.Stale,
 		RefreshedAt:            TimeString(model.RefreshedAt),
 		ContextWindow:          model.ContextWindow,

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1831,101 +1832,211 @@ func TestResolveProviderRejectsUnknownProvider(t *testing.T) {
 func TestResolveProviderMergesRuntimeOverrideHints(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	cfg := DefaultWithHome(homePaths)
-	cfg.Providers["codex"] = ProviderConfig{
-		Models: ProviderModelsConfig{
+	t.Run("Should apply the override default model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
 			Default: "gpt-manual",
+		})
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if got, want := provider.Models.Default, "gpt-manual"; got != want {
+			t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should append curated models the builtin registry does not define", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
 			Curated: []ProviderModelConfig{
 				{ID: "gpt-custom", DisplayName: "Custom GPT"},
 				{ID: "gpt-mini", DisplayName: "Mini GPT"},
 			},
-		},
-	}
-
-	provider, err := cfg.ResolveProvider("codex")
-	if err != nil {
-		t.Fatalf("ResolveProvider(codex) error = %v", err)
-	}
-	if got, want := provider.Models.Default, "gpt-manual"; got != want {
-		t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
-	}
-	wantModels := []ProviderModelConfig{
-		{ID: "gpt-custom", DisplayName: "Custom GPT"},
-		{ID: "gpt-mini", DisplayName: "Mini GPT"},
-	}
-	if !reflect.DeepEqual(provider.Models.Curated, wantModels) {
-		t.Fatalf("ResolveProvider(codex) Models.Curated = %#v, want %#v", provider.Models.Curated, wantModels)
-	}
+		})
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		want := append(curatedModelIDs(BuiltinProviders()["codex"].Models.Curated), "gpt-custom", "gpt-mini")
+		if got := curatedModelIDs(provider.Models.Curated); !reflect.DeepEqual(got, want) {
+			t.Fatalf("ResolveProvider(codex) curated ids = %#v, want %#v", got, want)
+		}
+	})
 }
 
-func TestResolveProviderPreservesExplicitEmptyCuratedModels(t *testing.T) {
+// A settings write curates one model at a time. Replacing the whole curated list on such a
+// write dropped every other model's identity, which broke logical-to-transport model
+// binding at session start (issue #549).
+func TestResolveProviderCuratedOverrideMergesByModelID(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve curated models a partial override never mentions", func(t *testing.T) {
+		t.Parallel()
+
+		hidden := true
+		builtinIDs := curatedModelIDs(BuiltinProviders()["codex"].Models.Curated)
+		if len(builtinIDs) < 2 {
+			t.Fatalf("builtin codex curated ids = %#v, want at least two for this case", builtinIDs)
+		}
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
+			Curated: []ProviderModelConfig{{ID: builtinIDs[0], Hidden: &hidden}},
+		})
+
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if got := curatedModelIDs(provider.Models.Curated); !reflect.DeepEqual(got, builtinIDs) {
+			t.Fatalf("ResolveProvider(codex) curated ids = %#v, want %#v", got, builtinIDs)
+		}
+	})
+
+	t.Run("Should overlay only the fields the override sets", func(t *testing.T) {
+		t.Parallel()
+
+		hidden := true
+		builtin := BuiltinProviders()["codex"].Models.Curated[0]
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
+			Curated: []ProviderModelConfig{{ID: builtin.ID, Hidden: &hidden}},
+		})
+
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		merged := provider.Models.Curated[0]
+		if merged.Hidden == nil || !*merged.Hidden {
+			t.Fatalf("curated[0].Hidden = %v, want true", merged.Hidden)
+		}
+		if merged.DisplayName != builtin.DisplayName {
+			t.Fatalf("curated[0].DisplayName = %q, want %q", merged.DisplayName, builtin.DisplayName)
+		}
+		if !reflect.DeepEqual(merged.ContextWindow, builtin.ContextWindow) {
+			t.Fatalf("curated[0].ContextWindow = %v, want %v", merged.ContextWindow, builtin.ContextWindow)
+		}
+		if !reflect.DeepEqual(merged.ReasoningEfforts, builtin.ReasoningEfforts) {
+			t.Fatalf("curated[0].ReasoningEfforts = %#v, want %#v", merged.ReasoningEfforts, builtin.ReasoningEfforts)
+		}
+	})
+
+	t.Run("Should drop an inherited default effort the narrowed effort set cannot honor", func(t *testing.T) {
+		t.Parallel()
+
+		builtin := BuiltinProviders()["codex"].Models.Curated[0]
+		if builtin.DefaultReasoningEffort == "" {
+			t.Fatalf("builtin codex curated[0] = %#v, want a default reasoning effort for this case", builtin)
+		}
+		narrowed := []string{"low", "max"}
+		if slices.Contains(narrowed, builtin.DefaultReasoningEffort) {
+			t.Fatalf(
+				"builtin default effort %q must fall outside %#v for this case",
+				builtin.DefaultReasoningEffort,
+				narrowed,
+			)
+		}
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
+			Curated: []ProviderModelConfig{{ID: builtin.ID, ReasoningEfforts: narrowed}},
+		})
+
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		merged, ok := findCuratedModel(provider.Models.Curated, builtin.ID)
+		if !ok {
+			t.Fatalf("ResolveProvider(codex) curated = %#v, want %q", provider.Models.Curated, builtin.ID)
+		}
+		if !slices.Equal(merged.ReasoningEfforts, narrowed) {
+			t.Fatalf("curated ReasoningEfforts = %#v, want %#v", merged.ReasoningEfforts, narrowed)
+		}
+		if merged.DefaultReasoningEffort != "" {
+			t.Fatalf("curated DefaultReasoningEffort = %q, want empty", merged.DefaultReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep the builtin curated set when the override list is empty", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerConfigWithCuratedOverride(t, ProviderModelsConfig{
+			Curated: []ProviderModelConfig{},
+		})
+
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		want := curatedModelIDs(BuiltinProviders()["codex"].Models.Curated)
+		if got := curatedModelIDs(provider.Models.Curated); !reflect.DeepEqual(got, want) {
+			t.Fatalf("ResolveProvider(codex) curated ids = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func providerConfigWithCuratedOverride(t *testing.T, models ProviderModelsConfig) Config {
+	t.Helper()
 
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	cfg := DefaultWithHome(homePaths)
-	cfg.Providers["codex"] = ProviderConfig{
-		Models: ProviderModelsConfig{
-			Curated: []ProviderModelConfig{},
-		},
-	}
+	cfg.Providers["codex"] = ProviderConfig{Models: models}
+	return cfg
+}
 
-	provider, err := cfg.ResolveProvider("codex")
-	if err != nil {
-		t.Fatalf("ResolveProvider(codex) error = %v", err)
+func curatedModelIDs(models []ProviderModelConfig) []string {
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		ids = append(ids, model.ID)
 	}
-	if got := len(provider.Models.Curated); got != 0 {
-		t.Fatalf("ResolveProvider(codex) Models.Curated len = %d, want 0", got)
-	}
+	return ids
 }
 
 func TestLoadProviderRuntimeOverrideHintsFromTOML(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	if err := EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-	writeFile(t, homePaths.ConfigFile, `
-[providers.codex.models]
-default = "gpt-manual"
+	t.Run("Should merge TOML curated entries into the builtin set", func(t *testing.T) {
+		t.Parallel()
 
-[[providers.codex.models.curated]]
-id = "gpt-custom"
-display_name = "Custom GPT"
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+	[providers.codex.models]
+	default = "gpt-manual"
 
-[[providers.codex.models.curated]]
-id = "gpt-mini"
-display_name = "Mini GPT"
-`)
+	[[providers.codex.models.curated]]
+	id = "gpt-custom"
+	display_name = "Custom GPT"
 
-	cfg, err := LoadForHome(homePaths, withoutDotEnv())
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	provider, err := cfg.ResolveProvider("codex")
-	if err != nil {
-		t.Fatalf("ResolveProvider(codex) error = %v", err)
-	}
-	if got, want := provider.Models.Default, "gpt-manual"; got != want {
-		t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
-	}
-	wantModels := []ProviderModelConfig{
-		{ID: "gpt-custom", DisplayName: "Custom GPT"},
-		{ID: "gpt-mini", DisplayName: "Mini GPT"},
-	}
-	if !reflect.DeepEqual(provider.Models.Curated, wantModels) {
-		t.Fatalf("ResolveProvider(codex) Models.Curated = %#v, want %#v", provider.Models.Curated, wantModels)
-	}
+	[[providers.codex.models.curated]]
+	id = "gpt-mini"
+	display_name = "Mini GPT"
+	`)
+
+		cfg, err := LoadForHome(homePaths, withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if got, want := provider.Models.Default, "gpt-manual"; got != want {
+			t.Fatalf("ResolveProvider(codex) Models.Default = %q, want %q", got, want)
+		}
+		wantIDs := append(curatedModelIDs(BuiltinProviders()["codex"].Models.Curated), "gpt-custom", "gpt-mini")
+		if got := curatedModelIDs(provider.Models.Curated); !reflect.DeepEqual(got, wantIDs) {
+			t.Fatalf("ResolveProvider(codex) curated ids = %#v, want %#v", got, wantIDs)
+		}
+	})
 }
 
 func TestLoadRejectsBlankProviderCuratedModelID(t *testing.T) {
@@ -2720,4 +2831,13 @@ func hasMCPServer(servers []MCPServer, name string) bool {
 	}
 
 	return false
+}
+
+func findCuratedModel(models []ProviderModelConfig, id string) (ProviderModelConfig, bool) {
+	for _, model := range models {
+		if model.ID == id {
+			return model, true
+		}
+	}
+	return ProviderModelConfig{}, false
 }

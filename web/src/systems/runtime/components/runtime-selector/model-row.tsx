@@ -125,7 +125,10 @@ export function ModelRow({
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
         {disabled ? (
-          <span className="text-badge font-medium whitespace-nowrap text-warning">
+          <span
+            className="text-badge font-medium whitespace-nowrap text-warning"
+            {...(model.disabled_detail ? { title: model.disabled_detail } : {})}
+          >
             {model.disabled_reason ?? "Unavailable"}
           </span>
         ) : null}

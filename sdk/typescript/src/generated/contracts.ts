@@ -4305,6 +4305,8 @@ export interface ProviderModelPayload {
   sources: ModelCatalogSourceRefPayload[];
   available?: boolean;
   availability_state: string;
+  startable: boolean;
+  start_blocked_reason?: string;
   stale: boolean;
   refreshed_at?: string;
   context_window?: number;

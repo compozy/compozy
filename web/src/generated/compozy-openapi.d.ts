@@ -46067,6 +46067,8 @@ export interface operations {
                 stale: boolean;
               }[];
               stale: boolean;
+              start_blocked_reason?: string;
+              startable: boolean;
               supports_reasoning?: boolean | null;
               supports_tools?: boolean | null;
             }[];
@@ -46465,6 +46467,8 @@ export interface operations {
                 stale: boolean;
               }[];
               stale: boolean;
+              start_blocked_reason?: string;
+              startable: boolean;
               supports_reasoning?: boolean | null;
               supports_tools?: boolean | null;
             }[];
@@ -46787,6 +46791,8 @@ export interface operations {
                 stale: boolean;
               }[];
               stale: boolean;
+              start_blocked_reason?: string;
+              startable: boolean;
               supports_reasoning?: boolean | null;
               supports_tools?: boolean | null;
             };

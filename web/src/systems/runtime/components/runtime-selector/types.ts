@@ -161,6 +161,8 @@ export interface RuntimeModelOption {
   release_date?: string;
   disabled?: boolean;
   disabled_reason?: string;
+  /** Full explanation behind `disabled_reason`, surfaced as the badge tooltip. */
+  disabled_detail?: string;
 }
 
 export type RuntimeReasoningMode = "levels" | "supported-nolevels" | "none" | "no-model";

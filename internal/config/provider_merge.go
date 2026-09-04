@@ -61,9 +61,7 @@ func mergeProviderModels(base ProviderModelsConfig, override ProviderModelsConfi
 	if strings.TrimSpace(override.Default) != "" {
 		merged.Default = override.Default
 	}
-	if override.Curated != nil {
-		merged.Curated = cloneProviderModelConfigs(override.Curated)
-	}
+	merged.Curated = mergeProviderCuratedModels(merged.Curated, override.Curated)
 	if !providerModelsDiscoveryConfigIsZero(override.Discovery) {
 		merged.Discovery = mergeProviderModelsDiscovery(merged.Discovery, override.Discovery)
 	}

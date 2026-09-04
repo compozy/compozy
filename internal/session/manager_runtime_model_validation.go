@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -46,32 +45,22 @@ func (m *Manager) resolveCursorCatalogBinding(
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	models, err := m.listLiveProviderModels(ctx, cursorRuntimeProvider, executionContext)
+	modelID := strings.TrimSpace(selection.Model)
+	view, err := m.providerCatalogView(ctx, cursorRuntimeProvider, modelID, executionContext)
 	if err != nil {
-		return "", err
+		return m.passThroughUnvalidatedModel(cursorRuntimeProvider, modelID, err), nil
 	}
-	logicalModels := make([]acp.SessionConfigOptionValue, 0, len(models))
-	for _, model := range models {
-		logicalModels = append(logicalModels, acp.SessionConfigOptionValue{Value: model.ModelID})
-		if strings.TrimSpace(model.ModelID) == strings.TrimSpace(selection.Model) {
-			binding, bindingErr := selectCursorTransportBinding(model, selection)
-			if bindingErr != nil {
-				return "", bindingErr
-			}
-			return binding.TransportModelID, nil
+	for _, model := range view.startable {
+		if strings.TrimSpace(model.ModelID) != modelID {
+			continue
 		}
+		binding, bindingErr := selectCursorTransportBinding(model, selection)
+		if bindingErr != nil {
+			return "", bindingErr
+		}
+		return binding.TransportModelID, nil
 	}
-	validationErr := acp.ValidateModelConfigValue([]acp.SessionConfigOption{{
-		ID:       sessionModelConfigKey,
-		Category: sessionModelConfigKey,
-		Kind:     acp.SessionConfigOptionKindSelect,
-		Values:   logicalModels,
-	}}, selection.Model)
-	return "", fmt.Errorf(
-		"session: Cursor model %q is not advertised by the live ACP catalog: %w",
-		selection.Model,
-		validationErr,
-	)
+	return "", unadvertisedCatalogModelError("Cursor", modelID, view.startable)
 }
 
 func (m *Manager) resolveClaudeCatalogBinding(
@@ -80,49 +69,61 @@ func (m *Manager) resolveClaudeCatalogBinding(
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
 	modelID := strings.TrimSpace(selection.Model)
-	models, err := m.listLiveProviderModels(ctx, runtimeProviderClaude, executionContext)
+	view, err := m.providerCatalogView(ctx, runtimeProviderClaude, modelID, executionContext)
 	if err != nil {
-		if !claudeLogicalModelRequiresCatalogBinding(modelID) {
-			return modelID, nil
-		}
-		return "", err
+		return m.passThroughUnvalidatedModel(runtimeProviderClaude, modelID, err), nil
 	}
-	logicalModels := make([]acp.SessionConfigOptionValue, 0, len(models))
-	for _, model := range models {
-		logicalModels = append(logicalModels, acp.SessionConfigOptionValue{Value: model.ModelID})
+	for _, model := range view.startable {
 		if strings.TrimSpace(model.ModelID) != modelID {
 			continue
 		}
 		return selectClaudeTransportModel(model)
 	}
-	if !claudeLogicalModelRequiresCatalogBinding(modelID) {
+	// Claude accepts its own raw transport values ("sonnet", "opus"), so an id the catalog
+	// carries no row for is not a CompozyOS logical id and needs no binding. Cursor is
+	// deliberately stricter: its transport ids are compound aliases that must never stand in
+	// for a logical model.
+	if !view.known {
 		return modelID, nil
+	}
+	return "", unadvertisedCatalogModelError("Claude", modelID, view.startable)
+}
+
+// passThroughUnvalidatedModel keeps an unreachable catalog from becoming the only reason a
+// session cannot start: the ACP config negotiation still rejects an id the agent will not accept.
+func (m *Manager) passThroughUnvalidatedModel(providerID string, modelID string, cause error) string {
+	if m != nil && m.logger != nil {
+		m.logger.Warn(
+			"session.model_catalog.validation_skipped",
+			"provider_id", providerID,
+			"model", modelID,
+			"error", cause.Error(),
+		)
+	}
+	return modelID
+}
+
+func unadvertisedCatalogModelError(
+	providerLabel string,
+	modelID string,
+	models []modelcatalog.Model,
+) error {
+	values := make([]acp.SessionConfigOptionValue, 0, len(models))
+	for _, model := range models {
+		values = append(values, acp.SessionConfigOptionValue{Value: model.ModelID})
 	}
 	validationErr := acp.ValidateModelConfigValue([]acp.SessionConfigOption{{
 		ID:       sessionModelConfigKey,
 		Category: sessionModelConfigKey,
 		Kind:     acp.SessionConfigOptionKindSelect,
-		Values:   logicalModels,
-	}}, selection.Model)
-	return "", fmt.Errorf(
-		"session: Claude model %q is not advertised by the live ACP catalog: %w",
-		selection.Model,
+		Values:   values,
+	}}, modelID)
+	return fmt.Errorf(
+		"session: %s model %q is not advertised by the live ACP catalog: %w",
+		providerLabel,
+		modelID,
 		validationErr,
 	)
-}
-
-func claudeLogicalModelRequiresCatalogBinding(modelID string) bool {
-	modelID = strings.TrimSpace(modelID)
-	provider, ok := compozyconfig.BuiltinProviders()[runtimeProviderClaude]
-	if !ok {
-		return false
-	}
-	for _, model := range provider.Models.Curated {
-		if strings.TrimSpace(model.ID) == modelID {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *Manager) resolveCatalogTransportModel(
@@ -140,33 +141,75 @@ func (m *Manager) resolveCatalogTransportModel(
 	}
 }
 
-func (m *Manager) listLiveProviderModels(
+// providerCatalogView is what one provider's catalog says about the wanted model.
+type providerCatalogView struct {
+	// startable holds the provider rows a session may launch against right now.
+	startable []modelcatalog.Model
+	// known reports whether the catalog carries any row for the wanted model id.
+	known bool
+}
+
+// providerCatalogView reads the same catalog rows the model picker renders, so both surfaces
+// agree on what can start. A forced refresh runs only as recovery, when the wanted model has
+// no live binding in the stored projection.
+func (m *Manager) providerCatalogView(
 	ctx context.Context,
 	providerID string,
+	modelID string,
 	executionContext modelcatalog.CatalogExecutionContext,
-) ([]modelcatalog.Model, error) {
+) (providerCatalogView, error) {
+	view, err := m.readProviderCatalog(ctx, providerID, modelID, executionContext, false)
+	if err != nil {
+		return providerCatalogView{}, err
+	}
+	if catalogModelsContain(view.startable, modelID) {
+		return view, nil
+	}
+	return m.readProviderCatalog(ctx, providerID, modelID, executionContext, true)
+}
+
+func (m *Manager) readProviderCatalog(
+	ctx context.Context,
+	providerID string,
+	modelID string,
+	executionContext modelcatalog.CatalogExecutionContext,
+	refresh bool,
+) (providerCatalogView, error) {
 	if m == nil || m.modelCatalog == nil {
-		return nil, fmt.Errorf("session: %s model catalog is unavailable", providerID)
+		return providerCatalogView{}, fmt.Errorf("session: %s model catalog is unavailable", providerID)
 	}
 	models, err := m.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
 		ProviderID:       providerID,
 		ExecutionContext: executionContext,
 		View:             modelcatalog.CatalogViewAll,
-		Refresh:          true,
+		Refresh:          refresh,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("session: refresh %s model catalog: %w", providerID, err)
+		return providerCatalogView{}, fmt.Errorf("session: list %s model catalog: %w", providerID, err)
 	}
-	live := make([]modelcatalog.Model, 0, len(models))
+	view := providerCatalogView{startable: make([]modelcatalog.Model, 0, len(models))}
 	for _, model := range models {
-		if strings.TrimSpace(model.ProviderID) != providerID ||
-			model.AvailabilityState != modelcatalog.AvailabilityStateAvailableLive ||
-			!providerLiveSourcePresent(model, providerID) {
+		if strings.TrimSpace(model.ProviderID) != providerID {
 			continue
 		}
-		live = append(live, model)
+		if strings.TrimSpace(model.ModelID) == modelID {
+			view.known = true
+		}
+		if ok, _ := modelcatalog.ModelStartability(model); !ok {
+			continue
+		}
+		view.startable = append(view.startable, model)
 	}
-	return live, nil
+	return view, nil
+}
+
+func catalogModelsContain(models []modelcatalog.Model, modelID string) bool {
+	for _, model := range models {
+		if strings.TrimSpace(model.ModelID) == modelID {
+			return true
+		}
+	}
+	return false
 }
 
 func selectClaudeTransportModel(model modelcatalog.Model) (string, error) {
@@ -252,132 +295,6 @@ func cursorBindingMatches(
 	return !hasThinking || !thinking
 }
 
-func cursorModelOptionSelections(
-	model modelcatalog.Model,
-	requested []acp.SessionConfigOptionSelection,
-) ([]modelcatalog.ModelOptionSelection, error) {
-	selected := make(map[string]modelcatalog.ModelOptionSelection, len(model.ConfigOptions))
-	descriptors := make(map[string]modelcatalog.ModelOptionDescriptor, len(model.ConfigOptions))
-	for _, descriptor := range model.ConfigOptions {
-		id := strings.TrimSpace(descriptor.ID)
-		if id == "" {
-			continue
-		}
-		descriptors[id] = descriptor
-		switch {
-		case descriptor.Kind == modelcatalog.ModelOptionKindSelect && strings.TrimSpace(descriptor.CurrentValueID) != "":
-			selected[id] = modelcatalog.ModelOptionSelection{
-				ID:      id,
-				ValueID: strings.TrimSpace(descriptor.CurrentValueID),
-			}
-		case descriptor.Kind == modelcatalog.ModelOptionKindBoolean && descriptor.CurrentBool != nil:
-			selected[id] = modelcatalog.ModelOptionSelection{ID: id, BoolValue: new(*descriptor.CurrentBool)}
-		}
-	}
-	for _, option := range requested {
-		id := strings.TrimSpace(option.ID)
-		if isDedicatedCursorOptionID(id) {
-			return nil, fmt.Errorf("session: Cursor ACP option %q duplicates a dedicated runtime setting", id)
-		}
-		descriptor, ok := descriptors[id]
-		if !ok {
-			return nil, fmt.Errorf("session: Cursor ACP option %q is not advertised for model %q", id, model.ModelID)
-		}
-		candidate := modelcatalog.ModelOptionSelection{ID: id, ValueID: strings.TrimSpace(option.ValueID)}
-		if option.BoolValue != nil {
-			candidate.BoolValue = new(*option.BoolValue)
-		}
-		if err := validateCursorModelOptionSelection(descriptor, candidate); err != nil {
-			return nil, err
-		}
-		selected[id] = candidate
-	}
-	result := make([]modelcatalog.ModelOptionSelection, 0, len(selected))
-	for _, option := range selected {
-		result = append(result, option)
-	}
-	slices.SortFunc(result, func(left, right modelcatalog.ModelOptionSelection) int {
-		return strings.Compare(left.ID, right.ID)
-	})
-	return result, nil
-}
-
-func validateCursorModelOptionSelection(
-	descriptor modelcatalog.ModelOptionDescriptor,
-	selection modelcatalog.ModelOptionSelection,
-) error {
-	if err := modelcatalog.ValidateModelOptionSelection(selection); err != nil {
-		return err
-	}
-	switch descriptor.Kind {
-	case modelcatalog.ModelOptionKindBoolean:
-		if selection.BoolValue == nil {
-			return fmt.Errorf("session: Cursor ACP option %q requires a boolean value", descriptor.ID)
-		}
-	case modelcatalog.ModelOptionKindSelect:
-		for _, value := range descriptor.Values {
-			if strings.TrimSpace(value.ValueID) == selection.ValueID {
-				return nil
-			}
-		}
-		return fmt.Errorf(
-			"session: Cursor ACP option %q does not allow value %q",
-			descriptor.ID,
-			selection.ValueID,
-		)
-	default:
-		return fmt.Errorf("session: Cursor ACP option %q has unsupported kind %q", descriptor.ID, descriptor.Kind)
-	}
-	return nil
-}
-
-func isDedicatedCursorOptionID(id string) bool {
-	switch strings.TrimSpace(id) {
-	case "model", "reasoning_effort", "effort", "fast", "speed":
-		return true
-	default:
-		return false
-	}
-}
-
-func cursorBindingOptionSelectionsMatch(
-	binding []modelcatalog.ModelOptionSelection,
-	wanted []modelcatalog.ModelOptionSelection,
-) bool {
-	if len(binding) != len(wanted) {
-		return false
-	}
-	for _, expected := range wanted {
-		matched := false
-		for _, candidate := range binding {
-			if candidate.ID != expected.ID || candidate.ValueID != expected.ValueID ||
-				(candidate.BoolValue == nil) != (expected.BoolValue == nil) {
-				continue
-			}
-			if candidate.BoolValue == nil || *candidate.BoolValue == *expected.BoolValue {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	return true
-}
-
-func cursorBooleanOptionSelection(
-	selections []modelcatalog.ModelOptionSelection,
-	id string,
-) (bool, bool) {
-	for _, selection := range selections {
-		if selection.ID == id && selection.BoolValue != nil {
-			return *selection.BoolValue, true
-		}
-	}
-	return false, false
-}
-
 func (m *Manager) validateExplicitStartModel(
 	ctx context.Context,
 	runtime *sessionStartRuntime,
@@ -440,13 +357,4 @@ func modelCatalogExecutionContext(profileID string, workspaceID string) modelcat
 func isCursorRuntimeSelection(selection RuntimeSelection) bool {
 	return strings.TrimSpace(selection.Provider) == cursorRuntimeProvider &&
 		strings.TrimSpace(selection.Model) != ""
-}
-
-func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool {
-	for _, source := range model.Sources {
-		if source.SourceID == modelcatalog.SourceKindProviderLiveID(providerID) && !source.Stale {
-			return true
-		}
-	}
-	return false
 }

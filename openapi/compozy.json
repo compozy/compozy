@@ -108018,6 +108018,12 @@
                           "stale": {
                             "type": "boolean"
                           },
+                          "start_blocked_reason": {
+                            "type": "string"
+                          },
+                          "startable": {
+                            "type": "boolean"
+                          },
                           "supports_reasoning": {
                             "nullable": true,
                             "type": "boolean"
@@ -108037,7 +108043,8 @@
                           "model_id",
                           "provider_id",
                           "sources",
-                          "stale"
+                          "stale",
+                          "startable"
                         ],
                         "type": "object"
                       },
@@ -109048,6 +109055,12 @@
                           "stale": {
                             "type": "boolean"
                           },
+                          "start_blocked_reason": {
+                            "type": "string"
+                          },
+                          "startable": {
+                            "type": "boolean"
+                          },
                           "supports_reasoning": {
                             "nullable": true,
                             "type": "boolean"
@@ -109067,7 +109080,8 @@
                           "model_id",
                           "provider_id",
                           "sources",
-                          "stale"
+                          "stale",
+                          "startable"
                         ],
                         "type": "object"
                       },
@@ -109885,6 +109899,12 @@
                         "stale": {
                           "type": "boolean"
                         },
+                        "start_blocked_reason": {
+                          "type": "string"
+                        },
+                        "startable": {
+                          "type": "boolean"
+                        },
                         "supports_reasoning": {
                           "nullable": true,
                           "type": "boolean"
@@ -109904,7 +109924,8 @@
                         "model_id",
                         "provider_id",
                         "sources",
-                        "stale"
+                        "stale",
+                        "startable"
                       ],
                       "type": "object"
                     }
