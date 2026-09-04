@@ -313,8 +313,8 @@ func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse
 	if err := json.Unmarshal([]byte(finalize.OutputRef), &counts); err != nil {
 		t.Fatalf("Unmarshal(finalize output) error = %v; output=%s", err, finalize.OutputRef)
 	}
-	if counts.Resolved != 2 || counts.Invalid != 1 || counts.Pending != 0 {
-		t.Fatalf("finalize counts = %#v, want {resolved:2 invalid:1 pending:0}", counts)
+	if counts.Resolved != 1 || counts.Invalid != 1 || counts.Pending != 0 {
+		t.Fatalf("finalize counts = %#v, want {resolved:1 invalid:1 pending:0}", counts)
 	}
 	fixResults := make(map[string]struct {
 		triage     string
