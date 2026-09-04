@@ -355,33 +355,43 @@ func startWindowsReadAfterStartup(t *testing.T, proc Proc) <-chan error {
 	reader := bufio.NewReader(proc.Reader())
 	readWindowsUntil(t, proc, reader, windowsSleepReadyMarker)
 
-	readDone := make(chan error, 1)
-	go func() {
-		buffer := make([]byte, 256)
-		_, err := reader.Read(buffer)
-		readDone <- err
-	}()
 	activeDeadline := time.NewTimer(2 * time.Second)
 	defer activeDeadline.Stop()
+
+nextRead:
 	for {
-		windowsTerminal.outputIO.mu.Lock()
-		active := windowsTerminal.outputIO.activeDone != nil
-		windowsTerminal.outputIO.mu.Unlock()
-		if active {
+		readDone := make(chan error, 1)
+		go func() {
+			buffer := make([]byte, 256)
+			_, err := reader.Read(buffer)
+			readDone <- err
+		}()
+		for {
+			windowsTerminal.outputIO.mu.Lock()
+			active := windowsTerminal.outputIO.activeDone != nil
+			windowsTerminal.outputIO.mu.Unlock()
+			if active {
+				select {
+				case err := <-readDone:
+					if err != nil {
+						t.Fatalf("read ConPTY output after readiness marker: %v", err)
+					}
+					continue nextRead
+				default:
+					return readDone
+				}
+			}
 			select {
 			case err := <-readDone:
-				t.Fatalf("live-child read returned before becoming active: %v", err)
+				if err != nil {
+					t.Fatalf("read ConPTY output after readiness marker: %v", err)
+				}
+				continue nextRead
+			case <-activeDeadline.C:
+				t.Fatal("ConPTY read did not become active within 2s")
 			default:
-				return readDone
+				runtime.Gosched()
 			}
-		}
-		select {
-		case err := <-readDone:
-			t.Fatalf("live-child read returned before becoming active: %v", err)
-		case <-activeDeadline.C:
-			t.Fatal("ConPTY read did not become active within 2s")
-		default:
-			runtime.Gosched()
 		}
 	}
 }
