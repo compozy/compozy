@@ -13,7 +13,7 @@
 
 ## Automated evidence
 
-- `CGO_ENABLED=1 go test -race ./extensions/spec-cycle -count=1` — passed for the final local source tree.
+- `CGO_ENABLED=1 go test -race ./extensions/spec-cycle -run '^TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts$' -count=1` — passed for the final local source tree, including every allowed and rejected triage/resolution pairing.
 - `bunx turbo run typecheck --filter=./packages/site` — passed, including MDX generation and codegen drift checks.
 - A local `make gate` was started before a controller correction prohibited local broad gates. It was interrupted with exit 143 and is not verification evidence.
 

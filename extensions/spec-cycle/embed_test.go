@@ -672,7 +672,8 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if strings.Contains(manualPrompt, "Create exactly one local commit") {
 			t.Fatal("manual prompt incorrectly creates a commit")
 		}
-		resultsSchema := requireSchemaObject(t, requireSchemaObject(t, fixBatch.Params, "output_schema"), "properties")
+		fixBatchOutputSchema := requireSchemaObject(t, fixBatch.Params, "output_schema")
+		resultsSchema := requireSchemaObject(t, fixBatchOutputSchema, "properties")
 		results := requireSchemaObject(t, resultsSchema, "results")
 		item := requireSchemaObject(t, results, "items")
 		required, ok := item["required"].([]any)
@@ -702,6 +703,47 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		wantResolutionValues := []any{"fixed", "documented", "unresolved", "blocked"}
 		if !ok || !slices.Equal(resolutionValues, wantResolutionValues) {
 			t.Fatalf("fix_batch resolution enum = %#v, want %#v", resolution["enum"], wantResolutionValues)
+		}
+		for _, testCase := range []struct {
+			name       string
+			triage     string
+			resolution string
+			wantErr    bool
+		}{
+			{name: "Should accept fixed valid results", triage: "valid", resolution: "fixed"},
+			{name: "Should accept unresolved valid results", triage: "valid", resolution: "unresolved"},
+			{name: "Should accept blocked valid results", triage: "valid", resolution: "blocked"},
+			{name: "Should accept documented invalid results", triage: "invalid", resolution: "documented"},
+			{name: "Should reject documented valid results", triage: "valid", resolution: "documented", wantErr: true},
+			{name: "Should reject fixed invalid results", triage: "invalid", resolution: "fixed", wantErr: true},
+			{name: "Should reject unresolved invalid results", triage: "invalid", resolution: "unresolved", wantErr: true},
+			{name: "Should reject blocked invalid results", triage: "invalid", resolution: "blocked", wantErr: true},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				payload, err := json.Marshal(map[string]any{
+					"results": []map[string]string{{
+						"path":       "reviews-001/issue_001.md",
+						"triage":     testCase.triage,
+						"resolution": testCase.resolution,
+						"summary":    "Verified result",
+					}},
+				})
+				if err != nil {
+					t.Fatalf("Marshal() error = %v", err)
+				}
+				_, err = loop.ValidateActionStructured(
+					dsl.Schema(fixBatchOutputSchema),
+					loop.ActionPromptResult{Structured: payload},
+				)
+				if testCase.wantErr && err == nil {
+					t.Fatal("ValidateActionStructured() error = nil, want invalid triage/resolution pairing")
+				}
+				if !testCase.wantErr && err != nil {
+					t.Fatalf("ValidateActionStructured() error = %v", err)
+				}
+			})
 		}
 		finalize := requireSpecCycleNode(t, def, "finalize_round")
 		if got, want := finalize.Kind, toolspkg.ToolID("ext__spec_cycle__finalize_review_round").String(); got != want {

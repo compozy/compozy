@@ -186,6 +186,23 @@ graph:
                     enum: [fixed, documented, unresolved, blocked]
                   summary:
                     type: string
+                allOf:
+                  - if:
+                      properties:
+                        triage:
+                          const: valid
+                    then:
+                      properties:
+                        resolution:
+                          enum: [fixed, unresolved, blocked]
+                  - if:
+                      properties:
+                        triage:
+                          const: invalid
+                    then:
+                      properties:
+                        resolution:
+                          const: documented
       session:
         isolated: true
       timeout: 45m
