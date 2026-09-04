@@ -44,6 +44,12 @@ func evaluatePromptProviderFailure(
 ) error {
 	if promptFailure != nil {
 		code := string(promptFailure.Kind)
+		if promptFailure.Kind == store.FailurePrompt {
+			classified := classifyProviderEventErrorCode(eventError + " " + promptFailure.Summary)
+			if classified != "provider_error" {
+				code = classified
+			}
+		}
 		if code == "" {
 			code = "provider_failure"
 		}

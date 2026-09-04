@@ -1711,7 +1711,8 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{
 			events: []acp.AgentEvent{
 				{
-					Type: acp.EventTypeError,
+					Type:  acp.EventTypeError,
+					Error: "You've hit your usage limit with codex",
 					Failure: &store.SessionFailure{
 						Kind:    store.FailurePrompt,
 						Summary: "You've hit your usage limit with codex",
@@ -1721,7 +1722,7 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
@@ -1734,8 +1735,8 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 			t.Fatalf("err is not SafeActionFailureProvider: %T (%v)", err, err)
 		}
 		failure := safeErr.SafeActionFailure()
-		if failure.Code != "prompt_failure" {
-			t.Fatalf("failure.Code = %q, want prompt_failure", failure.Code)
+		if failure.Code != "quota_exceeded" {
+			t.Fatalf("failure.Code = %q, want quota_exceeded", failure.Code)
 		}
 		if !strings.Contains(failure.Cause, "usage limit") {
 			t.Fatalf("failure.Cause = %q, want usage limit", failure.Cause)
@@ -1749,12 +1750,16 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 				{
 					Type:  acp.EventTypeError,
 					Error: "Failed to authenticate: OAuth session expired and could not be refreshed",
-					Text:  "Failed to authenticate: OAuth session expired and could not be refreshed",
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: "Failed to authenticate: OAuth session expired and could not be refreshed",
+					},
+					Text: "Failed to authenticate: OAuth session expired and could not be refreshed",
 				},
 			},
 		}
 		_, err := collectLoopPromptResult(
-			context.Background(),
+			t.Context(),
 			sessions,
 			"sess-1",
 			looppkg.ActionPromptRequest{Message: "hello"},
