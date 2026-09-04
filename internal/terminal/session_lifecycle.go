@@ -50,8 +50,8 @@ func (s *session) finalize(exit Exit) {
 			reason = exit.Cause
 		}
 		actor := s.closeActor
-		if actor.ProfileID == "" && s.info.Controller != nil {
-			actor = *s.info.Controller
+		if actor.ProfileID == "" {
+			actor = s.origin
 		}
 		if actor.ProfileID == "" {
 			actor = Actor{Kind: ActorKindSystem, ID: "terminal-process", ProfileID: s.info.ProfileID}
@@ -84,7 +84,6 @@ func (s *session) finalize(exit Exit) {
 		for _, subscriber := range subscribers {
 			subscriber.finish(exit)
 		}
-		s.lease.close()
 		if err := s.vt.Close(); err != nil {
 			s.manager.logger.Debug("terminal: close emulator", "terminal_id", s.info.ID, "error", err)
 		}

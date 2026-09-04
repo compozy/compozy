@@ -46,7 +46,7 @@ export function terminalInstanceKey(
  * Identity of one transcript preview's buffer.
  *
  * Deliberately outside the pane namespace: a preview is a second view of a
- * terminal, never a second claim on the app's buffer, and the app's scope sweep
+ * terminal, never a second owner of the app's buffer, and the app's scope sweep
  * must leave it alone. Scoped by the block that renders it as well as the
  * terminal, because the same terminal id can appear in two blocks — and, across
  * profiles, mean two different terminals.

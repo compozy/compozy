@@ -216,7 +216,6 @@ export type HookEvent =
   | "worktree.removed"
   | "terminal.opened"
   | "terminal.closed"
-  | "terminal.lease_changed"
   | "terminal.command_started"
   | "terminal.command_finished"
   | "terminal.input_requested"
@@ -7024,23 +7023,6 @@ export interface TerminalInputRequestedPayload {
   redacted: boolean;
 }
 
-export interface TerminalLeaseChangedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id: string;
-  profile_id: string;
-  terminal_id?: string;
-  actor_kind: string;
-  actor_id: string;
-  session_id?: string;
-  run_id?: string;
-  generation?: number;
-  at: ISODateTime;
-  from: string;
-  to: string;
-  reason: string;
-}
-
 export interface TerminalLimitRejectedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -7929,7 +7911,6 @@ export interface HookPayloadByEvent {
   "worktree.removed": WorktreeObservationPayload;
   "terminal.opened": TerminalOpenedPayload;
   "terminal.closed": TerminalClosedPayload;
-  "terminal.lease_changed": TerminalLeaseChangedPayload;
   "terminal.command_started": TerminalCommandStartedPayload;
   "terminal.command_finished": TerminalCommandFinishedPayload;
   "terminal.input_requested": TerminalInputRequestedPayload;
@@ -8047,7 +8028,6 @@ export interface HookPatchByEvent {
   "worktree.removed": WorktreeObservationPatch;
   "terminal.opened": TerminalObservationPatch;
   "terminal.closed": TerminalObservationPatch;
-  "terminal.lease_changed": TerminalObservationPatch;
   "terminal.command_started": TerminalObservationPatch;
   "terminal.command_finished": TerminalObservationPatch;
   "terminal.input_requested": TerminalObservationPatch;

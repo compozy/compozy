@@ -1041,8 +1041,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			{id: toolspkg.ToolIDTerminalClose, capability: terminalExecCapability},
 			{id: toolspkg.ToolIDTerminalList, capability: terminalObserveCapability},
 			{id: toolspkg.ToolIDTerminalRequestInput, capability: terminalExecCapability},
-			{id: toolspkg.ToolIDTerminalYield, capability: terminalExecCapability},
-			{id: toolspkg.ToolIDTerminalClaim, capability: terminalExecCapability},
 		}
 		for _, tc := range cases {
 			descriptor, ok := descriptors[tc.id]
@@ -1857,8 +1855,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__terminal_claim", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__terminal_close", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: true},
 		{id: "compozy__terminal_exec", risk: toolspkg.RiskDestructive,
@@ -1877,8 +1873,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__terminal_write", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: true},
-		{id: "compozy__terminal_yield", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_revoke", risk: toolspkg.RiskDestructive,
@@ -3584,7 +3578,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(terminal) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
-			toolspkg.ToolIDTerminalClaim,
 			toolspkg.ToolIDTerminalClose,
 			toolspkg.ToolIDTerminalExec,
 			toolspkg.ToolIDTerminalList,
@@ -3594,7 +3587,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDTerminalSignal,
 			toolspkg.ToolIDTerminalWait,
 			toolspkg.ToolIDTerminalWrite,
-			toolspkg.ToolIDTerminalYield,
 		}; !slices.Equal(terminalTools, want) {
 			t.Fatalf("terminal expansion = %#v, want %#v", terminalTools, want)
 		}

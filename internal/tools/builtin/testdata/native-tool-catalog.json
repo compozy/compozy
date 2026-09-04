@@ -3204,22 +3204,6 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
-    "tool_id": "compozy__terminal_claim",
-    "native_name": "terminal_claim",
-    "toolsets": [
-      "compozy__terminal"
-    ],
-    "risk": "mutating",
-    "read_only": false,
-    "destructive": false,
-    "open_world": false,
-    "input_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
-    "output_schema_digest": "0679f871b025660a7b2552ec9c9887f51942a259767519df23b6eacf7d610700",
-    "required_capabilities": [
-      "terminal.exec"
-    ]
-  },
-  {
     "tool_id": "compozy__terminal_close",
     "native_name": "terminal_close",
     "toolsets": [
@@ -3262,7 +3246,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "3afc2395dcad5b3efd66ee3fdd9d89b7779116c205e83eefff47090c95b902f3",
+    "output_schema_digest": "60ffc0d77034f92e1c7af42987eeae46ce2c2bca6a78139771a5e8c9e9f24fbc",
     "required_capabilities": [
       "terminal.observe"
     ]
@@ -3358,23 +3342,7 @@
     "destructive": true,
     "open_world": true,
     "input_schema_digest": "52337098cce1357edea9e57741546a131c569dc50859377d0c8412d5cb340b00",
-    "output_schema_digest": "38e18f3d35f5ef562498c9a3f19dbbcdfc75b4a8b828ef88f1f7834f10296bed",
-    "required_capabilities": [
-      "terminal.exec"
-    ]
-  },
-  {
-    "tool_id": "compozy__terminal_yield",
-    "native_name": "terminal_yield",
-    "toolsets": [
-      "compozy__terminal"
-    ],
-    "risk": "mutating",
-    "read_only": false,
-    "destructive": false,
-    "open_world": false,
-    "input_schema_digest": "711ef4548cc9ffd4c3f5c03600d18df91cce643019faf9667f2dc32d22a06473",
-    "output_schema_digest": "0679f871b025660a7b2552ec9c9887f51942a259767519df23b6eacf7d610700",
+    "output_schema_digest": "b94e50c2b6127cd58fb23cb393cd16892b1dcc72643edbfbb8f14ca8fa9d4b54",
     "required_capabilities": [
       "terminal.exec"
     ]

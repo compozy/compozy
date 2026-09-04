@@ -6,15 +6,18 @@ persona: Bruno
 journey: J-operate-integrated-terminal
 expected: A deliberate terminal tool call renders a live block in the transcript with its exit outcome, jumps to the owning terminal window, hands a still-running command over instead of pretending it finished, and marks the output it feeds back to the model as untrusted data.
 entry_points: Session transcript terminal block; Open terminal affordance; Web dock Terminal app; compozy__terminal_exec with visible true; compozy__terminal_read; compozy__terminal_wait
-qa_status: pass
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa; docs/qa/reports/2026-09-01-terminal-rework.md
-last_report: docs/qa/reports/2026-09-01-terminal-rework.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
 overlaps: ET-terminal-browser-lifecycle; ET-agent-terminal-window-materialization
 ---
+
+QA impact 2026-09-04: supervised terminal blocks no longer carry controller or watch state. Reset to
+verify live output, window focus, presence, and untrusted-data marking under shared control.
 
 Planned by integrated-terminal task 09 for the deliberate-use transcript surface (`_uiux.md` S3);
 this file owns the supervised block and its handoff. Reset by ADR-019 (S4 removed; agent-opened
@@ -32,6 +35,11 @@ Walk:
    terminal's identity instead of claiming completion.
 5. Read the same output back through the agent's read and wait paths and confirm every model-facing
    result carries the untrusted-data marking.
-6. Confirm the supervised block carries the controller identity and watch state, and that
-   agent-internal commands in the same transcript render as plain command output with no terminal
+6. Confirm the supervised block carries truthful viewer presence without a controller identity, and
+   that agent-internal commands in the same transcript render as plain command output with no terminal
    chrome.
+
+2026-09-04 targeted re-walk: blocked-verify. The isolated targeted contract required no live provider,
+so it could not create a fresh agent transcript block. The browser terminal, public projections, and
+focused component suites verified the changed invariant: viewer presence has no controller identity and
+terminal output remains untrusted. A future provider-backed scenario should re-walk the complete block.

@@ -292,17 +292,6 @@ func (r *inputRegistry) finishResolution(pending *pendingInput, outcome InputOut
 	pending.result <- outcome
 }
 
-func (r *inputRegistry) hasPending(session *session) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, pending := range r.pending {
-		if pending.session == session {
-			return true
-		}
-	}
-	return false
-}
-
 func (r *inputRegistry) resolveTerminal(session *session, resolution inputTerminalResolution) {
 	r.mu.Lock()
 	resolved := make([]*pendingInput, 0)

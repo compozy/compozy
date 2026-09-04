@@ -165,10 +165,8 @@ func nonContractTerminalToolError(id toolspkg.ToolID, err error) error {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeUnavailable, id, err.Error(), err, toolspkg.ReasonBackendUnhealthy,
 		)
-	case errors.Is(err, terminalpkg.ErrInputPending),
-		errors.Is(err, terminalpkg.ErrInputResolved),
-		errors.Is(err, terminalpkg.ErrInputResolving),
-		errors.Is(err, terminalpkg.ErrWriteLeaseRequired):
+	case errors.Is(err, terminalpkg.ErrInputResolved),
+		errors.Is(err, terminalpkg.ErrInputResolving):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict, id, err.Error(), err,
 		)

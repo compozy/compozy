@@ -12,7 +12,6 @@ type subscription struct {
 	mode       string
 	actor      Actor
 	queue      *terminalwire.Queue
-	leaseToken uint64
 	cols       uint16
 	rows       uint16
 	removeOnce sync.Once
@@ -22,13 +21,12 @@ type subscription struct {
 var _ Subscription = (*subscription)(nil)
 
 type attachedFramePayload struct {
-	Seq       string     `json:"seq"`
-	Truncated bool       `json:"truncated"`
-	Cols      uint16     `json:"cols"`
-	Rows      uint16     `json:"rows"`
-	Lease     LeaseState `json:"lease"`
-	Mode      Mode       `json:"mode"`
-	Preamble  string     `json:"preamble,omitempty"`
+	Seq       string `json:"seq"`
+	Truncated bool   `json:"truncated"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
+	Mode      Mode   `json:"mode"`
+	Preamble  string `json:"preamble,omitempty"`
 }
 
 type exitFramePayload struct {

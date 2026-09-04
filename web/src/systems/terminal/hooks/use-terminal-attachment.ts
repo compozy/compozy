@@ -5,14 +5,8 @@ import { useEffect, useEffectEvent, useRef } from "react";
 
 import { TerminalProtocolClient, type TerminalStreamSink } from "../lib/terminal-protocol-client";
 import { terminalScopeKey } from "../lib/terminal-scope-key";
-import type { TerminalOwnerFrame } from "../lib/terminal-wire-schema";
 import type { TerminalSocketFactory } from "../adapters/terminal-socket";
-import type {
-  TerminalActor,
-  TerminalAttachMode,
-  TerminalSignal,
-  TerminalViewerIdentity,
-} from "../types";
+import type { TerminalAttachMode, TerminalSignal, TerminalViewerIdentity } from "../types";
 import { useTerminalStore } from "./use-terminal-store";
 
 /** Socket injection owned by the attachment boundary, for tests and scripted stories. */
@@ -41,18 +35,14 @@ export interface UseTerminalAttachmentOptions {
 export interface TerminalAttachment {
   sendInput: (data: string) => void;
   proposeDimensions: (cols: number, rows: number) => void;
-  requestTakeover: (force: boolean) => void;
-  releaseControl: () => void;
   sendSignal: (signal: TerminalSignal) => void;
 }
 
 /**
  * Binds one terminal's live connection to one emulator.
  *
- * The connection is keyed by `(workspace, terminal, mode)`: a mode change is a
- * different attachment, because watching and controlling are different passes
- * on the wire. Every frame lands in the store, which is the only place the UI
- * reads control state from.
+ * The connection is keyed by `(workspace, terminal, mode)`. Every frame lands
+ * in the store, which is the only place the UI reads connection state from.
  */
 export function useTerminalAttachment(options: UseTerminalAttachmentOptions): TerminalAttachment {
   const store = useTerminalStore();
@@ -82,8 +72,8 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
     if (!enabled || workspaceId === "" || terminalId === "") return undefined;
     // Bind the scope before opening the pane, never after. The reducer drops
     // every pane from the previous `(workspace, profile)`, so a terminal id
-    // reused across profiles would otherwise inherit the old scope's lease,
-    // input gate and error — and the drop would land on the pane just opened.
+    // reused across profiles would otherwise inherit the old scope's input gate
+    // and error — and the drop would land on the pane just opened.
     store.trigger.scopeBound({ scopeKey: terminalScopeKey(workspaceId, profile) });
     store.trigger.paneOpened({ terminalId });
     const client = new TerminalProtocolClient({
@@ -102,17 +92,9 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
         onAttached: frame =>
           store.trigger.attached({
             terminalId,
-            lease: frame.lease,
             mode: frame.mode,
             cols: frame.cols,
             rows: frame.rows,
-          }),
-        onLease: frame =>
-          store.trigger.leaseObserved({
-            terminalId,
-            lease: frame.lease,
-            controller: controllerOf(frame),
-            reason: frame.reason ?? null,
           }),
         onPresence: frame => store.trigger.presenceObserved({ terminalId, viewers: frame.viewers }),
         onResized: frame =>
@@ -172,13 +154,6 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   return {
     sendInput: data => clientRef.current?.sendInput(data),
     proposeDimensions: (cols, rows) => clientRef.current?.proposeDimensions(cols, rows),
-    requestTakeover: force => clientRef.current?.requestTakeover(force),
-    releaseControl: () => clientRef.current?.releaseControl(),
     sendSignal: signal => clientRef.current?.sendSignal(signal),
   };
-}
-
-function controllerOf(frame: TerminalOwnerFrame): TerminalActor | null {
-  if (!frame.actor_kind || !frame.actor_id) return null;
-  return { kind: frame.actor_kind, id: frame.actor_id };
 }

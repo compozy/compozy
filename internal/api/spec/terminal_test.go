@@ -173,10 +173,10 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 				for _, response := range operation.Responses {
 					if response.Status == http.StatusSwitchingProtocols {
 						if response.Body != nil || !strings.Contains(response.Description, "binary") ||
-							!strings.Contains(response.Description, "compozy.terminal.v2") ||
-							!strings.Contains(response.Description, "PRESENCE=0x09") ||
-							!strings.Contains(response.Description, "REDACTED_INPUT=0x0A") ||
-							!strings.Contains(response.Description, "RELEASE=0x07") {
+							!strings.Contains(response.Description, "compozy.terminal.v3") ||
+							!strings.Contains(response.Description, "PRESENCE=0x08") ||
+							!strings.Contains(response.Description, "REDACTED_INPUT=0x09") ||
+							!strings.Contains(response.Description, "DETACH=0x05") {
 							t.Fatalf("%s 101 response = %#v, want bodyless binary opcode contract", key, response)
 						}
 						continue

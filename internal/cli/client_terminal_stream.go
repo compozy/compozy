@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,12 +34,6 @@ func (c *daemonClient) AttachTerminal(
 	input io.Reader,
 	output io.Writer,
 ) error {
-	if options.Takeover {
-		if err := c.takeoverTerminal(ctx, workspace, id, options.Force); err != nil {
-			return err
-		}
-		options.Takeover = false
-	}
 	var inputReads <-chan terminalInputRead
 	if input != nil {
 		inputReads = terminalInputReads(ctx, input)
@@ -56,85 +49,6 @@ func (c *daemonClient) AttachTerminal(
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(delay):
-		}
-	}
-}
-
-func (c *daemonClient) takeoverTerminal(
-	ctx context.Context,
-	workspace, id string,
-	force bool,
-) (returnErr error) {
-	ticket, err := c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
-	if err != nil {
-		return err
-	}
-	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, TerminalAttachOptions{
-		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
-	})
-	if err != nil {
-		return err
-	}
-	conn, response, err := dialer.DialContext(ctx, target, headers)
-	if err != nil {
-		if response != nil {
-			return readAndCloseStreamHandshakeError(response)
-		}
-		if c.target.isRemoteGateway() {
-			return newGatewayReachabilityError(c.target, err)
-		}
-		return fmt.Errorf("cli: dial terminal takeover stream: %w", err)
-	}
-	defer func() {
-		closeErr := conn.Close()
-		if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
-			returnErr = errors.Join(returnErr, fmt.Errorf("cli: close terminal takeover stream: %w", closeErr))
-		}
-	}()
-	return runTerminalTakeover(ctx, conn, force)
-}
-
-func runTerminalTakeover(ctx context.Context, conn *websocket.Conn, force bool) error {
-	var writes sync.Mutex
-	requested := false
-	for {
-		if err := conn.SetReadDeadline(time.Now().Add(terminalClientHandshakeTimeout)); err != nil {
-			return fmt.Errorf("cli: set terminal takeover deadline: %w", err)
-		}
-		frame, err := readTerminalServerFrame(conn)
-		if err != nil {
-			return fmt.Errorf("cli: read terminal takeover stream: %w", err)
-		}
-		switch frame.Op {
-		case terminalwire.ServerOpAttached:
-			if requested {
-				continue
-			}
-			payload, marshalErr := json.Marshal(map[string]bool{terminalForceKey: force})
-			if marshalErr != nil {
-				return fmt.Errorf("cli: encode terminal takeover: %w", marshalErr)
-			}
-			if err := writeTerminalClientFrame(conn, &writes, terminalwire.Frame{
-				Op: terminalwire.ClientOpTakeover, Payload: payload,
-			}); err != nil {
-				return err
-			}
-			requested = true
-		case terminalwire.ServerOpOwner:
-			if !requested {
-				continue
-			}
-			return nil
-		case terminalwire.ServerOpError:
-			return terminalStreamFrameError(frame.Payload, "takeover")
-		case terminalwire.ServerOpExit:
-			return terminalPermanentError(errors.New("cli: terminal exited during takeover"))
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
 		}
 	}
 }

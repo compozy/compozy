@@ -107,15 +107,11 @@ func newTerminalGetCommand(deps commandDeps) *cobra.Command {
 
 func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 	var workspace string
-	var control, force bool
 	var afterSeq uint64
 	var cols, rows uint16
 	command := &cobra.Command{
 		Use: "attach <id>", Short: "Attach to a running terminal", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if force && !control {
-				return terminalInvalidRequest("--force requires --control", nil)
-			}
 			if err := requireTerminalInteractiveOutput(cmd); err != nil {
 				return err
 			}
@@ -130,32 +126,13 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 			if terminal.State != terminalStateRunning {
 				return terminalExitedAttachError(terminal)
 			}
-			mode, flow := terminalStreamModeRead, terminalStreamFlowDrop
-			takeover := false
-			if control {
-				mode, flow = terminalStreamModeWrite, terminalStreamFlowAck
-				takeover = terminalControllerNeedsTakeover(terminal.Controller)
-				if takeover &&
-					terminal.Controller != nil &&
-					terminal.Controller.Kind == terminalControllerHumanKind &&
-					!force {
-					confirmed, confirmErr := confirmTerminalTakeover(cmd, terminal.Controller.ID)
-					if confirmErr != nil {
-						return confirmErr
-					}
-					if !confirmed {
-						return nil
-					}
-					force = true
-				}
-			}
-			if err := writeTerminalAttachBanner(cmd.OutOrStdout(), terminal, control); err != nil {
+			if err := writeTerminalAttachBanner(cmd.OutOrStdout(), terminal); err != nil {
 				return err
 			}
 			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
 				if err := client.AttachTerminal(cmd.Context(), workspaceID, args[0], TerminalAttachOptions{
-					Mode: mode, Flow: flow, AfterSeq: afterSeq, Cols: cols, Rows: rows,
-					Takeover: takeover, Force: force,
+					Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck,
+					AfterSeq: afterSeq, Cols: cols, Rows: rows,
 				}, cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
 					return err
 				}
@@ -169,13 +146,6 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
-	command.Flags().BoolVar(&control, "control", false, "Attach with the write lease")
-	command.Flags().BoolVar(
-		&force,
-		terminalForceKey,
-		false,
-		"Displace another human controller without confirmation",
-	)
 	command.Flags().Uint64Var(&afterSeq, "after-seq", 0, "Resume after this byte sequence")
 	command.Flags().Uint16Var(&cols, "cols", 80, "Terminal columns")
 	command.Flags().Uint16Var(&rows, "rows", 24, "Terminal rows")
@@ -239,7 +209,7 @@ func terminalListBundle(
 			if selection.AllProfiles {
 				headers = append(headers, "PROFILE")
 			}
-			headers = append(headers, "TITLE", "CONTROLLER", "STATE", "CREATED")
+			headers = append(headers, "TITLE", "STATE", "CREATED")
 			lines := []string{strings.Join(headers, "\t")}
 			for _, record := range records {
 				fields := []string{string(record.ID)}
@@ -248,7 +218,6 @@ func terminalListBundle(
 				}
 				fields = append(fields,
 					record.Title,
-					terminalListController(record.Controller),
 					string(record.State),
 					terminalListAge(now, record.CreatedAt),
 				)
@@ -276,16 +245,6 @@ func terminalListScopeLabels(cmd *cobra.Command) (string, string) {
 		}
 	}
 	return workspace, profile
-}
-
-func terminalListController(controller *contract.TerminalControllerPayload) string {
-	if controller == nil {
-		return terminalControllerAvailable
-	}
-	if controller.Kind == terminalControllerHumanKind && controller.ID == terminalCLIActorID {
-		return "you"
-	}
-	return strings.TrimSpace(controller.ID)
 }
 
 func terminalListAge(now func() time.Time, createdAt time.Time) string {

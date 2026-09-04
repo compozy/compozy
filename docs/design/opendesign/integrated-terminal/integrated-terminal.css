@@ -1,7 +1,7 @@
 /* ============================================================
    INTEGRATED TERMINAL — integrated-terminal.css
-   Runtime-owned terminals: the Terminal OS app, watch/control
-   lease chrome, input requests, exec approvals, the command
+   Runtime-owned terminals: the Terminal OS app, shared-input
+   presence chrome, input requests, exec approvals, the command
    journal, and session-view terminal blocks.
 
    Companion boards: integrated-terminal-*.html · contract: DESIGN-NOTES.md.
@@ -20,8 +20,8 @@
      4. This file (terminal anatomy + ANSI token proposal)
 
    Semantic contract (locked in DESIGN-NOTES.md):
-     Watching = info + hollow cursor, never prose. Take control is
-     the single accent action in terminal chrome. Input requested
+     Presence = info + viewer count. Interactive attachments share input.
+     Input requested
      and approximate journal rows = warning. Kill and the fixed
      irreversible command set = danger. Exit 0 = success chip;
      non-zero exit = neutral + code, never danger. "Reported by
@@ -222,27 +222,24 @@
 .tm-pipe-ln > i{font-style:normal;text-align:right;color:var(--term-ansi-8);user-select:none}
 
 /* ============================================================
-   34 · TERMINAL CHROME — lease chip, presence, size vote,
+   34 · TERMINAL CHROME — presence chip and size vote,
    recording, tab adornments, platform notice
-   Lives in the 44px window head + the deck. Take control is the
-   ONE accent action; everything else is neutral or signal-toned.
+   Lives in the 44px window head + the deck. Presence is informational;
+   primary actions remain neutral or signal-toned.
    ============================================================ */
-.tm-lease{
+.tm-presence{
   display:inline-flex;align-items:center;gap:6px;
   height:20px;padding:0 8px;border-radius:var(--radius-pill);
   font-size:11px;font-weight:500;line-height:1;white-space:nowrap;
   background:var(--badge-fill);color:var(--muted);
 }
-.tm-lease svg{width:11px;height:11px;flex:none}
-.tm-lease b{font-weight:600;color:var(--fg)}
-.tm-lease[data-lease="watching"]{background:var(--info-tint);color:var(--info)}
-.tm-lease[data-lease="watching"] b{color:var(--info)}
-.tm-lease[data-lease="me"]{background:var(--badge-fill);color:var(--fg)}
-.tm-lease[data-lease="agent"]{background:var(--info-tint);color:var(--info)}
-.tm-lease[data-lease="agent"] b{color:var(--info)}
-.tm-lease[data-lease="available"]{background:var(--neutral-tint);color:var(--muted)}
+.tm-presence svg{width:11px;height:11px;flex:none}
+.tm-presence b{font-weight:600;color:var(--fg)}
+.tm-presence[data-state="active"]{background:var(--info-tint);color:var(--info)}
+.tm-presence[data-state="active"] b{color:var(--info)}
+.tm-presence[data-state="empty"]{background:var(--neutral-tint);color:var(--muted)}
 
-/* Watcher presence: count + eye. Info = read-only lane. */
+/* Shared presence: count + eye. */
 .tm-viewers{
   display:inline-flex;align-items:center;gap:4px;
   height:20px;padding:0 7px;border-radius:var(--radius-pill);
@@ -374,7 +371,7 @@
 .att__row .tm-irreversible{margin-top:4px}
 
 /* ============================================================
-   36 · APPROVALS — exec command + typing grant
+   36 · APPROVALS — command execution
    The exact command, unmodified, in a mono well. Danger is
    reserved for the fixed irreversible set; ordinary approvals
    stay neutral with warning only on the pending chip.
@@ -544,7 +541,7 @@
    38 · SESSION BLOCKS — deliberate use vs reported-by-agent,
    and the send-to-conversation quote
    The visual contrast IS the design point: live block carries
-   lease chrome + one jump affordance; the reported block is a
+   actor attribution + one jump affordance; the reported block is a
    labeled specimen with zero controls.
    ============================================================ */
 .tm-block{
@@ -566,7 +563,7 @@
   font-size:11px;color:var(--subtle);
 }
 /* Reported-by-agent: neutral label chip, deliberately outside
-   the signal palette; no lease, no controls, ever. */
+   the signal palette; no interactive controls, ever. */
 .tm-reported{
   display:inline-flex;align-items:center;gap:4px;
   height:18px;padding:0 7px;border-radius:var(--radius-xxs);

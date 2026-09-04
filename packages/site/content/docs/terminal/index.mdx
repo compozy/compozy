@@ -1,11 +1,12 @@
 ---
 title: Terminal
-description: Interactive workspace terminals, visible command runs, input handoffs, and durable command history.
+description: Interactive workspace terminals, visible command runs, input requests, and durable command history.
 ---
 
 The CompozyOS terminal is a daemon-owned workspace terminal. Operators can open it in the OS shell
 or CLI, agents can use the `compozy__terminal_*` toolset when work should be visible, and both paths
-share the same control lease, approval rules, and command journal.
+can interact with the same terminal concurrently under the same profile, approval rules, and command
+journal.
 
 Use the terminal for work that benefits from supervision: an interactive prompt, a long-running
 server, a full-screen program, or a command the operator asked to watch. Routine commands that an

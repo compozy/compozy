@@ -18,8 +18,8 @@ func TestTerminalOpenAPISchemaContract(t *testing.T) {
 		t.Parallel()
 
 		want := frozenTerminalErrorCodes()
-		if len(want) != 32 {
-			t.Fatalf("frozen terminal error code count = %d, want 32", len(want))
+		if len(want) != 28 {
+			t.Fatalf("frozen terminal error code count = %d, want 28", len(want))
 		}
 		if got := contract.TerminalErrorCodeValues(); !slices.Equal(got, want) {
 			t.Fatalf("TerminalErrorCodeValues() = %v, want %v", got, want)
@@ -72,11 +72,6 @@ func TestTerminalOpenAPISchemaContract(t *testing.T) {
 			{
 				name: "mode", typeOf: reflect.TypeFor[contract.TerminalMode](),
 				want: contract.TerminalModeValues(),
-			},
-			{
-				name:   "lease state",
-				typeOf: reflect.TypeFor[contract.TerminalLeaseState](),
-				want:   contract.TerminalLeaseStateValues(),
 			},
 			{
 				name:   "actor kind",
@@ -158,14 +153,6 @@ func TestTerminalOpenAPISchemaContract(t *testing.T) {
 		terminal := propertySchema(t, jsonResponseSchema(t, list.Get, http.StatusOK), "terminals").Items.Value
 		assertEnumValues(t, propertySchema(t, terminal, "mode"), "pty", "pipe")
 		assertEnumValues(t, propertySchema(t, terminal, "state"), "running", "exited")
-		assertEnumValues(t, propertySchema(t, terminal, "lease"), "human_owned", "agent_owned", "available")
-		assertEnumValues(
-			t,
-			propertySchema(t, propertySchema(t, terminal, "controller"), "kind"),
-			"human",
-			"agent",
-			"system",
-		)
 		assertEnumValues(
 			t,
 			propertySchema(t, propertySchema(t, terminal, "exit"), "cause"),
@@ -289,10 +276,7 @@ func frozenTerminalErrorCodes() []string {
 		"terminal_not_interactive",
 		"invalid_cwd",
 		"timeout_out_of_range",
-		"write_owner_held",
-		"lease_revoked",
 		"generation_fenced",
-		"typing_grant_rejected",
 		"approval_rejected",
 		"ticket_invalid",
 		"ticket_expired",
@@ -300,7 +284,6 @@ func frozenTerminalErrorCodes() []string {
 		"input_request_already_answered",
 		"input_request_superseded",
 		"input_request_limit_reached",
-		"input_answer_requires_write",
 		"input_request_requires_hidden_input",
 		"recording_already_started",
 		"recording_not_active",

@@ -249,17 +249,6 @@ func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 		}, nil
 	case terminalpkg.EventKindTitleChanged:
 		return "terminal.title_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "title": event.Detail.Title}, nil
-	case terminalpkg.EventKindLeaseChanged:
-		var controllerKind terminalpkg.ActorKind
-		var controllerID string
-		if event.Info != nil && event.Info.Controller != nil {
-			controllerKind = event.Info.Controller.Kind
-			controllerID = event.Info.Controller.ID
-		}
-		return "terminal.lease_changed", gin.H{
-			terminalIDPayloadKey: event.TerminalID, "lease": event.Detail.LeaseTo,
-			"controller_kind": controllerKind, "controller_id": controllerID, "reason": event.Reason,
-		}, nil
 	case terminalpkg.EventKindModeChanged:
 		return "terminal.mode_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "mode": event.Detail.Mode}, nil
 	case terminalpkg.EventKindRecordingStarted, terminalpkg.EventKindRecordingStopped:

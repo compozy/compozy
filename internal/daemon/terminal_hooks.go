@@ -51,13 +51,6 @@ func dispatchTerminalHookEvent(
 			Exit: terminalHookExit(event.Exit), Reason: terminalHookCloseReason(event.Reason),
 		})
 		return err
-	case terminalpkg.EventKindLeaseChanged:
-		base.Event = hookspkg.HookTerminalLeaseChanged
-		_, err := hooks.DispatchTerminalLeaseChanged(ctx, hookspkg.TerminalLeaseChangedPayload{
-			PayloadBase: base, TerminalContext: terminalContext,
-			From: string(event.Detail.LeaseFrom), To: string(event.Detail.LeaseTo), Reason: event.Reason,
-		})
-		return err
 	case terminalpkg.EventKindCommandStarted:
 		base.Event = hookspkg.HookTerminalCommandStarted
 		_, err := hooks.DispatchTerminalCommandStarted(ctx, hookspkg.TerminalCommandStartedPayload{

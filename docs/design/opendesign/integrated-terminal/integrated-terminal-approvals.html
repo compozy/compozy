@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="../design-system/ds-shell.css">
 <link rel="stylesheet" href="integrated-terminal.css">
 <!--
-  integrated-terminal-approvals · S6 — exec approvals, the typing grant,
-  and grant administration inside the existing tool-approvals surface.
+  integrated-terminal-approvals · S6 — command approvals and grant
+  administration inside the existing tool-approvals surface.
   Spec: .compozy/tasks/integrated-terminal/_uiux.md S6 · US-019..022.
   Contract: DESIGN-NOTES.md.
   Provenance:
@@ -25,9 +25,7 @@
       choices allow once / always-allow its shape / reject (US-019.AC-3);
       unclassifiable commands always prompt (US-019.EC); the fixed
       irreversible set always prompts with danger marking even at the
-      autonomous tier (US-022); typing grant prompts once with context,
-      choices allow once / allow for this terminal / reject (US-021);
-      grants list and revoke in the EXISTING tool-approvals surface — no
+      autonomous tier (US-022); grants list and revoke in the EXISTING tool-approvals surface — no
       new admin surface (US-021.AC-3, US-030.AC-4); away-flow shows an
       honest still-waiting state (US-019.EC).
     authorized delta — none.
@@ -169,58 +167,17 @@
       </div>
     </section>
 
-    <!-- ===== 04 · TYPING GRANT ===== -->
-    <section class="lab-sec" data-od-id="tap-typing">
-      <div class="lab-sec__head">
-        <span class="lab-sec__num">04</span>
-        <h2 class="lab-sec__t">Typing permission — the first keystroke asks</h2>
-        <span class="lab-sec__gist">US-018 · US-021 · no tier covers typing</span>
-      </div>
-      <div class="spec">
-        <div class="spec__note">
-          <b>Typing is its own permission.</b> The first agent keystroke in
-          a terminal asks once, with context — which terminal, what the
-          agent is doing. The permission ends when you take over, the run
-          ends, or you revoke it — and no autonomy level ever skips this
-          question.
-          <span class="mono">US-021 · typing grant</span>
-        </div>
-        <div class="spec__demo">
-          <div class="stage stage--auto stage--pad" data-od-id="tap-typing-stage">
-            <div class="tm-demo-win plain">
-              <div class="att" data-od-id="tap-typing-card">
-                <div class="att__row">
-                  <i data-lucide="keyboard" class="att__glyph-warning"></i>
-                  <div>
-                    <p class="att__head"><b>Claude Code wants to type</b> · psql</p>
-                    <p class="att__text">Wants to answer the migration prompt it hit while checking the journal schema.</p>
-                    <p class="att__meta">term-9cd7e14b2a66 · ends when you take over, the run ends, or you revoke it</p>
-                  </div>
-                  <div class="att__actions">
-                    <button class="btn btn--xs btn--primary" type="button">Allow once</button>
-                    <button class="btn btn--xs" type="button">Allow for this terminal</button>
-                    <button class="btn btn--xs btn--ghost" type="button">Don't allow</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== 05 · GRANT ROWS ===== -->
+    <!-- ===== 04 · GRANT ROWS ===== -->
     <section class="lab-sec" data-od-id="tap-grants">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">05</span>
+        <span class="lab-sec__num">04</span>
         <h2 class="lab-sec__t">Permissions — listed where they already live</h2>
         <span class="lab-sec__gist">US-021.AC-3 · US-030.AC-4 · no new surface</span>
       </div>
       <div class="spec">
         <div class="spec__note">
-          <b>One policy surface.</b> Typing permissions and remembered
-          command patterns appear in the existing tool-approvals section,
-          each named and revocable on its own. The administrator allowlist
+          <b>One policy surface.</b> Remembered native-tool decisions and command patterns appear in
+          the existing tool-approvals section, each named and revocable on its own. The administrator allowlist
           stays in permissions settings — this list never grows into a
           second policy editor.
           <span class="mono">ToolApprovalGrantsSection</span>
@@ -230,13 +187,6 @@
             <div class="tm-demo-win plain plain--flush">
               <div class="sgroup" data-od-id="tap-grants-group">
                 <div class="sgroup__t">Terminal</div>
-                <div class="srow">
-                  <div class="srow__main">
-                    <div class="srow__label">Can type in psql</div>
-                    <div class="srow__desc mono-id">term-9cd7e14b2a66 · Claude Code · granted 12:44</div>
-                  </div>
-                  <div class="srow__ctl"><button class="btn btn--xs btn--ghost" type="button">Revoke</button></div>
-                </div>
                 <div class="srow">
                   <div class="srow__main">
                     <div class="srow__label">Always allowed: bun add …</div>
@@ -258,10 +208,10 @@
       </div>
     </section>
 
-    <!-- ===== 06 · WAITING + REJECTED ===== -->
+    <!-- ===== 05 · WAITING + REJECTED ===== -->
     <section class="lab-sec" data-od-id="tap-outcomes">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">06</span>
+        <span class="lab-sec__num">05</span>
         <h2 class="lab-sec__t">While you're away — waiting, and not allowed</h2>
         <span class="lab-sec__gist">US-019.EC · discoverable on return</span>
       </div>

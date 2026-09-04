@@ -13,7 +13,6 @@ const (
 	errorMessageGenerationFenced     = "terminal action came from a stale runtime generation"
 	errorMessageInputAlreadyResolved = "terminal input request is already resolved"
 	errorMessageInputRequiresHidden  = "redacted input requires a foreground program that is already hiding input"
-	errorMessageInputPending         = "agent terminal mutation is blocked while an input request is pending"
 	errorMessageNotFound             = "terminal not found"
 	errorMessageNotInteractive       = "terminal is not interactive"
 	errorMessageShuttingDown         = "terminal manager is shutting down"
@@ -23,23 +22,17 @@ var (
 	ErrNotFound                = errors.New("terminal not found")
 	ErrRequiresWorkspace       = errors.New("terminal requires workspace")
 	ErrGenerationFenced        = errors.New("terminal generation fenced")
-	ErrLeaseRevoked            = errors.New("terminal lease revoked")
-	ErrWriteOwnerHeld          = errors.New("terminal write owner held")
 	ErrWriteAttachmentRequired = errors.New("terminal write attachment required")
-	ErrWriteLeaseRequired      = errors.New("terminal write lease required")
 	ErrNotInteractive          = errors.New("terminal not interactive")
 	ErrApprovalRequired        = errors.New("terminal approval required")
 	ErrPolicyDenied            = errors.New("terminal command denied by policy")
-	ErrTypingGrant             = errors.New("terminal typing grant rejected")
 	ErrInputNotFound           = errors.New("terminal input request not found")
 	ErrInputAnswered           = errors.New("terminal input request already answered")
 	ErrInputSuperseded         = errors.New("terminal input request superseded")
 	ErrInputResolved           = errors.New("terminal input request resolved without an answer")
 	ErrInputResolving          = errors.New("terminal input request resolution in progress")
 	ErrInputLimit              = errors.New("terminal input request limit reached")
-	ErrInputRequiresWrite      = errors.New("terminal input answer requires write")
 	ErrInputRequiresHidden     = errors.New("terminal redacted input requires hidden input")
-	ErrInputPending            = errors.New("terminal input request pending")
 	ErrWaitTimeout             = errors.New("terminal wait timeout")
 	ErrExited                  = errors.New("terminal exited")
 	ErrExpired                 = errors.New("terminal expired")
@@ -77,10 +70,7 @@ const (
 	ErrorCodeNotInteractive             ErrorCode = "terminal_not_interactive"
 	ErrorCodeInvalidCwd                 ErrorCode = "invalid_cwd"
 	ErrorCodeTimeoutOutOfRange          ErrorCode = "timeout_out_of_range"
-	ErrorCodeWriteOwnerHeld             ErrorCode = "write_owner_held"
-	ErrorCodeLeaseRevoked               ErrorCode = "lease_revoked"
 	ErrorCodeGenerationFenced           ErrorCode = "generation_fenced"
-	ErrorCodeTypingGrantRejected        ErrorCode = "typing_grant_rejected"
 	ErrorCodeApprovalRejected           ErrorCode = "approval_rejected"
 	ErrorCodeTicketInvalid              ErrorCode = "ticket_invalid"
 	ErrorCodeTicketExpired              ErrorCode = "ticket_expired"
@@ -88,7 +78,6 @@ const (
 	ErrorCodeInputRequestAnswered       ErrorCode = "input_request_already_answered"
 	ErrorCodeInputRequestSuperseded     ErrorCode = "input_request_superseded"
 	ErrorCodeInputRequestLimitReached   ErrorCode = "input_request_limit_reached"
-	ErrorCodeInputAnswerRequiresWrite   ErrorCode = "input_answer_requires_write"
 	ErrorCodeInputRequestRequiresHidden ErrorCode = "input_request_requires_hidden_input"
 	ErrorCodeRecordingAlreadyStarted    ErrorCode = "recording_already_started"
 	ErrorCodeRecordingNotActive         ErrorCode = "recording_not_active"
@@ -102,11 +91,10 @@ var errorCodeValues = [...]ErrorCode{
 	ErrorCodeRequiresWorkspace, ErrorCodeProfileArchived, ErrorCodeProfileUnavailable,
 	ErrorCodeLimitReached, ErrorCodeSubscriberLimitReached, ErrorCodeExited, ErrorCodeExpired,
 	ErrorCodeInteractiveUnavailable, ErrorCodeNotInteractive, ErrorCodeInvalidCwd,
-	ErrorCodeTimeoutOutOfRange, ErrorCodeWriteOwnerHeld, ErrorCodeLeaseRevoked,
-	ErrorCodeGenerationFenced, ErrorCodeTypingGrantRejected, ErrorCodeApprovalRejected,
+	ErrorCodeTimeoutOutOfRange, ErrorCodeGenerationFenced, ErrorCodeApprovalRejected,
 	ErrorCodeTicketInvalid, ErrorCodeTicketExpired, ErrorCodeInputRequestNotFound,
 	ErrorCodeInputRequestAnswered, ErrorCodeInputRequestSuperseded, ErrorCodeInputRequestLimitReached,
-	ErrorCodeInputAnswerRequiresWrite, ErrorCodeInputRequestRequiresHidden,
+	ErrorCodeInputRequestRequiresHidden,
 	ErrorCodeRecordingAlreadyStarted, ErrorCodeRecordingNotActive, ErrorCodeRecordingUnavailable, ErrorCodeSlowConsumer,
 	ErrorCodeJournalUnavailable,
 }
@@ -131,16 +119,15 @@ func IsErrorCode(code ErrorCode) bool {
 }
 
 type Error struct {
-	Code       ErrorCode
-	Message    string
-	Controller *Actor
-	Current    int
-	Max        int
-	Path       string
-	Mode       Mode
-	Platform   string
-	Action     string
-	Err        error
+	Code     ErrorCode
+	Message  string
+	Current  int
+	Max      int
+	Path     string
+	Mode     Mode
+	Platform string
+	Action   string
+	Err      error
 }
 
 func (e *Error) Error() string {

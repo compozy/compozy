@@ -87,7 +87,10 @@ func (s *Service) ConsumeMarkerFacts(
 	for _, fact := range facts {
 		switch fact.Kind {
 		case "S":
-			lane.cancelIdleCandidate()
+			actor, ok := lane.cancelIdleCandidate()
+			if !ok {
+				actor = lane.actor()
+			}
 			id, err := s.reserveObservedCommandID(ctx, info.WS)
 			if err != nil {
 				s.logger.Error("terminal journal: reserve command id", "terminal_id", info.ID, "error", err)
@@ -96,14 +99,14 @@ func (s *Service) ConsumeMarkerFacts(
 			}
 			if !lane.setAssembly(commandAssembly{
 				id: id, command: scrubCommand(fact.Command), cwd: fact.Cwd, startedAt: s.now(),
-				actor: lane.actor(), detectedBy: commandDetectionMarker,
+				actor: actor, detectedBy: commandDetectionMarker,
 			}) {
 				s.ReleaseCommandID(info.WS, id)
 				continue
 			}
 			lane.emitEvent(terminalpkg.Event{
 				Kind: terminalpkg.EventKindCommandStarted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
-				TerminalID: info.ID, Actor: lane.actor(), At: s.now(),
+				TerminalID: info.ID, Actor: actor, At: s.now(),
 				Detail: &terminalpkg.EventDetail{
 					CommandID:  id,
 					Command:    scrubCommand(fact.Command),

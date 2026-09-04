@@ -163,7 +163,7 @@ func toolApprovalGrantKey(
 }
 
 func terminalApprovalRequiresExactGrant(toolID toolspkg.ToolID) bool {
-	return toolID == toolspkg.ToolIDTerminalExec || toolID == toolspkg.ToolIDTerminalWrite
+	return toolID == toolspkg.ToolIDTerminalExec
 }
 
 func toolApprovalInputDigest(input json.RawMessage, toolID toolspkg.ToolID) (string, error) {
@@ -183,19 +183,6 @@ func toolApprovalInputDigest(input json.RawMessage, toolID toolspkg.ToolID) (str
 			return "", fmt.Errorf("encode terminal exec approval shape: %w", err)
 		}
 		return toolspkg.ApprovalInputDigest(shape, "")
-	case toolspkg.ToolIDTerminalWrite:
-		var decoded struct {
-			TerminalID      string `json:"terminal_id"`
-			GrantGeneration uint64 `json:"grant_generation"`
-		}
-		if err := json.Unmarshal(input, &decoded); err != nil {
-			return "", fmt.Errorf("decode terminal write approval identity: %w", err)
-		}
-		identity, err := json.Marshal(decoded)
-		if err != nil {
-			return "", fmt.Errorf("encode terminal write approval identity: %w", err)
-		}
-		return toolspkg.ApprovalInputDigest(identity, "")
 	default:
 		return toolspkg.ApprovalInputDigest(input, "")
 	}

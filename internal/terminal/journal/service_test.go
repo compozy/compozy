@@ -52,7 +52,7 @@ func TestService(t *testing.T) {
 			Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
 		}
 		info := terminalpkg.Info{
-			ID: "term-close-race", WS: workspaceID, ProfileID: actor.ProfileID, Controller: &actor,
+			ID: "term-close-race", WS: workspaceID, ProfileID: actor.ProfileID,
 		}
 		events := make(chan terminalpkg.Event, 1)
 		service.RegisterTerminal(info, nil, func(event terminalpkg.Event) { events <- event })
@@ -266,7 +266,7 @@ func TestService(t *testing.T) {
 			Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
 		}
 		info := terminalpkg.Info{
-			ID: terminalID, WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
+			ID: terminalID, WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace",
 		}
 		service.RegisterTerminal(info, nil, nil)
 		preparation, err := service.PrepareWorkspaceRemoval(ctx, workspaceID)
@@ -528,7 +528,7 @@ func TestService(t *testing.T) {
 			service, workspaceID := newJournalTestService(ctx, t)
 			actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 			info := terminalpkg.Info{
-				ID: "term-idle", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
+				ID: "term-idle", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace",
 			}
 			events := make(chan terminalpkg.Event, 6)
 			service.RegisterTerminal(info, func(bool) {}, func(event terminalpkg.Event) { events <- event })
@@ -596,9 +596,8 @@ func TestService(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		service, workspaceID := newJournalTestService(ctx, t)
-		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		info := terminalpkg.Info{
-			ID: "term-close", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
+			ID: "term-close", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace",
 		}
 		service.RegisterTerminal(info, func(bool) {}, func(terminalpkg.Event) {})
 		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
@@ -733,7 +732,7 @@ func TestService(t *testing.T) {
 				Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
 			}
 			info := terminalpkg.Info{
-				ID: "term-cancel-flush", WS: identity.WorkspaceID, ProfileID: "profile-a", Controller: &actor,
+				ID: "term-cancel-flush", WS: identity.WorkspaceID, ProfileID: "profile-a",
 			}
 			audit := make(chan bool, 2)
 			service.RegisterTerminal(info, func(blocked bool) { audit <- blocked }, nil)
@@ -864,11 +863,11 @@ func TestService(t *testing.T) {
 			infos := []terminalpkg.Info{
 				{
 					ID: "term-first-drain", WS: firstIdentity.WorkspaceID,
-					ProfileID: "profile-a", Controller: &actor,
+					ProfileID: "profile-a",
 				},
 				{
 					ID: "term-second-drain", WS: secondIdentity.WorkspaceID,
-					ProfileID: "profile-a", Controller: &actor,
+					ProfileID: "profile-a",
 				},
 			}
 			results := make(map[terminalpkg.ID]<-chan error, len(infos))
@@ -980,9 +979,8 @@ func TestService(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		service, workspaceID := newJournalTestService(ctx, t)
-		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		info := terminalpkg.Info{
-			ID: "term-capacity", WS: workspaceID, ProfileID: "profile-a", Controller: &actor,
+			ID: "term-capacity", WS: workspaceID, ProfileID: "profile-a",
 		}
 		blocked := make(chan bool, 2)
 		service.RegisterTerminal(info, func(value bool) { blocked <- value }, func(terminalpkg.Event) {})
@@ -1034,7 +1032,7 @@ func TestService(t *testing.T) {
 		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		info := terminalpkg.Info{
 			ID: "term-delivery", WS: workspaceID, ProfileID: actor.ProfileID,
-			Cwd: "/workspace", Controller: &actor,
+			Cwd: "/workspace",
 		}
 		service.RegisterTerminal(info, func(bool) {}, func(terminalpkg.Event) {})
 		input := terminalpkg.JournalInput{Content: []byte("echo delivered\n")}
@@ -1098,15 +1096,11 @@ func TestService(t *testing.T) {
 		ctx := testutil.Context(t)
 		service, workspaceID := newJournalTestService(ctx, t)
 		terminalID := terminalpkg.ID("term-collision")
-		info := terminalpkg.Info{
-			ID: terminalID, WS: workspaceID, ProfileID: "profile-a",
-			Controller: &terminalpkg.Actor{
-				Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
-			},
-		}
+		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		info := terminalpkg.Info{ID: terminalID, WS: workspaceID, ProfileID: "profile-a"}
 		const collisionID = "cmd-000102030405060708090a0b0c0d0e0f"
 		seed := terminalpkg.CommandRow{
-			ID: collisionID, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: *info.Controller,
+			ID: collisionID, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: actor,
 			Command: "seed", Cwd: "/workspace", StartedAt: time.UnixMilli(1),
 			ExitCause: "exited", DetectedBy: "exact", Approval: "human",
 		}
@@ -1207,10 +1201,7 @@ func TestService(t *testing.T) {
 			}
 			cancelOwner(errors.New("journal retry test cleanup complete"))
 		})
-		info := terminalpkg.Info{
-			ID: "term-retry", WS: identity.WorkspaceID, ProfileID: "profile-a",
-			Controller: &terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-		}
+		info := terminalpkg.Info{ID: "term-retry", WS: identity.WorkspaceID, ProfileID: "profile-a"}
 		blocked := make(chan bool, 4)
 		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
 		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
@@ -1269,17 +1260,13 @@ func TestService(t *testing.T) {
 			cancelOwner(errors.New("journal exhaustion test cleanup complete"))
 		})
 		terminalID := terminalpkg.ID("term-exhaustion")
-		info := terminalpkg.Info{
-			ID: terminalID, WS: identity.WorkspaceID, ProfileID: "profile-a",
-			Controller: &terminalpkg.Actor{
-				Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
-			},
-		}
+		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		info := terminalpkg.Info{ID: terminalID, WS: identity.WorkspaceID, ProfileID: "profile-a"}
 		blocked := make(chan bool, 4)
 		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
 		row := func(id string) terminalpkg.CommandRow {
 			return terminalpkg.CommandRow{
-				ID: id, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: *info.Controller,
+				ID: id, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: actor,
 				Command: id, Cwd: "/workspace", StartedAt: time.UnixMilli(1),
 				ExitCause: "exited", DetectedBy: "exact", Approval: "human",
 			}

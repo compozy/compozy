@@ -12,9 +12,7 @@ import {
 import { useTerminalReplay } from "../hooks/use-terminal-replay";
 import { terminalExitCopy, terminalReplayFailedCopy } from "../lib/terminal-copy";
 import { sessionPreviewInstanceKey } from "../lib/terminal-scope-key";
-import type { TerminalLeaseView } from "../lib/terminal-lease";
 import type { TerminalExit } from "../types";
-import { TerminalLeaseBadge } from "./terminal-lease-badge";
 
 type SessionTerminalStatus =
   | { kind: "replay-failed" }
@@ -51,8 +49,6 @@ export interface SessionTerminalBlockProps {
    * the tool result recorded and says so.
    */
   scope?: { workspaceId: string; profile: string };
-  /** Present only when the catalog already knows who holds the terminal. */
-  lease?: TerminalLeaseView;
   exit?: TerminalExit | null;
   /** True past the agent's wait budget: the command runs on without it. */
   stillRunning?: boolean;
@@ -70,10 +66,9 @@ export interface SessionTerminalBlockProps {
 /**
  * A window into a terminal, inside the conversation.
  *
- * The terminal stays the truth; this block is a view of it. It carries the
- * who-is-in-control chip when the catalog knows it and one jump action, and
- * nothing else — a second transcript would compete with the one that already
- * exists.
+ * The terminal stays the truth; this block is a view of it. It carries one jump
+ * action and nothing else — a second transcript would compete with the one that
+ * already exists.
  */
 export function SessionTerminalBlock(props: SessionTerminalBlockProps) {
   // Its own store, not the Terminal app's. A preview in a transcript is a
@@ -92,7 +87,6 @@ function SessionTerminalBlockBody({
   title,
   preview,
   scope,
-  lease,
   exit,
   stillRunning = false,
   durationLabel,
@@ -117,7 +111,7 @@ function SessionTerminalBlockBody({
     workspaceId: scope?.workspaceId ?? "",
     terminalId,
     scope: { profile: scope?.profile ?? "" },
-    // Watching only. Nothing in a transcript may claim the write lease.
+    // Presentation only. Nothing in a transcript may write to the terminal.
     mode: "read",
     handleRef: replay.handleRef,
     socketFactory,
@@ -147,7 +141,6 @@ function SessionTerminalBlockBody({
         <span className="truncate font-semibold text-fg text-transcript-body">{title}</span>
         <MonoId size="sm" value={terminalId} />
         <div className="ml-auto flex flex-none items-center gap-1.5">
-          {lease ? <TerminalLeaseBadge view={lease} /> : null}
           {onOpenTerminal ? (
             <Button
               data-testid={`session-terminal-open-${terminalId}`}
@@ -168,7 +161,7 @@ function SessionTerminalBlockBody({
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={replay.handleRef}
           // A distinct identity from the app's pane: the preview is a second
-          // view of the same terminal, never a second claim on its buffer.
+          // view of the same terminal, never a second owner of its buffer.
           instanceId={instanceId}
           onAttached={replay.onAttached}
           readOnly

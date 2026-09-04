@@ -226,7 +226,7 @@ describe("ExpandedToolContent", () => {
     expect(blockProps.mock.calls.at(-1)?.[0].scope).toBeUndefined();
   });
 
-  it("Should show the catalog title and controller when that row already exists", async () => {
+  it("Should show the catalog title and start time when that row already exists", async () => {
     blockProps.mockClear();
     render(
       <ExpandedToolContent
@@ -250,7 +250,6 @@ describe("ExpandedToolContent", () => {
       title: "dev server",
       startedLabel: expect.any(String),
     });
-    expect(blockProps.mock.calls.at(-1)?.[0].lease).toBeDefined();
     expect(blockProps.mock.calls.at(-1)?.[0].title).not.toBe("bun run dev");
   });
 

@@ -29,7 +29,6 @@ interface AttachedFrameFixture extends TerminalJSONControlPayload {
   truncated: boolean;
   cols: number;
   rows: number;
-  lease: string;
   mode: string;
 }
 
@@ -162,7 +161,6 @@ export function attachedFrame(overrides: Partial<AttachedFrameFixture> = {}): Ui
     truncated: false,
     cols: 96,
     rows: 28,
-    lease: "human_owned",
     mode: "pty",
     ...overrides,
   });

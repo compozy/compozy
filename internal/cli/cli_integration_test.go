@@ -246,15 +246,14 @@ func TestTerminalListBundleShouldRenderHumanOutput(t *testing.T) {
 	recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
 	rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
 		ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
-		Controller: &contract.TerminalControllerPayload{Kind: "human", ID: terminalCLIActorID},
-		State:      "running", CreatedAt: fixed.Add(-2 * time.Minute),
+		State: "running", CreatedAt: fixed.Add(-2 * time.Minute),
 	}}, func() time.Time { return fixed }).human()
 	if err != nil {
 		t.Fatalf("terminalListBundle().human() error = %v", err)
 	}
 	wantRows := strings.Join([]string{
-		"ID\tPROFILE\tTITLE\tCONTROLLER\tSTATE\tCREATED",
-		"term-9f21c04a3b17\twork\tzsh — status\tyou\trunning\t2m ago",
+		"ID\tPROFILE\tTITLE\tSTATE\tCREATED",
+		"term-9f21c04a3b17\twork\tzsh — status\trunning\t2m ago",
 	}, "\n")
 	if rows != wantRows {
 		t.Fatalf("terminal list = %q, want %q", rows, wantRows)
@@ -405,6 +404,40 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 
 func TestTerminalAttachCommand(t *testing.T) {
 	t.Parallel()
+	t.Run("Should attach with shared writable input by default", func(t *testing.T) {
+		t.Parallel()
+		client := &terminalAgentCommandClient{
+			DaemonClient: newDefaultProfileTestClient(&stubClient{}),
+			terminal: contract.TerminalInfoPayload{
+				ID:    "term-running",
+				State: terminalStateRunning,
+			},
+		}
+		deps := newTestDeps(t, client)
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"terminal",
+			"attach",
+			"term-running",
+			"--workspace",
+			"workspace-a",
+		)
+		if err != nil {
+			t.Fatalf("terminal attach error = %v", err)
+		}
+		if client.attaches != 1 {
+			t.Fatalf("AttachTerminal() calls = %d, want one", client.attaches)
+		}
+		if client.attachOptions.Mode != terminalStreamModeWrite ||
+			client.attachOptions.Flow != terminalStreamFlowAck {
+			t.Fatalf("attach options = %#v, want shared write/ack", client.attachOptions)
+		}
+		if !strings.Contains(stdout, "shared input is active") {
+			t.Fatalf("stdout = %q, want shared input banner", stdout)
+		}
+	})
+
 	t.Run("Should report the exited terminal code and cause before opening a stream", func(t *testing.T) {
 		t.Parallel()
 		signal := contract.TerminalSignal(terminalpkg.SignalHUP)
@@ -449,20 +482,15 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 	next := "journal-next"
 	terminalID := contract.TerminalID("term-a")
 	terminalPayload := contract.TerminalInfoPayload{
-		ID:          terminalID,
-		WorkspaceID: "workspace-a",
-		ProfileID:   "profile-work",
-		ProfileName: "work",
-		Title:       "Build",
-		Shell:       "/bin/zsh",
-		Cwd:         "/workspace",
-		Mode:        contract.TerminalMode(terminalpkg.ModePTY),
-		State:       "exited",
-		Controller: &contract.TerminalControllerPayload{
-			Kind: contract.TerminalActorKind(terminalpkg.ActorKindAgent),
-			ID:   "atlas",
-		},
-		Lease:        contract.TerminalLeaseState(terminalpkg.LeaseAgentOwned),
+		ID:           terminalID,
+		WorkspaceID:  "workspace-a",
+		ProfileID:    "profile-work",
+		ProfileName:  "work",
+		Title:        "Build",
+		Shell:        "/bin/zsh",
+		Cwd:          "/workspace",
+		Mode:         contract.TerminalMode(terminalpkg.ModePTY),
+		State:        "exited",
 		Viewers:      2,
 		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a", Generation: 7},
 		Capabilities: contract.TerminalCapabilitiesPayload{Interactive: true},
@@ -1046,9 +1074,10 @@ func assertTerminalJSONParity(t *testing.T, stdout string, want any) {
 
 type terminalAgentCommandClient struct {
 	DaemonClient
-	terminal contract.TerminalInfoPayload
-	attaches int
-	exec     struct {
+	terminal      contract.TerminalInfoPayload
+	attaches      int
+	attachOptions TerminalAttachOptions
+	exec          struct {
 		Workspace string
 		Request   TerminalExecRequest
 	}
@@ -1089,14 +1118,15 @@ func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, strin
 }
 
 func (c *terminalAgentCommandClient) AttachTerminal(
-	context.Context,
-	string,
-	string,
-	TerminalAttachOptions,
-	io.Reader,
-	io.Writer,
+	_ context.Context,
+	_ string,
+	_ string,
+	options TerminalAttachOptions,
+	_ io.Reader,
+	_ io.Writer,
 ) error {
 	c.attaches++
+	c.attachOptions = options
 	return nil
 }
 func (c *terminalAgentCommandClient) ExecTerminal(

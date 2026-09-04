@@ -304,9 +304,6 @@ func (s *terminalSocket) readPump(ctx context.Context, operationErrors chan<- er
 
 func terminalRecoverableClientOperationError(err error) bool {
 	return errors.Is(err, terminalpkg.ErrWriteAttachmentRequired) ||
-		errors.Is(err, terminalpkg.ErrWriteLeaseRequired) ||
-		errors.Is(err, terminalpkg.ErrWriteOwnerHeld) ||
-		errors.Is(err, terminalpkg.ErrLeaseRevoked) ||
 		errors.Is(err, terminalpkg.ErrJournalUnavailable) ||
 		errors.Is(err, terminalpkg.ErrGenerationFenced)
 }
@@ -342,18 +339,8 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 			return terminalRequestError(fmt.Errorf("terminal: decode signal: %w", err))
 		}
 		return s.handle.Signal(ctx, s.actor, payload.Signal)
-	case terminalwire.ClientOpTakeover:
-		var payload struct {
-			Force bool `json:"force"`
-		}
-		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return terminalRequestError(fmt.Errorf("terminal: decode takeover: %w", err))
-		}
-		return s.handle.Takeover(ctx, s.actor, payload.Force)
 	case terminalwire.ClientOpDetach:
 		return errTerminalDetached
-	case terminalwire.ClientOpRelease:
-		return s.handle.Yield(ctx, s.actor)
 	default:
 		return terminalRequestError(terminalwire.ErrUnknownOpcode)
 	}

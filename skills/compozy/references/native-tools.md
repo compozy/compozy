@@ -294,9 +294,8 @@ fallbacks are `compozy desktop|window|layout`; read `window-management.md` for m
 Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__terminal_open`,
 `compozy__terminal_write`, `compozy__terminal_read`, `compozy__terminal_wait`,
 `compozy__terminal_signal`, `compozy__terminal_close`, `compozy__terminal_list`,
-`compozy__terminal_request_input`, `compozy__terminal_yield`, and `compozy__terminal_claim`.
-Resolve each descriptor before calling it. Read `terminal.md` for activation, approval, lease,
-generation, capability, error, and CLI-fallback rules.
+and `compozy__terminal_request_input`. Resolve each descriptor before calling it. Read `terminal.md`
+for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules.
 
 ## Skills And Memory Tools
 

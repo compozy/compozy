@@ -5,11 +5,9 @@ import type { TerminalInputRequest } from "../types";
 /**
  * What the window asks its host to do.
  *
- * Only operations that are genuinely someone else's: creating and closing
- * terminals, stopping a program, answering a question, opening Settings. Taking
- * control and giving it back are deliberately absent — those are frames on the
- * terminal's own socket, and routing them through a parent callback would put a
- * second, slower authority in front of the daemon's lease.
+ * Only operations hosted outside the live terminal connection: creating and
+ * closing terminals, stopping a program, answering a question, and opening
+ * Settings. Input, resize, and stream acknowledgements stay on the socket.
  */
 export interface TerminalWindowActions {
   onOpenTerminal?: () => void;

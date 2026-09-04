@@ -61,7 +61,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 		exit := &terminalpkg.Exit{Cause: "exit", Code: &exitCode}
 		openedInfo := &terminalpkg.Info{
 			ID: "term-a", WS: "workspace-a", ProfileID: "profile-a", Title: "build",
-			Mode: terminalpkg.ModePTY, Lease: terminalpkg.LeaseHumanOwned,
+			Mode: terminalpkg.ModePTY,
 		}
 		testCases := []struct {
 			name        string
@@ -78,7 +78,6 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				wantPayload: gin.H{"terminal": terminalInfoPayload{
 					ID: "term-a", WorkspaceID: "workspace-a", ProfileID: "profile-a", ProfileName: "Profile A",
 					Title: "build", Mode: contract.TerminalMode(terminalpkg.ModePTY),
-					Lease: contract.TerminalLeaseState(terminalpkg.LeaseHumanOwned),
 				}},
 			},
 			{
@@ -97,21 +96,6 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				},
 				wantName:    "terminal.title_changed",
 				wantPayload: gin.H{"terminal_id": terminalpkg.ID("term-a"), "title": "tests"},
-			},
-			{
-				name: "lease", event: terminalpkg.Event{
-					Kind: terminalpkg.EventKindLeaseChanged, TerminalID: "term-a",
-					Actor: terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent, ID: "requester"}, Reason: "takeover",
-					Detail: &terminalpkg.EventDetail{LeaseTo: terminalpkg.LeaseHumanOwned},
-					Info: &terminalpkg.Info{Controller: &terminalpkg.Actor{
-						Kind: terminalpkg.ActorKindHuman, ID: "operator",
-					}},
-				},
-				wantName: "terminal.lease_changed",
-				wantPayload: gin.H{
-					"terminal_id": terminalpkg.ID("term-a"), "lease": terminalpkg.LeaseHumanOwned,
-					"controller_kind": terminalpkg.ActorKindHuman, "controller_id": "operator", "reason": "takeover",
-				},
 			},
 			{
 				name: "mode", event: terminalpkg.Event{
@@ -296,8 +280,8 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 	}
 	for range terminalCatalogRetention + 1 {
 		provider.emit(terminalpkg.Event{
-			Kind: terminalpkg.EventKindLeaseChanged, WorkspaceID: "workspace-a", ProfileID: "profile-a",
-			TerminalID: "term-a", Detail: &terminalpkg.EventDetail{LeaseTo: terminalpkg.LeaseAvailable},
+			Kind: terminalpkg.EventKindModeChanged, WorkspaceID: "workspace-a", ProfileID: "profile-a",
+			TerminalID: "term-a", Detail: &terminalpkg.EventDetail{Mode: terminalpkg.ModePTY},
 		})
 	}
 	replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 1)

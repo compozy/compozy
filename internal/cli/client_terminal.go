@@ -27,8 +27,6 @@ type TerminalAttachOptions struct {
 	AfterSeq uint64
 	Cols     uint16
 	Rows     uint16
-	Takeover bool
-	Force    bool
 }
 
 type TerminalClient interface {

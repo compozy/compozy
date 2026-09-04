@@ -24,7 +24,6 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 	}{
 		{terminalpkg.EventKindOpened, hookspkg.HookTerminalOpened},
 		{terminalpkg.EventKindClosed, hookspkg.HookTerminalClosed},
-		{terminalpkg.EventKindLeaseChanged, hookspkg.HookTerminalLeaseChanged},
 		{terminalpkg.EventKindCommandStarted, hookspkg.HookTerminalCommandStarted},
 		{terminalpkg.EventKindCommandFinished, hookspkg.HookTerminalCommandFinished},
 		{terminalpkg.EventKindInputRequested, hookspkg.HookTerminalInputRequested},
@@ -88,8 +87,8 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 				DetectedBy: "marker", ExitCode: new(0), ExitCause: "exited", DurationMS: 12,
 				Signal: new("TERM"), Approval: "human", RequestID: "request-a", Redacted: true,
 				Length: 7, Outcome: "provided", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
-				LeaseFrom: terminalpkg.LeaseAvailable, LeaseTo: terminalpkg.LeaseHumanOwned, Truncated: true,
-				Flow: "drop", Limit: "workspace", Current: 8, Max: 8,
+				Truncated: true,
+				Flow:      "drop", Limit: "workspace", Current: 8, Max: 8,
 			},
 		}
 		if err := dispatchTerminalHookEvent(t.Context(), hooks, event); err != nil {
@@ -124,8 +123,6 @@ func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
 		return map[string]any{"mode": "pty", "cwd": "/workspace", "title": "Build"}
 	case hookspkg.HookTerminalClosed:
 		return map[string]any{"exit": map[string]any{"cause": "exited", "code": float64(0)}, "reason": "closed"}
-	case hookspkg.HookTerminalLeaseChanged:
-		return map[string]any{"from": "available", "to": "human_owned", "reason": "operator_close"}
 	case hookspkg.HookTerminalCommandStarted:
 		return map[string]any{"command_id": "cmd-a", "command": "pwd", "cwd": "/workspace", "detected_by": "marker"}
 	case hookspkg.HookTerminalCommandFinished:

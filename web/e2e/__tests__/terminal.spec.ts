@@ -39,10 +39,8 @@ const CLI_EXIT_CONFIG_INVALID = 78;
 
 interface TerminalRecord {
   capabilities: { interactive: boolean };
-  controller: { kind: string; id: string } | null;
   cwd: string;
   id: string;
-  lease: string;
   mode: string;
   profile_name: string;
   shell: string;
@@ -257,17 +255,9 @@ async function terminalScreen(runtime: BrowserRuntime, workspaceId: string, term
   );
 }
 
-async function takeTerminalControl(window: Locator): Promise<Locator> {
+async function interactiveTerminalLog(window: Locator): Promise<Locator> {
   const log = window.locator('[role="log"]:visible').last();
   await expect(log).toBeVisible();
-  const takeControl = window.getByTestId("terminal-take-control").last();
-  // The head reflects the catalog's last read until the attachment's OWNER
-  // frame names the lease. Wait for that answer — this browser already holds
-  // control, or the head offers it — instead of reading the state in between.
-  await expect(log.and(window.locator('[data-readonly="false"]')).or(takeControl)).toBeVisible();
-  if (await takeControl.isVisible()) {
-    await takeControl.click();
-  }
   await expect(log).toHaveAttribute("data-readonly", "false");
   return log;
 }
@@ -370,7 +360,7 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
   const firstID = await visibleTerminalPaneID(firstActiveWindow);
   await focusWindowThroughPalette(appPage, firstActiveWindow);
   let window = firstActiveWindow;
-  const firstLog = await takeTerminalControl(window);
+  const firstLog = await interactiveTerminalLog(window);
   await firstLog.click();
   await appPage.keyboard.type("printf 'first-screen-intact\\n'");
   await appPage.keyboard.press("Enter");
@@ -393,7 +383,7 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
   const secondID = await visibleTerminalPaneID(secondActiveWindow);
   expect(secondID).not.toBe(firstID);
   window = secondActiveWindow;
-  const secondLog = await takeTerminalControl(window);
+  const secondLog = await interactiveTerminalLog(window);
   await secondLog.click();
   await appPage.keyboard.type("printf 'second-screen-intact\\n'");
   await appPage.keyboard.press("Enter");
@@ -423,7 +413,7 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
   await expect
     .poll(async () => (await terminalScreen(runtime, workspace.id, retainedID)).content)
     .toContain(retainedMarker);
-  const restoredLog = await takeTerminalControl(restoredWindow);
+  const restoredLog = await interactiveTerminalLog(restoredWindow);
   await restoredLog.click();
   await appPage.keyboard.type("printf 'reattach-live\\n'");
   await appPage.keyboard.press("Enter");
@@ -532,7 +522,7 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
   const window = focusedTerminalWindow(appPage);
   // The dock adopts the newest running detached terminal — the CLI-opened one.
   await expect(window.getByTestId(`terminal-pane-${terminalID}`)).toBeVisible();
-  await takeTerminalControl(window);
+  await interactiveTerminalLog(window);
   await runTerminalCLI(runtime.paths, [
     "record",
     "start",
@@ -682,7 +672,7 @@ test("E2E-009: the workspace cap names the terminal that can be closed", async (
   }
 });
 
-test("E2E-011: CLI attach supports watch, control, detach, and single SIGQUIT", async ({
+test("E2E-011: two CLI attachments share input, detach, and deliver single SIGQUIT", async ({
   runtime,
 }) => {
   assertLaunchRuntime(runtime);
@@ -716,41 +706,38 @@ test("E2E-011: CLI attach supports watch, control, detach, and single SIGQUIT", 
     "json",
   ]);
 
-  const watching = startInteractiveCLI(runtime.paths, [
+  const first = startInteractiveCLI(runtime.paths, [
     "terminal",
     "attach",
     opened.terminal.id,
     "--workspace",
     workspace.id,
   ]);
-  await watching.waitForOutput(`[watching ${opened.terminal.id} — controller: human operator.`);
-  await watching.write("ignored-in-watch-mode");
-  await watching.write("\u001c\u001c");
-  await watching.waitForOutput("[detached — terminal keeps running]");
-  expect(await watching.waitForExit()).toBe(0);
-  expect((await terminalScreen(runtime, workspace.id, opened.terminal.id)).content).not.toContain(
-    "ignored-in-watch-mode"
-  );
+  await first.waitForOutput(`[attached to ${opened.terminal.id} — shared input is active.`);
+  await first.write("printf 'first-cli-writer\\n'\n");
+  await first.waitForOutput("first-cli-writer");
 
-  const controlling = startInteractiveCLI(runtime.paths, [
+  const second = startInteractiveCLI(runtime.paths, [
     "terminal",
     "attach",
     opened.terminal.id,
     "--workspace",
     workspace.id,
-    "--control",
   ]);
-  await controlling.waitForOutput("[control taken from human operator — you type now]");
-  await controlling.write("printf 'controlled-input-received\\n'\n");
-  await controlling.waitForOutput("controlled-input-received");
-  await controlling.write("\u001c");
-  await controlling.waitForOutput("single-sigquit-received");
-  await controlling.write("\u001c\u001c");
-  await controlling.waitForOutput("[detached — terminal keeps running]");
-  expect(await controlling.waitForExit()).toBe(0);
-  expect((await terminalScreen(runtime, workspace.id, opened.terminal.id)).content).toContain(
-    "controlled-input-received"
-  );
+  await second.waitForOutput(`[attached to ${opened.terminal.id} — shared input is active.`);
+  await second.write("printf 'second-cli-writer\\n'\n");
+  await second.waitForOutput("second-cli-writer");
+  await second.write("\u001c");
+  await second.waitForOutput("single-sigquit-received");
+  await second.write("\u001c\u001c");
+  await second.waitForOutput("[detached — terminal keeps running]");
+  expect(await second.waitForExit()).toBe(0);
+  await first.write("\u001c\u001c");
+  await first.waitForOutput("[detached — terminal keeps running]");
+  expect(await first.waitForExit()).toBe(0);
+  const sharedScreen = (await terminalScreen(runtime, workspace.id, opened.terminal.id)).content;
+  expect(sharedScreen).toContain("first-cli-writer");
+  expect(sharedScreen).toContain("second-cli-writer");
 
   await runTerminalCLI(runtime.paths, [
     "kill",
@@ -850,7 +837,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   expect((await terminalScreen(runtime, workspace.id, opened.terminal.id)).content).toContain(
     "second row"
   );
-  await takeTerminalControl(firstWindow);
+  await interactiveTerminalLog(firstWindow);
   const originalGrid = await connectTerminalWatcher(
     appPage,
     runtime,
@@ -893,7 +880,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
     await closeTerminalWatchers(appPage);
   }
 
-  await takeTerminalControl(firstWindow);
+  await interactiveTerminalLog(firstWindow);
   await firstWindow.getByRole("log").click();
   await appPage.keyboard.type("x");
   await appPage.keyboard.press("Enter");
@@ -1213,10 +1200,7 @@ test("E2E-018: keyboard activation opens a working terminal from the dock", asyn
   await journalToggle.focus();
   await expect(journalToggle).toBeFocused();
 
-  await expect(terminalWindow.getByTestId("terminal-lease-label")).toHaveText("You're in control");
-  const release = terminalWindow.getByTestId("terminal-release-control");
-  await release.press("Enter");
-  // No agent is bound to this terminal, so release keeps human control
-  // (US-009.EC-1) while still proving the action is keyboard reachable.
-  await expect(terminalWindow.getByTestId("terminal-lease-label")).toHaveText("You're in control");
+  const log = await interactiveTerminalLog(terminalWindow);
+  await log.focus();
+  await expect(log).toBeFocused();
 });

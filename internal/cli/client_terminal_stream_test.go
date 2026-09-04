@@ -74,36 +74,6 @@ func TestTerminalClientReadStream(t *testing.T) {
 	})
 }
 
-func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
-	t.Parallel()
-	client, server := newTerminalClientTestPair(t)
-	done := make(chan error, 1)
-	go func() {
-		done <- runTerminalTakeover(t.Context(), client, true)
-	}()
-	writeTerminalServerTestFrame(t, server, terminalwire.Frame{
-		Op: terminalwire.ServerOpAttached, Payload: []byte(`{"seq":0}`),
-	})
-	takeover := readTerminalClientTestFrame(t, server)
-	if takeover.Op != terminalwire.ClientOpTakeover {
-		t.Fatalf("takeover opcode = %d, want TAKEOVER", takeover.Op)
-	}
-	if string(takeover.Payload) != `{"force":true}` {
-		t.Fatalf("takeover payload = %s, want force=true", takeover.Payload)
-	}
-	writeTerminalServerTestFrame(t, server, terminalwire.Frame{
-		Op: terminalwire.ServerOpOwner, Payload: []byte(`{"lease":"human_owned"}`),
-	})
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("runTerminalTakeover() error = %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("takeover did not finish after OWNER")
-	}
-}
-
 func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.T) {
 	t.Parallel()
 	client, err := NewClient(LocalClientTarget("/tmp/compozy-terminal-profile-stream.sock"))
@@ -144,16 +114,15 @@ func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.
 func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOutput(t *testing.T) {
 	t.Parallel()
 	body := []byte(
-		`{"error":{"code":"input_answer_requires_write","message":"INPUT requires a write attachment","details":{"current":8,"max":8,"controller":{"kind":"human","id":"client:web"},"path":"/workspace","mode":"pty","platform":"windows"}}}`,
+		`{"error":{"code":"terminal_limit","message":"terminal limit reached","details":{"current":8,"max":8,"path":"/workspace","mode":"pty","platform":"windows"}}}`,
 	)
 	assertDetails := func(t *testing.T, terminalErr *terminalAPIError) {
 		t.Helper()
 		details := terminalErr.payload.Error.Details
 		if details == nil || details.Current == nil || details.Max == nil || *details.Current != 8 ||
-			*details.Max != 8 || details.Controller == nil || details.Controller.Kind != "human" ||
-			details.Controller.ID != "client:web" || details.Path != "/workspace" || details.Mode != "pty" ||
+			*details.Max != 8 || details.Path != "/workspace" || details.Mode != "pty" ||
 			details.Platform != "windows" {
-			t.Fatalf("terminal error details = %#v, want typed limits, controller, path, mode, and platform", details)
+			t.Fatalf("terminal error details = %#v, want typed limits, path, mode, and platform", details)
 		}
 	}
 
@@ -161,13 +130,12 @@ func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOut
 		t.Parallel()
 		err := readAPIErrorBody(http.StatusForbidden, "403 Forbidden", body)
 		terminalErr, ok := errors.AsType[*terminalAPIError](err)
-		if !ok || terminalErr.payload.Error.Code != "input_answer_requires_write" {
-			t.Fatalf("readAPIErrorBody() = %#v, want input_answer_requires_write", err)
+		if !ok || terminalErr.payload.Error.Code != "terminal_limit" {
+			t.Fatalf("readAPIErrorBody() = %#v, want terminal_limit", err)
 		}
 		assertDetails(t, terminalErr)
-		if got := terminalErr.TerminalErrorEnvelope(); got.Error.Code != "input_answer_requires_write" ||
-			got.Error.Details == nil || got.Error.Details.Controller == nil ||
-			got.Error.Details.Controller.ID != "client:web" {
+		if got := terminalErr.TerminalErrorEnvelope(); got.Error.Code != "terminal_limit" ||
+			got.Error.Details == nil || got.Error.Details.Path != "/workspace" {
 			t.Fatalf("TerminalErrorEnvelope() = %#v, want the parsed code and structured details", got)
 		}
 	})
@@ -176,8 +144,8 @@ func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOut
 		t.Parallel()
 		err := terminalStreamFrameError(body, "stream")
 		terminalErr, ok := errors.AsType[*terminalAPIError](err)
-		if !ok || terminalErr.payload.Error.Code != "input_answer_requires_write" {
-			t.Fatalf("terminalStreamFrameError() = %#v, want input_answer_requires_write", err)
+		if !ok || terminalErr.payload.Error.Code != "terminal_limit" {
+			t.Fatalf("terminalStreamFrameError() = %#v, want terminal_limit", err)
 		}
 		assertDetails(t, terminalErr)
 	})

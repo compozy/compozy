@@ -8,7 +8,6 @@ export interface TerminalInputRequestStackProps {
   resolved?: readonly TerminalResolvedInputRequest[];
   /** Terminal id → title, used only when origin must name the source. */
   titles?: ReadonlyMap<string, string>;
-  canAnswerDirectly: boolean;
   canAnswer?: boolean;
   onAnswer: (request: TerminalInputRequest, input: string) => void;
   onReject: (request: TerminalInputRequest) => void;
@@ -25,7 +24,6 @@ export function TerminalInputRequestStack({
   pending,
   resolved = [],
   titles,
-  canAnswerDirectly,
   canAnswer = true,
   onAnswer,
   onReject,
@@ -37,7 +35,6 @@ export function TerminalInputRequestStack({
       {pending.map(request => (
         <TerminalInputRequestCard
           canAnswer={canAnswer}
-          canAnswerDirectly={canAnswerDirectly}
           key={request.id}
           now={now}
           onAnswer={input => onAnswer(request, input)}

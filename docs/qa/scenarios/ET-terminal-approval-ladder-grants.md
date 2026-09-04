@@ -1,25 +1,26 @@
 ---
 id: ET-terminal-approval-ladder-grants
 area: ET
-title: Approve agent terminal work at the right tier and keep the grants revocable
+title: Approve agent terminal commands at the right tier and keep grants revocable
 persona: Bruno
 journey: J-supervise-agent-terminal
-expected: Every agent command shows its exact command and working directory before running, commands that cannot be classified always ask, the fixed irreversible set can never be made automatic, typing is granted per terminal and never by policy, and every grant is listed and revocable where the other tool grants live.
-entry_points: Pending approvals in the session; terminal exec approval prompt; typing-grant prompt; tool approval grants section; permissions settings allowlist; compozy terminal exec
-qa_status: pass
+expected: Every agent command shows its exact command and working directory before running, commands that cannot be classified always ask, the fixed irreversible set can never be made automatic, ordinary grants remain listed and revocable, and terminal input has no separate typing grant or administration surface.
+entry_points: Pending approvals in the session; terminal exec approval prompt; tool approval grants section; permissions settings allowlist; compozy terminal exec; compozy__terminal_write
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/logs/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-overlaps: ET-terminal-agent-handoff-input; ET-native-tool-approval-grants
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
+overlaps: ET-terminal-shared-control; ET-native-tool-approval-grants
 ---
 
-Planned by integrated-terminal task 09 for the approval and grant surface (`_uiux.md` S6), which no
-task 06–08 scenario owned. `ET-terminal-agent-handoff-input` exercises typing under an already-granted
-terminal; this file owns how the grant is asked for, refused, remembered, and revoked. Task 10 owns
-the walk, evidence, and verdict.
+QA impact 2026-09-04: the terminal-scoped typing grant was deleted. Reset to verify ordinary command
+policy still applies and no obsolete typing-grant prompt, row, or configuration survives.
+
+Planned by integrated-terminal task 09 for the approval and grant surface (`_uiux.md` S6). This file
+now owns ordinary terminal command policy and the absence of a special typing grant.
 
 Walk:
 
@@ -31,9 +32,13 @@ Walk:
    piped installer — and confirm it prompts even under the autonomous tier.
 4. Attempt a command from the fixed irreversible set and confirm it cannot be allowlisted and is
    presented with its destructive treatment.
-5. Have the agent type into a fresh terminal for the first time and confirm the human is asked once;
-   reject on one terminal and allow on another, then confirm follow-up typing on the allowed terminal
-   does not prompt while the other terminal asks again.
-6. Confirm no configuration makes typing on a fresh terminal automatic.
-7. Revoke the typing grant and the remembered command shape from the grants section and confirm the
-   next attempt prompts again.
+5. Have an authorized agent write into two terminals and confirm neither path creates a terminal-scoped
+   typing prompt or grant; any ordinary native-tool grant behaves like the other tool grants.
+6. Confirm no terminal configuration or grants row exposes the removed typing policy.
+7. Revoke the remembered command shape from the grants section and confirm the next command attempt
+   prompts again without affecting shared terminal input.
+
+2026-09-04 targeted re-walk: blocked-verify. The isolated targeted contract required no live provider,
+so it could not exercise a fresh agent approval and revocation journey. Runtime catalogs, settings, and
+focused approval-grant suites verified the changed contract: `terminal_write` uses ordinary tool policy,
+and no terminal-scoped typing prompt, grant row, configuration key, claim, or yield tool remains.

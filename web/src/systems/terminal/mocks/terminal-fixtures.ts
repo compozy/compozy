@@ -30,8 +30,6 @@ function baseTerminal(overrides: Partial<TerminalInfo>): TerminalInfo {
     cwd: "~/dev/atlas-api",
     mode: "pty",
     state: "running",
-    controller: { kind: "human", id: TERMINAL_FIXTURE_VIEWER },
-    lease: "human_owned",
     viewers: 2,
     bound_run: null,
     capabilities: { interactive: true },
@@ -41,15 +39,13 @@ function baseTerminal(overrides: Partial<TerminalInfo>): TerminalInfo {
   };
 }
 
-/** `dev server` — a pty terminal this operator controls. */
+/** `dev server` — a shared interactive terminal. */
 export const DEV_SERVER_TERMINAL = baseTerminal({});
 
-/** `psql` — controlled by the agent, and the one asking a question. */
+/** `psql` — the terminal asking a question. */
 export const PSQL_TERMINAL = baseTerminal({
   id: "term-9cd7e14b2a66",
   title: "psql",
-  controller: { kind: "agent", id: "Claude Code" },
-  lease: "agent_owned",
   viewers: 1,
 });
 
@@ -58,8 +54,6 @@ export const MAKE_GATE_TERMINAL = baseTerminal({
   id: "term-a03b558d21f0",
   title: "make gate",
   mode: "pipe",
-  controller: { kind: "agent", id: "Claude Code" },
-  lease: "agent_owned",
   viewers: 0,
 });
 
@@ -69,8 +63,6 @@ export const SSH_STAGING_TERMINAL = baseTerminal({
   title: "ssh staging",
   cwd: "~/dev",
   state: "exited",
-  lease: "available",
-  controller: null,
   viewers: 0,
   exit: { cause: "exited", code: 0, signal: null, at: "2026-08-25T12:52:00Z" },
 });
@@ -88,18 +80,10 @@ export function exitedTerminal(exit: TerminalExit): TerminalInfo {
     title: "ssh staging",
     cwd: "~/dev",
     state: "exited",
-    lease: "available",
-    controller: null,
     viewers: 0,
     exit,
   });
 }
-
-/** `dev server`, but another person is typing in it. */
-export const CONTESTED_TERMINAL = baseTerminal({
-  controller: { kind: "human", id: "marina" },
-  lease: "human_owned",
-});
 
 export const TERMINAL_FIXTURES: readonly TerminalInfo[] = [
   DEV_SERVER_TERMINAL,
@@ -129,13 +113,6 @@ export const TERMINAL_FIXTURES_AT_CAP: readonly TerminalInfo[] = [
  * shape the runtime cannot produce.
  */
 export const TERMINAL_GRANT_FIXTURES: readonly TerminalGrant[] = [
-  {
-    id: "grant-typing-1",
-    kind: "typing",
-    inputDigest: "sha256:9f21ac04b7e31d5a8c6f0e2b4d7a19c3e58f6b0d2a4c8e1f3b5d7a9c1e3f5b7d",
-    agentName: "Claude Code",
-    grantedAt: "2026-08-25T12:44:00Z",
-  },
   {
     id: "grant-shape-1",
     kind: "command_shape",

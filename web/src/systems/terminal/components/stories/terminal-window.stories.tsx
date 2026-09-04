@@ -4,7 +4,6 @@ import { fn } from "storybook/test";
 import type { TerminalSocket } from "../../adapters/terminal-socket";
 import type { TerminalInfo } from "../../types";
 import {
-  CONTESTED_TERMINAL,
   exitedTerminal,
   DEV_SERVER_TERMINAL,
   MAKE_GATE_TERMINAL,
@@ -16,7 +15,6 @@ import {
   TERMINAL_FIXTURE_PROFILE,
   TERMINAL_FIXTURE_VIEWER,
 } from "../../mocks/terminal-fixtures";
-import { terminalLeaseView } from "../../lib/terminal-lease";
 import { TerminalConnectingLine } from "../terminal-connecting-line";
 import { TerminalExpiredState, TerminalNotFoundState } from "../terminal-empty-states";
 import { TerminalHeader } from "../terminal-header";
@@ -62,32 +60,27 @@ const PTY_SCREEN = { cols: 96, rows: 28, mode: "pty" } as const;
 
 // Factories are module-scoped: an inline factory changes identity every render
 // and forces the attachment hook into a full teardown + re-attach per render.
-const CONTROLLED_SOCKET = scriptedSocketFactory({
+const SHARED_SOCKET = scriptedSocketFactory({
   ...PTY_SCREEN,
-  lease: "human_owned",
   output: DEV_SERVER_SCREEN,
 });
 const JOURNAL_UNAVAILABLE_SOCKET = scriptedSocketFactory({
   ...PTY_SCREEN,
-  lease: "human_owned",
   output: DEV_SERVER_SCREEN,
   error: { code: "journal_unavailable", message: "journal_unavailable" },
 });
-const WATCHING_SOCKET = scriptedSocketFactory({
+const AGENT_SOCKET = scriptedSocketFactory({
   ...PTY_SCREEN,
-  lease: "agent_owned",
   output: AGENT_SCREEN,
 });
 const EXITED_SOCKET = scriptedSocketFactory({
   ...PTY_SCREEN,
-  lease: "available",
   output: EXITED_SCREEN,
 });
 const TINY_TILE_SOCKET = scriptedSocketFactory({
   cols: 30,
   rows: 5,
   mode: "pty",
-  lease: "human_owned",
   output: WORKER_SCREEN,
 });
 
@@ -131,22 +124,22 @@ function stagedWindow(overrides: Partial<TerminalWindowAppProps> = {}, width?: "
   );
 }
 
-/** VC-01 — the operator holds the terminal. */
-export const Controlled: Story = {
-  name: "VC-01 · You're in control",
+/** VC-01 — the operator and agents share one terminal. */
+export const Shared: Story = {
+  name: "VC-01 · Shared terminal",
   render: () =>
     stagedWindow({
-      socketFactory: CONTROLLED_SOCKET,
+      socketFactory: SHARED_SOCKET,
     }),
 };
 
-/** VC-02 — watching an agent work. */
-export const Watching: Story = {
-  name: "VC-02 · Watching an agent",
+/** VC-02 — an agent and operator can work on the same screen. */
+export const AgentActive: Story = {
+  name: "VC-02 · Agent active",
   render: () =>
     stagedWindow({
       terminals: [PSQL_TERMINAL, DEV_SERVER_TERMINAL],
-      socketFactory: WATCHING_SOCKET,
+      socketFactory: AGENT_SOCKET,
     }),
 };
 
@@ -265,16 +258,6 @@ export const TinyTile: Story = {
     ),
 };
 
-/** VC-19 — displacing another person confirms by name. */
-export const TakeoverConfirm: Story = {
-  name: "VC-19 · Displacing another person",
-  render: () => stagedWindow({ terminals: [CONTESTED_TERMINAL] }),
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(await canvas.findByTestId("terminal-take-control"));
-  },
-  tags: ["play-fn"],
-};
-
 /** VC-21 — the journal cannot record; watching continues. */
 export const AuditBlocked: Story = {
   name: "VC-21 · Journal unavailable",
@@ -319,27 +302,14 @@ export const Connecting: Story = {
 /**
  * The size is not this window's to choose.
  *
- * Several viewers can watch one terminal and the smallest controlling one
- * decides its grid, so the quiet bar under the surface states what the daemon
- * settled on — otherwise a window that is plainly wide enough for more columns
- * is a mystery.
+ * Several viewers can share one terminal, so the quiet bar under the surface
+ * states what size the daemon settled on.
  */
-export const SmallestControllerSize: Story = {
-  name: "Size follows the smallest controller",
+export const SettledSharedSize: Story = {
+  name: "Shared terminal size",
   render: () => (
     <TerminalVisualStage>
-      <TerminalHeader
-        lease={terminalLeaseView({
-          lease: DEV_SERVER_TERMINAL.lease,
-          controller: DEV_SERVER_TERMINAL.controller,
-          viewerId: TERMINAL_FIXTURE_VIEWER,
-          mode: DEV_SERVER_TERMINAL.mode,
-          capabilities: DEV_SERVER_TERMINAL.capabilities,
-        })}
-        onReleaseControl={fn()}
-        onStop={fn()}
-        terminal={{ ...DEV_SERVER_TERMINAL, viewers: 3 }}
-      />
+      <TerminalHeader onStop={fn()} terminal={{ ...DEV_SERVER_TERMINAL, viewers: 3 }} />
       <div className="min-h-24 flex-1 bg-terminal-bg" />
       <TerminalSizeVoteBar cols={80} rows={24} />
     </TerminalVisualStage>

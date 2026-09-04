@@ -1,5 +1,8 @@
 # CH-terminal-lease-fencing-takeover: Interrupt the writer at the worst possible moment
 
+> Superseded on 2026-09-04 by `CH-terminal-shared-input-race`. Preserve this file as historical QA
+> memory; do not schedule its removed lease/takeover mission.
+
 ```yaml
 charter:
   id: CH-terminal-lease-fencing-takeover

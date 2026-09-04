@@ -39,13 +39,8 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		}, terminalpkg.CommandClassification{}); err != nil {
 			t.Fatalf("AuthorizeTerminalExec() error = %v", err)
 		}
-		if err := bridge.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
-			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
-		}); err != nil {
-			t.Fatalf("AuthorizeTerminalInput() error = %v", err)
-		}
-		if len(capture.calls) != 2 {
-			t.Fatalf("approval calls = %#v, want exec and input", capture.calls)
+		if len(capture.calls) != 1 {
+			t.Fatalf("approval calls = %#v, want one exec call", capture.calls)
 		}
 		for _, call := range capture.calls {
 			if call.scope.RunID != "run-a" || call.scope.Generation != 7 ||
@@ -55,7 +50,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should type only explicit terminal approval rejections", func(t *testing.T) {
+	t.Run("Should type explicit terminal exec approval rejections", func(t *testing.T) {
 		t.Parallel()
 
 		requester := selectedPermissionRequester(toolApprovalRejectOnceID)
@@ -79,63 +74,6 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		if !execTyped || execErr.Code != terminalpkg.ErrorCodeApprovalRejected ||
 			!errors.Is(err, terminalpkg.ErrApprovalRejected) {
 			t.Fatalf("AuthorizeTerminalExec(rejected) error = %v, want approval_rejected", err)
-		}
-		err = terminalApproval.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
-			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
-		})
-		inputErr, inputTyped := errors.AsType[*terminalpkg.Error](err)
-		if !inputTyped || inputErr.Code != terminalpkg.ErrorCodeTypingGrantRejected ||
-			!errors.Is(err, terminalpkg.ErrTypingGrant) {
-			t.Fatalf("AuthorizeTerminalInput(rejected) error = %v, want typing_grant_rejected", err)
-		}
-
-		generic := toolspkg.NewToolError(
-			toolspkg.ErrorCodeUnavailable,
-			toolspkg.ToolIDTerminalWrite,
-			"approval channel unavailable",
-			toolspkg.ErrToolUnavailable,
-			toolspkg.ReasonApprovalUnreachable,
-		)
-		capture := &terminalApprovalCapture{err: generic}
-		terminalApproval.bind(capture)
-		err = terminalApproval.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
-			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
-		})
-		var terminalErr *terminalpkg.Error
-		if !errors.Is(err, toolspkg.ErrToolUnavailable) || errors.As(err, &terminalErr) {
-			t.Fatalf("AuthorizeTerminalInput(unavailable) error = %v, want generic tool unavailable", err)
-		}
-	})
-
-	t.Run("Should scope a typing grant to one terminal generation", func(t *testing.T) {
-		t.Parallel()
-
-		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
-		approval := newToolApprovalBridge(
-			func() sessionPermissionRequester { return requester },
-			time.Second,
-			nil,
-			nil,
-			nil,
-		)
-		terminalApproval := newTerminalPermissionBridge()
-		terminalApproval.bind(approval)
-		err := terminalApproval.AuthorizeTerminalInput(t.Context(), terminalpkg.Actor{
-			Kind: terminalpkg.ActorKindAgent, ID: "codex", ProfileID: "profile-a", SessionID: "sess-a",
-		}, terminalpkg.Info{
-			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
-		})
-		if err != nil {
-			t.Fatalf("AuthorizeTerminalInput() error = %v", err)
-		}
-		request := requester.lastRequest(t)
-		raw, marshalErr := json.Marshal(request.ToolCall.RawInput)
-		if marshalErr != nil {
-			t.Fatalf("Marshal(RawInput) error = %v", marshalErr)
-		}
-		if !strings.Contains(string(raw), `"terminal_id":"term-aaaaaaaaaaaa"`) ||
-			!strings.Contains(string(raw), `"grant_generation":3`) {
-			t.Fatalf("typing grant input = %s, want terminal and generation scope", raw)
 		}
 	})
 
@@ -813,18 +751,13 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should ignore wider terminal grants returned by the store", func(t *testing.T) {
+	t.Run("Should ignore wider terminal exec grants returned by the store", func(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
 			toolID toolspkg.ToolID
 			input  json.RawMessage
-		}{
-			{toolID: toolspkg.ToolIDTerminalExec, input: json.RawMessage(`{"command":"bun","args":["test"]}`)},
-			{toolID: toolspkg.ToolIDTerminalWrite, input: json.RawMessage(
-				`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":3}`,
-			)},
-		}
+		}{{toolID: toolspkg.ToolIDTerminalExec, input: json.RawMessage(`{"command":"bun","args":["test"]}`)}}
 		for _, testCase := range cases {
 			terminalView := toolApprovalTestView()
 			terminalView.Descriptor.ID = testCase.toolID
@@ -881,7 +814,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should digest terminal command shape and typing identity", func(t *testing.T) {
+	t.Run("Should digest terminal command shape", func(t *testing.T) {
 		t.Parallel()
 
 		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
@@ -913,41 +846,6 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 				firstKey.InputDigest,
 				secondKey.InputDigest,
 				changedKey.InputDigest,
-			)
-		}
-
-		writeA := toolApprovalTestCall(toolspkg.ToolIDTerminalWrite, "ws-1")
-		writeA.Input = json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":3}`)
-		writeB := writeA
-		writeB.Input = json.RawMessage(`{"grant_generation":3,"terminal_id":"term-aaaaaaaaaaaa"}`)
-		writeC := writeA
-		writeC.Input = json.RawMessage(`{"terminal_id":"term-bbbbbbbbbbbb","grant_generation":3}`)
-		writeD := writeA
-		writeD.Input = json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":4}`)
-		writeKeyA, err := toolApprovalGrantKey(scope, writeA, toolspkg.ToolIDTerminalWrite)
-		if err != nil {
-			t.Fatalf("toolApprovalGrantKey(write A) error = %v", err)
-		}
-		writeKeyB, err := toolApprovalGrantKey(scope, writeB, toolspkg.ToolIDTerminalWrite)
-		if err != nil {
-			t.Fatalf("toolApprovalGrantKey(write B) error = %v", err)
-		}
-		writeKeyC, err := toolApprovalGrantKey(scope, writeC, toolspkg.ToolIDTerminalWrite)
-		if err != nil {
-			t.Fatalf("toolApprovalGrantKey(write C) error = %v", err)
-		}
-		writeKeyD, err := toolApprovalGrantKey(scope, writeD, toolspkg.ToolIDTerminalWrite)
-		if err != nil {
-			t.Fatalf("toolApprovalGrantKey(write D) error = %v", err)
-		}
-		if writeKeyA.InputDigest != writeKeyB.InputDigest || writeKeyA.InputDigest == writeKeyC.InputDigest ||
-			writeKeyA.InputDigest == writeKeyD.InputDigest {
-			t.Fatalf(
-				"terminal write digests = %q, %q, %q, %q, want exact terminal generation identity",
-				writeKeyA.InputDigest,
-				writeKeyB.InputDigest,
-				writeKeyC.InputDigest,
-				writeKeyD.InputDigest,
 			)
 		}
 	})

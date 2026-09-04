@@ -4,13 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"unicode/utf8"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 )
 
+type PartialWriteError struct {
+	Delivered int
+	Err       error
+}
+
+func (e *PartialWriteError) Error() string {
+	return fmt.Sprintf("terminal input stopped after %d bytes: %v", e.Delivered, e.Err)
+}
+
+func (e *PartialWriteError) Unwrap() error { return e.Err }
+
 func (s *session) Write(ctx context.Context, actor Actor, input []byte) error {
-	_, err := s.deliverInputMode(ctx, actor, input, false, nil)
+	_, err := s.deliverInputMode(ctx, actor, input, false, nil, false)
 	return err
 }
 
@@ -18,6 +30,7 @@ type inputDeliveryState struct {
 	BytesDelivered      int
 	CharactersDelivered int
 	Complete            bool
+	Content             []byte
 }
 
 type inputVisibilityProc interface {
@@ -39,6 +52,7 @@ func (s *session) deliverInputMode(
 	input []byte,
 	clientRedact bool,
 	redactedCharacters *int,
+	appendNewline bool,
 ) (inputDeliveryState, error) {
 	if err := requestContextError(ctx, "write"); err != nil {
 		return inputDeliveryState{}, err
@@ -61,13 +75,17 @@ func (s *session) deliverInputMode(
 	if err := s.runningGate(); err != nil {
 		return inputDeliveryState{}, err
 	}
-	if err := s.authorizePendingInputMutation(actor); err != nil {
-		return inputDeliveryState{}, err
-	}
-	if err := s.authorizeAgentInput(ctx, actor); err != nil {
-		return inputDeliveryState{}, err
-	}
+	// A submission stays intact across filtering, audit reservation, PTY delivery,
+	// and journal commit. Separate actors may submit concurrently; arrival order
+	// decides which complete submission reaches the process first.
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
 	filtered := s.filter.FilterInput(input)
+	contentBytes := len(filtered)
+	if appendNewline &&
+		(len(filtered) == 0 || (filtered[len(filtered)-1] != '\n' && filtered[len(filtered)-1] != '\r')) {
+		filtered = append(filtered, '\n')
+	}
 	info := s.Info()
 	writer, redacted, err := s.inputWriter(clientRedact)
 	if err != nil {
@@ -89,8 +107,8 @@ func (s *session) deliverInputMode(
 			Err:     ErrJournalUnavailable,
 		}
 	}
-	deliveryErr := s.lease.deliverWith(actor, filtered, writer)
-	state, err := s.commitInputDelivery(actor, filtered, auditInput, reservation, deliveryErr)
+	deliveryErr := writeAllInput(filtered, writer)
+	state, err := s.commitInputDelivery(actor, filtered, contentBytes, auditInput, reservation, deliveryErr)
 	if err != nil {
 		return state, err
 	}
@@ -100,6 +118,7 @@ func (s *session) deliverInputMode(
 func (s *session) commitInputDelivery(
 	actor Actor,
 	filtered []byte,
+	contentBytes int,
 	auditInput JournalInput,
 	reservation JournalInputReservation,
 	deliveryErr error,
@@ -127,6 +146,7 @@ func (s *session) commitInputDelivery(
 	}
 	state := inputDeliveryState{
 		BytesDelivered: delivered, CharactersDelivered: characters, Complete: deliveryErr == nil,
+		Content: append([]byte(nil), filtered[:min(delivered, contentBytes)]...),
 	}
 	return state, nil
 }
@@ -142,21 +162,19 @@ func deliveredRedactedCharacters(input []byte, delivered, fullCharacters int) in
 	return min(utf8.RuneCount(prefix), max(fullCharacters, 0))
 }
 
-func (s *session) authorizePendingInputMutation(actor Actor) error {
-	if actor.Kind != ActorKindAgent || !s.manager.inputs.hasPending(s) {
-		return nil
+func writeAllInput(input []byte, write func([]byte) (int, error)) error {
+	delivered := 0
+	for delivered < len(input) {
+		written, err := write(input[delivered:])
+		delivered += written
+		if err != nil {
+			return &PartialWriteError{Delivered: delivered, Err: fmt.Errorf("terminal: write input: %w", err)}
+		}
+		if written == 0 {
+			return &PartialWriteError{Delivered: delivered, Err: io.ErrNoProgress}
+		}
 	}
-	return fmt.Errorf("%s: %w", errorMessageInputPending, ErrInputPending)
-}
-
-func (s *session) authorizeAgentInput(ctx context.Context, actor Actor) error {
-	if actor.Kind != ActorKindAgent {
-		return nil
-	}
-	if s.manager.typingGrants == nil {
-		return fmt.Errorf("terminal typing grant service is unavailable: %w", ErrServiceUnavailable)
-	}
-	return s.manager.typingGrants.AuthorizeTerminalInput(ctx, actor, s.Info())
+	return nil
 }
 
 func (s *session) inputWriter(

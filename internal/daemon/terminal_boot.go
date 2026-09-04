@@ -91,7 +91,6 @@ func terminalManagerOptions(
 	}
 	options = append(
 		options,
-		terminalpkg.WithTypingGrantAuthorizer(state.terminalPermissions),
 		terminalpkg.WithExecAuthorizer(state.terminalPermissions),
 		terminalpkg.WithWorkspaceResolver(state.workspaceResolver),
 	)

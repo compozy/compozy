@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 115
+const expectedHookEventCount = 114
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -85,7 +85,6 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookWorktreeRemoved:                 {},
 			HookTerminalOpened:                  {},
 			HookTerminalClosed:                  {},
-			HookTerminalLeaseChanged:            {},
 			HookTerminalCommandStarted:          {},
 			HookTerminalCommandFinished:         {},
 			HookTerminalInputRequested:          {},
@@ -120,8 +119,8 @@ func TestTerminalHookEventsHaveExpectedContracts(t *testing.T) {
 	t.Parallel()
 
 	descriptors := FilterEventDescriptors(EventFilter{Family: HookEventFamilyTerminal})
-	if len(descriptors) != 11 {
-		t.Fatalf("terminal descriptor count = %d, want 11", len(descriptors))
+	if len(descriptors) != 10 {
+		t.Fatalf("terminal descriptor count = %d, want 10", len(descriptors))
 	}
 	for _, descriptor := range descriptors {
 		if descriptor.SyncEligible || descriptor.PayloadSchema == "" ||
@@ -134,7 +133,6 @@ func TestTerminalHookEventsHaveExpectedContracts(t *testing.T) {
 	payloads := []any{
 		TerminalOpenedPayload{TerminalContext: context},
 		TerminalClosedPayload{TerminalContext: context},
-		TerminalLeaseChangedPayload{TerminalContext: context},
 		TerminalCommandStartedPayload{TerminalContext: context},
 		TerminalCommandFinishedPayload{TerminalContext: context},
 		TerminalInputRequestedPayload{TerminalContext: context},

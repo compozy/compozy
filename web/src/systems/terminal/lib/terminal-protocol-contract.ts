@@ -13,7 +13,6 @@ import type {
   TerminalErrorFrame,
   TerminalExitFrame,
   TerminalGapFrame,
-  TerminalOwnerFrame,
   TerminalPresenceFrame,
   TerminalRedactedInputFrame,
   TerminalResizedFrame,
@@ -43,8 +42,6 @@ export interface TerminalStreamSink {
 export interface TerminalStreamHandlers {
   onStatus?(status: TerminalStreamStatus): void;
   onAttached?(frame: TerminalAttachedFrame): void;
-  /** The daemon's word on who holds the lease. The only source there is. */
-  onLease?(frame: TerminalOwnerFrame): void;
   onPresence?(frame: TerminalPresenceFrame): void;
   /** Trusted daemon metadata; matching PTY text remains ordinary output. */
   onRedactedInput?(frame: TerminalRedactedInputFrame): void;
@@ -58,7 +55,7 @@ export interface TerminalStreamHandlers {
   onClientError?(error: Error): void;
   /**
    * The local keyboard gate. It opens only after an attached replay or a gap
-   * snapshot has fully parsed, and closes on gaps, exits, disconnects, release,
+   * snapshot has fully parsed, and closes on gaps, exits, disconnects,
    * protocol errors, and teardown.
    */
   onInputEnabledChange?(enabled: boolean): void;
