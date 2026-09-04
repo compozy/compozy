@@ -21,14 +21,16 @@ func listToolsOperationSpec() OperationSpec {
 		Summary:     "List operator-visible registry tools",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			queryParam("workspace_id", "Effective workspace id", false),
 			queryParam(specWorkspaceKey, "Effective workspace reference", false),
 			queryParam("session_id", "Effective session id", false),
 			queryParam("agent_name", "Effective agent name", false),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
+			profileToolResponse(400, "Invalid profile selection"),
+			profileToolResponse(404, specProfileNotFoundDescription),
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: specToolRegistryUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
@@ -42,10 +44,12 @@ func searchToolsOperationSpec() OperationSpec {
 		Summary:     "Search operator-visible registry tools",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.ToolSearchRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
-			{Status: 400, Description: "Malformed search request", Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(400, "Malformed search request or invalid profile selection"),
+			profileToolResponse(404, specProfileNotFoundDescription),
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: specToolRegistryUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
@@ -59,17 +63,17 @@ func getToolOperationSpec() OperationSpec {
 		Summary:     "Get one operator-visible registry tool",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("id", "Canonical tool id"),
 			queryParam("workspace_id", "Effective workspace id", false),
 			queryParam(specWorkspaceKey, "Effective workspace reference", false),
 			queryParam("session_id", "Effective session id", false),
 			queryParam("agent_name", "Effective agent name", false),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ToolResponse{}},
-			{Status: 400, Description: "Invalid tool id", Body: contract.ToolErrorResponse{}},
-			{Status: 404, Description: specToolNotFoundDescription, Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(400, "Invalid tool id or profile selection"),
+			profileOrToolResponse(404, "Tool or profile not found"),
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: specToolRegistryUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
@@ -83,15 +87,13 @@ func createToolApprovalOperationSpec() OperationSpec {
 		Summary:     "Mint a local single-use approval token for one tool invocation",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Canonical tool id"),
-		},
+		Parameters:  withProfileSelector(pathParam("id", "Canonical tool id")),
 		RequestBody: contract.ToolApprovalRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.ToolApprovalResponse{}},
-			{Status: 400, Description: "Invalid approval request", Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(400, "Invalid approval request or profile selection"),
 			{Status: 403, Description: "Approval denied", Body: contract.ToolErrorResponse{}},
-			{Status: 404, Description: specToolNotFoundDescription, Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(404, "Tool or profile not found"),
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: "Tool approval service unavailable", Body: contract.ErrorPayload{}},
 		},
@@ -105,16 +107,14 @@ func invokeToolOperationSpec() OperationSpec {
 		Summary:     "Invoke a registry tool through executable dispatch",
 		Tags:        []string{specToolsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Canonical tool id"),
-		},
+		Parameters:  withProfileSelector(pathParam("id", "Canonical tool id")),
 		RequestBody: contract.ToolInvokeRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Completed", Body: contract.ToolInvokeResponse{}},
 			{Status: 202, Description: "Approval required", Body: contract.ToolErrorResponse{}},
-			{Status: 400, Description: "Invalid invocation request", Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(400, "Invalid invocation request or profile selection"),
 			{Status: 403, Description: "Invocation denied", Body: contract.ToolErrorResponse{}},
-			{Status: 404, Description: specToolNotFoundDescription, Body: contract.ToolErrorResponse{}},
+			profileOrToolResponse(404, "Tool or profile not found"),
 			{Status: 409, Description: "Tool conflict", Body: contract.ToolErrorResponse{}},
 			{Status: 422, Description: "Tool unavailable or not executable", Body: contract.ToolErrorResponse{}},
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
@@ -162,5 +162,19 @@ func searchSessionToolsOperationSpec() OperationSpec {
 			{Status: 500, Description: specInternalDaemonErrorDescription, Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: specToolRegistryUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
+	}
+}
+
+func profileToolResponse(status int, description string) ResponseSpec {
+	return ResponseSpec{Status: status, Description: description, Body: contract.ProfileErrorPayload{}}
+}
+
+func profileOrToolResponse(status int, description string) ResponseSpec {
+	return ResponseSpec{
+		Status: status, Description: description,
+		Bodies: responseBodiesOf(
+			responseBodyOf[contract.ProfileErrorPayload](),
+			responseBodyOf[contract.ToolErrorResponse](),
+		),
 	}
 }

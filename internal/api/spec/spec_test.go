@@ -1910,6 +1910,33 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTools := operationFor(t, doc, "/api/tools", "GET")
 				assertTagsContain(t, listTools, "tools")
 				assertParameter(t, listTools, "workspace_id", openapi3.ParameterInQuery, false)
+				profileScopedOperations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/tools", method: "GET"},
+					{path: "/api/tools/search", method: "POST"},
+					{path: "/api/tools/{id}", method: "GET"},
+					{path: "/api/tools/{id}/approvals", method: "POST"},
+					{path: "/api/tools/{id}/invoke", method: "POST"},
+					{path: "/api/toolsets", method: "GET"},
+					{path: "/api/toolsets/{id}", method: "GET"},
+				}
+				for _, item := range profileScopedOperations {
+					operation := operationFor(t, doc, item.path, item.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertResponseStatus(t, operation, http.StatusBadRequest)
+					assertResponseStatus(t, operation, http.StatusNotFound)
+				}
+				if schema := jsonResponseSchema(
+					t,
+					operationFor(t, doc, "/api/tools/{id}/invoke", "POST"),
+					400,
+				); len(
+					schema.OneOf,
+				) != 2 {
+					t.Fatalf("profile-scoped tool error variants = %d, want 2", len(schema.OneOf))
+				}
 				listSchema := jsonResponseSchema(t, listTools, 200)
 				assertRequired(t, listSchema, "tools")
 				toolsSchema := propertySchema(t, listSchema, "tools")
