@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -340,7 +341,19 @@ func collectLoopPromptResult(
 	var allText strings.Builder
 	var tokensUsed int64
 	tokensReported := false
+	var promptFailure *store.SessionFailure
+	var eventError string
+	var stopReason acp.PromptStopReason
 	for event := range events {
+		if event.Failure != nil && promptFailure == nil {
+			promptFailure = event.Failure
+		}
+		if event.Error != "" && eventError == "" {
+			eventError = event.Error
+		}
+		if event.PromptStopReason != "" && stopReason == "" {
+			stopReason = event.PromptStopReason
+		}
 		// Chunks are streaming deltas of one turn, not lines: any injected
 		// separator lands inside JSON string literals and corrupts the answer.
 		// The transcript projector concatenates the same way.
@@ -358,6 +371,13 @@ func collectLoopPromptResult(
 			}
 		}
 	}
+	if failureErr := evaluatePromptProviderFailure(promptFailure, eventError, stopReason); failureErr != nil {
+		return looppkg.ActionPromptResult{
+			TokensUsed:     tokensUsed,
+			TokensReported: tokensReported,
+		}, failureErr
+	}
+
 	// Agent-message chunks are the action answer; thought and user chunks only
 	// backstop providers that never emit an agent message on this turn.
 	text := agentText.String()

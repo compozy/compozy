@@ -56,6 +56,11 @@ func (e *safeActionFailureError) SafeActionFailure() ActionFailure {
 }
 
 func newSafeActionFailureError(err error, failure ActionFailure) error {
+	return NewSafeActionFailureError(err, failure)
+}
+
+// NewSafeActionFailureError wraps an error with a SafeActionFailure payload.
+func NewSafeActionFailureError(err error, failure ActionFailure) error {
 	return &safeActionFailureError{err: err, failure: failure}
 }
 
