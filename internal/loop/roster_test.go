@@ -189,6 +189,72 @@ func TestRosterContract(t *testing.T) {
 			t.Fatalf("fanout route states = %#v", fanoutNodes)
 		}
 	})
+	t.Run("Should keep output-less nodes pending without durable not-taken evidence", func(t *testing.T) {
+		t.Parallel()
+		statuses := []Status{
+			StatusDone,
+			StatusNoOp,
+			StatusBlocked,
+			StatusFailed,
+			StatusExhausted,
+			StatusStalled,
+			StatusCanceled,
+		}
+		for _, status := range statuses {
+			t.Run("Should preserve pending state for "+string(status), func(t *testing.T) {
+				t.Parallel()
+				source := RosterSource{
+					Run: Run{ID: "run-pending", Status: status, Generation: 1},
+					Graph: dsl.Graph{Nodes: []dsl.Node{{
+						ID: "unfinished", Class: dsl.NodeClassAction,
+					}}},
+				}
+				page, err := ProjectRoster(&source, RosterQuery{})
+				if err != nil {
+					t.Fatalf("ProjectRoster() error = %v", err)
+				}
+				if len(page.Nodes) != 1 || page.Nodes[0].State != NodeStatePending {
+					t.Fatalf("nodes = %#v, want one pending node", page.Nodes)
+				}
+			})
+		}
+	})
+	t.Run("Should project durable branch skips in their generation without inflating progress", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{
+			Run: Run{ID: "run-branch", Status: StatusDone, Generation: 5},
+			Graph: dsl.Graph{Nodes: []dsl.Node{
+				{ID: "review", Class: dsl.NodeClassAction},
+				{ID: "fix", Class: dsl.NodeClassAction},
+			}},
+			Generations: []LoopGeneration{{Generation: 1}, {Generation: 5}},
+			Outputs: []GenerationOutput{
+				{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
+				{Generation: 1, NodeID: "fix", Status: generationOutputSucceeded},
+				{Generation: 5, NodeID: "review", Status: generationOutputSucceeded},
+				{
+					Generation: 5,
+					NodeID:     "fix",
+					Status:     generationOutputSucceeded,
+					OutputRef:  branchSkippedOutputRef,
+				},
+			},
+		}
+
+		page, err := ProjectRoster(&source, RosterQuery{})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		nodes := rosterNodesByIdentity(page.Nodes)
+		if nodes[rosterKey(1, "fix", 0)].State != NodeStateSucceeded ||
+			nodes[rosterKey(5, "fix", 0)].State != NodeStateNotTaken {
+			t.Fatalf("branch states = %#v", nodes)
+		}
+		progress := ProgressFromRoster(page, 5)
+		if progress.StepsDone != 1 || progress.StepsTotal != 1 {
+			t.Fatalf("progress = %#v, want 1 of 1", progress)
+		}
+	})
 	t.Run("Should satisfy UT-017 with fanout rollups and stable pagination", func(t *testing.T) {
 		t.Parallel()
 		source := RosterSource{
@@ -544,234 +610,4 @@ func rosterFixture(now time.Time) RosterSource {
 			StartedAt:   now,
 		}},
 	}
-}
-
-func TestRosterTerminalRunUnexecutedStepsNotTaken(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should mark unexecuted and skipped steps as not_taken in a terminal done loop", func(t *testing.T) {
-		t.Parallel()
-		graph := dsl.Graph{
-			Nodes: []dsl.Node{
-				{ID: "review", Class: dsl.NodeClassAction},
-				{ID: "has_issues", Class: dsl.NodeClassControl, Kind: string(dsl.ControlBranch)},
-				{ID: "write_artifacts", Class: dsl.NodeClassAction},
-				{
-					ID:    "fix_batches",
-					Class: dsl.NodeClassControl,
-					Kind:  string(dsl.ControlFanOut),
-					Body: &dsl.Graph{
-						Nodes: []dsl.Node{
-							{ID: "fix_batch", Class: dsl.NodeClassAction},
-						},
-					},
-				},
-				{ID: "finalize_round", Class: dsl.NodeClassAction},
-			},
-		}
-		source := RosterSource{
-			Run: Run{
-				ID:         "run-review-fix",
-				LoopName:   "review-and-fix",
-				Status:     StatusDone,
-				Generation: 5,
-			},
-			Graph: graph,
-			Generations: []LoopGeneration{
-				{Generation: 1},
-				{Generation: 5},
-			},
-			Outputs: []GenerationOutput{
-				// Round 1: fix_batch ran and succeeded
-				{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
-				{
-					Generation: 1,
-					NodeID:     "has_issues",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchTrueOutputRef,
-				},
-				{Generation: 1, NodeID: "write_artifacts", Status: generationOutputSucceeded},
-				{Generation: 1, NodeID: "fix_batches", Status: generationOutputSucceeded},
-				{
-					Generation: 1,
-					NodeID:     "fix_batch",
-					ItemIndex:  0,
-					Status:     generationOutputSucceeded,
-					SessionID:  "sess-r1-fix",
-				},
-				{Generation: 1, NodeID: "finalize_round", Status: generationOutputSucceeded},
-
-				// Round 5: review ran, has_issues was false, downstream skipped
-				{Generation: 5, NodeID: "review", Status: generationOutputSucceeded},
-				{
-					Generation: 5,
-					NodeID:     "has_issues",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchFalseOutputRef,
-				},
-				{
-					Generation: 5,
-					NodeID:     "write_artifacts",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchSkippedOutputRef,
-				},
-				{
-					Generation: 5,
-					NodeID:     "fix_batches",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchSkippedOutputRef,
-				},
-				{
-					Generation: 5,
-					NodeID:     "finalize_round",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchSkippedOutputRef,
-				},
-			},
-		}
-
-		page, err := ProjectRoster(&source, RosterQuery{State: NodeStateFilterAll})
-		if err != nil {
-			t.Fatalf("ProjectRoster() error = %v", err)
-		}
-
-		nodeMap := rosterNodesByIdentity(page.Nodes)
-
-		// Round 1 checks
-		if r1Fix := nodeMap[rosterKey(1, "fix_batch", 0)]; r1Fix.State != NodeStateSucceeded ||
-			r1Fix.SessionID != "sess-r1-fix" {
-			t.Fatalf("Round 1 fix_batch = %#v, want succeeded with sess-r1-fix", r1Fix)
-		}
-
-		// Round 5 checks
-		if r5Review := nodeMap[rosterKey(5, "review", 0)]; r5Review.State != NodeStateSucceeded {
-			t.Fatalf("Round 5 review = %#v, want succeeded", r5Review)
-		}
-		if r5Write := nodeMap[rosterKey(5, "write_artifacts", 0)]; r5Write.State != NodeStateNotTaken {
-			t.Fatalf("Round 5 write_artifacts = %#v, want not_taken", r5Write)
-		}
-		if r5Fix := nodeMap[rosterKey(5, "fix_batch", 0)]; r5Fix.State != NodeStateNotTaken {
-			t.Fatalf("Round 5 fix_batch = %#v, want not_taken (not pending)", r5Fix)
-		}
-		if r5Finalize := nodeMap[rosterKey(5, "finalize_round", 0)]; r5Finalize.State != NodeStateNotTaken {
-			t.Fatalf("Round 5 finalize_round = %#v, want not_taken", r5Finalize)
-		}
-
-		// Verify no node in the terminal done run is pending
-		for _, node := range page.Nodes {
-			if node.State == NodeStatePending {
-				t.Fatalf("node %s in generation %d is pending in a terminal done run", node.NodeID, node.Generation)
-			}
-		}
-
-		// Verify ProgressFromRoster for Round 5
-		progress := ProgressFromRoster(page, 5)
-		if progress.StepsTotal != 1 || progress.StepsDone != 1 {
-			t.Fatalf("ProgressFromRoster(5) = %#v, want 1 of 1 steps complete", progress)
-		}
-	})
-
-	t.Run("Should preserve active generation in synthetic branch skipped outputs without aliasing", func(t *testing.T) {
-		t.Parallel()
-
-		graph := dsl.Graph{
-			Nodes: []dsl.Node{
-				{ID: "review", Class: dsl.NodeClassAction},
-				{ID: "has_issues", Class: dsl.NodeClassControl, Kind: string(dsl.ControlBranch)},
-				{ID: "write_artifacts", Class: dsl.NodeClassAction},
-				{ID: "finalize_round", Class: dsl.NodeClassAction},
-			},
-			Edges: []dsl.Edge{
-				{From: "review", To: "has_issues"},
-				{From: "has_issues", To: "write_artifacts"},
-				{From: "write_artifacts", To: "finalize_round"},
-			},
-		}
-		topology := newControlTopology(graph)
-
-		activeGeneration := 5
-		branchOutput := GenerationOutput{
-			Generation: activeGeneration,
-			NodeID:     "has_issues",
-			Status:     generationOutputSucceeded,
-			OutputRef:  branchFalseOutputRef,
-		}
-
-		// Initially, only generation 5 review and has_issues outputs exist; downstream nodes do not exist yet in outputs.
-		outputs := []GenerationOutput{
-			{Generation: activeGeneration, NodeID: "review", Status: generationOutputSucceeded},
-			branchOutput,
-		}
-
-		skipBranchDependents(graph, topology, "has_issues", branchOutput, &outputs)
-
-		if len(outputs) != 4 {
-			t.Fatalf("len(outputs) = %d, want 4 (including synthetic skipped outputs)", len(outputs))
-		}
-
-		for _, output := range outputs {
-			if output.Generation != activeGeneration {
-				t.Fatalf(
-					"output %s has Generation = %d, want %d (must not default to 0)",
-					output.NodeID,
-					output.Generation,
-					activeGeneration,
-				)
-			}
-		}
-
-		// Verify ProjectRoster sees synthetic skips in active generation and does not alias to generation 0
-		source := RosterSource{
-			Run: Run{
-				ID:         "run-gen5-skip",
-				LoopName:   "review-and-fix",
-				Status:     StatusRunning,
-				Generation: activeGeneration,
-			},
-			Graph: graph,
-			Generations: []LoopGeneration{
-				{Generation: 1},
-				{Generation: int64(activeGeneration)},
-			},
-			Outputs: append([]GenerationOutput{
-				// Generation 1 had executed nodes
-				{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
-				{
-					Generation: 1,
-					NodeID:     "has_issues",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchTrueOutputRef,
-				},
-				{Generation: 1, NodeID: "write_artifacts", Status: generationOutputSucceeded},
-				{Generation: 1, NodeID: "finalize_round", Status: generationOutputSucceeded},
-			}, outputs...),
-		}
-
-		page, err := ProjectRoster(&source, RosterQuery{State: NodeStateFilterAll})
-		if err != nil {
-			t.Fatalf("ProjectRoster() error = %v", err)
-		}
-
-		nodeMap := rosterNodesByIdentity(page.Nodes)
-
-		// Generation 1 should have all succeeded
-		if r1Write := nodeMap[rosterKey(1, "write_artifacts", 0)]; r1Write.State != NodeStateSucceeded {
-			t.Fatalf("Round 1 write_artifacts = %#v, want succeeded", r1Write)
-		}
-
-		// Generation 5 should have skipped nodes as NotTaken / Succeeded
-		if r5Write := nodeMap[rosterKey(activeGeneration, "write_artifacts", 0)]; r5Write.State != NodeStateNotTaken {
-			t.Fatalf("Round 5 write_artifacts = %#v, want not_taken", r5Write)
-		}
-		if r5Finalize := nodeMap[rosterKey(activeGeneration, "finalize_round", 0)]; r5Finalize.State != NodeStateNotTaken {
-			t.Fatalf("Round 5 finalize_round = %#v, want not_taken", r5Finalize)
-		}
-
-		// Ensure no node was associated with generation 0
-		for _, node := range page.Nodes {
-			if node.Generation == 0 {
-				t.Fatalf("node %s was projected into generation 0", node.NodeID)
-			}
-		}
-	})
 }

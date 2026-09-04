@@ -102,20 +102,12 @@ func skipBranchDependents(
 			itemIndex: itemIndexForSkippedNode(topology, nodeID, branchID, itemIndex),
 		}
 		if idx, exists := indexes[key]; exists {
-			if (*outputs)[idx].Status == generationOutputPending {
-				(*outputs)[idx].Status = generationOutputSucceeded
-				setGenerationOutputRef(&(*outputs)[idx], branchSkippedOutputRef)
-				outputMap[key] = (*outputs)[idx]
-				queue = append(queue, topology.dependents[nodeID]...)
-				if isControlKind(node, dsl.ControlFanOut) {
-					for bodyID := range topology.fanOutScopes[nodeID].body {
-						queue = append(queue, bodyID)
-					}
-					for collectID := range topology.fanOutScopes[nodeID].collect {
-						queue = append(queue, collectID)
-					}
-				}
+			if (*outputs)[idx].Status != generationOutputPending {
+				continue
 			}
+			(*outputs)[idx].Status = generationOutputSucceeded
+			setGenerationOutputRef(&(*outputs)[idx], branchSkippedOutputRef)
+			outputMap[key] = (*outputs)[idx]
 		} else {
 			skippedOutput := GenerationOutput{
 				Generation: branchOutput.Generation,
@@ -127,14 +119,14 @@ func skipBranchDependents(
 			*outputs = append(*outputs, skippedOutput)
 			indexes[key] = len(*outputs) - 1
 			outputMap[key] = skippedOutput
-			queue = append(queue, topology.dependents[nodeID]...)
-			if isControlKind(node, dsl.ControlFanOut) {
-				for bodyID := range topology.fanOutScopes[nodeID].body {
-					queue = append(queue, bodyID)
-				}
-				for collectID := range topology.fanOutScopes[nodeID].collect {
-					queue = append(queue, collectID)
-				}
+		}
+		queue = append(queue, topology.dependents[nodeID]...)
+		if isControlKind(node, dsl.ControlFanOut) {
+			for bodyID := range topology.fanOutScopes[nodeID].body {
+				queue = append(queue, bodyID)
+			}
+			for collectID := range topology.fanOutScopes[nodeID].collect {
+				queue = append(queue, collectID)
 			}
 		}
 	}
