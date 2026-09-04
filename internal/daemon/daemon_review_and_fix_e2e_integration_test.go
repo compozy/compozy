@@ -459,10 +459,11 @@ func assertReviewAndFixArtifacts(t testing.TB, workspaceRoot string) [][]byte {
 	artifacts := make([][]byte, 0, 2)
 	for index, fixture := range []struct {
 		golden   string
+		status   string
 		decision string
 	}{
-		{golden: "specific.md", decision: "VALID"},
-		{golden: "general.md", decision: "INVALID"},
+		{golden: "specific.md", status: "resolved", decision: "VALID"},
+		{golden: "general.md", status: "invalid", decision: "INVALID"},
 	} {
 		path := filepath.Join(reviewRoundPath(workspaceRoot, reviewAndFixTaskName, 1), reviewIssueName(index+1))
 		actual, err := os.ReadFile(path)
@@ -475,7 +476,7 @@ func assertReviewAndFixArtifacts(t testing.TB, workspaceRoot string) [][]byte {
 		}
 		createdAt := reviewFrontmatterValue(t, string(actual), "round_created_at")
 		want := strings.Replace(string(golden), reviewExpectedTimestamp, createdAt, 1)
-		want = strings.Replace(want, "status: pending", "status: resolved", 1)
+		want = strings.Replace(want, "status: pending", "status: "+fixture.status, 1)
 		want = strings.Replace(want, "- Decision: `UNREVIEWED`", "- Decision: `"+fixture.decision+"`", 1)
 		if string(actual) != want {
 			t.Fatalf("artifact %s bytes mismatch\ngot:\n%s\nwant:\n%s", path, actual, want)
