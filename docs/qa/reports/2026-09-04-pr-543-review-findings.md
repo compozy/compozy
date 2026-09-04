@@ -14,6 +14,8 @@
 ## Automated evidence
 
 - `CGO_ENABLED=1 go test -race ./extensions/spec-cycle -run '^TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts$' -count=1` — passed for the final local source tree, including every allowed and rejected triage/resolution pairing.
+- `CGO_ENABLED=1 go test -race ./internal/testutil/acpmock -count=1` — passed after aligning the exact review-fixer E2E routes with the updated prompt contract.
+- `jq empty internal/testutil/acpmock/testdata/review_and_fix_fixture.json` — passed for the changed ACP fixture.
 - `bunx turbo run typecheck --filter=./packages/site` — passed, including MDX generation and codegen drift checks.
 - A local `make gate` was started before a controller correction prohibited local broad gates. It was interrupted with exit 143 and is not verification evidence.
 
