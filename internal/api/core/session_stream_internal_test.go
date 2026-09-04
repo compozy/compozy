@@ -483,6 +483,95 @@ func TestTranscriptPushTreatsRawSequenceAsWakeOnly(t *testing.T) {
 	}
 }
 
+func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver persisted transcript entries before the terminal event", func(t *testing.T) {
+		t.Parallel()
+
+		stopped := streamTestSessionInfo("sess-a")
+		stopped.State = session.StateStopped
+		changeCalls := 0
+		handlers := &BaseHandlers{
+			Sessions: sessionManagerStub{
+				status: func(context.Context, string) (*session.Info, error) {
+					return stopped, nil
+				},
+				transcriptChanges: func(
+					_ context.Context,
+					_ string,
+					query transcript.ChangeQuery,
+				) (transcript.ChangePage, error) {
+					changeCalls++
+					switch query.AfterSequence {
+					case 6:
+						return transcript.ChangePage{
+							Entries: []transcript.Entry{{
+								StartSequence: 7,
+								Sequence:      7,
+								Message: transcript.UIMessage{
+									ID:   "assistant-output",
+									Role: transcript.UIRoleAssistant,
+								},
+							}},
+							Generation: 4, MaxSequence: 7, NextAfter: 7,
+						}, nil
+					case 7:
+						return transcript.ChangePage{
+							Entries: []transcript.Entry{{
+								StartSequence: 8,
+								Sequence:      8,
+								Message: transcript.UIMessage{
+									ID:   "file-mutation-marker",
+									Role: transcript.UIRoleAssistant,
+								},
+							}},
+							Generation: 4, MaxSequence: 8, NextAfter: 8,
+						}, nil
+					case 8:
+						return transcript.ChangePage{
+							Generation: 4, MaxSequence: 9, NextAfter: 9,
+						}, nil
+					default:
+						t.Fatalf("TranscriptChanges() cursor = %d, want 6, 7, or 8", query.AfterSequence)
+						return transcript.ChangePage{}, nil
+					}
+				},
+			},
+			PollInterval: time.Hour,
+		}
+		gin.SetMode(gin.TestMode)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		wakes := make(chan store.SessionEvent, 3)
+		wakes <- store.SessionEvent{Sequence: 7, Type: "agent_message"}
+		wakes <- store.SessionEvent{Sequence: 8, Type: "transcript_marker.created"}
+		wakes <- store.SessionEvent{Sequence: 9, Type: session.EventTypeSessionStopped}
+		writer := &streamTestFlushWriter{}
+
+		handlers.pushAndStreamSessionTranscript(
+			ctx,
+			writer,
+			"sess-a",
+			streamTestSessionInfo("sess-a"),
+			transcriptStreamState{
+				cursor: 6, generation: 4, epoch: 3, commandCheckedAt: time.Now(),
+			},
+			2,
+			sessionEventStreamSubscription{events: wakes, cancel: func() {}},
+		)
+
+		if changeCalls != 3 {
+			t.Fatalf("TranscriptChanges() calls = %d, want 3", changeCalls)
+		}
+		body := writer.String()
+		markerAt := strings.Index(body, `"id":"file-mutation-marker"`)
+		stoppedAt := strings.Index(body, "event: session_stopped")
+		if markerAt < 0 || stoppedAt < 0 || markerAt > stoppedAt {
+			t.Fatalf("stream did not deliver the final marker before stopping: %s", body)
+		}
+	})
+}
+
 func TestTranscriptReconnectFence(t *testing.T) {
 	t.Parallel()
 

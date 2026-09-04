@@ -96,7 +96,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 
 	t.Run("Should deliver redacted input after a ConPTY program hides input", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePTY, []string{
-			"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+			"powershell.exe", "-NoLogo", "-NoProfile", "-Command",
 			`$secret = Read-Host -AsSecureString -Prompt 'Password'; Write-Output 'accepted'; Start-Sleep -Seconds 2`,
 		})
 		visibilityProc := proc.(interface {
