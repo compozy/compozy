@@ -34,7 +34,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 4. Close out issue files correctly.
    - Leave a `valid` issue at frontmatter `status: valid` after the code and focused verification are done.
    - Leave an `invalid` issue at frontmatter `status: invalid` after documenting why it is invalid.
-   - For a valid finding that cannot be resolved in this cycle (e.g. requires external changes, is blocked, or is not an issue in the immediate codebase), set frontmatter `status: unresolved` (or `blocked`), document the blocker in `## Triage` with `- Decision: UNRESOLVED` (or `BLOCKED`), and return `resolution: unresolved` (or `blocked`).
+   - For a valid finding that cannot be resolved in this cycle because it requires an external change or an out-of-scope dependency, set frontmatter `status: unresolved` (or `blocked`), document the blocker in `## Triage` with `- Decision: UNRESOLVED` (or `BLOCKED`), and return `resolution: unresolved` (or `blocked`).
    - Never set `status: resolved`; the Loop's Go finalizer owns that transition after the batch completes.
 
 5. Verify before completion.

@@ -19,7 +19,7 @@ flowchart TD
     G --> H[Collect one structured result per issue]
     H --> I{Every issue triaged?}
     I -->|No| J[Fail without partial finalization]
-    I -->|Yes| K[Finalize valid issues as resolved]
+    I -->|Yes| K[Resolve fixed valid issues and preserve open findings]
     K --> B
 ```
 
@@ -45,7 +45,7 @@ journey:
       expected_observable: "Each structured issue has one deterministic issue file under the next exclusive reviews-NNN directory; malformed output fails before any partial round"
     - step: 3
       verb: "Remediate complete artifact batches"
-      expected_observable: "Every issue file receives one valid or invalid triage result before the round can finalize"
+      expected_observable: "Every issue file receives valid or invalid triage; valid findings that cannot be fixed remain unresolved or blocked before the round finalizes"
     - step: 4
       verb: "Review the task again"
       expected_observable: "A non-empty result creates the next round; an empty issues array ends the run done"

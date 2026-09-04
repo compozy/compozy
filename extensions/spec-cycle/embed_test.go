@@ -641,6 +641,8 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			"begin immediately without asking for confirmation",
 			"Read every listed issue file completely before editing code",
 			"Never create, rename, timestamp",
+			"`pending` to `valid`, `invalid`, `unresolved`, or `blocked`",
+			"`resolution: unresolved` or `resolution: blocked`",
 			"{{ .item.file }}",
 			"{{ range .item.issue_files -}}",
 			"all-or-nothing",
@@ -687,6 +689,19 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			if !schemaStringListContains(required, field) {
 				t.Fatalf("fix_batch result required = %#v, want %s", required, field)
 			}
+		}
+		properties := requireSchemaObject(t, item, "properties")
+		triage := requireSchemaObject(t, properties, "triage")
+		triageValues, ok := triage["enum"].([]any)
+		wantTriageValues := []any{"valid", "invalid"}
+		if !ok || !slices.Equal(triageValues, wantTriageValues) {
+			t.Fatalf("fix_batch triage enum = %#v, want %#v", triage["enum"], wantTriageValues)
+		}
+		resolution := requireSchemaObject(t, properties, "resolution")
+		resolutionValues, ok := resolution["enum"].([]any)
+		wantResolutionValues := []any{"fixed", "documented", "unresolved", "blocked"}
+		if !ok || !slices.Equal(resolutionValues, wantResolutionValues) {
+			t.Fatalf("fix_batch resolution enum = %#v, want %#v", resolution["enum"], wantResolutionValues)
 		}
 		finalize := requireSpecCycleNode(t, def, "finalize_round")
 		if got, want := finalize.Kind, toolspkg.ToolID("ext__spec_cycle__finalize_review_round").String(); got != want {
@@ -1204,7 +1219,7 @@ func renderReviewAndFixPromptForTest(
 }
 
 func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
-	t.Run("Should require review fixer summary output", func(t *testing.T) {
+	t.Run("Should require the review fixer outcome contract", func(t *testing.T) {
 		t.Parallel()
 
 		data, err := fs.ReadFile(FS(), "agents/review_fixer/AGENT.md")
@@ -1220,7 +1235,8 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			"fails as a whole",
 			"real verification commands",
 			"Never create, rename, timestamp, or set an issue file to `resolved`",
-			"`resolution` is accepted only as `fixed` or `documented`",
+			"`pending` to `valid`, `invalid`, `unresolved`, or `blocked`",
+			"`resolution` accepts only `fixed`, `documented`, `unresolved`, or `blocked`",
 			"`path`, `triage`, `resolution`, and `summary`",
 		} {
 			if !strings.Contains(prompt, required) {
