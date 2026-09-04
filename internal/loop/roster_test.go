@@ -189,6 +189,72 @@ func TestRosterContract(t *testing.T) {
 			t.Fatalf("fanout route states = %#v", fanoutNodes)
 		}
 	})
+	t.Run("Should keep output-less nodes pending without durable not-taken evidence", func(t *testing.T) {
+		t.Parallel()
+		statuses := []Status{
+			StatusDone,
+			StatusNoOp,
+			StatusBlocked,
+			StatusFailed,
+			StatusExhausted,
+			StatusStalled,
+			StatusCanceled,
+		}
+		for _, status := range statuses {
+			t.Run("Should preserve pending state for "+string(status), func(t *testing.T) {
+				t.Parallel()
+				source := RosterSource{
+					Run: Run{ID: "run-pending", Status: status, Generation: 1},
+					Graph: dsl.Graph{Nodes: []dsl.Node{{
+						ID: "unfinished", Class: dsl.NodeClassAction,
+					}}},
+				}
+				page, err := ProjectRoster(&source, RosterQuery{})
+				if err != nil {
+					t.Fatalf("ProjectRoster() error = %v", err)
+				}
+				if len(page.Nodes) != 1 || page.Nodes[0].State != NodeStatePending {
+					t.Fatalf("nodes = %#v, want one pending node", page.Nodes)
+				}
+			})
+		}
+	})
+	t.Run("Should project durable branch skips in their generation without inflating progress", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{
+			Run: Run{ID: "run-branch", Status: StatusDone, Generation: 5},
+			Graph: dsl.Graph{Nodes: []dsl.Node{
+				{ID: "review", Class: dsl.NodeClassAction},
+				{ID: "fix", Class: dsl.NodeClassAction},
+			}},
+			Generations: []LoopGeneration{{Generation: 1}, {Generation: 5}},
+			Outputs: []GenerationOutput{
+				{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
+				{Generation: 1, NodeID: "fix", Status: generationOutputSucceeded},
+				{Generation: 5, NodeID: "review", Status: generationOutputSucceeded},
+				{
+					Generation: 5,
+					NodeID:     "fix",
+					Status:     generationOutputSucceeded,
+					OutputRef:  branchSkippedOutputRef,
+				},
+			},
+		}
+
+		page, err := ProjectRoster(&source, RosterQuery{})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		nodes := rosterNodesByIdentity(page.Nodes)
+		if nodes[rosterKey(1, "fix", 0)].State != NodeStateSucceeded ||
+			nodes[rosterKey(5, "fix", 0)].State != NodeStateNotTaken {
+			t.Fatalf("branch states = %#v", nodes)
+		}
+		progress := ProgressFromRoster(page, 5)
+		if progress.StepsDone != 1 || progress.StepsTotal != 1 {
+			t.Fatalf("progress = %#v, want 1 of 1", progress)
+		}
+	})
 	t.Run("Should satisfy UT-017 with fanout rollups and stable pagination", func(t *testing.T) {
 		t.Parallel()
 		source := RosterSource{

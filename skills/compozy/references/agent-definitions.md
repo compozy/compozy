@@ -114,6 +114,8 @@ They also accept `--speed`, repeatable `--acp-option id=value`, and repeatable
 
 `update` replaces the complete effective authored definition, including an extension-local winner, and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
+When `--provider` selects a different underlying provider, `update` clears an omitted command, model, reasoning effort, and ACP options; equivalent built-in aliases and case variants keep those settings.
+
 `duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.
 
 The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and `POST /api/agents/:name/duplicate`. No native update/delete/duplicate tool exists; use CLI or HTTP/UDS rather than inventing a `compozy__agent_*` mutation.

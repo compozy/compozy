@@ -1,0 +1,29 @@
+# QA Run Report — 2026-09-04 — PR #543
+
+- **Scope:** Review-round finalization preserves unresolved and blocked findings while resolving fixed valid findings.
+- **Cadence tier:** focused
+- **Build:** PR #543 worktree
+- **Status:** blocked-verify — local E2E and scenario execution are prohibited by the workstream directive
+
+## Scenario
+
+| Area | Scenario | Verdict | Evidence summary |
+|---|---|---|---|
+| LP | `LP-review-round-finalization` | Blocked — verify | The canonical extension package race tests cover the status transitions and embedded prompt contracts. A persona walk was not run because this workstream explicitly forbids local E2E and scenario execution. |
+
+## Automated evidence
+
+- `CGO_ENABLED=1 go test -race ./extensions/spec-cycle -run '^TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts$' -count=1` — passed for the final local source tree, including every allowed and rejected triage/resolution pairing.
+- `CGO_ENABLED=1 go test -race ./internal/testutil/acpmock -count=1` — passed after aligning the exact review-fixer E2E routes with the updated prompt contract.
+- `CGO_ENABLED=1 go test -race -tags=integration ./internal/daemon -run '^$' -count=1` — compiled the changed daemon E2E contract under the integration tag without running local E2E.
+- `jq empty internal/testutil/acpmock/testdata/review_and_fix_fixture.json` — passed for the changed ACP fixture.
+- `bunx turbo run typecheck --filter=./packages/site` — passed, including MDX generation and codegen drift checks.
+- A local `make gate` was started before a controller correction prohibited local broad gates. It was interrupted with exit 143 and is not verification evidence.
+
+## Blocker and decision
+
+The behavior is flagged as `blocked-verify`, not `pass`. The focused contract tests can prove that the extension bundle exposes and preserves the four outcomes, but the QA contract reserves `pass` for a public-surface persona walk. That walk is outside the allowed local verification for this workstream.
+
+## Teardown
+
+No QA lab, daemon, browser, watcher, or local E2E process was started. Teardown is not applicable.

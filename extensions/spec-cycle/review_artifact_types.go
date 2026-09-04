@@ -11,11 +11,13 @@ const (
 	reviewIssueFieldBody     = "body"
 	reviewIssueFieldSeverity = "severity"
 
-	reviewStatusPending  = "pending"
-	reviewStatusValid    = "valid"
-	reviewStatusInvalid  = "invalid"
-	reviewStatusResolved = "resolved"
-	unknownReviewFile    = "unknown"
+	reviewStatusPending    = "pending"
+	reviewStatusValid      = "valid"
+	reviewStatusInvalid    = "invalid"
+	reviewStatusResolved   = "resolved"
+	reviewStatusUnresolved = "unresolved"
+	reviewStatusBlocked    = "blocked"
+	unknownReviewFile      = "unknown"
 )
 
 var (

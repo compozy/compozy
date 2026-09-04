@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1660,7 +1661,6 @@ func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.
 	}
 	return m.promptCalls[0]
 }
-
 func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	t.Parallel()
 
@@ -1904,6 +1904,140 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 		failure := safeErr.SafeActionFailure()
 		if failure.Code != "model_refusal" {
 			t.Fatalf("failure.Code = %q, want model_refusal (first stop reason must be preserved)", failure.Code)
+		}
+	})
+}
+func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should propagate agent default ACP options into session creation opts", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "opt-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Work.",
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+			{ID: "thinking", ValueID: "high"},
+			{ID: "context_window", ValueID: "1m"},
+		})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-opt"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-opt"),
+			Agent:       "opt-worker",
+			Handle:      "worker",
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if len(createCall.ACPOptions) != 2 {
+			t.Fatalf("CreateOpts.ACPOptions = %#v, want 2 options", createCall.ACPOptions)
+		}
+		if createCall.ACPOptions[0].ID != "context_window" || createCall.ACPOptions[0].ValueID != "1m" {
+			t.Fatalf("ACPOptions[0] = %#v, want context_window=1m", createCall.ACPOptions[0])
+		}
+		if createCall.ACPOptions[1].ID != "thinking" || createCall.ACPOptions[1].ValueID != "high" {
+			t.Fatalf("ACPOptions[1] = %#v, want thinking=high", createCall.ACPOptions[1])
+		}
+	})
+
+	t.Run("Should override agent defaults with explicit runtime ACP options by option ID", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "override-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Work.",
+		}
+		agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+			{ID: "thinking", ValueID: "low"},
+			{ID: "fast_mode", BoolValue: new(bool)},
+		})
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-override"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		trueVal := true
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-override"),
+			Agent:       "override-worker",
+			Handle:      "worker",
+			Runtime: &looppkg.RuntimeSpec{
+				ACPOptions: []dsl.ACPOptionSelection{
+					{ID: "thinking", ValueID: "max"},
+					{ID: "fast_mode", BoolValue: &trueVal},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if len(createCall.ACPOptions) != 2 {
+			t.Fatalf("CreateOpts.ACPOptions = %#v, want 2 options", createCall.ACPOptions)
+		}
+		if createCall.ACPOptions[1].ID != "thinking" || createCall.ACPOptions[1].ValueID != "max" {
+			t.Fatalf("ACPOptions[1] = %#v, want thinking=max", createCall.ACPOptions[1])
+		}
+		if createCall.ACPOptions[0].ID != "fast_mode" || createCall.ACPOptions[0].BoolValue == nil ||
+			!*createCall.ACPOptions[0].BoolValue {
+			t.Fatalf("ACPOptions[0] = %#v, want fast_mode=true", createCall.ACPOptions[0])
+		}
+	})
+
+	t.Run("Should resolve speed propagation from agent definition", func(t *testing.T) {
+		t.Parallel()
+		agent := compozyconfig.AgentDef{
+			Name:     "speed-worker",
+			Provider: "mock",
+			Model:    "mock-model",
+			Prompt:   "Speedy.",
+		}
+		agent.SetSpeed(speedpkg.SpeedFast)
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{agent})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-speed"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:   looppkg.RunID("loop-run-speed"),
+			Agent:       "speed-worker",
+			Handle:      "speedy",
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if createCall.Speed != "fast" {
+			t.Fatalf("createCall.Speed = %q, want fast", createCall.Speed)
 		}
 	})
 }

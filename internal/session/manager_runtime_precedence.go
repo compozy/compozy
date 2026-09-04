@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -26,19 +25,8 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(resolved compozyconfig.R
 	}
 	s.speed = normalizedSpeed
 
-	resolvedOptions := resolved.ACPOptionsValue()
-	agentOptions := make([]acp.SessionConfigOptionSelection, 0, len(resolvedOptions))
-	for _, option := range resolvedOptions {
-		selection := acp.SessionConfigOptionSelection{
-			ID:      strings.TrimSpace(option.ID),
-			ValueID: strings.TrimSpace(option.ValueID),
-		}
-		if option.BoolValue != nil {
-			selection.BoolValue = new(*option.BoolValue)
-		}
-		agentOptions = append(agentOptions, selection)
-	}
-	merged, err := mergeRuntimeACPOptions(agentOptions, s.acpOptions)
+	agentOptions := ACPOptionSelectionsFromConfig(resolved.ACPOptionsValue())
+	merged, err := MergeRuntimeACPOptions(agentOptions, s.acpOptions)
 	if err != nil {
 		return fmt.Errorf("session: resolve runtime ACP options: %w", err)
 	}
@@ -46,10 +34,14 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(resolved compozyconfig.R
 	return nil
 }
 
-func mergeRuntimeACPOptions(
+// MergeRuntimeACPOptions merges base ACP options with explicit runtime overrides in option ID order.
+func MergeRuntimeACPOptions(
 	base []acp.SessionConfigOptionSelection,
 	overrides []acp.SessionConfigOptionSelection,
 ) ([]acp.SessionConfigOptionSelection, error) {
+	if len(base) == 0 && len(overrides) == 0 {
+		return nil, nil
+	}
 	merged := make(map[string]acp.SessionConfigOptionSelection, len(base)+len(overrides))
 	for _, layer := range [][]acp.SessionConfigOptionSelection{base, overrides} {
 		normalized, err := acp.NormalizeSessionConfigOptionSelections(layer)

@@ -1285,6 +1285,55 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			t.Fatalf("ResolveAgent() RuntimeSources = %#v, want %#v", got, wantSources)
 		}
 	})
+
+	t.Run("Should reject reasoning effort when the provider does not support reasoning", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["no-reasoning"] = ProviderConfig{
+			Command: "mock-cli",
+			Models: ProviderModelsConfig{
+				Default: "mock-model",
+				Reasoning: ProviderReasoningConfig{
+					Apply: ReasoningApplyNone,
+				},
+			},
+		}
+		_, err = cfg.ResolveAgent(AgentDef{
+			Name:            "coder",
+			Provider:        "no-reasoning",
+			ReasoningEffort: providerHighKey,
+			Prompt:          "prompt",
+		})
+		assertErrorContains(t, err, "does not support reasoning effort")
+	})
+
+	t.Run("Should reject reasoning effort when provider reasoning apply is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["omitted-reasoning"] = ProviderConfig{
+			Command: "mock-cli",
+			Models: ProviderModelsConfig{
+				Default: "mock-model",
+			},
+		}
+		_, err = cfg.ResolveAgent(AgentDef{
+			Name:            "coder",
+			Provider:        "omitted-reasoning",
+			ReasoningEffort: providerHighKey,
+			Prompt:          "prompt",
+		})
+		assertErrorContains(t, err, "does not support reasoning effort")
+	})
 }
 
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {

@@ -109,7 +109,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Speed:           speedSource,
 	}
 
-	if err := validateResolvedAgentRuntime(providerName, resolved); err != nil {
+	if err := validateResolvedAgentRuntime(providerName, provider, resolved); err != nil {
 		return ResolvedAgent{}, err
 	}
 
@@ -185,14 +185,25 @@ func resolveAgentModelRuntime(
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
 
-func validateResolvedAgentRuntime(providerName string, resolved ResolvedAgent) error {
+func validateResolvedAgentRuntime(
+	providerName string,
+	provider ProviderConfig,
+	resolved ResolvedAgent,
+) error {
 	if strings.TrimSpace(resolved.Command) == "" {
 		return fmt.Errorf("provider %q command is required", providerName)
 	}
-	if strings.TrimSpace(resolved.Permissions) == "" {
-		return nil
+	if strings.TrimSpace(resolved.Permissions) != "" {
+		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {
+			return err
+		}
 	}
-	return PermissionMode(resolved.Permissions).Validate("agent.permissions")
+	if !providerModelsConfigIsZero(provider.Models) &&
+		resolved.Reasoning.EffectiveReasoningApply() == ReasoningApplyNone &&
+		strings.TrimSpace(resolved.ReasoningEffort) != "" {
+		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
+	}
+	return nil
 }
 
 func resolvedAgentFromProvider(

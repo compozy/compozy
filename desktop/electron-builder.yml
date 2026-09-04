@@ -1,6 +1,9 @@
 appId: com.compozy.os
 productName: CompozyOS
 asar: true
+toolsets:
+  # Static AppImage runtime: hosts no longer need libfuse2 installed.
+  appimage: "1.0.3"
 electronFuses:
   runAsNode: false
   enableNodeOptionsEnvironmentVariable: false
