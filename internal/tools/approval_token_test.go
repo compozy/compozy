@@ -21,7 +21,7 @@ func TestApprovalTokenStore(t *testing.T) {
 			WithApprovalTokenClock(clock),
 			WithApprovalTokenRandom(strings.NewReader(strings.Repeat("a", approvalTokenBytes*4))),
 		)
-		scope := Scope{Operator: true, SessionID: "sess-1", WorkspaceID: "ws-1"}
+		scope := Scope{Operator: true, ProfileID: "profile-a", SessionID: "sess-1", WorkspaceID: "ws-1"}
 
 		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalTokenRequest{
 			ToolID: ToolIDSkillView,
@@ -45,6 +45,13 @@ func TestApprovalTokenStore(t *testing.T) {
 			t.Fatalf("ConsumeToolApproval() error = %v", err)
 		}
 		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, call), ReasonApprovalTokenReplayed)
+		crossProfileScope := scope
+		crossProfileScope.ProfileID = "profile-b"
+		requireToolReason(
+			t,
+			store.ConsumeToolApproval(t.Context(), crossProfileScope, call),
+			ReasonApprovalTokenReplayed,
+		)
 	})
 }
 
@@ -60,7 +67,7 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 			WithApprovalTokenClock(func() time.Time { return now }),
 			WithApprovalTokenRandom(strings.NewReader(strings.Repeat("b", approvalTokenBytes*4))),
 		)
-		scope := Scope{Operator: true, SessionID: "sess-1", WorkspaceID: "ws-1"}
+		scope := Scope{Operator: true, ProfileID: "profile-a", SessionID: "sess-1", WorkspaceID: "ws-1"}
 		grant, err := store.CreateToolApproval(t.Context(), scope, ApprovalTokenRequest{
 			ToolID: ToolIDSkillView,
 			Input:  []byte(`{"message":"hello"}`),
@@ -77,6 +84,21 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 			ApprovalToken: grant.ApprovalToken,
 		}
 		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, mismatched), ReasonScopeMismatch)
+
+		crossProfileScope := scope
+		crossProfileScope.ProfileID = "profile-b"
+		matchingCall := CallRequest{
+			ToolID:        ToolIDSkillView,
+			SessionID:     "sess-1",
+			WorkspaceID:   "ws-1",
+			Input:         []byte(`{"message":"hello"}`),
+			ApprovalToken: grant.ApprovalToken,
+		}
+		requireToolReason(
+			t,
+			store.ConsumeToolApproval(t.Context(), crossProfileScope, matchingCall),
+			ReasonApprovalTokenMismatch,
+		)
 
 		mismatchedAgent := CallRequest{
 			ToolID:        ToolIDSkillView,

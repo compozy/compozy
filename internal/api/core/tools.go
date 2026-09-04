@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +24,11 @@ func (h *BaseHandlers) ListTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	scope := h.operatorToolScope(c)
+	scope, err := h.resolveOperatorToolScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	views, err := h.Tools.List(c.Request.Context(), scope)
 	if err != nil {
 		h.respondToolError(c, err)
@@ -44,7 +47,12 @@ func (h *BaseHandlers) SearchTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	scope := toolScopeFromSearch(h.operatorToolScope(c), req)
+	scope, err := h.resolveOperatorToolScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	scope = toolScopeFromSearch(scope, req)
 	views, err := h.Tools.Search(c.Request.Context(), scope, toolspkg.SearchQuery{
 		Query: req.Query,
 		Limit: req.Limit,
@@ -66,7 +74,12 @@ func (h *BaseHandlers) GetTool(c *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.Tools.Get(c.Request.Context(), h.operatorToolScope(c), id)
+	scope, err := h.resolveOperatorToolScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	view, err := h.Tools.Get(c.Request.Context(), scope, id)
 	if err != nil {
 		h.respondToolError(c, err)
 		return
@@ -95,7 +108,11 @@ func (h *BaseHandlers) CreateToolApproval(c *gin.Context) {
 		))
 		return
 	}
-	scope := h.operatorToolScope(c)
+	scope, err := h.resolveOperatorToolScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	effectiveScope, err := approvalScopeFromRequest(scope, req)
 	if err != nil {
 		h.respondToolError(c, err)
@@ -147,7 +164,11 @@ func (h *BaseHandlers) InvokeTool(c *gin.Context) {
 		))
 		return
 	}
-	scope := h.operatorToolScope(c)
+	scope, err := h.resolveOperatorToolScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	scope.SessionID = firstNonEmpty(req.SessionID, scope.SessionID)
 	scope.WorkspaceID = firstNonEmpty(req.WorkspaceID, scope.WorkspaceID)
 	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
@@ -232,39 +253,6 @@ func (h *BaseHandlers) SearchSessionTools(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.ToolsResponse{Tools: ToolPayloadsFromViews(views)})
-}
-
-// ListToolsets returns named toolsets with expansion diagnostics.
-func (h *BaseHandlers) ListToolsets(c *gin.Context) {
-	if h.Toolsets == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("toolset registry is not configured"))
-		return
-	}
-	views, err := h.Toolsets.ListToolsets(c.Request.Context(), h.operatorToolScope(c))
-	if err != nil {
-		h.respondToolError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ToolsetsResponse{Toolsets: ToolsetPayloadsFromViews(views)})
-}
-
-// GetToolset returns one named toolset with expansion diagnostics.
-func (h *BaseHandlers) GetToolset(c *gin.Context) {
-	if h.Toolsets == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("toolset registry is not configured"))
-		return
-	}
-	id := toolspkg.ToolsetID(strings.TrimSpace(c.Param("id")))
-	if err := id.Validate(); err != nil {
-		h.respondToolError(c, err)
-		return
-	}
-	view, err := h.Toolsets.GetToolset(c.Request.Context(), h.operatorToolScope(c), id)
-	if err != nil {
-		h.respondToolError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ToolsetResponse{Toolset: ToolsetPayloadFromView(view)})
 }
 
 // ToolPayloadsFromViews converts registry views into public DTOs.
@@ -421,17 +409,6 @@ func (h *BaseHandlers) toolIDParam(c *gin.Context) (toolspkg.ToolID, bool) {
 		return "", false
 	}
 	return id, true
-}
-
-// operatorToolScope builds privileged projections from query parameters only.
-func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
-	return toolspkg.Scope{
-		ProfileID:   store.DefaultProfileID,
-		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
-		SessionID:   strings.TrimSpace(c.Query("session_id")),
-		AgentName:   strings.TrimSpace(c.Query("agent_name")),
-		Operator:    true,
-	}
 }
 
 // sessionToolScope anchors session projections to the resolved route workspace and session IDs.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -164,6 +166,214 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("toolset get = %#v id=%q, want catalog", toolset.Toolset, registry.lastToolsetID())
 		}
 	})
+}
+
+func TestToolHandlersProjectSelectedProfileCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose tools only in the owning profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/tools?profile=marketing&workspace_id=ws-owner",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("owning scope status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+		}
+		var payload contract.ToolsResponse
+		decodeToolJSON(t, response.Body.Bytes(), &payload)
+		if got, want := len(payload.Tools), 2; got != want {
+			t.Fatalf("owning scope tool count = %d, want %d", got, want)
+		}
+		scope := registry.lastList()
+		if scope.ProfileID != "profile-marketing" || scope.WorkspaceID != "ws-owner" || !scope.Operator {
+			t.Fatalf("owning scope = %#v, want selected profile and workspace operator scope", scope)
+		}
+	})
+
+	t.Run("Should isolate the default profile", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
+		response := performRequest(t, engine, http.MethodGet, "/tools?workspace_id=ws-owner", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("default scope status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+		}
+		var payload contract.ToolsResponse
+		decodeToolJSON(t, response.Body.Bytes(), &payload)
+		if got := len(payload.Tools); got != 0 {
+			t.Fatalf("default scope tool count = %d, want 0", got)
+		}
+		if scope := registry.lastList(); scope.ProfileID != store.DefaultProfileID {
+			t.Fatalf("default scope profile = %q, want %q", scope.ProfileID, store.DefaultProfileID)
+		}
+	})
+
+	t.Run("Should isolate a peer workspace", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/tools?profile=marketing&workspace_id=ws-peer",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("peer scope status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+		}
+		var payload contract.ToolsResponse
+		decodeToolJSON(t, response.Body.Bytes(), &payload)
+		if got := len(payload.Tools); got != 0 {
+			t.Fatalf("peer scope tool count = %d, want 0", got)
+		}
+		if scope := registry.lastList(); scope.ProfileID != "profile-marketing" || scope.WorkspaceID != "ws-peer" {
+			t.Fatalf("peer scope = %#v, want selected profile and peer workspace", scope)
+		}
+	})
+
+	t.Run("Should reject an all-profile tool projection", func(t *testing.T) {
+		t.Parallel()
+		_, engine := newProfileScopedToolCoreEngine(t)
+
+		response := performRequest(t, engine, http.MethodGet, "/tools?all_profiles=true", nil)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("all-profile status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body)
+		}
+		if !strings.Contains(response.Body.String(), "tools require exactly one profile") {
+			t.Fatalf("all-profile body = %s, want profile selection error", response.Body)
+		}
+	})
+
+	t.Run("Should preserve the selected profile across operator tool paths", func(t *testing.T) {
+		t.Parallel()
+		registry, engine := newProfileScopedToolCoreEngine(t)
+
+		search := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/search?profile=marketing",
+			[]byte(`{"query":"skill","workspace_id":"ws-owner"}`),
+		)
+		if search.Code != http.StatusOK {
+			t.Fatalf("search status = %d, want %d; body=%s", search.Code, http.StatusOK, search.Body)
+		}
+		searchScope, _ := registry.lastSearch()
+		if searchScope.ProfileID != "profile-marketing" || searchScope.WorkspaceID != "ws-owner" {
+			t.Fatalf("search scope = %#v, want selected profile and workspace", searchScope)
+		}
+
+		get := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/tools/compozy__skill_view?profile=marketing&workspace_id=ws-owner",
+			nil,
+		)
+		if get.Code != http.StatusOK {
+			t.Fatalf("get status = %d, want %d; body=%s", get.Code, http.StatusOK, get.Body)
+		}
+		if scope := registry.lastGet(); scope.ProfileID != "profile-marketing" || scope.WorkspaceID != "ws-owner" {
+			t.Fatalf("get scope = %#v, want selected profile and workspace", scope)
+		}
+
+		approval := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/compozy__skill_view/approvals?profile=marketing",
+			[]byte(`{"session_id":"sess-1","workspace_id":"ws-owner","input":{"message":"hello"}}`),
+		)
+		if approval.Code != http.StatusCreated {
+			t.Fatalf("approval status = %d, want %d; body=%s", approval.Code, http.StatusCreated, approval.Body)
+		}
+		if scope := registry.lastGet(); scope.ProfileID != "profile-marketing" || scope.WorkspaceID != "ws-owner" {
+			t.Fatalf("approval scope = %#v, want selected profile and workspace", scope)
+		}
+
+		registry.setCallError(toolspkg.ToolIDSkillView, toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			toolspkg.ToolIDSkillView,
+			"peer workspace denied",
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonWorkspaceAccessDenied,
+		))
+		invoke := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/compozy__skill_view/invoke?profile=marketing",
+			[]byte(`{"session_id":"sess-1","workspace_id":"ws-peer","input":{"message":"hello"}}`),
+		)
+		if invoke.Code != http.StatusForbidden {
+			t.Fatalf("invoke status = %d, want %d; body=%s", invoke.Code, http.StatusForbidden, invoke.Body)
+		}
+		callScope, _ := registry.lastCall()
+		if callScope.ProfileID != "profile-marketing" || callScope.WorkspaceID != "ws-peer" {
+			t.Fatalf("invoke scope = %#v, want selected profile and peer workspace", callScope)
+		}
+
+		listToolsets := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/toolsets?profile=marketing&workspace_id=ws-owner",
+			nil,
+		)
+		if listToolsets.Code != http.StatusOK {
+			t.Fatalf("list toolsets status = %d, want %d; body=%s", listToolsets.Code, http.StatusOK, listToolsets.Body)
+		}
+		if scope := registry.lastToolsetList(); scope.ProfileID != "profile-marketing" ||
+			scope.WorkspaceID != "ws-owner" {
+			t.Fatalf("list toolsets scope = %#v, want selected profile and workspace", scope)
+		}
+
+		getToolset := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/toolsets/compozy__catalog?profile=marketing&workspace_id=ws-owner",
+			nil,
+		)
+		if getToolset.Code != http.StatusOK {
+			t.Fatalf("get toolset status = %d, want %d; body=%s", getToolset.Code, http.StatusOK, getToolset.Body)
+		}
+		if scope := registry.lastToolsetGet(); scope.ProfileID != "profile-marketing" ||
+			scope.WorkspaceID != "ws-owner" {
+			t.Fatalf("get toolset scope = %#v, want selected profile and workspace", scope)
+		}
+	})
+}
+
+func newProfileScopedToolCoreEngine(t *testing.T) (*apiTestToolRegistry, *gin.Engine) {
+	t.Helper()
+
+	registry := newAPITestToolRegistry(t, false)
+	registry.restrictListTo("profile-marketing", "ws-owner")
+	homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName:      "api-core-test",
+		Profiles:           sessionProfileServiceStub{},
+		Tools:              registry,
+		Toolsets:           registry,
+		ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+		HomePaths:          homePaths,
+		Config:             cfg,
+		Logger:             testutil.DiscardLogger(),
+		StartedAt:          time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
+		Now:                func() time.Time { return time.Date(2026, 9, 4, 12, 0, 1, 0, time.UTC) },
+		PollInterval:       time.Millisecond,
+		StreamDone:         make(chan struct{}),
+		MaskInternalErrors: false,
+	})
+	return registry, newToolCoreEngine(t, handlers)
 }
 
 func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
@@ -561,6 +771,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
+			Profiles:      sessionProfileServiceStub{},
 			Sessions:      testutil.StubSessionManager{},
 			Observer:      testutil.StubObserver{},
 			Tasks:         &testutil.StubTaskManager{},
@@ -582,7 +793,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/invoke",
+			"/tools/ext__ask_tool/invoke?profile=marketing",
 			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if missingTokenResp.Code != http.StatusAccepted {
@@ -607,7 +818,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/approvals?session_id=sess-query",
+			"/tools/ext__ask_tool/approvals?profile=marketing&session_id=sess-query",
 			[]byte(`{"session_id":"sess-body","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if conflictResp.Code != http.StatusBadRequest {
@@ -628,7 +839,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/tools/ext__ask_tool/approvals",
+			"/tools/ext__ask_tool/approvals?profile=marketing",
 			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"message":"hello"}}`),
 		)
 		if approvalResp.Code != http.StatusCreated {
@@ -647,7 +858,36 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 
 		body := []byte(`{"session_id":"sess-1","workspace_id":"ws-1","approval_token":"` +
 			approval.Approval.ApprovalToken + `","input":{"message":"hello"}}`)
-		invokeResp := performRequest(t, engine, http.MethodPost, "/tools/ext__ask_tool/invoke", body)
+		workspaceMismatchBody := []byte(`{"session_id":"sess-1","workspace_id":"ws-2","approval_token":"` +
+			approval.Approval.ApprovalToken + `","input":{"message":"hello"}}`)
+		workspaceMismatchResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=marketing",
+			workspaceMismatchBody,
+		)
+		assertToolApprovalRejection(t, workspaceMismatchResp, toolspkg.ReasonApprovalTokenMismatch)
+
+		crossProfileResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=default",
+			body,
+		)
+		assertToolApprovalRejection(t, crossProfileResp, toolspkg.ReasonApprovalTokenMismatch)
+		if registry.callCount("ext__ask_tool") != 0 {
+			t.Fatal("mismatched Workspace or Profile executed the approval-required tool")
+		}
+
+		invokeResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=marketing",
+			body,
+		)
 		if invokeResp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", invokeResp.Code, http.StatusOK, invokeResp.Body.String())
 		}
@@ -660,21 +900,30 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t.Fatalf("registry call count = %d, want 1", registry.callCount("ext__ask_tool"))
 		}
 
-		replayResp := performRequest(t, engine, http.MethodPost, "/tools/ext__ask_tool/invoke", body)
-		if replayResp.Code != http.StatusForbidden {
-			t.Fatalf(
-				"replay status = %d, want %d; body=%s",
-				replayResp.Code,
-				http.StatusForbidden,
-				replayResp.Body.String(),
-			)
-		}
-		var replay contract.ToolErrorResponse
-		decodeToolJSON(t, replayResp.Body.Bytes(), &replay)
-		if !containsReason(replay.Error.ReasonCodes, toolspkg.ReasonApprovalTokenReplayed) {
-			t.Fatalf("replay error = %#v, want replay reason", replay.Error)
+		replayResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke?profile=default",
+			body,
+		)
+		assertToolApprovalRejection(t, replayResp, toolspkg.ReasonApprovalTokenReplayed)
+		if registry.callCount("ext__ask_tool") != 1 {
+			t.Fatalf("registry call count after replay = %d, want 1", registry.callCount("ext__ask_tool"))
 		}
 	})
+}
+
+func assertToolApprovalRejection(t *testing.T, response *httptest.ResponseRecorder, reason toolspkg.ReasonCode) {
+	t.Helper()
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("approval rejection status = %d, want %d; body=%s", response.Code, http.StatusForbidden, response.Body)
+	}
+	var payload contract.ToolErrorResponse
+	decodeToolJSON(t, response.Body.Bytes(), &payload)
+	if !containsReason(payload.Error.ReasonCodes, reason) {
+		t.Fatalf("approval rejection = %#v, want reason %q", payload.Error, reason)
+	}
 }
 
 func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
@@ -1000,16 +1249,21 @@ func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 }
 
 type apiTestToolRegistry struct {
-	registry        *toolspkg.RuntimeRegistry
-	mu              sync.Mutex
-	calls           map[toolspkg.ToolID]int
-	callErrors      map[toolspkg.ToolID]error
-	lastListScope   toolspkg.Scope
-	lastCallScope   toolspkg.Scope
-	lastCallRequest toolspkg.CallRequest
-	lastSearchScope toolspkg.Scope
-	lastSearchQuery toolspkg.SearchQuery
-	lastToolset     toolspkg.ToolsetID
+	registry             *toolspkg.RuntimeRegistry
+	mu                   sync.Mutex
+	calls                map[toolspkg.ToolID]int
+	callErrors           map[toolspkg.ToolID]error
+	lastListScope        toolspkg.Scope
+	lastCallScope        toolspkg.Scope
+	lastCallRequest      toolspkg.CallRequest
+	lastSearchScope      toolspkg.Scope
+	lastSearchQuery      toolspkg.SearchQuery
+	lastToolset          toolspkg.ToolsetID
+	lastGetScope         toolspkg.Scope
+	lastToolsetListScope toolspkg.Scope
+	lastToolsetGetScope  toolspkg.Scope
+	listProfileID        string
+	listWorkspaceID      string
 }
 
 func newAPITestToolRegistry(
@@ -1090,8 +1344,20 @@ func newAPITestToolRegistry(
 func (r *apiTestToolRegistry) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
 	r.mu.Lock()
 	r.lastListScope = scope
+	requiredProfileID := r.listProfileID
+	requiredWorkspaceID := r.listWorkspaceID
 	r.mu.Unlock()
+	if requiredProfileID != "" && (scope.ProfileID != requiredProfileID || scope.WorkspaceID != requiredWorkspaceID) {
+		return []toolspkg.ToolView{}, nil
+	}
 	return r.registry.List(ctx, scope)
+}
+
+func (r *apiTestToolRegistry) restrictListTo(profileID string, workspaceID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.listProfileID = profileID
+	r.listWorkspaceID = workspaceID
 }
 
 func (r *apiTestToolRegistry) Search(
@@ -1111,6 +1377,9 @@ func (r *apiTestToolRegistry) Get(
 	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 ) (toolspkg.ToolView, error) {
+	r.mu.Lock()
+	r.lastGetScope = scope
+	r.mu.Unlock()
 	return r.registry.Get(ctx, scope, id)
 }
 
@@ -1130,6 +1399,9 @@ func (r *apiTestToolRegistry) ListToolsets(
 	ctx context.Context,
 	scope toolspkg.Scope,
 ) ([]toolspkg.ToolsetView, error) {
+	r.mu.Lock()
+	r.lastToolsetListScope = scope
+	r.mu.Unlock()
 	return r.registry.ListToolsets(ctx, scope)
 }
 
@@ -1140,6 +1412,7 @@ func (r *apiTestToolRegistry) GetToolset(
 ) (toolspkg.ToolsetView, error) {
 	r.mu.Lock()
 	r.lastToolset = id
+	r.lastToolsetGetScope = scope
 	r.mu.Unlock()
 	return r.registry.GetToolset(ctx, scope, id)
 }
@@ -1172,6 +1445,24 @@ func (r *apiTestToolRegistry) lastSearch() (toolspkg.Scope, toolspkg.SearchQuery
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.lastSearchScope, r.lastSearchQuery
+}
+
+func (r *apiTestToolRegistry) lastGet() toolspkg.Scope {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastGetScope
+}
+
+func (r *apiTestToolRegistry) lastToolsetList() toolspkg.Scope {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastToolsetListScope
+}
+
+func (r *apiTestToolRegistry) lastToolsetGet() toolspkg.Scope {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastToolsetGetScope
 }
 
 func (r *apiTestToolRegistry) lastToolsetID() toolspkg.ToolsetID {
