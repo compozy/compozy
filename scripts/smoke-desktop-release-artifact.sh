@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-platform=${1:?usage: smoke-desktop-release-artifact.sh <macos|linux> <artifact> <version> <runtime-version>}
+platform=${1:?usage: smoke-desktop-release-artifact.sh <macos|linux> <artifact> <version> <runtime-version> [mount|extract]}
 artifact=${2:?release artifact is required}
 release_version=${3:?release version is required}
 runtime_version=${4:?current channel runtime version is required}
+linux_launch_mode=${5:-mount}
+
+if [[ "${platform}" == "linux" \
+  && "${linux_launch_mode}" != "mount" \
+  && "${linux_launch_mode}" != "extract" ]]; then
+  echo "desktop release smoke: unsupported Linux launch mode ${linux_launch_mode}" >&2
+  exit 2
+fi
 
 smoke_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 # Keep COMPOZY_HOME short enough for macOS sockaddr_un after /var resolves to /private/var.
@@ -187,9 +195,24 @@ case "${platform}" in
       "${app_binary}" >"${smoke_home}/desktop.log" 2>&1 &
     ;;
   linux)
-    setsid env COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-      APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum "${app_binary}" \
-      >"${smoke_home}/desktop.log" 2>&1 &
+    if [[ "${linux_launch_mode}" == "mount" ]]; then
+      command -v ldconfig >/dev/null || {
+        echo "desktop release smoke: ldconfig is required to verify libfuse2 absence" >&2
+        exit 1
+      }
+      libfuse_cache=$(ldconfig -p)
+      if grep 'libfuse\.so\.2' <<<"${libfuse_cache}" >/dev/null; then
+        echo "desktop release smoke: mount verification requires a host without libfuse2" >&2
+        exit 1
+      fi
+      setsid env -u APPIMAGE_EXTRACT_AND_RUN \
+        COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+        xvfb-run --auto-servernum "${app_binary}" >"${smoke_home}/desktop.log" 2>&1 &
+    else
+      setsid env COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+        APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum "${app_binary}" \
+        >"${smoke_home}/desktop.log" 2>&1 &
+    fi
     ;;
 esac
 app_pid=$!
