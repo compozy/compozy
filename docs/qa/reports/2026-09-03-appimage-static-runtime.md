@@ -2,19 +2,24 @@
 
 - **Scope:** Linux AppImage launch after pinning `toolsets.appimage` to the static AppImage runtime.
 - **Cadence tier:** targeted
-- **Build:** local package from `b7667d8f` plus the pending `toolsets.appimage` change · artifact
+- **Build:** local package from `b7667d8f` plus the pending `toolsets.appimage` change · local artifact
   `CompozyOS-0.3.0-linux-x86_64.AppImage` · **SHA-512 (electron-builder feed):**
   `238NMJ4L8okELjJ/FPa9O7eorO21oG/dsDCcCGugcoUC+wJHqeia9BcR52x7/he0CXO+WzX+IyeyBHcJGPD1pA==`
 - **Environment:** Arch Linux 7.1.9, `fuse3` 3.18.2 installed, `fuse2` absent, `/usr/bin/fusermount`
-  absent and only `/usr/bin/fusermount3` present; empty `~/.compozy`
-- **Status:** complete
+  absent and only `/usr/bin/fusermount3` present; emptied operator `~/.compozy`; default socket and
+  HTTP port
+- **Status:** closed — blocked pending a repository-compliant isolated re-walk
+
+The root builder config expands x64 as `x86_64` for AppImage artifacts. The release config overrides
+that local name with `CompozyOS-<version>-linux-x64.AppImage`. This run tested the local artifact; it
+did not test a file emitted by the release-config path or renamed into the release shape.
 
 ## Session
 
 | Charter | Scenario | Persona | Tour | Status |
 |---|---|---|---|---|
-| — | APP-appimage-fuseless-launch | Lea | Feature Tour | Pass |
-| — | APP-install-first-run-provision (Linux leg) | Lea | Feature Tour | Pass |
+| — | APP-appimage-fuseless-launch | Lea | Feature Tour | Blocked (needs human verify) |
+| — | APP-install-first-run-provision (Linux leg) | Lea | Feature Tour | Blocked (needs human verify) |
 
 ## Results
 
@@ -49,12 +54,11 @@ shape.
 | AppImage type 2 magic (bytes 8–10) | `41 49 02` — desktop MIME detection still resolves `application/vnd.appimage` |
 | `--appimage-mount` | mounted at `/tmp/.mount_CompozEEdmib` as `type fuse.CompozyOS-0.3.0-linux-x86_64.AppImage` |
 
-### Launch and first-run provisioning
+### Observed launch and first-run provisioning
 
-The operator launched the AppImage twice on the FUSE 3 only host. Both runs mounted and opened the
-app with no `--appimage-extract-and-run` fallback and no libfuse2 present. From an empty home the
-run verified the bundled runtime digest, provisioned `~/.compozy/bin/compozy`, and started the
-daemon:
+The operator launched the local AppImage twice on the FUSE 3 only host. Both runs mounted and opened
+the app with no `--appimage-extract-and-run` fallback and no libfuse2 present. From an empty home the
+run verified the bundled runtime digest, provisioned `~/.compozy/bin/compozy`, and started the daemon:
 
 ```
 Status:  running          PID: 265462
@@ -63,8 +67,8 @@ compozy 0.3.0
 ```
 
 The process table held exactly one daemon plus its three extension providers. `Health: degraded`
-reflects this host carrying no provider CLI on `PATH`, which is expected on a clean machine and
-unrelated to packaging.
+reflects this host carrying no provider CLI on `PATH`. The run did not reach the healthy full-product
+end state required by APP-install-first-run-provision.
 
 ## Build caveat for this run
 
@@ -84,6 +88,25 @@ mount, provisioning, and daemon-start claims above stand on their own evidence.
 
 ## Teardown
 
-The app was stopped with SIGTERM, the daemon with `compozy daemon stop`, and the mount released.
-`~/.compozy`, `~/.cache/compozy-dev`, and every `/tmp/compozy-*` directory were removed; a home sweep
-returned no remaining process, mount, or path.
+The operator reported stopping the app with SIGTERM, stopping the daemon with `compozy daemon stop`,
+releasing the mount, and removing the temporary paths. The run was not bootstrapped through the
+repository QA envelope and retained no `teardown.json` with `"clean": true`. This prose-only cleanup
+does not satisfy the mandatory teardown evidence contract.
+
+## Human verification needed
+
+- Build through the release-config path and use the emitted
+  `CompozyOS-<version>-linux-x64.AppImage` without renaming it.
+- In a fresh isolated Linux QA envelope, use unique `COMPOZY_HOME`, HTTP port, and UDS path; install
+  FUSE 3, confirm `libfuse.so.2` is absent, then launch without `APPIMAGE_EXTRACT_AND_RUN`.
+- Reach the product window, confirm healthy runtime state through an independent read, run the
+  extraction fallback separately, and retain the manifest teardown output with
+  `teardown.json` reporting `"clean": true` and no survivors.
+
+## Final status
+
+- **Coverage:** static runtime, type 2 magic, updater files, mount, and provisioning were observed on
+  a local package; release-shaped artifact identity, isolated full-product completion, and canonical
+  teardown remain unverified.
+- **Verdict:** blocked — the observations support the packaging change but cannot settle either QA
+  scenario under the current evidence contract.
