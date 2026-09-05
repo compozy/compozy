@@ -475,6 +475,26 @@ The daemon-owned command surface for visible, interactive, or supervised work. U
 
 ---
 
+## Compatibility
+
+### Compatibility regime
+
+Which of the three SD-013 rules governs a changed surface, decided by who owns it: **user state** never breaks, **public surfaces** deprecate before they delete, **internal code** hard-cuts. The surface lists live in `CLAUDE.md` §Compatibility Policy and SD-013.
+
+### Stability label
+
+`stable` or `experimental`, applied to a public surface. Every surface shipped in a tagged release is `stable` unless its docs and CLI help say `experimental`; only `experimental` surfaces may change shape without a deprecation window.
+
+### Deprecation window
+
+The one release during which a public surface's old shape still works beside the new one and emits a warning naming the replacement. The old shape is deleted in the release after. Never longer, never stacked (N-2 is never accepted).
+
+### Boundary shim
+
+The translation that implements a deprecation window or an auto-migration: a config-loader alias, an HTTP/UDS decoder rule, a CLI verb-table entry, or a Goose migration. Lives at the edge, never as an `if oldShape` branch in domain code, and its comment and release note name the release that removes it.
+
+---
+
 ## Verification & Testing
 
 ### `make gate`

@@ -2,11 +2,7 @@ import { formatDuration } from "@compozy/ui";
 import { Suspense, lazy, use } from "react";
 
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
-import {
-  terminalLeaseView,
-  type TerminalInfo,
-  type TerminalSignal,
-} from "@/systems/terminal/parts";
+import { type TerminalInfo, type TerminalSignal } from "@/systems/terminal/parts";
 import { useSessionTerminalCatalogEntry } from "../../hooks/use-session-terminal-catalog";
 import { useSessionTerminalScope } from "../../hooks/use-session-terminal-scope";
 import {
@@ -199,18 +195,6 @@ function SessionTerminalPreview({
   const run = resolveSessionTerminalRun(facts, catalog);
   const durationLabel = durationLabelFor(facts.durationMs, run.exit?.at ?? null);
   const startedLabel = catalog?.created_at ? formatClock(catalog.created_at) : undefined;
-  const lease = catalog
-    ? terminalLeaseView({
-        lease: catalog.lease,
-        controller: catalog.controller,
-        // A transcript block only watches. It must not claim "You're in control"
-        // because keystrokes never reach the program from here. The chip names
-        // the controller the catalog sent.
-        viewerId: null,
-        mode: catalog.mode,
-        capabilities: catalog.capabilities,
-      })
-    : undefined;
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="terminal-content">
       <Suspense
@@ -223,7 +207,6 @@ function SessionTerminalPreview({
           stillRunning={run.stillRunning}
           terminalId={facts.terminalId}
           title={title}
-          {...(lease ? { lease } : {})}
           {...(durationLabel ? { durationLabel } : {})}
           {...(startedLabel ? { startedLabel } : {})}
           {...(shell

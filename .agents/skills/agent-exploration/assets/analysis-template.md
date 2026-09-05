@@ -13,7 +13,7 @@ Read-only exploration of the slice `{slug}` (ordinal `{NN}`) for the research pr
 
 ## Overview
 
-(2-4 paragraphs)
+(As much detail as the conclusion needs.)
 
 What does this slice cover? What is its scope? Where does it overlap with adjacent slices? What is the operator most likely to act on from this slice?
 
@@ -54,7 +54,7 @@ What does this slice cover? What is its scope? Where does it overlap with adjace
 
 ## Evidence
 
-(Final list of source citations referenced above, deduplicated. The next reader will follow these directly.)
+(Supporting evidence not already linked under Relevant Sources; do not duplicate the same bibliography.)
 
 - `path/to/file.ext`
 - `https://example.com/...`

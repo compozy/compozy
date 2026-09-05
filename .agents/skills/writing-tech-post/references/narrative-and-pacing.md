@@ -1,6 +1,8 @@
 # Narrative, Momentum, and Pacing
 
-The five-lede taxonomy, the H2-as-question-resolution discipline, the story-shape catalogue (detective / migration / blameless / paper-link-first / tutorial arcs), momentum-stall diagnostics, the closer multiple-choice gate, and the headline taxonomy.
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
+The five-lede taxonomy, the H2-as-question-resolution discipline, the story-shape catalogue (detective / migration / blameless / paper-link-first / tutorial arcs), momentum-stall diagnostics, the optional closer patterns, and the headline taxonomy.
 
 ## Contents
 
@@ -8,7 +10,7 @@ The five-lede taxonomy, the H2-as-question-resolution discipline, the story-shap
 - [H2-as-question-resolution discipline](#h2-as-question-resolution-discipline)
 - [Story-shape catalogue](#story-shape-catalogue)
 - [Momentum-stall diagnostics](#momentum-stall-diagnostics)
-- [Closer taxonomy (multiple-choice gate)](#closer-taxonomy-multiple-choice-gate)
+- [Closer options](#closer-options)
 - [Headline + title patterns](#headline--title-patterns)
 - [The first-200 + last-200 callback-coupling test](#the-first-200--last-200-callback-coupling-test)
 - [Anti-narrative patterns](#anti-narrative-patterns)
@@ -51,7 +53,7 @@ Each H2 should answer the question the previous section left dangling, opening a
 
 Each section closes with the partial-victory paragraph (e.g. *"This was a slight improvement, but clearly still higher than normal"*) that licenses the next H2.
 
-**Pre-prose outline review:** produce the H2 chain and annotate each H2 with what question it answers and what question it leaves open. Reject outlines where any H2 fails the gate.
+For a draft with confusing flow, inspect what each H2 contributes and whether the sequence answers the reader's questions. Annotate the outline only if this helps the revision.
 
 **Counter-example — noun-phrase H2s:** AWS architecting-for-agentic-AI (`044:62-75`) runs noun-phrase H2s ("Why traditional architectures hinder agentic AI", "System architecture for fast agentic feedback loops") and resists the question-chain. The result is correct for the reference archetype (the H2s function as a TOC, not a narrative spine) but reads as catalogue-paced.
 
@@ -76,13 +78,13 @@ Legacy-charity opening → why-now → phased plan with tracking metrics → cut
 
 Datadog shared-database (`036:51-83`) opens with three full sections of legacy charity: *"Why do shared databases exist?"*, *"When is it time to take apart the shared database?"*, *"What keeps teams from moving off shared infrastructure?"* — each H2 a literal question, the section answering it. Rhetorical-question H2s do the work of justifying the migration's existence before the phased-plan section begins.
 
-Meta WebRTC (`199:50-117`) runs a tighter variant — Challenge → Solution 1 (Shim Layer) → Solution 2 (Feature Branches) → The Result → Future Work. The "Future Work: AI-Driven Maintenance" close is the trope flagged as over-weighted in 2026 posts; if used, must name at least two specific applications.
+Meta WebRTC (`199:50-117`) runs a tighter variant — Challenge → Solution 1 (Shim Layer) → Solution 2 (Feature Branches) → The Result → Future Work. The "Future Work: AI-Driven Maintenance" close is the trope flagged as over-weighted in 2026 posts; if used, should describe the actual planned application, without a numeric quota.
 
 ### Blameless-arc (postmortem)
 
 3-W summary → background → the incident → timeline → contributing factors → mitigation (including mitigations that failed) → action items → optional lessons / acknowledgments.
 
-Signature beat: at least one **failed-mitigation paragraph**. Canva `050`'s *"We attempted to work around this issue by significantly increasing the desired task count manually. Unfortunately, it didn't mitigate the issue"* is what licenses the next mitigation paragraph to exist. Without it, the escalation reads as panic; with it, it reads as ordered learning.
+When a failed mitigation occurred, it can be a useful narrative beat. Canva `050`'s *"We attempted to work around this issue by significantly increasing the desired task count manually. Unfortunately, it didn't mitigate the issue"* is what licenses the next mitigation paragraph to exist. Without it, the escalation reads as panic; with it, it reads as ordered learning.
 
 Datadog `034` runs an ambitious temporal-displacement variant: opens with the outage date, then traces causality back two years to a December 2020 systemd commit.
 
@@ -115,11 +117,11 @@ Four diagnostics recur.
 - **Scene-setting density too high.** Pre-pathology paragraph runs longer than necessary; reader skims past the lede. Resolved by pairing one scene-setting paragraph with one pathology paragraph (one-and-one). Longer scene-setting needs a stronger pathology to balance it.
 - **Payload-density ratio too low.** Sections that introduce no new fact, number, code reference, or distinction. Diagnostic: read the H2s and ask "what does the reader know after this section that they did not know before?" If the answer is "we explained the architecture in more words," cut.
 - **Callback frequency too low.** A fact introduced in section 1 is not referenced again before section 5. Datadog Rust storage resolves this by introducing the "6th generation in a lineage that started 15 years ago" frame in the lede and explicitly running Gen 1 → Gen 6 H2s under "How we built the 6th generation of our real-time metrics storage" (line 77). The lede claim is paid back in the body's spine, then again in the closing.
-- **Rhetorical-question budget exceeded.** Datadog shared-database `036:51-83` runs three rhetorical-question H2s — the maximum the genre tolerates before the rhetorical move starts to feel performative. Cap at three per long post.
+- **Rhetorical-question budget exceeded.** Datadog shared-database `036:51-83` runs three rhetorical-question H2s — the maximum the genre tolerates before the rhetorical move starts to feel performative. Use only questions that improve the reader's understanding; the corpus count is not a fixed limit.
 
-## Closer taxonomy (multiple-choice gate)
+## Closer options
 
-The closer must be one of five forward-pointing shapes. Summarising closers ("In conclusion, we have shown that…") are a regression.
+These closing shapes may help when a draft needs a useful ending. A concise result or synthesis can also work; avoid a redundant recap or an invented roadmap.
 
 - **Call-to-build.** Close on an artifact the reader can run, build, or extend. GitHub eBPF `028:317-326`: *"Want to dive in? Get started by having a look through the examples in [cilium/ebpf](https://github.com/cilium/ebpf/tree/main/examples)…"*. MLE-STAR `074:81-86`: link to `google/adk-samples`. The open-source / research-translation move.
 - **Call-to-adopt.** Close on a managed-service link, a sign-up button, or an "available now" CTA. Vercel product-changelog signature. Tolerable when the post has paid out the engineering substance; bait-and-switch when the substance is thin.
@@ -146,7 +148,7 @@ Datadog Rust storage `016` passes the test: lede introduces "6th generation in a
 
 Datadog network-latency `041` passes: lede issues debt ("we don't expect to get paged about every single deployment") → closer "Bolster your visibility and learn to look twice" pays the lesson.
 
-Run this as a **pre-flight check** before any other review.
+Use this optional diagnostic when the ending feels disconnected; lexical overlap is not proof of a coherent argument.
 
 ## Anti-narrative patterns
 
@@ -155,5 +157,5 @@ Run this as a **pre-flight check** before any other review.
 - **Every section a noun phrase.** H2s read as a TOC, not as the spine of an argument. Diagnostic: when the H2s can be skimmed in isolation and re-ordered without changing meaning, the question-chain is broken.
 - **Callbacks that never connect.** A fact named in the lede is not referenced again. Diagnostic: extract the first 200 words and the closing 200 words — if they cannot be paired into a same-thread statement, the post has no spine.
 - **Closers that summarise instead of forward-pointing.** *"In conclusion, we have shown that…"* recapitulations. Almost every read-at-depth closer in the corpus picks one of the five forward-pointing shapes.
-- **Bolted-on AI-future close on a non-AI post.** Generic "AI handles the long tail" paragraph that reads as performative when the AI work is not genuinely on the roadmap. If used, the forward-section must name at least two specific applications.
+- **Bolted-on AI-future close on a non-AI post.** Generic "AI handles the long tail" paragraph that reads as performative when the AI work is not genuinely on the roadmap. If used, the forward-section should describe the actual planned application, without a numeric quota.
 - **Archetype-bait headline.** Title promises archetype A; body delivers archetype B. Erodes publisher trust over a series of posts.

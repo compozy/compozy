@@ -1,4 +1,4 @@
-import { Keyboard, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
 
 import { Button, ListingRow, MonoId, Time } from "@compozy/ui";
 
@@ -19,7 +19,6 @@ export interface TerminalGrantRowProps {
  * digest as the only honest identity.
  */
 export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
-  const isTyping = grant.kind === "typing";
   const label = terminalGrantLabel(grant);
   return (
     <ListingRow
@@ -28,11 +27,7 @@ export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
       interactive={false}
     >
       <ListingRow.Icon>
-        {isTyping ? (
-          <Keyboard aria-hidden="true" className="size-4" />
-        ) : (
-          <Shield aria-hidden="true" className="size-4" />
-        )}
+        <Shield aria-hidden="true" className="size-4" />
       </ListingRow.Icon>
       <ListingRow.Main>
         <ListingRow.Name>
@@ -44,7 +39,7 @@ export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
           <span>{grant.agentName}</span>
           <ListingRow.MetaDot />
           <span className="inline-flex items-center gap-1">
-            {isTyping ? "granted" : "remembered"}
+            remembered
             <Time className="tabular-nums" iso={grant.grantedAt} />
           </span>
         </ListingRow.Meta>

@@ -18,13 +18,13 @@ Quality claims (skill compliance, SHIP, VC parity, QA verdicts) were self-assert
 
 ## Rule
 
-> A quality claim counts only when a gate or an independent verifier stands behind it: SHIP verdicts come from a reviewer lane that did not implement the work; skill-cited invariants that matter get deterministic checks, not prose. A test or fixture that asserts behavior contradicting the spec contract is a production bug — fix the fixture and the code together; red-after-fix is the proof the golden was inverted, never a reason to keep the bug.
+> Quality claims require evidence from the applicable contract and a check capable of exposing failure. Independent review is required by an accepted review workflow and for substantial public-contract, persistence, or security changes whose material risks deterministic checks cannot establish. Reuse a completed review while its scope remains current; routine edits need no new agent round. Goldens that contradict the accepted contract must be corrected together with faulty production behavior.
 
 ## Operationalization
 
-- Fixtures and goldens derive from the spec contract (`_tests.md`, `_dx.md` examples), never from capturing current output; a contract change re-derives them.
-- When writing a rule an agent must obey under pressure, ask "what turns red when this is violated?" — no answer means the rule needs a gate or should not be relied on (L-031 precedent).
-- Review independence: the implementing lane never solely reviews its own work (`deep-review --subagent` cross-LLM lane is the floor).
+- Derive fixtures/goldens from the accepted contract, not an unexamined capture of current output.
+- Give recurring high-risk invariants an owning deterministic check where practical. Prose guidance and editorial changes do not automatically require a new test.
+- Review independence applies at the requested review/delivery stage. Reuse completed reviews for unchanged inputs and avoid parallel checks of the same invariant without a distinct purpose.
 
 ## Anti-pattern
 

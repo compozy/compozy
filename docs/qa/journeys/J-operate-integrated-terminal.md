@@ -35,7 +35,7 @@ journey:
   actions:
     - step: 1
       verb: "Open a terminal in the current profile"
-      expected_observable: "The window names the owning profile and becomes writable only after the stream is attached."
+      expected_observable: "The window names the owning profile and becomes writable as soon as its interactive stream is attached, regardless of other participants."
     - step: 2
       verb: "Run work, detach, and return"
       expected_observable: "Output resumes without duplicated or missing acknowledged bytes and the process keeps its identity."

@@ -1,5 +1,7 @@
 # Incident Postmortems
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The postmortem archetype's contract: canonical section sequence, blameless register, UTC-timeline + named-artifact root cause obligations, failed-mitigation discipline, and the postmortem/reliability-essay hybrid rule.
 
 ## Contents
@@ -34,7 +36,7 @@ Exemplars:
 8. **Optional: Lessons** — for reliability essay hybrid (see below).
 9. **Optional: Acknowledgements** — for cross-team or vendor-collaborative incidents.
 
-The sequence is not aspirational — every section is required *unless* the post is explicitly labelled as a non-canonical variant (e.g., "preparedness post" / "non-incident response").
+Use the sections that communicate the actual incident. Preserve impact, chronology, causal evidence, and recovery/prevention status; combine or omit sections that add no information.
 
 ## The blameless register (three rules)
 
@@ -60,7 +62,7 @@ Strong postmortems disclose mitigations that **did not work**. The failed-mitiga
 
 Canonical execution — Canva `050`: *"We attempted to work around this issue by significantly increasing the desired task count manually. Unfortunately, it didn't mitigate the issue."*
 
-**Requirement:** at least one failed-mitigation paragraph in any blameless-arc draft before flagging the draft as complete.
+Disclose a failed mitigation when one actually occurred and affects the explanation. An incident resolved by its first mitigation needs no invented failed attempt.
 
 ## Closing move (prevention vs reliability essay)
 
@@ -99,5 +101,5 @@ Overly neutral postmortems read as detached. Overly contrite postmortems read as
 - **24-hour postmortems with placeholder action items.** Wait for the action items to be specific.
 - **Missing timeline.** UTC timestamps are non-negotiable.
 - **"Five whys without the answer."** Asking five whys but stopping at the third without commitment.
-- **No failed-mitigation paragraph.** Escalation reads as panic; the post lacks the cadence that licenses the next mitigation section.
+- **Hidden failed mitigation.** Omit no material failed attempt that actually occurred; absence of a failure is not a prose defect.
 - **Mismatched closing CTA.** A 4,000-word postmortem ending with *"Sign up for a free trial"* alienates both audiences. Postmortems close with engineering reflection or prevention commitments.

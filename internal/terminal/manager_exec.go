@@ -233,7 +233,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
 	}
-	info := ownedInfo(Info{
+	info := boundInfo(Info{
 		ID:           id,
 		WS:           workspaceID,
 		ProfileID:    request.Actor.ProfileID,
@@ -242,12 +242,11 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		Cwd:          cwd,
 		Mode:         mode,
 		State:        terminalStateRunning,
-		Controller:   cloneActor(&request.Actor),
 		Capabilities: request.Capabilities,
 		CreatedAt:    m.now(),
 	}, request.Actor)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
-	item := newSession(ctx, m, proc, info, settings, nonce, profileName, 80, 24, true)
+	item := newSession(ctx, m, proc, info, request.Actor, settings, nonce, profileName, 80, 24, true)
 	item.captureOutput = true
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {

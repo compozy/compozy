@@ -1,4 +1,4 @@
-import { Folder, Keyboard, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Folder, SquareTerminal, TriangleAlert } from "lucide-react";
 
 import { cn, MonoId } from "@compozy/ui";
 
@@ -6,8 +6,6 @@ import type { TerminalPermissionDetail } from "../lib/terminal-permission";
 
 export interface TerminalApprovalDetailProps {
   detail: TerminalPermissionDetail;
-  /** The terminal's title, when the catalog already knows it. */
-  terminalTitle?: string;
 }
 
 /**
@@ -17,10 +15,7 @@ export interface TerminalApprovalDetailProps {
  * terminal facts that surface has no way to infer. What runs is what you read:
  * no summary, no paraphrase, no client-side risk guess.
  */
-export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprovalDetailProps) {
-  if (detail.kind === "typing") {
-    return <TerminalTypingGrantDetail detail={detail} terminalTitle={terminalTitle} />;
-  }
+export function TerminalApprovalDetail({ detail }: TerminalApprovalDetailProps) {
   if (detail.kind === "open") {
     return <TerminalOpenApprovalDetail detail={detail} />;
   }
@@ -106,42 +101,6 @@ function TerminalExecApprovalDetail({
             Couldn&apos;t be classified, so it always asks.
           </p>
         ) : null}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Typing is its own permission.
- *
- * Activity is shown only when the typing tool input carries that field. The
- * catalog title is shown only when known. The lifetime sentence is the grant's
- * end condition.
- */
-function TerminalTypingGrantDetail({
-  detail,
-  terminalTitle,
-}: {
-  detail: Extract<TerminalPermissionDetail, { kind: "typing" }>;
-  terminalTitle?: string;
-}) {
-  const knownTitle = terminalTitle?.trim();
-  return (
-    <div className="flex items-start gap-2" data-testid="terminal-typing-grant-detail">
-      <Keyboard aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
-      <div className="flex min-w-0 flex-col gap-1.5">
-        {detail.activity ? (
-          <p className="text-form-input text-fg" data-testid="terminal-typing-activity">
-            {detail.activity}
-          </p>
-        ) : null}
-        <span className="flex items-center gap-1.5 text-form-input text-muted">
-          In {knownTitle || "this terminal"}
-          {detail.terminalId ? <MonoId size="sm" value={detail.terminalId} /> : null}
-        </span>
-        <p className="text-micro text-faint">
-          Ends when you take over, the run ends, or you revoke it.
-        </p>
       </div>
     </div>
   );

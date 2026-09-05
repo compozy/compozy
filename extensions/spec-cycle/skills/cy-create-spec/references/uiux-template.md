@@ -4,7 +4,7 @@ Structure for `_uiux.md` — the UI change map written only for UI-bearing featu
 
 ## Rules
 
-- **Inventory, not design**: this document names every touched surface, its states, and its production mapping; the visual language itself belongs to the design pass and its artboards under `docs/design/opendesign/<slug>/`. Name the artboard file each surface needs.
+- **Inventory, not design**: this document names every touched surface, its states, and its production mapping; the visual language itself belongs to the design pass and its artboards under `docs/design/opendesign/<slug>/`. Name an artboard only when the task has a visual reference; existing-surface adjustments may use `none — no named visual reference`.
 - **Grammar**: `DESIGN.md` + `packages/ui/src/tokens.css` only — flat depth, no invented tokens. Signal palette is information, never decoration; propose the semantic mapping, final call belongs to the design pass.
 - **Reuse before create**: check the `@compozy/ui` inventory (`packages/ui/src/index.ts`) before naming any new component; justify every new primitive against it. New generic primitives land in `packages/ui`, domain composites in `web/src/systems/<domain>/`.
 - **Truthful UI**: unknown renders as unknown, pending ≠ ready, affordances absent (not disabled) when the runtime cannot support them.
@@ -17,9 +17,9 @@ Structure for `_uiux.md` — the UI change map written only for UI-bearing featu
 # UI/UX Change Map: [Feature Name]
 
 Every UI surface this feature touches: where it lives today, what changes,
-which states must be designed, and the reference artboard each surface needs.
-Artboards land under `docs/design/opendesign/<slug>/` and become the visual
-contracts the implementation tasks cite.
+which states change, and any named reference artboard. New visual references
+land under `docs/design/opendesign/<slug>/`; only named references become
+visual contracts. Existing-surface or copy-only work needs no new artboard.
 
 Companions: `_spec.md` Part I (behavior authority), `_user_stories.md`
 (states come from ACs/ECs), `_dx.md` (the non-UI half of the surface).
@@ -42,7 +42,7 @@ notes, reusable copy sources.
 - **Change**: what this feature does to it.
 - **States to design**: every state, from the cited stories' ACs/ECs —
   empty, pending, error, permission, and scale states included.
-- **Artboard**: `[slug]-[surface].html`.
+- **Artboard**: `[slug]-[surface].html` or `none — no named visual reference`.
 
 ## Component plan (design → production mapping)
 

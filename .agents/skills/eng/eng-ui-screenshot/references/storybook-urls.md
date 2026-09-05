@@ -7,7 +7,7 @@
 | `web/` | 6006 | Runtime operator UI stories (`systems-*-routes-*`, `systems-*-components-*`) |
 | `packages/ui/` | 6007 | Shared primitive stories (components-*, components-custom-*, logos-*) |
 
-Start with `cd web && bun run storybook` or `cd packages/ui && bun run storybook`. Both default to those ports; if a port is busy the dev command prompts to bump — kill the duplicate before reusing.
+Start with `cd web && bun run storybook` or `cd packages/ui && bun run storybook`. Both default to those ports. Reuse a healthy matching `index.json`; if an occupied port is unhealthy, identify its owner and select an explicit free port when needed. Terminate only a process owned by the current run, never an unrelated server.
 
 ## Iframe form (the only form that should be screenshot)
 

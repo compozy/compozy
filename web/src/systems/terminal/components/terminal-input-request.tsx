@@ -18,8 +18,6 @@ import type {
 
 export interface TerminalInputRequestCardProps {
   request: TerminalInputRequest;
-  /** Whether the current viewer already owns the write lease. */
-  canAnswerDirectly: boolean;
   /** False only for aggregate/read-only surfaces that cannot mutate this profile. */
   canAnswer?: boolean;
   /** Names the terminal when several are asking at once. */
@@ -111,12 +109,11 @@ function RequestPin({
  * an error report could carry it off; here it exists only in the live DOM node
  * until the form is submitted and reset.
  *
- * A watcher in the destination profile can answer through the backend's atomic
- * handoff; aggregate reads and expired pins see no write row.
+ * Anyone on an interactive destination-profile attachment can answer;
+ * aggregate reads and expired pins see no write row.
  */
 export function TerminalInputRequestCard({
   request,
-  canAnswerDirectly,
   canAnswer = true,
   showOrigin = false,
   terminalTitle,
@@ -174,7 +171,7 @@ export function TerminalInputRequestCard({
             type="submit"
             variant="neutral"
           >
-            {canAnswerDirectly ? "Send" : "Take control & send"}
+            Send
           </Button>
           <Button
             data-testid={`terminal-input-request-decline-${request.id}`}
@@ -207,8 +204,6 @@ const RESOLVED_TONES: Record<TerminalInputOutcome, string> = {
 
 export interface TerminalInputResolvedRowProps {
   request: TerminalResolvedInputRequest;
-  /** Who took over, on `superseded`, when the surface knows a name. */
-  supersededBy?: string;
 }
 
 /**
@@ -217,7 +212,7 @@ export interface TerminalInputResolvedRowProps {
  * An answered redacted prompt states its length and nothing else — that marker
  * is the whole record, in the stream, the journal, and the replay alike.
  */
-export function TerminalInputResolvedRow({ request, supersededBy }: TerminalInputResolvedRowProps) {
+export function TerminalInputResolvedRow({ request }: TerminalInputResolvedRowProps) {
   const Glyph = RESOLVED_GLYPHS[request.outcome];
   return (
     <div
@@ -241,9 +236,7 @@ export function TerminalInputResolvedRow({ request, supersededBy }: TerminalInpu
           ? ` · ${terminalRedactedInputCopy(request.length)}`
           : null}
         {request.outcome === "rejected" ? " · the agent was told no input is coming" : null}
-        {request.outcome === "superseded"
-          ? ` · ${supersededBy ?? request.resolved_by.id} took control of the terminal`
-          : null}
+        {request.outcome === "superseded" ? " · the request was no longer current" : null}
         {request.outcome === "expired" ? " · unanswered for 15 minutes" : null}
         {" · "}
         <Time iso={request.resolved_at} />

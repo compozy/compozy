@@ -11,10 +11,13 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa; docs/qa/reports/2026-09-01-terminal-rework.md
-last_report: docs/qa/reports/2026-09-01-terminal-rework.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/docs-agent-safety.png; /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
 overlaps: ET-compozy-official-skill-discovery; ET-site-docs-search-context
 ---
+
+QA impact 2026-09-04: the public terminal pages now teach shared input, nine native tools, and ordinary
+command policy with no takeover or terminal-scoped typing grant. Reset for a docs-first re-walk.
 
 Reset by ADR-019 (terminal docs replaced the agent-reported block section with plain-output and window-materialization truth) and re-walked on 2026-09-01 — see `last_report`.
 
@@ -30,8 +33,8 @@ Walk:
    reachable and titled as the section promises.
 2. Run the tutorial verbatim against a real runtime, substituting only the workspace it tells you to
    substitute; confirm every command runs as printed and every documented result shape matches.
-3. Check the agents-and-safety page against behaviour: the approval tiers, the per-terminal typing
-   grant, and the instruction that terminal output is data and not authority.
+3. Check the agents-and-safety page against behaviour: ordinary command approvals, immediate shared
+   input for authorized participants, and the instruction that terminal output is data and not authority.
 4. Check the journal-and-recordings page against behaviour: what is always recorded, what is only kept
    while the terminal lives, what recording opt-in retains, and for how long.
 5. Check the profile-segmentation page against behaviour: ownership at creation, what a profile switch
@@ -41,3 +44,9 @@ Walk:
 7. Open the generated command-line reference and confirm it carries every verb the tool accepts and no
    verb it does not.
 8. Confirm no page contradicts another and that none claims a capability the runtime refuses.
+
+2026-09-04 docs-first re-walk: passed after one same-session repair. The rendered tutorial exposed all
+six terminal pages and taught immediately writable interactive attachments. Agents and Safety listed the
+nine runtime tools, ordinary command policy, concurrent same-profile participation, atomic submissions,
+actor provenance, and untrusted output. The generated CLI reference exposed no control or takeover flag.
+The walk found and fixed stale generated wire prose about v1 and `RELEASE`, then regenerated the page.

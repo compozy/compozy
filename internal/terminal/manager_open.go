@@ -85,14 +85,14 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 		Mode: terminalpty.ModePTY, MarkerNonce: nonce,
 		ShellIntegration: settings.ShellIntegration,
 	}
-	info := ownedInfo(Info{
+	info := boundInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
 		Title: request.Title, Shell: shell, Cwd: cwd, Mode: ModePTY, State: terminalStateRunning,
-		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
+		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	titlePinned := strings.TrimSpace(request.Title) != ""
 	item, key, err := m.launchTerminal(ctx, terminalLaunch{
-		spec: spec, info: info, settings: settings, nonce: nonce, titlePinned: titlePinned,
+		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: titlePinned,
 		startLabel: fmt.Sprintf("shell %q", shell),
 	})
 	if err != nil {
@@ -130,12 +130,10 @@ func (m *Service) startOpenedSession(ctx context.Context, item *session, actor A
 	return nil
 }
 
-func ownedInfo(info Info, actor Actor) Info {
+func boundInfo(info Info, actor Actor) Info {
 	if actor.Kind != ActorKindAgent {
-		info.Lease = LeaseHumanOwned
 		return info
 	}
-	info.Lease = LeaseAgentOwned
 	info.BoundRun = &RunRef{
 		SessionID: actor.SessionID, RunID: actor.RunID, Generation: actor.Generation,
 	}

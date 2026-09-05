@@ -27,7 +27,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 3. Fix valid issues completely.
    - Fix issues in severity order: critical first, then high, medium, low. This ensures the most impactful fixes land even if the batch is interrupted.
    - Implement production-quality fixes for every `valid` issue in scope.
-   - Add or update tests when behavior changes or regressions are possible. Test file edits are always in scope when they validate a fix.
+   - Name the changed invariant and its owning suite. Reuse existing coverage; add or update a test only for a coverage gap. Test edits needed to validate the fix are in scope.
    - Keep code changes constrained to the files listed in `<batch_scope>` code files. If a fix absolutely requires touching a file not listed there, limit the change to the minimum needed and document why in the issue file's `## Triage` section.
    - Do not refactor, clean up, or improve code that is unrelated to the issues being fixed.
 
@@ -39,9 +39,9 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 5. Verify before completion.
    - Use `cy-final-verify` before any completion claim or automatic commit.
-   - Run the repository’s real verification commands; do not stop at partial checks.
+   - Run the real checks required for the scoped fix; reuse current evidence for unchanged inputs. The workflow owner handles remaining delivery gates.
    - If verification fails, fix the failing checks in the code you changed. Do not revert your fixes to pass verification -- find the root cause of the failure and address it. If the failure is in pre-existing code unrelated to your changes, document it in the relevant issue file’s `## Triage` section and proceed. If two fixes conflict with each other and verification cannot pass after two attempts, document the conflict in both issue files and report the situation rather than looping indefinitely.
-   - If all issues in the batch are invalid and no code was changed, skip the commit step entirely -- do not create an empty commit. Still run verification to confirm no regressions.
+   - If all issues in the batch are invalid and no code was changed, skip the commit step entirely -- do not create an empty commit. Cite the triage evidence; do not run product tests solely for issue-status prose.
    - Leave the diff ready for manual review unless `<batch_scope>` shows "Automatic commits: enabled".
 
 ## Critical Rules

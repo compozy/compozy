@@ -22,13 +22,9 @@
     spec — request carries the agent's reason + prompt excerpt (US-017);
       redacted entry shows dots and only a length marker ever lands in the
       stream (US-018/redaction); outcomes answered/rejected/superseded/
-      expired (US-017.EC-2..4); watcher answer is ONE gesture riding the
-      atomic answer-handoff — takeover + answer both recorded
-      (US-017.EC-5); caps 4/terminal · 32/project · TTL 15m; on answer,
-      control returns to the agent automatically (answer_return).
-    authorized delta — the watcher gesture renders as a neutral button:
-      the accent take-control affordance stays unique to the terminal
-      header (accent budget, DESIGN-NOTES §Signals).
+      expired (US-017.EC-2..4); any authorized interactive viewer can answer
+      directly; caps 4/terminal · 32/project · TTL 15m. Answering does not
+      reserve the terminal or interrupt other attachments.
 -->
 </head>
 <body>
@@ -75,19 +71,14 @@
                 </div>
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
-                  <span class="tm-lease" data-lease="agent"><span class="agent-chip">CC</span><b>Claude Code</b> is in control</span>
-                  <span class="tm-viewers" title="You are watching"><svg data-lucide="eye"></svg>1</span>
-                  <span class="w2-vsep" aria-hidden="true"></span>
-                  <div class="w2-actions">
-                    <button class="btn btn--sm btn--primary" type="button">Take control</button>
-                  </div>
+                  <span class="tm-presence" data-state="active"><svg data-lucide="eye"></svg><b>2</b> viewers</span>
                 </div>
               </header>
               <div class="tm-winbody">
                 <div class="tm-surface">
                   <div class="tm-grid" role="log" aria-label="Terminal output">
 <span class="tm-ln"><span class="a2">$</span> psql -h staging.internal -U atlas atlas_api</span>
-<span class="tm-ln">Password for user atlas: <span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+<span class="tm-ln">Password for user atlas: <span class="tm-cur" aria-hidden="true"></span></span>
                   </div>
                   <div class="tm-request" data-od-id="tir-redacted-card">
                     <div class="tm-request__head">
@@ -182,7 +173,7 @@
               <div class="plain plain--flush">
                 <div class="tm-request tm-request--resolved" data-outcome="superseded" data-od-id="tir-out-superseded">
                   <span class="tm-request__glyph"><svg data-lucide="keyboard"></svg></span>
-                  <span class="tm-request__outcome"><b>Superseded</b> · Marina took control of the terminal · 12:39</span>
+                  <span class="tm-request__outcome"><b>Superseded</b> · the request was no longer current · 12:39</span>
                 </div>
               </div>
               <div class="plain plain--flush">
@@ -197,20 +188,19 @@
       </div>
     </section>
 
-    <!-- ===== 04 · WATCHER — ONE GESTURE ===== -->
-    <section class="lab-sec" data-od-id="tir-watcher">
+    <!-- ===== 04 · SHARED VIEWER ===== -->
+    <section class="lab-sec" data-od-id="tir-shared-viewer">
       <div class="lab-sec__head">
         <span class="lab-sec__num">04</span>
-        <h2 class="lab-sec__t">Watcher — take control and answer, one gesture</h2>
-        <span class="lab-sec__gist">US-017.EC-5 · atomic answer-handoff</span>
+        <h2 class="lab-sec__t">Shared viewer — answer directly</h2>
+        <span class="lab-sec__gist">ADR-020 · no ownership handoff</span>
       </div>
       <div class="spec">
         <div class="spec__note">
-          <b>Answering needs the keyboard.</b> A read-only watcher doesn't
-          get a plain Send — the one gesture offered takes control and
-          sends in a single step, and both are recorded. Control returns to
-          the agent by itself once the answer lands.
-          <span class="mono">answer_handoff → answer_return</span>
+          <b>Answering is part of shared input.</b> Any authorized interactive
+          viewer gets the same Send action. Explicit aggregate and historical
+          reads show the question without a write row.
+          <span class="mono">interactive → send · read-only → observe</span>
         </div>
         <div class="spec__demo">
           <div class="stage stage--auto stage--pad" data-od-id="tir-watcher-stage">
@@ -225,7 +215,7 @@
                 <div class="tm-request__prompt">Password for user atlas:</div>
                 <div class="tm-request__row">
                   <input class="input input--redacted" type="password" value="••••••••••" aria-label="Redacted input">
-                  <button class="btn btn--sm" type="button" data-od-id="tir-watcher-answer">Take control &amp; send</button>
+                  <button class="btn btn--sm" type="button" data-od-id="tir-shared-answer">Send</button>
                 </div>
               </div>
             </div>

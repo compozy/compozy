@@ -1,4 +1,6 @@
-# L-006 — Greenfield + zero-legacy means _delete_, not _adapt_
+# L-006 — Name delete targets and their compatibility regime
+
+> **Scope narrowed 2026-09-04** (SD-013, [L-040](L-040-real-users-end-zero-legacy-posture.md)). The rule below — enumerate delete targets — still binds every breaking-change spec. Its "no migration code, no aliases" posture now applies to internal code only: user state migrates losslessly and public surfaces deprecate one release before deletion.
 
 **Class:** Project posture
 **Date discovered:** 2026-04-17 (harness TechSpec review, Portuguese-language reviewer)
@@ -16,32 +18,17 @@ When a spec says "we are migrating to X" without naming the delete-target, agent
 
 ## Rule
 
-> Every breaking-change techspec MUST explicitly name its delete targets. "Delete the old thing" is not a default; it is a checklist item that must be enumerated.
+> Breaking-change specs enumerate delete targets and classify each as user state, public surface, or internal code under SD-013.
 
 ## Operationalization
 
-In every TechSpec that changes a public surface (or any meaningful internal contract), include a section like:
-
-```markdown
-## Delete Targets
-
-- `internal/foo.OldType` (replaced by `internal/foo.NewType` in step 3)
-- `pkg/bar.LegacyAdapter` (no callers after migration; remove in step 5)
-- TOML key `[old.section]` (renamed; no backward alias)
-- HTTP endpoint `/v0/old/path` (replaced by `/v1/new/path`; no redirect)
-```
-
-Renames sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts in the same change. No aliases, no dual fields, no migration code.
+- Internal renames update all consumers together and delete obsolete types/fields without aliases.
+- User state ships a lossless migration. Public renames auto-migrate at the boundary or keep the old shape for the SD-013 deprecation window, with a replacement warning and removal release.
+- Record these decisions in the owning compatibility plan; task files link to it instead of repeating a deletion checklist.
 
 ## Allowed exception (single-pass repair)
 
-When the cost of "delete the old thing" is "every developer rebuilds their local SQLite," in-place ALTER + one-shot repair is allowed if and only if:
-
-1. Repair is bounded to a single boot.
-2. Strict semantics resume immediately after repair.
-3. The exception is documented in an ADR.
-
-Reference: `session-driver-override/adrs/adr-005.md`.
+The former single-boot repair exception is historical. Current state transformations use the owning explicit migration mechanism; SQLite migrations stay append-only. Data loss requires the user sign-off and release-note block defined in SD-013. The original incident is preserved in `session-driver-override/adrs/adr-005.md`.
 
 ## Source
 

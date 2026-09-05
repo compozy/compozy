@@ -1,9 +1,9 @@
 /**
  * Reading a remembered decision as a terminal permission.
  *
- * Terminal grants are not a separate store: typing rights and remembered
- * command inputs live where every other tool decision lives, which is why this
- * translates rather than fetches.
+ * Terminal grants are not a separate store: remembered command inputs live
+ * where every other tool decision lives, which is why this translates rather
+ * than fetches.
  *
  * What the daemon records is a **digest** of the exact tool input — never the
  * input itself, and never a terminal id or a command line. So the row says what
@@ -12,8 +12,7 @@
  * otherwise would put a made-up terminal name next to a real revoke button.
  */
 
-/** Two genuinely different promises, both remembered in the same place. */
-export type TerminalGrantKind = "typing" | "command_shape";
+export type TerminalGrantKind = "command_shape";
 
 export interface TerminalGrant {
   id: string;
@@ -48,7 +47,7 @@ export function terminalGrantFromToolGrant(grant: ToolApprovalGrantLike): Termin
   const kind = terminalGrantKind(grant.tool_id);
   if (!kind) return null;
   const digest = grant.input_digest && DIGEST.test(grant.input_digest) ? grant.input_digest : null;
-  // Typing and exec remembers are exact-input grants. A stored allow without a
+  // Exec remembers are exact-input grants. A stored allow without a
   // digest is either a tool-wide mint (a second policy editor) or a decision
   // the runtime should never have produced — both stay on the generic row.
   if (!digest) return null;
@@ -63,14 +62,13 @@ export function terminalGrantFromToolGrant(grant: ToolApprovalGrantLike): Termin
 
 /**
  * Broader-decision mint must not become a second terminal policy editor.
- * Exec and typing allows are prompt-origin exact inputs only.
+ * Exec allows are prompt-origin exact inputs only.
  */
 export function isTerminalBroaderDecisionForbidden(toolId: string): boolean {
-  return toolId === "compozy__terminal_exec" || toolId === "compozy__terminal_write";
+  return toolId === "compozy__terminal_exec";
 }
 
 function terminalGrantKind(toolId: string): TerminalGrantKind | null {
-  if (toolId === "compozy__terminal_write") return "typing";
   if (toolId === "compozy__terminal_exec") return "command_shape";
   return null;
 }

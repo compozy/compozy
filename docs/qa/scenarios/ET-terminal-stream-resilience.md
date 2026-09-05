@@ -11,10 +11,14 @@ bug_ids: BUG-20260826-terminal-cli-raw-mode
 fix_status: fixed
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-controller-after-flood.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-watcher-recovered.png
-last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-controller-after-flood.png; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/marina-stream-watcher-recovered.png; /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/web-reconnect.png; docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
+
+QA impact 2026-09-04: interactive viewers now share mutation rights and presence no longer carries a
+controller. Reset to verify flow control, reconnect, resize, and explicit read-only attachments under
+the shared-control contract.
 
 qa-impact: 2026-09-01 deep-review round 2 changed stream draining, reconnect settlement, and
 redacted-output backpressure behavior. Reset for a focused degraded-stream re-walk.
@@ -32,18 +36,24 @@ the multi-viewer and degraded-connection behaviour. Task 10 owns the walk, evide
 
 Walk:
 
-1. Attach several viewers to one busy terminal — at least one that controls it and several that only
-   watch — and confirm the watchers never acquire or disturb control.
-2. Stall one watching viewer while output floods and confirm the other viewers and the running program
+1. Attach several interactive viewers to one busy terminal plus one explicit read-only presentation
+   view; confirm every interactive viewer can write and the read-only view remains passive.
+2. Stall one viewer while output floods and confirm the other viewers and the running program
    keep up; confirm the stalled viewer is either given a stated gap or disconnected with a stated
    reason, never silently fed stale bytes.
-3. Confirm a slow controlling viewer is the only one that can throttle the program, and that a viewer
-   which stops acknowledging is demoted with the gap made visible rather than allowed to grow without
-   bound.
+3. Confirm a slow acknowledging viewer can apply bounded flow control, while a viewer that stops
+   acknowledging is demoted with the gap made visible rather than allowed to grow without bound.
 4. Drop and restore the network for one viewer mid-command; confirm it resumes from where it left off
    with no duplicated and no missing acknowledged output.
-5. Resize from the smallest controlling viewer and confirm watchers cannot shrink the terminal.
+5. Resize from two interactive viewers and confirm the last accepted size converges everywhere while
+   the explicit read-only view never sends a resize.
 6. Reconnect the catalog stream with a fresh cursor and then with a cursor older than the retained
    window; confirm the first replays and the second restarts from a full snapshot of the current list.
 7. Reuse an attach ticket, use an expired one, and use one minted for a different terminal or mode;
    confirm each is refused before the connection is established.
+
+2026-09-04 targeted re-walk: passed for the changed shared-control surface. Two browser viewers and two
+CLI viewers received the same live output while writing independently. Detaching one CLI left the peer
+writable, and a newly opened browser session replayed the terminal and wrote immediately. The unchanged
+bounded-flow, stale-cursor, and attach-ticket guarantees retain the focused 2026-09-02 flood evidence
+and canonical transport-suite coverage cited by the report.

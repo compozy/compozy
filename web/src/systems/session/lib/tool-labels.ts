@@ -197,16 +197,6 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
     past: "Closed terminal",
     failure: "close terminal",
   },
-  compozy__terminal_claim: {
-    active: "Claiming terminal...",
-    past: "Claimed terminal",
-    failure: "claim terminal",
-  },
-  compozy__terminal_yield: {
-    active: "Yielding terminal...",
-    past: "Yielded terminal",
-    failure: "yield terminal",
-  },
   compozy__terminal_request_input: {
     active: "Requesting input...",
     past: "Requested input",

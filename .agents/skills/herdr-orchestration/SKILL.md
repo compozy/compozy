@@ -32,7 +32,7 @@ the caller.
 Two names per worker, both required at launch:
 
 - **tab label** — `<model>: <slice>`, e.g. `opus: fix loops`,
-  `gpt-5.5: audit auth`. Free text; keep it short, tab bars truncate.
+  `codex: audit auth`. Free text; keep it short, tab bars truncate.
 - **agent name** — the slice as a slug, e.g. `fix-loops`. Must match
   `[a-z][a-z0-9_-]{0,31}` and be unique among live agents. Every `agent …` verb
   accepts it in place of a pane id.
@@ -83,7 +83,7 @@ launching workers.
 
 ## Launch workers
 
-Two default profiles — Claude Code on `opus` and Codex on `gpt-5.5`. Launch is
+Use each worker runtime's configured model unless the user requests an override. Launch is
 two commands: create the named tab, then start the TUI in that tab's root pane.
 
 ```bash
@@ -93,10 +93,10 @@ rtk herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$PWD" \
 
 # 2. worker TUI in that tab's root pane; native flags follow `--`
 rtk herdr agent start fix-loops --kind claude --pane <root_pane_id> -- \
-  --dangerously-skip-permissions --model opus "<packet>"
+  --dangerously-skip-permissions "<packet>"
 
 rtk herdr agent start audit-auth --kind codex --pane <root_pane_id> -- \
-  --yolo -m gpt-5.5
+  --yolo
 ```
 
 Capture `tab_id`, `pane_id`, and the agent name in the registry — retiring and
@@ -227,7 +227,10 @@ changing focus:
 - Read worker tabs read-only (`agent read <name> --source recent-unwrapped
   --lines 200`); ask a worker for a concise status summary when output is
   unclear.
-- Re-open cited files locally to verify high-impact findings.
+- Re-open cited files locally to verify high-impact findings. For visual output,
+  open the delivered images and their named visual references side by side;
+  file counts, dimensions, and a worker's verdict do not establish visual fit.
+  Check one representative image before expanding an expensive generation batch.
 - Re-run claimed test results with fresh controller commands when the result
   gates completion.
 - Review the final diff before accepting any worker patch.

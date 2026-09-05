@@ -12,7 +12,7 @@ import type { TerminalWindowActions } from "../terminal-window-app";
 /**
  * A window rendered without its two live boundaries.
  *
- * The emulator and the socket are the only things replaced; the store, the lease
+ * The emulator and the socket are the only things replaced; the store
  * projection and every component below the window run for real.
  */
 export function renderTerminalWindow(ui: ReactElement) {
@@ -50,8 +50,8 @@ export interface SentTerminalFrame {
 /**
  * A socket that records what the client sends and lets a test speak back.
  *
- * Control gestures are wire frames, not callbacks, so the only honest way to
- * assert "Take control sent exactly one TAKEOVER" is to read the socket.
+ * Stream operations are wire frames, not callbacks, so tests inspect the
+ * socket when they need to prove what the client sent.
  */
 export function recordingSocketFactory() {
   const sent: SentTerminalFrame[] = [];

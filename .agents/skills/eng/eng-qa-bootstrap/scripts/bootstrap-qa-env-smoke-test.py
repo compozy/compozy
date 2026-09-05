@@ -2,7 +2,8 @@
 """Smoke tests for bootstrap-qa-env helpers that are not covered by repo gates.
 
 Suite: QA bootstrap helper integration.
-Invariant: bootstrap resolves and executes its bundled helpers from the current repository layout.
+Invariant: bootstrap resolves bundled helpers; allocated isolation paths allow
+targeted teardown to stop owned processes while preserving outside processes.
 Boundary IN: bootstrap helper path resolution and real workspace initialization script.
 Boundary OUT: daemon startup and behavioral QA, owned by downstream QA execution.
 """
@@ -12,8 +13,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shlex
+import subprocess
 import sys
 import tempfile
+import threading
 import types
 from pathlib import Path
 
@@ -60,9 +64,69 @@ def write_discovery_script(repo_root: Path, payload: dict) -> None:
     )
 
 
+def check_allocated_process_teardown(repo_root: Path) -> None:
+    """Exercise allocation and real teardown through a symlinked temp root."""
+    eng_root = repo_root / ".agents" / "skills" / "eng"
+    allocator = eng_root / "eng-worktree-isolation" / "scripts" / "allocate-isolation.py"
+    teardown = eng_root / "eng-qa-bootstrap" / "scripts" / "teardown-qa-env.py"
+    with tempfile.TemporaryDirectory(prefix="compozy-isolation-check-") as raw_dir:
+        base = Path(raw_dir).resolve()
+        real_tmp = base / "real-tmp"
+        real_tmp.mkdir()
+        alias_tmp = base / "alias-tmp"
+        alias_tmp.symlink_to(real_tmp, target_is_directory=True)
+        allocation = subprocess.run(
+            [sys.executable, str(allocator), "--slug", "teardown-check"],
+            env={**os.environ, "TMPDIR": str(alias_tmp)},
+            capture_output=True, text=True, check=True, timeout=10,
+        )
+        envelope = dict(
+            shlex.split(line)[1].split("=", 1)
+            for line in allocation.stdout.splitlines()
+        )
+        root = Path(envelope["COMPOZY_ISOLATION_ROOT"])
+        program = "import time\nprint('ready', flush=True)\ntime.sleep(30)\n"
+        processes = []
+        reapers = []
+        try:
+            for script in (root / "owned.py", base / "outside.py"):
+                script.write_text(program, encoding="utf-8")
+                process = subprocess.Popen(
+                    [sys.executable, str(script)], stdout=subprocess.PIPE,
+                    text=True, start_new_session=True,
+                )
+                processes.append(process)
+                if process.stdout.readline().strip() != "ready":
+                    raise AssertionError("process fixture did not become ready")
+                reaper = threading.Thread(target=process.wait, daemon=True)
+                reaper.start()
+                reapers.append(reaper)
+            result = subprocess.run(
+                [sys.executable, str(teardown), "--root", str(root), "--json", "--grace-sec", "1"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode != 0 or not json.loads(result.stdout)["clean"]:
+                raise AssertionError(f"teardown failed: {result.stdout} {result.stderr}")
+            reapers[0].join(timeout=1)
+            if processes[0].poll() is None:
+                raise AssertionError("teardown reported clean with an allocated process still alive")
+            if processes[1].poll() is not None:
+                raise AssertionError("targeted teardown stopped an outside process")
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.terminate()
+                process.wait(timeout=5)
+                if process.stdout is not None:
+                    process.stdout.close()
+            for reaper in reapers:
+                reaper.join(timeout=5)
+
+
 def main() -> None:
     module = load_bootstrap_module()
     repo_root = Path(__file__).resolve().parents[5]
+    check_allocated_process_teardown(repo_root)
     loader = module.real_scenario_script(repo_root, "playbook_loader.py")
     if not loader.is_file():
         raise AssertionError(f"real-scenario sibling path does not resolve: {loader}")

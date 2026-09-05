@@ -15,7 +15,5 @@ func (n *daemonNativeTools) terminalToolBindings(
 		toolspkg.ToolIDTerminalClose:        {call: n.terminalClose, availability: availability},
 		toolspkg.ToolIDTerminalList:         {call: n.terminalList, availability: availability},
 		toolspkg.ToolIDTerminalRequestInput: {call: n.terminalRequestInput, availability: availability},
-		toolspkg.ToolIDTerminalYield:        {call: n.terminalYield, availability: availability},
-		toolspkg.ToolIDTerminalClaim:        {call: n.terminalClaim, availability: availability},
 	}
 }

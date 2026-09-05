@@ -377,10 +377,6 @@ func (m terminalManagerStub) AttachWithTicket(
 	return m.handle, subscription, ticket, nil
 }
 
-func (terminalManagerStub) Claim(context.Context, string, terminalpkg.ID, terminalpkg.Actor) error {
-	return nil
-}
-
 func (terminalManagerStub) RunEnded(context.Context, string, terminalpkg.Actor) int { return 0 }
 
 func (terminalManagerStub) SessionRunEnded(context.Context, string, string, string, string, int64) int {
@@ -494,9 +490,11 @@ func (h terminalHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*t
 func (terminalHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
 	return nil, nil
 }
-func (terminalHandleStub) Takeover(context.Context, terminalpkg.Actor, bool) error { return nil }
-func (terminalHandleStub) Yield(context.Context, terminalpkg.Actor) error          { return nil }
-func (terminalHandleStub) RequestInput(context.Context, terminalpkg.InputRequest) (*terminalpkg.InputOutcome, error) {
+func (terminalHandleStub) RequestInput(
+	context.Context,
+	terminalpkg.Actor,
+	terminalpkg.InputRequest,
+) (*terminalpkg.InputOutcome, error) {
 	return nil, nil
 }
 

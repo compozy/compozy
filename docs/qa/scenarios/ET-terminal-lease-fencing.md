@@ -6,7 +6,7 @@ persona: Marina
 journey: J-supervise-agent-terminal
 expected: A terminal has exactly one writer at every instant; a human takeover lands atomically and the agent is told rather than starved; a non-controller write is refused instead of queued for a later prompt; and a stale agent from before a run end or runtime restart changes nothing at all.
 entry_points: Terminal app header take-control and release; compozy terminal attach --control and --force; compozy__terminal_claim; compozy__terminal_write; compozy__terminal_yield; terminal lease events
-qa_status: pass
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
@@ -15,6 +15,10 @@ evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20
 last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-terminal-agent-handoff-input; ET-terminal-hook-events
 ---
+
+Retired 2026-09-04: the exclusive writer lease, takeover, yield, claim, and generation-fencing contract
+were removed before release. `ET-terminal-shared-control` owns the replacement behavior. Historical
+evidence remains linked here because this file is durable QA memory.
 
 qa-impact: 2026-09-01 deep-review round 2 changed lease release, reconnect, and stale-controller
 cleanup paths. Reset for a focused contested-control and recovery re-walk.

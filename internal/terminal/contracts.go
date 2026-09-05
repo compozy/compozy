@@ -14,10 +14,9 @@ type Mode string
 type Signal string
 type ActorKind string
 
-// OperatorActorID is the stable human-controller identity used across transports.
+// OperatorActorID is the stable human identity used across transports.
 const OperatorActorID = "operator"
 
-type LeaseState string
 type EventKind string
 type InputRequestID string
 
@@ -42,10 +41,6 @@ const (
 	ActorKindHuman  ActorKind = "human"
 	ActorKindAgent  ActorKind = "agent"
 	ActorKindSystem ActorKind = "system"
-
-	LeaseHumanOwned LeaseState = "human_owned"
-	LeaseAgentOwned LeaseState = "agent_owned"
-	LeaseAvailable  LeaseState = "available"
 )
 
 type Actor struct {
@@ -126,22 +121,19 @@ type Exit struct {
 }
 
 type Info struct {
-	ID               ID           `json:"id"`
-	WS               string       `json:"workspace_id"`
-	ProfileID        string       `json:"profile_id"`
-	Title            string       `json:"title"`
-	Shell            string       `json:"shell"`
-	Cwd              string       `json:"cwd"`
-	Mode             Mode         `json:"mode"`
-	State            string       `json:"state"`
-	Controller       *Actor       `json:"controller,omitempty"`
-	Lease            LeaseState   `json:"lease"`
-	Viewers          int          `json:"viewers"`
-	BoundRun         *RunRef      `json:"bound_run,omitempty"`
-	Capabilities     Capabilities `json:"capabilities"`
-	CreatedAt        time.Time    `json:"created_at"`
-	Exit             *Exit        `json:"exit,omitempty"`
-	TypingGeneration uint64       `json:"-"`
+	ID           ID           `json:"id"`
+	WS           string       `json:"workspace_id"`
+	ProfileID    string       `json:"profile_id"`
+	Title        string       `json:"title"`
+	Shell        string       `json:"shell"`
+	Cwd          string       `json:"cwd"`
+	Mode         Mode         `json:"mode"`
+	State        string       `json:"state"`
+	Viewers      int          `json:"viewers"`
+	BoundRun     *RunRef      `json:"bound_run,omitempty"`
+	Capabilities Capabilities `json:"capabilities"`
+	CreatedAt    time.Time    `json:"created_at"`
+	Exit         *Exit        `json:"exit,omitempty"`
 }
 
 type AttachOptions struct {
@@ -349,7 +341,6 @@ type Manager interface {
 		mode string,
 		options AttachOptions,
 	) (Handle, Subscription, AttachTicket, error)
-	Claim(ctx context.Context, workspaceID string, id ID, actor Actor) error
 	RunEnded(ctx context.Context, workspaceID string, actor Actor) int
 	SessionRunEnded(ctx context.Context, workspaceID, profileID, sessionID, runID string, generation int64) int
 	RuntimeRecovered(ctx context.Context, workspaceID string, previous, current Actor) int

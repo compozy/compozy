@@ -1,4 +1,4 @@
-// Package terminal owns resident terminal processes, their byte streams, and control leases.
+// Package terminal owns resident terminal processes, their byte streams, and shared attachments.
 //
 // Contracts live in contracts.go; registry and lifecycle in manager.go and session.go;
 // output aggregation in coalescer.go; transport filtering in osc_filter.go; audit

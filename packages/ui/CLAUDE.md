@@ -1,35 +1,20 @@
-# CLAUDE.md (packages/ui)
+# Shared UI Primitives
 
-`@compozy/ui` is the single source of generic UI primitives for every Compozy surface (`web/`, `packages/site/`). `src/index.ts` is the surface contract **and** the canonical primitive inventory — check it before authoring any component on any surface; if an identifier is not exported there, consumers cannot import it. Colocated stories under `src/components/**/stories/` are the canonical usage reference. Token/type/depth grammar: root `DESIGN.md`. (Root `CLAUDE.md` rules apply — this file adds package-specific ones.)
+`@compozy/ui` owns generic primitives for the web app and site. `src/index.ts` is the public inventory; colocated stories show supported use. Root `CLAUDE.md` owns delivery; `DESIGN.md` owns visual grammar.
 
-## Tripwires
+- Keep primitives free of domain imports, queries, SSE, product stores, and Compozy-specific prop defaults. Domain composites live in `web/src/systems/<domain>/components/` and compose these primitives.
+- Consumers import from `@compozy/ui`, never package internals. Internal renames update all consumers together without compatibility re-exports.
+- A new exported behavior ships a colocated story and coverage in the nearest suitable `__tests__/` suite. Reuse existing coverage for re-exports or editorial changes; do not add file-existence tests.
+- Prototype-only marks do not become brand variants. `Logo` changes require an explicit design-system decision; actual brand assets remain authoritative.
+- Use `useReducedMotionConfig()` under `UIProvider`. Give each animation one owner: CSS for simple states; `motion` for unmount, synchronized, or layout transitions. Width animations explicitly use zero duration under reduced motion.
+- Dialog follows its Base UI portal lifecycle; Popover and Sheet keep their existing lifecycle patterns. Do not combine `data-open:animate-*` with a second motion exit owner.
 
-- **No domain imports.** Nothing from `web/src/**`, `@/systems/**`, TanStack, `compozy-openapi` types, or product-domain stores such as `@xstate/store`. A primitive that owns a query, store, or SSE subscription belongs in `web/src/systems/<domain>/` instead.
-- **No Compozy-specific defaults in primitive props** — defaults stay generic or become required props.
-- **Reference artwork never extends brand primitives** — a mark/asset that exists only to match a mock or prototype is placeholder; render the real brand asset or a domain component in `web/src/systems/<domain>/`. `Logo` variants change only by explicit design-system decision (L-032).
-- **No new export without a colocated story and a test in the same PR.** Tests live in the nearest `__tests__/` beside the source.
-- **Renames are hard cuts** — update every consumer in the same change; no compat re-exports or aliases.
-- **`useReducedMotionConfig()` (context-aware), never `useReducedMotion()`** inside primitives under `UIProvider`.
-- **Never pair `data-open:animate-*` keyframes with `motion` exit animations** — one animation owner per primitive.
+| Need                               | Primitive                 |
+| ---------------------------------- | ------------------------- |
+| Main-pane inventory/navigation     | `ListingRow`              |
+| Compact rails, pickers, inspectors | `Item`                    |
+| Section heading/count around rows  | `ListGroup`               |
+| Catalog card view                  | `CatalogCard`             |
+| Kanban, inbox, chat/tool grammar   | Existing domain composite |
 
-## Where a component lives
-
-Domain-free shape a second surface could use unchanged (slot/variant API, token-driven) → here. Reads session events, hits a query, or only makes sense inside one domain → `web/src/systems/<domain>/components/`, composing these shells — never redefining them (`compozy-ui-reuse/no-shadow-ui-primitive` blocks shadows; domain variants take a domain-prefixed name like `SessionToolCallRow`). Consumers import from `@compozy/ui`, never `packages/ui/src/**`.
-
-## Which list component?
-
-| Need                                                       | Use                                 |
-| ---------------------------------------------------------- | ----------------------------------- |
-| Main-pane inventory / navigational rows                    | `ListingRow`                        |
-| Compact selection chrome (rails, pickers, inspector lists) | `Item` (`selected` + `indicator`)   |
-| Section shell around either (eyebrow + count + items)      | `ListGroup`                         |
-| Card view of the same listing data                         | `CatalogCard`                       |
-| Dedicated grammars (kanban, inbox, chat/tool rows)         | domain components in `web/systems/` |
-
-## Motion vs. CSS
-
-CSS owns simple state (hover, focus, pulse, shimmer). `motion` owns unmounts, sibling-synced timing, and layout transitions. Dialog mounts and unmounts with its Base UI portal and no exit-motion owner; Popover and Sheet keep their explicit lifecycle patterns. Width animations ignore `reducedMotion`: any primitive animating width (Sidebar collapse, SplitPane resize) sets `duration: 0` explicitly when the provider is reduced.
-
-## Stories
-
-Every variant has a story; stories render real primitives (mocks replace data only); tokens only — no hex/`rgb()`/`hsl()` literals; interaction-dependent stories are tagged `play-fn`; dark background is implicit (never pass a background override).
+Stories cover distinct supported variants using real primitives; mock data boundaries only. Use tokens, tag interaction stories `play-fn`, and keep the standard dark background. Validate changed behavior through its owning suite and Turbo from the repo root; visual-only changes use rendered evidence where appropriate.

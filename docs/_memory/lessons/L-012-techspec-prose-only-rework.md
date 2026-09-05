@@ -19,22 +19,11 @@ Prose-only descriptions produce N implementations, where N is the number of agen
 
 ## Rule
 
-> A TechSpec is not ready for review until it carries the **six quality markers**:
->
-> 1. MVP boundary statement at top.
-> 2. Architectural Boundaries section.
-> 3. Concrete Go interface signatures pasted as code blocks (not prose).
-> 4. Data-model field rationale (purpose + shape per new column / frontmatter field / config key).
-> 5. Side-table-vs-JSON decision stated for every new domain entity.
-> 6. Lease / safety invariants as a numbered list.
->
-> Specs without these markers are pre-rejected — they will need multiple review rounds.
+> A spec must make its outcome, boundaries, and changed contracts concrete. Include interface signatures when interfaces change, field rationale when data changes, storage-shape decisions when ownership is at stake, and safety invariants when concurrency/leases/permissions are affected.
 
 ## Operationalization
 
-`cy-spec-peer-review` invokes Opus with a six-marker checklist embedded in the prompt. `cy-spec-preflight` blocks `cy-create-spec` from completing until the six markers are present in Part II.
-
-When a spec is missing a marker, fix the spec — do not start tasks against the gap.
+Apply the markers relevant to the design, using the current `cy-spec-preflight` contract. Mark an inapplicable marker briefly instead of inventing Go interfaces, side tables, or lease policies. Peer review remains opt-in; a missing applicable contract is repaired before dependent implementation, without imposing a fixed reviewer/model/round count.
 
 ## Anti-patterns
 

@@ -189,16 +189,18 @@ func (l *terminalLane) observeRedactedInput(characters int, actor terminalpkg.Ac
 	return 0
 }
 
-func (l *terminalLane) cancelIdleCandidate() {
+func (l *terminalLane) cancelIdleCandidate() (terminalpkg.Actor, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if len(l.idle) == 0 {
-		return
+		return terminalpkg.Actor{}, false
 	}
+	actor := l.idle[0].actor
 	l.idle = l.idle[1:]
 	if len(l.idle) == 0 && l.idleTimer != nil {
 		l.idleTimer.Stop()
 	}
+	return actor, true
 }
 
 func (l *terminalLane) finishIdleCandidates(generation uint64) {

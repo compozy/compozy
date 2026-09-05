@@ -71,13 +71,13 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		Argv: append([]string(nil), request.Argv...), Cwd: cwd, Env: cloneStringMap(request.Env),
 		Cols: 80, Rows: 24, Mode: terminalpty.ModePipe, MarkerNonce: nonce,
 	}
-	info := ownedInfo(Info{
+	info := boundInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
 		Title: request.Title, Shell: request.Argv[0], Cwd: cwd, Mode: ModePipe, State: terminalStateRunning,
-		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
+		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	item, _, err := m.launchTerminal(ctx, terminalLaunch{
-		spec: spec, info: info, settings: settings, nonce: nonce, titlePinned: true,
+		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: true,
 		startLabel: fmt.Sprintf("pipe command %q", request.Argv[0]),
 	})
 	if err != nil {

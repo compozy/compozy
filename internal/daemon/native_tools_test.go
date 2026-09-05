@@ -141,7 +141,6 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 			ID:        "term-aaaaaaaaaaaa",
 			WS:        "workspace-a",
 			ProfileID: "profile-a",
-			Lease:     terminalpkg.LeaseAgentOwned,
 		},
 		read: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
 	}
@@ -287,14 +286,6 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		slices.Contains(unknownToolErr.ReasonCodes, "terminal_future_error") {
 		t.Fatalf("unknown terminal code mapping = %#v, want generic backend failure", unknownToolErr)
 	}
-	pendingErr := terminalToolError(
-		toolspkg.ToolIDTerminalWrite,
-		fmt.Errorf("agent mutation blocked: %w", terminalpkg.ErrInputPending),
-	)
-	pendingToolErr, ok := errors.AsType[*toolspkg.ToolError](pendingErr)
-	if !ok || pendingToolErr.Code != toolspkg.ErrorCodeConflict {
-		t.Fatalf("pending input mapping = %#v, want generic tool conflict", pendingToolErr)
-	}
 	shutdownErr := terminalToolError(
 		toolspkg.ToolIDTerminalWrite,
 		fmt.Errorf("terminal manager stopping: %w", terminalpkg.ErrShuttingDown),
@@ -426,7 +417,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 			ID:        "term-aaaaaaaaaaaa",
 			WS:        "workspace-a",
 			ProfileID: "profile-a",
-			Lease:     terminalpkg.LeaseAgentOwned,
 		},
 		read:        &terminalpkg.ReadResult{Content: "tail", Seq: 4, Untrusted: true},
 		wait:        &terminalpkg.WaitResult{Reason: "match", Screen: "matched", Untrusted: true},
@@ -544,27 +534,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 				requireNativeStructuredContains(t, result, []byte(`"outcome":"answered"`))
 			},
 		},
-		{
-			name: "yield", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalYield(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDTerminalYield,
-					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","reason":"operator"}`),
-				}))
-			},
-			check: func(result toolspkg.ToolResult) {
-				requireNativeStructuredContains(t, result, []byte(`"lease_state":"agent_owned"`))
-			},
-		},
-		{
-			name: "claim",
-			call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalClaim(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDTerminalClaim,
-					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
-				}))
-			},
-			check: func(result toolspkg.ToolResult) { requireNativeStructuredContains(t, result, []byte(`"granted":true`)) },
-		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Should execute "+testCase.name, func(t *testing.T) {
@@ -601,8 +570,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 	}
 	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 ||
 		handle.signal != terminalpkg.SignalTERM ||
-		!handle.yielded ||
-		manager.claimActor.Generation != 7 ||
 		manager.openRequest.Actor.Generation != 7 || manager.openRequest.Actor.RunID != "run-a" {
 		t.Fatalf("native calls lost actor/input state: handle=%#v manager=%#v", handle, manager)
 	}
@@ -790,7 +757,6 @@ type terminalNativeManagerStub struct {
 	closeActor  terminalpkg.Actor
 	execRequest terminalpkg.ExecRequest
 	openRequest terminalpkg.OpenRequest
-	claimActor  terminalpkg.Actor
 	execCalls   int
 }
 
@@ -944,19 +910,6 @@ func (*terminalNativeManagerStub) ResolvedInputRequests(
 	return nil, nil
 }
 
-func (m *terminalNativeManagerStub) Claim(
-	_ context.Context,
-	workspaceID string,
-	_ terminalpkg.ID,
-	actor terminalpkg.Actor,
-) error {
-	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
-		return terminalpkg.ErrNotFound
-	}
-	m.claimActor = actor
-	return nil
-}
-
 type terminalNativeHandleStub struct {
 	info        terminalpkg.Info
 	read        *terminalpkg.ReadResult
@@ -967,7 +920,6 @@ type terminalNativeHandleStub struct {
 	writeCalls  int
 	screenCalls int
 	signal      terminalpkg.Signal
-	yielded     bool
 }
 
 func (h *terminalNativeHandleStub) Info() terminalpkg.Info { return h.info }
@@ -988,14 +940,9 @@ func (h *terminalNativeHandleStub) Screen(context.Context, terminalpkg.ReadOptio
 func (h *terminalNativeHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
 	return h.wait, nil
 }
-func (*terminalNativeHandleStub) Takeover(context.Context, terminalpkg.Actor, bool) error { return nil }
-func (h *terminalNativeHandleStub) Yield(context.Context, terminalpkg.Actor) error {
-	h.yielded = true
-	return nil
-}
-
 func (h *terminalNativeHandleStub) RequestInput(
 	context.Context,
+	terminalpkg.Actor,
 	terminalpkg.InputRequest,
 ) (*terminalpkg.InputOutcome, error) {
 	return h.inputResult, nil

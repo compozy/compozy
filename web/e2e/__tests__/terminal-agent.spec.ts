@@ -1,6 +1,6 @@
-// Suite: integrated terminal agent handoff journeys.
+// Suite: integrated terminal agent collaboration journeys.
 // Invariant: agent terminal actions remain approval-gated, profile-bound, and
-// observable through the same browser surfaces a human controls.
+// observable through the same shared browser surface a human can use concurrently.
 // Owning layer: hosted native tools + browser Terminal app. Canonical suite: this file.
 import { chmod, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -172,16 +172,9 @@ async function selectTerminalOutput(
   await page.mouse.up();
 }
 
-async function takeTerminalControl(window: Locator): Promise<Locator> {
+async function interactiveTerminalLog(window: Locator): Promise<Locator> {
   const log = window.locator('[role="log"]:visible').last();
-  await expect(async () => {
-    if ((await log.getAttribute("data-readonly")) === "true") {
-      const takeControl = window.getByTestId("terminal-take-control").last();
-      await expect(takeControl).toBeVisible();
-      await takeControl.click();
-    }
-    await expect(log).not.toHaveAttribute("data-readonly", "true");
-  }).toPass({ timeout: 20_000 });
+  await expect(log).toHaveAttribute("data-readonly", "false", { timeout: 20_000 });
   return log;
 }
 
@@ -329,7 +322,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
   }
 });
 
-test("E2E-004: watcher takeover and release update two browser contexts", async ({
+test("E2E-004: two browser contexts write to one agent terminal concurrently", async ({
   appPage,
   browser,
   runtime,
@@ -347,12 +340,10 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
       '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
     );
     const firstGrid = firstWindow.getByRole("log", { name: "agent-watch-control" });
-    await expect(firstGrid).toHaveAttribute("data-readonly", "true");
+    await expect(firstGrid).toHaveAttribute("data-readonly", "false");
     await firstGrid.click();
-    await appPage.keyboard.type("watcher-must-not-write");
-    expect((await terminalScreen(runtime, harness.workspace.id, terminalId)).content).not.toContain(
-      "watcher-must-not-write"
-    );
+    await appPage.keyboard.type("printf 'first-shared-writer\\n'");
+    await appPage.keyboard.press("Enter");
 
     const secondPage = await secondContext.newPage();
     await secondPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
@@ -364,35 +355,17 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
       '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
     );
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
-
-    await firstWindow.getByTestId("terminal-take-control").click();
-    await expect(firstWindow.getByTestId("terminal-lease-label")).toHaveText("You're in control");
-    await expect(secondWindow.getByTestId("terminal-lease-label")).toHaveText(
-      /^web-.+ is in control$/u
-    );
-    await firstWindow.getByRole("log").click();
-    await appPage.keyboard.type("printf 'human-control-flowed\\n'");
-    await appPage.keyboard.press("Enter");
+    const secondGrid = secondWindow.getByRole("log", { name: "agent-watch-control" });
+    await expect(secondGrid).toHaveAttribute("data-readonly", "false");
+    await secondGrid.click();
+    await secondPage.keyboard.type("printf 'second-shared-writer\\n'");
+    await secondPage.keyboard.press("Enter");
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
-      .toContain("human-control-flowed");
-
-    await firstWindow.getByTestId("terminal-release-control").click();
+      .toContain("first-shared-writer");
     await expect
-      .poll(
-        async () => {
-          const payload = await runtime.requestJSON<{
-            terminal: { lease: string; controller: { kind: string } | null };
-          }>(
-            `/api/workspaces/${encodeURIComponent(
-              harness.workspace.id
-            )}/terminals/${encodeURIComponent(terminalId)}?profile=default`
-          );
-          return payload.terminal;
-        },
-        { timeout: 45_000 }
-      )
-      .toMatchObject({ lease: "agent_owned", controller: { kind: "agent" } });
+      .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
+      .toContain("second-shared-writer");
   } finally {
     await secondContext.close();
     await teardownHostedMcp(harness.connection, undefined);
@@ -457,7 +430,7 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
     await field.fill(secret);
     expect(await field.evaluate(node => node.outerHTML)).not.toContain(secret);
     await expect(appPage.getByText(secret, { exact: true })).toHaveCount(0);
-    await card.getByRole("button", { name: "Take control & send" }).click();
+    await card.getByRole("button", { name: "Send" }).click();
     const answered = readToolResult<TerminalToolResult>(await pending);
     activeCall = undefined;
     expect(answered).toMatchObject({ outcome: "answered", redacted: true, length: secret.length });
@@ -493,53 +466,39 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
   }
 });
 
-test("E2E-006: typing grant is promptless only for its terminal generation", async ({
+test("E2E-006: terminal writes stay promptless across terminal generations", async ({
   appPage,
   runtime,
 }) => {
   const harness = await startAgentHarness(appPage, runtime);
-  let activeCall: ReturnType<Client["callTool"]> | undefined;
   try {
-    const firstTerminal = await openAgentTerminal(harness, "typing-grant-a");
-    const firstWrite = harness.client.callTool({
+    const firstTerminal = await openAgentTerminal(harness, "shared-input-a");
+    const firstWrite = await harness.client.callTool({
       name: "compozy__terminal_write",
-      arguments: { terminal_id: firstTerminal, data: "printf 'grant-first\\n'\\n" },
+      arguments: { terminal_id: firstTerminal, data: "printf 'shared-first\\n'\\n" },
       _meta: { toolCallId: "e2e-terminal-first-write" },
     });
-    activeCall = firstWrite;
-    await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-    await expect(harness.sessionWin.getByTestId("terminal-typing-grant-detail")).toContainText(
-      firstTerminal
-    );
-    await harness.sessionUI.permissionAllowAlways.click();
+    expect(firstWrite.isError).toBeFalsy();
     await expect(harness.sessionUI.permissionPrompt).toBeHidden();
-    expect((await firstWrite).isError).toBeFalsy();
-    activeCall = undefined;
 
     const followUp = await harness.client.callTool({
       name: "compozy__terminal_write",
-      arguments: { terminal_id: firstTerminal, data: "printf 'grant-follow-up\\n'\\n" },
+      arguments: { terminal_id: firstTerminal, data: "printf 'shared-follow-up\\n'\\n" },
       _meta: { toolCallId: "e2e-terminal-follow-up-write" },
     });
     expect(followUp.isError).toBeFalsy();
     await expect(harness.sessionUI.permissionPrompt).toBeHidden();
 
-    const secondTerminal = await openAgentTerminal(harness, "typing-grant-b");
-    const secondWrite = harness.client.callTool({
+    const secondTerminal = await openAgentTerminal(harness, "shared-input-b");
+    const secondWrite = await harness.client.callTool({
       name: "compozy__terminal_write",
-      arguments: { terminal_id: secondTerminal, data: "printf 'grant-second-terminal\\n'\\n" },
+      arguments: { terminal_id: secondTerminal, data: "printf 'shared-second-terminal\\n'\\n" },
       _meta: { toolCallId: "e2e-terminal-second-write" },
     });
-    activeCall = secondWrite;
-    await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-    await expect(harness.sessionWin.getByTestId("terminal-typing-grant-detail")).toContainText(
-      secondTerminal
-    );
-    await harness.sessionWin.getByTestId("permission-reject-once").click();
-    expect((await secondWrite).isError).toBe(true);
-    activeCall = undefined;
+    expect(secondWrite.isError).toBeFalsy();
+    await expect(harness.sessionUI.permissionPrompt).toBeHidden();
   } finally {
-    await teardownHostedMcp(harness.connection, activeCall);
+    await teardownHostedMcp(harness.connection, undefined);
   }
 });
 
@@ -704,7 +663,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     if (!profileBTerminalId) throw new Error("terminal-b did not expose its terminal id.");
     expect([defaultTerminalId, inputTerminalId]).not.toContain(profileBTerminalId);
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
-    const profileBLog = await takeTerminalControl(terminalWindow);
+    const profileBLog = await interactiveTerminalLog(terminalWindow);
     await profileBLog.click();
     await appPage.keyboard.type("printf 'profile-terminal-b-row\\n'");
     await appPage.keyboard.press("Enter");

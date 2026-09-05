@@ -245,9 +245,10 @@ exit 0
 			{path: "vitest.config.ts", want: "js lane: all workspaces"},
 			{path: ".vscode/tasks.json", want: "no-lane"},
 			{path: ".repoclone.rc", want: "no-lane"},
+			{path: "skills-lock.json", want: "no-lane"},
 		}
 		for _, tc := range cases {
-			t.Run(tc.path, func(t *testing.T) {
+			t.Run("Should classify "+tc.path, func(t *testing.T) {
 				t.Parallel()
 				repo := newGateTestRepo(t)
 				path := filepath.Join(repo, filepath.FromSlash(tc.path))

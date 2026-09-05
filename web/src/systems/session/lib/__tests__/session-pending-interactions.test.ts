@@ -1,7 +1,7 @@
 // Suite: session-pending-interactions
 // Invariant: the needs-you reason quotes the newest pending interaction, prefers
-// a permission over a later question, and rewrites a terminal tool-id title to
-// the board's verb without inventing a command the projection does not carry.
+// a permission over a later question, and rewrites only terminal actions with
+// dedicated approval copy.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -87,7 +87,7 @@ describe("pendingInteractionReason", () => {
           }),
         ])
       )
-    ).toBe("wants to type");
+    ).toBe("Terminal Write");
   });
 
   it("Should return null when nothing is pending", () => {

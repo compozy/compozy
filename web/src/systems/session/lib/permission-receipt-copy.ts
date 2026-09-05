@@ -23,9 +23,9 @@ export interface PermissionReceiptCopy {
 }
 
 interface TerminalPermissionDescriptor {
-  kind: "exec" | "typing" | "open";
+  kind: "exec" | "open";
   subject: string | null;
-  verb: "run" | "type" | "open";
+  verb: "run" | "open";
 }
 
 function terminalPermissionDescriptor(
@@ -39,7 +39,6 @@ function terminalPermissionDescriptor(
   if (detail.kind === "exec") {
     return { kind: "exec", subject: detail.command, verb: "run" };
   }
-  if (detail.kind === "typing") return { kind: "typing", subject: null, verb: "type" };
   return { kind: "open", subject: detail.title, verb: "open" };
 }
 
@@ -54,9 +53,6 @@ export function permissionReceiptCopy(
   const terminal = terminalPermissionDescriptor(permission);
   if (terminal?.kind === "exec" && terminal.subject) {
     return execReceipt(terminal.subject, decision);
-  }
-  if (terminal?.kind === "typing") {
-    return typingReceipt(decision);
   }
   if (terminal?.kind === "open") {
     return openReceipt(terminal.subject, decision);
@@ -91,45 +87,6 @@ function execReceipt(command: string, decision: PermissionDecision): PermissionR
         join: "",
         subject: command,
         suffix: " for this project and this agent",
-      };
-    default:
-      return unsupportedDecision(decision);
-  }
-}
-
-function typingReceipt(decision: PermissionDecision): PermissionReceiptCopy {
-  switch (decision) {
-    case "allow-once":
-      return {
-        tone: "allowed",
-        prefix: "Allowed typing once",
-        join: "",
-        subject: null,
-        suffix: "",
-      };
-    case "allow-always":
-      return {
-        tone: "allowed",
-        prefix: "Allowed typing for this terminal",
-        join: "",
-        subject: null,
-        suffix: "",
-      };
-    case "reject-once":
-      return {
-        tone: "rejected",
-        prefix: "Not allowed by you · the agent did not type",
-        join: "",
-        subject: null,
-        suffix: "",
-      };
-    case "reject-always":
-      return {
-        tone: "rejected",
-        prefix: "Not allowed by you for this project and this agent",
-        join: "",
-        subject: null,
-        suffix: "",
       };
     default:
       return unsupportedDecision(decision);
@@ -221,7 +178,7 @@ function genericReceipt(
 
 export function terminalWaitingLead(
   permission: PermissionRequest
-): { verb: "run" | "type" | "open"; command: string | null } | null {
+): { verb: "run" | "open"; command: string | null } | null {
   const descriptor = terminalPermissionDescriptor(permission);
   return descriptor ? { verb: descriptor.verb, command: descriptor.subject } : null;
 }

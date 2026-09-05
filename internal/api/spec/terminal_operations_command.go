@@ -58,7 +58,7 @@ func terminalSignalOperation(transports []Transport, workspace, id ParameterSpec
 		[]ResponseSpec{
 			{Status: 200, Description: "Delivered", Body: contract.TerminalDeliveredResponse{}},
 			terminalErrorResponse(404, "Terminal not found"),
-			terminalErrorResponse(409, "Terminal state or controller conflict"),
+			terminalErrorResponse(409, "Terminal state conflict"),
 			terminalErrorResponse(422, "Invalid signal"),
 		},
 	)
@@ -110,7 +110,6 @@ func terminalAnswerOperation(transports []Transport, workspace, id, requestID Pa
 		contract.TerminalAnswerInputRequest{},
 		[]ResponseSpec{
 			{Status: 200, Description: "Delivered", Body: contract.TerminalInputAnswerResponse{}},
-			terminalErrorResponse(403, "Terminal write lease required"),
 			terminalErrorResponse(404, "Input request not found"),
 			terminalErrorResponse(409, "Input request already answered"),
 		},
@@ -128,7 +127,6 @@ func terminalRejectOperation(transports []Transport, workspace, id, requestID Pa
 		contract.TerminalRejectInputRequest{},
 		[]ResponseSpec{
 			{Status: 200, Description: "Rejected", Body: contract.TerminalInputRejectResponse{}},
-			terminalErrorResponse(403, "Terminal write lease required"),
 			terminalErrorResponse(404, "Input request not found"),
 			terminalErrorResponse(409, "Input request already answered"),
 		},

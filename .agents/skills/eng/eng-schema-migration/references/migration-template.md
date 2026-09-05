@@ -17,7 +17,7 @@ schema/
 
 1. Make the declarative source describe the complete desired stream schema. Use one `schema.sql` for a cohesive small stream or flat, lexically ordered domain fragments for a large stream; never generate a monolithic compatibility file.
 2. Run `make codegen`; the Atlas planner appends the next gap-free Goose SQL file, runs SQLite sqlcheck, refreshes `atlas.sum`, and regenerates sqlc.
-3. Inspect both `-- +goose Up` and `-- +goose Down`. Ensure the Up path preserves required rows and the Down path is truthful. For a destructive greenfield cut, document the data loss and delete targets rather than adding compatibility branches.
+3. Inspect both `-- +goose Up` and `-- +goose Down`. Ensure the Up path carries every existing row into the new shape and the Down path is truthful. When a row genuinely cannot be carried over, stop: that data loss needs the user's sign-off recorded in an ADR and a release-note `Migration notes` block (SD-013) before the migration ships.
 4. Add a bounded backfill to the newly generated, unpublished tail only when declarative DDL cannot preserve required data. Rerun `make codegen` so the checksum reflects the final bytes.
 5. Never insert a migration version or edit any preexisting `.sql`/`atlas.sum` identity. A correction after publication is a new migration.
 

@@ -1,6 +1,6 @@
 ---
 name: cy-loop-tasks
-description: Task-graph execution loop for Compozy specs — self-healing checkpoint driver that ships a spec end to end by executing its authored task graph (_tasks.md + task_NN.md), one atomic commit per Phase B task, QA, then deep-review peer-review rounds until SHIP. Use for continuous codex-loop goal runs over a .compozy/tasks/<slug> whose work is decomposed into task files, or with --frontend to delegate frontend tasks to herdr workers. Do not use for one-off tasks, PRD/Spec authoring, or a slug with spec documents but no task graph (use cy-implement-spec).
+description: "Execute an authored Compozy task graph continuously through slice commits, QA, and review rounds until SHIP; supports --frontend herdr delegation. Excludes one-off tasks, spec authoring, and specs without task files."
 ---
 
 # Loop Tasks Driver
@@ -19,13 +19,15 @@ The loop is a five-phase state machine:
 |-------|--------|----------|
 | 0 | bootstrap | orchestrator |
 | B | one task or slice + verify + checkpoint commit | orchestrator, or herdr frontend worker |
-| C | `qa_report`, then `qa_execution` | Fable 5 herdr worker, then orchestrator |
+| C | `qa_report`, then `qa_execution` | configured QA worker, then orchestrator |
 | D | `deep-review` rounds until SHIP + checkpoint commit per round | orchestrator |
 | E | done-signature | orchestrator |
 
 Compatible with `~/dev/ai/codex-loop-plugin` goal mode; the plugin itself
 is never modified. Prefer in-session **continue** over waiting for a
 Stop→restart — restarts are a resume safety net, not the driver.
+
+Use this complete phase protocol only when the user requests `cy-loop-tasks` or its full delivery workflow. Ordinary edits use focused implementation/verification without creating loop state, QA workers, or peer-review rounds. Within a loop, reuse current research/review/test evidence and preserve the state schema below.
 
 ## Inputs
 
@@ -68,12 +70,10 @@ Two lanes dispatch work to herdr worker TUIs. Before any dispatch, read
 
 - **Frontend lane (Phase B)** — active only when `state.frontend_agent` is
   set. While active, every frontend task or slice is dispatched to the
-  selected worker (`claude` → Claude Code Opus at xhigh effort, `cursor` →
-  `cursor-agent --yolo --model grok-4.5`); the orchestrator session stays in
+  selected worker runtime (`claude` or `cursor`) using its configured model unless explicitly overridden; the orchestrator session stays in
   orchestration mode and never implements frontend work itself.
 - **QA-report lane (Phase C)** — always active. `qa_report` is produced by a
-  Claude Fable 5 worker (`claude --permission-mode auto --model
-  claude-fable-5`), launched direct — never plan-first. The orchestrator runs
+  configured Claude worker (`claude --permission-mode auto`), launched direct — never plan-first. The orchestrator runs
   `qa_execution` itself.
 
 ## Workflow
@@ -216,7 +216,7 @@ Run only the printed action.
 2. When release-grade runtime scope needs a lab and no active
    `bootstrap-manifest.json` exists, activate the project's QA bootstrap
    skill first (e.g. `eng-qa-bootstrap` in Compozy) when installed.
-3. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
+3. Dispatch the configured QA worker per `references/herdr-delegation.md`
    (QA-report lane). The worker activates `qa-report` with
    `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`
    files, and cycle charters.
@@ -254,9 +254,7 @@ Phase B task or slice is complete and both QA flags are true.
    conformance), `--subagent codex` (cross-LLM reviewer lane — the
    implementing model never solely reviews its own work). Later rounds ride
    deep-review's incremental state; never pass `--full` mid-loop.
-2. The loop is the deciding authority over the round: remediate **every
-   confirmed finding and every nitpick** from the round's review.md in this
-   same iteration, then re-run the project's scoped gate (PR CI is
+2. The loop is the deciding authority over the round: remediate every confirmed finding from the round's review.md in this same iteration, nits included. A nit may be skipped only with a one-line reason recorded in the round's `memory/peer-review.md` section, so skipped nits stay visible instead of accumulating silently. Then re-run the project's scoped gate (PR CI is
    Phase E's). The round's verdict is the SHIP/FIX_BEFORE_SHIP/REWORK value
    in review.md/state.json.
 3. Update `memory/peer-review.md` (a `## Round <N>` section per round), then
@@ -267,7 +265,7 @@ Phase B task or slice is complete and both QA flags are true.
    — same SKIP / exit-1 semantics as Phase B.
 
 Done when: the round's review.md exists with a verdict, every confirmed
-finding and nitpick from it is remediated (or the verdict was SHIP), and
+finding from it is remediated or resolved with evidence, every skipped nit has its recorded reason (or the verdict was SHIP), and
 `state.yaml` records the round.
 
 ### Phase E — done
@@ -328,6 +326,8 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 `--frontend` syntax live in `references/goal-header-template.md`.
 
 ## Critical Rules
+
+Before `commit-checkpoint.py`, inspect the full staged and unstaged diff. Its `git add -A` is allowed only when every dirty path belongs to this checkpoint. With unrelated changes, stage and commit only owned paths through the workflow's explicit checkpoint message; never use the add-all helper or include someone else's edits.
 
 - One phase action per iteration; repair failures inside that action, then
   **continue** at detect until Phase E or a proven external blocker — never

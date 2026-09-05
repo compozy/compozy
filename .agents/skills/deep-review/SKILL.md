@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Deep review of branch diffs, working trees, or GitHub PRs at any size. Use when the user asks for CodeRabbit-grade review, an incremental re-review after new pushes, publication of findings to a PR, a cross-LLM peer-review verdict round, or conformance review against spec artifacts. Don't use for applying fixes, reviewing specs or PRDs as documents, or quick single-file feedback.
+description: "Review branch diffs, working trees, or PRs in depth, including incremental, CodeRabbit-grade, cross-LLM, and spec-conformance reviews or requested publication of findings. Excludes fixes, spec-document reviews, and quick single-file feedback."
 disable-model-invocation: true
 argument-hint: "[--pr N | --base <ref> | --staged | --worktree] [--files p1,p2] [--spec <path>] [--subagent native|claude-opus|grok|codex] [--max-cohort-files N] [--publish] [--full] [--out <dir>] [--no-workflow]"
 ---
@@ -65,7 +65,7 @@ The manifest builder resolves `path_filters` into manifest.json; the knowledge s
    ```
 
    It resolves repo path filters, detects generated / trivial / renamed files, scopes to the incremental delta when prior state exists, and pins the source-freeze snapshot.
-2. Read the printed summary. On `--pr`, the script errors with the exact `git fetch` command when the head SHA is absent — run it and retry.
+2. Read the printed summary. For `--pr`, the manifest base is the merge-base of the fetched PR base/head, so base-only changes stay outside the review. If the head is missing, run the printed fetch command and retry; if the base/history is missing, fetch it before retrying.
 
 *Done when:* `<out>/manifest.json` exists, every changed file is accounted for as selected, ignored(reason), or skipped(reason), and every selected file carries its hunk list (the units of judgment and the publish anchors).
 

@@ -1,25 +1,25 @@
 ---
 title: Agents and safety
-description: When agents should use CompozyOS terminals and how approvals, control, and untrusted output work.
+description: When agents should use CompozyOS terminals and how approvals, shared input, and untrusted output work.
 ---
 
 Agents should use the CompozyOS terminal deliberately. Prefer the provider's normal command tool for
 routine internal work. Use the terminal when the operator asks to see or follow the work, the command
-will prompt, the process is long-running and may need takeover, or the task uses a full-screen program
+will prompt, the process is long-running and may need intervention, or the task uses a full-screen program
 or demo.
 
 ## Agent-internal command output
 
 Commands an agent runs inside its own runtime render in the session as plain command output. They
-create no CompozyOS terminal, window, write lease, journal row, or recording, and they do not appear
+create no CompozyOS terminal, window, journal row, or recording, and they do not appear
 in `compozy terminal list`. Use the terminal toolset when the work needs CompozyOS supervision,
-operator takeover, durable command history, or recording.
+shared operator access, durable command history, or recording.
 
 ## Terminal windows
 
 Every interactive terminal an agent opens — `compozy__terminal_open`, or `compozy__terminal_exec`
 with `visible: true` — appears as a Terminal window on the desktop without moving focus, so the
-operator can watch the work live and take over. Closing that window never signals the process, and a
+operator can watch and interact with the work immediately while the agent stays attached. Closing that window never signals the process, and a
 window the operator closed does not reopen for the same terminal. Pipe terminals (yielded
 executions) stay in the catalog as read-only log panes instead.
 
@@ -29,28 +29,30 @@ Toolset `compozy__terminal` contains:
 
 - `compozy__terminal_exec`, `compozy__terminal_open`, and `compozy__terminal_write`
 - `compozy__terminal_read`, `compozy__terminal_wait`, and `compozy__terminal_list`
-- `compozy__terminal_signal`, `compozy__terminal_close`, and `compozy__terminal_claim`
-- `compozy__terminal_request_input` and `compozy__terminal_yield`
+- `compozy__terminal_signal`, `compozy__terminal_close`, and `compozy__terminal_request_input`
 
 Resolve `compozy__tool_info` for the exact descriptor and schema before the first call. Read and wait
-operations are observational. Opening, executing, typing, signaling, closing, claiming, and yielding
-follow their declared mutation and approval policy.
+operations are observational. Opening, executing, typing, signaling, and closing follow their
+declared mutation and approval policy.
 
-## Approval and control rules
+## Approval and shared-input rules
 
 Agent command execution asks for operator approval by default. A configured parsed-command allowlist
 can cover a trusted command shape, but an unclassifiable command still prompts. Recognized
 irreversible commands outside the fixed blocked set offer only one-time approval or rejection;
-blocked command shapes never run. An allowlist never grants typing.
+blocked command shapes never run.
 
-Typing requires a human grant scoped to one terminal. Human takeover, run completion, explicit
-revocation, or controller generation change fences that grant. Remembered command approvals and
-terminal typing grants remain visible and revocable through the existing tool-approval surfaces.
+`terminal_write` uses the ordinary native-tool policy. It has no terminal-specific typing grant and
+does not depend on who opened the terminal. Existing tool-approval surfaces remain the source of
+truth for remembered native-tool decisions.
 
-Only one actor holds the write lease. Other viewers remain read-only. An agent may signal its own
-bound run, but cannot take control from a human controller by pretending the lease is stale.
+Every authorized operator and agent in the same workspace and profile may write, answer input,
+resize, signal, or close the terminal while others remain attached. Each submitted write is atomic,
+so its bytes stay together; submissions are applied in the order the daemon receives them. A bound
+run records provenance, not exclusive authority. Runtime generation fencing still rejects stale
+agent actions.
 
-## Input handoff
+## Input requests
 
 Use `compozy__terminal_request_input` when a program is waiting for operator input. The request is
 profile-scoped, appears in the Terminal badge, and must be answered or rejected explicitly. Mark

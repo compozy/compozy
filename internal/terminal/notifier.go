@@ -11,7 +11,6 @@ import (
 const (
 	EventKindOpened            EventKind = "opened"
 	EventKindClosed            EventKind = "closed"
-	EventKindLeaseChanged      EventKind = "lease_changed"
 	EventKindTitleChanged      EventKind = "title_changed"
 	EventKindModeChanged       EventKind = "mode_changed"
 	EventKindCommandStarted    EventKind = "command_started"
@@ -28,8 +27,6 @@ const (
 type EventDetail struct {
 	Mode         Mode
 	Title        string
-	LeaseFrom    LeaseState
-	LeaseTo      LeaseState
 	CommandID    string
 	Command      string
 	Cwd          string

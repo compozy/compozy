@@ -11,7 +11,6 @@ import { formatTerminalArgv } from "./terminal-argv";
 
 /** The `compozy__terminal_*` tools that ask before acting. */
 const EXEC_TOOL = "compozy__terminal_exec";
-const WRITE_TOOL = "compozy__terminal_write";
 const OPEN_TOOL = "compozy__terminal_open";
 
 /**
@@ -33,19 +32,6 @@ export interface TerminalExecPermission {
   risk: TerminalPermissionRisk;
 }
 
-export interface TerminalTypingPermission {
-  kind: "typing";
-  terminalId: string | null;
-  /**
-   * Optional one-clause activity on the typing tool input.
-   *
-   * The live authorize-input payload is `terminal_id` + `grant_generation`.
-   * This field is shown only when the tool input actually carries `activity`.
-   * Keystrokes (`data`) and request_input `reason` are never read as activity.
-   */
-  activity: string | null;
-}
-
 export interface TerminalOpenPermission {
   kind: "open";
   /** Catalog title when the daemon sent one. Never a stand-in name. */
@@ -54,13 +40,10 @@ export interface TerminalOpenPermission {
   shell: string | null;
 }
 
-export type TerminalPermissionDetail =
-  | TerminalExecPermission
-  | TerminalTypingPermission
-  | TerminalOpenPermission;
+export type TerminalPermissionDetail = TerminalExecPermission | TerminalOpenPermission;
 
 export function isTerminalPermission(toolName: string): boolean {
-  return toolName === EXEC_TOOL || toolName === WRITE_TOOL || toolName === OPEN_TOOL;
+  return toolName === EXEC_TOOL || toolName === OPEN_TOOL;
 }
 
 /**
@@ -74,14 +57,6 @@ export function terminalPermissionDetail(
   toolName: string,
   toolInput: Record<string, unknown>
 ): TerminalPermissionDetail | null {
-  if (toolName === WRITE_TOOL) {
-    return {
-      kind: "typing",
-      terminalId: readString(toolInput.terminal_id),
-      // Only `activity` is a typing-ask field. `reason` belongs to request_input.
-      activity: readString(toolInput.activity),
-    };
-  }
   if (toolName === OPEN_TOOL) {
     return {
       kind: "open",
@@ -105,7 +80,7 @@ export function terminalPermissionDetail(
 /**
  * Remembered decisions are a pattern to keep. Irreversible and unclassifiable
  * always ask, so neither polarity — allow-always nor reject-always — can be
- * stored. Ordinary exec keeps both; typing and open are not this rule.
+ * stored. Ordinary exec keeps both; open is not this rule.
  */
 export function terminalBlockedRememberedDecisions(
   detail: TerminalPermissionDetail | null

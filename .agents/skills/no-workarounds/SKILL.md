@@ -1,68 +1,23 @@
 ---
 name: no-workarounds
-description: Fix problems at their root cause instead of patching symptoms. Use when debugging, fixing bugs, resolving test failures, planning a solution, or reviewing a change — especially where a fix would silence a signal (type assertion, lint suppression, swallowed error, timing hack, monkey patch) rather than repair its source. Not for formatting- or docs-only edits.
+description: Evaluate a proposed fix that suppresses errors, diagnostics, or symptoms. Use for suspected workarounds and unavoidable external defects; not as a mandatory stage for every bug fix.
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
 ---
 
-# No Workarounds
+# Fix the Source
 
-A workaround is any change that makes a problem stop manifesting without addressing why it exists. It makes the symptom disappear while the disease spreads — a deferred failure that compounds. **Fix the source, not the signal.**
+Use this skill when a proposed repair suppresses a diagnostic or hides a failure instead of correcting it. Start from the evidence already collected; use `systematic-debugging` only when the cause remains unclear.
 
-## The gate — run before any fix
+- Trace the observed failure to its owning code or boundary. Correct that cause and verify the original symptom in the existing owning suite or probe.
+- Review casts, suppressions, swallowed errors, fixed sleeps, monkey patches, and fallback chains in context. These are investigation signals, not proof that every occurrence is wrong. Read the matching entry in `references/workaround-catalog.md` when needed.
+- Preserve intentional boundary validation, typed failure handling, and compatibility migrations/adapters required by project policy. A documented deprecation window is a product contract.
+- Keep the repair focused; reuse suitable utilities and avoid unrelated architecture cleanup.
 
-```
-1. State the problem, then trace it to its root cause (use the systematic-debugging skill).
-2. Does the fix repair that root cause, or only stop the symptom from showing?
-3. Am I silencing a signal, or fixing a source?
+## External Defects
 
-Silencing a signal → redesign the fix against the root cause.
-Root cause is external or genuinely unfixable → take the escape valve.
-```
+When the defect is outside the team's control, isolate the necessary adapter at the boundary, explain the evidence and removal condition, and use the existing suite to protect the affected behavior. Reference an existing upstream issue where available; create external issues only when authorized. Add a canary or review date only if it can reliably detect expiry and earns its maintenance cost.
 
-The fix is done when it would have been unnecessary had the code been correct in the first place — and it needs no cast, suppression, delay, or empty catch to pass.
-
-## The seven signals
-
-Each row is the compiler, linter, runtime, or reviewer telling you something true. Fix what it points at.
-
-| Category | The signal it silences | Fix the source by… |
-|---|---|---|
-| **TYPE** — `as`, `any`, `!`, `as unknown as` | The type system found the code wrong | Making types truthful: correct the definition, or validate genuinely-unknown data at the boundary (Zod / Schema / type guard) |
-| **LINT** — `eslint-disable`, `@ts-ignore`, `@ts-expect-error` | Static analysis found a real problem | Fixing what the rule flagged; if the rule is truly wrong for this repo, disable it in config, not inline |
-| **SWALLOW** — empty catch, `.catch(() => null)`, catch-and-default | Something failed and the code pretends it didn't | Handling each error: log with context, then re-throw or map it to a typed result |
-| **TIMING** — `setTimeout`, `sleep`, blind retry loops | Code runs in the wrong order | Coordinating on the real readiness event; in tests, wait on a condition, not the clock |
-| **PATCH** — prototype / global / library-internal mutation | The API doesn't do what the code needs | Composing around it: wrapper, adapter, or the library's official extension point |
-| **SCATTER** — deep `?.` / `??`, fallback chains | The data is unreliable at its source | Validating once at the boundary, then trusting the shape everywhere downstream |
-| **CLONE** — copy-and-tweak of similar code | An abstraction doesn't fit but gets forced | Extracting the shared pattern, or writing purpose-built code |
-
-**When any category's signal fires, read `references/workaround-catalog.md` in full before choosing the fix** — 30+ named patterns (W-01…W-30) with before/after code, including environment, build, test, and architecture workarounds beyond the seven above.
-
-## The escape valve
-
-Not every root cause is yours to fix. A workaround is allowed only when ALL hold:
-
-```
-1. The root cause is in external code the team does not control.
-2. The proper fix needs upstream changes on an uncertain timeline.
-3. The business cost of not shipping exceeds the debt incurred.
-4. The workaround is isolated — it does not leak into other code.
-```
-
-When all four hold, contain it:
-
-```
-1. Mark it: // WORKAROUND: [reason] — see [issue-link]
-2. File a tracking issue for its removal.
-3. Add a test that pins the current behavior.
-4. Add a canary test that FAILS once the upstream fix lands.
-5. Set a review date (max 90 days).
-```
-
-If any condition fails, fix the root cause. No exceptions.
-
-## Foundations & rationalizations
-
-The principle converges from Toyota's Jidoka, Fowler's debt quadrant, Torvalds' "good taste," and Broken Windows — and every excuse for skipping it has a known answer. Read `references/philosophical-foundations.md`.
+Complete when the original failure is corrected or the bounded external limitation is explicit, and the relevant checks pass. Reuse current results; neither a whole catalog read nor a separate written gate is required for every fix. `references/philosophical-foundations.md` is optional rationale.

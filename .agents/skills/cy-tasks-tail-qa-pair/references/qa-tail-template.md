@@ -1,6 +1,6 @@
 # QA Tail Template
 
-Canonical row shape for the QA pair. Mirror this exactly when appending to a fresh `_tasks.md`. The pair operates on the repo's living QA tree (`docs/qa/` — scenario files, journeys, charters, content-addressed bugs, dated reports), never on per-round `qa/` trees.
+Full-loop only: this pair belongs to an explicitly requested `cy-loop-tasks` graph, not to every ordinary fix. Canonical row shape for the QA pair. Mirror this exactly when appending to a fresh `_tasks.md`. The pair operates on the repo's living QA tree (`docs/qa/` — scenario files, journeys, charters, content-addressed bugs, dated reports), never on per-round `qa/` trees.
 
 ## Column order (preserved from `cy-create-tasks` output)
 
@@ -17,11 +17,11 @@ Canonical row shape for the QA pair. Mirror this exactly when appending to a fre
 Body content for the task file (`task_NN.md`):
 
 - Frontmatter `type: qa-report` (required by the loop phase detector).
-- `<critical>ALWAYS READ _spec.md, every ADR, and every per-task memory file before planning.</critical>`
+- `Read the scope, linked contracts, relevant ADR decisions, and supplied task-memory paths; reuse the existing QA map.`
 - Activate the `qa-report` skill with `qa-docs-path=docs/qa` (bootstrap the tree if absent).
 - Output: journey flowcharts updated in `docs/qa/journeys/`, scenario files minted/updated in `docs/qa/scenarios/`, session charters in `docs/qa/charters/` for this cycle.
 - Coverage: every public surface touched by tasks 01..N — CLI verbs, HTTP, UDS, web routes, doc pages, automation triggers, extension points, agent-operation paths, and `config.toml` keys — expressed as scenario `entry_points` on journey-derived rows, not as standalone test cases.
-- Map regression hot spots from `_spec.md` Part II invariants and ADRs into the cycle's charter selection (targeted tier + one adjacent canary journey).
+- Map regression hot spots from `_spec.md` Part II invariants and ADRs into the cycle's charter selection (targeted tier, adding adjacent journeys where propagation is plausible).
 
 ## qa-execution row template
 
@@ -38,8 +38,8 @@ Body content:
 - For UI features: drive Playwright via `browser-use:browser` with `agent-browser` fallback.
 - For CLI/API/agent-manageability features: exercise structured CLI output, HTTP/UDS routes, status/config discovery, deterministic errors, and compare persisted state.
 - Register every reproduced defect in `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first) and link it in the affected scenario files.
-- Fixes follow the fix-loop governor: small/contained only, regression test red-before/green-after, one logical fix per commit; escalate the rest to "Decisions for a Human".
-- Update scenario-file verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: run `make gate`; the enclosing workstream waits for exact-head PR CI before Final Status.
+- Fixes follow the fix-loop governor: respect existing repair authorization; prove each fix in its owning suite or replay, adding a regression only for a coverage gap. Escalate unresolved product decisions.
+- Update scenario-file verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: satisfy `make gate` once or cite valid cached evidence; the enclosing workstream waits for exact-head PR CI before Final Status.
 
 ## E2E directive variants
 
@@ -53,7 +53,7 @@ When `requires_cli_e2e=true` and `requires_e2e=false`:
 
 When neither is true (rare backend-only):
 
-> Run `make test-integration` and a smoke `make test-e2e-runtime` even if no UI changed. Document the no-UI rationale in the run report under `docs/qa/reports/`.
+> Run the owning integration/contract checks for the changed backend behavior. Add runtime smoke when it exercises a changed entry path; document the scoped coverage in the run report.
 
 ## MVP Boundary update
 

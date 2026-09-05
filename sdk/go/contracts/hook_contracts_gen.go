@@ -112,7 +112,6 @@ var HookWorktreeAdoptedContract = HookContract[WorktreeObservationPayload, Workt
 var HookWorktreeRemovedContract = HookContract[WorktreeObservationPayload, WorktreeObservationPatch]{Event: HookEventWorktreeRemoved}
 var HookTerminalOpenedContract = HookContract[TerminalOpenedPayload, TerminalObservationPatch]{Event: HookEventTerminalOpened}
 var HookTerminalClosedContract = HookContract[TerminalClosedPayload, TerminalObservationPatch]{Event: HookEventTerminalClosed}
-var HookTerminalLeaseChangedContract = HookContract[TerminalLeaseChangedPayload, TerminalObservationPatch]{Event: HookEventTerminalLeaseChanged}
 var HookTerminalCommandStartedContract = HookContract[TerminalCommandStartedPayload, TerminalObservationPatch]{Event: HookEventTerminalCommandStarted}
 var HookTerminalCommandFinishedContract = HookContract[TerminalCommandFinishedPayload, TerminalObservationPatch]{Event: HookEventTerminalCommandFinished}
 var HookTerminalInputRequestedContract = HookContract[TerminalInputRequestedPayload, TerminalObservationPatch]{Event: HookEventTerminalInputRequested}

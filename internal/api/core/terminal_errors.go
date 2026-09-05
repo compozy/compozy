@@ -170,11 +170,8 @@ func terminalNonDomainStatus(err error) int {
 		return http.StatusForbidden
 	case errors.Is(err, terminalpkg.ErrPolicyDenied):
 		return http.StatusForbidden
-	case errors.Is(err, terminalpkg.ErrInputPending):
-		return http.StatusConflict
 	case errors.Is(err, terminalpkg.ErrInputResolved),
-		errors.Is(err, terminalpkg.ErrInputResolving),
-		errors.Is(err, terminalpkg.ErrWriteLeaseRequired):
+		errors.Is(err, terminalpkg.ErrInputResolving):
 		return http.StatusConflict
 	case errors.Is(err, terminalpkg.ErrWriteAttachmentRequired):
 		return http.StatusForbidden
@@ -198,9 +195,8 @@ func TerminalDomainStatus(code terminalpkg.ErrorCode) (int, bool) {
 		return http.StatusBadRequest, true
 	case terminalpkg.ErrorCodeExpired:
 		return http.StatusGone, true
-	case terminalpkg.ErrorCodeTypingGrantRejected, terminalpkg.ErrorCodeApprovalRejected,
-		terminalpkg.ErrorCodeTicketInvalid, terminalpkg.ErrorCodeTicketExpired,
-		terminalpkg.ErrorCodeInputAnswerRequiresWrite:
+	case terminalpkg.ErrorCodeApprovalRejected,
+		terminalpkg.ErrorCodeTicketInvalid, terminalpkg.ErrorCodeTicketExpired:
 		return http.StatusForbidden, true
 	case terminalpkg.ErrorCodeRequiresWorkspace, terminalpkg.ErrorCodeInteractiveUnavailable,
 		terminalpkg.ErrorCodeNotInteractive, terminalpkg.ErrorCodeInvalidCwd,
@@ -211,7 +207,6 @@ func TerminalDomainStatus(code terminalpkg.ErrorCode) (int, bool) {
 	case terminalpkg.ErrorCodeProfileSessionConflict, terminalpkg.ErrorCodeProfileArchived,
 		terminalpkg.ErrorCodeProfileUnavailable, terminalpkg.ErrorCodeLimitReached,
 		terminalpkg.ErrorCodeSubscriberLimitReached, terminalpkg.ErrorCodeExited,
-		terminalpkg.ErrorCodeWriteOwnerHeld, terminalpkg.ErrorCodeLeaseRevoked,
 		terminalpkg.ErrorCodeGenerationFenced, terminalpkg.ErrorCodeInputRequestAnswered,
 		terminalpkg.ErrorCodeInputRequestSuperseded, terminalpkg.ErrorCodeInputRequestLimitReached,
 		terminalpkg.ErrorCodeInputRequestRequiresHidden,

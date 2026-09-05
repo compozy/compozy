@@ -1,0 +1,21 @@
+CompozyOS v0.3.0-beta.22 released 🔥
+
+👥 Profiles: every session, Task and Loop knows who it belongs to
+🎯 Agents can set, pause and clear Goals on their own
+🧠 Model picking reads live provider catalogs, not a stale list
+🧩 Skills come from the .agents and .claude folders you already have
+🔀 Runtime routing matches Task type and complexity together
+🪆 A parent Loop can reconfigure a single child run
+📦 One Loop delivers tasks, per task or orchestrated
+🛑 Cancel really stops a Loop run — Kill is gone
+🗂 Huge Loop results get stored instead of breaking the run
+
+Fixes:
+💬 You can talk to managed sessions again
+🌳 Loop extension tools run in the worktree you picked
+🔧 An extension Loop can call the tools its own extension ships
+👤 Profile-scoped Agents keep their own Skills
+📋 Fan-out rosters show only the workers that exist
+🧵 Canceling one prompt no longer cancels the next
+♻️ Loop recovery reports the run that actually happened
+🖥 App status asks the app instead of guessing

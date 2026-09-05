@@ -16,12 +16,11 @@ Every verifier in the pipeline terminated at spec conformance: `cy-final-verify`
 
 ## Rule
 
-> The spec's Overview opens with the Motivating Problem stated as an outcome observable from outside the system. Exactly one slice — the earliest the dependency graph allows — solves it end-to-end, named in the MVP Boundary and audited by `cy-create-tasks` and `cy-spec-preflight`. An ADR that narrows or defers the Motivating Problem is valid only with the user's sign-off recorded in the ADR itself, and reviews treat an unsigned narrowing as a finding.
+> A spec states its motivating problem as an observable outcome and identifies the earliest deliverable that solves it. Keep that outcome traceable through implementation; narrowing or deferring an accepted product goal requires the user's recorded decision.
 
 ## Operationalization
 
-- `spec-template.md` Overview carries the Motivating Problem bullet; `cy-spec-preflight` phase `spec` cross-checks every ADR against it, and phase `tasks` audits mission traceability in the breakdown.
-- `cy-review-round` and `cy-spec-peer-review` carry an explicit mission-fit check; `cy-final-verify` requires workstream claims to name the solving slice.
+Record the solving outcome once in the spec and link it from the relevant tasks. Existing authoring/review checks reuse that decision; do not add separate audits or a fixed slice count merely to restate mission fit.
 
 ## Anti-pattern
 

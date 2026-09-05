@@ -4,9 +4,12 @@ description: Authoritative pre-release QA plan for Compozy. Defines philosophy, 
 type: qa-master-plan
 status: planning-complete · ready-for-execution
 authoring_run: 2026-05-02
-applies_to: Compozy at HEAD; no production deployments to preserve; greenfield zero-legacy posture
+applies_to: historical snapshot; revalidate against current compatibility and verification policy
 language_policy: artifacts-en · conversation-brpt
 ---
+
+> Historical QA seed: the zero-legacy/greenfield assumptions and full-local-gate defaults below are superseded by SD-013 and the current root CLAUDE.md. Reuse applicable scenarios, not obsolete policy; validate user-state upgrades and public deprecation windows against current contracts. Historical verdicts do not establish present release compatibility.
+
 
 # Compozy Final QA — Master Plan
 

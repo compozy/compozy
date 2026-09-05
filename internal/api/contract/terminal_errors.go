@@ -30,15 +30,10 @@ const (
 	TerminalErrorInteractiveUnavailable TerminalErrorCode = TerminalErrorCode(
 		terminalpkg.ErrorCodeInteractiveUnavailable,
 	)
-	TerminalErrorNotInteractive      TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeNotInteractive)
-	TerminalErrorInvalidCwd          TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeInvalidCwd)
-	TerminalErrorTimeoutOutOfRange   TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeTimeoutOutOfRange)
-	TerminalErrorWriteOwnerHeld      TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeWriteOwnerHeld)
-	TerminalErrorLeaseRevoked        TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeLeaseRevoked)
-	TerminalErrorGenerationFenced    TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeGenerationFenced)
-	TerminalErrorTypingGrantRejected TerminalErrorCode = TerminalErrorCode(
-		terminalpkg.ErrorCodeTypingGrantRejected,
-	)
+	TerminalErrorNotInteractive       TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeNotInteractive)
+	TerminalErrorInvalidCwd           TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeInvalidCwd)
+	TerminalErrorTimeoutOutOfRange    TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeTimeoutOutOfRange)
+	TerminalErrorGenerationFenced     TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeGenerationFenced)
 	TerminalErrorApprovalRejected     TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeApprovalRejected)
 	TerminalErrorTicketInvalid        TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeTicketInvalid)
 	TerminalErrorTicketExpired        TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeTicketExpired)
@@ -53,9 +48,6 @@ const (
 	)
 	TerminalErrorInputRequestLimitReached TerminalErrorCode = TerminalErrorCode(
 		terminalpkg.ErrorCodeInputRequestLimitReached,
-	)
-	TerminalErrorInputAnswerRequiresWrite TerminalErrorCode = TerminalErrorCode(
-		terminalpkg.ErrorCodeInputAnswerRequiresWrite,
 	)
 	TerminalErrorInputRequestRequiresHidden TerminalErrorCode = TerminalErrorCode(
 		terminalpkg.ErrorCodeInputRequestRequiresHidden,
@@ -90,21 +82,14 @@ type TerminalErrorDetail struct {
 	Details *TerminalErrorDetails `json:"details,omitempty"`
 }
 
-// TerminalErrorController identifies the actor holding terminal control.
-type TerminalErrorController struct {
-	Kind TerminalActorKind `json:"kind"`
-	ID   string            `json:"id"`
-}
-
 // TerminalErrorDetails preserves actionable domain metadata without parsing messages.
 type TerminalErrorDetails struct {
-	Current    *int                     `json:"current,omitempty"`
-	Max        *int                     `json:"max,omitempty"`
-	Controller *TerminalErrorController `json:"controller,omitempty"`
-	Path       string                   `json:"path,omitempty"`
-	Mode       TerminalMode             `json:"mode,omitempty"`
-	Platform   string                   `json:"platform,omitempty"`
-	Action     string                   `json:"action,omitempty"`
+	Current  *int         `json:"current,omitempty"`
+	Max      *int         `json:"max,omitempty"`
+	Path     string       `json:"path,omitempty"`
+	Mode     TerminalMode `json:"mode,omitempty"`
+	Platform string       `json:"platform,omitempty"`
+	Action   string       `json:"action,omitempty"`
 }
 
 // TerminalErrorResponse wraps every public terminal failure in one envelope.
@@ -124,13 +109,7 @@ func TerminalErrorDetailsFromDomain(err *terminalpkg.Error) *TerminalErrorDetail
 		current, maximum := err.Current, err.Max
 		details.Current, details.Max = &current, &maximum
 	}
-	if err.Controller != nil {
-		details.Controller = &TerminalErrorController{
-			Kind: TerminalActorKind(err.Controller.Kind),
-			ID:   err.Controller.ID,
-		}
-	}
-	if details.Current == nil && details.Controller == nil && details.Path == "" &&
+	if details.Current == nil && details.Path == "" &&
 		details.Mode == "" && details.Platform == "" && details.Action == "" {
 		return nil
 	}
@@ -150,12 +129,6 @@ func TerminalErrorToolDetailsFromDomain(err *terminalpkg.Error) map[string]json.
 	}
 	if details.Max != nil {
 		result["max"] = json.RawMessage(strconv.Itoa(*details.Max))
-	}
-	if details.Controller != nil {
-		result["controller"] = json.RawMessage(
-			`{"kind":` + strconv.Quote(string(details.Controller.Kind)) +
-				`,"id":` + strconv.Quote(details.Controller.ID) + `}`,
-		)
 	}
 	for key, value := range map[string]string{
 		"path": details.Path, "mode": string(details.Mode), "platform": details.Platform,

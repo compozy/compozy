@@ -17,18 +17,13 @@ import type { TerminalHeaderProps } from "./terminal-header";
 /**
  * At most two trailing actions, set off from the chips by a hairline.
  *
- * On a pipe terminal the interactive verbs are absent rather than disabled: a
- * greyed-out Take control would still claim the feature exists here. Wait and
- * Close stay on the head; Signal moves to overflow so the head never grows a
- * third verb.
+ * Wait and Close stay on a pipe terminal's head; Signal moves to overflow so
+ * the head never grows a third verb.
  */
 export function TerminalHeaderActions({
   isPipe,
-  lease,
   recording,
   closePending,
-  onTakeControl,
-  onReleaseControl,
   onStop,
   onClose,
   onSignal,
@@ -45,26 +40,7 @@ export function TerminalHeaderActions({
       />
     );
   }
-  const takeControl =
-    lease.canTakeControl && onTakeControl ? (
-      <Button data-testid="terminal-take-control" onClick={onTakeControl} size="sm" type="button">
-        Take control
-      </Button>
-    ) : null;
-  const releaseControl =
-    lease.canRelease && onReleaseControl ? (
-      <Button
-        data-testid="terminal-release-control"
-        onClick={onReleaseControl}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        Release control
-      </Button>
-    ) : null;
-  // Recording does not touch the lease, so it never takes the lease action's
-  // place. Stopping the recording is ghost text; danger stays on the rec dot.
+  // Stopping the recording is ghost text; danger stays on the rec dot.
   const quietAction =
     recording && onStopRecording ? (
       <Button
@@ -76,7 +52,7 @@ export function TerminalHeaderActions({
       >
         Stop recording
       </Button>
-    ) : onStop && !lease.canTakeControl ? (
+    ) : onStop ? (
       <Tooltip>
         <TooltipTrigger
           render={
@@ -95,8 +71,7 @@ export function TerminalHeaderActions({
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>
     ) : null;
-  // Ending the session is deliberate, so it lives one step away — never as a
-  // third verb beside the lease pair.
+  // Ending the session is deliberate, so it lives one step away.
   const overflow = onClose ? (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -124,12 +99,10 @@ export function TerminalHeaderActions({
       </DropdownMenuContent>
     </DropdownMenu>
   ) : null;
-  if (!takeControl && !releaseControl && !quietAction && !overflow) return null;
+  if (!quietAction && !overflow) return null;
   return (
     <>
       <TerminalHeaderRule />
-      {takeControl}
-      {releaseControl}
       {quietAction}
       {overflow}
     </>
@@ -138,7 +111,7 @@ export function TerminalHeaderActions({
 
 /**
  * Window-level verbs: another terminal, and the journal. They belong to the
- * window rather than to this terminal's lease, so they trail everything else.
+ * window rather than to the active terminal, so they trail everything else.
  */
 export function TerminalWindowVerbs({
   onNewTerminal,
@@ -252,14 +225,5 @@ function TerminalHeaderRule() {
 
 type TerminalHeaderActionsProps = Pick<
   TerminalHeaderProps,
-  | "lease"
-  | "recording"
-  | "closePending"
-  | "onTakeControl"
-  | "onReleaseControl"
-  | "onStop"
-  | "onClose"
-  | "onSignal"
-  | "onWait"
-  | "onStopRecording"
+  "recording" | "closePending" | "onStop" | "onClose" | "onSignal" | "onWait" | "onStopRecording"
 > & { isPipe: boolean };

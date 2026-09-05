@@ -12,7 +12,6 @@ import type { TerminalAttachment } from "../hooks/use-terminal-attachment";
 import { useTerminalPaneStatus } from "../hooks/use-terminal-pane-status";
 import { useTerminalSelection } from "../hooks/use-terminal-selection";
 import { terminalRetentionNote } from "../lib/terminal-exit";
-import type { TerminalLeaseView } from "../lib/terminal-lease";
 import { terminalQuoteFromSelection } from "../lib/terminal-quote";
 import { TERMINAL_MIN_COLS, TERMINAL_MIN_ROWS } from "../lib/terminal-wire";
 import type { TerminalPaneState } from "../stores/terminal-store";
@@ -24,7 +23,8 @@ import { TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
 
 export interface TerminalPaneProps {
   terminal: TerminalInfo;
-  lease: TerminalLeaseView;
+  /** Presentation attachments remain non-interactive. */
+  readOnly?: boolean;
   /** The connection's identity key, so a switch cannot share a buffer. */
   instanceId: string;
   /** What the stream has said about this terminal so far. */
@@ -71,13 +71,11 @@ export interface TerminalPaneSelectionActions {
  * One terminal on screen.
  *
  * The emulator paints; the connection decides what it paints. Local input is
- * offered only while the daemon's lease says this viewer may write and the
- * stream has not gated it — the pane never opens the keyboard on its own
- * reading of the situation.
+ * offered after replay completes unless this is an explicit presentation view.
  */
 export function TerminalPane({
   terminal,
-  lease,
+  readOnly: presentationOnly = false,
   instanceId,
   pane,
   attachment,
@@ -95,7 +93,7 @@ export function TerminalPane({
   // with it and leave with it — the range comes from the emulator rather than
   // from a count of newlines, so the numbers match what `--lines` would take.
   const { readSelection, selection } = useTerminalSelection(handleRef, onSelectionChange);
-  const readOnly = !lease.canType || !(pane?.inputEnabled ?? false);
+  const readOnly = presentationOnly || !(pane?.inputEnabled ?? false);
   const display = useTerminalPaneStatus(terminal, pane);
 
   return (

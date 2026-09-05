@@ -49,27 +49,13 @@ read-only or to stop short of inventing CLI verbs that the daemon does not regis
 
 ## Rule
 
-> Every delegated docs run, regardless of model class, must be audited against runtime truth
-> before the docs branch closes. The audit checks generated CLI/API references, OpenAPI types,
-> internal event-type lists, route-component selectors and copy, and config keys. Truthful
-> phrasings become positive assertions in `packages/site/lib/runtime-autonomy-docs.test.ts` (or the
-> equivalent docs checklist test) and the docs build is required to enforce them.
+> Before accepting documentation changes, verify the changed runtime claims against their authoritative source. Delegation does not change that requirement, and an editorial correction does not require a full runtime audit.
 
 ## Operationalization
 
-When delegating docs work:
-
-1. Before delegation, list the runtime sources of truth the delegated agent must respect: emit
-   sites for events, transport handler files for routes, OpenAPI output, CLI cobra command tree,
-   web route file, and `config.toml` reference. Pass them in the prompt.
-2. After the delegated pass returns, audit the diff line-by-line against those sources. Treat any
-   event name, route, outcome, status, CLI verb, config key, or UI literal that is not grep-able
-   in the runtime as suspect.
-3. Encode the truthful set as positive checklist assertions in the docs Vitest. Add forbidden
-   phrasings only when they have appeared and been corrected — keep the test honest about real
-   audit findings.
-4. Re-run `cd packages/site && bun run source:generate && bun run content:generate &&
-bun run typecheck && bun run test && bun run build` before claiming docs work complete.
+- Pass the relevant runtime sources with delegated work: affected emit sites, handlers, contract output, CLI commands, UI route, or config schema. Reuse research already collected.
+- Inspect new or changed claims and their evidence. Use generated references/build/link checks where they own the artifact; add tests only for a recurring behavior contract that lacks a stronger check.
+- Run affected site checks through Turbo from the repo root. Repeat only when their inputs change; do not use package-local full-suite commands or mandatory line-by-line reports for every prose edit.
 
 ## Anti-pattern
 

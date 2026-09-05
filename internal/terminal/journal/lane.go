@@ -362,9 +362,6 @@ func (l *terminalLane) takeAssembly() (commandAssembly, bool) {
 }
 
 func (l *terminalLane) actor() terminalpkg.Actor {
-	if l.info.Controller != nil {
-		return *l.info.Controller
-	}
 	return terminalpkg.Actor{Kind: terminalpkg.ActorKindSystem, ID: "terminal", ProfileID: l.info.ProfileID}
 }
 

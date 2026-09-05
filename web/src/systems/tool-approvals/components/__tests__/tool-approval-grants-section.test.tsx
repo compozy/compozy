@@ -55,36 +55,32 @@ describe("ToolApprovalGrantsSection", () => {
     vi.unstubAllGlobals();
   });
 
-  it("Should list a terminal permission here, reading as a permission not a tool id", async () => {
+  it("Should keep terminal writes generic while exact exec decisions use terminal copy", async () => {
     stubFetch([listHandler(terminalToolApprovalGrantFixtures)]);
     renderSection();
 
     await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
 
-    const typing = terminalToolApprovalGrantFixtures[0]!;
+    const write = terminalToolApprovalGrantFixtures[0]!;
     const shape = terminalToolApprovalGrantFixtures[1]!;
-    // Reads as a permission, and says only what the daemon actually recorded:
-    // a digest of one exact input, never a terminal name decoded from a hash.
+    // Exec decisions retain their command-specific reading. Writes use the
+    // ordinary native-tool row because terminal input has no special grant.
     expect(screen.getByTestId(`${TEST_ID}-terminal-group`)).toHaveTextContent("Terminal");
-    expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
-      "Can type in one terminal"
-    );
-    expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
-      typing.input_digest as string
-    );
     expect(screen.getByTestId(`terminal-grant-row-${shape.id}`)).toHaveTextContent(
       "Always allowed: this exact command"
     );
-    expect(
-      screen.getByRole("button", { name: `Revoke Can type in one terminal` })
-    ).toHaveTextContent("Revoke");
-    // One policy surface: terminal permissions live here, not in a second list.
-    expect(screen.queryByTestId("tool-approval-grant-row")).not.toBeInTheDocument();
+    expect(screen.getByTestId(`tool-approval-grant-decision-${write.id}`)).toHaveTextContent(
+      "allow"
+    );
+    expect(screen.getByText(write.tool_id)).toBeInTheDocument();
+    expect(screen.getByTestId(`tool-approval-grant-scope-${write.id}`)).toHaveTextContent(
+      "exact input"
+    );
   });
 
-  it("Should revoke a terminal permission through the same confirmation", async () => {
-    const typing = terminalToolApprovalGrantFixtures[0]!;
-    const store = createStatefulMswStore([typing]);
+  it("Should revoke a terminal write through the generic confirmation", async () => {
+    const write = terminalToolApprovalGrantFixtures[0]!;
+    const store = createStatefulMswStore([write]);
     let revokedGrantID: string | undefined;
     stubFetch([
       http.get("/api/tool-approval-grants", () =>
@@ -100,11 +96,13 @@ describe("ToolApprovalGrantsSection", () => {
     renderSection();
     await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId(`terminal-grant-revoke-${typing.id}`));
+    fireEvent.click(screen.getByTestId(`tool-approval-grant-revoke-${write.id}`));
     fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
 
-    await waitFor(() => expect(revokedGrantID).toBe(typing.id));
-    expect(screen.queryByTestId(`terminal-grant-row-${typing.id}`)).not.toBeInTheDocument();
+    await waitFor(() => expect(revokedGrantID).toBe(write.id));
+    expect(
+      screen.queryByTestId(`tool-approval-grant-decision-${write.id}`)
+    ).not.toBeInTheDocument();
   });
 
   it("Should keep a terminal rejection in the generic row, where its copy reads right", async () => {

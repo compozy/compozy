@@ -11,7 +11,7 @@ func generateTerminalWireDocs(manifest terminalWireManifest) []byte {
 	output.WriteString("# Integrated terminal wire protocol\n\n")
 	fmt.Fprintf(
 		&output,
-		"The required WebSocket subprotocol is `%s`. Version 1 is rejected; there is no negotiation, alias, or fallback.\n\n",
+		"The required WebSocket subprotocol is `%s`. Earlier versions are rejected; there is no negotiation, alias, or fallback.\n\n",
 		manifest.Subprotocol,
 	)
 	output.WriteString(
@@ -20,7 +20,7 @@ func generateTerminalWireDocs(manifest terminalWireManifest) []byte {
 	writeTerminalOpcodeTable(&output, "Server to client", manifest.Server, "ServerOp")
 	writeTerminalOpcodeTable(&output, "Client to server", manifest.Client, "ClientOp")
 	output.WriteString(
-		"`REDACTED_INPUT` is daemon-owned JSON with `seq` and `characters`; PTY output can never create this frame. `PRESENCE` reports the current viewer count. `RELEASE` yields the active write lease without detaching.\n",
+		"`REDACTED_INPUT` is daemon-owned JSON with `seq` and `characters`; PTY output can never create this frame. `PRESENCE` reports the current viewer count. Interactive write attachments share mutation rights; read attachments remain passive.\n",
 	)
 	fmt.Fprintf(
 		&output,

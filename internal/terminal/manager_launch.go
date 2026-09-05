@@ -9,6 +9,7 @@ import (
 type terminalLaunch struct {
 	spec        ProcSpec
 	info        Info
+	origin      Actor
 	settings    Settings
 	nonce       string
 	titlePinned bool
@@ -29,6 +30,7 @@ func (m *Service) launchTerminal(
 		m,
 		proc,
 		launch.info,
+		launch.origin,
 		launch.settings,
 		launch.nonce,
 		profileName,

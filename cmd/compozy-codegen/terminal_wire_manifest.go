@@ -112,9 +112,10 @@ func validateTerminalWireManifest(manifest terminalWireManifest) error {
 	if err != nil {
 		return err
 	}
-	if version.Cmp(big.NewInt(2)) == 0 && digest != terminalWireV2CompatibilityDigest {
+	if frozenDigest, frozen := terminalWireCompatibilityDigests[version.String()]; frozen && digest != frozenDigest {
 		return fmt.Errorf(
-			"terminal wire v2 contract changed incompatibly: got digest %s; bump the subprotocol version",
+			"terminal wire v%s contract changed incompatibly: got digest %s; bump the subprotocol version",
+			version.String(),
 			digest,
 		)
 	}
@@ -128,7 +129,10 @@ func validateTerminalWireManifest(manifest terminalWireManifest) error {
 	return nil
 }
 
-const terminalWireV2CompatibilityDigest = "db5bc0f26113f515237dc1eed6d4b2b974e7c4b2c4ac0e13be1417712e6937a2"
+var terminalWireCompatibilityDigests = map[string]string{
+	"2": "db5bc0f26113f515237dc1eed6d4b2b974e7c4b2c4ac0e13be1417712e6937a2",
+	"3": "a2a0bc2049718faa7dc87ffb757852434937c9ea1cc6750f10423bf3b2b5b889",
+}
 
 func validateTerminalWireLimits(limits terminalWireLimits) error {
 	if limits.MaxInputBytes <= 0 {

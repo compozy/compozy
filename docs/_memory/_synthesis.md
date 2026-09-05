@@ -1,5 +1,7 @@
 # Synthesis: Findings Across 8 Analyses
 
+> Historical snapshot, predating `c3930ed2c0bb`. This corpus preserves evidence, not live instructions or an executable backlog. Current `CLAUDE.md` and standing directives govern; SD-013 supersedes global greenfield/deletion guidance. Revalidate candidates against the current tree before acting. Historical model assignments are not current defaults.
+
 Cross-referenced output from `analysis/analysis_codex_sessions.md`, `analysis/analysis_global_runs.md`, `analysis/analysis_local_runs.md`, `analysis/analysis_compozy_tasks.md`, `analysis/analysis_codex_ledger.md`, `analysis/analysis_codex_plans.md`, `analysis/analysis_qmd_collections.md`, and `analysis/analysis_existing_surfaces.md`. Each finding is tagged with the sources that support it (count of analyses and a short citation). **Higher source count = stronger signal.**
 
 This document is a _review surface_ for Pedro to approve/reject before anything is generated as a real skill, lesson, or CLAUDE.md edit.

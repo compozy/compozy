@@ -275,39 +275,6 @@ describe("useTerminalCatalogStream", () => {
       "terminal.title_changed",
       { terminal_id: DEV_SERVER_TERMINAL.id, title: "new title", extra: true },
     ],
-    [
-      "an available lease with a controller",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "available",
-        controller_kind: "human",
-        controller_id: "viewer-1",
-        reason: "released",
-      },
-    ],
-    [
-      "human ownership without an actor",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "human_owned",
-        controller_kind: "",
-        controller_id: "",
-        reason: "claimed",
-      },
-    ],
-    [
-      "agent ownership with a human controller",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "agent_owned",
-        controller_kind: "human",
-        controller_id: "viewer-1",
-        reason: "claimed",
-      },
-    ],
   ])("Should invalidate without merging %s", (_case, eventName, payload) => {
     const { opened, client } = renderStream("work");
     opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });

@@ -63,12 +63,6 @@ export {
   type TerminalJournalHostRetention,
 } from "./lib/terminal-journal-host";
 export {
-  terminalAttachModeFor,
-  terminalLeaseView,
-  type TerminalControlRead,
-  type TerminalLeaseView,
-} from "./lib/terminal-lease";
-export {
   buildTerminalQuote,
   copySourcedTerminalQuote,
   parseTerminalQuote,
@@ -183,7 +177,6 @@ export {
   TerminalJournalPanel,
   type TerminalJournalPanelProps,
 } from "./components/terminal-journal-panel";
-export { TerminalLeaseBadge } from "./components/terminal-lease-badge";
 export { TerminalGapSeam, TerminalStreamNotice } from "./components/terminal-notices";
 export { TerminalPane } from "./components/terminal-pane";
 export { TerminalPipeLogPane } from "./components/terminal-pipe-log-pane";
@@ -203,7 +196,6 @@ export {
   TerminalLimitDialog,
   type TerminalLimitDialogProps,
 } from "./components/terminal-limit-dialog";
-export { TerminalTakeoverDialog } from "./components/terminal-takeover-dialog";
 export {
   TerminalWindowApp,
   type TerminalWindowActions,
@@ -211,7 +203,6 @@ export {
 } from "./components/terminal-window-app";
 
 export type {
-  TerminalActor,
   TerminalApproval,
   TerminalDetectedBy,
   TerminalExit,
@@ -225,7 +216,6 @@ export type {
   TerminalJournalEntry,
   TerminalJournalFilters,
   TerminalJournalPage,
-  TerminalLeaseState,
   TerminalMode,
   TerminalScopeKey,
   TerminalScopeParams,

@@ -25,7 +25,6 @@ import (
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
 		reflect.TypeFor[contract.TerminalMode]():                   contract.TerminalModeValues(),
-		reflect.TypeFor[contract.TerminalLeaseState]():             contract.TerminalLeaseStateValues(),
 		reflect.TypeFor[contract.TerminalActorKind]():              contract.TerminalActorKindValues(),
 		reflect.TypeFor[contract.TerminalSignal]():                 contract.TerminalSignalValues(),
 		reflect.TypeFor[contract.TerminalState]():                  contract.TerminalStateValues(),

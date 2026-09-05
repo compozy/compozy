@@ -38,11 +38,11 @@ Semantic waits (`wait --text`, `wait @ref`) over fixed sleeps; chained commands 
 
 ## The evidence standard
 
-A step or scenario is `Pass` only when ALL of:
+A scenario passes when its expected behavior has direct evidence. Apply the persistence checks below to saved-state claims; transient controls do not need to survive refresh:
 
 1. **The action produced its observable in the UI/CLI** the persona used — visible, in user language.
-2. **An independent read path confirms it.** A fresh load, a different surface (the list view, the email, the API the product itself exposes publicly), or a second session shows the same state. Optimistic UI is not confirmation.
-3. **It survives refresh and deep-link.** Reload the page; revisit by URL. State that evaporates was never saved.
+2. **For a saved mutation, an independent read path confirms it.** A fresh load, a different surface (the list view, the email, the API the product itself exposes publicly), or a second session shows the same state. Optimistic UI is not confirmation.
+3. **Where the contract promises persistence, it survives refresh and deep-link.** Reload the page; revisit by URL. State that evaporates was never saved.
 4. **Evidence is captured**: screenshot at the goal state and at every divergence, with paths recorded in the session log.
 
 Route-renders and list-counts are smoke, not proof: "the page loaded" and "there are 3 items" only count when tied to the specific object this session created. The default assumption for any anomaly is **product bug until disproven** — never "probably my environment" without checking.

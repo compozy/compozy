@@ -40850,7 +40850,6 @@ export interface operations {
           | "worktree.removed"
           | "terminal.opened"
           | "terminal.closed"
-          | "terminal.lease_changed"
           | "terminal.command_started"
           | "terminal.command_finished"
           | "terminal.input_requested"
@@ -61165,7 +61164,6 @@ export interface operations {
                   | "worktree.removed"
                   | "terminal.opened"
                   | "terminal.closed"
-                  | "terminal.lease_changed"
                   | "terminal.command_started"
                   | "terminal.command_finished"
                   | "terminal.input_requested"
@@ -61491,7 +61489,6 @@ export interface operations {
                   | "worktree.removed"
                   | "terminal.opened"
                   | "terminal.closed"
-                  | "terminal.lease_changed"
                   | "terminal.command_started"
                   | "terminal.command_finished"
                   | "terminal.input_requested"
@@ -62082,7 +62079,6 @@ export interface operations {
               | "worktree.removed"
               | "terminal.opened"
               | "terminal.closed"
-              | "terminal.lease_changed"
               | "terminal.command_started"
               | "terminal.command_finished"
               | "terminal.input_requested"
@@ -93192,7 +93188,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -93200,7 +93195,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93246,9 +93240,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -93286,7 +93278,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -93294,7 +93285,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93340,9 +93330,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -93413,7 +93401,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -93421,7 +93408,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -93453,9 +93439,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -93520,7 +93504,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -93528,7 +93511,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -93574,9 +93556,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -93610,7 +93590,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -93618,7 +93597,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -93664,9 +93642,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -93911,7 +93887,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -93919,7 +93894,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93965,9 +93939,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -94005,7 +93977,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -94013,7 +93984,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -94059,9 +94029,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -94132,7 +94100,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -94140,7 +94107,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -94172,9 +94138,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -94239,7 +94203,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -94247,7 +94210,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94293,9 +94255,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -94329,7 +94289,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -94337,7 +94296,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94383,9 +94341,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94404,7 +94360,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -94412,7 +94367,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -94444,9 +94398,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -94511,7 +94463,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -94519,7 +94470,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94565,9 +94515,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -94601,7 +94549,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -94609,7 +94556,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94655,9 +94601,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94758,7 +94702,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -94766,7 +94709,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -94812,9 +94754,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -94852,7 +94792,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -94860,7 +94799,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -94906,9 +94844,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -94979,7 +94915,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -94987,7 +94922,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -95019,9 +94953,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -95086,7 +95018,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -95094,7 +95025,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95140,9 +95070,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -95176,7 +95104,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95184,7 +95111,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95230,9 +95156,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95251,7 +95175,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95259,7 +95182,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -95291,9 +95213,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -95358,7 +95278,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -95366,7 +95285,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95412,9 +95330,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -95448,7 +95364,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95456,7 +95371,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95502,9 +95416,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95523,7 +95435,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95531,7 +95442,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -95563,9 +95473,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -95630,7 +95538,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -95638,7 +95545,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95684,9 +95590,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -95720,7 +95624,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95728,7 +95631,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95774,9 +95676,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95866,7 +95766,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -95874,7 +95773,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -95906,9 +95804,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -95973,7 +95869,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -95981,7 +95876,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96027,9 +95921,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -96063,7 +95955,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96071,7 +95962,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96117,9 +96007,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96138,7 +96026,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96146,7 +96033,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -96178,9 +96064,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -96245,7 +96129,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -96253,7 +96136,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96299,9 +96181,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -96335,7 +96215,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96343,7 +96222,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96389,9 +96267,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96410,7 +96286,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96418,7 +96293,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -96450,9 +96324,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -96517,7 +96389,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -96525,7 +96396,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96571,9 +96441,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -96607,7 +96475,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96615,7 +96482,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96661,9 +96527,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96682,7 +96546,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96690,7 +96553,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -96722,9 +96584,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -96789,7 +96649,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -96797,7 +96656,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96843,9 +96701,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -96879,7 +96735,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -96887,7 +96742,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96933,9 +96787,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97022,7 +96874,6 @@ export interface operations {
               error_code?:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97030,7 +96881,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -97062,9 +96912,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               input_digest?: string;
               /** @enum {string} */
               kind:
@@ -97103,7 +96951,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97111,7 +96958,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97157,9 +97003,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               redacted_input_fields?: string[];
               /** Format: int64 */
@@ -97235,7 +97079,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -97243,7 +97086,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -97289,9 +97131,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
-                  | "visibility_denied"
-                  | "write_owner_held";
+                  | "visibility_denied";
               }[];
               structured?: unknown;
               truncated: boolean;
@@ -97315,7 +97155,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97323,7 +97162,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -97355,9 +97193,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -97422,7 +97258,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -97430,7 +97265,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97476,9 +97310,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -97512,7 +97344,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97520,7 +97351,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97566,9 +97396,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97587,7 +97415,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97595,7 +97422,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -97627,9 +97453,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -97694,7 +97518,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -97702,7 +97525,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97748,9 +97570,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -97784,7 +97604,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97792,7 +97611,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97838,9 +97656,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97859,7 +97675,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -97867,7 +97682,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -97899,9 +97713,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -97966,7 +97778,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -97974,7 +97785,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98020,9 +97830,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -98056,7 +97864,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98064,7 +97871,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98110,9 +97916,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98131,7 +97935,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98139,7 +97942,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -98171,9 +97973,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -98238,7 +98038,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -98246,7 +98045,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98292,9 +98090,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -98328,7 +98124,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98336,7 +98131,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98382,9 +98176,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98403,7 +98195,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98411,7 +98202,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -98443,9 +98233,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -98510,7 +98298,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -98518,7 +98305,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98564,9 +98350,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -98600,7 +98384,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98608,7 +98391,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98654,9 +98436,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98675,7 +98455,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98683,7 +98462,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -98715,9 +98493,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -98782,7 +98558,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -98790,7 +98565,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98836,9 +98610,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -98872,7 +98644,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98880,7 +98651,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98926,9 +98696,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98947,7 +98715,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -98955,7 +98722,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -98987,9 +98753,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -99054,7 +98818,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -99062,7 +98825,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -99108,9 +98870,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -99144,7 +98904,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99152,7 +98911,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -99198,9 +98956,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -99219,7 +98975,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99227,7 +98982,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -99259,9 +99013,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -99326,7 +99078,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -99334,7 +99085,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -99380,9 +99130,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -99416,7 +99164,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99424,7 +99171,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -99470,9 +99216,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -99520,7 +99264,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99528,7 +99271,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -99560,9 +99302,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -99627,7 +99367,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -99635,7 +99374,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -99681,9 +99419,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -99717,7 +99453,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99725,7 +99460,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -99771,9 +99505,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -99838,7 +99570,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99846,7 +99577,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -99892,9 +99622,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               status: string;
               tools?: string[];
@@ -99915,7 +99643,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -99923,7 +99650,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -99955,9 +99681,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -100022,7 +99746,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -100030,7 +99753,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -100076,9 +99798,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -100112,7 +99832,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100120,7 +99839,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -100166,9 +99884,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -100265,7 +99981,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100273,7 +99988,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -100319,9 +100033,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               status: string;
               tools?: string[];
@@ -100342,7 +100054,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100350,7 +100061,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -100382,9 +100092,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -100449,7 +100157,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -100457,7 +100164,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -100503,9 +100209,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -100539,7 +100243,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100547,7 +100250,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -100593,9 +100295,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -100614,7 +100314,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100622,7 +100321,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -100654,9 +100352,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -100721,7 +100417,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -100729,7 +100424,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -100775,9 +100469,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -100811,7 +100503,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100819,7 +100510,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -100865,9 +100555,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -100886,7 +100574,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -100894,7 +100581,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -100926,9 +100612,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -100993,7 +100677,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -101001,7 +100684,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -101047,9 +100729,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -101083,7 +100763,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -101091,7 +100770,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -101137,9 +100815,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -105120,7 +104796,6 @@ export interface operations {
           | "worktree.removed"
           | "terminal.opened"
           | "terminal.closed"
-          | "terminal.lease_changed"
           | "terminal.command_started"
           | "terminal.command_finished"
           | "terminal.input_requested"
@@ -138632,7 +138307,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -138640,7 +138314,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -138686,9 +138359,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -138726,7 +138397,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -138734,7 +138404,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -138780,9 +138449,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -138853,7 +138520,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -138861,7 +138527,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -138893,9 +138558,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -138960,7 +138623,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -138968,7 +138630,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -139014,9 +138675,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -139050,7 +138709,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -139058,7 +138716,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -139104,9 +138761,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -139211,7 +138866,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -139219,7 +138873,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -139265,9 +138918,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -139305,7 +138956,6 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
-                  | "input_answer_requires_write"
                   | "input_request_already_answered"
                   | "input_request_limit_reached"
                   | "input_request_not_found"
@@ -139313,7 +138963,6 @@ export interface operations {
                   | "input_request_superseded"
                   | "invalid_cwd"
                   | "journal_unavailable"
-                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -139359,9 +139008,7 @@ export interface operations {
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "typing_grant_rejected"
                   | "visibility_denied"
-                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -139432,7 +139079,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -139440,7 +139086,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -139472,9 +139117,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -139539,7 +139182,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -139547,7 +139189,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -139593,9 +139234,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -139629,7 +139268,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -139637,7 +139275,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -139683,9 +139320,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -139704,7 +139339,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -139712,7 +139346,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -139744,9 +139377,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -139811,7 +139442,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -139819,7 +139449,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -139865,9 +139494,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -139901,7 +139528,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -139909,7 +139535,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -139955,9 +139580,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -141475,11 +141098,6 @@ export interface operations {
               capabilities: {
                 interactive: boolean;
               };
-              controller: {
-                id: string;
-                /** @enum {string} */
-                kind: "human" | "agent" | "system";
-              } | null;
               /** Format: date-time */
               created_at: string;
               cwd: string;
@@ -141493,8 +141111,6 @@ export interface operations {
                 signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              /** @enum {string} */
-              lease: "human_owned" | "agent_owned" | "available";
               /** @enum {string} */
               mode: "pty" | "pipe";
               profile_id: string;
@@ -141520,11 +141136,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141548,11 +141159,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141576,11 +141182,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141604,11 +141205,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141632,11 +141228,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141660,11 +141251,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141688,11 +141274,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141754,11 +141335,6 @@ export interface operations {
               capabilities: {
                 interactive: boolean;
               };
-              controller: {
-                id: string;
-                /** @enum {string} */
-                kind: "human" | "agent" | "system";
-              } | null;
               /** Format: date-time */
               created_at: string;
               cwd: string;
@@ -141772,8 +141348,6 @@ export interface operations {
                 signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              /** @enum {string} */
-              lease: "human_owned" | "agent_owned" | "available";
               /** @enum {string} */
               mode: "pty" | "pipe";
               profile_id: string;
@@ -141799,11 +141373,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141827,11 +141396,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141855,11 +141419,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141883,11 +141442,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141911,11 +141465,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141939,11 +141488,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -141967,11 +141511,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142023,11 +141562,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142051,11 +141585,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142079,11 +141608,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142107,11 +141631,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142135,11 +141654,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142163,11 +141677,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142191,11 +141700,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142307,11 +141811,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142335,11 +141834,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142363,11 +141857,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142391,11 +141880,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142419,11 +141903,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142447,11 +141926,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142475,11 +141949,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142577,11 +142046,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142605,11 +142069,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142633,11 +142092,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142661,11 +142115,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142689,11 +142138,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142717,11 +142161,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142745,11 +142184,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142846,11 +142280,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142874,11 +142303,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142902,11 +142326,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142930,11 +142349,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142958,11 +142372,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -142986,11 +142395,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143014,11 +142418,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143070,11 +142469,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143098,11 +142492,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143126,11 +142515,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143154,11 +142538,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143182,11 +142561,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143210,11 +142584,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143238,11 +142607,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143292,11 +142656,6 @@ export interface operations {
               capabilities: {
                 interactive: boolean;
               };
-              controller: {
-                id: string;
-                /** @enum {string} */
-                kind: "human" | "agent" | "system";
-              } | null;
               /** Format: date-time */
               created_at: string;
               cwd: string;
@@ -143310,8 +142669,6 @@ export interface operations {
                 signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              /** @enum {string} */
-              lease: "human_owned" | "agent_owned" | "available";
               /** @enum {string} */
               mode: "pty" | "pipe";
               profile_id: string;
@@ -143337,11 +142694,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143365,11 +142717,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143393,11 +142740,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143421,11 +142763,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143449,11 +142786,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143477,11 +142809,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143505,11 +142832,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143558,11 +142880,6 @@ export interface operations {
               capabilities: {
                 interactive: boolean;
               };
-              controller: {
-                id: string;
-                /** @enum {string} */
-                kind: "human" | "agent" | "system";
-              } | null;
               /** Format: date-time */
               created_at: string;
               cwd: string;
@@ -143576,8 +142893,6 @@ export interface operations {
                 signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              /** @enum {string} */
-              lease: "human_owned" | "agent_owned" | "available";
               /** @enum {string} */
               mode: "pty" | "pipe";
               profile_id: string;
@@ -143603,11 +142918,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143631,11 +142941,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143659,11 +142964,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143687,11 +142987,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143715,11 +143010,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143743,11 +143033,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143771,11 +143056,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143799,11 +143079,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143873,11 +143148,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143901,11 +143171,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143929,11 +143194,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143957,11 +143217,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -143974,7 +143229,7 @@ export interface operations {
           };
         };
       };
-      /** @description Terminal state or controller conflict */
+      /** @description Terminal state conflict */
       409: {
         headers: {
           [name: string]: unknown;
@@ -143985,11 +143240,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144013,11 +143263,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144041,11 +143286,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144069,11 +143309,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144141,11 +143376,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144169,11 +143399,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144197,11 +143422,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144225,11 +143445,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144253,11 +143468,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144281,11 +143491,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144309,11 +143514,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144337,11 +143537,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144405,11 +143600,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144433,11 +143623,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144450,7 +143635,7 @@ export interface operations {
           };
         };
       };
-      /** @description Terminal write lease required */
+      /** @description Terminal operation forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -144461,11 +143646,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144489,11 +143669,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144517,11 +143692,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144545,11 +143715,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144573,11 +143738,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144641,11 +143801,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144669,11 +143824,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144686,7 +143836,7 @@ export interface operations {
           };
         };
       };
-      /** @description Terminal write lease required */
+      /** @description Terminal operation forbidden */
       403: {
         headers: {
           [name: string]: unknown;
@@ -144697,11 +143847,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144725,11 +143870,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144753,11 +143893,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144781,11 +143916,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144809,11 +143939,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144888,11 +144013,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144916,11 +144036,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144944,11 +144059,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -144972,11 +144082,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145000,11 +144105,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145028,11 +144128,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145056,11 +144151,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145084,11 +144174,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145112,11 +144197,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145193,11 +144273,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145221,11 +144296,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145249,11 +144319,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145277,11 +144342,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145305,11 +144365,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145333,11 +144388,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145361,11 +144411,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145389,11 +144434,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145455,11 +144495,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145483,11 +144518,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145511,11 +144541,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145539,11 +144564,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145556,7 +144576,7 @@ export interface operations {
           };
         };
       };
-      /** @description Terminal state or controller conflict */
+      /** @description Terminal state conflict */
       409: {
         headers: {
           [name: string]: unknown;
@@ -145567,11 +144587,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145595,11 +144610,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145623,11 +144633,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145651,11 +144656,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145697,7 +144697,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description WebSocket upgrade using the binary compozy.terminal.v2 subprotocol. Server frames: OUTPUT=0x01, ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, OWNER=0x08, PRESENCE=0x09, REDACTED_INPUT=0x0A. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. OUTPUT is one opcode byte, one u64 big-endian sequence, then raw bytes; every control frame is one opcode byte followed by JSON. */
+      /** @description WebSocket upgrade using the binary compozy.terminal.v3 subprotocol. Server frames: OUTPUT=0x01, ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, PRESENCE=0x08, REDACTED_INPUT=0x09. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, SIGNAL=0x04, DETACH=0x05. OUTPUT is one opcode byte, one u64 big-endian sequence, then raw bytes; every control frame is one opcode byte followed by JSON. */
       101: {
         headers: {
           [name: string]: unknown;
@@ -145715,11 +144715,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145743,11 +144738,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145771,11 +144761,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145799,11 +144784,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145827,11 +144807,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145855,11 +144830,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145925,11 +144895,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145953,11 +144918,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -145981,11 +144941,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146009,11 +144964,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146037,11 +144987,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146065,11 +145010,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146093,11 +145033,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146121,11 +145056,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146149,11 +145079,6 @@ export interface operations {
               code: string;
               details?: {
                 action?: string;
-                controller?: {
-                  id: string;
-                  /** @enum {string} */
-                  kind: "human" | "agent" | "system";
-                } | null;
                 current?: number | null;
                 max?: number | null;
                 /** @enum {string} */
@@ -146227,7 +145152,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146235,7 +145159,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -146267,9 +145190,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -146334,7 +145255,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -146342,7 +145262,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -146388,9 +145307,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -146424,7 +145341,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146432,7 +145348,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -146478,9 +145393,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -146499,7 +145412,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146507,7 +145419,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -146539,9 +145450,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -146606,7 +145515,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -146614,7 +145522,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -146660,9 +145567,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -146696,7 +145601,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146704,7 +145608,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -146750,9 +145653,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -146771,7 +145672,6 @@ export interface operations {
               code:
                 | "approval_rejected"
                 | "generation_fenced"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146779,7 +145679,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "model_not_found"
                 | "profile_archived"
                 | "profile_selection_conflict"
@@ -146811,9 +145710,7 @@ export interface operations {
                 | "tool_result_persistence_failed"
                 | "tool_result_too_large"
                 | "tool_timed_out"
-                | "tool_unavailable"
-                | "typing_grant_rejected"
-                | "write_owner_held";
+                | "tool_unavailable";
               details?: {
                 [key: string]: unknown;
               };
@@ -146878,7 +145775,6 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
-                    | "input_answer_requires_write"
                     | "input_request_already_answered"
                     | "input_request_limit_reached"
                     | "input_request_not_found"
@@ -146886,7 +145782,6 @@ export interface operations {
                     | "input_request_superseded"
                     | "invalid_cwd"
                     | "journal_unavailable"
-                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -146932,9 +145827,7 @@ export interface operations {
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "typing_grant_rejected"
-                    | "visibility_denied"
-                    | "write_owner_held";
+                    | "visibility_denied";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
@@ -146968,7 +145861,6 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
-                | "input_answer_requires_write"
                 | "input_request_already_answered"
                 | "input_request_limit_reached"
                 | "input_request_not_found"
@@ -146976,7 +145868,6 @@ export interface operations {
                 | "input_request_superseded"
                 | "invalid_cwd"
                 | "journal_unavailable"
-                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -147022,9 +145913,7 @@ export interface operations {
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
-                | "typing_grant_rejected"
                 | "visibility_denied"
-                | "write_owner_held"
               )[];
               tool_id?: string;
             };

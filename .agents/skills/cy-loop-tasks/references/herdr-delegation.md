@@ -37,11 +37,11 @@ what evidence gates completion.
 
 5. Verify: worker output is untrusted until verified. Read the report
    (`rtk herdr pane read <pane_id> --source recent --lines 200`), re-open
-   cited files, and re-run gating commands locally.
+   cited files, and check that command evidence covers the current inputs. Re-run only missing, stale, or untrustworthy checks.
 6. Commit gate: capture `git rev-parse HEAD` before the dispatch and compare
    after — identical, or the worker breached contract. The orchestrator owns
    the checkpoint commit.
-7. Leave the worker pane open unless cleanup is explicitly requested.
+7. Keep the worker open while running, blocked, or under inspection. After recording its disposition, close its tab per `herdr-orchestration`.
 
 ## Delegation packet
 
@@ -68,11 +68,11 @@ Classification — what counts as frontend:
 Worker argv by `frontend_agent` value:
 
 ```bash
-# claude — Claude Code on Opus at xhigh effort
-claude --dangerously-skip-permissions --model opus --effort xhigh "<packet>"
+# claude — Claude Code with its configured model/effort
+claude --dangerously-skip-permissions  "<packet>"
 
-# cursor — Cursor agent on Grok 4.5
-cursor-agent --yolo --model grok-4.5 "<packet>"
+# cursor — Cursor agent with its configured model
+cursor-agent --yolo  "<packet>"
 ```
 
 Packet additions for this lane: read the task file / `_spec.md` / design
@@ -99,11 +99,11 @@ passes.
 
 Always active — the orchestrator never authors `qa_report` output itself.
 
-Worker argv — Claude Fable 5, direct execution (never plan-first: no plan
+Worker argv — configured Claude model, direct execution (never plan-first: no plan
 permission mode, no plan-mode key sequences):
 
 ```bash
-claude --permission-mode auto --model claude-fable-5 "<packet>"
+claude --permission-mode auto  "<packet>"
 ```
 
 Packet additions for this lane: activate the `qa-report` skill with

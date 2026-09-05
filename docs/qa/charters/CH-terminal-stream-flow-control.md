@@ -1,5 +1,8 @@
 # CH-terminal-stream-flow-control: Crowd one terminal with viewers and break their connections
 
+> Superseded on 2026-09-04 by `CH-terminal-shared-input-race`. Preserve this file as historical QA
+> memory; do not schedule its removed controlling-viewer assumptions.
+
 ```yaml
 charter:
   id: CH-terminal-stream-flow-control

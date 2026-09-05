@@ -24,11 +24,10 @@ Isolation without teardown converts every QA pass into permanent background load
 
 ## Operationalization
 
-- Bootstrap emits `TEARDOWN_COMMAND` (manifest + env block); QA skills end with `eval "$TEARDOWN_COMMAND"` and cite `<QA_OUTPUT_PATH>/qa/teardown.json` (`"clean": true`) as completion evidence.
-- `make qa-reap` (→ `.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --all`) discovers and reaps every known lab root: `~/dev/qa-labs/compozy-*-lab/` manifests, `$TMPDIR/compozyqa-*` runtime roots, `compozy-iso-*` isolation envelopes.
-- Teardown order: graceful `compozy daemon stop` under the lab `COMPOZY_HOME` (lets the daemon shut down ACP subprocesses cleanly) → `tmux -S <sock> kill-server` → survivor sweep (registered `qa/pids/*.pid`, cmdline references to lab roots, lab-port listeners, `lsof` on runtime/provider homes) with SIGTERM → SIGKILL escalation.
-- Long-lived processes started against a lab register a PID file at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` immediately after spawn — the teardown's primary kill list.
-- The only legitimate live lab is one an **active** session/loop is still using (bootstrap reuse policy); whoever ends the loop inherits the teardown obligation.
+- Register long-lived lab processes in `<QA_OUTPUT_PATH>/qa/pids/` when spawning them.
+- On every terminal path, run the bootstrap manifest's `TEARDOWN_COMMAND` or `make qa-reap`; retain `<QA_OUTPUT_PATH>/qa/teardown.json` with `clean: true`.
+- `eng-qa-bootstrap` and its teardown helper own stop ordering, survivor detection, and signal escalation. Follow those current mechanics rather than duplicating them here.
+- An active loop may retain its lab; the owner ending it performs teardown. Reading this lesson alone does not require launching a lab.
 
 ## Detection signals
 

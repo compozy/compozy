@@ -111,7 +111,6 @@ const (
 	HookEventWorktreeRemoved                 HookEvent = "worktree.removed"
 	HookEventTerminalOpened                  HookEvent = "terminal.opened"
 	HookEventTerminalClosed                  HookEvent = "terminal.closed"
-	HookEventTerminalLeaseChanged            HookEvent = "terminal.lease_changed"
 	HookEventTerminalCommandStarted          HookEvent = "terminal.command_started"
 	HookEventTerminalCommandFinished         HookEvent = "terminal.command_finished"
 	HookEventTerminalInputRequested          HookEvent = "terminal.input_requested"

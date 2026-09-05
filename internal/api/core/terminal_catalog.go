@@ -156,7 +156,6 @@ func catalogEventKind(kind terminalpkg.EventKind) bool {
 	case terminalpkg.EventKindOpened,
 		terminalpkg.EventKindClosed,
 		terminalpkg.EventKindTitleChanged,
-		terminalpkg.EventKindLeaseChanged,
 		terminalpkg.EventKindModeChanged,
 		terminalpkg.EventKindRecordingStarted,
 		terminalpkg.EventKindRecordingStopped:

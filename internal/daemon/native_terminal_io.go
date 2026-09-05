@@ -29,10 +29,7 @@ func (n *daemonNativeTools) terminalWrite(
 	if err := handle.Write(ctx, actor, []byte(input.Data)); err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return untrustedTerminalResult(
-		map[string]any{"accepted": true, nativeToolsLeaseStateKey: handle.Info().Lease},
-		"terminal input accepted",
-	)
+	return untrustedTerminalResult(map[string]any{"accepted": true}, "terminal input accepted")
 }
 
 func (n *daemonNativeTools) terminalRead(

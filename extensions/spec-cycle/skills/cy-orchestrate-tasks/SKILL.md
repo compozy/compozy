@@ -1,6 +1,6 @@
 ---
 name: cy-orchestrate-tasks
-description: Conducts one spec's tasks by delegation — spawns a dedicated bounded worker session per task, dispatches the briefing, and accepts only the task file on disk as proof of completion. Use when a prompt names a spec slug under .compozy/tasks/ and asks for its tasks to be orchestrated across worker sessions. Do not use for implementing a task directly, for review remediation, or for QA and pull-request work.
+description: Conducts one spec's tasks by delegation — spawns a dedicated bounded worker session per task, dispatches the briefing, and uses the task file on disk for completion state and checks its verification evidence. Use when a prompt names a spec slug under .compozy/tasks/ and asks for its tasks to be orchestrated across worker sessions. Do not use for implementing a task directly, for review remediation, or for QA and pull-request work.
 ---
 
 # Orchestrate Spec Tasks
@@ -92,8 +92,10 @@ _Done when:_ the command has returned and its outcome is recorded, including a f
 
 ### 4. Check the proof
 
-Re-read the task file frontmatter. `status: completed` on disk is the only accepted proof — the
-worker's closing message never completes a task.
+Re-read the task file frontmatter. `status: completed` on disk is the accepted completion state; the
+worker's closing message alone never completes a task. Check the referenced verification evidence
+against the task contract and current inputs; a status label is not proof that checks passed.
+Reuse valid worker evidence instead of rerunning the same suite.
 
 If the status is anything else, send one corrective prompt in the **same** session, using the same
 blocking form, naming exactly what is missing. A second failure produces a `blocked` result citing
@@ -124,9 +126,9 @@ Fill the fields and send this as the prompt body:
 
 > Implement exactly task `<task_id>` — `<title>` — of the spec `.compozy/tasks/<slug>/`.
 >
-> Required skills:
+> Execution guidance:
 >
-> - `cy-workflow-memory`: use before editing code. Memory directory
+> - `cy-workflow-memory`: use for continuity across workers or interruptions. Memory directory
 >   `.compozy/tasks/<slug>/memory`, shared memory `.compozy/tasks/<slug>/memory/MEMORY.md`, task
 >   memory `.compozy/tasks/<slug>/memory/<task_id>.md`.
 > - `cy-execute-task`: the end-to-end execution workflow for this task.
@@ -134,10 +136,10 @@ Fill the fields and send this as the prompt body:
 >   verification commands.
 >
 > Read the repository `AGENTS.md`/`CLAUDE.md` and surface-specific instructions, then
-> `.compozy/tasks/<slug>/_spec.md` and `_tasks.md`; treat those plus the task file body as the
-> source of truth. Keep scope tight to this task and record follow-up work instead of widening it.
-> Preserve unrelated worktree changes. Run every Validation, Test Plan, or Testing item the task
-> body lists and fix what fails. With verification clean, set the task file frontmatter to
+> the task file, `_tasks.md` dependencies, and relevant `_spec.md` sections; reuse grounding
+> already supplied in the briefing. These contracts remain the source of truth. Keep scope tight to this task and record follow-up work instead of widening it.
+> Preserve unrelated worktree changes. Satisfy the Validation, Test Plan, or Testing items the task
+> body requires; reuse evidence only when the same inputs and project policy allow it. Fix failures. With verification clean, set the task file frontmatter to
 > `status: completed`. Leave the changes uncommitted — commit and pull request belong to other
 > surfaces.
 

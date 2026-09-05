@@ -35,7 +35,7 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 ## CLI documentation special case
 
 - New cobra commands or new flags MUST regenerate `make cli-docs`. The task's Tests section MUST list this regeneration.
-- Renamed CLI verbs are hard-cuts: every doc page using the old verb is rewritten in the same change.
+- Public CLI renames follow SD-013: document the replacement and deprecation window; remove old references when the old contract is actually retired.
 
 ## Config special case
 

@@ -342,18 +342,6 @@ type fakeProfileGuard struct {
 	errors map[string]error
 }
 
-type fakeTypingGrantAuthorizer struct {
-	calls      atomic.Int32
-	generation atomic.Uint64
-	err        error
-}
-
-func (a *fakeTypingGrantAuthorizer) AuthorizeTerminalInput(_ context.Context, _ Actor, info Info) error {
-	a.calls.Add(1)
-	a.generation.Store(info.TypingGeneration)
-	return a.err
-}
-
 func (g *fakeProfileGuard) EnsureAvailableID(_ context.Context, profileID string) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()

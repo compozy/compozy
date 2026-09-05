@@ -137,7 +137,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
     expect(result.current.set.canSubmit).toBe(true);
   });
 
-  it("Should refuse a broader remembered allow for terminal run and typing", () => {
+  it("Should restrict terminal exec while allowing ordinary terminal write grants", () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useToolApprovalGrantsPanel(), { wrapper });
 
@@ -161,7 +161,8 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
         agentName: "claude-code",
       });
     });
-    expect(result.current.set.canSubmit).toBe(false);
+    expect(result.current.set.canSubmit).toBe(true);
+    expect(result.current.set.error).toBeNull();
   });
 
   it("Should set against the workspace captured when the dialog opened", async () => {

@@ -1,25 +1,7 @@
-# Advanced: Automated Conflict Resolution
+# Automated Conflict Resolution
 
-## When You KNOW the Resolution Strategy Upfront
+Automatic resolution is appropriate only when the desired semantics are established and its result is inspected. Prefer Git's ordinary merge machinery over blanket side selection.
 
-For CI/CD pipelines or automated rebases:
+In a rebase, `-X ours` favors the rebased target state at conflicting hunks; `-X theirs` favors the replayed commit. Neither proves the merged behavior is correct. Do not use these flags as a generic retry after conflict, or confuse strategy (`-s`) with strategy option (`-X`). The previous `-Xrecursive` recipe was invalid.
 
-```bash
-# Accept ALL incoming changes (risky - verify first!)
-git rebase -X theirs origin/main
-
-# Accept ALL your changes (also risky!)
-git rebase -X ours origin/main
-
-# Three-way recursive merge (safest auto-strategy)
-git rebase -Xrecursive origin/main
-```
-
-**⚠️ WARNING**: Only use automated strategies when:
-
-1. You understand the consequences
-2. You have comprehensive tests
-3. Changes are non-critical
-4. You've verified the strategy is correct for this scenario
-
-**For production code**: Use manual resolution from the core workflow in SKILL.md.
+Use the [Git rebase manual](https://git-scm.com/docs/git-rebase) for supported options of the installed Git version. Preserve authorized history, compatibility obligations, and required final checks.

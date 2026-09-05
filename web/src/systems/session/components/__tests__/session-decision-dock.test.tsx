@@ -230,7 +230,7 @@ describe("SessionDecisionDock", () => {
     expect(approveSession).not.toHaveBeenCalled();
   });
 
-  it("Should name the terminal a typing permission would cover", () => {
+  it("Should render terminal writes through the ordinary permission surface", () => {
     renderDock({
       messages: [
         permissionMessage("req-typing", {
@@ -240,21 +240,11 @@ describe("SessionDecisionDock", () => {
       ],
     });
 
-    const detail = screen.getByTestId("terminal-typing-grant-detail");
-    expect(detail).toHaveTextContent("term-9cd7e14b2a66");
-    expect(
-      screen.getByText(/Ends when you take over, the run ends, or you revoke it/)
-    ).toBeInTheDocument();
-    // The keystrokes themselves are never the subject of the ask.
-    expect(detail).not.toHaveTextContent("y\r");
+    expect(screen.queryByTestId("terminal-typing-grant-detail")).not.toBeInTheDocument();
     expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
-      "The agent wants to type"
+      "compozy__terminal_write"
     );
-    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent(
-      "Allow for this terminal"
-    );
-    expect(screen.queryByTestId("terminal-typing-activity")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent("Always allow");
   });
 
   it("Should dock a pending permission with its subject on the code wash", () => {

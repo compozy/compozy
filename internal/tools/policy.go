@@ -333,17 +333,13 @@ func (e *EffectivePolicyEvaluator) isTrustedReadOnlySource(d Descriptor) bool {
 }
 
 func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision *EffectiveToolDecision) {
-	if d.ID == ToolIDTerminalWrite {
-		// Terminal writes use the generation-fenced, per-terminal typing grant.
-		// A generic tool approval would duplicate that prompt and cannot be
-		// reused for subsequent writes to the same controller generation.
-		return
-	}
 	switch e.permissionMode() {
 	case PermissionModeApproveAll:
 		return
 	case PermissionModeApproveReads:
-		if isReadOnlyAutoApprovable(d) {
+		// Session lineage and terminal scope authorize terminal input without a
+		// second permission handoff; deny-all still asks for every tool call.
+		if d.ID == ToolIDTerminalWrite || isReadOnlyAutoApprovable(d) {
 			return
 		}
 		requireApproval(decision, e.inputs.ApprovalAvailable)
