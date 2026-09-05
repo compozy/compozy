@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -88,7 +89,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		assertAttentionListEmpty(t, ctx, harness)
 	})
 
-	t.Run("Should preserve and resolve a permission across daemon restart", func(t *testing.T) {
+	t.Run("Should expire a pre-restart permission and reject a late answer", func(t *testing.T) {
 		options := attentionTruthRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -120,29 +121,13 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		restartOptions.HomePaths = harness.HomePaths
 		restartOptions.Workspace = e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot}
 		restarted := e2etest.StartRuntimeHarness(t, &restartOptions)
-		waitForAttentionStatus(t, ctx, restarted, target.ID, session.BadgeWaitingForAuth)
-		restartedInteraction := waitForAttentionInteraction(
-			t,
-			ctx,
-			restarted,
-			target.ID,
-			store.PendingInteractionKindPermission,
-		)
-		if restartedInteraction.InteractionID != interaction.InteractionID {
-			t.Fatalf(
-				"interaction after restart = %q, want %q",
-				restartedInteraction.InteractionID,
-				interaction.InteractionID,
-			)
-		}
-		waitForAttentionInteractionStatus(
-			t,
-			ctx,
-			restarted,
-			target.ID,
-			interaction.InteractionID,
-			store.PendingInteractionStatusOrphaned,
-		)
+		// Boot reconciliation expires the pre-restart decision: the agent process
+		// that asked is gone, so no answer could ever reach it. The decision leaves
+		// the open-interaction list with restart attribution, attention clears, and
+		// a late answer changes nothing (invariant 12, US-009).
+		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
+		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
+		assertAttentionListEmpty(t, ctx, restarted)
 
 		var approval compozycontract.SessionApprovalResponse
 		if err := restarted.CLI.RunJSONInDir(
@@ -154,13 +139,13 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 			"--decision", "allow-once",
 			"-o", "json",
 		); err != nil {
-			t.Fatalf("CLI permission approval after restart error = %v", err)
+			t.Fatalf("CLI late permission approval after restart error = %v", err)
 		}
-		if approval.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
-			approval.ResolvedDecision != "allow-once" {
-			t.Fatalf("CLI permission approval after restart = %#v", approval)
+		if approval.Outcome != store.PendingInteractionOutcomeAlreadyResolved {
+			t.Fatalf("CLI late permission approval after restart = %#v, want already resolved", approval)
 		}
-		waitForAttentionStatusOutsideNeedsYou(t, ctx, restarted, target.ID)
+		waitForAttentionInteractionAbsent(t, ctx, restarted, target.ID, interaction.InteractionID)
+		assertAttentionListEmpty(t, ctx, restarted)
 	})
 
 	t.Run("Should keep done across status reads until presence marks the session seen", func(t *testing.T) {
@@ -1044,6 +1029,38 @@ func waitForAttentionInteractionStatus(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("interaction %q status did not reach %q: %v", interactionID, want, errors.Join(err, ctx.Err()))
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+}
+
+// waitForAttentionInteractionAbsent waits until the open-interaction listing no
+// longer carries the decision: expired decisions leave the pending/orphaned set.
+func waitForAttentionInteractionAbsent(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	interactionID string,
+) {
+	t.Helper()
+	for {
+		var response compozycontract.SessionInteractionsResponse
+		err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&response,
+			"session", "interactions", sessionID, "-o", "json",
+		)
+		if err == nil &&
+			!slices.ContainsFunc(response.Interactions, func(item compozycontract.PendingInteractionPayload) bool {
+				return item.InteractionID == interactionID
+			}) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("interaction %q still listed after restart: %v", interactionID, errors.Join(err, ctx.Err()))
 		case <-time.After(25 * time.Millisecond):
 		}
 	}

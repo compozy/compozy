@@ -3934,6 +3934,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"archived_at",
 				"acp_session_id",
 				"stop_reason",
+				"stop_escalated",
+				"stop_verification_failed",
 				"stop_detail",
 				"subprocess_pid",
 				"subprocess_started_at",
