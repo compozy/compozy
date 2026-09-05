@@ -333,15 +333,13 @@ func (e *EffectivePolicyEvaluator) isTrustedReadOnlySource(d Descriptor) bool {
 }
 
 func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision *EffectiveToolDecision) {
-	if d.ID == ToolIDTerminalWrite {
-		// Session lineage and terminal scope authorize input without a second permission handoff.
-		return
-	}
 	switch e.permissionMode() {
 	case PermissionModeApproveAll:
 		return
 	case PermissionModeApproveReads:
-		if isReadOnlyAutoApprovable(d) {
+		// Session lineage and terminal scope authorize terminal input without a
+		// second permission handoff; deny-all still asks for every tool call.
+		if d.ID == ToolIDTerminalWrite || isReadOnlyAutoApprovable(d) {
 			return
 		}
 		requireApproval(decision, e.inputs.ApprovalAvailable)

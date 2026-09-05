@@ -168,6 +168,16 @@ func TestTerminalOpenAPISchemaContract(t *testing.T) {
 			"KILL",
 			"HUP",
 		)
+		for _, removed := range []string{"lease", "controller"} {
+			if terminal.Properties[removed] != nil {
+				t.Fatalf("terminal projection still publishes the removed %q property", removed)
+			}
+		}
+		for registered := range schemaEnumValues {
+			if registered.Name() == "TerminalLeaseState" {
+				t.Fatalf("removed TerminalLeaseState enum is still registered as %v", registered)
+			}
+		}
 
 		journal := doc.Paths.Value(terminalPath + "/journal")
 		if journal == nil || journal.Get == nil {

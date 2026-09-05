@@ -536,8 +536,8 @@ func TestService(t *testing.T) {
 			service.ObserveOutput(info, []byte("working"))
 			idleRow := waitForJournalRows(ctx, t, service, workspaceID, 1).Entries[0]
 			if idleRow.Command != "echo approximate" || idleRow.DetectedBy != "idle" ||
-				idleRow.Actor.Kind != terminalpkg.ActorKindHuman || idleRow.ExitCause != "unknown" {
-				t.Fatalf("idle row = %#v", idleRow)
+				idleRow.Actor != actor || idleRow.ExitCause != "unknown" {
+				t.Fatalf("idle row = %#v, want actor %#v", idleRow, actor)
 			}
 
 			service.ObserveInput(info, actor, []byte("echo authenticated\n"))
@@ -578,11 +578,16 @@ func TestService(t *testing.T) {
 			started, finished := 0, 0
 			for len(events) > 0 {
 				event := <-events
-				if event.Kind == terminalpkg.EventKindCommandStarted {
+				switch event.Kind {
+				case terminalpkg.EventKindCommandStarted:
 					started++
-				}
-				if event.Kind == terminalpkg.EventKindCommandFinished {
+				case terminalpkg.EventKindCommandFinished:
 					finished++
+				default:
+					continue
+				}
+				if event.Actor != actor {
+					t.Fatalf("%s actor = %#v, want observed input actor %#v", event.Kind, event.Actor, actor)
 				}
 			}
 			if started != 2 || finished != 2 {

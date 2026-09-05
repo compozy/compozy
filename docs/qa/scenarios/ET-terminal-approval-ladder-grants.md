@@ -17,7 +17,9 @@ overlaps: ET-terminal-shared-control; ET-native-tool-approval-grants
 ---
 
 QA impact 2026-09-04: the terminal-scoped typing grant was deleted. Reset to verify ordinary command
-policy still applies and no obsolete typing-grant prompt, row, or configuration survives.
+policy still applies and no obsolete typing-grant prompt, row, or configuration survives. Agent terminal
+input follows the permission ceiling: `approve-reads` and `approve-all` never prompt for it, while
+`deny-all` asks before every `compozy__terminal_write` like any other tool call.
 
 Planned by integrated-terminal task 09 for the approval and grant surface (`_uiux.md` S6). This file
 now owns ordinary terminal command policy and the absence of a special typing grant.

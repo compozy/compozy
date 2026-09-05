@@ -224,40 +224,52 @@ func TestTerminalCommandsShouldKeepProfileContracts(t *testing.T) { // IT-037
 func TestTerminalListBundleShouldRenderHumanOutput(t *testing.T) {
 	t.Parallel()
 	fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
-	command := &cobra.Command{}
-	command.SetContext(t.Context())
-	recordProfileReadSelection(command, profileReadSelection{Profile: "work"})
-	recordWorkspaceResolution(command, workspaceResolution{
-		ID: "workspace-a",
-		Detail: WorkspaceDetailRecord{Workspace: WorkspaceRecord{
-			ID: "workspace-a", Name: "acme-api",
-		}},
-		Source: workspaceResolutionFlag,
-	})
-	empty, err := terminalListBundle(command, nil, func() time.Time { return fixed }).human()
-	if err != nil {
-		t.Fatalf("empty terminalListBundle().human() error = %v", err)
-	}
-	wantEmpty := "No terminals in workspace acme-api (profile: work). Open one: compozy terminal open"
-	if empty != wantEmpty {
-		t.Fatalf("empty terminal list = %q, want %q", empty, wantEmpty)
+	newListCommand := func(t *testing.T, selection profileReadSelection) *cobra.Command {
+		t.Helper()
+		command := &cobra.Command{}
+		command.SetContext(t.Context())
+		recordProfileReadSelection(command, selection)
+		recordWorkspaceResolution(command, workspaceResolution{
+			ID: "workspace-a",
+			Detail: WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+				ID: "workspace-a", Name: "acme-api",
+			}},
+			Source: workspaceResolutionFlag,
+		})
+		return command
 	}
 
-	recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
-	rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
-		ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
-		State: "running", CreatedAt: fixed.Add(-2 * time.Minute),
-	}}, func() time.Time { return fixed }).human()
-	if err != nil {
-		t.Fatalf("terminalListBundle().human() error = %v", err)
-	}
-	wantRows := strings.Join([]string{
-		"ID\tPROFILE\tTITLE\tSTATE\tCREATED",
-		"term-9f21c04a3b17\twork\tzsh — status\trunning\t2m ago",
-	}, "\n")
-	if rows != wantRows {
-		t.Fatalf("terminal list = %q, want %q", rows, wantRows)
-	}
+	t.Run("Should point an empty workspace at terminal open", func(t *testing.T) {
+		t.Parallel()
+		command := newListCommand(t, profileReadSelection{Profile: "work"})
+		empty, err := terminalListBundle(command, nil, func() time.Time { return fixed }).human()
+		if err != nil {
+			t.Fatalf("empty terminalListBundle().human() error = %v", err)
+		}
+		wantEmpty := "No terminals in workspace acme-api (profile: work). Open one: compozy terminal open"
+		if empty != wantEmpty {
+			t.Fatalf("empty terminal list = %q, want %q", empty, wantEmpty)
+		}
+	})
+
+	t.Run("Should render terminal rows with relative creation times", func(t *testing.T) {
+		t.Parallel()
+		command := newListCommand(t, profileReadSelection{AllProfiles: true})
+		rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
+			ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
+			State: "running", CreatedAt: fixed.Add(-2 * time.Minute),
+		}}, func() time.Time { return fixed }).human()
+		if err != nil {
+			t.Fatalf("terminalListBundle().human() error = %v", err)
+		}
+		wantRows := strings.Join([]string{
+			"ID\tPROFILE\tTITLE\tSTATE\tCREATED",
+			"term-9f21c04a3b17\twork\tzsh — status\trunning\t2m ago",
+		}, "\n")
+		if rows != wantRows {
+			t.Fatalf("terminal list = %q, want %q", rows, wantRows)
+		}
+	})
 }
 
 func TestTerminalQuoteShouldEscapeTerminalContext(t *testing.T) {

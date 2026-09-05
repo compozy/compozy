@@ -118,35 +118,41 @@ func TestSyncEligibleClassification(t *testing.T) {
 func TestTerminalHookEventsHaveExpectedContracts(t *testing.T) {
 	t.Parallel()
 
-	descriptors := FilterEventDescriptors(EventFilter{Family: HookEventFamilyTerminal})
-	if len(descriptors) != 10 {
-		t.Fatalf("terminal descriptor count = %d, want 10", len(descriptors))
-	}
-	for _, descriptor := range descriptors {
-		if descriptor.SyncEligible || descriptor.PayloadSchema == "" ||
-			descriptor.PatchSchema != "TerminalObservationPatch" {
-			t.Fatalf("terminal descriptor = %#v", descriptor)
+	t.Run("Should publish ten async-only terminal descriptors with observation patches", func(t *testing.T) {
+		t.Parallel()
+		descriptors := FilterEventDescriptors(EventFilter{Family: HookEventFamilyTerminal})
+		if len(descriptors) != 10 {
+			t.Fatalf("terminal descriptor count = %d, want 10", len(descriptors))
 		}
-	}
+		for _, descriptor := range descriptors {
+			if descriptor.SyncEligible || descriptor.PayloadSchema == "" ||
+				descriptor.PatchSchema != "TerminalObservationPatch" {
+				t.Fatalf("terminal descriptor = %#v", descriptor)
+			}
+		}
+	})
 
-	context := TerminalContext{ProfileID: "profile-a"}
-	payloads := []any{
-		TerminalOpenedPayload{TerminalContext: context},
-		TerminalClosedPayload{TerminalContext: context},
-		TerminalCommandStartedPayload{TerminalContext: context},
-		TerminalCommandFinishedPayload{TerminalContext: context},
-		TerminalInputRequestedPayload{TerminalContext: context},
-		TerminalInputProvidedPayload{TerminalContext: context},
-		TerminalRecordingStartedPayload{TerminalContext: context},
-		TerminalRecordingStoppedPayload{TerminalContext: context},
-		TerminalSubscriberEvictedPayload{TerminalContext: context},
-		TerminalLimitRejectedPayload{TerminalContext: context},
-	}
-	for _, payload := range payloads {
-		if got := hookPayloadProfileID(payload); got != "profile-a" {
-			t.Fatalf("hookPayloadProfileID(%T) = %q, want profile-a", payload, got)
+	t.Run("Should carry the profile through every terminal payload", func(t *testing.T) {
+		t.Parallel()
+		context := TerminalContext{ProfileID: "profile-a"}
+		payloads := []any{
+			TerminalOpenedPayload{TerminalContext: context},
+			TerminalClosedPayload{TerminalContext: context},
+			TerminalCommandStartedPayload{TerminalContext: context},
+			TerminalCommandFinishedPayload{TerminalContext: context},
+			TerminalInputRequestedPayload{TerminalContext: context},
+			TerminalInputProvidedPayload{TerminalContext: context},
+			TerminalRecordingStartedPayload{TerminalContext: context},
+			TerminalRecordingStoppedPayload{TerminalContext: context},
+			TerminalSubscriberEvictedPayload{TerminalContext: context},
+			TerminalLimitRejectedPayload{TerminalContext: context},
 		}
-	}
+		for _, payload := range payloads {
+			if got := hookPayloadProfileID(payload); got != "profile-a" {
+				t.Fatalf("hookPayloadProfileID(%T) = %q, want profile-a", payload, got)
+			}
+		}
+	})
 }
 
 func TestWorktreeHookEventsHaveExpectedContracts(t *testing.T) {

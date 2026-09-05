@@ -13,9 +13,13 @@ import (
 
 func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 	t.Parallel()
-	if Subprotocol != "compozy.terminal.v3" {
-		t.Fatalf("Subprotocol = %q, want hard-cut v3", Subprotocol)
-	}
+
+	t.Run("Should freeze the hard-cut v3 subprotocol name", func(t *testing.T) {
+		t.Parallel()
+		if Subprotocol != "compozy.terminal.v3" {
+			t.Fatalf("Subprotocol = %q, want hard-cut v3", Subprotocol)
+		}
+	})
 
 	t.Run("Should round trip every server opcode", func(t *testing.T) {
 		t.Parallel()

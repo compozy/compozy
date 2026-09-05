@@ -248,7 +248,7 @@ exit 0
 			{path: "skills-lock.json", want: "no-lane"},
 		}
 		for _, tc := range cases {
-			t.Run(tc.path, func(t *testing.T) {
+			t.Run("Should classify "+tc.path, func(t *testing.T) {
 				t.Parallel()
 				repo := newGateTestRepo(t)
 				path := filepath.Join(repo, filepath.FromSlash(tc.path))
