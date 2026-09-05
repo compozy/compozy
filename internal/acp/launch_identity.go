@@ -154,7 +154,7 @@ func (l *localLauncher) PrepareLaunch(
 	}
 
 	next := spec
-	next.Env = daemonMatchedEnv(spec.Env)
+	next.Env = DaemonMatchedEnv(spec.Env)
 	if next.ResolvedExecutable != "" {
 		next.Args = append([]string(nil), next.Args...)
 		return next, nil

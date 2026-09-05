@@ -1186,7 +1186,7 @@ printf '{"type":"list_page","page":{"total":0}}\n'
 	command.Dir = workspace
 	command.Env = append(
 		os.Environ(),
-		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"COMPOZY_BIN="+filepath.Join(fakeBin, "compozy"),
 	)
 	if activeWorker {
 		command.Env = append(command.Env, "COMPOZY_TEST_ACTIVE_WORKER=1")

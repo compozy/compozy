@@ -37,3 +37,11 @@ Speed and typed ACP-option defaults before pinning the immutable creation profil
 the controller expressly prohibits the local E2E needed to repeat the orchestrated-mode public walk.
 The focused race-test evidence is recorded in the worker report and the cited canonical suites; it does
 not substitute for a public-interface walk. No QA lab or runtime process was started, so teardown is not applicable.
+
+QA impact 2026-09-04 (loop-stability): live Codex workers completed both dependent receipt tasks
+and stopped, but the deterministic judge could not find `compozy` in its PATH. The evaluator now
+shares the daemon-bound subprocess environment and the built-in check uses quoted `COMPOZY_BIN`.
+Fresh real-provider re-walk `looprun-bcd2b1ad861f8a46` passed: one actual worker completed exact
+decimal parsing, stopped, and the Loop settled `done` in generation 1; all 14 independent invoice
+tests passed. Canceled-run recovery separately exposed binding-epoch allocation and generation
+selection failures under investigation. Evidence: the loop-stability report, cycle 3.

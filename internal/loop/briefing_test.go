@@ -60,7 +60,10 @@ func TestBriefingContract(t *testing.T) {
 		t.Parallel()
 		source := healthyBriefing(now)
 		source.Run.ActiveGateID = "gate"
-		source.Roster.Nodes = append(source.Roster.Nodes, RosterNode{NodeID: "q", State: NodeStateQuarantined})
+		source.Roster.Nodes = append(
+			source.Roster.Nodes,
+			RosterNode{Generation: 2, NodeID: "q", State: NodeStateQuarantined},
+		)
 		source.Requests = []Request{
 			{
 				LoopRunID: "run-a",
@@ -259,6 +262,81 @@ func TestBriefingContract(t *testing.T) {
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneOK || !strings.Contains(got.Headline, "live") {
 			t.Fatalf("briefing = %#v", got)
+		}
+	})
+	t.Run("Should ignore historical failures and controls after a new round starts", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Roster.Nodes = append(source.Roster.Nodes,
+			RosterNode{Generation: 1, NodeID: "old-failure", State: NodeStateFailed},
+			RosterNode{Generation: 1, NodeID: "old-quarantine", State: NodeStateQuarantined},
+			RosterNode{Generation: 1, NodeID: "old-retry", State: NodeStateRetrying},
+			RosterNode{Generation: 3, NodeID: "current-worker", State: NodeStateRunning, Action: true},
+		)
+		got := ProjectBriefing(&source)
+		if len(got.Blockers) != 0 || got.Tone != BriefingToneOK || got.Progress.Round != 3 ||
+			!strings.Contains(got.Headline, "current-worker") {
+			t.Fatalf("historical state replaced current work: %#v", got)
+		}
+		source.Run.Status = StatusDone
+		source.Run.Generation = 3
+		source.Roster.Nodes[len(source.Roster.Nodes)-1].State = NodeStateSucceeded
+		got = ProjectBriefing(&source)
+		if len(got.Blockers) != 0 || got.Tone != BriefingToneOK {
+			t.Fatalf("completed recovery retains historical blockers: %#v", got)
+		}
+	})
+	t.Run(
+		"Should offer a terminal rerun that preserves the failed lane and its pending dependents",
+		func(t *testing.T) {
+			t.Parallel()
+			source := healthyBriefing(now)
+			source.Run.Status = StatusFailed
+			source.Run.WorkspaceID = "workspace with spaces"
+			source.Graph = dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "failed", Class: dsl.NodeClassAction},
+					{ID: "after", Class: dsl.NodeClassAction},
+				},
+				Edges: []dsl.Edge{{From: "failed", To: "after"}},
+			}
+			source.Roster.Nodes = []RosterNode{{Generation: 2, NodeID: "failed", State: NodeStateFailed}}
+			source.Outputs = []GenerationOutput{
+				{Generation: 2, NodeID: "failed", Status: "failed"},
+				{Generation: 2, NodeID: "after", Status: "pending"},
+			}
+			got := ProjectBriefing(&source)
+			assertBlockerCommand(t, got.Blockers, 0, []string{
+				"compozy", "loop", "rerun", "--workspace", "workspace with spaces",
+				"--run-id", "run-a", "--from-node", "failed", "--item", "0",
+			})
+			// An unrelated in-flight cell makes this same suggestion invalid at the owner.
+			source.Outputs = append(source.Outputs, GenerationOutput{
+				Generation: 2, NodeID: "unrelated", Status: "enqueued",
+			})
+			got = ProjectBriefing(&source)
+			if len(got.Blockers) != 1 || got.Blockers[0].Unblocker != "" {
+				t.Fatalf("advertised a rerun the planner rejects: %#v", got.Blockers)
+			}
+		},
+	)
+	t.Run("Should not recommend terminal-only reruns during live failure settlement", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Roster.Nodes[1].State = NodeStateFailed
+		got := ProjectBriefing(&source)
+		if len(got.Blockers) != 1 || got.Blockers[0].Unblocker != "" {
+			t.Fatalf("live failure command = %#v", got.Blockers)
+		}
+	})
+	t.Run("Should not recommend requeue after terminal quarantine settlement", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Run.Status = StatusFailed
+		source.Roster.Nodes[1].State = NodeStateQuarantined
+		got := ProjectBriefing(&source)
+		if len(got.Blockers) != 1 || got.Blockers[0].Unblocker != "" {
+			t.Fatalf("terminal quarantine command = %#v", got.Blockers)
 		}
 	})
 	t.Run("Should satisfy UT-051 with typed terminal outcome and artifact availability", func(t *testing.T) {

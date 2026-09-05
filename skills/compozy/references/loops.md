@@ -422,6 +422,11 @@ escapes, comments, and `<<` constructs; compilation rejects unsafe substitutions
 authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or node outputs
 from introducing shell syntax.
 
+Command criteria inherit the run workspace and daemon environment. `COMPOZY_BIN` identifies the
+executable running that daemon; use `"$COMPOZY_BIN"` for Compozy CLI checks, including when the
+executable was renamed or launched outside the shell PATH. Its directory also leads PATH, matching
+agent subprocess discovery.
+
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`,
 `nodes.<fan-out-id>.progress.<field>`, `item`/`index` and `progress.<field>` (fan-out body only),
 custom `bind_as`/`index_as` names (their fan-out body only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`

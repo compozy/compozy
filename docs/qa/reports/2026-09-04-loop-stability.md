@@ -49,14 +49,46 @@ Run `looprun-fcf613da6349b2d6` used `implement-tasks` in `per-task` mode with tw
 
 Evidence: `implement-per-task-start.json`, `implement-per-task-status.json`, and `.compozy/tasks/invoice-validation/` in the lab project.
 
+## Cycle 3 — recovery guidance and command verification
+
+A recovered Loop in generation 3 was still labeled failed because the briefing selected failures
+from generation 1. Its terminal predecessor advertised `node requeue`, which returned
+`run_terminal`. The briefing now selects current-round node blockers/activity and advertises a
+terminal `loop rerun` only when the existing planner accepts that exact cell and its dependencies.
+Historical attempts remain inspectable; pending/live operations do not acquire new control rights.
+
+Live run `looprun-eca3516daee3dfad` failed on an absent receipt manifest with reattempt strategy
+`halt`. After the manifest was supplied, the printed rerun arguments started generation 2, carried
+the successful billing import, and completed the real Codex planning action. CLI reported
+`running / ok` during execution and `done / ok` with no blockers afterward. The older recovered run
+`looprun-90d6b772a7421f53` likewise has no stale blocker. Evidence: `receipt-dependency-briefing-fixed.json`,
+`receipt-dependency-printed-rerun.json`, `receipt-dependency-running-fixed.json`,
+`receipt-dependency-final-briefing.json`, `recovery-historical-briefing-fixed.json`.
+
+Real orchestrated run `looprun-c494117598fe2188` created two workers with distinct category models,
+completed both receipt tasks, stopped both workers, and passed all 11 independent invoice tests.
+Its command judge then repeatedly failed because `compozy` was absent from the evaluator PATH.
+The operator canceled the test run to stop futile LLM turns. Production command evaluation now
+reuses the same daemon executable/environment binding as ACP sessions, preserving the command's
+workspace PWD. The built-in judge calls quoted `COMPOZY_BIN` so renamed binaries are supported.
+The canonical daemon command suite invokes the actual test executable through that environment;
+the existing ACP suite continues to verify PATH precedence and duplicate removal.
+
+Fresh orchestrated re-walk `looprun-bcd2b1ad861f8a46` finished `done` in generation 1 (91,549 reported tokens). A real worker implemented exact decimal parsing, completed its task and stopped. The command judge accepted that result, and an independent `node --test` passed all 14 invoice tests. Evidence: `orchestrated-fresh-fixed-status.json`, `orchestrated-fresh-fixed-workers.json`, and `invoice-after-orchestrated-fixed-tests.txt`. A separate failure discovered
+when rerunning the canceled predecessor (`goal_control_stale`) remains under investigation for the
+next cycle; no success is claimed for that recovery yet.
+
+Focused race suites for briefing, command execution, and ACP environment passed using the same
+source changes in an overlay before applying them to the checkout. The same focused suites and the built-in judge contract pass in the current checkout. The affected `make gate` passed: Go lint zero issues; daemon race suite 201.817s, Loop 221.158s, GlobalDB 937.904s; repaired spec-cycle fixture passed in the cached rerun. Web lint zero warnings/errors, typecheck and all 6,797 tests passed (existing cached test evidence). No task-file status was changed to bypass a judge.
+
 ## Cross-surface impact
 
 Audit follows `docs/_memory/change-impact.md` and is updated here across cycles.
 
 - Native tools: existing task-result and task-run reads recover their intended behavior. Briefing consumers receive corrected artifact identity/availability and concise human wording through the same DTO. No IDs, schemas, gates, or transport shapes change.
-- Extensibility/hooks/config: built-in import outputs can be carried safely. No extension manifest, hook, or config key changes in cycle 1.
+- Extensibility/hooks/config: built-in import outputs can be carried safely. No extension manifest, hook, or config key changes. The built-in orchestrated judge now uses the daemon-bound executable; command evaluation receives the existing subprocess environment contract.
 - Workspace data isolation: deduplication is limited to identical results for the already-authorized task-run IDs. The existing task/workspace authorization and generation-payload owner checks remain authoritative; no schema migration or persisted rewrite is needed.
-- Official skill: checked `skills/compozy/references/loops.md`; public operation and result semantics remain unchanged in cycle 1.
+- Official skill: checked `skills/compozy/references/loops.md`; documented daemon-bound command discovery; existing public operation and result shapes remain unchanged.
 - Web/docs: task-result consumers become readable after automatic succession. `TA-task-run-result-paging`, `LP-web-run-default-read-briefing`, and `LP-run-read-agent-journey` record the affected scenarios. Artifact counts exclude control markers; complete execution history remains in the roster/timeline/Inspect surfaces.
 
 The lab stays alive only for this same-session sequence. Final audit and targeted teardown with `clean: true` are required before closing the overall QA run.

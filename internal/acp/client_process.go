@@ -136,7 +136,8 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	return normalized, nil
 }
 
-func daemonMatchedEnv(base []string) []string {
+// DaemonMatchedEnv binds subprocess CLI discovery to the executable running the daemon.
+func DaemonMatchedEnv(base []string) []string {
 	env := append([]string(nil), base...)
 	if len(env) == 0 {
 		env = os.Environ()

@@ -39,6 +39,8 @@ func (s *computedRunReadService) Briefing(
 		return Briefing{}, err
 	}
 	return ProjectBriefing(&BriefingSource{
+		Graph:                source.Graph,
+		Outputs:              source.Outputs,
 		Run:                  source.Run,
 		Roster:               roster,
 		Requests:             requests,

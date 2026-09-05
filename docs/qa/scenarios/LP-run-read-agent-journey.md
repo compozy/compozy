@@ -81,3 +81,8 @@ logical names are separate from result bytes and terminal headlines remain conci
 CLI still prints each result on its own `Produced:` line. This walk covers the changed briefing
 projection; the broader node/resume scenarios retain their independently recorded status.
 Evidence: `docs/qa/reports/2026-09-04-loop-stability.md`, cycle 2.
+
+QA result 2026-09-04 (recovery): only current-round node state contributes to blockers/activity.
+The printed terminal rerun was accepted for the failed receipt import after its manifest became
+available. Generation 2 remained `running / ok`, then settled `done / ok` without old failure
+blockers. CLI keeps all original node history. Evidence: the loop-stability report, cycle 3.

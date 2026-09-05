@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -90,6 +91,8 @@ type Briefing struct {
 
 // BriefingSource contains the durable facts required to project one briefing.
 type BriefingSource struct {
+	Graph                dsl.Graph
+	Outputs              []GenerationOutput
 	Run                  Run
 	Roster               RosterPage
 	Requests             []Request
@@ -126,7 +129,7 @@ func ProjectBriefing(source *BriefingSource) Briefing {
 		result.Headline = "Waiting for the configured watch source."
 		result.Detail = "No new matching input has arrived."
 	default:
-		result.Headline = runningHeadline(source.Roster, source.Run.Generation)
+		result.Headline = runningHeadline(source.Roster, result.Progress.Round)
 		result.Detail = progressDetail(result.Progress)
 	}
 	return result
@@ -165,6 +168,7 @@ func ProgressFromRosterSource(source *RosterSource) (StepProgress, error) {
 }
 
 func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
+	generation := currentBriefingGeneration(source)
 	items := []Blocker{}
 	if source.Run.Status == StatusNeedsApproval || source.Run.ActiveGateID != "" {
 		items = append(items, Blocker{
@@ -178,8 +182,11 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		})
 	}
 	for _, node := range source.Roster.Nodes {
+		if node.Generation != generation {
+			continue
+		}
 		if node.State == NodeStateQuarantined {
-			items = append(items, nodeBlocker(string(NodeControlMutationQuarantine), source.Run, node))
+			items = append(items, nodeBlocker(string(NodeControlMutationQuarantine), source, node))
 		}
 	}
 	for _, request := range source.Requests {
@@ -204,8 +211,11 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 		items = append(items, blocker)
 	}
 	for _, node := range source.Roster.Nodes {
+		if node.Generation != generation {
+			continue
+		}
 		if node.State == NodeStateFailed {
-			items = append(items, nodeBlocker(namespaceFailureKey, source.Run, node))
+			items = append(items, nodeBlocker(namespaceFailureKey, source, node))
 		}
 		if node.State == NodeStateRetrying {
 			items = append(items, Blocker{
@@ -234,21 +244,49 @@ func requestUnblockerDecision(request Request) string {
 	return "<decision>"
 }
 
-func nodeBlocker(kind string, run Run, node RosterNode) Blocker {
+func nodeBlocker(kind string, source *BriefingSource, node RosterNode) Blocker {
+	run := source.Run
 	waitingSince := timeOrZero(node.StartedAt)
 	if kind == namespaceFailureKey {
 		waitingSince = timeOrZero(node.EndedAt)
 	}
-	return Blocker{
-		Kind: kind, NodeID: node.NodeID, ItemIndex: node.ItemIndex,
-		WaitingSince: waitingSince,
-		Unblocker: shellquote.Join(
+	blocker := Blocker{Kind: kind, NodeID: node.NodeID, ItemIndex: node.ItemIndex, WaitingSince: waitingSince}
+	if kind == namespaceFailureKey {
+		blocker.Unblocker = failureRerunCommand(source, node)
+	} else if !run.Status.Terminal() {
+		blocker.Unblocker = shellquote.Join(
 			"compozy", "loop", "node", "requeue",
 			"--workspace", string(run.WorkspaceID),
 			"--run-id", string(run.ID),
 			"--node", string(node.NodeID),
-		),
+		)
 	}
+	return blocker
+}
+
+func failureRerunCommand(source *BriefingSource, node RosterNode) string {
+	run := source.Run
+	if !run.Status.Terminal() || node.Generation != run.Generation {
+		return ""
+	}
+	outputs := make([]GenerationOutput, 0)
+	for _, output := range source.Outputs {
+		if output.Generation == run.Generation {
+			outputs = append(outputs, output)
+		}
+	}
+	// Advertise only a rerun the existing planner accepts, including pending dependents.
+	_, labels, err := planOperatorRerun(source.Graph, outputs, node.NodeID, &node.ItemIndex, run.Generation+1)
+	if err != nil || validateTerminalRerunOutputs(outputs, labels) != nil {
+		return ""
+	}
+	return shellquote.Join(
+		"compozy", "loop", "rerun",
+		"--workspace", string(run.WorkspaceID),
+		"--run-id", string(run.ID),
+		"--from-node", string(node.NodeID),
+		"--item", strconv.Itoa(node.ItemIndex),
+	)
 }
 
 func blockerTone(kind string) BriefingTone {
