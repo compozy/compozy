@@ -201,3 +201,11 @@ by restart left the session stopped / failed / dead with stop_reason agent_crash
 Not walked here: compozy__session_stop from a governed agent session, UDS parity, the unverifiable-kill
 attention branch, delete-after-stop replay, and the Daytona remote-exit journey — the scenario stays
 blocked-verify for those branches.
+
+Blocker 2026-09-05 (decision + external): the operator scoped this delivery to sessions-stability
+task_01 + task_02 and deferred the unwalked branches above to the program's QA tail (tasks 09–10),
+which owns this scenario's re-walk. The Daytona remote-exit journey also needs external sandbox
+credentials that the isolated lab does not hold, and the unverifiable-kill branch needs a process the
+daemon is not permitted to signal, which the lab host does not provide. Each deferred branch has
+green owning coverage in `internal/session` (native/UDS stop parity, delete-after-stop replay,
+unverified-death attention) and `internal/sandbox/daytona` on PR #555 CI; no repair is pending.

@@ -39,7 +39,9 @@ const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
 
 /** True when `queryKey` starts with every element of `scope`, element by element. */
 function queryKeyHasScope(queryKey: readonly unknown[], scope: readonly unknown[]): boolean {
-  return scope.every((element, index) => queryKey[index] === element);
+  return (
+    scope.length <= queryKey.length && scope.every((element, index) => queryKey[index] === element)
+  );
 }
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
