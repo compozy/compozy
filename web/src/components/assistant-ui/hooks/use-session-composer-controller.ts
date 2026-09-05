@@ -86,26 +86,32 @@ export function useSessionComposerController({
     promptEmbeddedContextCapability,
     promptImageCapability,
   });
-  const runtimeRunning = isRunning || isSessionRunning;
-  const isStopping = stopPhase === "stopping";
-  // While a stop is landing the turn is ending: guidance can't be honored, but
-  // queued work survives a stop (ADR-003), so Enter queues and only Queue stays.
-  const busyControlsActive = runtimeRunning || isStopping;
-  const effectiveBusyInputMode: SessionBusyInputMode = isStopping ? "queue" : busyInputDefaultMode;
-  const canSubmitBusyInput =
-    busyControlsActive &&
-    canPrompt &&
-    allowBusyInput &&
-    (trimmedComposerText.length > 0 || promptAttachments.length > 0 || Boolean(stagedQuote)) &&
-    attachmentBlocker === null &&
-    !isBusyInputPending;
-  const showBusyControls = busyControlsActive || isBusyInputPending;
-  const busyEnterActive =
-    busyControlsActive &&
-    allowBusyInput &&
-    Boolean(onQueuePrompt || (onSteerPrompt && !isStopping));
-  const showQueuedStrip =
-    queuedPrompts.length > 0 && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
+  const busy = deriveComposerBusyState({
+    allowBusyInput,
+    attachmentBlocked: attachmentBlocker !== null,
+    attachmentCount: promptAttachments.length,
+    busyInputDefaultMode,
+    canPrompt,
+    draftTextLength: trimmedComposerText.length,
+    hasQueueHandler: Boolean(onQueuePrompt),
+    hasQueuedStrip:
+      queuedPrompts.length > 0 && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt),
+    hasStagedQuote: Boolean(stagedQuote),
+    hasSteerHandler: Boolean(onSteerPrompt),
+    isBusyInputPending,
+    isRunning,
+    isSessionRunning,
+    stopPhase,
+  });
+  const {
+    busyEnterActive,
+    canSubmitBusyInput,
+    effectiveBusyInputMode,
+    isStopping,
+    runtimeRunning,
+    showBusyControls,
+    showQueuedStrip,
+  } = busy;
   const busyActions = useSessionBusyInputActions({
     busyInputDefaultMode: effectiveBusyInputMode,
     canSubmitBusyInput,
@@ -126,8 +132,7 @@ export function useSessionComposerController({
     onDraftConsumed: () => discardSessionTerminalQuote(sessionId),
   });
   const { dismissFeedback, feedback } = busyActions;
-  // The note belongs to the raw field text it answered: typing again hides it (derived, no sync).
-  const visibleFeedback = feedback && feedback.draftText === composerText ? feedback : null;
+  const visibleFeedback = visibleComposerFeedback(feedback, composerText);
 
   useEffect(() => {
     if (!visibleFeedback) return;
@@ -135,14 +140,7 @@ export function useSessionComposerController({
     return () => window.clearTimeout(timer);
   }, [dismissFeedback, visibleFeedback]);
 
-  const enterHint: SessionComposerEnterHint = !busyEnterActive
-    ? { enter: "send", modifier: null }
-    : isStopping
-      ? { enter: "queue", modifier: null }
-      : {
-          enter: busyInputDefaultMode,
-          modifier: oppositeSessionBusyInputMode(busyInputDefaultMode),
-        };
+  const enterHint = composerEnterHint(busyEnterActive, isStopping, busyInputDefaultMode);
 
   return {
     state: {
@@ -201,3 +199,76 @@ export function useSessionComposerController({
 }
 
 export type SessionComposerController = ReturnType<typeof useSessionComposerController>;
+
+interface ComposerBusyInput {
+  allowBusyInput: boolean;
+  attachmentBlocked: boolean;
+  attachmentCount: number;
+  busyInputDefaultMode: SessionBusyInputMode;
+  canPrompt: boolean;
+  draftTextLength: number;
+  hasQueueHandler: boolean;
+  hasQueuedStrip: boolean;
+  hasStagedQuote: boolean;
+  hasSteerHandler: boolean;
+  isBusyInputPending: boolean;
+  isRunning: boolean;
+  isSessionRunning: boolean;
+  stopPhase: "idle" | "stopping";
+}
+
+/**
+ * The busy-turn read model the composer renders from. While a stop is landing
+ * the turn is ending: guidance can't be honored, but queued work survives a
+ * stop (ADR-003), so Enter queues and only Queue stays.
+ */
+function deriveComposerBusyState(input: ComposerBusyInput) {
+  const runtimeRunning = input.isRunning || input.isSessionRunning;
+  const isStopping = input.stopPhase === "stopping";
+  const busyControlsActive = runtimeRunning || isStopping;
+  const effectiveBusyInputMode: SessionBusyInputMode = isStopping
+    ? "queue"
+    : input.busyInputDefaultMode;
+  const hasDraft = input.draftTextLength > 0 || input.attachmentCount > 0 || input.hasStagedQuote;
+  const canSubmitBusyInput =
+    busyControlsActive &&
+    input.canPrompt &&
+    input.allowBusyInput &&
+    hasDraft &&
+    !input.attachmentBlocked &&
+    !input.isBusyInputPending;
+  const busyEnterActive =
+    busyControlsActive &&
+    input.allowBusyInput &&
+    (input.hasQueueHandler || (input.hasSteerHandler && !isStopping));
+  return {
+    busyEnterActive,
+    canSubmitBusyInput,
+    effectiveBusyInputMode,
+    isStopping,
+    runtimeRunning,
+    showBusyControls: busyControlsActive || input.isBusyInputPending,
+    showQueuedStrip: input.hasQueuedStrip,
+  };
+}
+
+function composerEnterHint(
+  busyEnterActive: boolean,
+  isStopping: boolean,
+  busyInputDefaultMode: SessionBusyInputMode
+): SessionComposerEnterHint {
+  if (!busyEnterActive) return { enter: "send", modifier: null };
+  if (isStopping) return { enter: "queue", modifier: null };
+  return {
+    enter: busyInputDefaultMode,
+    modifier: oppositeSessionBusyInputMode(busyInputDefaultMode),
+  };
+}
+
+/** The note belongs to the raw field text it answered: typing again hides it (derived, no sync). */
+function visibleComposerFeedback<T extends { draftText: string }>(
+  feedback: T | null,
+  composerText: string
+): T | null {
+  return feedback && feedback.draftText === composerText ? feedback : null;
+}

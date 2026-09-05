@@ -129,6 +129,101 @@ function modifierKeyLabel(): string {
   return primaryShortcutModifier(platform) === "meta" ? "⌘⏎" : "Ctrl⏎";
 }
 
+/** What Enter does right now, and the one-shot opposite the modifier applies. */
+function SessionComposerEnterHintLabel({ enterHint }: { enterHint: SessionComposerEnterHint }) {
+  return (
+    <span
+      data-testid="composer-enter-hint"
+      data-enter={enterHint.enter}
+      data-modifier={enterHint.modifier ?? undefined}
+      className="inline-flex items-center gap-1 text-micro text-faint"
+    >
+      <Kbd>⏎</Kbd>
+      {enterHint.enter}
+      {enterHint.modifier ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <Kbd>{modifierKeyLabel()}</Kbd>
+          {enterHint.modifier}
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/** The busy-turn cluster: queue, steer, and interrupt as the session offers them, then the stop control. */
+function SessionComposerBusyActions({
+  busyInputSteerDelivery,
+  canSubmitBusyInput,
+  composerAttachmentCount,
+  handleInterruptAction,
+  handleQueueAction,
+  handleSteerAction,
+  onCancelPrompt,
+  onInterruptPrompt,
+  onQueuePrompt,
+  onSteerPrompt,
+  stopping,
+}: Pick<
+  SessionComposerActionRowProps,
+  | "busyInputSteerDelivery"
+  | "composerAttachmentCount"
+  | "handleInterruptAction"
+  | "handleQueueAction"
+  | "handleSteerAction"
+  | "onCancelPrompt"
+  | "onInterruptPrompt"
+  | "onQueuePrompt"
+  | "onSteerPrompt"
+> & { canSubmitBusyInput: boolean; stopping: boolean }) {
+  return (
+    <>
+      {onQueuePrompt ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleQueueAction}
+          disabled={!canSubmitBusyInput}
+          data-testid="composer-queue-button"
+        >
+          <ListPlus className="size-3" />
+          Queue
+        </Button>
+      ) : null}
+      {onSteerPrompt ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleSteerAction}
+          disabled={!canSubmitBusyInput || composerAttachmentCount > 0}
+          title={steerCapabilityTitle(busyInputSteerDelivery, composerAttachmentCount)}
+          data-steer-delivery={busyInputSteerDelivery ?? undefined}
+          data-testid="composer-steer-button"
+        >
+          <CornerDownRight className="size-3" />
+          Steer
+        </Button>
+      ) : null}
+      {onInterruptPrompt ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleInterruptAction}
+          disabled={!canSubmitBusyInput}
+          data-testid="composer-interrupt-button"
+        >
+          <Scissors className="size-3" />
+          Interrupt
+        </Button>
+      ) : null}
+      <SessionComposerStopControl onCancelPrompt={onCancelPrompt} stopping={stopping} />
+    </>
+  );
+}
+
 export function SessionComposerActionRow({
   actionState,
   busyInputSteerDelivery,
@@ -149,8 +244,6 @@ export function SessionComposerActionRow({
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
-  const canSubmitBusyInput = busyControls?.submission === "enabled";
-  const { enterHint } = actionState;
 
   return (
     <div className="flex min-h-7 flex-wrap items-center gap-2">
@@ -161,73 +254,22 @@ export function SessionComposerActionRow({
         </div>
       ) : null}
       {canPrompt ? <SessionAttachButton /> : null}
-      {canPrompt ? (
-        <span
-          data-testid="composer-enter-hint"
-          data-enter={enterHint.enter}
-          data-modifier={enterHint.modifier ?? undefined}
-          className="inline-flex items-center gap-1 text-micro text-faint"
-        >
-          <Kbd>⏎</Kbd>
-          {enterHint.enter}
-          {enterHint.modifier ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <Kbd>{modifierKeyLabel()}</Kbd>
-              {enterHint.modifier}
-            </>
-          ) : null}
-        </span>
-      ) : null}
+      {canPrompt ? <SessionComposerEnterHintLabel enterHint={actionState.enterHint} /> : null}
       <span className="flex-1" />
       {busyControls ? (
-        <>
-          {onQueuePrompt ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleQueueAction}
-              disabled={!canSubmitBusyInput}
-              data-testid="composer-queue-button"
-            >
-              <ListPlus className="size-3" />
-              Queue
-            </Button>
-          ) : null}
-          {onSteerPrompt ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleSteerAction}
-              disabled={!canSubmitBusyInput || composerAttachmentCount > 0}
-              title={steerCapabilityTitle(busyInputSteerDelivery, composerAttachmentCount)}
-              data-steer-delivery={busyInputSteerDelivery ?? undefined}
-              data-testid="composer-steer-button"
-            >
-              <CornerDownRight className="size-3" />
-              Steer
-            </Button>
-          ) : null}
-          {onInterruptPrompt ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleInterruptAction}
-              disabled={!canSubmitBusyInput}
-              data-testid="composer-interrupt-button"
-            >
-              <Scissors className="size-3" />
-              Interrupt
-            </Button>
-          ) : null}
-          <SessionComposerStopControl
-            onCancelPrompt={onCancelPrompt}
-            stopping={busyControls.stopping}
-          />
-        </>
+        <SessionComposerBusyActions
+          busyInputSteerDelivery={busyInputSteerDelivery}
+          canSubmitBusyInput={busyControls.submission === "enabled"}
+          composerAttachmentCount={composerAttachmentCount}
+          handleInterruptAction={handleInterruptAction}
+          handleQueueAction={handleQueueAction}
+          handleSteerAction={handleSteerAction}
+          onCancelPrompt={onCancelPrompt}
+          onInterruptPrompt={onInterruptPrompt}
+          onQueuePrompt={onQueuePrompt}
+          onSteerPrompt={onSteerPrompt}
+          stopping={busyControls.stopping}
+        />
       ) : (
         <SessionComposerSendButton
           canPrompt={canPrompt}

@@ -29,6 +29,7 @@ import {
   isStopRequestActive,
   isStopRetryPending,
   type ResumeProviderUnavailableDetail,
+  type SessionPageControlsState,
   type SessionResumeFailure,
 } from "./session-page-controls-store";
 import { useSessionBusyInputControls } from "./use-session-busy-input-controls";
@@ -67,13 +68,14 @@ export function useSessionPageControls(
   const unarchiveMutation = useUnarchiveSession({ workspaceId });
   const renameMutation = useRenameSession({ workspaceId });
   const clearMutation = useClearSessionConversation({ workspaceId });
-  const activeTurnId = session.activity?.turn_id?.trim() ?? "";
-
-  const daemonRunning = isSessionRunning(session);
-  const userControllable = isUserControllableSession(session);
-  const effectiveRunning = isRunning || daemonRunning;
-  const canPrompt = canPromptSession(session);
-  const promptControlsAvailable = effectiveRunning && canPrompt;
+  const {
+    activeTurnId,
+    canPrompt,
+    daemonRunning,
+    effectiveRunning,
+    promptControlsAvailable,
+    userControllable,
+  } = sessionPromptFlags(session, isRunning);
   const bindingKey = `${workspaceId}\u0000${sessionId}`;
   const { store } = useStoreBinding(bindingKey, () =>
     createSessionPageControlsLogic().createStore()
@@ -118,32 +120,21 @@ export function useSessionPageControls(
     });
   };
 
-  const stopRequestActive = isStopRequestActive(controlsState);
-  // Stopping reads true from the first activation until the daemon confirms
-  // the stop landed; a session the daemon itself reports as `stopping` reads
-  // the same way even when no request of ours is in flight (US-009.AC-1/AC-3).
-  const isStopping = stopRequestActive || sessionState === "stopping";
-  // The daemon could not verify the stop: the session stays `stopping` and
-  // carries the attention until the daemon reads `stopped`. Neither
-  // acceptance, escalation, nor time clears it here — the read model does.
-  const stopAttention = sessionStopAttention(session);
-  const isStopRetrying = isStopRetryPending(controlsState);
   const isResuming = controlsState.resume.phase === "pending";
   const isUnarchiving = unarchiveMutation.isPending;
   const isDeleting = deleteMutation.isPending;
   const isRenaming = renameMutation.isPending;
   const isClearing = clearMutation.isPending;
   const busyInputPending = busyInput.pending;
-  const controlsBusy =
-    stopRequestActive ||
-    isResuming ||
-    isUnarchiving ||
-    isDeleting ||
-    isRenaming ||
-    isClearing ||
-    busyInputPending;
-  const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
-  const canClear = userControllable && hasConversationContent && !controlsBusy && !effectiveRunning;
+  const { canClear, controlsBusy, isStopping, isStopRetrying, stopAttention } =
+    sessionControlsAvailability({
+      controlsState,
+      effectiveRunning,
+      hasConversationContent: messages.length > 0 || transcriptMessages.length > 0,
+      pending: { busyInputPending, isClearing, isDeleting, isRenaming, isResuming, isUnarchiving },
+      session,
+      userControllable,
+    });
 
   // Stop and its retry are one action with one owner. A retry of an
   // unverified stop is the same session stop, waited on (`wait: true`) so the
@@ -268,5 +259,66 @@ export function useSessionPageControls(
     resumeFailure: controlsState.resume.failure,
     stopAttention,
     stopPhase: isStopping ? ("stopping" as const) : ("idle" as const),
+  };
+}
+
+/** What the session read model allows before any request of ours is in flight. */
+function sessionPromptFlags(session: SessionPayload, threadRunning: boolean) {
+  const daemonRunning = isSessionRunning(session);
+  const effectiveRunning = threadRunning || daemonRunning;
+  const canPrompt = canPromptSession(session);
+  return {
+    activeTurnId: session.activity?.turn_id?.trim() ?? "",
+    canPrompt,
+    daemonRunning,
+    effectiveRunning,
+    promptControlsAvailable: effectiveRunning && canPrompt,
+    userControllable: isUserControllableSession(session),
+  };
+}
+
+/**
+ * Which controls are available once the page's own requests are known.
+ * Stopping reads true from the first activation until the daemon confirms the
+ * stop landed; a session the daemon itself reports as `stopping` reads the same
+ * way even when no request of ours is in flight (US-009.AC-1/AC-3). A stop the
+ * daemon could not verify keeps its attention until the read model says
+ * `stopped` — neither acceptance, escalation, nor time clears it here.
+ */
+function sessionControlsAvailability(input: {
+  controlsState: SessionPageControlsState;
+  effectiveRunning: boolean;
+  hasConversationContent: boolean;
+  pending: {
+    busyInputPending: boolean;
+    isClearing: boolean;
+    isDeleting: boolean;
+    isRenaming: boolean;
+    isResuming: boolean;
+    isUnarchiving: boolean;
+  };
+  session: SessionPayload;
+  userControllable: boolean;
+}) {
+  const stopRequestActive = isStopRequestActive(input.controlsState);
+  const { pending } = input;
+  const controlsBusy =
+    stopRequestActive ||
+    pending.isResuming ||
+    pending.isUnarchiving ||
+    pending.isDeleting ||
+    pending.isRenaming ||
+    pending.isClearing ||
+    pending.busyInputPending;
+  return {
+    canClear:
+      input.userControllable &&
+      input.hasConversationContent &&
+      !controlsBusy &&
+      !input.effectiveRunning,
+    controlsBusy,
+    isStopping: stopRequestActive || input.session.state === "stopping",
+    isStopRetrying: isStopRetryPending(input.controlsState),
+    stopAttention: sessionStopAttention(input.session),
   };
 }

@@ -110,7 +110,8 @@ const PROVIDER_ERROR_CAUSE: Record<ProviderErrorView["code"], string> = {
   provider_rate_limited: "This turn stopped because the provider is limiting requests right now.",
 };
 
-const PROVIDER_AUTH_STATUS_COMMAND = "compozy provider auth status <provider> --remote";
+// Public CLI invocation shown to the operator as the next step; it carries no credential.
+const PROVIDER_STATUS_CLI_HINT = "compozy provider auth status <provider> --remote";
 
 // One next step per daemon next_action; `inspect` doubles as the fallback for unknown values.
 const PROVIDER_ERROR_NEXT_STEP: Record<ProviderErrorView["nextAction"], ReactNode> = {
@@ -118,7 +119,7 @@ const PROVIDER_ERROR_NEXT_STEP: Record<ProviderErrorView["nextAction"], ReactNod
     <>
       Sign in with the provider CLI, run{" "}
       <code className="font-mono" data-testid="provider-error-command">
-        {PROVIDER_AUTH_STATUS_COMMAND}
+        {PROVIDER_STATUS_CLI_HINT}
       </code>{" "}
       to confirm through the daemon, then send your message again.
     </>
@@ -261,6 +262,101 @@ function PostStopMarkerNotice({ label, count }: { label: string; count: number }
   );
 }
 
+/** A session-level failure: the provider-shaped notice when the daemon named one, else the generic marker. */
+function SessionErrorNotice({ event, count }: { event: AgentEventPayload; count: number }) {
+  const provider = providerErrorView(event);
+  if (provider) {
+    return <ProviderErrorNotice view={provider} count={count} />;
+  }
+  const failureKind = event.failure?.kind?.trim();
+
+  return (
+    <Marker
+      role="alert"
+      data-testid="session-error-notice"
+      tone="danger"
+      icon={<AlertCircle strokeWidth={1.8} />}
+    >
+      <b>Session failed</b> —{" "}
+      <span data-testid="session-error-detail">{sessionErrorDescription(event)}</span>
+      {failureKind ? (
+        <>
+          {" "}
+          <MarkerMeta data-testid="session-error-meta">{failureKind}</MarkerMeta>
+        </>
+      ) : null}
+      <ClusterCount count={count} />
+    </Marker>
+  );
+}
+
+/** A transcript marker: operational prompt kinds stay silent, post-stop discards read neutral, the rest by tone. */
+function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; count: number }) {
+  const marker = markerFromEvent(event);
+  if (isOperationalPromptKind(marker?.kind)) {
+    return null;
+  }
+  if (marker?.kind === POST_STOP_MARKER) {
+    return <PostStopMarkerNotice label={markerLabel(marker, event)} count={count} />;
+  }
+  const tone = markerTone(marker);
+  const Icon = tone === "info" ? Info : AlertTriangle;
+  return (
+    <Marker
+      role={tone === "info" ? "status" : "alert"}
+      data-testid="transcript-marker-notice"
+      data-marker-tone={tone}
+      tone={tone}
+      icon={<Icon strokeWidth={1.8} />}
+    >
+      <span data-testid="transcript-marker-summary">
+        {marker?.summary || event.text || "Runtime marker recorded."}
+      </span>{" "}
+      <MarkerMeta data-testid="transcript-marker-kind">{markerLabel(marker, event)}</MarkerMeta>
+      <ClusterCount count={count} />
+    </Marker>
+  );
+}
+
+/** Plain runtime activity: the event text leads when present, the derived detail stays for readers. */
+function RuntimeActivityMarker({
+  event,
+  count,
+  detail,
+  meta,
+}: {
+  event: AgentEventPayload;
+  count: number;
+  detail: string;
+  meta: string | null;
+}) {
+  const title = event.text?.trim() || detail;
+  return (
+    <Marker
+      role="status"
+      tone="neutral"
+      data-testid="runtime-activity-notice"
+      icon={<Activity strokeWidth={1.8} />}
+    >
+      <b>{title}</b>
+      {meta ? (
+        <>
+          {" "}
+          <MarkerMeta data-testid="runtime-activity-meta">{meta}</MarkerMeta>
+        </>
+      ) : null}{" "}
+      {title !== detail ? (
+        <span data-testid="runtime-activity-detail">{detail}</span>
+      ) : (
+        <span className="sr-only" data-testid="runtime-activity-detail">
+          {detail}
+        </span>
+      )}
+      <ClusterCount count={count} />
+    </Marker>
+  );
+}
+
 /**
  * Runtime events as one-line markers — the calm replacement for the old tinted
  * Alert cards. Tone lives in the 12px glyph; the raw kind string renders as
@@ -275,98 +371,20 @@ export function RuntimeActivityNotice({
   count?: number;
 }) {
   if (isSessionErrorEvent(event)) {
-    const provider = providerErrorView(event);
-    if (provider) {
-      return <ProviderErrorNotice view={provider} count={count} />;
-    }
-    const failureKind = event.failure?.kind?.trim();
-
-    return (
-      <Marker
-        role="alert"
-        data-testid="session-error-notice"
-        tone="danger"
-        icon={<AlertCircle strokeWidth={1.8} />}
-      >
-        <b>Session failed</b> —{" "}
-        <span data-testid="session-error-detail">{sessionErrorDescription(event)}</span>
-        {failureKind ? (
-          <>
-            {" "}
-            <MarkerMeta data-testid="session-error-meta">{failureKind}</MarkerMeta>
-          </>
-        ) : null}
-        <ClusterCount count={count} />
-      </Marker>
-    );
+    return <SessionErrorNotice event={event} count={count} />;
   }
-
   if (isTranscriptMarkerEvent(event)) {
-    const marker = markerFromEvent(event);
-    if (isOperationalPromptKind(marker?.kind)) {
-      return null;
-    }
-    if (marker?.kind === POST_STOP_MARKER) {
-      return <PostStopMarkerNotice label={markerLabel(marker, event)} count={count} />;
-    }
-    const tone = markerTone(marker);
-    const Icon = tone === "info" ? Info : AlertTriangle;
-    return (
-      <Marker
-        role={tone === "info" ? "status" : "alert"}
-        data-testid="transcript-marker-notice"
-        data-marker-tone={tone}
-        tone={tone}
-        icon={<Icon strokeWidth={1.8} />}
-      >
-        <span data-testid="transcript-marker-summary">
-          {marker?.summary || event.text || "Runtime marker recorded."}
-        </span>{" "}
-        <MarkerMeta data-testid="transcript-marker-kind">{markerLabel(marker, event)}</MarkerMeta>
-        <ClusterCount count={count} />
-      </Marker>
-    );
+    return <TranscriptMarkerNotice event={event} count={count} />;
   }
-
-  if (isOperationalStatusEvent(event)) {
+  if (isOperationalStatusEvent(event) || !isRuntimeActivityEvent(event)) {
     return null;
   }
 
-  if (!isRuntimeActivityEvent(event)) {
-    return null;
-  }
-
-  const isWarning = event.type === "runtime_warning";
   const activity = event.runtime;
   const detail = describeActivity(activity);
   const meta = activityMeta(activity);
-
-  if (!isWarning) {
-    const title = event.text?.trim() || detail;
-    return (
-      <Marker
-        role="status"
-        tone="neutral"
-        data-testid="runtime-activity-notice"
-        icon={<Activity strokeWidth={1.8} />}
-      >
-        <b>{title}</b>
-        {meta ? (
-          <>
-            {" "}
-            <MarkerMeta data-testid="runtime-activity-meta">{meta}</MarkerMeta>
-          </>
-        ) : null}{" "}
-        {title !== detail ? (
-          <span data-testid="runtime-activity-detail">{detail}</span>
-        ) : (
-          <span className="sr-only" data-testid="runtime-activity-detail">
-            {detail}
-          </span>
-        )}
-        <ClusterCount count={count} />
-      </Marker>
-    );
+  if (event.type !== "runtime_warning") {
+    return <RuntimeActivityMarker event={event} count={count} detail={detail} meta={meta} />;
   }
 
   const title = event.text?.trim() || "Runtime warning";
