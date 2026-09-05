@@ -1,5 +1,7 @@
 # Publisher Voice Matrix
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 Cross-publisher matrix for seven publishers (Datadog, Vercel, GitHub, AWS, Meta, Cloudflare, Jane Street) by six surface features, plus banned moves per publisher.
 
 ## Contents

@@ -1,70 +1,9 @@
-# Troubleshooting Common Rebase Issues
+# Rebase Troubleshooting
 
-## Problem: "CONFLICT (content): Merge conflict in X"
+- **Conflict:** inspect the current replayed commit and both versions, edit the intended result, stage only resolved paths, and continue.
+- **Cannot lock ref:** identify the owning Git process, ref state, and permissions. Wait for legitimate concurrent work; do not kill arbitrary Git processes or delete lock files based only on age.
+- **Waiting for an editor:** inspect the editor process/configuration and complete that interaction. A one-command editor override is preferable to changing global configuration.
+- **Diverged branch:** expected after rewriting local history, but publication still requires authorization and a lease against the observed remote head.
+- **Recovery:** inspect the backup ref and reflog, preserve the current work, and determine what is missing before choosing a recovery action. Do not reset, checkout, stash, or discard work without the required explicit permission.
 
-**What it means**: File X has conflicting changes from both branches
-
-**Solution**:
-
-1. `git status` to see all conflicts
-2. Edit each conflicted file (look for `<<<<<<<` markers)
-3. `git add <file>`
-4. `git rebase --continue`
-
-## Problem: "fatal: cannot lock ref 'refs/heads/...'"
-
-**What it means**: Git can't write to branch (another command is running or permission issue)
-
-**Solution**:
-
-```bash
-# Check if another git process is running
-ps aux | grep git
-
-# Kill it if safe: kill <PID>
-
-# Or retry after a moment
-# If persistent: check file permissions in .git/
-```
-
-## Problem: Rebase seems stuck (no prompt)
-
-**What it means**: Your editor didn't open, or it's waiting for input
-
-**Solution**:
-
-```bash
-# Check if you have an editor set
-git config --global core.editor
-
-# Set one if not configured
-git config --global core.editor "nano"  # or "vim", "code", etc.
-
-# Resume rebase
-git rebase --continue
-```
-
-## Problem: "Your branch has diverged"
-
-**What it means**: After rebase, local and remote have different history
-
-**Solution**:
-
-```bash
-# This is EXPECTED after rebase
-# Force push safely to update remote
-git push origin $(git rev-parse --abbrev-ref HEAD) --force-with-lease
-```
-
-## Problem: Lost Commits After Force Push
-
-**Recovery**:
-
-```bash
-# Your backup branch saves you
-git reset --hard backup-rebase-<timestamp>
-
-# Or use reflog to find the SHA
-git reflog
-git reset --hard <SHA>
-```
+Diagnose the actual failure and retry the affected operation; do not restart the entire rebase or switch to a merge merely because one operation failed.

@@ -52,7 +52,7 @@ Lifecycle: `mount → fresh (staleTime) → stale → unmount → gcTime countdo
 
 ## Use Targeted Invalidation
 
-Invalidation marks matching queries stale, triggering a background refetch when they're next used. Match precisely: invalidate every query the mutation affected (list, detail, dependent counts) and nothing more. Bare `invalidateQueries()` nukes the whole cache.
+Invalidation marks matching queries stale, triggering a background refetch when they're next used. Match precisely: reread affected entries (list, detail, dependent counts) only when authoritative response/cache writers cannot reconcile them. Bare `invalidateQueries()` nukes the whole cache.
 
 ```tsx
 const mutation = useMutation({

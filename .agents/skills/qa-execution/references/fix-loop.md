@@ -23,14 +23,14 @@ For each `fail` finding or sharp paper cut, judge before editing. **Auto-fix onl
 - **Low-risk** — blast radius contained to the touched surface; adjacent journeys unlikely to shift.
 - **No product trade-off** — the correct behavior is unambiguous. Anything a PM/designer might reasonably decide differently is not yours to decide.
 
-Anything failing one test → **Decisions for a Human**. When a fix grows beyond bounds mid-edit: revert fully, restore the finding to `Fail`, escalate. A half-applied fix is worse than an open bug.
+These are defaults for QA-only scope. Existing user authorization to repair a broader issue takes precedence; continue that work outside the persona session. Ask only for an unresolved product decision or an action beyond authorization. If scope grows, preserve work and record the open finding; do not run destructive Git without permission.
 
 ## Auto-fix requirements
 
 Every auto-fix ships with, non-negotiably:
 
-1. **A regression test that failed before and passes after.** When no automated test is meaningful (pure copy, purely visual), a documented replay stands in: the exact re-walk steps, the before/after evidence, and the stated reason no test applies — plus an `automation-backlog/` entry recording the debt.
-2. **One logical fix per commit**, message citing the bug id.
+1. **Proof of the corrected invariant** in its owning suite or real replay. Reuse existing coverage; add a regression only for an uncovered invariant. Copy/visual changes use before/after replay evidence, without a mandatory automation-debt entry.
+2. Keep each logical fix reviewable and cite the bug id. Commit only when the active workflow authorizes it.
 3. **Root cause in the bug file** (`Fix` section: root cause, commit SHA, regression test path).
 4. **Retest** per the protocol below before the finding's row moves to `Fixed`.
 
@@ -59,21 +59,19 @@ Sharp paper cuts (the persona would complain or hesitate to return) enter the go
 After any fix:
 
 1. Re-walk the impacted journey **from scratch, in persona** — a fresh session (fresh state, real entry), not a resumed browser. The Recovering User persona is often the right walker: it tests the fix *and* the recovery experience.
-2. Re-walk **adjacent journeys** — the ones sharing components or services with the change. A fix that breaks the neighbor is a regression the matrix must catch now, not next cycle.
+2. Re-walk adjacent journeys when a shared component or service makes propagation plausible; no mandatory neighbor walk for an isolated change.
 3. On pass: bug → `fixed` (then `verified` once confirmed under the original persona), matrix row → `Fixed`, tracker row per the schema (`fix_status: fixed`, `retest_status: pass`, `fix_commits` updated).
-4. On fail: reopen, revert if the fix caused it, escalate if the second attempt would exceed the governor.
+4. On fail: reopen and diagnose; repair within authorization or record the specific decision needed. Preserve unrelated changes.
 
 ## The exit gate
 
-Before the run's Final Status: **run the project's required local pre-push gate.** A green matrix with a red gate is not ready — some fix broke something the sessions did not walk. Record the local result verbatim; delivery later requires exact-head PR CI, whose red or pending state also keeps Final Status "not ready".
-
-(The suite was green at Step 1 — the gate catches what *this run's fixes* changed.)
+Before Final Status, satisfy the project's required local gate once or cite current evidence for the same inputs. Run affected checks after fixes; do not repeat unchanged successful checks. When delivery includes a PR, report required CI at its current head. A red required gate keeps the corresponding readiness claim open.
 
 ## Anti-patterns
 
 - **Fix-forward inside the session** — patching mid-walk destroys role fidelity and hides how a real user experiences the bug.
 - **Fix without regression proof** — "fixed it, looks good" is a claim. Red-before/green-after or a documented replay, always.
-- **Scope-creep fixes** — "while I'm here" refactors ride along and widen blast radius. One logical fix per commit.
+- **Scope-creep fixes** — "while I'm here" refactors ride along and widen blast radius. Keep the patch scoped to the finding.
 - **Deciding product questions** — picking a behavior a designer might pick differently, to clear a row. Escalate with options.
-- **Retesting only the fixed journey** — the neighbors are where governed fixes still bite.
+- **Ignoring plausible propagation** — verify adjacent journeys when shared behavior changed.
 - **Silently requeueing blocked items** — `Blocked (human decision)` and `Blocked (needs human verify)` are terminal for the run; they wait for a person, visibly.

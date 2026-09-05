@@ -1,8 +1,8 @@
 # Query Mutations
 
-## Invalidate Related Queries After Mutations
+## Reconcile Related Queries After Mutations
 
-After a mutation, invalidate every query whose data it could have affected — partial invalidation (e.g. hitting `['todos','list']` but not `['todos','count']`) leaves the cache stale. Mutation callbacks receive `(data, variables, context)`, so you can target keys from the mutation input.
+After a mutation, reconcile every affected canonical read model. Update cache entries from an authoritative response when it is sufficient; invalidate entries that require a server reread. The examples below assume rereads are needed. Mutation callbacks receive `(data, variables, context)`, so you can target keys from the mutation input.
 
 ```tsx
 const updateTodo = useMutation({
@@ -44,7 +44,7 @@ onSuccess: (newTodo) => {
 }
 ```
 
-Place invalidation in `onSuccess`; use `onSettled` to invalidate regardless of success or failure.
+When rereading is required, use `onSuccess` after confirmed changes or `onSettled` when reconciliation is also needed after failure.
 
 ## Implement Optimistic Updates
 
@@ -136,7 +136,7 @@ function TodoItem({ todo }: { todo: Todo }) {
 | Cache Manipulation | Update appears in multiple places, complex data structures |
 | UI Variables | Update only visible in one component, simpler implementation |
 
-For cache manipulation: always `cancelQueries` before writing to avoid a race, roll back from `context` in `onError`, and `invalidateQueries` in `onSettled` to sync with server truth.
+For cache manipulation: always `cancelQueries` before writing to avoid a race, roll back from `context` in `onError`, and reconcile with server truth according to the owning contract; `onSettled` invalidation is one option.
 
 ## Use useMutationState for Cross-Component Tracking
 

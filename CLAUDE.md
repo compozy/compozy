@@ -1,205 +1,67 @@
-## Project Overview
+# CompozyOS
 
-CompozyOS is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `compozy.com` (Fumadocs).
-
-**Core premise:** every capability must be both extensible by the runtime and manageable by agents (CLI/HTTP/UDS with structured output). A feature that only works through internal Go calls or the web UI is incomplete.
-
-<most_critical>Avoid creating excessive test files. Create a new test file only when required by repository conventions or when no existing file is a suitable home. Avoid unrelated cleanup and unnecessary complexity. Reuse suitable existing utilities. Read relevant repository instructions and inspect nearby code, tests, documentation, and CI. Follow established conventions. The goal is clean,
-mergeable code.</most_critical>
+CompozyOS is a Go daemon managing ACP agents over JSON-RPC/stdio, SQLite state, HTTP/SSE, UDS, and a web UI. Capabilities must be extensible and manageable by agents through structured CLI/HTTP/UDS surfaces.
 
 ## Compatibility Policy
 
-Real users run every release; releases stay upgradeable. Three regimes by contract ownership (SD-013, L-040):
+Real users run every release. Preserve the three regimes from SD-013 and L-040:
 
-- **User state never breaks** (SQLite streams, `config.toml`, workspace files, persisted layouts): every shape change ships a lossless auto-migration in the same change. Data loss requires the user's recorded ADR sign-off plus a release-note migration block.
-- **Public surfaces deprecate before they delete** (CLI verbs/flags, HTTP/UDS routes and DTOs, hook events, extension/bridge SDKs, config keys, `compozy__*` tool IDs): auto-migrate losslessly when possible; otherwise the old shape keeps working for one release after the new one ships, with a warning naming the replacement, then is deleted. Only surfaces documented `experimental` may break without a window.
-- **Internal code stays hard-cut** (Go packages, `web/`, `@compozy/ui`, specs, `.compozy/tasks/*`): rename every consumer in one change; no aliases, dual fields, or legacy branches — delete obsolete code.
+- **User state:** SQLite, `config.toml`, workspace files, and persisted layouts upgrade losslessly; every shape change ships its migration. Data loss requires the user's recorded ADR sign-off and a release-note migration block.
+- **Public surfaces:** CLI verbs/flags/output, HTTP/UDS routes and DTOs, hooks, extension/bridge SDKs, config keys, and `compozy__*` IDs auto-migrate losslessly where possible; otherwise retain the old shape for one release after the replacement ships, warn with the replacement, then delete. Only surfaces documented `experimental` may break without that window.
+- **Internal code:** Go packages, `web/`, `@compozy/ui`, specs, RFCs, and `.compozy/tasks/*` rename every consumer together; delete obsolete code without aliases or legacy branches.
+- Compatibility translation belongs in boundary loaders/decoders/alias tables/migration SQL, with one shim generation and a named removal release. Breaking-change specs list delete targets and the regime of each. Read `docs/_memory/standing_directives.md` §SD-013 when designing a compatibility change; its planned gates are not implemented guarantees.
 
-Compat lives at the boundary (loader, decoder, alias table, migration SQL), never as a branch in domain code; one shim generation at a time, each naming its removal release. Every breaking-change spec lists its delete targets and the regime of each.
+## Working Rules
 
-## Critical Rules
+- Preserve unrelated work. Destructive Git (`restore`, `checkout`, `reset`, `clean`, `rm`, `stash`) requires explicit user permission.
+- Conversation in Brazilian Portuguese; code, docs, specs, commits, and memory artifacts in English.
+- Use `go get` for Go dependencies and `bun add` for JS dependencies; generated files change through their owning generator.
+- Keep production source files cohesive and at most 500 lines; extract before growing an oversized file. Handle errors or justify an intentional discard.
+- Before changing a test, identify its invariant, owning layer, and existing suite. Reuse that suite and suitable utilities. Add coverage for observable behavior; prose/CSS/config/snapshot assertions need an actual artifact contract without a stronger owning check. Fix production regressions without weakening tests.
+- Follow the user's authorized scope. Reuse current research, decisions, and verification; ask only when an unresolved decision blocks correct work. Avoid unrelated cleanup.
 
-- <critical>Write responses in plain language: prefer everyday words over technical jargon, and define any technical term you must keep in one short clause.</critical>
-- **`make gate` MUST pass locally before commit or push; a workstream closes only when the PR's required CI checks are green for its current head.** Draft PRs with pending/red CI remain owned by the author until repaired; `make gate-full` is opt-in local diagnostics only. Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
-- **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
-- **Check dependent package APIs** before writing integration code or tests.
-- **Never hand-edit `go.mod`** — use `go get`. **Never hand-add JS deps** — use `bun add`.
-- **Never run destructive git** (`restore`, `checkout`, `reset`, `clean`, `rm`, `stash`) without explicit user permission. Work around unexpected worktree edits; don't touch files you didn't change.
-- <critical>NEVER discard errors with `_` in production or tests — handle every error or write a justification.</critical>
-- <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
-- <critical>**Context-budget docs stay lean.** `CLAUDE.md`/`AGENTS.md` and `SKILL.md`s load into prompts — every line costs every turn. Before editing agent instruction files activate `writing-agents-md`; before editing skills activate `writing-skills`. Growing either with restated or redundant prose is a blocking failure.</critical>
-- **Test placement before test creation** (skill: `eng-consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
-- **Subagents for exploration:** Use `explorer` subagents for read-only exploration when exploration is explicitly requested; activate `agent-exploration` only when the user explicitly names that skill.
-- **UI descriptions:** Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default. Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it or when it is necessary to prevent misunderstanding or error, and never use it to restate the heading.
-- **Settings affected**: When changing/removing a feature you need to make sure that feature is not attached to any settings under config.toml to avoid lefting deprecated/broke setting in the project.
+## Surface Instructions and Skills
 
-## Workflow Rules
+Read the relevant subtree instructions before working there:
 
-- **Spec peer review is opt-in, after approval.** `cy-create-spec` saves the approved spec first, then offers `cy-spec-peer-review`. Apply only user-selected findings.
-- **Every backend task carries a `Web/Docs Impact` subitem** — affected `web/` routes/components/hooks AND `packages/site` docs. "No impact" only after analysis.
-- **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
-- **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
-- **Worktree isolation is mandatory for parallel QA** — unique `COMPOZY_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
-- **Deterministic QA bootstrap for local release/scenario QA** — start with `eng-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`scenarios/*.md`, content-addressed bugs, journeys, charters, dated reports); `state.csv` is a gitignored generated view, and the lab holds only run-scratch evidence indexed by path.
-- <critical>**QA process teardown is mandatory (L-029).** Every QA lab or isolated runtime envelope ends with `eval "$TEARDOWN_COMMAND"` (from the bootstrap manifest) or `make qa-reap` — on every terminal path (pass/fail/blocked/abort). Files may stay for forensics; processes never do. Completing a task while lab daemons, tmux servers, dev servers, browsers, or watchers are still alive is a blocking failure; cite `teardown.json` (`"clean": true`) as evidence. Register long-lived lab processes at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` on spawn.</critical>
-- **QA tracker impact — flag and verify before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/scenarios/`: new behavior → add an `untested` content-addressed scenario file; changed behavior → reset the affected file's `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, then verify** — before completing, walk every scenario you added or reset per the `qa-execution` contract and record the verdict with evidence; a failing walk means fix the production code and re-walk until it passes. Inside a `cy-loop-tasks` run, intermediate tasks flag only — the walk runs once, in the loop's QA phase, before close. A flagged scenario left `untested`/`fail` at completion is a blocking failure; only a recorded `blocked-verify`/`blocked-decision` may stay unwalked. Use content-addressed ids for new scenarios and bugs; dedup same-behavior/same-symptom add/add conflicts instead of coordinating a shared counter.
-- **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
-- **Isolated Web QA exports `COMPOZY_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
-- **Never parallelize config writes against one isolated QA home** — `compozy config set` and peers run sequentially per provider/runtime home.
-- **Skill helpers use explicit repo-root paths** (`.agents/skills/<skill>/scripts/`), never ambiguous `scripts/...`.
-- **Conversation in Brazilian Portuguese; artifacts in English** (Specs, ADRs, code, commits, docs).
+| Surface                    | Instructions              |
+| -------------------------- | ------------------------- |
+| `cmd/compozy`, `internal/` | `internal/CLAUDE.md`      |
+| `web/`                     | `web/CLAUDE.md`           |
+| `packages/site`            | `packages/site/CLAUDE.md` |
+| `packages/ui`              | `packages/ui/CLAUDE.md`   |
+
+Load a skill when the user names it or its procedure resolves a task-specific need. Start with the owning skill; add another only for a distinct unresolved concern. Installed skills, generic language knowledge, and task completion do not automatically create extra gates. Read only the applicable reference sections; reuse previously read material while it remains current.
+
+- Go conventions: `eng-code-guidelines`; Go tests: `eng-test-conventions`. Use `eng-consolidate-test-suites` when placement is unclear, and language/debugging references when the problem needs them.
+- SQLite changes: `eng-schema-migration`; wire changes: `eng-contract-codegen-coship`; authorization/pagination/cache boundaries: `eng-data-boundaries`.
+- Specs/tasks: use the requested `cy-*` entry point and its applicable branches. Reuse approved research; peer review remains opt-in after saving the approved spec. Apply only user-selected peer-review findings.
+- Design-system/redesign: `eng-design`; visual-reference comparison: `eng-ui-screenshot`. Use additional design skills for the dimension being changed, and delegate design work when a suitable agent is available and useful.
+- Agent instruction edits: `writing-agents-md`; skill edits: `writing-skills`; incident lessons: `lesson-learned`.
+- Resolve bundled skill helpers from the skill's actual root, such as `.agents/skills/<skill>/scripts/`; never depend on an ambiguous working directory.
+
+## Verification and Delivery
+
+Use the cheapest check that can expose the changed behavior, plus the required delivery gates. Evidence remains valid for the inputs it checked; a new message or commit alone does not invalidate it. Repeat or broaden only after relevant changes, failures, or unresolved risk.
+
+- Before commit/push, `make gate` must pass with zero warnings/errors; docs-only changes that cannot affect test/lint/typecheck are exempt. The wrapper selects affected lanes and caches evidence under `.cache/gate/`; use `make gate-status` for current records. Missing merge bases or unclassified paths require diagnosis, not a fallback full run.
+- PR delivery requires every required CI check green for the current head. Diagnose finished failures while other jobs run. A draft PR with pending/red checks remains in progress. `make gate-full` is opt-in local diagnostics; local full/E2E runs share a machine lock, so do not kill a queued run.
+- Frontend validation runs through Turborepo from the repo root, with affected-package filters during iteration. Package-local test/typecheck runs are not delivery evidence.
+- Review the changed diff once before final validation; repeat review only for subsequent relevant changes. Report the result, commands/evidence, and remaining limits concisely; no fixed report template for routine tasks.
+- Commits: `<type>: <description>` with `feat|fix|refactor|perf|docs|test|build|ci`, no scopes. A failed pre-commit hook is repaired in a new commit, not an amend. `cy-fix-reviews` keeps one local commit per remediation batch.
 
 ## Compozy Cross-Surface Impact Audit
 
-Every feature, bug fix, refactor, public-contract/CLI/API/native-tool/config/docs change, or runtime behavior change MUST include this audit in the plan/task/completion notes. Purely editorial docs that describe no runtime behavior may state `not applicable — editorial only`.
+For behavior/contract changes, record the affected native tools, extensibility/hooks/config, workspace data isolation, and official skill (`skills/compozy/`), including Web/Docs impact. Use `docs/_memory/change-impact.md` once at the owning spec/task/PR; downstream tasks cite and update it rather than restating it. Editorial instruction changes may state `not applicable — editorial only`.
 
-```markdown
-Compozy Impact Audit:
+## QA
 
-- Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact + checked surfaces>
-- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
-- Workspace data isolation: <global/workspace/session/agent scope + workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events + tests, or no impact + checked surfaces>
-- Official Compozy skill: <skills/compozy/ updates, or no impact + checked surfaces>
-```
+Changed user-visible behavior updates the affected `docs/qa/scenarios/` files and verifies those scenarios before delivery. Reuse current evidence for unchanged behavior. Spec loops collect slice evidence and run the trailing QA pair once for remaining integration journeys; intermediate tasks flag affected scenarios. Do not launch a full lab for editorial changes or repeat completed walks without a relevant change.
 
-- `No impact` is valid only when it names the exact checked surfaces and why they're unchanged.
-- **Native tools** = `compozy__*` IDs, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, CLI/API fallbacks.
-- **Workspace data isolation** = runtime data ownership (not QA/worktree isolation): classify each new/changed datum as global/workspace/session/agent-scoped and prove list/read/cache/SSE/event paths can't leak across workspaces.
-- **Official Compozy skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, extension resources, or memory/network/task semantics change. Canonical built-in skill: `skills/compozy/`.
+For release/scenario labs, use `eng-qa-bootstrap` and the applicable `qa-report`/`qa-execution` branches. Parallel labs require unique homes, ports, and sockets; derive proxy/provider settings from the manifest and serialize config writes per home. Register lab processes, run the manifest teardown command or `make qa-reap` on every exit, and retain `teardown.json` with `clean: true`. Failed walks require repair and re-walk; only documented external/decision blockers may remain unverified.
 
-## Design System
+## Design, Copy, and Memory
 
-`packages/ui/src/tokens.css` is the canonical token source; `DESIGN.md` (repo root) is its generated spec + rationale. Full grammar (flat depth model, signal palette, type stack) lives in `DESIGN.md` — pull from there, never invent.
+Reuse `@compozy/ui` exports from `packages/ui/src/index.ts`. `packages/ui/src/tokens.css` and generated `DESIGN.md` own visual values; regenerate tokens with `make codegen`, never edit generated regions. Runtime truth owns content and controls; named references own visual language. Read `COPY.md` for product-facing text and `docs/_memory/glossary.md` for domain naming. Add supporting UI copy only when requested or needed to prevent error.
 
-- <critical>**Reuse before create (any UI surface):** `packages/ui/src/index.ts` is the primitive inventory — check it before authoring any component and import from `@compozy/ui` instead of redefining. Shadowing an exported name in `web/`/`packages/site` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`); domain variants take domain-prefixed names (`SessionToolCallRow`); new generic primitives land in `packages/ui` (story + test), domain composites in `web/src/systems/<domain>/`.</critical>
-- Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
-- Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
-- **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
-- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `eng-design` + `ui-craft` (reference-routed — read the matched rows in full). **`eng-ui-screenshot` verification is spec-scoped:** required only when the executing spec/task names a visual reference (`docs/design/opendesign` HTML); Visual Contract Mode then requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — what the named piece reads like, never what it's built from: a prototype is lossy on content, data, copy, brand marks, component identity, and the host chrome it redraws around the piece; runtime truth, `COPY.md`, the `@compozy/ui` inventory (reuse-before-create above), and the live host surface own those axes (divergences become authorized deltas — never invented content, forked primitives, or torn-down host UI).
-
-## Copy System
-
-`COPY.md` (repo root) is the authoritative product-language spec for all public text (marketing, docs, release, metadata, UI microcopy, CLI help, SEO/OpenGraph). Read it before writing/changing product-facing copy.
-
-- Runtime truth beats copy preference: generated API/CLI refs, code, tests, and release artifacts win over aspirational wording.
-- Follow `docs/_memory/glossary.md`. The canonical artifact name is `capability` — never `recipe`, `workflow`, `procedure`, or `playbook`.
-- Apply the `COPY.md` claim standards before "today", "shipping", "supported", "live", "complete", or product counts.
-
-## Skill Dispatch
-
-<critical>**ALWAYS** activate skills **before** writing code.</critical> Match task domain → activate all required skills. Multiple domains → activate multiple. No skipping "because it's small".
-
-| Domain                                            | Required Skills                                                                          | Conditional Skills                    |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| Go / Runtime                                      | `eng-code-guidelines` + `golang-master` + `use-modern-go`                                | `context7`                            |
-| Config / Logging                                  | `eng-code-guidelines` + `golang-master`                                                  |                                       |
-| TUI / CLI Bubbletea                               | `bubbletea` + `eng-code-guidelines` + `golang-master`                                    |                                       |
-| Bug fix                                           | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |
-| Writing Go tests                                  | `eng-test-conventions` + `testing-boss` + `golang-master`                                | `vitest` (only for test tooling docs) |
-| Test placement / consolidation                    | `eng-consolidate-test-suites`                                                            | `testing-boss`                        |
-| Cleanup / failure paths                           | `eng-cleanup-failure-paths` + `eng-code-guidelines` + `golang-master`                    |                                       |
-| Schema / migration changes                        | `eng-schema-migration` + `golang-master`                                                 |                                       |
-| Contract / OpenAPI changes                        | `eng-contract-codegen-coship`                                                            |                                       |
-| Task completion                                   | `deslop` + `cy-final-verify`                                                             |                                       |
-| Lessons learned                                   | `lesson-learned`                                                                         |                                       |
-| Architecture audit                                | `architectural-analysis`                                                                 | `refactoring-analysis`                |
-| Concurrency / races                               | `golang-master` + `systematic-debugging`                                                 | `eng-code-guidelines`                 |
-| Compozy Network (`internal/network` only)         | `eng-code-guidelines` + `golang-master`                                                  | `systematic-debugging`                |
-| Performance / hot paths                           | `extreme-software-optimization` + `golang-master`                                        |                                       |
-| Security review                                   | `security-review`                                                                        |                                       |
-| Creative / new features                           | `grill-me`                                                                               |                                       |
-| Spec creation                                     | `cy-spec-preflight` + `cy-create-spec`                                                   | `cy-spec-peer-review`                 |
-| Task generation                                   | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
-| Research → executable issue backlog               | `cy-research-issues`                                                                     | `eng-consolidate-test-suites`         |
-| Execute a spec task                               | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
-| Review round / fixes                              | `cy-review-round` + `cy-fix-reviews`                                                     |                                       |
-| Release / scenario QA                             | `eng-qa-bootstrap` + `eng-real-scenario-qa` + `qa-report` + `qa-execution`               | `eng-worktree-isolation`              |
-| Git rebase / conflicts                            | `git-rebase`                                                                             |                                       |
-| External docs lookup                              | `context7`                                                                               | `exa-web-search-free`                 |
-| Parallel multi-area research                      | `agent-exploration`                                                                      |                                       |
-| Diagrams (spec / ADR)                             | `mermaid-diagrams`                                                                       |                                       |
-| Documentation (internal)                          | `documentation-writer`                                                                   |                                       |
-| Copy / public product language                    | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
-| Skill authoring                                   | `writing-skills`                                                                         |                                       |
-| Agent instruction files (`CLAUDE.md`/`AGENTS.md`) | `writing-agents-md`                                                                      |                                       |
-| UI / Design (any surface)                         | `eng-design` + `ui-craft` + `impeccable`                                                 | `eng-ui-screenshot`                   |
-| UI verification / visual diff                     | `eng-ui-screenshot` + `impeccable`                                                       |                                       |
-
-UI dimension deep-dives — activate only the dimension in scope: `better-typography` type/fonts/wrapping · `better-layout` grouping/spacing/disclosure · `better-accessibility` focus/ARIA/keyboard · `better-colors` OKLCH/token math · `better-ui` radius/icon/motion detail. `eng-design` + `DESIGN.md` win on conflict — flat depth beats layered shadows.
-
-Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
-
-## Build Commands
-
-`make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`. Run gates through the evidence-cached wrapper, never by hand:
-
-- **Local iteration and pre-push** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → scoped `go-lint` + `go test -race`; web/ui/site → `turbo --filter`; sensitive paths → their codegen/tooling/scoped lanes; docs/instructions-only → no-op). Missing merge bases and unclassified paths fail with an actionable error; they never trigger `make verify`.
-- **Workstream close** → push the current head, open or update its draft PR, then wait for every required CI check to pass. Pending/red CI keeps the workstream open and its author repairs, pushes, and re-waits. `make gate-full` remains available only when an author explicitly wants an extra local full run.
-- **Accepted trade-off** → red failures may arrive one CI wall later, and schema/contract changes receive only their scoped local lanes before push; exact-head PR CI is the mandatory backstop.
-- Local gates record `{fingerprint, result, log}` in `.cache/gate/`, keyed by tree content — commits keep records valid, any edit goes stale. Cite current scoped records for local claims; cite the PR check run at the exact head SHA for completion.
-
-**Opt-in local `make gate-full` and local E2E lanes self-serialize across worktrees (L-030).** They share a machine-wide lock (`~/Library/Caches/compozy-dev/verify.lock`); never kill a queued run assuming it hung. Required local scoped lanes stay lock-free but bounded, while separate PR CI runs execute independently. `COMPOZY_VERIFY_LOCK=off` is for CI-style single-checkout machines only.
-
-**Frontend validation MUST run through Turborepo from the repo root.** Never use `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run …`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
-
-```bash
-make gate / gate-full / gate-status        # required scoped lanes / opt-in local full / local evidence records
-make bun-lint / bun-typecheck / bun-test   # repo-root Bun gates (oxfmt+oxlint / turbo typecheck / turbo test)
-make lint                                  # strict Go + monorepo Bun lint (zero issues)
-make test / test-integration               # Go unit (-race) / +integration tag
-make test-e2e-runtime / test-e2e-web       # daemon-side (Go harness) / browser-side (Playwright)
-make build / codegen                       # compile binary / regen openapi + TS types + DESIGN.md tokens
-make worktree-new SLUG=<slug>              # sibling worktree + bootstrap (BRANCH=/BASE=/BUILD=1/E2E=1; rm via scripts/worktree.sh rm)
-make worktree-light PR=<n>                 # bare worktree, no install — tracks a PR head (SLUG=/BRANCH=/BASE= for non-PR work)
-```
-
-Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`.
-
-## Commit style
-
-- Format `<type>: <description>`; prefixes `feat|fix|refactor|perf|docs|test|build|ci`. Never `chore`/`style`; scopes are rejected (`fix(web):` fails the hook). PR-merged commits append `(#NN)`.
-- **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
-- If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
-
-## Surface Map
-
-Repo layout — **open the surface's instructions file before working in it**:
-
-| Path            | Stack                                                               | Instructions              |
-| --------------- | ------------------------------------------------------------------- | ------------------------- |
-| `cmd/compozy`   | Go binary entry point                                               | `internal/CLAUDE.md`      |
-| `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network) | `internal/CLAUDE.md`      |
-| `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                     | `web/CLAUDE.md`           |
-| `packages/site` | Fumadocs documentation site (Bun)                                   | `packages/site/CLAUDE.md` |
-| `packages/ui`   | Shared UI primitives (`@compozy/ui`) for `web/` + `packages/site`   | `packages/ui/CLAUDE.md`   |
-
-## Coding Style
-
-Before editing any production `*.go` under `cmd/`/`internal/`, activate `eng-code-guidelines` (error wrapping `%w`, `errors.Is/As`, `slog`, `context` discipline, compile-time interface assertions, no hardcoded config). Hard invariants are in Critical Rules.
-
-## Testing
-
-- Activate `eng-test-conventions` before writing/editing any `*_test.go`; `eng-consolidate-test-suites` before adding/moving a test (see the Critical Rules test-placement rule). Both skills carry their own detail.
-- Non-negotiables: `t.Run("Should …")` subtests + `t.Parallel` default; status-code **and** body assertions; `-race`/`CGO_ENABLED=1`; integration/E2E build tags; runtime-contract co-ship (E2E mock + matchers ship with contract changes); 80% per-package coverage floor. `make gate` is the local commit gate and PR CI is the delivery gate — test failures are production bugs.
-
-### Schema Migrations
-
-Any SQLite table/column/index/constraint change → activate `eng-schema-migration`; update the owning stream's declarative schema source (`schema.sql` or ordered domain fragments), append the next gap-free Goose SQL migration, refresh `atlas.sum` and sqlc output with `make codegen`, then pass `make codegen-check`. **Append-only identity:** existing migration bytes, versions, order, and `atlas.sum` history are immutable — never insert, rename, renumber, reorder, or edit an existing migration, weaken integrity checks, or hand-edit a Goose version table. Extend the canonical fresh/reopen/ahead/integrity/equivalence suites; boot-time `EnsureSchema` repair is forbidden.
-
-## Memory & Lessons Learned
-
-`docs/_memory/` is institutional memory — authoritative when CLAUDE.md is silent. Read the relevant file before the matching work:
-
-- `standing_directives.md` — active engineering posture (SD-001..012); read before a spec or architecture pivot.
-- `spec-authoring-playbook.md` — mandatory preflight for `cy-create-spec`/`cy-create-tasks` (enforced by `cy-spec-preflight`).
-- `lessons/` (`L-001..039` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
-- `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
-- `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.
-
-Authoring: new lesson → `L-NNN-*.md` + update `lessons/README.md` (activate `lesson-learned`); new directive → next `SD-NNN` block. Lessons explain _why_ a rule exists — don't duplicate rules, don't add speculative warnings.
-
-## Cross-References
-
-- Backend/Go (architecture, autonomy, security, package layout): `internal/CLAUDE.md`. Web: `web/CLAUDE.md`. Site: `packages/site/CLAUDE.md`.
-- Design tokens: `packages/ui/src/tokens.css` → generated spec `DESIGN.md`. Copy: `COPY.md`. Strategy/register/users/WCAG floor: `PRODUCT.md`.
-- Institutional memory: `docs/_memory/`.
+Read the matching entry in `docs/_memory/lessons/README.md` for an incident class, and applicable standing directives for design decisions. Lessons explain evidence and scoped constraints; historical process descriptions do not add new mandatory stages. Spec authoring uses `docs/_memory/spec-authoring-playbook.md`. Load synthesis/analysis only when investigating the rationale behind a rule.

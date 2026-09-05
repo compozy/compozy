@@ -1,6 +1,6 @@
 ---
 name: react
-description: React 19 development under the React Compiler. Use when writing React components or hooks, deciding whether a useMemo/useCallback/memo belongs in the code, diagnosing a component the compiler skipped, reaching for useEffect, choosing where state lives, typing props or refs in TypeScript, wiring Actions or use(), setting up babel-plugin-react-compiler or eslint-plugin-react-hooks, or testing components with Vitest. Don't use for React Native, non-React frameworks (Vue, Svelte, Solid), or backend-only Node.js code.
+description: "Build React 19 components and hooks under React Compiler: state, Effects, memoization, props/refs, Actions, use(), compiler/lint setup, and Vitest tests. Excludes React Native, other frameworks, and backend-only Node.js."
 allowed-tools: Read, Grep, Glob
 metadata:
   author: Pedro Nauck
@@ -9,7 +9,7 @@ metadata:
 ---
 # React
 
-Targets **React 19.2** and **React Compiler 1.0** (`babel-plugin-react-compiler`), linted by **`eslint-plugin-react-hooks` 7.1+**. Match the task to one or more Branches rows and read every listed file **in full** before producing output — those references are the contract; the tripwires below are only a final self-check.
+Targets **React 19.2** and **React Compiler 1.0** (`babel-plugin-react-compiler`), linted by **`eslint-plugin-react-hooks` 7.1+**. Read the reference matched by the API or behavior being changed. Load adjacent references only for concerns the change crosses; reuse relevant context already read.
 
 ## The compiler is the optimizer
 
@@ -35,11 +35,11 @@ Two consequences that invert pre-compiler habits:
 | Expensive work in a plain module-level util | Not memoized at all; the compiler only covers components and hooks |
 | `memo()` with a custom `areEqual` comparator | Keep it; the compiler has no equivalent |
 
-*Done when:* every memoization in the output traces to a row above, and no row was satisfied by adding a hook the compiler already covers.
+*Done when:* each memoization added or changed by this task traces to a row above, and no row was satisfied by adding a hook the compiler already covers.
 
 ## Branches
 
-| When you are… | Read in full |
+| When you are… | Reference |
 | --- | --- |
 | Writing or reviewing any component or hook body — purity, mutation, refs, globals | `references/rules-of-react.md` |
 | Removing, keeping, or debating a `useMemo`/`useCallback`/`memo`, or a component was skipped by the compiler | `references/compiler.md` |
@@ -50,7 +50,7 @@ Two consequences that invert pre-compiler habits:
 | Using `use()`, Actions, `useOptimistic`, `<Activity>`, metadata, or other React 19 APIs | `references/react19-apis.md` |
 | Writing or fixing component/hook tests | `references/testing.md` |
 
-*Done when:* every matched reference was read, the code follows its patterns, and no tripwire is violated.
+Apply the technical rules relevant to the changed behavior.
 
 ## Tripwires
 
@@ -72,7 +72,7 @@ Two consequences that invert pre-compiler habits:
 
 **Refs are props** — `forwardRef` is deprecated in 19; accept `ref` in the props type. Likewise `<Context value={…}>`, not `<Context.Provider>`.
 
-**Escape hatch** — `"use no memo"` is a bisection tool carrying a written reason and a removal plan, not a fix. Its count is a codebase-health metric.
+**Escape hatch** — `"use no memo"` is a bisection tool carrying a written reason and a removal plan, not a fix.
 
 ## Related skills
 

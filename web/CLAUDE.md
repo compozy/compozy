@@ -1,114 +1,38 @@
 # Web Frontend
 
-React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, shadcn/ui (base-nova), `@xstate/store`, Zod. oxfmt + oxlint. (Root `CLAUDE.md` rules apply — this file adds web-specific ones.)
+React SPA using Vite, TanStack Router/Query, Tailwind, shadcn/ui, XState Store, and Zod. Root `CLAUDE.md` owns compatibility and delivery; this file adds web conventions.
 
-## Critical Rules
+## Ownership and Contracts
 
-- **`make bun-lint`, `make bun-typecheck`, and `make bun-test` MUST pass** before completing any web task. Zero warnings/errors; oxlint is zero-tolerance.
-- **Frontend typecheck/test validation MUST use Turborepo from the repo root.** Never use `make web-typecheck`, `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
-- **Files are kebab-case** (shadcn convention): components `kebab-case.tsx`, hooks `use-kebab-case.ts`, utils `kebab-case.ts`, API services `<domain>-api.ts`.
-- **Native DOM wrappers**: if a component's root is a single native element, its props MUST extend that element's intrinsic type (`React.ComponentProps<"…">`), merge `className`, accept `ref` through those React 19 props, and spread `{...props}`. CVA + `VariantProps` per the `shadcn` skill. Canonical: `.agents/skills/react/references/components-and-types.md` → _Extend native element props_.
-- **Eyebrow markup is mandatory** for every structural micro-label: use `<Eyebrow>` from `@compozy/ui` (children, `className`, and the opt-in `variant="caps"` — nothing else) **or** the `eyebrow` utility class (from `packages/ui/src/tokens-runtime.css`) on structural elements; tone via `className` (`text-(--muted)`, `text-(--accent)`, signal palette). Contract: **Geist sentence case 12/510/-0.005em** (`--text-eyebrow`, `--tracking-eyebrow`); uppercase is opt-in through `variant="caps"`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples IS the utility and is **forbidden** (`compozy-design-system/no-inline-eyebrow`). Full rule: `DESIGN.md` §3 + lesson `L-022`.
-- **Test placement before any Vitest/Playwright file.** Name the invariant, owning layer, and canonical suite; update existing route/hook/component/story/e2e suites first. No CSS-literal/snapshot/generated/prose tests unless that artifact is the product contract and no stronger gate exists.
-- **Client-state ownership:** TanStack Query owns server state, `@xstate/store` owns domain interaction state, and mutable Contexts inject store handles instead of snapshots; component stores use `useStore`, with `useStoreBinding` reserved for pure pre-commit identity/baseline replacement, while current callbacks enter as events.
-- **Storybook setup is validation infrastructure, not product behavior.** Don't test `.storybook/main`, decorator arrays, story globs, or bootstrap unless the task names the visual-QA contract it protects. Prefer Storybook build/capture, `list-stories`, and rendered-story smoke. Static exceptions need a `KEEP:` note.
-- **Isolated-daemon QA reads `COMPOZY_WEB_API_PROXY_TARGET`** from the active bootstrap manifest/env — never hardcode `http://localhost:2123`.
+- Domain features live in `src/systems/<domain>/`. Dependencies flow `adapters → lib → hooks → components`; cross-system imports use the public barrel. Generic primitives come from `@compozy/ui`.
+- TanStack Query owns server state, including envelopes, totals/facets, cursors, and stream fences. Flatten at the view-model boundary. Authorize, scope, filter, sort, count, and page on the server before the cut.
+- Co-locate query keys/functions in `lib/query-options.ts`; loaders, hooks, mutations, and streams reuse these factories. Continuation stays in `pageParam`. Optimistic updates restore the full envelope; invalidation follows the owner's reread contract.
+- Adapters expose typed errors and propagate `AbortSignal`. Components consume view models; pages/routes and owning hooks coordinate data access.
+- XState Store owns domain interaction state. Context injects store handles; `useStore` binds component stores. Reserve `useStoreBinding` for pure pre-commit identity/baseline replacement; current callbacks enter as events.
+- Use kebab-case files, named exports, functional components, and `@/*` imports. Native-element wrappers extend intrinsic props, merge `className`, forward React 19 `ref`, and spread remaining props. Do not edit `routeTree.gen.ts`.
 
-## Design & Copy (web surface)
+## Design and Copy
 
-Tokens come from `packages/ui/src/tokens.css` + generated `DESIGN.md` — never invent; never override with ad-hoc hex. Web-specific grammar:
+- Read `packages/ui/src/index.ts` before adding UI; compose existing primitives and domain components. Domain variants use domain-prefixed names.
+- `tokens.css` and `DESIGN.md` own visual grammar: flat content surfaces; tokenized glass/blur/window shadows only for OS-shell chrome. Fonts, signal colors, and spacing come from tokens.
+- Structural micro-labels use `Eyebrow` or the `eyebrow` utility; uppercase is opt-in through `variant="caps"`. Preserve the canonical token contract instead of reconstructing it with utility tuples.
+- `COPY.md` owns labels and public wording; runtime truth owns available controls, metrics, and states. Named prototypes constrain visual language; actual content, primitives, and host chrome keep their production owners.
 
-- **Type stack**: Geist (UI + body), JetBrains Mono (code, ids, and fixed operational values only), Playfair Display (marketing `.site-home` only), NuixyberNext (the CompozyOS wordmark only).
-- **Flat depth only**: no freehand `box-shadow`, no content gradients, no glass. Depth = warm surface ramp + `--color-line*` hairlines + exported `--shadow-*` tokens. Sole carve-out: OS-shell chrome (menubar, dock, shell popovers, window frames) uses the tokenized shell glass/blur/window shadows — window-body content stays flat (DESIGN.md §5).
-- **Signal palette is information**: accent `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info. Status chips use tint tokens, never solid semantic banners.
-- **Copy**: read `COPY.md`; labels map 1:1 to a backend noun through the §6 surface alias where one is defined, while canonical nouns stay in code, wire, CLI, and API; never imply a metric/control/state/repair path the runtime doesn't expose. Terms per `docs/_memory/glossary.md`.
+## Focused References
 
-## Skill Dispatch
+Use `app-renderer-systems` for a new or restructured domain system; `eng-data-boundaries` for changed authorization, pagination, cache, or stream contracts; `xstate-store` for store lifecycle changes; `react` for React-specific patterns. Load other library references only for the API or pattern in question.
 
-Activate skills **before** writing code. Match task domain → activate all required:
+Use `eng-design` for design-system/redesign work, `eng-ui-screenshot` for named-reference comparison, and `storybook-stories` for stories. Routine edits do not require the entire design/React/testing skill stack.
 
-| Domain                        | Required Skills                                                     | Conditional Skills                  |
-| ----------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
-| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`             | `shadcn`                            |
-| Routing                       | `tanstack`                                                          |                                     |
-| Data boundaries               | `eng-data-boundaries`                                               | `tanstack` + `app-renderer-systems` |
-| State management              | `state-management` + `xstate-store`                                 |                                     |
-| Schema / Validation           | `zod`                                                               | `typescript-advanced`               |
-| Web testing                   | `eng-consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                     |
-| TypeScript (types)            | `typescript-advanced`                                               | `context7`                          |
-| UI / UX Design (any surface)  | `eng-design` + `ui-craft` + `impeccable`                            | `shadcn` + `eng-ui-screenshot`      |
-| UI verification / visual diff | `eng-ui-screenshot`                                                 |                                     |
-| UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`                 |                                     |
-| Storybook / component stories | `storybook-stories`                                                 | `shadcn`                            |
-| Animation / motion            | `ui-craft` + `impeccable`                                           |                                     |
-| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`       | `ui-craft`                          |
-| AI / Streaming                | `ai-sdk`                                                            | `tanstack`                          |
-| Bug fix                       | `systematic-debugging` + `no-workarounds`                           | `testing-boss`                      |
-| External docs lookup          | `context7`                                                          | `exa-web-search-free`               |
-| Task completion               | `cy-final-verify`                                                   |                                     |
+## Validation
 
-- **Design-system / redesign passes**: run the `designer` agent in execution mode (not plan) and activate `eng-design` + `ui-craft` before touching any component. `ui-craft` is reference-routed — read the matched rows in full. `tokens.css` + generated `DESIGN.md` win over anything informal in the codebase.
-
-## Build Commands
-
-Turbo-backed validation runs from the repo root:
+Run from the repository root; `make gate` selects delivery lanes. During iteration:
 
 ```bash
-make bun-typecheck / bun-test              # full Bun workspace typecheck / test through turbo
-bunx turbo run typecheck --filter=./web    # focused compozy-web typecheck
-bunx turbo run test --filter=./web         # focused compozy-web tests
+bunx turbo run typecheck --filter=./web
+bunx turbo run test --filter=./web
 ```
 
-Web-local dev/build only (not validation evidence):
+Use the existing route/hook/component/E2E suite that owns the changed behavior. Storybook configuration is infrastructure: prefer build, `list-stories`, or rendered capture over assertions about decorator arrays or globs. Repeat checks only when their inputs change or a failure needs investigation.
 
-```bash
-make web-dev     # Vite dev on :3000 (proxies /api to :2123; for isolated QA export COMPOZY_WEB_API_PROXY_TARGET first)
-make web-build   # Production build (vite build + tsc --noEmit)
-make bun-lint    # Repo-root frontend lint gate (web + packages/ui + packages/site)
-make web-fmt     # oxfmt
-```
-
-## Structure
-
-```
-web/src/
-├── routes/              # TanStack file-based routes (auto code-splitting)
-├── systems/<domain>/    # Self-contained domain modules (app-renderer-systems)
-│   ├── index.ts             # Public API barrel (explicit named exports)
-│   ├── types.ts
-│   ├── adapters/            # API service layer (<domain>-api.ts + error class)
-│   ├── lib/                 # query-keys.ts, query-options.ts, schemas, constants
-│   ├── hooks/               # query / mutation / view-model hooks
-│   ├── contexts/ stores/    # Store-handle DI / XState stores (optional)
-│   ├── components/          # domain UI
-│   └── guards/              # route guards (optional)
-├── components/          # App-shell shared components (generic primitives come from @compozy/ui — see packages/ui/CLAUDE.md)
-├── lib/ integrations/   # Shared utils / third-party (tanstack-query/)
-├── styles.css           # Tailwind v4 theme + shadcn
-└── routeTree.gen.ts     # Auto-generated (never edit)
-```
-
-## Systems Architecture (app-renderer-systems)
-
-Domain features are self-contained **systems** under `src/systems/<domain>/`, each owning its API calls, query layer, hooks, components, and public API. See the `app-renderer-systems` skill for full patterns.
-
-- **Dependency flow** `adapters → lib → hooks → components` (unidirectional, never reversed).
-- **Cross-system imports** only through the public barrel (`@/systems/<domain>`) — never reach into internals.
-- Co-locate `queryKey` + `queryFn` in `lib/query-options.ts`; loaders, hooks, mutations, and streams reuse those option/key factories, while continuation stays in `pageParam`.
-- Typed error classes in adapters (never throw raw); pass `AbortSignal` through to every API call.
-- Reconcile mutations through canonical keys; optimistic updates snapshot/restore the full envelope, and invalidation follows the owner's reread contract.
-
-## Frontend Architecture Rules
-
-- **UI components are pure and presentational**; orchestration lives in pages/routes.
-- **Server state has one authority:** keep API envelopes, totals/facets, cursors, and stream fences in the canonical TanStack Query cache; flatten only at the view-model read boundary.
-- **Public reads are server-owned:** authorize, scope, filter, sort, count, and page before the cut; never present a loaded-page aggregate as complete truth.
-- **Data fetching lives at route/page level:** components receive view models via props and never import stores or adapters directly.
-- **Named exports** only (no `export * from`). **Functional components only** — no class components, no `React.FC`.
-- **`useEffect` is an escape hatch** — external-system sync only; never derived state or event responses.
-- **Handle all states** — loading, error, empty (never assume `data` exists). **Composition over booleans** (compound components).
-- Path alias `@/*` → `./src/*`.
-
-## Tooling
-
-Bun (workspaces) + Turborepo · Oxlint (zero warnings) · Oxfmt (printWidth 100, double quotes, semicolons) · Vitest + Testing Library (jsdom) · Conventional Commits + commitlint + husky + lint-staged · lucide-react icons · sonner toasts. Vite proxy `/api` → `:2123` by default; isolated QA reads `COMPOZY_WEB_API_PROXY_TARGET` from the bootstrap manifest/`bootstrap.env`.
+`make web-dev`, `make web-build`, and `make web-fmt` are local development commands; package-local test/typecheck runs do not replace Turbo evidence. Isolated QA derives `COMPOZY_WEB_API_PROXY_TARGET` from its bootstrap manifest and follows root teardown rules.

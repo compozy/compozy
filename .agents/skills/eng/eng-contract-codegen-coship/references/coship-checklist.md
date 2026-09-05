@@ -1,6 +1,6 @@
 # Co-Ship Checklist
 
-Confirm every item before committing the bundle.
+Use the applicable sections for the changed contract. Reuse the owning impact audit and current verification; this inventory does not add a second report or delivery gate.
 
 ## Source
 
@@ -34,7 +34,7 @@ Confirm every item before committing the bundle.
 - [ ] HTTP endpoint docs updated under `packages/site/content/runtime/`.
 - [ ] Protocol docs updated under `packages/site/content/protocol/`.
 - [ ] Configuration docs updated under `packages/site/content/runtime/configuration/`.
-- [ ] Removed verbs/endpoints/keys: doc pages deleted (no "deprecated" markers).
+- [ ] Public replacements: docs explain the lossless migration or active one-release deprecation and replacement. Delete old docs only when removal is eligible under SD-013.
 - [ ] `bunx turbo run typecheck test build --filter=./packages/site` passes from the repo root.
 
 ## Backend
@@ -42,10 +42,10 @@ Confirm every item before committing the bundle.
 - [ ] Claim-bearing HTTP contracts return `claim_token_hash`, never raw `claim_token`.
 - [ ] All redaction tests still pass after the contract change.
 - [ ] Observability fields (`claim_token_hash`, `lease_until`, etc.) updated if shape changes affect logs/metrics.
-- [ ] `make gate` passes locally and exact-head PR CI passes end-to-end.
+- [ ] Root delivery policy is satisfied at the requested stage: `make gate` before commit/push; required current-head CI before PR completion.
 
 ## Commit
 
-- [ ] One commit message summarizes both the source and the generated/web/site changes.
+- [ ] When committing, source and generated/consumer changes co-ship in the same delivery bundle.
 - [ ] Commit prefix follows the root `CLAUDE.md` commit style for the actual change type.
-- [ ] PR description lists the co-shipped artifacts.
+- [ ] When delivering a PR, its description names the relevant co-shipped artifacts.

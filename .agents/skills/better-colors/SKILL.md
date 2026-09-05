@@ -1,6 +1,6 @@
 ---
 name: better-colors
-description: OKLCH color space and color usage for web projects. Convert hex/rgb/hsl to oklch, generate palettes, check contrast, handle gamut boundaries, theme with Tailwind v4, and apply color with meaning. Triggers on oklch, color conversion, palette generation, contrast ratio, gamut, display p3, design tokens, semantic color tokens, hue drift, chroma, dark mode colors, accent color, color meaning, light and dark appearance, increased contrast.
+description: "Use OKLCH for web colors: conversion, palettes, contrast, gamut, semantic tokens, Tailwind v4 theming, and light/dark or increased-contrast appearances."
 ---
 
 # OKLCH Colors

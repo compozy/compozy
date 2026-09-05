@@ -1,5 +1,7 @@
 # System Implementation Patterns
 
+Examples illustrate individual layers; do not scaffold every layer, CRUD verb, context, or optimistic callback. Use repository freshness defaults and the owning cache reconciliation contract.
+
 > **Note on project-specific imports**: The patterns below use placeholder imports (`your-http-client`, `your-query-client`, etc.). Replace these with the actual paths used in the target project. Before writing code, read the existing systems in the codebase to confirm the exact import paths for the HTTP client, query client, error base class, and other shared utilities.
 
 ---
@@ -122,13 +124,13 @@ import { queryOptions } from "@tanstack/react-query";
 import { fooApi } from "../adapters/foo-api";
 import { fooKeys } from "./query-keys";
 
-const STALE_TIME = 1000 * 60; // 1 min
-
 export function fooListOptions(scopeId: string | null) {
   return queryOptions({
     queryKey: fooKeys.list(scopeId),
-    queryFn: ({ signal }) => fooApi.list(scopeId!, signal),
-    staleTime: STALE_TIME,
+    queryFn: ({ signal }) => {
+      if (scopeId === null) throw new Error("A scope is required to list items");
+      return fooApi.list(scopeId, signal);
+    },
     enabled: Boolean(scopeId),
   });
 }

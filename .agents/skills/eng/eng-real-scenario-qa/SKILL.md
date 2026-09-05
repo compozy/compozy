@@ -29,21 +29,21 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 **Step 2: Bootstrap the Lab With the Playbook**
 
-1. Activate `eng-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; complete its full procedure instead of calling its helper directly.
+1. Activate `eng-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; follow its setup, handoff, and continuation contract (Steps 1–4). Keep the lab alive for execution; bootstrap Step 5 runs at this workflow's terminal teardown.
 2. Consume the canonical `BOOTSTRAP_MANIFEST` and its emitted paths. Never reconstruct provider, browser, proxy, audit, or teardown state here.
 3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with Compozy, and capture the returned public id as `RUNTIME_WORKSPACE_ID`; agents must not see the lab's `qa-artifacts/` or audit contracts.
 
-*Done when:* bootstrap's completion criteria pass and the charter has no placeholders.
+*Done when:* bootstrap's setup/handoff criteria pass, the lab is alive, and the charter has no placeholders.
 
 **Step 3: Activate Companion Skills**
 
 1. Use `qa-report` with `qa-docs-path=docs/qa` to plan the playbook-product validation as session charters (persona + journey + tour + time-box on the playbook deliverables — never on QA itself). `QA_OUTPUT_PATH` remains the lab-side scratch root (journey log, observation, kickoff evidence); the living QA state lives in the repo's `docs/qa/`.
 2. Use `qa-execution` with `qa-docs-path=docs/qa` to run those sessions against the lab (does the TSX page render? do scripts run? does the canary control respond?), driving the lab's base URL/daemon from the bootstrap env block.
-3. Use `eng-worktree-isolation` only when concurrency was explicitly signaled by the user.
-4. Use `systematic-debugging` and `no-workarounds` for any unexpected runtime behavior the observer captures.
+3. Reuse bootstrap's existing isolation envelope, including during concurrent work. `eng-worktree-isolation` allocates non-bootstrap runs; do not allocate a second home over this manifest.
+4. Use debugging guidance when the cause is unclear or fixes have failed; use `no-workarounds` when a proposed fix suppresses a symptom. A known, direct repair does not require both skills.
 5. Apply provider-home, Web-proxy, config-write, PID-registration, and teardown policy directly from the bootstrap manifest.
 
-*Done when:* the living QA plan and execution target the bootstrapped lab, with concurrency isolation activated only when signaled.
+*Done when:* the living QA plan and execution use one bootstrapped manifest and no second isolation envelope is allocated.
 
 **Step 4: Post the Operator Kickoff**
 
@@ -80,8 +80,8 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 6: Audit, Diagnose, Fix, Re-Verify**
 
 1. Maintain the dated report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` through `qa-report`/`qa-execution`; index lab-side evidence by path rather than copying it into the repository.
-2. Diagnose and fix real runtime defects with `systematic-debugging` and `no-workarounds`; fix playbook authoring defects in the playbook source and restart from Step 2.
-3. After the last code change, run `make gate` and record its fresh local evidence in the dated report; the enclosing workstream waits for exact-head PR CI.
+2. Diagnose and fix real runtime defects, using the relevant companion only for an unresolved concern; fix playbook authoring defects in the playbook source and restart from Step 2.
+3. After the last relevant code change, satisfy the enclosing workstream's root gate policy and cite its current evidence. A QA-only run reuses unchanged gate evidence; PR CI applies when delivering a PR.
 4. Run the mutating strict auditor last, passing the durable report explicitly:
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --final-report "docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md" --strict`
 5. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All durable bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
@@ -89,7 +89,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    - **C16** deliverable count short → file a runtime bug (which Compozy agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
    - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
    - **C18** stall → the registry bug is mandatory and must name the silent agent and stalled task.
-6. Re-run the relevant scoped checks after each fix; after source freezes again, refresh the local gate evidence and rerun the strict auditor.
+6. After a fix, rerun affected checks and the failed journey, then refresh invalidated gate/audit evidence. Unchanged passing evidence remains valid; a final PASS still requires the strict auditor to accept the resulting execution.
    Observer changes use the read-only verification helper:
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/test_observe_runtime.py`.
 7. Update affected scenario verdicts and append the bootstrap continuation block only when the same active loop will continue.
@@ -111,7 +111,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 - If task activation preparation fails, keep the owned scheduler barrier paused, inspect `qa/task-activation.json`, and retry with the same idempotency keys. Never post the kickoff with a partial task tree.
 - If kickoff delivery or confirmation fails, keep dispatch paused. Retry only the same unconfirmed delivery when no provider evidence exists; once evidence exists, confirmation is the only valid next step. Release refuses an empty kickoff transcript or an unconfirmed manifest.
 - If `observe-runtime.py` reports a stall, preserve the unchanged public snapshot and file the runtime stall without injecting a prompt. If it reports exit 2, diagnose the named public read instead of relabeling the error as a stall.
-- If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.
+- If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), diagnose whether the artifact violates the playbook contract or the auditor cannot handle valid output. Record the owning defect and repair its source for a new run; never re-prompt an agent under test after kickoff or author its missing deliverable.
 - If `browser-use:browser` is unavailable, follow the `agent-browser` fallback per the bootstrap browser policy. Do not silently drop the Web surface.
 - If providers are unreachable, record the boundary in `provider-attempt.json`. The run verdict becomes BLOCKED, never PASS.
 - If the auditor's `playbook_compliance` block reports zero counts despite agents working, confirm `WORKSPACE_PATH/.compozy/playbook.json` exists and `journey-log.jsonl` is being written. Empty counts often mean the runtime is not wired to the journey log — that is a runtime bug.

@@ -336,7 +336,7 @@ tool ID.
 Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
 
 Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
-closed to `global` or `workspace`. Subscribe and list use the hard-cut `workspace_id` input; do not
+closed to `global` or `workspace`. Subscribe and list currently use the `workspace_id` input; do not
 send the removed `workspace` field. Preserve task, subscription, bridge, workspace, peer, group,
 thread, and delivery IDs byte for byte as non-empty valid UTF-8 where required. Never trim,
 case-fold, prefix, split, or reconstruct them. A bridge terminal cursor's `consumer_id` is exactly

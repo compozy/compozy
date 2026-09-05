@@ -1,6 +1,6 @@
 ---
 name: better-accessibility
-description: Accessibility engineering for product interfaces, from focus states and keyboard support to ARIA, forms, and screen readers. Use when building or reviewing UI components, modals, menus, forms, custom widgets, or when the user says "make this accessible" or reports keyboard or screen-reader issues. Triggers on accessibility, a11y, WCAG, aria, focus ring, focus-visible, focus trap, keyboard navigation, tab order, tabindex, screen reader, sr-only, aria-live, alt text, hit area, touch target, prefers-reduced-motion, autoplay, toast duration, skip link, semantic HTML, aria-label, form errors, disabled buttons, "not keyboard accessible".
+description: "Build or review accessible UI components, dialogs, menus, forms, and custom widgets. Covers semantics/ARIA, keyboard/focus, screen readers, contrast, motion, and touch targets; use for reported accessibility issues."
 ---
 
 # Accessibility that comes with the craft

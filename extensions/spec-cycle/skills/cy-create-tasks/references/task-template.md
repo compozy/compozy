@@ -22,11 +22,11 @@ complexity: [low, medium, high, critical]
 - Verify: [`gate` — the slice's tests/lints prove it | `probe` — exact CLI/HTTP/UDS command | `smoke` — surface entry path + touched Visual Contract sections]
 
 <critical>
-- ALWAYS READ `_spec.md` and its catalogs (`_user_stories.md`, `_dx.md`, `_uiux.md` when present, `_tests.md`) before starting
+- Read the task's cited contracts and relevant repository instructions; use `_spec.md` File References to expand context when needed. Full-loop phase artifacts apply only inside an explicitly requested `cy-loop-tasks` run.
 - REFERENCE `_spec.md` Part II for implementation details — do not duplicate here
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
-- TESTS REQUIRED — implement every test case assigned in ## Tests
+- Verify every invariant assigned in ## Tests through its owning suite or existing gate; add a test only for a coverage gap.
 </critical>
 
 <requirements>
@@ -37,8 +37,8 @@ complexity: [low, medium, high, critical]
 
 ## Visual Contract
 
-[Include this section when the task's slice touches a surface mapped in
-`_uiux.md`. Derive rows from that inventory — one row per touched artboard
+[Include this section only when the task names a visual reference.
+Derive rows from that reference — one row per touched artboard
 section, state, and viewport; do not use an “all states” catch-all row.]
 
 | ID    | Reference artifact + state           | Implementation target + state | Viewport | Fidelity  | Authorized differences + authority |
@@ -74,19 +74,19 @@ Reference the `_spec.md` Part II Implementation Design for code patterns and int
 
 ### Related ADRs
 
-- [ADR-NNN: Title](../adrs/adr-NNN.md) — Relevance to this task
+- [ADR-NNN: Title](adrs/adr-NNN.md) — Relevance to this task
 
 ## Deliverables
 
 - [Concrete output 1]
 - [Concrete output 2]
-- Every test case assigned in `## Tests` implemented and passing **(REQUIRED)**
+- Every assigned invariant verified in its owning suite or existing gate
 - The `## Shippable Outcome` verification tier executed with its evidence recorded **(REQUIRED)**
-- [UI-bearing slices only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
+- [Named visual references only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
 
 ## Tests
 
-Cases assigned from `_tests.md`, the test contract — read each ID's full definition there before writing tests.
+Cases assigned from `_tests.md` — read each assigned definition before editing. Include only the owning levels below; reuse existing coverage by path and invariant, without duplicating it across layers.
 
 - [ ] UT-NNN, UT-NNN, UT-NNN — [component/behavior these cover]
 - [ ] IT-NNN — [flow these cover]
@@ -96,14 +96,14 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 
 ## Success Criteria
 
-- Every assigned test case implemented and passing
+- Every assigned invariant verified; required new tests implemented and passing
 - The Shippable Outcome is reachable through its real entry path and its verification tier passed
 - [Measurable outcome 1]
 - [Measurable outcome 2]
-- [UI-bearing slices only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
+- [Named visual references only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
 ```
 
 ## Guidelines
 
-- Write one subtask per coherent unit of work — WHAT to accomplish, not HOW; robust tasks typically carry 5-12.
-- Sizing, independence, and test-assignment rules live in SKILL.md; the `<critical>` block above ships verbatim in every generated task file.
+- Write one subtask per coherent unit of work — no fixed count.
+- Sizing, independence, and test-assignment rules live in SKILL.md; adapt the guidance above to the task without adding unrelated stages.

@@ -10,47 +10,18 @@ trigger: implicit
 
 # Compozy Code Guidelines
 
-Apply the canonical Compozy rules before changing production Go. This file owns the
-application order; its references own the rules.
+Apply repository-specific Go conventions to production files under `cmd/` and `internal/`. Read the relevant sections of `references/coding-style.md`; for goroutines, shared state, detached execution, subprocesses, shutdown, timers, locks, or channels, also use `references/concurrency-patterns.md`.
 
-## Procedures
+- Trace the changed behavior through its applicable error, context, configuration, CLI, logging, type, and resource boundaries. Fix touched violations without expanding into unrelated debt.
+- Each changed resource, goroutine, process, or mutable shared state has an owner. Use `eng-cleanup-failure-paths` when multiple fallible acquisitions make partial failure relevant.
+- Add a companion skill only for a distinct unresolved concern. `golang-master` supplies deeper language guidance when needed; it is not an automatic prerequisite.
+- For public behavior/contract changes, update the owning `docs/_memory/change-impact.md` audit. Cite an existing spec/task/PR audit instead of writing one per skill.
 
-**Step 1: Route the Change**
+Run the focused owning check and reuse current scoped lint/race evidence. Cross-build and Linux-race parity checks follow the concurrency reference's applicable branches. Root `make gate` and PR CI policy apply at the enclosing commit/push or PR-delivery stage, not after each edit.
 
-1. Confirm the target is a production Go file (`cmd/**` or `internal/**`, not `*_test.go`).
-2. Activate `golang-master`. Also activate the matching narrow skill for tests, cleanup paths, schema migrations, API contracts, or `internal/network` work.
-3. Read `.agents/skills/eng/eng-code-guidelines/references/coding-style.md` in full. Also read `.agents/skills/eng/eng-code-guidelines/references/concurrency-patterns.md` in full when the change touches goroutines, shared state, detached lifetime, subprocesses, shutdown, timers, mutexes, or channels.
+## Specific failure cases
 
-*Done when:* the edit surface and every matching companion domain are named, and every applicable canonical reference is loaded.
-
-**Step 2: Apply the Canonical Rules**
-
-1. Apply every matching rule from the loaded references; do not copy a subset into task notes or local conventions.
-2. Trace the change through error identity, cleanup, context, logging, types, configuration lifecycle, CLI boundaries, comments, package boundaries, goroutine ownership, detached execution, and subprocess supervision.
-3. Repair violations in the touched behavior. Record unrelated pre-existing violations without expanding the change silently.
-
-*Done when:* every reference heading that intersects the change has been checked and no touched path violates a matching rule.
-
-**Step 3: Audit Ownership**
-
-1. Enumerate each changed error, resource, goroutine, process, and mutable shared state owner.
-2. If setup or teardown has more than one fallible step, complete `eng-cleanup-failure-paths` before continuing.
-3. Verify that public behavior remains manageable through the required CLI, HTTP, UDS, native-tool, extension, config, docs, and official-skill surfaces.
-
-*Done when:* every changed lifetime has one explicit owner and every public contract has a complete Compozy Impact Audit.
-
-**Step 4: Verify Once**
-
-1. Run `make lint` and scoped `go test -race ./<owning-package>/...` for the changed package.
-2. Run cross-build or Linux-race parity checks only when the concurrency reference routes the change there.
-3. Run `make gate` after source freeze; exact-head PR CI owns full completion verification.
-
-*Done when:* scoped lanes and the local gate are green; exact-head PR CI is scheduled or green for the enclosing workstream.
-
-## Error Handling
-
-- **Existing file already violates the rules:** fix what the current behavior touches; record unrelated debt without silently expanding scope.
-- **`errors.Is` / `errors.As` is impossible because the dependency returns a string:** wrap once at the boundary in a typed error of yours; downstream code matches on your typed error.
-- **Reflection genuinely required (codegen, decoder):** keep a written justification adjacent to the reflection call. Lint exception requires a `//nolint:` directive with a reason.
-- **`panic` shows up in seemingly-production code:** confirm whether the path is reachable post-`main`. If it is, replace with explicit error return; if it is genuinely unreachable, mark with `// unreachable: ...` and prefer `panic("invariant: ...")` over `log.Fatal`.
-- **CLI command silently ignores a flag:** verify with `cmd.Flags().Changed(name)`; if the flag is meaningfully optional, document the resolution chain and emit an explicit `slog` debug line when the default is taken.
+- A dependency with only string errors may need one typed wrapper at its boundary so downstream code can match error identity.
+- Reflection in codegen/decoders needs an adjacent reason; lint exceptions retain a justified `//nolint:` directive.
+- A reachable production panic needs an explicit error path. For a proven unreachable invariant, prefer `panic("invariant: ...")` with its explanation over `log.Fatal`.
+- For silently ignored CLI flags, check `cmd.Flags().Changed(name)`, the documented resolution chain, and the default-resolution debug log.

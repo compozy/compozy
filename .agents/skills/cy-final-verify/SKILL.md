@@ -1,241 +1,39 @@
 ---
 name: cy-final-verify
-description: Enforces fresh verification evidence before any completion, fix, or passing claim, and before commits or PR creation. Use when an agent is about to report success, hand off work, or commit code. Do not use for early planning, brainstorming, or tasks that have not yet reached a concrete verification step.
+description: Verify a concrete implementation or delivery claim against its contract and current evidence. Use for final verification, commits, or PR delivery; not for ordinary answers, planning, or repeated status messages.
 ---
 
-# Verification Before Completion
+# Verify the Requested Result
 
-## Overview
+Match evidence to the claim and the project's delivery policy. Use the current task's scope and authorization; verification does not create an obligation to commit, publish, or run unrelated workflows.
 
-Claiming work is complete without verification is dishonesty, not efficiency.
+## Evidence and Scope
 
-**Core principle:** Evidence before claims, always.
+1. Identify the changed behavior and the cheapest check that can expose its failure. Reuse the existing owning suite, probe, or artifact validator; inspect the real result and exit status.
+2. Reuse evidence while its checked inputs remain unchanged. A new message, progress update, or commit alone does not require another run. Project fingerprint records are authoritative within their scope; stale or failed records require the affected check and diagnosis.
+3. Compare the deliverable with the relevant accepted contract, including canonical examples and acceptance criteria. Use the grounding already performed; expand to other spec artifacts only for a dependency or unresolved mismatch.
+4. Complete required project gates. In Compozy, `make gate` owns local commit/push checks and exact-head required CI owns PR delivery; `make gate-full` is opt-in. A focused test supports a focused claim, not an unverified full-delivery claim.
+5. Stop when the requested outcome and applicable checks are satisfied. Broaden or repeat only for relevant edits, failures, or unresolved concerns. A prior review of the same diff counts; the presence of `deslop` or a QA skill alone does not add another gate.
 
-**Violating the letter of this rule is violating the spirit of this rule.**
+## PR Delivery, When Requested
 
-## The Iron Law
+- Review task-owned changes before final validation and stage only those paths.
+- Run the project's local gate or cite valid cached evidence, then commit/push and create or update the authorized PR.
+- Monitor required checks at the current head; diagnose each finished failure immediately while other jobs continue. Repair the source, rerun the affected local checks, push, and follow the new head.
+- Pending/red required checks remain in progress. If no required-check rules exist, use the project's policy for reported non-skipped checks. Cite the PR and head SHA for a delivery claim; do not substitute local full checks for CI.
 
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
+Checkpoint tasks inside an orchestrated workflow report their slice outcome and focused evidence; the workflow owner completes remaining integration and delivery gates once.
 
-If the verification command has not been run in the current message, the result cannot be claimed. One equivalence: a project-provided evidence record that is current for the exact tree being claimed counts as a fresh run (see "Evidence Records").
+## Conditional Contracts
 
-## The Gate Function
+- **Bug fixes:** verify the original symptom using an existing reproduction or focused regression. Reuse recorded red/green evidence; do not weaken a test that exposed a production regression.
+- **Spec implementation:** validate the affected canonical contract fields and acceptance criteria. Resolve contradictions from user decisions and authoritative artifacts; ask only when an unresolved product decision blocks correct work. Do not silently rewrite the spec to fit the implementation.
+- **User-visible behavior with a living QA tracker:** add/reset affected scenario files and verify those scenarios before delivery. In a spec loop, flag per slice and collect the remaining walks in its QA phase. Reuse valid evidence for unchanged scenarios. Failed walks require repair/re-walk; record explicit external/decision blockers. Editorial changes do not create a lab or new scenarios.
+- **Named visual references:** use the applicable Visual Contract Mode in `eng-ui-screenshot`: compare the reference and implementation for required states/viewports, inspect the pairs, validate the durable bundle, and resolve structural mismatches. Runtime truth, `COPY.md`, shipped primitives, and live host chrome own content and component identity; record authorized deltas. Implementation-only screenshots do not prove reference parity.
+- **QA labs:** follow the manifest teardown on every terminal path and cite `teardown.json` with `clean: true`. This obligation begins when a lab/process is actually created.
 
-```
-BEFORE claiming any status or expressing satisfaction:
+## Reporting and Failures
 
-1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
-3. READ: Full output, check exit code, count failures
-4. VERIFY: Does output confirm the claim?
-   - If NO: State actual status with evidence
-   - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
+Summarize the result, command or evidence record, and material limits. Include contract/visual/QA/PR details only when they apply; link larger artifacts instead of printing a fixed report template. Be explicit about checks that remain pending or unavailable.
 
-Skip any step = lying, not verifying
-```
-
-## Scope of Verification
-
-Match the verification scope to the claim scope:
-
-- **Narrow claim** (e.g., "this test passes"): Run the specific test.
-- **Broad claim** (e.g., "workstream delivered"): Run the project's required local pre-push gate, then require every PR CI check to be green for the exact head SHA. In Compozy, that is `make gate` locally plus the PR's CI run; `make gate-full` is optional local diagnostics.
-
-A narrow verification does not support a broad claim. Running `make test` alone does not justify "task complete." Running the linter alone does not justify "ready to commit." The verification scope must be equal to or broader than the claim scope.
-
-**Intermediate tasks in a multi-task loop are narrow claims by design.** When an orchestrating workflow owns the workstream, the per-task claim is "task implemented; affected lanes green; PR CI deferred to workstream close". The broad claim requires green CI at the current PR head.
-
-**If in doubt, match the project contract.** Do not substitute a local full run for required PR CI or a narrow lane for a broad claim.
-
-**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
-
-## Evidence Records (fingerprint-keyed gates)
-
-Some projects cache gate results as machine-checkable records keyed by a content fingerprint of the working tree (e.g. a `make gate-status` that prints per-gate result, fingerprint, and log path). For those projects:
-
-- A **passing record whose fingerprint matches the current tree is fresh evidence.** Cite it (gate id, fingerprint, log path) instead of re-running; re-running a current gate proves nothing new and saturates the machine.
-- A **missing or stale record means the gate runs now.** Any edit changes the fingerprint; commits alone do not — records key on content, not on HEAD.
-- **Scope still binds.** A scoped local record supports the pre-push claim only. Workstream completion also needs the PR URL, exact head SHA, and green required checks; a local full record cannot replace that CI evidence when the project delegates completion to CI.
-- On a **`fail` record**, open its recorded log and follow "When Verification Fails" — never re-litigate it from memory.
-
-## Common Failures
-
-| Claim                   | Requires                                                                   | Not Sufficient                                     |
-| ----------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
-| Tests pass              | Test command output: 0 failures                                            | Previous run, "should pass"                        |
-| Linter clean            | Linter output: 0 errors                                                    | Partial check, extrapolation                       |
-| Build succeeds          | Build command: exit 0                                                      | Linter passing, logs look good                     |
-| Bug fixed               | Test original symptom: passes                                              | Code changed, assumed fixed                        |
-| Regression test works   | Red-green cycle verified                                                   | Test passes once                                   |
-| Workstream delivered    | Local gate green + PR CI green at exact head SHA                           | VCS diff, local full gate, pending/red PR           |
-| Requirements met        | Line-by-line checklist                                                     | Tests passing                                      |
-| Matches spec contract   | Field-by-field diff vs canonical spec artifacts                            | Task-file paraphrase satisfied, checkboxes ticked  |
-| Matches visual contract | Complete reference/implementation evidence bundle for every state/viewport | Implementation-only screenshots, tests/build green |
-
-## Red Flags
-
-- Using "should", "probably", or "seems to"
-- Expressing satisfaction before verification
-- About to commit, push, or open a PR without verification
-- Trusting another agent's success report
-- Relying on partial verification
-- Thinking "just this once"
-- Any wording that implies success without current evidence
-- Verifying against a task file's paraphrase when a canonical contract artifact exists in the spec directory
-- Calling implementation-only screenshots “design parity” without rendering and comparing the named reference
-
-## Rationalization Prevention
-
-| Excuse                                  | Reality                |
-| --------------------------------------- | ---------------------- |
-| "Should work now"                       | Run the verification   |
-| "I'm confident"                         | Confidence ≠ evidence  |
-| "Just this once"                        | No exceptions          |
-| "Linter passed"                         | Linter ≠ compiler      |
-| "Agent said success"                    | Verify independently   |
-| "I'm tired"                             | Exhaustion ≠ excuse    |
-| "Partial check is enough"               | Partial proves nothing |
-| "Different words so rule doesn't apply" | Spirit over letter     |
-
-## When To Apply
-
-Apply this skill before:
-
-- any success or completion claim
-- any expression of satisfaction with the implementation state
-- any commit or PR creation
-- any handoff that implies correctness
-- moving to the next task based on completion
-
-## Optional Companion Skills
-
-Two companion gates below are **conditional**. Probe the agent skill roots (`.agents/skills/`, `.claude/skills/`, or the runtime's skill catalog) for a `SKILL.md` under the named skill. If the skill is absent, skip that gate entirely — do not invent a substitute, and do not fail verification for the missing companion.
-
-| Gate              | Requires                            | If missing                     |
-| ----------------- | ----------------------------------- | ------------------------------ |
-| Deslop Gate       | `deslop`                            | Skip deslop; proceed to verify |
-| QA Tracker Impact | both `qa-report` and `qa-execution` | Skip the QA impact gate        |
-
-## Deslop Gate (code-change tasks)
-
-**Only when the `deslop` skill exists.** Before collecting completion evidence, run `deslop` on the branch diff and apply its cleanup. Order matters: deslop mutates code, so verification evidence gathered before it is stale — deslop first, then verify. Skipping it when the skill is present ships AI slop (noise comments, defensive clutter, style drift) into permanent artifacts.
-
-## Pre-Commit and Pre-PR Gate
-
-Commits and PRs are permanent artifacts. They require the highest verification standard.
-
-**Before `git commit`:**
-
-1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
-2. Run the project's required local pre-push gate (Compozy: `make gate`) or cite its current fingerprint-keyed records.
-3. Confirm zero errors, zero warnings, zero test failures in the output.
-4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact gate — flag and walk (see "QA Tracker Impact" below).
-5. Produce a Verification Report (see template below) with verdict PASS.
-6. Only then run `git commit`.
-
-**Loop checkpoint commits are the narrow-claim exception:** each per-task checkpoint rides the loop's focused validation; the local pre-push gate and PR CI bind workstream close.
-
-**Before creating a PR:**
-
-1. Complete the pre-commit gate, review the diff, and confirm no unrelated files are staged.
-2. Push the current head and create or update a draft PR.
-3. Monitor all required checks at the current PR head. Start diagnosing a completed failure as soon as it appears, while other jobs continue; a whole-run wait must not delay failure handling.
-4. For each failed job, inspect its log, repair the production source, rerun the affected local gate, commit, push, and monitor the new head. Keep each result tied to its head SHA; pending jobs still block delivery.
-5. Record the PR URL and exact head SHA only after every required check is green. If no required-check rules are configured, require every reported non-skipped PR check to be green.
-
-An opened PR with pending/red CI is an in-progress checkpoint, not delivery. Its author remains on the hook until green or a proven external blocker.
-
-## QA Tracker Impact (living QA docs)
-
-**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), a completion claim also requires the QA impact gate. One question first:
-
-> Does this diff change user-visible behavior (UI, CLI verb, API route, config key, user-facing copy)?
-
-- **No** (pure refactor, internal-only): state "no user-visible change" in the completion notes. Done.
-- **New behavior:** add content-addressed scenario file(s) with `qa_status: untested`.
-- **Changed behavior:** reset the affected files' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
-
-**Flag, then verify.** A flag without a walk piles up `untested` debt no cycle is guaranteed to clear. Walk every scenario this task added or reset — per the `qa-execution` contract (session setup, persona walk, fix loop, teardown) — before the completion claim:
-
-- **Walk passes:** record the verdict fields per the qa-report state schema (`qa_status: pass`, `evidence`, `last_report`).
-- **Walk fails:** the diff broke the promise — fix the production code and re-walk until it passes, recording bugs/fixes per the fix loop. A scenario left at `fail` makes the task verdict FAIL.
-- **Human-only step** (real payment, external email/SMS, product decision): record `blocked-verify`/`blocked-decision` with the blocker in the body — the only statuses that may remain unwalked.
-
-**Loop exception:** an orchestrating workflow with a dedicated QA phase
-walks there — once, before workstream close; per-task completions flag only,
-citing the added/reset ids on `QA impact:`. Standalone tasks keep
-flag-then-walk.
-
-Completing with a flagged scenario still `untested` is a stale-verdict claim: the same dishonesty as claiming tests pass without running them. Cite the walked scenario ids and verdicts on the Verification Report's `QA impact:` line.
-
-## Spec Contract Parity (spec workflows)
-
-A green pipeline and ticked task checkboxes do not prove the deliverable matches the spec. When the work executes a task from a spec directory (`_spec.md` plus sibling artifacts), a "task complete" claim additionally requires:
-
-1. List the canonical contract artifacts for this task found during grounding (e.g. `_examples.md`, `_qa.md` input tables, `_tests.md` test contracts, `_user_stories.md` acceptance criteria, parity maps). If none are known, survey the spec directory now — absence must be proven, not assumed.
-2. Compare the deliverable to each artifact field by field: names, types, defaults, required flags, shapes, topologies, behaviors. Paraphrase-level similarity is not parity.
-3. Any mismatch fails the completion claim — fix the deliverable to match the resolved contract and re-verify; never reinterpret the canonical artifact to match what was built, and never pause to ask which side wins.
-4. Cite the compared artifacts in the Verification Report (`Contract parity:` line).
-
-Failure mode this section exists to prevent (real incident): a task shipped "green" through seven peer-review rounds while contradicting the spec's canonical example document — every check measured engineering quality against the task file's paraphrase, and nothing ever compared the deliverable to the canonical contract.
-
-## Visual Contract Parity (visible UI)
-
-When a spec/task names an OpenDesign artifact, HTML mock, screenshot, or other trusted visual reference, completion additionally requires:
-
-1. Resolve the exact reference path, including absolute paths outside the current worktree. If `eng-ui-screenshot` is installed, follow its Visual Contract Mode in full.
-2. Enumerate every required state/viewport. For each one, require a durable bundle containing `reference.png`, `implementation.png`, `side-by-side.png`, `diff.png`, `comparison.json`, and `review.md`.
-3. Open and inspect every pair. Within the in-scope regions, a missing/reordered region, wrong shell, materially different geometry or hierarchy, missing visible state, hand-rolled markup where a shipped `@compozy/ui` primitive or existing composite exists, or uncited visual-language delta is a blocker regardless of green tests or pixel ratio. Content, data, copy, brand-mark, control-existence, component-identity, and host-chrome divergences are judged against their canonical owners (runtime truth, `COPY.md`, brand inventory, `@compozy/ui` + existing composites, the live host surface) — require the cited authorized difference, not prototype parity; a mapped component's standard internals and live host chrome differing from the prototype's redraw are non-blocking.
-4. Run the `eng-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
-5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found`.
-
-A runtime-truth conflict does not permit a silent visual deviation: follow runtime truth, then reconcile the contract or cite the higher-authority artifact that explicitly authorizes the difference before reporting PASS.
-
-## Verification Report Template
-
-Verification is not complete until the agent **cites actual command output** in their response. "I ran it and it passed" is not evidence. If the verification output is not shown, the verification did not happen.
-
-Every verification must be reported using this structure. Do not deviate.
-
-```
-VERIFICATION REPORT
--------------------
-Claim: [What is being claimed — e.g., "tests pass", "build succeeds", "task complete"]
-Command: [Exact command(s) run — e.g., `make gate`; `gh pr checks --watch --interval 20`]
-Executed: [Timestamp, "just now, after all changes", or "cached — evidence record fingerprint <hash>"]
-Exit code: [0 or non-zero]
-Output summary: [Key lines from output — pass count, error count, build result]
-Warnings: [Any warnings, or "none"]
-Errors: [Any errors, or "none"]
-Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
-Visual contract: [named-reference UI: matrix rows passed/total + durable bundle root; otherwise "n/a — no named visual reference found"]
-QA impact: [walked scenario ids + verdicts; "none — no user-visible change"; or "n/a — no living QA tracker"]
-PR evidence: [PR URL(s), exact head SHA(s), and required check names/results; "pending" is not PASS]
-Verdict: PASS or FAIL
-```
-
-If the verdict is FAIL, do not use completion language. State what failed and what remains.
-
-If the verdict is PASS, the claim may proceed — but only the specific claim supported by the evidence. "Tests pass" does not mean "build succeeds."
-
-## When Verification Fails
-
-Verification failure is not a dead end. It is information. Follow this protocol:
-
-1. **Read the failure.** Identify the exact error: which command failed, which test, which lint rule, which build error. Quote the relevant output lines.
-2. **Diagnose the root cause.** Do not guess. Read the error message. Trace it to the source. If multiple things failed, address them one at a time starting with the first failure.
-3. **Fix the root cause.** Apply the minimal change that addresses the actual error. Do not apply workarounds, suppress warnings, or skip checks.
-4. **Re-verify at the owning scope.** Rerun the affected local gate, push the repaired head, then wait for the complete PR CI run again.
-5. **Report with evidence.** Use the Verification Report Template. If it passes now, the claim may proceed. If it fails again, return to step 1.
-
-**Never:**
-
-- Claim partial success ("3 of 4 checks pass, close enough")
-- Skip re-verification after a fix ("I fixed the error, so it should pass now")
-- Blame the tooling ("the linter is wrong") without evidence of a false positive
-- Move on to the next task while verification is still failing
-
-If the correct verification command is unclear, identify it before making any completion claim. If only partial verification is available, state that limitation explicitly and avoid completion language.
+On failure, read the diagnostic, repair its owning cause, and rerun the affected check. Preserve valid assertions and required warnings/error policies. A proven external blocker is reported with evidence; it does not justify an unrelated rewrite or a false success claim.

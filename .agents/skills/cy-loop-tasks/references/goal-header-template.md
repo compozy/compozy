@@ -33,9 +33,8 @@ The skill is a self-healing continue loop — repair command and gate failures i
 ```
 
 - `--frontend claude` → Claude Code workers (`claude
-  --dangerously-skip-permissions --model opus --effort xhigh`)
-- `--frontend cursor` → Cursor workers (`cursor-agent --yolo --model
-  grok-4.5`)
+  --dangerously-skip-permissions `)
+- `--frontend cursor` → Cursor workers (`cursor-agent --yolo`)
 
 Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter

@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Deep review of branch diffs, working trees, or GitHub PRs at any size. Use when the user asks for CodeRabbit-grade review, an incremental re-review after new pushes, publication of findings to a PR, a cross-LLM peer-review verdict round, or conformance review against spec artifacts. Don't use for applying fixes, reviewing specs or PRDs as documents, or quick single-file feedback.
+description: "Review branch diffs, working trees, or PRs in depth, including incremental, CodeRabbit-grade, cross-LLM, and spec-conformance reviews or requested publication of findings. Excludes fixes, spec-document reviews, and quick single-file feedback."
 disable-model-invocation: true
 argument-hint: "[--pr N | --base <ref> | --staged | --worktree] [--files p1,p2] [--spec <path>] [--subagent native|claude-opus|grok|codex] [--max-cohort-files N] [--publish] [--full] [--out <dir>] [--no-workflow]"
 ---

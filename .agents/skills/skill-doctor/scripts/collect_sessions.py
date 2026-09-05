@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import unquote
 from warp_decoder import ProtobufDecodeError, decode_task
+from session_scope import session_matches_repo
 
 MAX_WARP_CONVERSATION_BYTES = 32 * 1024 * 1024
 MAX_MSG_CHARS = 1500
@@ -1219,29 +1220,6 @@ def render_transcript(meta, stats, skills_used, entries) -> str:
         lines.append(f"[{role}] {text}")
         lines.append("")
     return "\n".join(lines)
-
-
-def session_matches_repo(cwd, repo: Path) -> bool:
-    """True when a session's recorded cwd belongs to this repo.
-
-    Two ways to match:
-    1. cwd is inside the repo root (same-machine sessions).
-    2. cwd's trailing directory name equals the repo's name (git/Codex
-       worktrees like ~/.codex/worktrees/<id>/<repo-name>, and sessions
-       imported from another machine where the checkout path differs).
-    Basename matching can over-match if two different projects share a
-    directory name; acceptable for a report, and prefix matching alone
-    misses every worktree session.
-    """
-    if not cwd:
-        return False
-    p = Path(cwd)
-    try:
-        if p.resolve().is_relative_to(repo):
-            return True
-    except OSError:
-        pass  # cwd from another machine may not exist locally
-    return p.name == repo.name or repo.name in p.parts
 
 
 def session_matches_repos(cwd, repos) -> bool:

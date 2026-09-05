@@ -3,6 +3,7 @@
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -68,6 +69,22 @@ class ClaudeSessionTests(unittest.TestCase):
             self.assertFalse(
                 session_matches_repos(root / "elsewhere", [first, second])
             )
+            self.assertFalse(session_matches_repos(root / "other" / "first", [first]))
+            self.assertFalse(session_matches_repos(root / "first-sibling" / "first" / "src", [first]))
+            self.assertFalse(session_matches_repos(root / "parent" / "first" / "unrelated", [first]))
+
+    def test_accepts_real_worktrees_but_rejects_same_named_repositories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, other, worktree = root / "repo", root / "other" / "repo", root / "worktree"
+            for path in [repo, other]:
+                path.mkdir(parents=True)
+                subprocess.run(["git", "init", "--quiet", str(path)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "fixture"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(repo), "worktree", "add", "--quiet", "--detach", str(worktree)], check=True, capture_output=True)
+            self.assertTrue(session_matches_repos(worktree, [repo]))
+            self.assertFalse(session_matches_repos(other, [repo]))
+            self.assertFalse(session_matches_repos(root / "missing" / "repo", [repo]))
 
     def test_discovers_global_skills_without_repositories(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,10 +1,10 @@
 # Pre-Ship Checklist
 
-Binary gate. Run on every UI change before merge or PR. Any unchecked box is a blocker, not a "nice to have."
+Use this reference for a new surface, substantial redesign, or requested audit. Select applicable rows; unchecked inapplicable rows are not blockers. For a localized change, check the changed state in the live surface, its keyboard/accessibility behavior, canonical primitives/tokens, and any affected layout. No full matrix, dial declaration, breakpoint quota, or report is required for that short path.
 
 ## Dial settings declared
 
-Before reviewing the rest of the surface, record the dial values you designed against. Reviewers compare against these — not against their own taste.
+Optional for a substantial design brief; existing product grammar remains authoritative.
 
 - [ ] `VISUAL_VARIANCE` declared: ____ (1–10, default 6)
 - [ ] `MOTION_INTENSITY` declared: ____ (1–10, default 4)
@@ -19,7 +19,7 @@ Before reviewing the rest of the surface, record the dial values you designed ag
 - [ ] All radii drawn from the radius scale — no `border-radius: 7px`
 - [ ] All shadows drawn from the elevation scale — no ad-hoc box-shadows
 - [ ] All durations and easings drawn from the motion scale
-- [ ] New tokens (if any) appended to DESIGN.md and the token file in the same change set
+- [ ] New tokens added to the canonical token source; derived design docs regenerated with the project command
 
 ## State completeness
 - [ ] State matrix filled for every new or changed component
@@ -73,7 +73,7 @@ Before reviewing the rest of the surface, record the dial values you designed ag
 - [ ] Tone matches the stakes (neutral for routine, plain for destructive, factual for errors)
 
 ## Responsive and platform
-- [ ] Tested at 320px / 768px / 1280px / 1920px viewport widths
+- [ ] Changed layout tested at representative supported widths and its actual breakpoints
 - [ ] No horizontal scroll on body content at any supported breakpoint
 - [ ] Dark mode verified for every state (not just default)
 - [ ] Mobile touch targets and gestures verified
@@ -105,13 +105,13 @@ Provide one or more of:
 - Screenshot of each non-default state in the state matrix
 - Keyboard navigation recording or step-by-step description
 - Screen reader test result (VO / NVDA pass)
-- Contrast checker output for any state-pair changed (run `scripts/check-contrast.mjs --json tokens.json` for token batches)
-- Token-drift scan output (`scripts/detect-token-drift.mjs <source-dir>` — must exit 0)
+- Contrast checker output for any state-pair changed (run `<skill-dir>/scripts/check-contrast.mjs --json tokens.json` for token batches)
+- Token-drift scan output (`<skill-dir>/scripts/detect-token-drift.mjs <source-dir>` — must exit 0)
 - Performance evidence: Lighthouse CI run, Core Web Vitals snapshot, or bundle analyzer delta
 
 ## Severity rollup
 
-Tally hits against the Anti-slop scorecard (see `SKILL.md`):
+For a requested scored audit, classify observed defects by user impact:
 
 - Critical: ____ — **must be 0** to merge
 - Serious:  ____ — **must be 0** to pass review approval
@@ -121,4 +121,4 @@ If Critical or Serious > 0, surface is not shippable. No "we'll fix it next spri
 
 ---
 
-If any box is unchecked at PR time, either fix it or document explicitly in the PR description why this change is shipping with the gap — owner, tracking issue, and unblock criteria. Silent unchecked boxes are slop debt.
+Fix material defects in the changed surface and disclose unresolved relevant gaps. Do not file exceptions or tracking issues for inapplicable checklist rows.

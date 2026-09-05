@@ -1,11 +1,11 @@
 ---
 name: xstate-store
-description: XState Store (@xstate/store v4) event-driven state for TypeScript apps. Use when creating a store with createStore or createStoreLogic, writing transitions and enqueue effects, declaring Standard Schema contracts, wiring selectors or atoms, adding the persist, undo-redo, reset, or validateSchemas extensions, binding a store to React with @xstate/store-react, testing transitions or bridging a store into XState with fromStore, or migrating a v3 store to v4. Don't use for XState state machines and actors, Zustand or Redux stores, or TanStack Query server state.
+description: "Build, test, integrate, or migrate XState Store v4: transitions, effects, schemas, selectors, atoms, extensions, React bindings, and fromStore. Excludes XState state-machine design, other stores, and Query server state."
 ---
 
 # XState Store
 
-Targets `@xstate/store` v4 and `@xstate/store-react` v2 (TypeScript 5.4+). Match the task to one or more Branches rows and read every listed file **in full** before producing output — those references are the contract; the tripwires below are only a final self-check.
+Targets `@xstate/store` v4 and `@xstate/store-react` v2 (TypeScript 5.4+). Read the reference matched by the API or behavior being changed. Load adjacent references only for concerns the change crosses; reuse relevant context already read.
 
 ## Pick the primitive first
 
@@ -21,7 +21,7 @@ Targets `@xstate/store` v4 and `@xstate/store-react` v2 (TypeScript 5.4+). Match
 
 ## Branches
 
-| When you are… | Read in full |
+| When you are… | Reference |
 | --- | --- |
 | Creating a store, writing transitions, using `trigger`/`send`/`can`, or Immer | `references/store-core.md` |
 | Enqueuing effects, emitting events, or doing async work | `references/effects-and-events.md` |
@@ -33,7 +33,7 @@ Targets `@xstate/store` v4 and `@xstate/store-react` v2 (TypeScript 5.4+). Match
 | Testing transitions, inspecting a store, or interoperating with XState | `references/testing-and-interop.md` |
 | Upgrading a v3 store to v4, or porting an existing Zustand store over | `references/migration-v4.md` |
 
-*Done when:* every matched reference was read, the code follows its patterns, and no tripwire is violated.
+Apply the technical rules relevant to the changed behavior.
 
 ## Tripwires
 

@@ -187,7 +187,7 @@ function SubmitButton({ label, disabled, className }: { label: string; disabled?
 
 ## Async Validation with Debouncing
 
-Always debounce async validators with `asyncDebounceMs` (≥500ms) so each keystroke doesn't fire a request — an un-debounced `onChangeAsync` hammers the server:
+Always debounce async validators with `asyncDebounceMs` (an appropriate delay (500ms is a starting example)) so each keystroke doesn't fire a request — an un-debounced `onChangeAsync` hammers the server:
 
 ```tsx
 <form.Field

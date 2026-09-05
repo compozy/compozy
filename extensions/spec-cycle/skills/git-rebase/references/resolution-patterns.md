@@ -64,7 +64,7 @@ return User.fromProfile(profile);
 
 **Indicator**: Code block exists in your branch, missing in main
 
-**Action**: Keep your code - main might have deleted prematurely
+**Action**: Inspect why the target removed it and where its consumers moved. Preserve required behavior through the current design; do not resurrect intentionally retired internals or remove a still-supported public contract.
 
 ```javascript
 // Main deleted some logging
@@ -72,5 +72,5 @@ return User.fromProfile(profile);
 // DECISION: If logging is useful, keep it
 // If it was debug code, you can delete it too
 
-// Usually: Keep your feature code + main's latest
+// Resolve from the current contract and deletion rationale
 ```

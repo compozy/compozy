@@ -1,5 +1,7 @@
 # Tailwind CSS v4 — patterns and examples
 
+Token names below illustrate a theme; use the repository's token inventory and design rules. They are not an exhaustive vocabulary.
+
 Copy-ready examples and the utility/variant catalog behind [`SKILL.md`](../SKILL.md). The design-token catalog and core rules live there; this file shows how to apply them plus the utilities and variants not listed inline.
 
 ## Design tokens: explicit color → token

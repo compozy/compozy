@@ -6,7 +6,7 @@ Structure for `_spec.md` — the single specification consumed by LLM agents dow
 
 # Part I — Product
 
-Part I frames WHAT and WHY. Implementation choices — frameworks, storage engines, file formats, transports, error codes, schema details — belong to Part II; naming them here is a defect unless the feature is _about_ that technology.
+Part I frames WHAT and WHY. Implementation choices — frameworks, storage engines, file formats, transports, error codes, schema details — belong to Part II; include them here when the user made them a product constraint; otherwise put them in Part II.
 
 ## Overview
 
@@ -84,11 +84,11 @@ Remaining items that need clarification — unclear requirements, edge cases req
 
 # Part II — Technical
 
-Part II designs to serve the frozen surface: every section must be consistent with `_dx.md` (and `_uiux.md` when present). Six quality markers are mandatory (`cy-spec-preflight` validates them): **MVP Boundary** · **Architectural Boundaries** · **concrete Go interface signatures** · **data-model field rationale** · **side-table-vs-JSON decisions** · **numbered safety invariants**.
+Part II designs to serve the frozen surface: every section must be consistent with `_dx.md` (and `_uiux.md` when present). Scope/MVP and architectural boundaries are always required. Add concrete interfaces, field rationale, storage decisions, and safety invariants when the change owns those contracts; omit inapplicable sections. The marker helper checks headings heuristically, not design quality.
 
 ## Executive Summary
 
-Brief technical overview in 1-2 paragraphs: key architectural decisions, implementation strategy, primary trade-offs. When the spec attacks a real incident, open with the confirmed reproduction (timestamp, command, observed evidence).
+Brief technical overview in 1-2 paragraphs: key architectural decisions, implementation strategy, primary trade-offs. For a real incident, cite the confirmed reproduction or incident evidence.
 
 ## MVP Boundary
 
@@ -117,7 +117,7 @@ Which packages can and cannot import which. Name new internal packages explicitl
 
 ### Core Interfaces
 
-Critical interfaces pasted as code blocks in the project's primary language — every method signature final, each example 20 lines or fewer. Show the primary type other components depend on.
+Critical interfaces pasted as code blocks in the project's primary language — define the changed contract precisely, reusing existing definitions by reference. Show the primary type other components depend on.
 
 ### Data Models
 

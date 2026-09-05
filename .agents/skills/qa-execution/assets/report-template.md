@@ -93,7 +93,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 <!-- Written LAST, after the exit gate. -->
 
-- **Exit gates:** <local pre-push command + result; PR URL, exact head SHA, and CI status>
+- **Exit gates:** <required local gate evidence; current-head CI when delivering a PR>
 - **Issues by user impact:** Blocks-Completion <N> · Data-Loss <N> · Trust-Damage <N> · Friction <N> · Cosmetic <N>
 - **Coverage:** <journeys walked / in scope; skips disclosed>
 - **Verdict:** <ready | not ready | ready with blocked items> — <one actionable sentence>

@@ -123,7 +123,7 @@ A scripted test always submits a form once, in order, with valid data, from a si
 
 ## How to use this catalog
 
-1. After picking the persona and tour for a charter, pick 5-10 relevant edge cases from the catalog above. Match the edge case to the surface — onboarding doesn't need a "schedule across DST" test; scheduling does.
+1. After picking the persona and tour for a charter, pick the relevant edge cases, without a fixed count, from the catalog above. Match the edge case to the surface — onboarding doesn't need a "schedule across DST" test; scheduling does.
 2. Record which edge cases were attempted in the charter debrief — attempted-and-clean is evidence too.
 3. For each finding, file via the global bug registry (routed at Step 6 of the SKILL) with `Persona Affected:` and `Journey Step:` filled in.
 4. Don't try every edge case in one box. The time-box governs.

@@ -49,55 +49,13 @@ the primitive was supposed to prevent.
 
 ## Rule
 
-> **One eyebrow primitive, one CSS utility, one Inter UC contract.** Every uppercase label
-> across `web/`, `packages/site/`, and `packages/ui/`'s public consumer surface MUST render
-> through `<Eyebrow>` (`@compozy/ui`) — children + className only, no `case` / `family` / `tone` /
-> `size` / `weight` props — or through the single `.eyebrow` utility on structural HTML
-> (`<dt>`, `<label>`, `<th>`, breadcrumb wrappers). The canonical contract is **Inter UC
-> 11 px / weight 600 (semibold) / letter-spacing -0.005em**, bound to `--text-eyebrow` and
-> `--tracking-eyebrow` in `packages/ui/src/tokens.css`. Color is **not** baked into the
-> contract: pass `text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, or a signal token
-> through `className` when a tone is needed.
-
-Inlining `font-mono` + `uppercase` + a `text-*` + a `tracking-*` tuple in product `<span>`,
-`<p>`, or `<div>` content is forbidden. The deleted `.eyebrow-badge` / `.eyebrow-micro` utility
-classes are forbidden — `compozy-design-system/no-inline-eyebrow` flags them. Arbitrary values
-like `text-[10.5px]` / `tracking-wider` are forbidden everywhere, including the design-system
-implementation files.
+> One eyebrow primitive and utility own the current style: Geist sentence case, 12 px, weight 510, tracking -0.005em. Use `Eyebrow` or the `eyebrow` utility; `variant="caps"` opts into uppercase. Color comes through `className`. Earlier Inter/uppercase defaults below are historical.
 
 ## Operationalization
 
-- `packages/ui/src/components/custom/eyebrow.tsx` is the single primitive. The render path is
-  `<span data-slot="eyebrow" className={cn("eyebrow", className)} {...props}>{children}</span>`
-  — no variant matrix. New visual variants do not exist; reach for a different primitive
-  (`<Pill>`, `<MonoId>`, bare span) when the rendered shape isn't Inter UC 11/600/-0.005em.
-- `packages/ui/src/tokens.css` declares one utility:
-  ```css
-  @utility eyebrow {
-    @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
-    letter-spacing: var(--tracking-eyebrow);
-  }
-  ```
-  `--text-eyebrow` resolves to `0.6875rem` (11 px); `--tracking-eyebrow` resolves to `-0.005em`.
-  These tokens are part of the public token contract, but automated coverage must stay narrow:
-  prefer the `no-inline-eyebrow` lint rule, `twMerge` behavior checks, and visual/story coverage.
-  Do not create broad CSS-literal suites that duplicate `tokens.css`.
-- `packages/ui/src/lib/utils.ts` extends `tailwind-merge` with the project's `font-size` group
-  so `cn("text-eyebrow", "text-(--muted)")` no longer collapses the size into the color group.
-  Any new `--text-*` token in `tokens.css` MUST be added to that group on the same change.
-- `DESIGN.md` §3 holds the authoritative type ladder. The eyebrow row references the tokens by
-  name. Drift between this row, `tokens.css`, the `eng-design` skill brief, and `<Eyebrow>` is
-  treated as a code defect, not a documentation tweak.
-- `lint-plugins/compozy-design-system.mjs::no-inline-eyebrow` rejects:
-  - `font-mono` + `uppercase` tuples in JSX `className`.
-  - `font-mono` + `uppercase` + arbitrary `text-[…]` / `tracking-[…]` tuples.
-  - The literal tokens `eyebrow-badge` and `eyebrow-micro` (the deleted utilities).
-    Exemptions: structural HTML primitives (`<dt>`, `<label>`, `<th>`, …), PascalCase components
-    (typography passes through), test/story files, and the `packages/ui` design-system
-    implementation surface.
-- When auditing for drift, grep both `font-mono.*uppercase` and arbitrary
-  `text-[Npx]` / `tracking-[Nem]` patterns AND the deleted utility names. The audit only tells
-  the truth when all three forms are scanned.
+- `packages/ui/src/components/custom/eyebrow.tsx` owns the primitive; `packages/ui/src/tokens-runtime.css` owns the utility and `tokens.css` owns its size/tracking tokens.
+- `DESIGN.md` is the generated type contract. Use `lint-plugins/compozy-design-system-core-rules.mjs` and existing merge/story/render checks for changed behavior.
+- Preserve the `tailwind-merge` size/color distinction when adding typography tokens. Do not duplicate the contract in broad CSS-literal suites or rebuild a variant matrix to mimic a prototype.
 
 ## Anti-pattern
 

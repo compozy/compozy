@@ -1,32 +1,9 @@
-# Skill improvement guidelines
+# Instruction Improvement Evidence
 
-## Method
+1. Group avoidable cost and defects by cause, using both failed runs and successful controls. Prioritize repeated or severe effects.
+2. Check current files and user decisions. An already-fixed historical failure, intentional trade-off, or product/tool bug does not justify another prompt rule.
+3. Identify the owning instruction and the behavior that would change. Consider removal, narrower triggers, merged ownership, fewer mandatory reads/reports, and helper fixes alongside missing contracts.
+4. Prefer replacing or deleting guidance over adding it. Preserve concrete safety/product invariants; distinguish the necessary contract from one historical way of checking it.
+5. Validate changes at the affected scope. Behavioral comparisons should keep model/harness/task class comparable; report uncertainty when only static review or a small historical sample exists.
 
-1. Cluster the findings by root cause, across scorers and classifications, after attribution.
-2. Prioritize clusters by frequency times severity.
-3. Verify each finding against the current repository and the agent's configuration before proposing any improvements. Drop what does not verify.
-4. You are editing another agent's instructions. Keep those edits small and general. Before editing, state the intended behavioral rule and owning surface in one sentence, then make the smallest change that expresses it.
-5. Prefer **replacing** existing guidance over **appending** another paragraph.
-
-## When to propose changes
-
-Do not propose changes by default. Proceed only when a concrete instruction is missing or wrong and amending it would have prevented the scored failure. Ask: would a competent agent with the current instructions still be expected to fail this way? If yes, there is a gap. If no, defer.
-
-File only when all of these are true:
-
-- The failure is caused by a missing, wrong, or underspecified instruction on a concrete surface: the owning actor's configuration, a skill, or in-repo guidance.
-- You can name that owning surface and the one reusable rule it should have stated.
-- If that rule had been present and followed, the scored failure would not have happened.
-- The same gap appears in more than one source run, or is severe enough that a single occurrence still proves a missing contract.
-
-Do not file when:
-
-- The existing instruction already required the correct behavior and the model ignored it
-- The failure is model variance: same prompt, same tools, different choice
-- The only available edit is restating, hedging, or adding examples from these runs
-- The real fix is product, infra, scorer, or code outside instruction surfaces
-
-When nothing clears this bar, open no change and say, per finding, why not — that is a success. A speculative change is worse than none.
-
-
-
+A useful finding names evidence, ownership, and the expected effect. Skill invocation counts alone prove neither value nor harm. If the model ignored a correct instruction, examine conflicting context and trigger cost before restating it. If nothing warrants a change, say so briefly; no mandatory per-finding disposition file is needed.

@@ -24,10 +24,9 @@ When a runtime contract changes — a new prompt augmenter, a different fixture 
 
 ## Operationalization
 
-- For ACP fixture work: replace fragile string-matching with structured prompt metadata. acpmock uses typed metadata, not rendered prompt substrings.
-- For Playwright E2E: add shared wait helpers (`web/e2e/fixtures/selectors.ts`) for workspace onboarding, session creation, manual-first publish. New runtime states require helper updates in the same PR.
-- Real-scenario QA is the canonical regression net. `make verify` is necessary but not sufficient.
-- E2E regressions surfaced in the QA pass are NOT production bugs unless they reveal divergent runtime behavior. Fix the test infrastructure, not the runtime.
+- Update affected E2E fixtures and matchers with the runtime contract; prefer typed prompt metadata over rendered-substring assumptions.
+- Reuse shared Playwright waits when onboarding/session/publish states change. Verify the affected journey for a cross-component or user-visible contract; a local fixture-only edit needs its owning suite.
+- Distinguish a stale fixture from a production regression using the accepted contract. Repair the incorrect side and preserve valid behavioral assertions.
 
 ## Anti-pattern
 

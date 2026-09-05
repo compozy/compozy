@@ -231,16 +231,17 @@ def render_page(r) -> str:
     grade = r.get("grade") or grade_for(scores["overall"])
     generated_at = format_generated_at(r.get("generated_at"))
 
+    metrics = [(name, value) for name, value in [
+        ("Efficiency", scores.get("efficiency")),
+        ("Code Quality", scores.get("code_quality")),
+        ("Skill use (observed)", scores.get("skill_coverage")),
+    ] if value is not None]
     bars = "".join(
         f'<div class="bar-row"><div class="bar-head"><span class="bar-name">{esc(name)}</span>'
         f'<span class="bar-val">{pct(val)}</span></div>'
         f'<div class="bar-track"><div class="bar-fill" '
         f'style="width:{pct(val)}%;--metric-delay:{180 + index * 110}ms"></div></div></div>'
-        for index, (name, val) in enumerate([
-            ("Efficiency", scores.get("efficiency", 0)),
-            ("Code Quality", scores.get("code_quality", 0)),
-            ("Skill Coverage", scores.get("skill_coverage", 0)),
-        ])
+        for index, (name, val) in enumerate(metrics)
     )
     stat_cells = "".join(
         f'<div class="stat"><div class="num">{esc(value)}</div><div class="lbl">{esc(label)}</div></div>'
@@ -265,11 +266,7 @@ def render_page(r) -> str:
         "harness": r.get("harness", "codex"),
         "grade": grade,
         "grade_label": f"overall {pct(scores['overall'])}",
-        "bars": [
-            ["Efficiency", pct(scores.get("efficiency", 0))],
-            ["Code Quality", pct(scores.get("code_quality", 0))],
-            ["Skill Coverage", pct(scores.get("skill_coverage", 0))],
-        ],
+        "bars": [[name, pct(value)] for name, value in metrics],
         "meta": f"{stats.get('sessions_scanned', 0)} conversations found \u00b7 "
                 f"last {stats.get('window_days', 45)} days",
         "stats": [
@@ -298,6 +295,7 @@ def render_page(r) -> str:
   <div class="bars">{bars}</div>
 </div>
 <div class="stats">{stat_cells}</div>
+{'<p class="muted">Code quality: not assessed; insufficient evidence.</p>' if scores.get('code_quality') is None else ''}
 <h2>Findings</h2><ul>{findings}</ul>
 <h2>Suggested skill changes</h2><ol>{suggestions}</ol>
 <div class="stamp-row row factories-footer">

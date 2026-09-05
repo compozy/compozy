@@ -51,7 +51,7 @@ final iteration.
 
 - [ ] On the `qa_report` iteration, the B→C boundary gate (`make gate`) ran green before any QA action.
 - [ ] `qa_report` completed before `qa_execution` (never skip ahead).
-- [ ] `qa_report` was produced by the Fable 5 herdr worker — the orchestrator only verified artifacts; `qa_execution` ran locally.
+- [ ] `qa_report` was produced by the configured herdr worker — the orchestrator only verified artifacts; `qa_execution` ran locally.
 - [ ] If `bootstrap-manifest.json` was missing, a QA bootstrap skill (e.g. `eng-qa-bootstrap`) ran first — or its absence in this project was noted before falling through.
 - [ ] In mode=tasks, the corresponding QA task frontmatter was flipped and `--task-completed <stem>` accompanied the QA flag so `tasks.pending` drains.
 - [ ] A "not ready" report or Blocks-Completion/Data-Loss bug was repaired and retested before `--qa-execution-done`; no intermediate QA failure advanced state.

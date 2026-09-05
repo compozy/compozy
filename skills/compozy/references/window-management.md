@@ -316,7 +316,9 @@ compozy layout apply --workspace <workspace-id> --revision <revision> --file lay
 Documents are version 4 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
 history and closed entries, so a raw round trip never restores reopen history. A version other than 4
 fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
-diagnostic; there is no converter — rebuild the layout with semantic commands instead.
+diagnostic. This interface currently has no legacy-document converter. Preserve the original
+document and current state, and report the missing lossless upgrade path; manually rebuilding
+a layout is not a migration of the original data.
 
 Validate never writes. Apply binds the document to the requested workspace,
 validates the complete topology, preserves current routes for surviving window IDs, and performs one

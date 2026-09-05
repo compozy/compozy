@@ -1,63 +1,13 @@
-# `_tasks.md` Preflight Checks
+# Task Package Checks
 
-Run after `cy-create-tasks` produces a draft, before handing off to execution.
+Check the current authoring output once and reuse unchanged results:
 
-## Table shape
+- `compozy.tasks/v2` metadata, sequential nodes/files, acyclic dependency edges, and the display table agree. Per-task status lives in task frontmatter; `_tasks.md` owns topology.
+- Each task names its outcome, relevant contracts/files, applicable evidence tier, deliverables, and acceptance. The earliest useful outcome addresses the motivating problem; foundations identify their consumers.
+- Every assigned test ID has exactly one owner and uses a suitable canonical suite. Distinct risks determine cases; there is no category/count quota. A task that changes many behaviors and carries one or two cases records why the remaining behaviors are owned elsewhere (L-011); proportion is judged per invariant, not by count.
+- Changed public/config/extension/workspace surfaces link to the owning impact/compatibility analysis. Unaffected facts do not need repeated subsections.
+- Named visual references map touched states/viewports to evidence. Unreferenced UI does not automatically require reference parity.
+- A full `cy-loop-tasks` graph retains the QA pair required by that phase protocol; it covers remaining integration journeys once, with appropriate browser or CLI/API evidence. Routine tasks do not require this graph.
+- Referenced ADRs/competitor paths are concrete and relevant. Required contracts resolve; unknown product decisions are explicit.
 
-- [ ] Column order matches the canonical `cy-create-tasks` output: `# | Title | Status | Complexity | Dependencies`.
-- [ ] Sequential `task_NN` IDs, gap-free.
-- [ ] Displayed row numbers are sequential and match individual `task_NN.md` file names.
-- [ ] No empty cells. `Dependencies: -` is allowed; blank cells are not.
-
-## Boundary
-
-- [ ] An `## MVP Boundary` section above the table names which numbered tasks are MVP, what is post-MVP, what is out of scope.
-- [ ] Mission traceability: exactly one slice's `## Shippable Outcome` solves the spec's Motivating Problem end-to-end, and it is the earliest slice the dependency graph allows.
-
-## Per-row directives
-
-- [ ] **Dependencies** populated for every row (`task_NN, task_MM` or `-`).
-- [ ] **Shippable Outcome** section exists in every implementation task — observable outcome plus verification tier (`gate` | `probe` | `smoke`) — and no task is a layer grouping (all-backend / all-frontend / all-docs).
-- [ ] **Complexity** rated `low | medium | high | critical`. Critical reserved for safety primitives + final QA execution.
-- [ ] **Status** starts as `pending` unless enriching an existing task tree with known completed work.
-- [ ] **Skills** are named in each task body, not in the master table, when a task requires explicit skill activation.
-- [ ] **Web/Docs Impact** subsection exists in every backend task body, even when "none" (run `cy-web-docs-impact` to populate).
-- [ ] **QA impact** line exists in every task body that changes user-visible behavior: names the `docs/qa/scenarios/*.md` ids to reset to `untested` (or new content-addressed files to add) and walk to a recorded verdict at completion, or states `none — no user-visible behavior change`.
-- [ ] **Extensibility / Agent Manageability / Config Lifecycle** subsection exists in every feature-bearing backend task body, even when "none with evidence".
-
-## Trailing QA pair
-
-- [ ] Last two rows: `qa-report` (high) and `qa-execution` (critical), per the `cy-tasks-tail-qa-pair` tail template (living `docs/qa/` contract).
-- [ ] `qa-report` depends on the last implementation task.
-- [ ] `qa-execution` depends on `qa-report` and relies on implementation completion transitively.
-- [ ] UI-bearing features (the slug has `_uiux.md`): `qa-execution` body cites Playwright via `browser-use:browser` (fallback `agent-browser`).
-- [ ] CLI/API features: `qa-execution` body cites `make test-e2e-runtime` and CLI/HTTP cross-surface comparison.
-- [ ] Activate `cy-tasks-tail-qa-pair` to enforce the shape.
-
-## Test density
-
-- [ ] Per-task test plan is proportional to behaviors documented in the `_spec.md` Part II section it implements.
-- [ ] Reject "fraco" plans: 1-2 tests for many behaviors.
-- [ ] Critical-complexity tasks list happy + failure-path + concurrency-stress + contract/redaction cases.
-- [ ] CLI/HTTP/UDS changes include agent-operability tests: structured output, status/config discovery, deterministic errors, and cross-surface state comparison when applicable.
-- [ ] Config changes include merge/overlay, default, validation, docs/example, and restart/reload tests where applicable.
-- [ ] Test plan cites `eng-test-conventions` for shape, `eng-cleanup-failure-paths` for cleanup audit, `eng-schema-migration` for migrations, `eng-contract-codegen-coship` for contract changes.
-
-## Visual coverage (UI-bearing slugs)
-
-- [ ] Every artboard section of every `_uiux.md` surface touched by a slice appears in that slice's `## Visual Contract`, with rows derived from the `_uiux.md` inventory — never from what the task happens to cite.
-
-## Competitor refs
-
-- [ ] When the spec drew on `.resources/<repo>`, each task body carries `### Competitor References` with its subset of exact file paths copied from `_spec.md` `## File References`.
-- [ ] Reference paths stay relative to `.resources/` and are not paraphrased.
-
-## Hygiene
-
-- [ ] No TBD / placeholder rows.
-- [ ] Status reconciled (no `task_03 pending` while `task_10 completed`).
-- [ ] No cycles in the dependency graph.
-
-## Validation
-
-If any directive fails, surface the failing rows and direct the author to fix the table before execution. Do not start tasks against a broken `_tasks.md`.
+Repair actual dependency, contract, or coverage gaps before execution. Formatting keywords and unused template sections are not independent blockers.

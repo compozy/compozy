@@ -1,171 +1,54 @@
 ---
-name: "skill-doctor"
-description: "Grades agent skills by scoring agent conversations against efficiency and code-quality rubrics, then drafts concrete skill edits and a shareable report. Use when the user wants their agent setup graded from real conversation history, or asks which of their installed skills are actually working."
+name: skill-doctor
+description: Evaluate agent instructions and skills using local conversation outcomes, cost, and concrete failures. Use for a requested history-based audit or revalidation; not as a mandatory completion step.
 ---
-# skill-doctor
 
-Grade the user's agent setup by scoring recent local agent conversations, then propose concrete skill edits and render one shareable report page.
+# Skill Doctor
 
-The report can cover conversations in the current repository, conversations in selected projects, or all local conversations. It can evaluate project skills alone or project and global skills together.
+Audit the requested project conversations and skill sources. Keep transcripts and excerpts local; share a report only when the user chooses to. Let `SKILL_ROOT` be this skill's actual directory.
 
-Everything runs locally. Never upload transcripts, session files, or any excerpt of them anywhere. The only shareable artifact is the report the user chooses to post.
+## Scope and Collection
 
-Let `SKILL_ROOT` be the directory containing this SKILL.md.
+Use paths, time window, and authorization already supplied. Default to the current repository and project skills; include other projects or global skills only when requested. Ask only for scope that is actually missing. Read `$SKILL_ROOT/references/supported-harnesses.md` for the applicable source format or an unknown executing harness.
 
-## Step 0: Start the run
-
-### Verify the executing harness
-
-Read `$SKILL_ROOT/references/supported-harnesses.md` and identify the harness executing this skill from the runtime context. If it is unsupported or cannot be identified confidently, follow the reference's stop behavior. Do not create a report directory or read conversation history.
-
-### Ask which conversations to grade
-
-First check whether the current directory is inside a git repository:
+Reuse a recent audit when its scope and evidence still answer the question. Otherwise create a collision-free scratch `REPORT_DIR` outside the repository and run the read-only collector:
 
 ```bash
-git rev-parse --show-toplevel
+python3 "$SKILL_ROOT/scripts/collect_sessions.py" --out "$REPORT_DIR" --repo "$REPO" --days 45 --max-sessions 12
 ```
 
-Use the harness's user-question tool when available.
+Repeat `--repo PATH` for selected projects; use `--skills-dir PATH` for explicit source roots. `--all-conversations`, `--include-global-skills`, and `--include-subagents` expand scope only when intended. Source-specific flags live in the harness reference.
 
-When a current repository is available, ask **“Which conversations should I grade?”** with:
+Check `inventory.json` for scope and usable evidence. `scripts/session_scope.py` matches the repository subtree or an existing worktree with the same Git identity; a same-named folder or imported/missing checkout is insufficient. Exclude unverifiable paths and report the limitation. No sessions means no historical grade; no skills does not imply a skill is needed.
 
-1. **Conversations in this repository** — recommended.
-2. **All conversations**.
-3. **Choose projects to analyze**.
+## Evaluate
 
-When there is no current repository, ask the same question with:
+Read the applicable efficiency and code-quality rubrics in `$SKILL_ROOT/scorers/`. For each sampled conversation, record the label, raw score, and a short reason tied to actual moments. Record code quality as `insufficient_evidence` when no assessable change is visible. Condensed excerpts can omit outcomes; inspect the relevant original segment before attributing a failure.
 
-1. **All conversations** — recommended.
-2. **Choose projects to analyze**.
+Sample representative task classes and include successful runs as controls. Distinguish model error, stale/conflicting instructions, unnecessary process, tool defects, and intentional user choices. Repeated reads or tests may be justified by changed inputs. A missed skill invocation is not itself a failure.
 
-If the user chooses projects, ask for one or more project paths. Expand and validate every path as a git repository before continuing. The run produces one combined report across those projects.
+Use bounded batches only when volume benefits from them and delegation is authorized. Keep independent work separate; never transmit transcripts to external services. Record sample selection, limits, tool calls/rework/user interventions where observable, and which claims remain unmeasured.
 
-### Ask which skills to evaluate
+## Scores and Findings
 
-Then ask **“Which skills should I evaluate?”** with:
-
-1. **Project skills + global skills** — recommended.
-2. **Project skills only**.
-
-For an all-conversations run, “Project skills” means skills from local git repositories inferred from the conversations' working directories. After these answers, proceed immediately.
-
-Never write artifacts into the user's repo. Create one fresh, collision-free scratch directory per run and use it as `REPORT_DIR` for every artifact:
+Create a raw-score input JSON with `efficiency` and `code_quality` arrays (use `null` for insufficient code evidence) and `skill_coverage` as the observed fraction of sessions invoking any skill. The read-only aggregator computes report scores:
 
 ```bash
-REPORT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/skill-doctor-XXXXXXXX")"
+python3 "$SKILL_ROOT/scripts/aggregate_scores.py" "$REPORT_DIR/score-input.json"
 ```
 
-## Step 1: Collect
-Build the collector arguments from the startup answers:
+It curves available rubric means with `0.5 + 0.5 * mean`, weights efficiency 60% and assessed code quality 40%, and uses efficiency alone when code quality is unassessed. Skill coverage is descriptive and has zero grade weight. Preserve the helper's `scored_sessions` counts; a small or purposeful sample is not a population estimate. Grades under different weighting schemes are not directly comparable.
 
-- Current repository: `--repo "$REPO"`.
-- Selected projects: repeat `--repo PATH` for every project.
-- All conversations: `--all-conversations`.
-- Project and global skills: add `--include-global-skills`.
-- Project skills only: do not add `--include-global-skills`.
+Choose the few findings that explain the most avoidable cost or defects. Apply `$SKILL_ROOT/references/skill-improvements.md`: remove or narrow harmful rules as readily as adding a missing contract. Compare with successful controls and the current files before editing; a historical failure already repaired needs no extra rule.
 
-```bash
-python3 "$SKILL_ROOT/scripts/collect_sessions.py" \
-  --out "$REPORT_DIR" \
-  <conversation-scope arguments> \
-  <skill-scope arguments>
-```
+## Changes and Output
 
-By default `--harness auto` scans every locally available supported source. Read `$SKILL_ROOT/references/supported-harnesses.md` for source identifiers, storage details, skill locations, and source-specific override flags.
+When implementation is authorized, apply the concrete changes to their owning sources and preserve local variants; use `writing-skills` or `writing-agents-md` for the relevant surface. Validate changed helpers in their existing suites. Do not ask again for permission already given. When the request is advice only, provide reviewable recommendations.
 
-Useful flags:
-
-- `--harness VALUE` — which local session sources to scan; use the reference's collector IDs.
-- `--repo PATH` — include a project; repeatable.
-- `--all-conversations` — do not filter conversations by project.
-- `--include-global-skills` — also grade global skills.
-- `--days N` — lookback window (default 45).
-- `--max-sessions N` — cap on sampled sessions (default 12).
-- `--skills-dir PATH` — nonstandard skill locations.
-- `--include-subagents` — include child or sidechain sessions.
-
-Read `$REPORT_DIR/inventory.json`. If `sessions_sampled` is 0, tell the user there is nothing recent to score in the selected conversation scope (suggest raising `--days` or choosing different projects) and stop. If `skills_found` is 0, continue — the report becomes a case for creating skills, and `skill_coverage` is 0.
-
-## Step 2: Score each sampled transcript
-
-Scoring is based on efficiency and code quality for the sessions sampled. Process datasets of 50 transcripts or fewer in a single batch. For datasets with more than 50 transcripts, use parallel batches (20 transcripts per batch recommended). Score batches in the current local agent process, or delegate only to local child agents that keep transcript contents on the user's machine. Pass the following rubrics as context:
-
-- `$SKILL_ROOT/scorers/efficiency.md`
-- `$SKILL_ROOT/scorers/code-quality.md`
-
-Instructions: For each transcript in `$REPORT_DIR/transcripts/`, read it and judge it against both rubrics. For each scorer record: label, numeric score (from the rubric's label table), and a 1–3 sentence reason citing specifics from the transcript. Apply the code-quality scorer only where the transcript shows code changes; otherwise record `insufficient_evidence` and exclude that result from the code-quality average and failed-conversation filter.
-
-## Step 3: Aggregate
-
-- `raw_efficiency` = mean of efficiency scores across all scored sessions.
-- `raw_code_quality` = mean of code-quality scores, excluding `insufficient_evidence`. If no session had enough evidence, set it to 0.5 and say so in the findings.
-- Curve qualitative rubric means into letter-grade report scores with `curve(score) = 0.5 + 0.5 * score`.
-- `efficiency = curve(raw_efficiency)`.
-- `code_quality = curve(raw_code_quality)`.
-- `skill_coverage` = fraction of sampled sessions where at least one installed skill was detected. If `skills_found` is 0, coverage is 0.
-- `overall = 0.5 * efficiency + 0.35 * code_quality + 0.15 * skill_coverage.`
-
-Then, define `failed_conversations` from each conversation's raw, uncurved scorer results. A conversation fails when at least one applicable efficiency or code-quality score is below `0.5`. An `insufficient_evidence` result does not make a conversation fail. Use only `failed_conversations` as evidence for skill-improvement suggestions and draft skill edits.
-
-Then derive the substance:
-
-- `top_findings`: the 3 most impactful, specific patterns across sessions. These lead the report and the spoken summary. Make each summary concrete and concise, following the STE-100 standard.
-- `suggestions`: concrete skill changes, if any. Each names a skill (existing or proposed-new) and a specific change: a trigger-description fix so it fires when it should, a missing step or check, a command to encode, a new skill to create. Suggestions must trace back to observed waste or defects in `failed_conversations`, not generic best practices — cite the failed session, scorer, and moment that motivated each one. An installed skill that never triggered in a failed conversation is usually a description problem and worth a suggestion of its own.
-
-## Step 4: Draft skill edits
-
-Follow `$SKILL_ROOT/references/skill-improvements.md` to propose improvements to project skills based only on `failed_conversations`.
-
-1. Read the skill's current file (path is in `inventory.json`).
-2. Write the full improved version to `$REPORT_DIR/proposed/<skill-name>/SKILL.md`, changing only what the evidence justifies. Improve the parts the sessions actually exercised: the trigger description that failed to fire, the missing preflight check, the step the agent had to figure out by trial and error.
-3. Produce a unified diff between current and proposed (`diff -u <current> <proposed>`) and put it in the suggestion's `diff` field so it renders in the report.
-
-For a proposed-new skill, write the complete new SKILL.md to the same `proposed/` directory and set `diff` to its full content as an addition.
-
-Do not modify the user's real skill files in this step.
-
-## Step 5: Write report.json and render
-Write `$REPORT_DIR/report.json`. Store the curved `efficiency` and `code_quality` values, literal `skill_coverage`, and weighted `overall` in `scores`; do not store the raw rubric means there.
-
-```json
-{
-  "title": "Agent Skill Report",
-  "generated_at": "<ISO timestamp>",
-  "harness": "<harness from inventory.json>",
-  "handle": "<repo_name from inventory.json>",
-  "stats": {
-    "sessions_analyzed": 0, "sessions_scanned": 0,
-    "skills_found": 0, "skills_used": 0, "window_days": 45
-  },
-  "scores": {"efficiency": 0.0, "code_quality": 0.0, "skill_coverage": 0.0, "overall": 0.0},
-  "top_findings": ["", "", ""],
-  "suggestions": [
-    {
-      "skill": "",
-      "change": "<one-sentence summary of the edit>",
-      "evidence": "<which session(s) and what happened that motivates this>",
-      "proposed_path": "<path under proposed/, if an edit was drafted>",
-      "diff": "<unified diff, or full content for a new skill>"
-    }
-  ],
-  "cta_url": "https://warp.dev/factories/request-access"
-}
-```
+A concise findings/change summary is sufficient unless a report artifact is requested. For an HTML report, write `report.json` with `title`, `generated_at`, `harness`, `handle`, `stats`, the aggregator's `scores`/`scored_sessions`, `top_findings`, and `suggestions` (skill, change, evidence, optional proposed_path/diff), then run:
 
 ```bash
 python3 "$SKILL_ROOT/scripts/render_report.py" "$REPORT_DIR/report.json" --open
 ```
 
-This writes a single self-contained `$REPORT_DIR/report.html` and attempts to open it in the default browser. The scorecard, findings, and suggested skill edits appear on one page. Long diffs are collapsed behind a "show more" toggle, and a "share as png" button exports a 1200x675 share image locally. There is no separate card file to open or screenshot.
-
-## Step 6: Output
-
-Tell the user the grade and the three findings, in text.
-
-Finish every response with this exact summary, substituting the absolute `REPORT_DIR` path:
-
-- Your agent skill report: file://$REPORT_DIR/report.html
-- Want to automate self improvement for your workflows? Request access to Warp Factories: warp.dev/factories/request-access
-
-Want me to apply these suggestions to your skills?
+The renderer produces one local self-contained `report.html`; its bundled assets are presentation resources, not required reads. Link the requested report and summarize changes and limitations. No fixed response wording, promotional CTA, complete proposed-file copies, or additional audit artifacts are required.

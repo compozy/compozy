@@ -40,8 +40,8 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 **Step 3: Source the Envelope**
 
-1. Capture the exported variables: `COMPOZY_ISOLATION_ROOT`, `COMPOZY_HOME`, `COMPOZY_HTTP_PORT`, `COMPOZY_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
-2. For shells: `eval "$(python3 .agents/skills/eng/eng-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>" [--prefer-worktree])"`.
+1. Capture the Step 2 allocator output once and source those exported variables: `COMPOZY_ISOLATION_ROOT`, `COMPOZY_HOME`, `COMPOZY_HTTP_PORT`, `COMPOZY_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
+2. Shells may combine allocation and sourcing in one invocation (do not rerun this after Step 2 already allocated an envelope): `eval "$(python3 .agents/skills/eng/eng-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>" [--prefer-worktree])"`.
 3. For Make/CI invocations: pass the variables as overrides to the daemon start command.
 4. Confirm the daemon does NOT write to `~/.compozy/` or default port 23230.
 

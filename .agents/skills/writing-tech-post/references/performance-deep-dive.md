@@ -1,5 +1,7 @@
 # Performance Deep-Dive
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The performance archetype's contract: detective-arc structure, distribution-shift evidence (not means), iterative bottleneck-peeling, partial-victory paragraph cadence, and the two honest-recap closing variants.
 
 ## Contents
@@ -7,7 +9,7 @@ The performance archetype's contract: detective-arc structure, distribution-shif
 - [Opening: felt experience + stakes (not a number)](#opening-felt-experience--stakes-not-a-number)
 - [The detective-arc structure](#the-detective-arc-structure)
 - [The partial-victory paragraph (load-bearing cadence)](#the-partial-victory-paragraph-load-bearing-cadence)
-- [Distribution-shift contract (mandatory)](#distribution-shift-contract-mandatory)
+- [Evidence for measured performance claims](#evidence-for-measured-performance-claims)
 - [Named tooling as evidence](#named-tooling-as-evidence)
 - [Three sub-variants](#three-sub-variants)
 - [Closing move (two honest-recap variants)](#closing-move-two-honest-recap-variants)
@@ -53,13 +55,13 @@ Examples (Datadog network-latency, repeated five times):
 
 **Without it,** the post reads as a sequence of unrelated fixes. **With it,** the post reads as ordered investigation.
 
-The skill must require at least one partial-victory paragraph between successive fixes in any detective-arc draft.
+Include a partial-victory transition when the measured result was partial. Do not invent residual problems or additional fixes to satisfy this narrative shape.
 
-## Distribution-shift contract (mandatory)
+## Evidence for measured performance claims
 
-Any performance claim attaches to four pieces of context, or it is not falsifiable. (Full text in `evidence-diagrams-code.md`.)
+Use context appropriate to the measured claim. Runtime latency, throughput, memory, and binary-size comparisons need different metrics; see `evidence-diagrams-code.md`.
 
-- **Percentile.** p50 / p90 / p99. Mean-only charts are rejected.
+- **Metric.** Use percentiles/distributions for latency and tail claims; means, totals, allocation counts, or sizes may fit other claims. Do not infer a distribution shift from a single average.
 - **Sample size.** State explicitly.
 - **Measurement window.** Time range, traffic level, rollout window. Per-fix charts on the same axes.
 - **Environment.** Instance type, browser, OS, hardware.

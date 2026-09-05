@@ -102,18 +102,12 @@ Any deviation is recorded in the report — parity gaps qualify every verdict in
 
 ## Running the lens pass
 
-After journey walks and tours (Steps 3-4):
-
-1. Pick **2 journeys** that exercise the largest changed surface.
-2. Re-walk them as a lens audit, not a journey verification.
-3. At each step, ask the six lenses; mark `pass` / `friction` / `fail` per lens.
-4. File one finding per failure via the registry; record the pass in the report's lens section.
-5. **45 minutes total.** Anything unfinished becomes a follow-up charter — fatigue produces false positives.
+Use the relevant lenses while walking the changed journey. Reuse those observations; a second walk is useful only for an unanswered risk or a requested dedicated audit. Record material findings and limits without a fixed journey count, time quota, or six-lens verdict matrix.
 
 ## Anti-patterns
 
 - **Full conformance audit in the QA window** — the deep audit is dedicated tooling; queue it, don't improvise it.
-- **Skipping lenses because "the feature works"** — working and feeling right are different claims.
+- **Ignoring a relevant usability risk because "the feature works"** — working and feeling right are different claims.
 - **Lens pass before journey walks** — lenses are a re-read of real flows; without a flow they produce shallow findings.
 - **Lens cases in the tracker** — lenses qualify journey scenarios; they don't get their own scenario rows per category.
 - **Treating this as security testing** — security is its own discipline; the lens concern is user trust perception, not vulnerability scanning.

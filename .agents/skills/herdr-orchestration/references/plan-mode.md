@@ -113,10 +113,10 @@ bare into its named tab, enter Plan mode, then submit the packet:
 
 ```bash
 rtk herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$PWD" \
-  --label "gpt-5.5: audit auth (plan)" --no-focus
+  --label "codex: audit auth (plan)" --no-focus
 
 rtk herdr agent start audit-auth --kind codex --pane <root_pane_id> -- \
-  --yolo -m gpt-5.5
+  --yolo
 ```
 
 `agent start` returns only once the TUI is ready for input. Then enter Plan
