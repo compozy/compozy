@@ -1,6 +1,6 @@
 ---
 name: cy-create-spec
-description: Create or update a requested Compozy spec and its applicable companion contracts, reusing current decisions and research. Not a prerequisite for ordinary coding tasks.
+description: Create or update a requested CompozyOS spec and its applicable companion contracts, reusing current decisions and research. Not a prerequisite for ordinary coding tasks.
 ---
 
 # Create Spec

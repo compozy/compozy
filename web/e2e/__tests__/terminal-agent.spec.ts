@@ -498,7 +498,7 @@ test("E2E-006: terminal writes stay promptless across terminal generations", asy
     expect(secondWrite.isError).toBeFalsy();
     await expect(harness.sessionUI.permissionPrompt).toBeHidden();
   } finally {
-    await teardownHostedMcp(harness.connection);
+    await teardownHostedMcp(harness.connection, undefined);
   }
 });
 

@@ -30,7 +30,7 @@ Checkpoint tasks inside an orchestrated workflow report their slice outcome and 
 - **Spec implementation:** validate the affected canonical contract fields and acceptance criteria. Resolve contradictions from user decisions and authoritative artifacts; ask only when an unresolved product decision blocks correct work. Do not silently rewrite the spec to fit the implementation.
 - **User-visible behavior with a living QA tracker:** add/reset affected scenario files and verify those scenarios before delivery. In a spec loop, flag per slice and collect the remaining walks in its QA phase. Reuse valid evidence for unchanged scenarios. Failed walks require repair/re-walk; record explicit external/decision blockers. Editorial changes do not create a lab or new scenarios.
 - **Named visual references:** use the project's visual comparison workflow (`eng-ui-screenshot` when available): compare the reference and implementation for required states/viewports, inspect the pairs, validate the durable bundle, and resolve structural mismatches. Runtime truth, the project's copy authority, shipped primitives, and live host chrome own content and component identity; record authorized deltas. Implementation-only screenshots do not prove reference parity.
-- **QA labs:** follow the project's teardown on every terminal path and cite its cleanup evidence (for a Compozy lab, `teardown.json` with `clean: true`). This obligation begins when a lab/process is actually created.
+- **QA labs:** follow the project's teardown on every terminal path and cite its cleanup evidence (for a CompozyOS lab, `teardown.json` with `clean: true`). This obligation begins when a lab/process is actually created.
 
 ## Reporting and Failures
 
