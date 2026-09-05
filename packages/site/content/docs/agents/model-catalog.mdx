@@ -63,6 +63,12 @@ An explicit `models.curated` set still controls the default curated view. A newl
 first appear only under `view=all` until it is featured or added to that set. OpenClaw is provider-managed:
 its Gateway owns model selection, so CompozyOS does not fabricate catalog controls for it.
 
+`models.curated` entries overlay the built-in set **by model id**. An entry sets only the fields you
+write and leaves the rest of that model's built-in metadata in place, and models you never mention stay
+exactly as the daemon ships them. That is what lets curating one model from settings stay a one-model
+edit. To take a built-in model out of the curated view, set `hidden = true` on it rather than removing
+it from the list; an empty `curated` array changes nothing.
+
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
 its own finite, non-negative rate and all active rates have compatible provenance. Rates are never
@@ -83,6 +89,29 @@ live truth is visible instead of collapsed:
 
 Manual model entry remains valid even when no source advertises the model. `models.curated` is
 metadata, never an allowlist.
+
+## Startability
+
+Availability describes what the sources reported. `startable` answers a narrower question: can a
+session launch against this row right now. The two differ for `claude` and `cursor`, whose models
+carry a CompozyOS logical id that only reaches the agent through a transport id discovered from the
+live agent. For those providers an offline row names a model the runtime cannot address, so it is not
+startable however complete its metadata looks.
+
+| `start_blocked_reason`       | Meaning                                                     |
+| ---------------------------- | ----------------------------------------------------------- |
+| `unavailable`                | An availability authority reported the model unavailable.   |
+| `live_discovery_unavailable` | The provider's live source has not answered for this model. |
+| `live_discovery_stale`       | The provider's live source is serving stale rows.           |
+| `not_advertised`             | A fresh live source did not advertise the model.            |
+
+Every other provider stays startable on offline metadata, since its model ids reach the API unchanged.
+
+The model picker and session start read this same verdict, so the picker cannot offer a model the
+runtime will then refuse. When live discovery is degraded, affected rows render disabled with the
+reason instead of disappearing, and the provider default still starts. Raise
+`providers.<id>.models.discovery.timeout` when a cold first refresh needs longer than the ten-second
+default.
 
 ## Curated and all views
 

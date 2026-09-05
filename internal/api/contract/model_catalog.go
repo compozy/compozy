@@ -48,6 +48,8 @@ type ProviderModelPayload struct {
 	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
 	Available              *bool                               `json:"available"`
 	AvailabilityState      string                              `json:"availability_state"`
+	Startable              bool                                `json:"startable"`
+	StartBlockedReason     string                              `json:"start_blocked_reason,omitempty"`
 	Stale                  bool                                `json:"stale"`
 	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
 	ContextWindow          *int64                              `json:"context_window,omitempty"`

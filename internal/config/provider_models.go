@@ -67,29 +67,33 @@ func cloneProviderModelConfigs(src []ProviderModelConfig) []ProviderModelConfig 
 	}
 	cloned := make([]ProviderModelConfig, len(src))
 	for idx, model := range src {
-		cloned[idx] = ProviderModelConfig{
-			ID:                       model.ID,
-			DisplayName:              model.DisplayName,
-			ContextWindow:            cloneProviderModelPtr(model.ContextWindow),
-			MaxInputTokens:           cloneProviderModelPtr(model.MaxInputTokens),
-			MaxOutputTokens:          cloneProviderModelPtr(model.MaxOutputTokens),
-			SupportsTools:            cloneProviderModelPtr(model.SupportsTools),
-			SupportsReasoning:        cloneProviderModelPtr(model.SupportsReasoning),
-			ReasoningEfforts:         cloneStrings(model.ReasoningEfforts),
-			DefaultReasoningEffort:   model.DefaultReasoningEffort,
-			DefaultSpeed:             model.DefaultSpeed,
-			CostInputPerMillion:      cloneProviderModelPtr(model.CostInputPerMillion),
-			CostOutputPerMillion:     cloneProviderModelPtr(model.CostOutputPerMillion),
-			CostCacheReadPerMillion:  cloneProviderModelPtr(model.CostCacheReadPerMillion),
-			CostCacheWritePerMillion: cloneProviderModelPtr(model.CostCacheWritePerMillion),
-			CostReasoningPerMillion:  cloneProviderModelPtr(model.CostReasoningPerMillion),
-			Deprecated:               cloneProviderModelPtr(model.Deprecated),
-			Hidden:                   cloneProviderModelPtr(model.Hidden),
-			Featured:                 cloneProviderModelPtr(model.Featured),
-			ReleaseDate:              model.ReleaseDate,
-		}
+		cloned[idx] = cloneProviderModelConfig(model)
 	}
 	return cloned
+}
+
+func cloneProviderModelConfig(src ProviderModelConfig) ProviderModelConfig {
+	return ProviderModelConfig{
+		ID:                       src.ID,
+		DisplayName:              src.DisplayName,
+		ContextWindow:            cloneProviderModelPtr(src.ContextWindow),
+		MaxInputTokens:           cloneProviderModelPtr(src.MaxInputTokens),
+		MaxOutputTokens:          cloneProviderModelPtr(src.MaxOutputTokens),
+		SupportsTools:            cloneProviderModelPtr(src.SupportsTools),
+		SupportsReasoning:        cloneProviderModelPtr(src.SupportsReasoning),
+		ReasoningEfforts:         cloneStrings(src.ReasoningEfforts),
+		DefaultReasoningEffort:   src.DefaultReasoningEffort,
+		DefaultSpeed:             src.DefaultSpeed,
+		CostInputPerMillion:      cloneProviderModelPtr(src.CostInputPerMillion),
+		CostOutputPerMillion:     cloneProviderModelPtr(src.CostOutputPerMillion),
+		CostCacheReadPerMillion:  cloneProviderModelPtr(src.CostCacheReadPerMillion),
+		CostCacheWritePerMillion: cloneProviderModelPtr(src.CostCacheWritePerMillion),
+		CostReasoningPerMillion:  cloneProviderModelPtr(src.CostReasoningPerMillion),
+		Deprecated:               cloneProviderModelPtr(src.Deprecated),
+		Hidden:                   cloneProviderModelPtr(src.Hidden),
+		Featured:                 cloneProviderModelPtr(src.Featured),
+		ReleaseDate:              src.ReleaseDate,
+	}
 }
 
 func cloneProviderModelPtr[T any](src *T) *T {

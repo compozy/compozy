@@ -88,6 +88,12 @@ func (c *Config) validateCore() error {
 
 func (c *Config) validateProviders() error {
 	for name := range c.Providers {
+		// Validate the operator's own block first: curated entries merge into the builtin
+		// set by id, so only the pre-merge list carries positions and duplicates the
+		// operator can act on.
+		if err := c.Providers[name].Models.Validate(fmt.Sprintf("providers.%s.models", name)); err != nil {
+			return fmt.Errorf("%w: %w", ErrProviderUnavailable, err)
+		}
 		if _, err := c.ResolveProvider(name); err != nil {
 			return err
 		}

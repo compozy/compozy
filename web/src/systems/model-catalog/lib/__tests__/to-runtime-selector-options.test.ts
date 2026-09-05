@@ -20,6 +20,7 @@ function payload(
     featured: false,
     hidden: false,
     stale: false,
+    startable: true,
     sources: [],
     ...overrides,
   };
@@ -44,6 +45,66 @@ describe("toRuntimeModelOptions", () => {
       ["down-live", "unavailable"],
       ["down-stale", "unavailable"],
     ]);
+  });
+
+  it("Should disable a row the daemon reports as not startable", () => {
+    const result = toRuntimeModelOptions([
+      payload({
+        model_id: "offline",
+        availability_state: "unknown",
+        available: null,
+        startable: false,
+        start_blocked_reason: "live_discovery_unavailable",
+      }),
+    ]);
+
+    const option = result[0];
+    expect(option.availability).toBe("unavailable");
+    expect(option.disabled).toBe(true);
+    expect(option.disabled_reason).toBe("Not listed");
+    expect(option.disabled_detail).toBe("The provider did not list its models");
+  });
+
+  it("Should map each start-blocked reason onto its own badge and detail", () => {
+    const result = toRuntimeModelOptions([
+      payload({
+        model_id: "stale-list",
+        startable: false,
+        start_blocked_reason: "live_discovery_stale",
+      }),
+      payload({
+        model_id: "not-offered",
+        startable: false,
+        start_blocked_reason: "not_advertised",
+      }),
+      payload({ model_id: "unmapped", startable: false, start_blocked_reason: "unavailable" }),
+    ]);
+
+    expect(result.map(option => [option.id, option.disabled_reason])).toEqual([
+      ["stale-list", "Out of date"],
+      ["not-offered", "Not offered"],
+      ["unmapped", "Unavailable"],
+    ]);
+    expect(result.find(option => option.id === "stale-list")?.disabled_detail).toBe(
+      "The provider's model list is out of date"
+    );
+    expect(result.find(option => option.id === "unmapped")?.disabled_detail).toBeUndefined();
+  });
+
+  it("Should keep the sign-in reason ahead of a start-blocked reason", () => {
+    const result = toRuntimeModelOptions(
+      [
+        payload({
+          model_id: "offline",
+          startable: false,
+          start_blocked_reason: "live_discovery_unavailable",
+        }),
+      ],
+      { providerNeedsAuth: true }
+    );
+
+    expect(result[0].disabled_reason).toBe("Sign in");
+    expect(result[0].disabled_detail).toBeUndefined();
   });
 
   it("Should fall back to the available flag for unknown availability states", () => {

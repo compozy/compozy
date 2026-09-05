@@ -32,17 +32,20 @@ const (
 )
 
 type liveProviderAdapter struct {
-	defaultKind       liveDiscoveryKind
-	defaultEndpoint   string
-	defaultCommand    string
-	bootstrapOnList   bool
-	commandOnly       bool
-	parseCommandRows  liveCommandRowsParser
-	parseACPModelRows liveACPModelRowsParser
-	authScheme        liveAuthScheme
-	authRequired      bool
-	credentialEnvKeys []string
-	headers           map[string]string
+	defaultKind     liveDiscoveryKind
+	defaultEndpoint string
+	defaultCommand  string
+	bootstrapOnList bool
+	commandOnly     bool
+	// requiresLiveBinding marks providers whose models carry a CompozyOS logical id
+	// that only reaches the agent through a transport id discovered at runtime.
+	requiresLiveBinding bool
+	parseCommandRows    liveCommandRowsParser
+	parseACPModelRows   liveACPModelRowsParser
+	authScheme          liveAuthScheme
+	authRequired        bool
+	credentialEnvKeys   []string
+	headers             map[string]string
 }
 
 type liveCommandRowsParser func(string, string, time.Time) ([]ModelRow, error)
@@ -61,6 +64,13 @@ type liveDiscoveryTarget struct {
 	timeout  time.Duration
 }
 
+// ProviderRequiresLiveBinding reports whether the provider's logical model ids only
+// resolve through a transport binding discovered from the live agent.
+func ProviderRequiresLiveBinding(providerID string) bool {
+	adapter, ok := liveProviderAdapters[strings.TrimSpace(providerID)]
+	return ok && adapter.requiresLiveBinding
+}
+
 var liveProviderAdapters = map[string]liveProviderAdapter{
 	liveSourcesCodexKey: {
 		defaultKind:       liveDiscoveryACP,
@@ -77,13 +87,14 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		credentialEnvKeys: []string{liveSourcesOpenAIEnvName},
 	},
 	liveSourcesClaudeKey: {
-		defaultKind:       liveDiscoveryACP,
-		bootstrapOnList:   true,
-		parseACPModelRows: parseClaudeModelRows,
-		authScheme:        liveAuthAnthropic,
-		authRequired:      true,
-		credentialEnvKeys: []string{"ANTHROPIC_API_KEY"},
-		headers:           map[string]string{"anthropic-version": "2023-06-01"},
+		defaultKind:         liveDiscoveryACP,
+		bootstrapOnList:     true,
+		requiresLiveBinding: true,
+		parseACPModelRows:   parseClaudeModelRows,
+		authScheme:          liveAuthAnthropic,
+		authRequired:        true,
+		credentialEnvKeys:   []string{"ANTHROPIC_API_KEY"},
+		headers:             map[string]string{"anthropic-version": "2023-06-01"},
 	},
 	"anthropic": {
 		defaultKind:       liveDiscoveryHTTP,
@@ -123,11 +134,12 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultCommand: "opencode models",
 	},
 	liveSourcesCursorKey: {
-		defaultKind:      liveDiscoveryCommand,
-		defaultCommand:   cursorModelsCommand,
-		bootstrapOnList:  true,
-		parseCommandRows: parseCursorModelRows,
-		commandOnly:      true,
+		defaultKind:         liveDiscoveryCommand,
+		defaultCommand:      cursorModelsCommand,
+		bootstrapOnList:     true,
+		requiresLiveBinding: true,
+		parseCommandRows:    parseCursorModelRows,
+		commandOnly:         true,
 	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,

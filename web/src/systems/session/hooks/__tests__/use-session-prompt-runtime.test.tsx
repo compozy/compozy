@@ -43,6 +43,7 @@ function model(providerId: string, modelId: string): ProviderModelPayload {
   return {
     availability_state: "available_live",
     available: true,
+    startable: true,
     curated: true,
     deprecated: false,
     featured: false,

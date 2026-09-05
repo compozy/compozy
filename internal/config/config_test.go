@@ -1072,16 +1072,17 @@ base_url = "https://workspace.example.test/api/v1"
 	if claude.Models.Default != "workspace-model" {
 		t.Fatalf("ResolveProvider() Models.Default = %q, want %q", claude.Models.Default, "workspace-model")
 	}
-	if len(claude.Models.Curated) != 1 {
-		t.Fatalf("ResolveProvider() Models.Curated = %#v, want one workspace model", claude.Models.Curated)
+	workspaceModel, ok := findCuratedModel(claude.Models.Curated, "workspace-model")
+	if !ok {
+		t.Fatalf("ResolveProvider() Models.Curated = %#v, want the workspace model merged in", claude.Models.Curated)
 	}
-	if got, want := claude.Models.Curated[0].ID, "workspace-model"; got != want {
-		t.Fatalf("ResolveProvider() Models.Curated[0].ID = %q, want %q", got, want)
+	if _, ok := findCuratedModel(claude.Models.Curated, "claude-sonnet-5"); !ok {
+		t.Fatalf("ResolveProvider() Models.Curated = %#v, want the builtin models preserved", claude.Models.Curated)
 	}
-	if got, want := claude.Models.Curated[0].DisplayName, "Workspace Model"; got != want {
-		t.Fatalf("ResolveProvider() Models.Curated[0].DisplayName = %q, want %q", got, want)
+	if got, want := workspaceModel.DisplayName, "Workspace Model"; got != want {
+		t.Fatalf("ResolveProvider() workspace model DisplayName = %q, want %q", got, want)
 	}
-	if got, want := claude.Models.Curated[0].DefaultReasoningEffort, "high"; got != want {
+	if got, want := workspaceModel.DefaultReasoningEffort, "high"; got != want {
 		t.Fatalf("ResolveProvider() Models.Curated[0].DefaultReasoningEffort = %q, want %q", got, want)
 	}
 	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||

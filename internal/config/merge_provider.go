@@ -55,9 +55,7 @@ func (o providerModelsOverlay) Apply(dst *ProviderModelsConfig) {
 	if o.Default != nil {
 		dst.Default = *o.Default
 	}
-	if o.Curated != nil {
-		dst.Curated = cloneProviderModelConfigs(o.Curated)
-	}
+	dst.Curated = mergeProviderCuratedModels(dst.Curated, o.Curated)
 	o.Discovery.Apply(&dst.Discovery)
 	o.Reasoning.applyTo(&dst.Reasoning)
 }
