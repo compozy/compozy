@@ -4,9 +4,19 @@
         "signature": true
     },
     "tasks": {
+        "@compozy/lint-plugins#test": {
+            "dependsOn": [],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "$TURBO_ROOT$/packages/ui/src/index.ts",
+                "$TURBO_ROOT$/packages/ui/src/primitives.ts",
+                "$TURBO_ROOT$/packages/ui/src/exports/**"
+            ],
+            "outputs": []
+        },
         "//#codegen-check": {
             "cache": false,
-            "inputs": ["scripts/codegen-check.sh"],
+            "inputs": ["scripts/codegen-check.sh", "scripts/gate.sh", "scripts/gate_runtime.sh"],
             "outputs": [],
             "passThroughEnv": ["COMPOZY_CODEGEN_CHECKED"]
         },

@@ -78,3 +78,25 @@ tree_fingerprint() (
   fi
   GIT_INDEX_FILE="$temp_index" git write-tree
 )
+
+lane_fingerprint() (
+  local lane="$1" tree="$2"
+  case "$lane" in
+    codegen | codegen-check) ;;
+    *) printf '%s\n' "$tree"; return ;;
+  esac
+  {
+    printf 'codegen-context-v1\ntree=%s\n' "$tree"
+    printf 'mage=%s\nmage-version=%s\n' "${MAGE:-}" "${MAGE_VERSION:-}"
+    if [ -f go.mod ]; then
+      command -v go
+      go env -json GOVERSION GOOS GOARCH GOFLAGS GOEXPERIMENT CGO_ENABLED GOTOOLCHAIN GOWORK \
+        GOMODCACHE GOAMD64 GOARM GOARM64 GOMIPS GOMIPS64 GORISCV64 GOWASM \
+        CC CXX CGO_CFLAGS CGO_CPPFLAGS CGO_CXXFLAGS CGO_LDFLAGS PKG_CONFIG
+    fi
+    if [ -f package.json ]; then
+      command -v bun
+      bun --version
+    fi
+  } | git hash-object --stdin
+)

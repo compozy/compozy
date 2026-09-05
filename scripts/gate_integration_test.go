@@ -16,6 +16,73 @@ import (
 func TestGateEvidenceBehavior(t *testing.T) {
 	t.Parallel()
 
+	for _, mode := range []struct{ command, target string }{
+		{command: "codegen", target: "codegen-check"},
+		{command: "generate", target: "codegen"},
+	} {
+		t.Run(
+			"Should reuse "+mode.command+" evidence only while sources and artifacts remain valid",
+			func(t *testing.T) {
+				t.Parallel()
+
+				repo := newGateTestRepo(t)
+				callsPath := filepath.Join(t.TempDir(), "codegen-calls")
+				write := func(name, content string) {
+					t.Helper()
+					if err := os.WriteFile(filepath.Join(repo, name), []byte(content), 0o644); err != nil {
+						t.Fatalf("write %s: %v", name, err)
+					}
+				}
+				write(".gitignore", "/.cache/\n")
+				write("go.mod", "module fixture\n\ngo 1.26.0\n")
+				goFlags := ""
+				write("generated.txt", "seed\n")
+				write(
+					"Makefile",
+					mode.target+":\n\t@echo check >> \"$$GATE_TEST_CALLS\"\n\t@cmp seed.txt generated.txt\n",
+				)
+				check := func(wantCalls int, wantFailure bool) {
+					t.Helper()
+					output, err := runGate(
+						t,
+						repo,
+						[]string{"GATE_TEST_CALLS=" + callsPath, "GOFLAGS=" + goFlags},
+						mode.command,
+					)
+					if (err != nil) != wantFailure {
+						t.Fatalf("codegen error = %v, want failure %t; output:\n%s", err, wantFailure, output)
+					}
+					calls := strings.Fields(readFile(t, callsPath))
+					if len(calls) != wantCalls {
+						t.Fatalf("codegen invocations = %d, want %d; output:\n%s", len(calls), wantCalls, output)
+					}
+				}
+
+				check(1, false)
+				check(1, false)
+				write("generated.txt", "drift\n")
+				check(2, true)
+				check(3, true)
+				write("generated.txt", "seed\n")
+				check(4, false)
+				check(4, false)
+				if err := os.Remove(filepath.Join(repo, "generated.txt")); err != nil {
+					t.Fatalf("remove generated artifact: %v", err)
+				}
+				check(5, true)
+				write("generated.txt", "seed\n")
+				write("seed.txt", "changed source\n")
+				check(6, true)
+				write("generated.txt", "changed source\n")
+				check(7, false)
+				check(7, false)
+				goFlags = "-tags=changed_codegen_context"
+				check(8, false)
+				check(8, false)
+			},
+		)
+	}
+
 	t.Run("Should fail the lane when tee cannot capture its log", func(t *testing.T) {
 		t.Parallel()
 
@@ -234,6 +301,10 @@ exit 0
 			{path: "go.mod", want: "go scopes: ./..."},
 			{path: "bun.lock", want: "js lane: all workspaces"},
 			{path: "Makefile", want: "tooling lanes"},
+			{path: ".air.toml", want: "go scopes: ./scripts/devreadiness"},
+			{path: "scripts/dev.sh", want: "go scopes: ./scripts/devreadiness"},
+			{path: "lint-plugins/ui-primitive-reuse.mjs", want: "js filters: ./lint-plugins"},
+			{path: "packages/ui/src/exports/shell.ts", want: "js filters: ./lint-plugins ./packages/ui"},
 			{path: "schema.sql", want: "codegen lane"},
 			{path: "openapi/schema.yaml", want: "codegen lane"},
 			{path: "packages/ui/src/tokens.css", want: "codegen lane"},

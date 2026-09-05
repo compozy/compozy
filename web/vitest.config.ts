@@ -14,6 +14,7 @@ export default defineConfig({
     name: "web",
     environment: "jsdom",
     globals: true,
+    pool: "threads",
     // Bounded pool: turbo runs workspace test tasks concurrently (L-030), and
     // 4 jsdom workers exhaust the 16GB CI runners (three OOM'd jobs on PR #520).
     maxWorkers: "50%",

@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
-binary=${1:-./.tmp/air/compozy}
+binary=${1:-${COMPOZY_AIR_BUILD_DIR:-./.tmp/air}/compozy}
 if [[ ! -x "$binary" ]]; then
   echo "dev: daemon binary is not executable: $binary" >&2
   exit 1

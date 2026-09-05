@@ -62,7 +62,7 @@ function CommandMenuItemRow({
   }, [isHighlighted]);
 
   const presentation = commandItemPresentation(item);
-  const Icon = commandIcon(presentation.token, presentation.lane);
+  const CommandIcon = commandIcon(presentation.token, presentation.lane);
   const trailing = commandTrailing(presentation);
 
   return (
@@ -91,7 +91,7 @@ function CommandMenuItemRow({
           "group-data-[highlighted]/command-row:text-fg-strong"
         )}
       >
-        {createElement(Icon, { className: "size-3.5", "aria-hidden": "true" })}
+        {createElement(CommandIcon, { className: "size-3.5", "aria-hidden": "true" })}
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span className="shrink-0 font-medium">{presentation.menuTitle}</span>

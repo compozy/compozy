@@ -4,6 +4,8 @@
 #   auto         classify the diff vs merge-base and run only affected lanes;
 #                the PR CI run owns full verification
 #   full         opt-in local `make verify` (machine-wide lock lives in mage)
+#   codegen      run or reuse the complete codegen check for the current tree
+#   generate     run or reuse artifact generation for development startup
 #   plan         print the classification and commands without running anything
 #   status       print evidence records vs the current tree fingerprint
 #   fingerprint  print the current tree fingerprint
@@ -96,6 +98,8 @@ is_ci_full_trigger() {
 is_no_lane() {
   case "$1" in
     extensions/* | skills/*) return 1 ;;
+    */*.test) return 1 ;;
+    *.test) [ ! -e "$1" ] && return 0; return 1 ;;
 		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
 		*.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json) return 0 ;;
     *) return 1 ;;
@@ -117,6 +121,11 @@ classify() {
 				;;
 		esac
 	fi
+  case "$path" in
+    .air.toml | scripts/dev.sh | scripts/dev-daemon.sh | scripts/build-air.sh | scripts/devreadiness/*)
+      GO_SCOPES="${GO_SCOPES}./scripts/devreadiness"$'\n'
+      ;;
+  esac
   if is_no_lane "$path"; then
     NO_LANE_COUNT=$((NO_LANE_COUNT + 1))
     return
@@ -139,12 +148,16 @@ classify() {
       JS_FILTERS="${JS_FILTERS}./sdk/examples/${pkg%%/*}"$'\n'
       ;;
     web/*) JS_FILTERS="${JS_FILTERS}./web"$'\n' ;;
+    lint-plugins/*) JS_FILTERS="${JS_FILTERS}./lint-plugins"$'\n' ;;
+    packages/ui/src/index.ts | packages/ui/src/primitives.ts | packages/ui/src/exports/*)
+      JS_FILTERS="${JS_FILTERS}./packages/ui"$'\n'"./lint-plugins"$'\n'
+      ;;
     packages/*/*)
       pkg="${path#packages/}"
       JS_FILTERS="${JS_FILTERS}./packages/${pkg%%/*}"$'\n'
       ;;
 		desktop/*) JS_FILTERS="${JS_FILTERS}./desktop"$'\n' ;;
-		magefiles/* | scripts/*) : ;;
+		magefiles/* | scripts/* | .air.toml) : ;;
 		*.go) GO_SCOPES="${GO_SCOPES}./..."$'\n' ;;
 		*)
 			if ! is_ci_full_trigger "$path"; then
@@ -204,6 +217,9 @@ write_record() {
 run_lane() {
   local id="$1"
   shift
+  local lane_tree="$CURRENT_FINGERPRINT"
+  local CURRENT_FINGERPRINT
+  CURRENT_FINGERPRINT="$(lane_fingerprint "$id" "$lane_tree")"
   local cmd_display="$*" rec logfile started duration rc command_rc tee_rc
   local -a pipeline_status
   rec="$(record_path "$id")"
@@ -384,6 +400,14 @@ cmd_full() {
   run_lane full make verify
 }
 
+cmd_codegen() {
+  run_lane codegen-check make codegen-check
+}
+
+cmd_generate() {
+  run_lane codegen make codegen
+}
+
 cmd_plan() {
 	classify_all
 	log "fingerprint: $CURRENT_FINGERPRINT"
@@ -431,10 +455,11 @@ cmd_plan() {
 
 cmd_status() {
   log "fingerprint: $CURRENT_FINGERPRINT"
-  local rec found=0 state
+  local rec found=0 state tree="$CURRENT_FINGERPRINT" CURRENT_FINGERPRINT
   for rec in "$GATE_DIR"/*.json; do
     [ -f "$rec" ] || continue
     found=1
+    CURRENT_FINGERPRINT="$(lane_fingerprint "$(record_field "$rec" gate)" "$tree")"
     state="STALE"
     if record_current "$rec"; then
       state="CURRENT-PASS"
@@ -455,10 +480,12 @@ main() {
   case "${1:-auto}" in
     auto) cmd_auto ;;
     full) cmd_full ;;
+    codegen) cmd_codegen ;;
+    generate) cmd_generate ;;
     plan) cmd_plan ;;
     status) cmd_status ;;
     fingerprint) printf '%s\n' "$CURRENT_FINGERPRINT" ;;
-    *) die "usage: gate.sh [auto|full|plan|status|fingerprint]" ;;
+    *) die "usage: gate.sh [auto|full|codegen|generate|plan|status|fingerprint]" ;;
   esac
 }
 
