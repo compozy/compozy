@@ -229,7 +229,7 @@
         {
             "entry_id": "you-search",
             "name": "You.com",
-            "description": "Search the web with freshness, domain, and country filters, and pull page content from results, through You.com's hosted keyless MCP profile.",
+            "description": "Search the web with freshness, domain, and country filters through You.com's hosted keyless MCP profile.",
             "launch": { "type": "remote", "url": "https://api.you.com/mcp?profile=free" },
             "default_scope": "workspace"
         }

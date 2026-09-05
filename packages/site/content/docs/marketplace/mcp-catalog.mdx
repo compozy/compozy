@@ -68,8 +68,9 @@ credentials in the host callback rather than generated code. [Cloudflare Code
 Mode](https://developers.cloudflare.com/agents/model-context-protocol/codemode/)
 
 You.com publishes a hosted Streamable HTTP endpoint and a keyless `profile=free` variant that
-serves web search and page content tools without credentials. The catalog uses the keyless
-profile so the entry installs with no secret input. [You.com MCP
+serves basic web search without credentials. The catalog uses the keyless profile so the entry
+installs with no secret input; the full toolset, including page-content extraction, is available
+on the authenticated endpoint. [You.com MCP
 docs](https://you.com/docs/_mcp/server)
 
 ## Deliberate omissions
