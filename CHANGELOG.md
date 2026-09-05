@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-09-01
+## 0.3.0 - 2026-09-05
 
 ### ♻️ Refactoring
 
@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚡ Performance Improvements
 
 - Delegate full gates to pull request CI (#476)
+- Reduce test and development feedback overhead (#556)
 
 ### 🎉 Features
 
@@ -71,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merge spec-cycle task delivery loops (#491)
 - Rebuild ACP runtime catalogs (#498)
 - Support child Loop config overrides (#494)
+- Integrated terminal — runtime-owned shells for people and agents (#490)
+- Live steer and truthful stop for sessions (#555)
 
 ### 🐛 Bug Fixes
 
@@ -173,6 +176,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scope Loop extension tools to worktrees (#519)
 - Preserve profile-scoped extension Agent skills (#516)
 - Prevent session cancel and clear races (#523)
+- Restore beta 22 release notes and changelog
+- Package site search catalogs
+- Zoom windows without covering others and keep the layout stream alive (#525)
+- Honor route skips within a planning pass (#529)
+- Scope lifecycle loop actions (#531)
+- Preserve profile scope in loop implementers (#527)
+- Stabilize base CI integration (#536)
+- Fence terminal generation outputs and stabilize e2e contracts (#547)
+- Preserve ACP options in loop-managed session profiles (#542)
+- Preserve unresolved review findings (#543)
+- Mark skipped terminal loop nodes as not taken (#544)
+- Sanitize runtime settings when changing providers (#546)
+- Ship the AppImage with the static runtime (#548)
+- Preserve provider failures before output validation (#545)
+- Terminal operating system (#552)
+- Stabilize loop recovery and simplify run inspection (#554)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -186,6 +205,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve loop claim tokens in daemon fixtures (#418)
 - Fix cases failing
 - Fix failing tests
+- Stabilize Windows PTY read readiness
+- Drain Windows PTY startup output
 
 ## 0.2.15 - 2026-07-17
 
