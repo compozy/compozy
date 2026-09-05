@@ -73,3 +73,11 @@ QA impact 2026-09-04: reset because branch-skipped terminal nodes now require du
 PR owner explicitly prohibited local E2E, so verification requires a human-run isolated lab. Re-run
 `CH-loop-legibility-run-read-resume` and compare `compozy loop nodes --all -o json` over CLI, HTTP,
 and UDS for a completed false branch and a failed run with an unfinished node.
+
+QA result 2026-09-04: the persisted built-in run `looprun-61ec517447b2aae9` was reopened after
+restart. Public CLI/UDS and HTTP briefings agreed on five available action results, including
+inline JSON from both rounds. Control and skipped-route markers no longer appear as artifacts;
+logical names are separate from result bytes and terminal headlines remain concise. The human
+CLI still prints each result on its own `Produced:` line. This walk covers the changed briefing
+projection; the broader node/resume scenarios retain their independently recorded status.
+Evidence: `docs/qa/reports/2026-09-04-loop-stability.md`, cycle 2.

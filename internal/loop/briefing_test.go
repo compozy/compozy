@@ -281,7 +281,7 @@ func TestBriefingContract(t *testing.T) {
 		if got.Outcome == nil || len(got.Artifacts) != 3 ||
 			got.Outcome.Cause != "verified" || got.Detail == "" ||
 			got.Artifacts[2].Availability != ArtifactPruned ||
-			!strings.Contains(got.Headline, "Produced: report, summary, archive") {
+			got.Headline != "Run finished: done." {
 			t.Fatalf("briefing = %#v", got)
 		}
 	})
@@ -296,13 +296,13 @@ func TestBriefingContract(t *testing.T) {
 			{},
 		}
 		got := ProjectBriefing(&source)
-		wantNames := []string{"report", "summary-output", "sha256:archive", "output 4"}
+		wantNames := []string{"report", "summary-output", "output 3", "output 4"}
 		gotNames := make([]string, 0, len(got.Artifacts))
 		for _, artifact := range got.Artifacts {
 			gotNames = append(gotNames, artifact.Name)
 		}
 		if !slices.Equal(gotNames, wantNames) ||
-			got.Headline != "Run finished: done. Produced: report, summary-output, sha256:archive, output 4." {
+			got.Headline != "Run finished: done." {
 			t.Fatalf("briefing = %#v, want artifact names %#v", got, wantNames)
 		}
 	})
@@ -313,7 +313,7 @@ func TestBriefingContract(t *testing.T) {
 		source.Artifacts = []RunArtifact{{}, {}}
 		got := ProjectBriefing(&source)
 		if len(got.Artifacts) != 2 ||
-			got.Headline != "Run finished: done. Produced: output 1, output 2." ||
+			got.Headline != "Run finished: done." ||
 			got.Artifacts[0].Name != "output 1" || got.Artifacts[1].Name != "output 2" {
 			t.Fatalf("briefing = %#v", got)
 		}
@@ -332,7 +332,7 @@ func TestBriefingContract(t *testing.T) {
 	})
 	t.Run("Should preserve durable logical artifact identity in UT-051", func(t *testing.T) {
 		t.Parallel()
-		artifacts := artifactsFromOutputs([]GenerationOutput{{
+		artifacts := artifactsFromOutputs(dsl.Graph{}, []GenerationOutput{{
 			NodeID:       "writer-node",
 			ItemIndex:    3,
 			TaskRunID:    "task-run-internal",
@@ -343,6 +343,58 @@ func TestBriefingContract(t *testing.T) {
 		if len(artifacts) != 1 || artifacts[0].Name != "post-final.md" ||
 			artifacts[0].Output != "saida" || artifacts[0].Ref != "sha256:retained" {
 			t.Fatalf("artifacts = %#v", artifacts)
+		}
+	})
+	t.Run("Should keep large result payloads out of the terminal headline", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Run.Status = StatusCanceled
+		source.Outcome = &RunOutcome{Status: StatusCanceled, ActorKind: "human", ActorRef: "pedro", At: now}
+		payload := `{"summary":"` + strings.Repeat("result ", 1000) + `"}`
+		for range 100 {
+			source.Artifacts = append(source.Artifacts, RunArtifact{Ref: payload, Availability: ArtifactAvailable})
+		}
+		got := ProjectBriefing(&source)
+		if got.Headline != "Run canceled by human pedro." || len(got.Artifacts) != 100 ||
+			got.Artifacts[0].Name != "output 1" || got.Artifacts[0].Ref != payload ||
+			got.Outcome.ActorRef != source.Outcome.ActorRef {
+			t.Fatalf("terminal briefing lost detail or promoted it into the headline: %#v", got)
+		}
+	})
+	t.Run("Should expose retained action results without control markers or false pruning", func(t *testing.T) {
+		t.Parallel()
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "review", Class: dsl.NodeClassAction},
+			{ID: "branch", Class: dsl.NodeClassControl},
+			{ID: "collect", Class: dsl.NodeClassControl},
+			{ID: "input", Class: dsl.NodeClassSource},
+		}}
+		retained := OutputRefForPayload(json.RawMessage(`{"report":"retained"}`))
+		pruned := OutputRefForPayload(json.RawMessage(`{"report":"pruned"}`))
+		outputs := []GenerationOutput{
+			{NodeID: "input", OutputRef: `"slug"`},
+			{NodeID: "branch", OutputRef: "branch:true"},
+			{NodeID: "collect", OutputRef: `{"count":2}`},
+			{NodeID: "review", OutputRef: branchSkippedOutputRef},
+			{NodeID: "review", Generation: 1, Status: "succeeded", OutputRef: `{"findings":[]}`},
+			{NodeID: "review", Generation: 2, Status: "partial", OutputRef: `{"findings":["incomplete"]}`},
+			{NodeID: "review", Generation: 2, ItemIndex: 1, Status: "succeeded", OutputRef: retained},
+			{NodeID: "review", Generation: 2, ItemIndex: 2, Status: "succeeded", OutputRef: pruned},
+		}
+		got := artifactsFromOutputs(graph, outputs, map[string]bool{retained: true})
+		if len(got) != 4 {
+			t.Fatalf("artifacts = %#v, want four action results", got)
+		}
+		want := []ArtifactAvailability{ArtifactPartial, ArtifactAvailable, ArtifactPruned, ArtifactAvailable}
+		wantRefs := []string{outputs[5].OutputRef, retained, pruned, outputs[4].OutputRef}
+		for index, item := range got {
+			if item.Availability != want[index] || item.Ref != wantRefs[index] ||
+				strings.Contains(item.Name, "{") || !strings.Contains(item.Name, "review") {
+				t.Fatalf("artifact %d = %#v", index, item)
+			}
+		}
+		if got[0].Name == got[1].Name || got[1].Name == got[2].Name {
+			t.Fatalf("round and item identities are ambiguous: %#v", got)
 		}
 	})
 	t.Run("Should derive the terminal outcome from durable status evidence", func(t *testing.T) {

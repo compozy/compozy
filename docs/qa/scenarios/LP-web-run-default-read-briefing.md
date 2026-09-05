@@ -29,3 +29,12 @@ steps:
 4. Confirm the briefing offers no Approve/Reject — only the quiet pointer to the card.
 5. Let the run finish, reload, and confirm the outcome and artifacts lead the page.
 6. Repeat against a failed run and confirm the failure signal is visible with everything collapsed.
+
+QA result 2026-09-04: a real two-round built-in review/fix run exposed a 2,644-character JSON
+headline and false retention warnings. The corrected default read has a 19-character outcome
+headline and three previews of five actual action results, with latest-round results first.
+Content and remaining results expand on demand; partial/pruned counts remain visible while folded.
+About metadata starts collapsed and preserves its links, inputs, identity, and copy control when
+opened. The final empty review and the earlier finding were both opened in Chrome after a daemon
+restart. CLI and HTTP returned matching result identity, availability, and headline.
+Evidence: `docs/qa/reports/2026-09-04-loop-stability.md`, cycle 2.

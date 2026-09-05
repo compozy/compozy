@@ -302,7 +302,7 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 		result.Headline = "Run finished without producing outputs."
 		result.Artifacts = []RunArtifact{}
 	} else {
-		result.Headline = terminalHeadline(*result.Outcome, result.Artifacts)
+		result.Headline = terminalHeadline(*result.Outcome)
 	}
 	result.Detail = progressDetail(result.Progress)
 	return result
@@ -315,9 +315,6 @@ func labelTerminalArtifacts(artifacts []RunArtifact) []RunArtifact {
 			label = strings.TrimSpace(artifacts[index].Output)
 		}
 		if label == "" {
-			label = strings.TrimSpace(artifacts[index].Ref)
-		}
-		if label == "" {
 			label = fmt.Sprintf("output %d", index+1)
 		}
 		artifacts[index].Name = label
@@ -325,25 +322,11 @@ func labelTerminalArtifacts(artifacts []RunArtifact) []RunArtifact {
 	return artifacts
 }
 
-func terminalHeadline(outcome RunOutcome, artifacts []RunArtifact) string {
-	base := fmt.Sprintf("Run finished: %s.", outcome.Status)
+func terminalHeadline(outcome RunOutcome) string {
 	if outcome.ActorKind != "" {
-		base = fmt.Sprintf(
-			"Run %s by %s %s at %s.",
-			outcome.Status,
-			outcome.ActorKind,
-			outcome.ActorRef,
-			outcome.At.Format(time.RFC3339),
-		)
+		return fmt.Sprintf("Run %s by %s %s.", outcome.Status, outcome.ActorKind, outcome.ActorRef)
 	}
-	names := []string{}
-	for _, item := range artifacts {
-		names = append(names, item.Name)
-	}
-	if len(names) > 0 {
-		base += " Produced: " + strings.Join(names, ", ") + "."
-	}
-	return base
+	return fmt.Sprintf("Run finished: %s.", outcome.Status)
 }
 
 func usageFromRun(run Run, now time.Time) RunUsage {

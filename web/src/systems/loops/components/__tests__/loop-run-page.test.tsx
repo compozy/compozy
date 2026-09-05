@@ -1002,7 +1002,7 @@ describe("LoopRunUsageRail", () => {
 });
 
 describe("LoopRunAboutRail", () => {
-  it("Should link the loop, pin the version, and expose the run id", () => {
+  it("Should reveal the loop, pinned version, inputs, and run id from About", async () => {
     render(
       <LoopRunAboutRail
         run={run()}
@@ -1012,6 +1012,8 @@ describe("LoopRunAboutRail", () => {
         workspaceLabel="Home"
       />
     );
+    expect(screen.queryByTestId("loop-run-about-id")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "About this run" }));
     expect(screen.getByTestId("loop-run-about-loop")).toHaveAttribute(
       "data-params",
       JSON.stringify({ name: "implement-tasks" })
@@ -1036,6 +1038,7 @@ describe("LoopRunAboutRail", () => {
       />
     );
 
+    await userEvent.click(screen.getByRole("button", { name: "About this run" }));
     expect(screen.getByTestId("loop-run-about-last-woke")).toHaveTextContent("Last woke");
     const best = screen.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
     expect(best).toHaveAttribute("href", "#loop-generation-1");
@@ -1369,7 +1372,7 @@ describe("staged register scenarios", () => {
 // Truthful UI: the page must not offer a control the runtime cannot honour, and
 // must not paint a deliberate cancellation as a success.
 describe("run-page affordances that have to be real", () => {
-  it("Should print a produced artifact's ref as evidence, never as an Open link", () => {
+  it("Should reveal a produced artifact ref on demand without promising an Open link", async () => {
     render(
       <LoopRunArtifactList
         outcome={{
@@ -1393,8 +1396,69 @@ describe("run-page affordances that have to be real", () => {
     // would promise a destination the product does not have.
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByText("Open")).toBeNull();
+    expect(screen.queryByTestId("loop-run-artifact-ref-post.md")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Details for post.md" }));
     expect(screen.getByTestId("loop-run-artifact-ref-post.md")).toHaveTextContent(
       "sha256:2f81c4a9"
+    );
+  });
+
+  it("Should bound the default result list while keeping partial and pruned evidence discoverable", async () => {
+    const artifacts = Array.from({ length: 20 }, (_, index) => ({
+      key: `result-${index}`,
+      name: `Result ${index + 1}`,
+      output: null,
+      availability: "available" as const,
+      note: null,
+      ref: `{"summary":"Result ${index + 1}"}`,
+      toneForNote: null,
+    }));
+    render(
+      <LoopRunArtifactList
+        outcome={{
+          outcome: null,
+          producedNothing: false,
+          artifacts: [
+            ...artifacts,
+            {
+              key: "partial",
+              name: "Partial result",
+              output: null,
+              availability: "partial",
+              note: "Partial",
+              ref: "partial contents",
+              toneForNote: "warning",
+            },
+            {
+              key: "pruned",
+              name: "Old report",
+              output: null,
+              availability: "pruned",
+              note: "Content no longer stored",
+              ref: null,
+              toneForNote: "neutral",
+            },
+          ],
+        }}
+      />
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("1 partial")).toBeVisible();
+    expect(screen.getByText("1 no longer stored")).toBeVisible();
+    const more = screen.getByRole("button", { name: "19 more outputs" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(more);
+    expect(screen.getAllByRole("listitem")).toHaveLength(22);
+    expect(screen.getByTestId("loop-run-artifact-Old report")).toHaveTextContent(
+      "Content no longer stored"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Details for Result 20" }));
+    expect(screen.getByTestId("loop-run-artifact-ref-Result 20")).toHaveTextContent(
+      artifacts[19]!.ref
+    );
+    await userEvent.click(more);
+    await waitFor(() =>
+      expect(screen.queryByTestId("loop-run-artifact-Result 20")).not.toBeInTheDocument()
     );
   });
 

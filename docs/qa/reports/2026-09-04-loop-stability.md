@@ -28,14 +28,35 @@ Real run `looprun-61ec517447b2aae9` reviewed a small invoice library with a deli
 
 The live result page displayed raw JSON from every node in its headline, including intermediate fan-out metadata and old review findings. This obscured the final outcome and pushed progress/history below the viewport. Remediation and further edge-case walks remain in progress.
 
+## Cycle 2 — readable outcomes and retained result content
+
+The real review/fix run returned a 2,644-character headline and 14 artifact rows. Nine rows represented control/source execution markers rather than action results; all inline JSON results were falsely labeled pruned because only external blob availability was checked.
+
+The briefing now keeps payloads out of labels/headlines, identifies unnamed results by their producer/round/item, lists the latest round first, excludes execution markers, and recognizes inline results as available. Explicit logical artifact identities and pruned result records remain intact. Web previews three results, expands older results and raw contents on demand, and keeps aggregate partial/pruned signals visible even when their rows are folded. About metadata is collapsed by default; Usage remains visible.
+
+Real validation against the same persisted run after a normal daemon restart:
+
+- CLI and HTTP agree on the 19-character headline and five available action results. The human CLI keeps its separate `Produced:` lines.
+- Chrome displays the final review first. Expanding its Details shows `{"issues":[]}`; expanding the additional results and first review exposes the original finding. No history bytes were changed.
+- About expands to the original version, inputs, caller, workspace, run ID and copy control.
+- `TestBriefingContract` passes with race detection. The affected `make gate` passed: Loop race suite 156.988s, GlobalDB race suite 954.587s, Web lint with zero warnings/errors, typecheck, and all 6,797 Web tests in 748 files. Untouched session/OS tests emitted React act and NaN timer diagnostics; no assertions failed.
+
+Evidence: `review-briefing-fixed.json`, `review-briefing-http-fixed.json`, `review-briefing-fixed.txt`, `daemon-restart-ui.json`; rendered Chrome observations and screenshot in the working session.
+
+## Built-in task implementation
+
+Run `looprun-fcf613da6349b2d6` used `implement-tasks` in `per-task` mode with two dependent invoice-library tasks and Codex `gpt-5.6-sol`. Separate real worker sessions validated monetary inputs, then added exact item totalization. Both task frontmatter statuses reached `completed`; the Loop settled `done` in generation 1. An independent `node --test` passed all seven tests, preserving the original rounding assertions and covering invalid inputs, full discounts, individually rounded items, and safe-integer overflow. No implementation or tracking commit was requested in the customer project.
+
+Evidence: `implement-per-task-start.json`, `implement-per-task-status.json`, and `.compozy/tasks/invoice-validation/` in the lab project.
+
 ## Cross-surface impact
 
 Audit follows `docs/_memory/change-impact.md` and is updated here across cycles.
 
-- Native tools: existing task-result and task-run reads recover their intended behavior. No IDs, schemas, gates, or transport shapes change.
+- Native tools: existing task-result and task-run reads recover their intended behavior. Briefing consumers receive corrected artifact identity/availability and concise human wording through the same DTO. No IDs, schemas, gates, or transport shapes change.
 - Extensibility/hooks/config: built-in import outputs can be carried safely. No extension manifest, hook, or config key changes in cycle 1.
 - Workspace data isolation: deduplication is limited to identical results for the already-authorized task-run IDs. The existing task/workspace authorization and generation-payload owner checks remain authoritative; no schema migration or persisted rewrite is needed.
 - Official skill: checked `skills/compozy/references/loops.md`; public operation and result semantics remain unchanged in cycle 1.
-- Web/docs: task-result consumers become readable after automatic succession. Existing `TA-task-run-result-paging` gains this scenario; the raw Loop headline finding is tracked above.
+- Web/docs: task-result consumers become readable after automatic succession. `TA-task-run-result-paging`, `LP-web-run-default-read-briefing`, and `LP-run-read-agent-journey` record the affected scenarios. Artifact counts exclude control markers; complete execution history remains in the roster/timeline/Inspect surfaces.
 
 The lab stays alive only for this same-session sequence. Final audit and targeted teardown with `clean: true` are required before closing the overall QA run.
