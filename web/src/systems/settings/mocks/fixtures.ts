@@ -48,6 +48,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     restart: { available: true, behavior: "action_trigger", name: "restart" },
   },
   config: {
+    busy_input: { default_mode: "steer" },
     daemon: {
       memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },

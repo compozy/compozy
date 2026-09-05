@@ -273,7 +273,12 @@ func TestRequestStopWithCauseFinalizesAlreadyExitedProcess(t *testing.T) {
 		proc.crash(crashErr, "stderr: disconnect")
 
 		if err := h.manager.RequestStopWithCause(testutil.Context(t), session.ID, CauseUserRequested, ""); err != nil {
-			t.Fatalf("RequestStopWithCause() error = %v, want nil after finalizing exited process", err)
+			t.Fatalf("RequestStopWithCause() error = %v, want nil after accepting the stop", err)
+		}
+
+		outcome, err := h.manager.AwaitStopped(testutil.Context(t), session.ID)
+		if err != nil || !outcome.Verified || outcome.FinalState != StateStopped {
+			t.Fatalf("AwaitStopped() = %#v, %v", outcome, err)
 		}
 
 		meta := readMeta(t, session.MetaPath())

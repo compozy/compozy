@@ -219,7 +219,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		}
 	})
 
-	t.Run("Should stop without publishing chunks when batch persistence fails", func(t *testing.T) {
+	t.Run("Should retain stopping until terminal persistence recovers after a batch failure", func(t *testing.T) {
 		t.Parallel()
 
 		recordErr := errors.New("batch persist failed")
@@ -275,6 +275,20 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		if turnEnds != 0 {
 			t.Fatalf("turn end notifications = %d, want zero after persistence failure", turnEnds)
 		}
+		if err := h.manager.Stop(t.Context(), session.ID); !errors.Is(err, recordErr) {
+			t.Fatalf("stop with unavailable persistence = %v", err)
+		}
+		pending, pendingErr := h.manager.AwaitStopped(t.Context(), session.ID)
+		if !errors.Is(pendingErr, recordErr) || !errors.Is(pendingErr, ErrRecoveryPersistence) ||
+			!pending.Verified || pending.FinalState != StateStopping || h.notifier.stoppedCount() != 0 {
+			t.Fatalf("pending terminal persistence = %#v, %v", pending, pendingErr)
+		}
+		recorder.mu.Lock()
+		recorder.failed = false
+		recorder.mu.Unlock()
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("stop after persistence recovery = %v", err)
+		}
 		h.notifier.waitForStopped(t, session.ID)
 		if _, active := h.manager.Get(session.ID); active {
 			t.Fatalf("Get(%q) found session after stopped notification", session.ID)
@@ -289,6 +303,19 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		}
 		if got := countEventType(stored, acp.EventTypeAgentMessage); got != 0 {
 			t.Fatalf("reloaded agent_message rows = %d, want zero", got)
+		}
+		if err := h.manager.WaitForFinalizations(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+			t.Fatalf("repeated completed stop: %v", err)
+		}
+		outcome, stopErr := h.manager.AwaitStopped(t.Context(), session.ID)
+		if stopErr != nil || !outcome.Verified || outcome.FinalState != StateStopped {
+			t.Fatalf("recovered stop result = %#v, %v", outcome, stopErr)
+		}
+		if countEventType(stored, EventTypeSessionStopped) != 1 {
+			t.Fatal("recovered stop did not persist exactly one terminal event")
 		}
 	})
 

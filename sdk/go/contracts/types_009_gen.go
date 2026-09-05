@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type Effect struct {
+	ID        string           `json:"id"`
+	Toast     *ToastEffect     `json:"toast,omitempty"`
+	Copy      *CopyEffect      `json:"copy,omitempty"`
+	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
+	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
+	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
+}
+
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
@@ -194,8 +203,4 @@ type FailureKind string
 type FireLimitConfig struct {
 	Max    int    `json:"max"`
 	Window string `json:"window"`
-}
-
-type ForgeCapabilitiesRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
 }

@@ -744,8 +744,10 @@ type nativeNotificationSessionManager struct {
 
 type nativeOrchestrationSessionManager struct {
 	apitest.StubSessionManager
-	waitFn  func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn func(context.Context, session.SpawnOpts) (*session.Session, error)
+	requestStopFn  func(context.Context, string, session.StopCause, string) error
+	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
+	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
+	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
 }
 
 type nativeCoreOnlySessionManager struct {
@@ -1064,6 +1066,19 @@ func (s *nativeEntityVaultService) DeleteSecret(context.Context, string) error {
 	return nil
 }
 
+func (m *nativeOrchestrationSessionManager) RequestStopWithCause(
+	ctx context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	return m.requestStopFn(ctx, id, cause, detail)
+}
+
+func (m *nativeOrchestrationSessionManager) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
+	return m.awaitStoppedFn(ctx, id)
+}
+
 func (m *nativeOrchestrationSessionManager) WaitForBadge(
 	ctx context.Context,
 	req session.WaitRequest,
@@ -1360,6 +1375,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		var waitRequest session.WaitRequest
 		var spawnOpts session.SpawnOpts
 		var stopTarget string
+		stopVerified := true
+		stopRequests, stopWaits := 0, 0
 		var approval acp.ApproveRequest
 		var canceledTarget string
 		base := nativeNetworkTestSessionManager(workspaceID)
@@ -1402,6 +1419,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		manager := &nativeOrchestrationSessionManager{
 			StubSessionManager: base,
+			requestStopFn: func(_ context.Context, id string, cause session.StopCause, detail string) error {
+				stopRequests++
+				if id != targetID || cause != session.CauseUserRequested || !strings.Contains(detail, callerID) {
+					t.Fatalf("request stop = %s/%v/%s", id, cause, detail)
+				}
+				return nil
+			},
+			awaitStoppedFn: func(_ context.Context, id string) (session.StopOutcome, error) {
+				stopWaits++
+				if id != targetID {
+					t.Fatalf("await stop = %s", id)
+				}
+				outcome := session.StopOutcome{
+					FinalState: session.StateStopped,
+					Verified:   stopVerified,
+					Escalated:  true,
+					Cause:      session.CauseUserRequested,
+					Phase:      session.StopPhaseKilled,
+					Elapsed:    time.Second,
+				}
+				if !stopVerified {
+					outcome.FinalState = session.StateStopping
+					return outcome, session.ErrStopVerificationFailed
+				}
+				return outcome, nil
+			},
 			waitFn: func(_ context.Context, req session.WaitRequest) (session.WaitOutcome, error) {
 				waitRequest = req
 				return session.WaitOutcome{
@@ -1457,6 +1500,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				`"session_id":"sess-child"`,
 			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target","wait":false}`, `"status":"stopping"`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target","wait":true}`, `"verified":true`},
 			{
 				toolspkg.ToolIDSessionApprove,
 				`{"session_id":"sess-target","request_id":"perm-1","decision":"allow-once"}`,
@@ -1479,6 +1524,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			if !bytes.Contains(result.Structured, []byte(call.want)) {
 				t.Fatalf("Registry.Call(%s) result = %s, want %s", call.id, result.Structured, call.want)
 			}
+		}
+		if stopRequests != 2 || stopWaits != 1 {
+			t.Fatalf("stop acceptance/wait calls = %d/%d", stopRequests, stopWaits)
+		}
+		stopVerified = false
+		failedStop, stopErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionStop, Input: json.RawMessage(`{"session_id":"sess-target","wait":true}`),
+		})
+		if stopErr != nil {
+			t.Fatal(stopErr)
+		}
+		var failedPayload contract.SessionStopPayload
+		if err := json.Unmarshal(failedStop.Structured, &failedPayload); err != nil {
+			t.Fatal(err)
+		}
+		if failedPayload.State != session.StateStopping || failedPayload.Verified || !failedPayload.Escalated ||
+			failedPayload.Attention != "stop_verification_failed" {
+			t.Fatalf("unverified native stop = %#v", failedPayload)
 		}
 		if waitRequest.SessionID != targetID || waitRequest.Timeout != 2*time.Minute ||
 			!slices.Equal(waitRequest.Until, []session.Badge{session.BadgeIdle}) {
@@ -1529,6 +1592,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self","wait":false}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{
 				toolspkg.ToolIDSessionApprove,
@@ -8984,10 +9048,20 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-		if promptSubmitCalls != 0 {
-			t.Fatalf("SendPrompt calls = %d, want 0 without expected_turn_id", promptSubmitCalls)
+		if err != nil || promptSubmitCalls != 1 || submittedPrompt.ExpectedTurnID != "" {
+			t.Fatalf(
+				"immediate automatic-fence admission: calls=%d, opts=%#v, error=%v",
+				promptSubmitCalls,
+				submittedPrompt,
+				err,
+			)
 		}
+		if !errors.Is(submittedPrompt.DeliveryContext.Err(), context.Canceled) {
+			t.Fatal("immediate acceptance retained an unused event subscription")
+		}
+		close(promptEvents)
+		promptEvents = make(chan acp.AgentEvent)
+		promptAccepted = make(chan struct{})
 
 		workspaceCallsBeforeInvalidInput := workspaceGetCalls + workspaceResolveCalls
 		inputAdapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
@@ -9065,7 +9139,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionPrompt,
 					Input: json.RawMessage(
-						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","mode":"steer","expected_turn_id":"  turn-active  ","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","wait":true,"mode":"steer","expected_turn_id":"  turn-active  ","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
 					),
 				},
 			)
@@ -9116,7 +9190,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionPrompt,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","session_id":"sess-1","message":"continue","message_id":"msg-native-failed","idempotency_key":"idem-native-failed"}`,
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"continue","message_id":"msg-native-failed","idempotency_key":"idem-native-failed","wait":true}`,
 				),
 			},
 		)
@@ -9142,7 +9216,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionPrompt,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","session_id":"sess-1","message":"retry","message_id":"msg-native-incomplete","idempotency_key":"idem-native-incomplete"}`,
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"retry","message_id":"msg-native-incomplete","idempotency_key":"idem-native-incomplete","wait":true}`,
 				),
 			},
 		)
@@ -9282,6 +9356,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("PromotePendingInputToSteer request = %#v, want queue-to-steer promotion", promotedInput)
 		}
 		requireNativeStructuredContains(t, promotedResult, []byte(`"delivery":"interrupt_then_prompt"`))
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputPromote,
+			Input: json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1",` +
+				`"queue_entry_id":"input-queued","text":"steer now",` +
+				`"message_id":"msg-auto","idempotency_key":"idem-auto"}`),
+		})
+		if err != nil || promotedInput.opts.ExpectedTurnID != "" || promotedInput.opts.MessageID != "msg-auto" {
+			t.Fatalf("automatic promotion = %#v, error=%v", promotedInput, err)
+		}
 
 		listResult, err := registry.Call(
 			t.Context(),

@@ -7,7 +7,35 @@ import (
 	"time"
 )
 
+type SessionHealthUpdateAfterPayload struct {
+	Event               HookEvent `json:"event"`
+	Timestamp           time.Time `json:"timestamp"`
+	ProfileID           string    `json:"profile_id,omitempty"`
+	SessionID           string    `json:"session_id,omitempty"`
+	SessionName         string    `json:"session_name,omitempty"`
+	SessionType         string    `json:"session_type,omitempty"`
+	AgentName           string    `json:"agent_name,omitempty"`
+	WorkspaceID         string    `json:"workspace_id,omitempty"`
+	Workspace           string    `json:"workspace,omitempty"`
+	WorktreeID          string    `json:"worktree_id,omitempty"`
+	ACPSessionID        string    `json:"acp_session_id,omitempty"`
+	State               string    `json:"state,omitempty"`
+	SoulSnapshotID      string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest          string    `json:"soul_digest,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	Health              string    `json:"health,omitempty"`
+	ActivePrompt        bool      `json:"active_prompt,omitempty"`
+	Attachable          bool      `json:"attachable,omitempty"`
+	EligibleForWake     bool      `json:"eligible_for_wake,omitempty"`
+	IneligibilityReason string    `json:"ineligibility_reason,omitempty"`
+	LastActivityAt      time.Time `json:"last_activity_at"`
+	LastPresenceAt      time.Time `json:"last_presence_at"`
+	LastError           string    `json:"last_error,omitempty"`
+}
+
 type SessionInput struct {
+	SteerDelivery   SteerDeliveryMode              `json:"steer_delivery,omitempty"`
 	ID              string                         `json:"id"`
 	SessionID       string                         `json:"session_id"`
 	MessageID       string                         `json:"message_id,omitempty"`
@@ -284,36 +312,26 @@ type SessionPreStopPayload struct {
 }
 
 type SessionPromptResult struct {
-	Status                string         `json:"status"`
-	Mode                  PromptMode     `json:"mode,omitempty"`
-	Delivery              PromptDelivery `json:"delivery"`
-	MessageID             string         `json:"message_id"`
-	IdempotencyKey        string         `json:"idempotency_key"`
-	Replayed              bool           `json:"replayed"`
-	TurnID                string         `json:"turn_id,omitempty"`
-	QueueEntryID          string         `json:"queue_entry_id,omitempty"`
-	QueuePosition         int            `json:"queue_position,omitempty"`
-	QueueGeneration       int64          `json:"queue_generation,omitempty"`
-	EstimatedSendAt       *time.Time     `json:"estimated_send_at,omitempty"`
-	PreviousTurnID        string         `json:"previous_turn_id,omitempty"`
-	CanceledQueuedEntries int            `json:"canceled_queued_entries,omitempty"`
+	Disposition           Disposition       `json:"disposition,omitempty"`
+	SteerDelivery         SteerDeliveryMode `json:"steer_delivery,omitempty"`
+	EntryID               string            `json:"entry_id,omitempty"`
+	Status                string            `json:"status"`
+	Mode                  PromptMode        `json:"mode,omitempty"`
+	Delivery              PromptDelivery    `json:"delivery"`
+	MessageID             string            `json:"message_id"`
+	IdempotencyKey        string            `json:"idempotency_key"`
+	Replayed              bool              `json:"replayed"`
+	TurnID                string            `json:"turn_id,omitempty"`
+	QueueEntryID          string            `json:"queue_entry_id,omitempty"`
+	QueuePosition         int               `json:"queue_position,omitempty"`
+	QueueGeneration       int64             `json:"queue_generation,omitempty"`
+	EstimatedSendAt       *time.Time        `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string            `json:"previous_turn_id,omitempty"`
+	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitempty"`
 }
 
 type SessionRuntimeClearParams struct {
 	WorkspaceID      string `json:"workspace_id"`
 	SessionID        string `json:"session_id"`
 	ExpectedRevision *int64 `json:"expected_revision"`
-}
-
-type SessionRuntimePayload struct {
-	Status            SessionRuntimeStatus           `json:"status"`
-	Transition        SessionRuntimeTransition       `json:"transition,omitempty"`
-	Failure           string                         `json:"failure,omitempty"`
-	Generation        int64                          `json:"generation,omitempty"`
-	Recovery          *SessionRuntimeRecoveryPayload `json:"recovery,omitempty"`
-	Selected          *PromptRuntimeSelectionPayload `json:"selected,omitempty"`
-	SelectionRevision int64                          `json:"selection_revision"`
-	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
-	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
-	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
 }

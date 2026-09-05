@@ -158,7 +158,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	if meta.StopReason != nil {
 		stopReason = *meta.StopReason
 	}
-	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	recovered := recoveredSession{SessionInfo: store.SessionInfo{
 		ID:                       meta.ID,
 		ProfileID:                meta.ProfileID,
@@ -171,7 +171,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		SpeedResolution:          speedpkg.CloneResolution(meta.SpeedResolution),
 		RuntimeStatus:            meta.RuntimeStatus,
 		RuntimeTransition:        meta.RuntimeTransition,
-		RuntimeFailure:           store.SessionRuntimeFailureValue(meta.RuntimeFailure),
+		RuntimeFailure:           meta.RuntimeFailureValue(),
 		RuntimeGeneration:        meta.RuntimeGeneration,
 		SelectedRuntime:          selectedRuntime,
 		RuntimeSelectionRevision: selectionRevision,
@@ -182,6 +182,8 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		State:                    meta.State,
 		ACPSessionID:             meta.ACPSessionID,
 		StopReason:               stopReason,
+		StopEscalated:            meta.StopEscalated,
+		StopVerificationFailed:   meta.StopVerificationFailed,
 		StopDetail:               meta.StopDetail,
 		Failure:                  store.CloneSessionFailure(meta.Failure),
 		Liveness:                 store.CloneSessionLivenessMeta(meta.Liveness),

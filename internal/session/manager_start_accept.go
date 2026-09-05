@@ -80,6 +80,7 @@ func (m *Manager) acceptSessionStart(
 	}
 
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
+	session.followUpMode = m.busyInputDefaultMode
 	if err := m.registerStarting(session); err != nil {
 		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)
 		return nil, errors.Join(err, cleanupErr)

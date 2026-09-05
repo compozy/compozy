@@ -7,10 +7,12 @@ import (
 )
 
 type sandboxInfo struct {
-	ID                 string
-	APIURL             string
-	SSHHost            string
-	SSHAccessExpiresAt *time.Time
+	ID                     string
+	LauncherProcessID      string
+	LauncherSidecarVersion string
+	APIURL                 string
+	SSHHost                string
+	SSHAccessExpiresAt     *time.Time
 }
 
 type transport interface {

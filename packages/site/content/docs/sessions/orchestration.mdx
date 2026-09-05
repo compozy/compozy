@@ -20,7 +20,7 @@ compozy session wait sess_1234 \
 
 When `--until` is omitted, the target set is `waiting-for-input`, `waiting-for-auth`, `idle`,
 `stopped`, and `failed`. `done` satisfies `idle`. Explicit targets may also include `done`, `running`,
-`hung`, and `unhealthy`.
+`hung`, `unhealthy`, and `needs-attention`. Include `needs-attention` when an unverified stop should wake the caller for a retry.
 
 The default timeout is 5 minutes. `--unbounded` keeps the CLI waiting through gapless, bounded server
 requests; the daemon never holds an unbounded HTTP/UDS request. Structured outcomes are

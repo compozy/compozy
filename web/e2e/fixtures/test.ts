@@ -1,3 +1,4 @@
+import { copyFile } from "node:fs/promises";
 import process from "node:process";
 
 import { expect, test as base } from "@playwright/test";
@@ -23,6 +24,13 @@ export const test = base.extend<E2EFixtures>({
       try {
         await provide(runtime);
       } finally {
+        // A failed test keeps the daemon's own log next to its screenshots, so a
+        // CI artifact explains a daemon-side stall and not only the browser's view.
+        if (testInfo.status !== testInfo.expectedStatus && runtime.paths?.daemonLog) {
+          await copyFile(runtime.paths.daemonLog, testInfo.outputPath("daemon-process.log")).catch(
+            () => undefined
+          );
+        }
         await runtime.dispose();
       }
     },

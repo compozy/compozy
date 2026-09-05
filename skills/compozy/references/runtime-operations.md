@@ -236,7 +236,7 @@ and history to inspect the discarded suffix.
 ### Session attention and pending interactions
 
 Session badges have one daemon-owned precedence order. `waiting-for-auth`, `waiting-for-input`, and
-`failed` form the `needs-you` class. `done` means the latest settled turn has not been seen; it forms
+`failed` form the `needs-you` class together with `needs-attention` for unverified stop failures. `done` means the latest settled turn has not been seen; it forms
 the `finished` class. A new turn, terminal lifecycle state, or higher-priority pending interaction
 always outranks `done`. CLI and API reads never mark a session seen.
 
@@ -293,12 +293,15 @@ input generation, drops stale queued entries, then applies the replacement promp
 after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
 generation instead of assuming a busy input ran immediately.
 
-Busy-input admission is explicit. Submit `mode=queue`, `mode=interrupt`, or `mode=steer` with a
-prompt, then use the returned `status` and `delivery` as the authoritative result. `queue` returns a
-durable queue entry for later dispatch; `interrupt` and promotion require the active turn's
-`expected_turn_id`, which prevents a stale client from replacing a newer turn. Transcript markers may
-describe a queued, steered, interrupted, or canceled action, but they are history, not a second
-operator result channel.
+Busy sends resolve `session.busy_input.default_mode` (default `steer`), unless an explicit
+`mode=queue`, `mode=interrupt`, or `mode=steer` overrides it. Read `disposition` and `steer_delivery`
+as the authoritative acceptance: `injected` preserves the turn, `pending_injection` waits inside
+the agent, and `interrupt_fallback` records a replacement before cancellation. Legacy `delivery`
+remains a scheduling field. Keep `message_id` and `idempotency_key` for exact retries.
+An omitted prompt fence resolves the live turn at admission; an explicit `expected_turn_id`
+rejects a stale target with `active_turn_mismatch` and `current_turn_id`. Native
+`compozy__session_prompt` defaults to `wait:false`; request `wait:true` for terminal completion.
+Transcript markers are history rather than another action-result channel.
 
 HTTP and UDS expose the same daemon-owned queue at
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue`. Replace one item with
@@ -407,6 +410,85 @@ nonzero bucket requires its own finite, non-negative rate. Never infer a cache r
 reasoning rate from output.
 
 Prefer `compozy session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
+
+`compozy session stop <id>` requests asynchronous termination and returns the updated session resource.
+Use `--wait -o json` for the stop outcome (`state`, `verified`, `escalated`, `stop_cause`, `phase`,
+`stopped_after`). Session resources retain the unverified-stop diagnostic as `attention: "stop_verification_failed"` and badge `needs-attention` across reconnects. `session status` adds `lifecycle_state` alongside its existing health `state`, plus `verified`, `escalated`, and `attention`. A verified stop retry clears the diagnostic. `verified:false` with `attention:"stop_verification_failed"` means exit remains
+unproven; the state stays `stopping`. Inspect diagnostics and retry instead of assuming the process died.
+After daemon restart, stop accepts recovered `stopping` sessions from the catalog. Local recovery
+uses the shared stop ladder and signals only a process matching its recorded PID and start time.
+Boot orphan recovery records canonical escalation and terminal events while preserving crash attribution;
+a repeated recovery does not notify the same verified terminal stop again. When recorded PID/start
+identity proves the process already exited before inventory, recovery still commits the terminal
+event and cleanup through the shared settlement path, without another escalation. A remote sandbox requires remote
+exit proof; a missing or reused local PID does not prove that its remote agent stopped. A remote stop
+error remains a failure on repeated requests; do not interpret a failed cleanup as confirmed exit.
+Daytona's internal process-status lookup distinguishes command completion from verified
+process-group exit. A missing process record is unknown, including after deletion or sidecar
+restart; HTTP 404 is never remote exit proof.
+New Daytona preparations reserve a launcher process ID in provider state before agent launch.
+Diagnostic commands do not consume this identity. Identified launch requires explicit sidecar
+support; it must not fall back to anonymous process creation on an older sidecar.
+Recovered Daytona stops use the stored sandbox and launcher identities through the provider.
+The daemon owns the bounded close-input/terminate/kill sequence; remote signals retain the
+process record for verification. Recovery lookup opens the existing control connection without
+starting a replacement sidecar. Unknown or mismatched identity retains verification-failed attention.
+The launcher sidecar version is persisted with new process identities. The v2 rollout uses a
+separate endpoint and executable so existing v1 processes stay intact; recovery follows the
+saved version. Older identified records without a version belong to v1. Unsupported versions
+remain explicit errors rather than being redirected to a newer empty process store.
+The sidecar's forced-stop exit-observer wait is bounded. If it expires, the stop retains its
+deadline failure and process record; do not interpret that timeout as successful termination.
+A failed sidecar stop with a known process and unfinished exit observation can be retried.
+Concurrent requests share that attempt. Completed outcomes are reused without signaling again.
+If an active session's stop classification cannot persist, it remains `stopping` even after
+process exit is verified. Restore persistence and retry stop: the original termination phase
+is retained, process signals are not repeated, and the post-stop hook runs only once.
+Terminal-event writes reuse one identity during retry. If both the prompt recorder and the
+stored-session writer fail, the session retains `stopping` until the event can persist. A healthy
+stored-session writer can complete the event while preserving the failed recorder's diagnostic.
+Missing local PID/start identity also retains stopping with verification-failed attention,
+including interrupted startup metadata. Recovery preserves history while exit remains unproven.
+After verified recovery, the saved ACP session ID remains available for normal resume/load;
+known incomplete starts still clear their stale ACP ID through startup repair. A verified
+interrupted start also completes its terminal event and cleanup through the durable settlement
+receipt, including restart before the startup metadata update. If its process is
+still alive, the intermediate stopping state retains startup attribution across another restart.
+The shared ladder then verifies exit before clearing the incomplete ACP ID; existing provider
+diagnostics remain available.
+After verified recovered exit, sandbox finalization uses the stored profile and existing sync/destroy
+policy. Sync failures remain in sandbox diagnostics; terminal state and session creation metadata
+are preserved, and the catalog receives the resulting sandbox state.
+If terminal metadata or catalog persistence fails after a recovered process exits, retry stop on
+the same session. A durable settlement receipt preserves the original exit proof and cause
+across daemon restart; boot finishes pending terminal writes before admitting new work.
+An unreadable or incompatible receipt blocks recovery instead of discarding the pending stop;
+resume, clear, session deletion and workspace removal remain blocked until that persistence succeeds. A recovered session
+whose process exit is still unverified cannot be deleted; retry stop before deleting it.
+HTTP/UDS `POST .../sessions/<id>/stop` and `compozy__session_stop` accept `wait:false` (acceptance)
+or `wait:true` (settled outcome). Always send the explicit boolean. Omitted `wait` retains the old
+synchronous shape with a deprecation warning through v0.4, removed in v0.5.0. Native stop still requires
+a same-workspace target other than the caller and follows the existing approval policy.
+
+Ledger and network cleanup failures after verified stop are retained as redacted
+`runtime_warning` events in session history. Cleanup diagnostics do not reopen the stopped
+runtime. If persisting the warning fails, the stop operation reports that persistence error.
+If the final stopped-state metadata or catalog write fails after verified exit, the session
+remains `stopping` and refuses resume/delete until settlement succeeds. Restore storage and
+retry stop; the existing termination proof and terminal event are reused without repeating
+runtime cleanup. A terminal event alone does not prove that the final state committed.
+The terminal event is journaled in the session's recovery receipt before its history append.
+After daemon restart, recovery reuses that row identity and the verified termination outcome,
+including a lost write acknowledgment. Keep pending receipts intact; successful settlement
+removes them. Auxiliary cleanup/hooks may run again after a crash.
+A launcher that ignores cancellation cannot hold the stop waiter indefinitely: after the
+configured cooperative grace plus forced/kill budgets, stop reports unverified `stopping`
+with attention. The launch remains tracked; a later returned process is still terminated.
+Do not interpret a missing process handle during startup as verified exit.
+
+Events delayed in recording hooks are rechecked after stop settles. Discarded late delivery
+produces a post-stop marker without turning normal recorder closure into a provider failure;
+output committed before the stop remains in history.
 
 `compozy session stop` preserves durable history and ends attach eligibility; a later normal prompt
 restarts the same logical session. `compozy session archive` hides a stopped session from the
@@ -724,3 +806,10 @@ CompozyOS must remain agent-manageable. Any runtime capability that affects stat
 Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on control surfaces unless CompozyOS explicitly exposes a scoped tool for them.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.
+
+For a recoverable provider error, inspect the event's `provider_error`: `provider_auth_required`
+means follow `next_action`: native `login` then the daemon probe, `bind_secret` to update a bound
+credential, or `inspect` to check a no-auth provider configuration. `provider_rate_limited` means retry after the
+provider recovers. The failed turn ends but the session remains usable; do not stop or recreate it
+solely for these codes. `occurrence_count` and first/last-seen timestamps are scoped to that provider
+process, and old events can omit this additive object. No retry-after seconds are implied.

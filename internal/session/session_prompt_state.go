@@ -95,7 +95,7 @@ func (s *Session) IsPrompting() bool {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
+	return s.turnStopPending || s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
 }
 
 func (s *Session) isCurrentPromptAgentWaiting() bool {
@@ -191,45 +191,6 @@ func (s *Session) cancelCurrentPrompt() bool {
 	}
 	cancel()
 	return true
-}
-
-func (s *Session) requestCurrentPromptCancellation() (
-	string,
-	*AgentProcess,
-	context.CancelFunc,
-	bool,
-	bool,
-) {
-	if s == nil {
-		return "", nil, nil, false, false
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.promptSetupCount == 0 && s.currentTurnSource == "" && s.currentTurnID == "" {
-		return "", nil, nil, false, false
-	}
-	turnID := strings.TrimSpace(s.currentTurnID)
-	if s.promptCancelRequested {
-		return turnID, s.process, nil, true, true
-	}
-	s.promptCancelRequested = true
-	if turnID != "" {
-		s.currentPromptCancelTurn = turnID
-	}
-	return turnID, s.process, s.currentPromptCancel, true, false
-}
-
-func (s *Session) retryCurrentPromptCancellation(turnID string) {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if strings.TrimSpace(turnID) == strings.TrimSpace(s.currentTurnID) {
-		s.promptCancelRequested = false
-	}
 }
 
 func (s *Session) promptCancellationRequested(turnID string) bool {

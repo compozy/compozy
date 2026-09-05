@@ -3,8 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -20,6 +22,57 @@ import (
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
+	t.Run(
+		"Should apply follow-up preferences and roll them back if another runtime rejects config",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, rejectAttention := range []bool{false, true} {
+				t.Run(
+					fmt.Sprintf(
+						"Should keep config publication consistent with attention rejection %t",
+						rejectAttention,
+					),
+					func(t *testing.T) {
+						t.Parallel()
+						previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+						next := previous
+						next.Session.BusyInput.DefaultMode = "queue"
+						sessions := &attentionConfigSessionManager{fakeSessionManager: &fakeSessionManager{}}
+						if rejectAttention {
+							next.Attention.System = !previous.Attention.System
+							sessions.err = errors.New("attention config rejected")
+						}
+						d := &Daemon{config: previous}
+						failures := daemonSettingsRuntimeApplier{
+							daemon: d,
+							state:  &bootState{cfg: previous, sessions: sessions},
+						}.
+							ApplyActiveConfig(
+								t.Context(),
+								&next,
+							)
+						wantModes := []string{"queue"}
+						wantPublished := "queue"
+						if rejectAttention {
+							wantModes = append(wantModes, "steer")
+							wantPublished = "steer"
+						}
+						if !slices.Equal(sessions.busyModes, wantModes) ||
+							d.config.Session.BusyInput.DefaultMode != wantPublished {
+							t.Fatalf(
+								"applied=%v, published=%q",
+								sessions.busyModes,
+								d.config.Session.BusyInput.DefaultMode,
+							)
+						}
+						if (len(failures) != 0) != rejectAttention {
+							t.Fatalf("runtime apply failures=%#v", failures)
+						}
+					},
+				)
+			}
+		},
+	)
 	t.Run("Should roll back staged skill resources when generation commit fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -701,8 +754,9 @@ func (s *stagedSkillPublisherStub) SyncSkillsStaged(context.Context) (func(conte
 
 type attentionConfigSessionManager struct {
 	*fakeSessionManager
-	configs []compozyconfig.AttentionConfig
-	err     error
+	configs   []compozyconfig.AttentionConfig
+	busyModes []string
+	err       error
 }
 
 func (m *attentionConfigSessionManager) SetAttentionConfig(cfg compozyconfig.AttentionConfig) error {
@@ -834,4 +888,9 @@ func assertMissingCLIReport(t *testing.T, label string, report providers.PreStar
 	if report.Item.Code != diagcontract.CodeProviderCLIMissing {
 		t.Fatalf("PreStart(%s).Code = %q, want %q", label, report.Item.Code, diagcontract.CodeProviderCLIMissing)
 	}
+}
+
+func (m *attentionConfigSessionManager) SetBusyInputDefaultMode(mode string) error {
+	m.busyModes = append(m.busyModes, mode)
+	return nil
 }

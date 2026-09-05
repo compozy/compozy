@@ -42,6 +42,12 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.supervision == (compozyconfig.SessionSupervisionConfig{}) {
 		m.supervision = compozyconfig.DefaultSessionSupervisionConfig()
 	}
+	if m.stopConfig == (compozyconfig.SessionStopConfig{}) {
+		m.stopConfig = compozyconfig.DefaultSessionStopConfig()
+	}
+	if err := m.stopConfig.Validate(); err != nil {
+		return err
+	}
 	if err := m.supervision.Validate(); err != nil {
 		return fmt.Errorf("session: %w", err)
 	}

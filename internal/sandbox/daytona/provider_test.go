@@ -93,6 +93,22 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	if prepared.Launcher == nil {
 		t.Fatal("Prepared.Launcher = nil")
 	}
+	reserved, err := decodeProviderState(prepared.State.ProviderState)
+	if err != nil {
+		t.Fatalf("decode reserved launcher identity: %v", err)
+	}
+	launcher, ok := prepared.Launcher.(*daytonaLauncher)
+	if !ok || reserved.LauncherProcessID == "" || launcher.processID != reserved.LauncherProcessID {
+		t.Fatalf(
+			"prepared launcher does not match persisted identity: %q, %T",
+			reserved.LauncherProcessID,
+			prepared.Launcher,
+		)
+	}
+	if reserved.LauncherSidecarVersion != launcherSidecarVersion ||
+		launcher.sandbox.LauncherSidecarVersion != reserved.LauncherSidecarVersion {
+		t.Fatal("prepared launcher endpoint differs from its persisted version")
+	}
 	if prepared.ToolHost == nil {
 		t.Fatal("Prepared.ToolHost = nil")
 	}
@@ -350,6 +366,26 @@ func TestDaytonaProviderDestroyDeletesOrArchivesByPersistence(t *testing.T) {
 
 func TestDaytonaLauncherLaunchReturnsHandleStreams(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reserve the process identity for the agent rather than diagnostics", func(t *testing.T) {
+		t.Parallel()
+		transport := &fakeTransport{sessions: []*fakeSession{newFakeCommandSession(nil, 0, "")}}
+		launcher := &daytonaLauncher{transport: transport, processID: "reserved-process-identity"}
+		if _, err := launcher.CommandRuntime().
+			Run(t.Context(), sandbox.CommandSpec{Executable: "/bin/true"}); err != nil {
+			t.Fatalf("run diagnostic: %v", err)
+		}
+		handle, err := launcher.Launch(t.Context(), sandbox.LaunchSpec{ResolvedExecutable: "/bin/agent"})
+		if err != nil {
+			t.Fatalf("launch reserved agent: %v", err)
+		}
+		if err := handle.Stop(t.Context()); err != nil {
+			t.Fatalf("stop reserved agent: %v", err)
+		}
+		if len(transport.dials) != 2 || transport.dials[0].sandbox.LauncherProcessID != "" ||
+			transport.dials[1].sandbox.LauncherProcessID != launcher.processID {
+			t.Fatalf("diagnostic and agent launch identities = %+v", transport.dials)
+		}
+	})
 	t.Run("Should launch the pinned remote executable and expose handle streams", func(t *testing.T) {
 		t.Parallel()
 		testDaytonaLauncherLaunchReturnsHandleStreams(t)
@@ -1586,4 +1622,80 @@ func containsKey(values []string, key string) bool {
 		}
 	}
 	return false
+}
+
+func TestDaytonaProviderProcessRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bind proof and signals to the persisted sandbox and process identities", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, instanceID, processID, version string
+			wantErr                              bool
+		}{
+			{"matching-legacy", "instance", "reserved-process-identity", "", false},
+			{"matching-current", "instance", "reserved-process-identity", launcherSidecarVersion, false},
+			{"different-sandbox", "other", "reserved-process-identity", "", true},
+			{"missing-process", "instance", "", "", true},
+			{"invalid-process", "instance", "../../other-process", "", true},
+			{"unknown-version", "instance", "reserved-process-identity", "future-sidecar", true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				transport := &recoveryTestTransport{fakeTransport: &fakeTransport{}}
+				provider := &daytonaProvider{launcherTransport: transport}
+				raw, err := encodeProviderState(providerState{
+					SandboxID: "instance", LauncherProcessID: tc.processID, LauncherSidecarVersion: tc.version,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				state := sandbox.SessionState{
+					Backend: sandbox.BackendDaytona, InstanceID: tc.instanceID, ProviderState: raw,
+				}
+				verified, verifyErr := provider.ProcessExitVerified(t.Context(), state)
+				signalErr := provider.SignalProcess(t.Context(), state, sandbox.ProcessSignalKill)
+				if verified == tc.wantErr || (verifyErr != nil) != tc.wantErr || (signalErr != nil) != tc.wantErr {
+					t.Fatalf("recovery proof/signal = %t, %v, %v", verified, verifyErr, signalErr)
+				}
+				if tc.wantErr {
+					if len(transport.calls) != 0 {
+						t.Fatal("invalid identity reached remote transport")
+					}
+					return
+				}
+				if len(transport.calls) != 2 {
+					t.Fatalf("remote calls = %d", len(transport.calls))
+				}
+				for _, info := range transport.calls {
+					if info.ID != "instance" || info.LauncherProcessID != tc.processID {
+						t.Fatalf("remote identity = %+v", info)
+					}
+					wantVersion := tc.version
+					if wantVersion == "" {
+						wantVersion = "compozy-daytona-launcher-sidecar-v1"
+					}
+					if info.LauncherSidecarVersion != wantVersion {
+						t.Fatalf("recovered version = %q, want %q", info.LauncherSidecarVersion, wantVersion)
+					}
+				}
+			})
+		}
+	})
+}
+
+type recoveryTestTransport struct {
+	*fakeTransport
+	calls []sandboxInfo
+}
+
+func (t *recoveryTestTransport) processExitVerified(_ context.Context, info sandboxInfo) (bool, error) {
+	t.calls = append(t.calls, info)
+	return true, nil
+}
+func (t *recoveryTestTransport) signalProcess(_ context.Context, info sandboxInfo, signal sandbox.ProcessSignal) error {
+	if signal != sandbox.ProcessSignalKill {
+		return errors.New("unexpected process signal")
+	}
+	t.calls = append(t.calls, info)
+	return nil
 }

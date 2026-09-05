@@ -879,10 +879,12 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 			liveness               *store.SessionLivenessMeta
 			pendingPermissionCount int
 			pendingClarifyCount    int
+			stopVerificationFailed bool
 			lastSettledRevision    int64
 			offset                 time.Duration
 		}
 		seeds := []attentionSeed{
+			{id: "sess-stop-unverified", state: "stopping", stopVerificationFailed: true, offset: 0},
 			{id: "sess-quiet-newest", state: globalDBSessionStateActive, offset: 7 * time.Minute},
 			{
 				id:    "sess-prompting-unseen",
@@ -927,6 +929,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 			info := sessionInfoForWorkspaceStateIndexTest(seed.id, workspaceID, seed.state, baseAt)
 			info.UpdatedAt = baseAt.Add(seed.offset)
 			info.Liveness = seed.liveness
+			info.StopVerificationFailed = seed.stopVerificationFailed
 			if seed.failureKind != "" {
 				info.Failure = &store.SessionFailure{Kind: seed.failureKind}
 			}
@@ -974,6 +977,7 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 			t.Fatalf("iterate durable attention ranks error = %v", err)
 		}
 		wantRanks := map[string]store.SessionCatalogAttentionRank{
+			"sess-stop-unverified":  store.SessionCatalogAttentionRankNeedsYou,
 			"sess-needs-input":      store.SessionCatalogAttentionRankNeedsYou,
 			"sess-needs-auth":       store.SessionCatalogAttentionRankNeedsYou,
 			"sess-failed":           store.SessionCatalogAttentionRankNeedsYou,
@@ -1024,14 +1028,17 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 		if got, want := sessionIDsForWorkspaceStateIndexTest(
 			second.Sessions,
 		), []string{
+			"sess-stop-unverified",
 			"sess-finished",
 			"sess-quiet-newest",
-			"sess-prompting-unseen",
 		}; !slices.Equal(
 			got,
 			want,
 		) {
 			t.Fatalf("PageSessions(second attention) ids = %#v, want %#v", got, want)
+		}
+		if !second.Sessions[0].StopVerificationFailed {
+			t.Fatal("catalog page lost durable stop verification failure")
 		}
 		anchor = second.Sessions[len(second.Sessions)-1]
 		anchorAttention = anchor.AttentionSnapshot()
@@ -1049,6 +1056,7 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 		if got, want := sessionIDsForWorkspaceStateIndexTest(
 			third.Sessions,
 		), []string{
+			"sess-prompting-unseen",
 			"sess-stalled-unseen",
 		}; !slices.Equal(
 			got,

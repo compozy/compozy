@@ -62,12 +62,35 @@ func (q *Queries) CancelPendingSessionInputs(ctx context.Context, arg CancelPend
 	return result.RowsAffected()
 }
 
-const cancelPriorSessionSteers = `-- name: CancelPriorSessionSteers :exec
+const cancelPendingSessionSteer = `-- name: CancelPendingSessionSteer :execrows
+UPDATE session_input_queue
+SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1
+WHERE session_id = ?2 AND id = ?3
+  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND owner_kind IS NULL
+`
+
+type CancelPendingSessionSteerParams struct {
+	Now       sql.NullString `json:"now"`
+	SessionID string         `json:"session_id"`
+	ID        string         `json:"id"`
+}
+
+func (q *Queries) CancelPendingSessionSteer(ctx context.Context, arg CancelPendingSessionSteerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cancelPendingSessionSteer, arg.Now, arg.SessionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const cancelPriorSessionSteers = `-- name: CancelPriorSessionSteers :many
 UPDATE session_input_queue
 SET status = ?1, canceled_at = ?2, updated_at = ?3
 WHERE session_id = ?4
   AND mode = ?5
   AND status = ?6
+RETURNING id
 `
 
 type CancelPriorSessionSteersParams struct {
@@ -79,8 +102,8 @@ type CancelPriorSessionSteersParams struct {
 	QueuedStatus   string         `json:"queued_status"`
 }
 
-func (q *Queries) CancelPriorSessionSteers(ctx context.Context, arg CancelPriorSessionSteersParams) error {
-	_, err := q.db.ExecContext(ctx, cancelPriorSessionSteers,
+func (q *Queries) CancelPriorSessionSteers(ctx context.Context, arg CancelPriorSessionSteersParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, cancelPriorSessionSteers,
 		arg.CanceledStatus,
 		arg.CanceledAt,
 		arg.UpdatedAt,
@@ -88,7 +111,25 @@ func (q *Queries) CancelPriorSessionSteers(ctx context.Context, arg CancelPriorS
 		arg.SteerMode,
 		arg.QueuedStatus,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const cancelSessionInput = `-- name: CancelSessionInput :exec
@@ -168,7 +209,7 @@ func (q *Queries) CountPendingSessionInputs(ctx context.Context, arg CountPendin
 }
 
 const getNextDispatchableSessionInput = `-- name: GetNextDispatchableSessionInput :one
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
 WHERE session_id = ?1
   AND status = ?2
   AND dispatchable = 1
@@ -198,6 +239,7 @@ func (q *Queries) GetNextDispatchableSessionInput(ctx context.Context, arg GetNe
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SteerDelivery,
 		&i.Text,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
@@ -257,7 +299,7 @@ func (q *Queries) GetSessionInputGeneration(ctx context.Context, id string) (int
 }
 
 const getSessionInputQueueEntry = `-- name: GetSessionInputQueueEntry :one
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
 WHERE session_id = ?1 AND id = ?2
 `
 
@@ -281,6 +323,7 @@ func (q *Queries) GetSessionInputQueueEntry(ctx context.Context, arg GetSessionI
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SteerDelivery,
 		&i.Text,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
@@ -329,7 +372,7 @@ func (q *Queries) GetSessionInputQueueEntry(ctx context.Context, arg GetSessionI
 }
 
 const getSessionInputQueueEntryByID = `-- name: GetSessionInputQueueEntryByID :one
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue WHERE id = ?1
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue WHERE id = ?1
 `
 
 func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) (SessionInputQueue, error) {
@@ -347,6 +390,7 @@ func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) 
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SteerDelivery,
 		&i.Text,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
@@ -397,19 +441,20 @@ func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) 
 const insertSessionInputQueueEntry = `-- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
   id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id,
-  status, mode, delivery, text, skill_invocations_json, attachments_json,
+  status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
-  attempt_count, enqueued_at, updated_at
+  attempt_count, enqueued_at, updated_at, dispatchable
 ) VALUES (
   ?1, ?2, ?3,
   ?4, ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12, ?13,
-  ?14,
-  ?15, ?16,
-  ?17, ?18, ?19,
-  ?20, ?21, ?22,
-  0, ?23, ?24
+  ?9, ?10, ?11, ?12, ?13, ?14,
+  ?15,
+  ?16, ?17,
+  ?18, ?19, ?20,
+  ?21, ?22, ?23,
+  0, ?24, ?25,
+  CASE WHEN ?10 = 'steer' AND ?12 IS NULL THEN 0 ELSE 1 END
 )
 `
 
@@ -425,6 +470,7 @@ type InsertSessionInputQueueEntryParams struct {
 	Status                 string         `json:"status"`
 	Mode                   string         `json:"mode"`
 	Delivery               string         `json:"delivery"`
+	SteerDelivery          sql.NullString `json:"steer_delivery"`
 	Text                   string         `json:"text"`
 	SkillInvocationsJson   string         `json:"skill_invocations_json"`
 	AttachmentsJson        string         `json:"attachments_json"`
@@ -453,6 +499,7 @@ func (q *Queries) InsertSessionInputQueueEntry(ctx context.Context, arg InsertSe
 		arg.Status,
 		arg.Mode,
 		arg.Delivery,
+		arg.SteerDelivery,
 		arg.Text,
 		arg.SkillInvocationsJson,
 		arg.AttachmentsJson,
@@ -471,7 +518,7 @@ func (q *Queries) InsertSessionInputQueueEntry(ctx context.Context, arg InsertSe
 }
 
 const listPendingSessionInputs = `-- name: ListPendingSessionInputs :many
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
 WHERE session_id = ?1
   AND status IN (?2, ?3)
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
@@ -506,6 +553,7 @@ func (q *Queries) ListPendingSessionInputs(ctx context.Context, arg ListPendingS
 			&i.Status,
 			&i.Mode,
 			&i.Delivery,
+			&i.SteerDelivery,
 			&i.Text,
 			&i.SkillInvocationsJson,
 			&i.AttachmentsJson,
@@ -679,7 +727,7 @@ func (q *Queries) MarkSessionInputSent(ctx context.Context, arg MarkSessionInput
 }
 
 const peekNextSessionInput = `-- name: PeekNextSessionInput :one
-SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
+SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
 WHERE session_id = ?1
   AND status = ?2
   AND terminal_at IS NULL
@@ -710,6 +758,7 @@ func (q *Queries) PeekNextSessionInput(ctx context.Context, arg PeekNextSessionI
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SteerDelivery,
 		&i.Text,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
@@ -779,6 +828,96 @@ func (q *Queries) ReleaseSessionInput(ctx context.Context, arg ReleaseSessionInp
 		arg.ID,
 		arg.SessionID,
 		arg.DispatchingStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const reserveSessionSteer = `-- name: ReserveSessionSteer :execrows
+UPDATE session_input_queue
+SET status = 'dispatching', dispatch_started_at = ?1,
+    attempt_count = attempt_count + 1, updated_at = ?1
+WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
+  AND mode = 'steer' AND status = 'queued' AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?2)
+`
+
+type ReserveSessionSteerParams struct {
+	Now       sql.NullString `json:"now"`
+	SessionID string         `json:"session_id"`
+	ID        string         `json:"id"`
+}
+
+func (q *Queries) ReserveSessionSteer(ctx context.Context, arg ReserveSessionSteerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reserveSessionSteer, arg.Now, arg.SessionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resolveSessionSteer = `-- name: ResolveSessionSteer :execrows
+UPDATE session_input_queue
+SET status = ?1, steer_delivery = ?2,
+    dispatchable = CASE WHEN ?1 = 'queued' THEN 1 ELSE 0 END,
+    turn_id = CASE WHEN ?1 = 'sent' THEN target_turn_id ELSE turn_id END,
+    sent_at = ?3, dispatch_started_at = NULL, updated_at = ?4
+WHERE session_id = ?5 AND id = ?6
+  AND mode = 'steer' AND status = 'dispatching' AND owner_kind IS NULL
+`
+
+type ResolveSessionSteerParams struct {
+	Status        string         `json:"status"`
+	SteerDelivery sql.NullString `json:"steer_delivery"`
+	SentAt        sql.NullString `json:"sent_at"`
+	Now           string         `json:"now"`
+	SessionID     string         `json:"session_id"`
+	ID            string         `json:"id"`
+}
+
+func (q *Queries) ResolveSessionSteer(ctx context.Context, arg ResolveSessionSteerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resolveSessionSteer,
+		arg.Status,
+		arg.SteerDelivery,
+		arg.SentAt,
+		arg.Now,
+		arg.SessionID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const settlePendingSessionSteer = `-- name: SettlePendingSessionSteer :execrows
+UPDATE session_input_queue
+SET steer_delivery = ?1, updated_at = ?2,
+    status = CASE WHEN ?1 = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
+    dispatchable = CASE WHEN ?1 = 'interrupt_fallback' THEN 1 ELSE 0 END,
+    sent_at = CASE WHEN ?1 = 'interrupt_fallback' THEN NULL ELSE sent_at END,
+    turn_id = CASE WHEN ?1 = 'interrupt_fallback' THEN '' ELSE turn_id END
+WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
+  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?3)
+`
+
+type SettlePendingSessionSteerParams struct {
+	SteerDelivery sql.NullString `json:"steer_delivery"`
+	Now           string         `json:"now"`
+	SessionID     string         `json:"session_id"`
+	ID            string         `json:"id"`
+}
+
+func (q *Queries) SettlePendingSessionSteer(ctx context.Context, arg SettlePendingSessionSteerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, settlePendingSessionSteer,
+		arg.SteerDelivery,
+		arg.Now,
+		arg.SessionID,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err

@@ -782,6 +782,51 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 }
 
 func TestPromptErrorPreservesRequestErrorData(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		scenario string
+		code     string
+	}{
+		{name: "Should accept another prompt on the same process after authentication recovers", scenario: "provider_auth_recovers", code: ProviderErrorAuthRequired},
+		{name: "Should accept another prompt on the same process after rate limiting recovers", scenario: "provider_rate_limit_recovers", code: ProviderErrorRateLimited},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New()
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{})
+			t.Cleanup(func() { stopProcess(t, driver, proc) })
+			for index := range 3 {
+				stream, err := driver.Prompt(t.Context(), proc, PromptRequest{
+					TurnID: fmt.Sprintf("turn-%d", index), Message: "continue",
+				})
+				if err != nil {
+					t.Fatalf("prompt %d: %v", index, err)
+				}
+				events := collectEvents(t, stream)
+				if len(events) == 0 {
+					t.Fatalf("prompt %d returned no events", index)
+				}
+				last := events[len(events)-1]
+				if index < 2 {
+					if last.Type != EventTypeError || last.Failure == nil || last.Failure.Kind != store.FailurePrompt ||
+						last.ProviderError == nil {
+						t.Fatalf("prompt %d terminal event = %#v", index, last)
+					}
+					if last.ProviderError.Code != tc.code || last.ProviderError.OccurrenceCount != uint64(index+1) {
+						t.Fatalf("prompt %d provider diagnostic = %#v", index, last.ProviderError)
+					}
+				} else if last.Type != EventTypeDone || last.PromptStopReason != PromptStopReasonEndTurn || last.ProviderError != nil {
+					t.Fatalf("recovered prompt terminal event = %#v", last)
+				}
+				select {
+				case <-proc.Done():
+					t.Fatalf("provider process exited after prompt %d", index)
+				default:
+				}
+			}
+		})
+	}
+
 	t.Parallel()
 
 	t.Run("Should emit structured request error data for downstream marker classification", func(t *testing.T) {
@@ -868,6 +913,49 @@ func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 	})
 }
 
+func TestCooperativePromptCancellation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver cancellation without detaching a noncooperative peer prompt", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "cooperative_cancel_ignored", "", StartOpts{})
+		t.Cleanup(func() { stopProcess(t, driver, proc) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		events, err := driver.Prompt(ctx, proc, PromptRequest{TurnID: "cooperative-turn", Message: "wait"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case event := <-events:
+			if event.Type != EventTypeAgentMessage {
+				t.Fatalf("initial prompt event = %#v", event)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		active := proc.currentPrompt()
+		if err := driver.CancelCooperatively(ctx, proc); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case event := <-events:
+			if event.Type != EventTypeAgentMessage || event.Text != "cancel received" {
+				t.Fatalf("peer cancellation acknowledgement = %#v", event)
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if proc.currentPrompt() != active || active.steerContext.Err() != nil {
+			t.Fatal("cooperative cancellation detached the active prompt")
+		}
+		if err := driver.Cancel(ctx, proc); err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+	})
+}
+
 func TestShouldSuppressPromptErrorOnStop(t *testing.T) {
 	t.Parallel()
 
@@ -929,4 +1017,152 @@ func TestShouldSuppressPromptErrorOnStop(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSteerPreservesActivePrompt(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		scenario  string
+		want      SteerAttempt
+		wantError error
+	}{
+		{
+			"Should inject guidance without replacing or canceling the active turn",
+			"steering_injected",
+			SteerAttemptInjected,
+			nil,
+		},
+		{
+			"Should report accepted guidance waiting behind a tool",
+			"steering_pending",
+			SteerAttemptPendingInjection,
+			nil,
+		},
+		{
+			"Should return pending concurrent guidance before its prompt completes",
+			"concurrent_steering",
+			SteerAttemptPendingInjection,
+			nil,
+		},
+		{
+			"Should leave fallback to the session owner after a refused injection",
+			"steering_failed",
+			SteerAttemptUnsupported,
+			nil,
+		},
+		{
+			"Should return the text to host-owned follow-up delivery when the remote turn ended",
+			"steering_idle",
+			SteerAttemptUnsupported,
+			ErrSteerTurnMismatch,
+		},
+		{
+			"Should report unsupported without sending or canceling on an ordinary ACP agent",
+			"block_prompt_until_cancel",
+			SteerAttemptUnsupported,
+			nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New()
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{})
+			defer stopProcess(t, driver, proc)
+			if tc.scenario == "concurrent_steering" {
+				proc.capsMu.Lock()
+				proc.caps.SteerCapability = compozyconfig.SteerCapabilityConcurrentPrompt
+				proc.capsMu.Unlock()
+			}
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			events, err := driver.Prompt(ctx, proc, PromptRequest{TurnID: "original-turn", Message: "keep working"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case event := <-events:
+				if event.Type != EventTypeAgentMessage {
+					t.Fatalf("initial event = %#v", event)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			original := proc.currentPrompt()
+			attempt, err := driver.Steer(ctx, proc, "original-turn", "change direction")
+			if attempt.Attempt != tc.want || !errors.Is(err, tc.wantError) {
+				t.Fatalf("Steer() = %#v, %v; want %q, %v", attempt, err, tc.want, tc.wantError)
+			}
+			if tc.scenario == "concurrent_steering" {
+				if attempt.Completion == nil {
+					t.Fatal("concurrent steer did not expose completion")
+				}
+				select {
+				case event := <-events:
+					if event.Type != EventTypeAgentMessage || event.TurnID != "original-turn" {
+						t.Fatalf("concurrent event=%#v", event)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				select {
+				case err := <-attempt.Completion:
+					t.Fatalf("concurrent completion returned early: %v", err)
+				default:
+				}
+			}
+			if proc.currentPrompt() != original {
+				t.Fatal("Steer replaced the active prompt")
+			}
+			if tc.want == SteerAttemptInjected {
+				select {
+				case event := <-events:
+					if event.Type != EventTypeAgentMessage || event.TurnID != "original-turn" ||
+						event.Text != "change direction" {
+						t.Fatalf("steered event = %#v", event)
+					}
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+			}
+			select {
+			case event := <-events:
+				t.Fatalf("Steer unexpectedly ended or canceled the prompt: %#v", event)
+			default:
+			}
+			if err := driver.Cancel(ctx, proc); err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			if attempt.Completion != nil {
+				select {
+				case <-attempt.Completion:
+				case <-ctx.Done():
+					t.Fatal("concurrent completion leaked after cancel")
+				}
+			}
+		})
+	}
+	t.Run("Should reject a stale local turn fence before sending guidance", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "steering_injected", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		events, err := driver.Prompt(ctx, proc, PromptRequest{TurnID: "current-turn", Message: "keep working"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		attempt, err := driver.Steer(ctx, proc, "old-turn", "stale guidance")
+		if attempt.Attempt != SteerAttemptUnsupported || !errors.Is(err, ErrSteerTurnMismatch) {
+			t.Fatalf("Steer() = %#v, %v", attempt, err)
+		}
+		if err := driver.Cancel(ctx, proc); err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+	})
 }

@@ -203,6 +203,9 @@ func (m *Manager) handlePromptPumpEvent(
 	runtimeEvent bool,
 	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool) {
+	if m.discardStoppedPromptEvent(ctx, session, turnState.turnID, event.Type) {
+		return nil, "", false
+	}
 	if failure, errorText, stop, handled := m.emitPromptDeadlineWarningBeforeError(
 		ctx,
 		deliveryCtx,
@@ -248,6 +251,9 @@ func (m *Manager) handlePromptPumpEvent(
 
 	fatalPromptFailure := promptFatalFailure(normalized)
 	if err := m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent); err != nil {
+		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, normalized.Type, err) {
+			return nil, "", false
+		}
 		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 		return failure, errorText, true
 	}
@@ -316,6 +322,11 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 ) (acp.AgentEvent, bool) {
 	normalized := m.normalizeEvent(session, turnState.turnID, event)
 	normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
+	if session.ownsTurnStop(turnState.turnID) && normalized.Type == acp.EventTypeError &&
+		normalized.Failure != nil && (normalized.Failure.Kind == store.FailureProcess ||
+		normalized.Failure.Kind == store.FailureTransport || normalized.Failure.Kind == store.FailureCanceled) {
+		normalized = m.normalizeEvent(session, turnState.turnID, promptCancellationTerminalEvent())
+	}
 	if runtimeEvent && loop.activity != nil && loop.activity.shouldSkipDeliveredPromptDeadlineWarning(normalized) {
 		return acp.AgentEvent{}, true
 	}

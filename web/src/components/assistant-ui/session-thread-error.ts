@@ -1,3 +1,5 @@
+import { isAgentEventPayload, isProviderErrorEvent } from "@/systems/session";
+
 function textField(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   if (typeof value !== "string") {
@@ -71,4 +73,27 @@ export function formatMessageError(error: unknown): string | null {
   }
 
   return null;
+}
+
+function compozyEventData(part: unknown): unknown {
+  if (typeof part !== "object" || part === null) return null;
+  const record = part as Record<string, unknown>;
+  const isEvent =
+    record.type === "data-compozy-event" ||
+    (record.type === "data" && record.name === "compozy-event");
+  return isEvent ? record.data : null;
+}
+
+/**
+ * True when a provider-diagnostic error part in the same message already tells this
+ * story: the live stream's `errorText` and the persisted event's `error` carry the
+ * same daemon summary, so equal normalized text means one failure, not two.
+ */
+export function providerDiagnosticOwnsError(content: unknown, error: string): boolean {
+  if (!Array.isArray(content)) return false;
+  return content.some(part => {
+    const data = compozyEventData(part);
+    if (!isAgentEventPayload(data) || !isProviderErrorEvent(data)) return false;
+    return formatMessageError(data.error ?? data.failure?.summary) === error;
+  });
 }

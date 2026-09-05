@@ -16,6 +16,9 @@ type ACPDriverAdapter struct {
 var _ AgentDriver = (*ACPDriverAdapter)(nil)
 var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
 var _ RuntimeConfigurator = (*ACPDriverAdapter)(nil)
+var _ AgentExitVerifier = (*ACPDriverAdapter)(nil)
+var _ AgentKiller = (*ACPDriverAdapter)(nil)
+var _ AgentCooperativeCanceler = (*ACPDriverAdapter)(nil)
 
 // NewACPDriverAdapter wraps the provided ACP driver for use by the session manager.
 func NewACPDriverAdapter(driver *acp.Driver) *ACPDriverAdapter {
@@ -53,6 +56,15 @@ func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error
 	return a.driver.Cancel(ctx, native)
 }
 
+// CancelCooperatively requests agent cancellation without detaching the prompt stream.
+func (a *ACPDriverAdapter) CancelCooperatively(ctx context.Context, proc *AgentProcess) error {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return err
+	}
+	return a.driver.CancelCooperatively(ctx, native)
+}
+
 // ConfigureRuntime applies mutable ACP settings to the active process.
 func (a *ACPDriverAdapter) ConfigureRuntime(
 	ctx context.Context,
@@ -88,6 +100,15 @@ func (a *ACPDriverAdapter) Stop(ctx context.Context, proc *AgentProcess) error {
 	return a.driver.Stop(ctx, native)
 }
 
+// VerifyExit asks the ACP process owner for termination evidence.
+func (a *ACPDriverAdapter) VerifyExit(proc *AgentProcess) (bool, error) {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return false, err
+	}
+	return a.driver.VerifyExit(native)
+}
+
 func (a *ACPDriverAdapter) nativeProcess(proc *AgentProcess) (*acp.AgentProcess, error) {
 	if proc == nil {
 		return nil, errors.New("session: agent process is required")
@@ -98,4 +119,13 @@ func (a *ACPDriverAdapter) nativeProcess(proc *AgentProcess) (*acp.AgentProcess,
 		return nil, errors.New("session: unsupported agent process implementation")
 	}
 	return native, nil
+}
+
+// Kill requests the final forced termination phase from the process owner.
+func (a *ACPDriverAdapter) Kill(ctx context.Context, proc *AgentProcess) error {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return err
+	}
+	return a.driver.Kill(ctx, native)
 }

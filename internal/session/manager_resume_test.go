@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -412,6 +414,8 @@ func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
+	prepareExitedResumeRecovery(t, h, session)
+
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume(incomplete start) error = %v", err)
@@ -454,6 +458,8 @@ func TestResumePreservesCrashStopClassificationFromRepairedMetadata(t *testing.T
 	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
+
+	prepareExitedResumeRecovery(t, h, session)
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
@@ -555,6 +561,8 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
+
+	prepareExitedResumeRecovery(t, h, session)
 
 	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
 		if opts.ResumeSessionID != "" {
@@ -1247,5 +1255,26 @@ func TestResumeWithChannelReinjectsNetworkSessionEnv(t *testing.T) {
 	}
 	if got, ok := lookupEnvValue(env, "COMPOZY_PEER_ID"); !ok || got != "coder."+resumed.ID {
 		t.Fatalf("COMPOZY_PEER_ID = %q, %v, want %q", got, ok, "coder."+resumed.ID)
+	}
+}
+
+// prepareExitedResumeRecovery supplies real identity proof and the boot boundary
+// for tests whose invariant is resuming a definitively ended runtime.
+func prepareExitedResumeRecovery(t *testing.T, h *harness, session *Session) {
+	t.Helper()
+	started, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousIdentity := started.Add(-time.Hour)
+	meta := readMeta(t, session.MetaPath())
+	meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity}
+	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+		t.Fatal(err)
+	}
+	h.manager = newManagerWithHarness(t, h)
+	cleanupTestManager(t, h.manager)
+	if err := h.manager.RecoverPendingStops(testutil.Context(t)); err != nil {
+		t.Fatal(err)
 	}
 }

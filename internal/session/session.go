@@ -55,6 +55,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	BusyInput                *BusyInputState
 	ID                       string
 	ProfileID                string
 	Name                     string
@@ -84,6 +85,8 @@ type Info struct {
 	State                    State
 	PendingPermission        bool
 	StopReason               store.StopReason
+	StopEscalated            bool
+	StopVerificationFailed   bool
 	StopDetail               string
 	Failure                  *store.SessionFailure
 	ACPSessionID             string
@@ -113,6 +116,17 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	// Claimed finalization owns these fields across persistence retries.
+	stopFinalizationErr        error
+	stopVerifiedOutcome        StopOutcome // Protected by mu.
+	stopStatePending           bool        // Protected by mu.
+	stopTerminalEvent          *acp.AgentEvent
+	stopTerminalRecorded       bool
+	stopTurnID                 string // Protected by mu.
+	stopProcessExitRecorded    bool
+	postStopOnce               sync.Once
+	followUpMode               func() string
+	steerDelivery              store.SteerDeliveryMode
 	mu                         sync.RWMutex
 	persistMu                  sync.Mutex
 	networkPeerMu              sync.Mutex
@@ -148,6 +162,8 @@ type Session struct {
 	Lineage                   *store.SessionLineage
 	State                     State
 	stopCause                 StopCause
+	stopEscalated             bool
+	stopVerificationFailed    bool
 	stopReason                store.StopReason
 	stopDetail                string
 	failure                   *store.SessionFailure
@@ -196,6 +212,8 @@ type Session struct {
 	currentPromptCancel     context.CancelFunc
 	currentPromptCancelTurn string
 	promptCancelRequested   bool
+	turnStop                *turnStopRun
+	turnStopPending         bool
 	currentPromptDone       chan struct{}
 	providerRedactions      []func()
 }

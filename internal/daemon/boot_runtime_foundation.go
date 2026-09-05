@@ -2,9 +2,7 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
@@ -35,7 +33,7 @@ func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cl
 	if state.mcpRuntimeHealth == nil {
 		state.mcpRuntimeHealth = mcppkg.NewRuntimeHealthRegistry()
 	}
-	if err := d.bootLockAndSocket(ctx, state, cleanup); err != nil {
+	if err := d.bootLockAndSocket(state, cleanup); err != nil {
 		return err
 	}
 	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
@@ -45,7 +43,6 @@ func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cl
 }
 
 func (d *Daemon) bootLockAndSocket(
-	ctx context.Context,
 	state *bootState,
 	cleanup *bootCleanup,
 ) error {
@@ -65,46 +62,10 @@ func (d *Daemon) bootLockAndSocket(
 	})
 	state.lock = lock
 
-	if stalePID := d.resolveStaleDaemonPID(lock, pid, state.logger); stalePID > 0 {
-		if cleanupErr := d.cleanupOrphans(ctx, stalePID); cleanupErr != nil {
-			state.logger.Warn(
-				"daemon: cleanup orphan processes failed",
-				"stale_pid",
-				stalePID,
-				"error",
-				cleanupErr,
-			)
-		}
-	}
-
 	if err := removeStaleSocket(state.cfg.Daemon.Socket); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (d *Daemon) resolveStaleDaemonPID(lock *Lock, pid int, logger *slog.Logger) int {
-	if lock == nil {
-		return 0
-	}
-	if stalePID := lock.StalePID(); stalePID > 0 {
-		return stalePID
-	}
-
-	existingInfo, err := ReadInfo(d.homePaths.DaemonInfo)
-	switch {
-	case err == nil && existingInfo.PID > 0 && existingInfo.PID != pid && !d.processAlive(existingInfo.PID):
-		return existingInfo.PID
-	case err != nil && !errors.Is(err, os.ErrNotExist) && logger != nil:
-		logger.Warn(
-			"daemon: read stale daemon info failed",
-			"path",
-			d.homePaths.DaemonInfo,
-			"error",
-			err,
-		)
-	}
-	return 0
 }
 
 func (d *Daemon) bootRegistryState(

@@ -1,9 +1,10 @@
--- name: CancelPriorSessionSteers :exec
+-- name: CancelPriorSessionSteers :many
 UPDATE session_input_queue
 SET status = sqlc.arg(canceled_status), canceled_at = sqlc.narg(canceled_at), updated_at = sqlc.arg(updated_at)
 WHERE session_id = sqlc.arg(session_id)
   AND mode = sqlc.arg(steer_mode)
-  AND status = sqlc.arg(queued_status);
+  AND status = sqlc.arg(queued_status)
+RETURNING id;
 
 -- name: GetNextDispatchableSessionInput :one
 SELECT * FROM session_input_queue
@@ -48,6 +49,42 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id);
 -- name: GetSessionInputQueueEntryByID :one
 SELECT * FROM session_input_queue WHERE id = sqlc.arg(id);
 
+-- name: ReserveSessionSteer :execrows
+UPDATE session_input_queue
+SET status = 'dispatching', dispatch_started_at = sqlc.arg(now),
+    attempt_count = attempt_count + 1, updated_at = sqlc.arg(now)
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'queued' AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
+
+-- name: ResolveSessionSteer :execrows
+UPDATE session_input_queue
+SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
+    dispatchable = CASE WHEN sqlc.arg(status) = 'queued' THEN 1 ELSE 0 END,
+    turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
+    sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'dispatching' AND owner_kind IS NULL;
+
+-- name: CancelPendingSessionSteer :execrows
+UPDATE session_input_queue
+SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND owner_kind IS NULL;
+
+-- name: SettlePendingSessionSteer :execrows
+UPDATE session_input_queue
+SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
+    status = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
+    dispatchable = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 1 ELSE 0 END,
+    sent_at = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN NULL ELSE sent_at END,
+    turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN '' ELSE turn_id END
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND owner_kind IS NULL
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
+
 -- name: AdvanceSessionInputGeneration :execrows
 UPDATE sessions SET input_generation = input_generation + 1, updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
@@ -66,19 +103,20 @@ GROUP BY mode, status;
 -- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
   id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id,
-  status, mode, delivery, text, skill_invocations_json, attachments_json,
+  status, mode, delivery, steer_delivery, text, skill_invocations_json, attachments_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
-  attempt_count, enqueued_at, updated_at
+  attempt_count, enqueued_at, updated_at, dispatchable
 ) VALUES (
   sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
   sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(target_turn_id), sqlc.arg(event_id),
-  sqlc.arg(status), sqlc.arg(mode), sqlc.arg(delivery), sqlc.arg(text), sqlc.arg(skill_invocations_json),
+  sqlc.arg(status), sqlc.arg(mode), sqlc.arg(delivery), sqlc.narg(steer_delivery), sqlc.arg(text), sqlc.arg(skill_invocations_json),
   sqlc.arg(attachments_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model),
   sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json),
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),
-  0, sqlc.arg(enqueued_at), sqlc.arg(updated_at)
+  0, sqlc.arg(enqueued_at), sqlc.arg(updated_at),
+  CASE WHEN sqlc.arg(mode) = 'steer' AND sqlc.narg(steer_delivery) IS NULL THEN 0 ELSE 1 END
 );
 
 -- name: CountPendingSessionInputs :one

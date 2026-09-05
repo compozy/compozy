@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -386,12 +387,13 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		}
 	})
 
-	t.Run("Should join a canceled compaction before closing the recorder", func(t *testing.T) {
+	t.Run("Should finalize without waiting for canceled compaction and join it at shutdown", func(t *testing.T) {
 		t.Parallel()
 
 		started := make(chan struct{})
 		canceled := make(chan struct{})
 		release := make(chan struct{})
+		releaseCompaction := sync.OnceFunc(func() { close(release) })
 		handler := &compactionHandlerStub{compact: func(
 			ctx context.Context,
 			_ CompactionRequest,
@@ -400,7 +402,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			<-ctx.Done()
 			close(canceled)
 			<-release
-			return CompactionResult{}, ctx.Err()
+			return CompactionResult{Summary: "late result"}, nil
 		}}
 		h := newHarness(
 			t,
@@ -408,6 +410,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			WithCompactionHandler(handler),
 		)
 		active := createSession(t, h)
+		t.Cleanup(releaseCompaction)
 		recordCompactionTurn(t, h.manager, active, "turn-old", "durable context", true)
 		used, size := int64(90), int64(100)
 		if err := h.manager.maybeCompact(active, acp.TokenUsage{
@@ -422,20 +425,37 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			stopDone <- h.manager.Stop(testutil.Context(t), active.ID)
 		}()
 		<-canceled
+		waitCtx, cancelWait := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelWait()
 		select {
 		case err := <-stopDone:
-			t.Fatalf("Stop() returned before compaction joined: %v", err)
-		default:
+			if err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		case <-waitCtx.Done():
+			t.Fatal("Stop() blocked on canceled compaction")
 		}
-		if _, err := active.recorderHandle().Query(testutil.Context(t), store.EventQuery{}); err != nil {
-			t.Fatalf("Query() while stop waits for compaction error = %v", err)
+		if info := active.Info(); info.State != StateStopped {
+			t.Fatalf("State = %s, want stopped", info.State)
 		}
-		close(release)
-		if err := <-stopDone; err != nil {
-			t.Fatalf("Stop() error = %v", err)
+		meta := readMeta(t, active.MetaPath())
+		if meta.State != string(StateStopped) {
+			t.Fatalf("persisted state = %s, want stopped", meta.State)
+		}
+		if _, found := h.manager.Get(active.ID); found {
+			t.Fatal("stopped session remains active")
 		}
 		if active.recorderHandle() != nil {
-			t.Fatal("recorderHandle() != nil after joined stop")
+			t.Fatal("recorderHandle() != nil after stop")
+		}
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := h.manager.waitForCompactions(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("waitForCompactions() = %v, want retained pending run", err)
+		}
+		releaseCompaction()
+		if err := h.manager.waitForCompactions(waitCtx); err != nil {
+			t.Fatalf("waitForCompactions() after release = %v", err)
 		}
 	})
 }

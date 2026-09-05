@@ -33,6 +33,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		Status:            row.Status,
 		Mode:              row.Mode,
 		Delivery:          row.Delivery,
+		SteerDelivery:     store.SteerDeliveryMode(row.SteerDelivery.String),
 		Text:              row.Text,
 		Runtime: store.SessionInputRuntime{
 			Provider:        row.RuntimeProvider,

@@ -3,7 +3,7 @@ import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import type { QueuedPrompt } from "@/systems/session";
+import type { QueuedPrompt, SessionBusyInputMode, SessionSteerDelivery } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionCommandChip } from "./session-composer-chip";
@@ -22,6 +22,7 @@ import { SessionAttachmentStrip } from "./session-attachment-strip";
 import { SessionComposerDropRoot } from "./session-attachment-drop-overlay";
 import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import { SessionComposerActionRow } from "./session-composer-action-row";
+import { SessionComposerFeedbackNote } from "./session-composer-feedback-note";
 import {
   useSessionComposerActionsContext,
   useSessionComposerMetaContext,
@@ -35,6 +36,12 @@ import { SessionComposerProvider } from "./session-composer-provider";
 
 export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 
+/**
+ * Where the composer stands in a stop: `stopping` from the first activation
+ * until the daemon confirms the stop landed (US-009.AC-1); `idle` otherwise.
+ */
+export type SessionComposerStopPhase = "idle" | "stopping";
+
 export interface SessionComposerProps {
   commandCatalog?: SessionComposerCommandCatalog;
   commandCatalogStatus?: "loading" | "ready";
@@ -47,8 +54,16 @@ export interface SessionComposerProps {
   onSteerPrompt?: SessionBusyInputHandler;
   isBusyInputPending?: boolean;
   isSessionRunning?: boolean;
+  /**
+   * While `stopping`, the primary control reads "Stopping…" and drops a second
+   * activation; steer and interrupt cannot be honored, queue still can.
+   */
+  stopPhase?: SessionComposerStopPhase;
   allowBusyInput?: boolean;
-  busyInputFenceAvailable?: boolean;
+  /** The daemon-owned follow-up default Enter performs during a turn (ADR-002). */
+  busyInputDefaultMode?: SessionBusyInputMode;
+  /** How a steer lands on this agent, from the session resource; `null` when unknown. */
+  busyInputSteerDelivery?: SessionSteerDelivery | null;
   queuedPrompts?: QueuedPrompt[];
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
@@ -106,7 +121,6 @@ function SessionComposerQueue() {
       onRemove={actions.handleRemoveQueuedPrompt}
       disabled={meta.isBusyInputPending}
       editDisabled={!meta.onReplaceQueuedPrompt}
-      steerDisabled={!meta.busyInputFenceAvailable}
     />
   );
 }
@@ -141,6 +155,7 @@ function SessionComposerEditor() {
             promptImageCapability={meta.promptImageCapability}
           />
           <SessionComposerInput />
+          {state.feedback ? <SessionComposerFeedbackNote feedback={state.feedback} /> : null}
           <SessionComposerControls />
         </ComposerPrimitive.Root>
       </SessionComposerDropRoot>
@@ -176,17 +191,7 @@ function SessionComposerInput() {
         onHandle={actions.setComposerInputElement}
         editableAriaLabel="Session prompt"
       />
-      <SessionBusyEnterPlugin
-        queueActive={state.runtimeRunning && state.canQueueFromInput}
-        steerActive={
-          state.runtimeRunning &&
-          meta.allowBusyInput &&
-          Boolean(meta.onSteerPrompt) &&
-          meta.busyInputFenceAvailable
-        }
-        onQueue={actions.handleQueueAction}
-        onSteer={actions.handleSteerAction}
-      />
+      <SessionBusyEnterPlugin active={state.busyEnterActive} onEnter={actions.handleEnterAction} />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
       <SessionComposerPastePlugin />
@@ -204,24 +209,27 @@ function SessionComposerControls() {
       sessionId={meta.sessionId}
       actionState={{
         prompt: meta.canPrompt ? "enabled" : "disabled",
-        enterHint: state.runtimeRunning && state.canQueueFromInput ? "queue" : "send",
+        enterHint: state.enterHint,
         controls: state.showBusyControls
           ? {
               kind: "busy",
+              stopping: state.stopping,
               submission: state.canSubmitBusyInput ? "enabled" : "disabled",
-              fence: meta.busyInputFenceAvailable ? "available" : "unavailable",
             }
           : { kind: "send" },
       }}
+      busyInputSteerDelivery={meta.busyInputSteerDelivery}
       composerAttachmentCount={state.composerAttachmentCount}
       environmentControl={meta.environmentControl}
       handleInterruptAction={actions.handleInterruptAction}
       handleQueueAction={actions.handleQueueAction}
       handleSteerAction={actions.handleSteerAction}
       onCancelPrompt={meta.onCancelPrompt}
-      onInterruptPrompt={meta.allowBusyInput ? meta.onInterruptPrompt : undefined}
+      onInterruptPrompt={
+        meta.allowBusyInput && !state.stopping ? meta.onInterruptPrompt : undefined
+      }
       onQueuePrompt={meta.allowBusyInput ? meta.onQueuePrompt : undefined}
-      onSteerPrompt={meta.allowBusyInput ? meta.onSteerPrompt : undefined}
+      onSteerPrompt={meta.allowBusyInput && !state.stopping ? meta.onSteerPrompt : undefined}
       promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
       promptImageCapability={meta.promptImageCapability}
       runtimeControl={meta.runtimeControl}

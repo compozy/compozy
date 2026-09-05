@@ -112,6 +112,8 @@ type Server struct {
 	generation   *serverGeneration
 	state        serverState
 	actualPort   int
+
+	onProviderAuthSuccess func()
 }
 
 // WithNetworkService injects the runtime network manager.
@@ -362,4 +364,11 @@ func New(opts ...Option) (*Server, error) {
 	})
 
 	return server, nil
+}
+
+// WithProviderAuthSuccess observes a successful live authentication probe.
+func WithProviderAuthSuccess(callback func()) Option {
+	return func(server *Server) {
+		server.onProviderAuthSuccess = callback
+	}
 }

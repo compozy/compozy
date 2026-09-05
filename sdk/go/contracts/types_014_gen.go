@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type MemoryRecallParams struct {
+	Query     string      `json:"query"`
+	Limit     int         `json:"limit,omitempty"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+}
+
 type MemoryScope string
 
 type MemoryStoreParams struct {
@@ -238,13 +245,4 @@ type ModelSourceOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
 	BoolValue *bool  `json:"bool_value,omitempty"`
-}
-
-type ModelSourceOptionValue struct {
-	ValueID     string `json:"value_id"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-	Order       int    `json:"order,omitempty"`
 }

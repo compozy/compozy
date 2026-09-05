@@ -64,8 +64,10 @@ export function SessionThread({
   onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
+  stopPhase = "idle",
   allowBusyInput = true,
-  busyInputFenceAvailable = true,
+  busyInputDefaultMode,
+  busyInputSteerDelivery,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -151,8 +153,10 @@ export function SessionThread({
               onSteerPrompt={onSteerPrompt}
               isBusyInputPending={isBusyInputPending}
               isSessionRunning={thread.runtimeRunning}
+              stopPhase={stopPhase}
               allowBusyInput={allowBusyInput}
-              busyInputFenceAvailable={busyInputFenceAvailable}
+              busyInputDefaultMode={busyInputDefaultMode}
+              busyInputSteerDelivery={busyInputSteerDelivery}
               queuedPrompts={queuedPrompts}
               onRemoveQueuedPrompt={onRemoveQueuedPrompt}
               onReplaceQueuedPrompt={onReplaceQueuedPrompt}

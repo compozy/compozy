@@ -16,6 +16,8 @@ var baseRegistryEntries = []Metadata{
 	success(ACPDone, "session", ComponentSession),
 	failure(ACPError, "session", ComponentSession),
 	info(SessionStopped, "session", ComponentSession),
+	warning(SessionStopEscalated, "session", ComponentSession),
+	notify(failure(SessionStopVerificationFailed, "session", ComponentSession)),
 	notify(warning(SessionUnhealthy, "session", ComponentSession)),
 	notify(warning(SessionHung, "session", ComponentSession)),
 	notify(success(SessionRecovered, "session", ComponentSession)),

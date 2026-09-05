@@ -15,7 +15,9 @@
  *
  * Signal grammar is locked in `docs/design/opendesign/herdr-parity/DESIGN-NOTES.md`:
  * the needs-you class shares one tone (danger — "you are the blocker") and
- * differs by glyph, so colour is never the only channel. Two presentation
+ * differs by glyph, so colour is never the only channel. `needs-attention` is
+ * the one needs-you member on warning (sessions-stability §08): the runtime,
+ * not the operator, is what could not be confirmed. Two presentation
  * scales, one meaning: 7–9 px shapes on rows, 18 px tinted glyph roundels on
  * bell rows, toasts, palette rows, and the window status line. The state word
  * is the exact CLI vocabulary and is always present.
@@ -27,14 +29,16 @@ import {
   CircleHelp,
   Minus,
   Shield,
+  TriangleAlert,
   X,
   type LucideIcon,
 } from "lucide-react";
 
 import type { PillTone } from "@compozy/ui";
 
-/** The daemon's ten-token badge vocabulary, in precedence order. */
+/** The daemon's eleven-token badge vocabulary, in precedence order. */
 export const SESSION_BADGES = [
+  "needs-attention",
   "failed",
   "stopped",
   "waiting-for-auth",
@@ -69,6 +73,18 @@ export interface SessionBadgeSignal {
 }
 
 export const SESSION_BADGE_SIGNAL = {
+  // A stop whose ladder ran out without a verified death: the daemon still
+  // reads `stopping` and asks the operator to retry. Needs-you by the daemon's
+  // own class, but warning rather than danger — nothing in the operator's work
+  // failed; the runtime is being honest about what it cannot prove.
+  "needs-attention": {
+    tone: "warning",
+    shape: "diamond",
+    glyph: TriangleAlert,
+    pulse: false,
+    label: "needs-attention",
+    attention: "needs-you",
+  },
   "waiting-for-input": {
     tone: "danger",
     shape: "dot",
@@ -171,7 +187,7 @@ export function sessionAttentionClass(badge: string | null | undefined): Session
   return sessionBadgeSignal(badge).attention;
 }
 
-/** The needs-you class is exactly waiting-for-input, waiting-for-auth, failed. */
+/** The needs-you class: waiting-for-input, waiting-for-auth, failed, needs-attention. */
 export function isNeedsYouBadge(badge: string | null | undefined): boolean {
   return sessionAttentionClass(badge) === "needs-you";
 }

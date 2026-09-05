@@ -91,6 +91,11 @@ func (a *mockAgent) executeDriverControl(
 		}(ctx, lifecycleCtx, control)
 		return diagnostics, nil
 	}
+	if control.Action == acpmock.DriverControlHoldIgnoringCancel {
+		// Hold the turn open for the configured delay while ignoring prompt cancellation so
+		// stop ladders must escalate; only process lifetime ends the hold early.
+		return diagnostics, waitDriverControlDelay(context.WithoutCancel(ctx), a.lifecycleContext(), control.DelayMS)
+	}
 	if err := waitDriverControlDelay(ctx, a.lifecycleContext(), control.DelayMS); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
@@ -133,7 +138,7 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 	case acpmock.DriverControlBlockUntilCancel:
 		<-ctx.Done()
 		return ctx.Err()
-	case acpmock.DriverControlDelay:
+	case acpmock.DriverControlDelay, acpmock.DriverControlHoldIgnoringCancel:
 		return nil
 	default:
 		return fmt.Errorf("unsupported driver_control action %s", control.Action)

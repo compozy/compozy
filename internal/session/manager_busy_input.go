@@ -74,7 +74,7 @@ func normalizePromptRuntimeSelectionFromMeta(
 ) (*RuntimeSelection, error) {
 	selection := requested
 	if selection == nil {
-		selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+		selected, _ := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 		selection = runtimeSelectionFromSessionStore(selected)
 	}
 	if selection == nil {
@@ -179,6 +179,11 @@ func (m *Manager) submitPreparedPrompt(
 	preparation sendPromptPreparation,
 ) (SendPromptResult, error) {
 	req := preparation.request
+	if req.expectedTurnID != "" {
+		if _, err := requireExpectedActiveTurn(session, req.expectedTurnID); err != nil {
+			return SendPromptResult{}, err
+		}
+	}
 	if session.IsPrompting() {
 		return m.submitBusyPreparedPrompt(ctx, session, req, preparation)
 	}
@@ -304,6 +309,9 @@ func (m *Manager) stageSteerPrompt(
 	session *Session,
 	req promptRequest,
 ) (SendPromptResult, error) {
+	if len(req.attachments) > 0 {
+		return SendPromptResult{}, store.ErrSessionInputSteerTextOnly
+	}
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
@@ -330,21 +338,15 @@ func (m *Manager) stageSteerPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.activateInterruptingInput(ctx, session, &entry); err != nil {
+	if err := m.activateSteeringInput(ctx, session, &entry); err != nil {
 		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 	}
-	m.emitTranscriptMarker(
-		ctx,
-		session,
-		targetTurnID,
-		transcript.MarkerPromptSteered,
-		"Steering input accepted for the active turn.",
-		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
-	)
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            BusyInputModeSteer,
 		Delivery:        entry.Delivery,
+		SteerDelivery:   entry.SteerDelivery,
+		PreviousTurnID:  entry.TargetTurnID,
 		QueueEntryID:    entry.ID,
 		QueueGeneration: entry.SessionGeneration,
 	}, nil
@@ -415,7 +417,7 @@ func validateCommandIngress(allowCommands bool, caller PromptCaller) error {
 func (m *Manager) normalizeBusyInputMode(mode BusyInputMode) (BusyInputMode, error) {
 	value := strings.TrimSpace(string(mode))
 	if value == "" {
-		value = strings.TrimSpace(m.busyInput.Normalize().DefaultMode)
+		value = m.busyInputDefaultMode()
 	}
 	switch BusyInputMode(value) {
 	case BusyInputModeQueue, BusyInputModeInterrupt, BusyInputModeSteer:

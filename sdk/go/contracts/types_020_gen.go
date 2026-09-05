@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type RoutingPolicy struct {
+	IncludePeer   bool `json:"include_peer"`
+	IncludeThread bool `json:"include_thread"`
+	IncludeGroup  bool `json:"include_group"`
+}
+
 type Row struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
@@ -258,10 +264,4 @@ type SandboxSyncAfterPayload struct {
 	BytesTransferred int64     `json:"bytes_transferred,omitempty"`
 	DurationMS       int64     `json:"duration_ms,omitempty"`
 	Errors           []string  `json:"errors,omitempty"`
-}
-
-type SandboxSyncBeforePatch struct {
-	Deny            bool     `json:"deny,omitempty"`
-	DenyReason      string   `json:"deny_reason,omitempty"`
-	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
 }

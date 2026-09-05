@@ -228,8 +228,14 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 	}
 	stopCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
-	if err := m.driver.Stop(stopCtx, proc); err != nil {
+	exited, err := m.processExitVerified(proc)
+	if err != nil {
 		return err
+	}
+	if !exited {
+		if err := m.driver.Stop(stopCtx, proc); err != nil {
+			return err
+		}
 	}
 	if emitHook {
 		m.dispatchAgentStopped(stopCtx, session, proc, nil)

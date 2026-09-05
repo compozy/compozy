@@ -508,6 +508,29 @@ func TestClearConversationResetsStoreOpenedWithStaleRows(t *testing.T) {
 func TestClearConversationFailureRecovery(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve recovered history until process exit is verified", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := seedRecoveredRemoteStop(t, h)
+		before := readStoredEvents(t, active)
+		if _, err := h.manager.ClearConversation(
+			testutil.Context(t),
+			active.ID,
+		); !errors.Is(
+			err,
+			ErrStopVerificationFailed,
+		) {
+			t.Fatalf("clear bypassed unverified recovered process: %v", err)
+		}
+		meta := readMeta(t, active.MetaPath())
+		if meta.State != string(StateStopping) || len(readStoredEvents(t, active)) != len(before) {
+			t.Fatal("rejected clear changed recovered history or terminal truth")
+		}
+		if _, ok := h.manager.Get(active.ID); ok {
+			t.Fatal("rejected clear started a replacement process")
+		}
+	})
+
 	t.Run("Should stop the replacement session and restore the old event store when epoch commit fails", func(
 		t *testing.T,
 	) {

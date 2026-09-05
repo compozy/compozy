@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,20 @@ import (
 	envpkg "github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 )
+
+// sessionSandboxProjectionEqual compares only the sandbox fields the session
+// catalog persists. The runtime root, additional dirs, and SSH access expiry
+// live in session metadata alone, so reading them back from the catalog would
+// otherwise register as drift on every inactive read and republish an upsert.
+func sessionSandboxProjectionEqual(left, right *store.SessionSandboxMeta) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.SandboxID == right.SandboxID && left.Backend == right.Backend &&
+		left.Profile == right.Profile && left.State == right.State && left.InstanceID == right.InstanceID &&
+		bytes.Equal(left.ProviderState, right.ProviderState) &&
+		timesEqual(left.LastSyncAt, right.LastSyncAt) && left.LastSyncError == right.LastSyncError
+}
 
 func syncResultErrors(result envpkg.SyncResult, err error) []string {
 	if err == nil && len(result.Errors) == 0 {

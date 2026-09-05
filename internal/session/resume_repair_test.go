@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -100,6 +102,16 @@ func TestClassifyPreviousStop(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.meta.State != string(StateStopped) {
+				started, err := procutil.StartedAt(os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				previousIdentity := started.Add(-time.Hour)
+				tc.meta.Liveness = &store.SessionLivenessMeta{
+					SubprocessPID: os.Getpid(), SubprocessStartedAt: &previousIdentity,
+				}
+			}
 			gotMeta, gotChanged := classifyPreviousStop(tc.meta)
 			if gotChanged != tc.wantChanged {
 				t.Fatalf("classifyPreviousStop() changed = %v, want %v", gotChanged, tc.wantChanged)
@@ -118,6 +130,88 @@ func TestClassifyPreviousStop(t *testing.T) {
 
 func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should retain interrupted startup attribution and provider failure through repeated inventory",
+		func(t *testing.T) {
+			t.Parallel()
+			meta := store.SessionMeta{
+				State:   string(StateStarting),
+				Failure: &store.SessionFailure{Kind: store.FailureProviderAuth, Summary: "provider login required"},
+			}
+			now := time.Now()
+			first, changed := ClassifyInactiveMetaForRecovery(now, meta)
+			if !changed || first.State != string(StateStopping) || !interruptedStartupMeta(&first) ||
+				first.Failure.Kind != store.FailureProviderAuth || first.Failure.Summary != meta.Failure.Summary {
+				t.Fatalf("startup inventory lost provider failure or startup attribution: %#v", first)
+			}
+			second, changed := ClassifyInactiveMetaForRecovery(now, first)
+			if changed || !interruptedStartupMeta(&second) || !second.StopVerificationFailed ||
+				second.Failure.Kind != store.FailureProviderAuth || second.Failure.Summary != meta.Failure.Summary {
+				t.Fatalf("repeated inventory changed startup evidence: %#v", second)
+			}
+		},
+	)
+	for _, state := range []State{StateActive, StateStopping, StateStarting} {
+		for _, liveness := range []*store.SessionLivenessMeta{nil, {}, {SubprocessPID: os.Getpid()}} {
+			t.Run(
+				fmt.Sprintf("Should retain %s without complete process identity %v", state, liveness),
+				func(t *testing.T) {
+					t.Parallel()
+					meta := store.SessionMeta{State: string(state), Liveness: liveness}
+					recovered, changed := ClassifyInactiveMetaForRecovery(time.Now(), meta)
+					if !changed || recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
+						t.Fatalf("missing identity fabricated terminal state: %#v", recovered)
+					}
+				},
+			)
+		}
+	}
+
+	t.Run("Should retain unverified stop attention when process identity is unavailable", func(t *testing.T) {
+		t.Parallel()
+		meta := store.SessionMeta{State: string(StateStopping), StopVerificationFailed: true}
+		recovered, _ := ClassifyInactiveMetaForRecovery(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC), meta)
+		if recovered.State != string(StateStopping) || !recovered.StopVerificationFailed {
+			t.Fatalf("unverified stop lost its exit-proof requirement: %#v", recovered)
+		}
+	})
+
+	t.Run("Should preserve stopping until the recorded process identity is gone", func(t *testing.T) {
+		t.Parallel()
+		started, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name    string
+			started time.Time
+			want    State
+			remote  bool
+		}{
+			{"Should retain a matching live process", started, StateStopping, false},
+			{"Should retain an unverifiable identity", time.Time{}, StateStopping, false},
+			{"Should recognize an exited identity when the PID is reused", started.Add(-time.Hour), StateStopped, false},
+			{"Should not treat a reused local PID as remote exit proof", started.Add(-time.Hour), StateStopping, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				meta := store.SessionMeta{State: string(StateActive), Liveness: &store.SessionLivenessMeta{
+					SubprocessPID: os.Getpid(), SubprocessStartedAt: &tc.started,
+				}}
+				if tc.remote {
+					meta.Sandbox = &store.SessionSandboxMeta{Backend: "daytona"}
+				}
+				recovered, changed := ClassifyInactiveMetaForRecovery(started.Add(time.Hour), meta)
+				if !changed || recovered.State != string(tc.want) ||
+					recovered.StopVerificationFailed != (tc.want == StateStopping) {
+					t.Fatalf("recovery state = %q, changed=%t", recovered.State, changed)
+				}
+				if !procutil.Alive(os.Getpid()) {
+					t.Fatal("classification signaled a live process")
+				}
+			})
+		}
+	})
 
 	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 	testCases := []struct {

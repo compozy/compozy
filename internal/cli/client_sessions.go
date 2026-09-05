@@ -86,19 +86,28 @@ func (c *daemonClient) RefreshSessionSoul(
 	return response, nil
 }
 
-func (c *daemonClient) StopSession(ctx context.Context, id string) error {
+func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
 	path, err := c.sessionScopedPath(ctx, id, "/stop")
 	if err != nil {
-		return err
+		return SessionStopRecord{}, err
 	}
-	return c.doJSON(
+	client := c.httpClient
+	if wait {
+		client = c.streamHTTPClient()
+	}
+	var result SessionStopRecord
+	if err := c.doJSONWithClient(
 		ctx,
 		http.MethodPost,
 		path,
 		nil,
-		nil,
-		nil,
-	)
+		contract.StopSessionRequest{Wait: &wait},
+		&result,
+		client,
+	); err != nil {
+		return SessionStopRecord{}, err
+	}
+	return result, nil
 }
 
 func (c *daemonClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {

@@ -76,6 +76,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		ResolvedBy:        event.ResolvedByValue(),
 		Error:             event.Error,
 		Failure:           store.CloneSessionFailure(event.Failure),
+		ProviderError:     acp.CloneProviderErrorDiagnostic(event.ProviderError),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
 		Goal:              acp.CloneGoalPromptMeta(event.Goal),
 		AvailableCommands: event.AvailableCommandSet().Values(),
@@ -96,6 +97,8 @@ func applyLegacyRawPayload(
 	if event.Type == acp.EventTypePermission ||
 		event.Type == acp.EventTypeClarify ||
 		event.Type == events.SessionCompactionFired ||
+		event.Type == events.SessionStopEscalated ||
+		event.Type == events.SessionStopVerificationFailed ||
 		event.Type == events.TranscriptMarkerCreated ||
 		event.Type == events.TranscriptMarkerRedacted {
 		payload.Raw = acp.CloneRawMessage(event.Raw)
@@ -150,6 +153,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Decision:         strings.TrimSpace(decoded.Decision),
 		Error:            strings.TrimSpace(decoded.Error),
 		Failure:          store.CloneSessionFailure(decoded.Failure),
+		ProviderError:    acp.CloneProviderErrorDiagnostic(decoded.ProviderError),
 		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
 		Goal:             acp.CloneGoalPromptMeta(decoded.Goal),
 		Usage:            decoded.Usage,

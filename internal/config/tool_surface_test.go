@@ -20,6 +20,10 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		redacted bool
 	}{
 		{
+			name: "Should allow provider steer capability mutation",
+			path: "providers.codex.steer_capability", kind: ConfigValueString,
+		},
+		{
 			name: "Should allow desktop update check mutation",
 			path: "app.update_check",
 			kind: ConfigValueBool,

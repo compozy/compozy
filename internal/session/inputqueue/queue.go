@@ -139,6 +139,7 @@ func (s *Service) Enqueue(
 func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert, error) {
 	return s.newInsert(insertSpec{
 		sessionID:        req.SessionID,
+		targetTurnID:     req.TargetTurnID,
 		text:             req.Text,
 		mode:             store.SessionInputQueueModeQueue,
 		delivery:         store.SessionInputDeliveryAfterTurn,
@@ -154,11 +155,13 @@ func (s *Service) EnqueueAdmitted(
 	ctx context.Context,
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
+	targetTurnID string,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
 	admissionStore, insert, err := s.prepareAdmittedEntry(admission, insertSpec{
-		mode:       store.SessionInputQueueModeQueue,
-		delivery:   store.SessionInputDeliveryAfterTurn,
-		generation: generation,
+		mode:         store.SessionInputQueueModeQueue,
+		targetTurnID: targetTurnID,
+		delivery:     store.SessionInputDeliveryAfterTurn,
+		generation:   generation,
 	})
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err

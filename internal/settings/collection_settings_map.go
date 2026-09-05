@@ -8,6 +8,9 @@ import (
 
 func providerSettingsMap(settings ProviderSettings) map[string]any {
 	values := make(map[string]any)
+	if settings.SteerCapability != "" {
+		values["steer_capability"] = string(settings.SteerCapability)
+	}
 	if strings.TrimSpace(settings.Command) != "" {
 		values["command"] = strings.TrimSpace(settings.Command)
 	}

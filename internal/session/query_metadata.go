@@ -50,6 +50,12 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 			err,
 		)
 	}
+	if m.hasPendingStopSettlement(target) {
+		return meta, nil
+	}
+	if restored, err := m.restoreRecoveredStopReceipt(&meta); err != nil || restored {
+		return meta, err
+	}
 	repaired, err := m.repairInactiveMeta(ctx, metaPath, meta)
 	if err != nil {
 		return store.SessionMeta{}, err
@@ -136,7 +142,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 	if requestedSpeed == "" {
 		requestedSpeed = speedpkg.SpeedNormal
 	}
-	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	return &Info{
 		ID:                       meta.ID,
 		ProfileID:                strings.TrimSpace(meta.ProfileID),
@@ -150,7 +156,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		SpeedResolution:          speedpkg.CloneResolution(meta.SpeedResolution),
 		RuntimeStatus:            meta.RuntimeStatus,
 		RuntimeTransition:        meta.RuntimeTransition,
-		RuntimeFailure:           store.SessionRuntimeFailureValue(meta.RuntimeFailure),
+		RuntimeFailure:           meta.RuntimeFailureValue(),
 		RuntimeGeneration:        meta.RuntimeGeneration,
 		RuntimeRecovery:          meta.RuntimeRecoveryValue(),
 		SelectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
@@ -163,7 +169,9 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		Type:                     normalizeSessionType(Type(meta.SessionType)),
 		Lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		State:                    State(meta.State),
-		StopReason:               sessionMetaStopReason(meta),
+		StopReason:               sessionMetaStopReason(&meta),
+		StopEscalated:            meta.StopEscalated,
+		StopVerificationFailed:   meta.StopVerificationFailed,
 		StopDetail:               meta.StopDetail,
 		Failure:                  store.CloneSessionFailure(meta.Failure),
 		ACPSessionID:             stringValue(meta.ACPSessionID),

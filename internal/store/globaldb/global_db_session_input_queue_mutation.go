@@ -185,8 +185,11 @@ func (g *SessionRepo) replacePendingSessionInput(
 			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotQueued, entryID)
 		}
 		replacement.SessionGeneration = existing.SessionGeneration
+		var superseded []string
 		if cancelPriorSteers {
-			if cancelErr := cancelPriorPendingSessionSteers(ctx, exec, target, replacement.Now); cancelErr != nil {
+			var cancelErr error
+			superseded, cancelErr = cancelPriorPendingSessionSteers(ctx, exec, target, replacement.Now)
+			if cancelErr != nil {
 				return cancelErr
 			}
 		}
@@ -205,6 +208,7 @@ func (g *SessionRepo) replacePendingSessionInput(
 		if insertErr != nil {
 			return insertErr
 		}
+		inserted.SupersededIDs = superseded
 		entry = inserted
 		created = true
 		return nil
@@ -235,17 +239,18 @@ func cancelPriorPendingSessionSteers(
 	exec globalSQLExecutor,
 	sessionID string,
 	now time.Time,
-) error {
+) ([]string, error) {
 	nowRaw := store.FormatTimestamp(now)
-	if err := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
+	ids, err := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
 		CanceledStatus: store.SessionInputQueueStatusCanceled,
 		CanceledAt:     nullableSessionTime(now),
 		UpdatedAt:      nowRaw,
 		SessionID:      sessionID,
 		SteerMode:      store.SessionInputQueueModeSteer,
 		QueuedStatus:   store.SessionInputQueueStatusQueued,
-	}); err != nil {
-		return fmt.Errorf("store: cancel prior session steer input: %w", err)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: cancel prior session steer input: %w", err)
 	}
-	return nil
+	return ids, nil
 }

@@ -144,7 +144,6 @@ func (d *Daemon) applyDefaults() {
 	d.applyRuntimeFactoryDefaults()
 	d.applyServerFactoryDefaults()
 	d.applySystemDefaults()
-	d.applyTimingDefaults()
 }
 
 func (d *Daemon) applyCoreDefaults() {

@@ -115,6 +115,100 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 	})
 }
 
+func TestDriverHoldIgnoringCancelKeepsTurnOpen(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should finish the held turn after the delay despite a session cancel", func(t *testing.T) {
+		t.Parallel()
+
+		driverPath, err := DefaultDriverPath()
+		if err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", err)
+		}
+		fixturePath := writeDriverCancelFixture(t, "hold-ignoring-cancel-fixture.json", `{
+			"version": 2,
+			"agents": [
+				{
+					"name": "holder",
+					"provider": "claude",
+					"turns": [
+						{
+							"name": "hold",
+							"match": {
+								"turn_source": "user",
+								"user_text": "hold ignoring cancel"
+							},
+							"steps": [
+								{
+									"kind": "assistant",
+									"text": "holding"
+								},
+								{
+									"kind": "driver_control",
+									"driver_control": {
+										"action": "hold_ignoring_cancel",
+										"delay_ms": 1500
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}`)
+		driver := acp.New()
+		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName: "holder",
+			Command: BuildCommand(
+				driverPath,
+				fixturePath,
+				"holder",
+				filepath.Join(t.TempDir(), "hold-diagnostics.jsonl"),
+			),
+			Cwd:         t.TempDir(),
+			Permissions: compozyconfig.PermissionModeApproveAll,
+			WorkspaceID: "workspace-acpmock",
+			ProfileID:   "profile-acpmock",
+		})
+		if err != nil {
+			t.Fatalf("driver.Start() error = %v", err)
+		}
+		defer stopDriverProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+			TurnID:     "turn-hold-ignoring-cancel",
+			RunID:      "run-hold-ignoring-cancel",
+			Generation: 1,
+			Message:    "hold ignoring cancel",
+			Meta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		})
+		if err != nil {
+			t.Fatalf("driver.Prompt() error = %v", err)
+		}
+		var canceledAt time.Time
+		events := normalizeEvents(collectPromptEvents(t, eventsCh, func(event acp.AgentEvent) {
+			if event.Type != acp.EventTypeAgentMessage || event.Text != "holding" || !canceledAt.IsZero() {
+				return
+			}
+			// Let the holding step settle so the cancel lands inside the hold, as a real stop ladder would.
+			time.Sleep(300 * time.Millisecond)
+			canceledAt = time.Now()
+			if cancelErr := driver.CancelCooperatively(testutil.Context(t), proc); cancelErr != nil {
+				t.Errorf("driver.CancelCooperatively() error = %v", cancelErr)
+			}
+		}))
+		if canceledAt.IsZero() {
+			t.Fatalf("events = %#v, want the holding message before cancellation", events)
+		}
+		if held := time.Since(canceledAt); held < time.Second {
+			t.Fatalf("turn ended %s after cancellation, want the full hold despite cancel; events = %#v", held, events)
+		}
+		if !containsNormalizedEvent(events, map[string]string{"type": acp.EventTypeDone}) {
+			t.Fatalf("events = %#v, want the held turn to settle after the delay", events)
+		}
+	})
+}
+
 func TestDriverLateCancelDoesNotPoisonNextPrompt(t *testing.T) {
 	t.Parallel()
 

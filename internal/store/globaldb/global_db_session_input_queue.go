@@ -85,17 +85,19 @@ func (g *SessionRepo) StageSessionSteer(
 
 	err = g.withImmediateTransaction(ctx, "stage session steer", func(exec globalSQLExecutor) error {
 		nowRaw := store.FormatTimestamp(normalized.Now)
-		if cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
+		superseded, cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
 			CanceledStatus: store.SessionInputQueueStatusCanceled, CanceledAt: nullableSessionTime(normalized.Now),
 			UpdatedAt: nowRaw, SessionID: normalized.SessionID, SteerMode: store.SessionInputQueueModeSteer,
 			QueuedStatus: store.SessionInputQueueStatusQueued,
-		}); cancelErr != nil {
+		})
+		if cancelErr != nil {
 			return fmt.Errorf("store: cancel prior session steer input: %w", cancelErr)
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)
 		if insertErr != nil {
 			return insertErr
 		}
+		inserted.SupersededIDs = superseded
 		entry = inserted
 		return nil
 	})
@@ -357,14 +359,18 @@ func insertSessionInputQueueEntry(
 			String: normalized.PromptAdmissionID,
 			Valid:  normalized.PromptAdmissionID != "",
 		},
-		MessageID:              normalized.MessageID,
-		IdempotencyKey:         normalized.IdempotencyKey,
-		TurnID:                 normalized.TurnID,
-		TargetTurnID:           normalized.TargetTurnID,
-		EventID:                normalized.EventID,
-		Status:                 store.SessionInputQueueStatusQueued,
-		Mode:                   normalized.Mode,
-		Delivery:               normalized.Delivery,
+		MessageID:      normalized.MessageID,
+		IdempotencyKey: normalized.IdempotencyKey,
+		TurnID:         normalized.TurnID,
+		TargetTurnID:   normalized.TargetTurnID,
+		EventID:        normalized.EventID,
+		Status:         store.SessionInputQueueStatusQueued,
+		Mode:           normalized.Mode,
+		Delivery:       normalized.Delivery,
+		SteerDelivery: sql.NullString{
+			String: string(normalized.SteerDelivery),
+			Valid:  normalized.SteerDelivery != "",
+		},
 		Text:                   normalized.Text,
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		AttachmentsJson:        attachmentsJSON,

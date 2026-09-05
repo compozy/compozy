@@ -147,9 +147,12 @@ func (n *daemonNativeTools) sessionInputPromote(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	expectedTurnID, err := requiredNativeString(req.ToolID, "expected_turn_id", input.ExpectedTurnID)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
+	expectedTurnID := ""
+	if input.ExpectedTurnID != "" {
+		expectedTurnID, err = requiredNativeString(req.ToolID, "expected_turn_id", input.ExpectedTurnID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	sessionID, entryID, err := n.nativeSessionInputMutationScope(
 		ctx, scope, req.ToolID, input.Workspace, input.SessionID, input.QueueEntryID,

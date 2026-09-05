@@ -24,11 +24,17 @@ export type {
 } from "./lib/session-badge";
 export { sessionBadgeWordClass } from "./lib/session-badge-classes";
 export {
+  expiredInteractionsByRequest,
+  interactionExpiredByRestart,
+  permissionDecisionActor,
+  resolvedInteractionsByRequest,
+  type PermissionDecisionActor,
   maskedAttentionNote,
   pendingClarifyCount,
   pendingInteractionReason,
   pendingInteractions,
   pendingPermissionCount,
+  RESTART_EXPIRED_RESOLUTION,
 } from "./lib/session-pending-interactions";
 export {
   SessionBadgeGlyph,

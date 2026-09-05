@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"path/filepath"
 	"slices"
@@ -79,7 +80,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, _ string, admission store.SessionPromptAdmissionRequest) error {
-					_, _, _, _, err := queue.EnqueueAdmitted(ctx, admission, 0)
+					_, _, _, _, err := queue.EnqueueAdmitted(ctx, admission, 0, "")
 					return err
 				},
 			},
@@ -603,26 +604,6 @@ func TestManagerBusyInputExpectedTurnFence(t *testing.T) {
 		submit func(context.Context, *Manager, string) error
 	}{
 		{
-			name: "Should reject steering without an active turn fence",
-			submit: func(ctx context.Context, manager *Manager, sessionID string) error {
-				_, err := manager.SteerPrompt(ctx, sessionID, SteerPromptOpts{
-					Message: "unfenced steer", MessageID: "message-unfenced-steer",
-					IdempotencyKey: "idem-unfenced-steer",
-				})
-				return err
-			},
-		},
-		{
-			name: "Should reject interrupt without an active turn fence",
-			submit: func(ctx context.Context, manager *Manager, sessionID string) error {
-				_, err := manager.SendPrompt(ctx, sessionID, SendPromptOpts{
-					Message: "unfenced interrupt", MessageID: "message-unfenced-interrupt",
-					IdempotencyKey: "idem-unfenced-interrupt", Mode: BusyInputModeInterrupt,
-				})
-				return err
-			},
-		},
-		{
 			name: "Should reject stale steering before persistence or cancellation",
 			submit: func(ctx context.Context, manager *Manager, sessionID string) error {
 				_, err := manager.SteerPrompt(ctx, sessionID, SteerPromptOpts{
@@ -707,53 +688,53 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 	testCases := []struct {
 		name     string
 		admitted bool
-		submit   func(context.Context, *Manager, *Session) error
+		submit   func(context.Context, *Manager, *Session, string) error
 	}{
 		{
-			name: "Should cancel staged steer input when active-turn cancellation fails",
-			submit: func(ctx context.Context, manager *Manager, sess *Session) error {
+			name: "Should dispatch staged steer after cancellation escalates",
+			submit: func(ctx context.Context, manager *Manager, sess *Session, expectedTurn string) error {
 				_, err := manager.SteerPrompt(ctx, sess.ID, SteerPromptOpts{
-					Message: "steer after cancellation", ExpectedTurnID: sess.CurrentTurnID(),
+					Message: "steer after cancellation", ExpectedTurnID: expectedTurn,
 				})
 				return err
 			},
 		},
 		{
-			name:     "Should cancel and fence admitted steer when active-turn cancellation fails",
+			name:     "Should preserve admitted steer across cancellation escalation",
 			admitted: true,
-			submit: func(ctx context.Context, manager *Manager, sess *Session) error {
+			submit: func(ctx context.Context, manager *Manager, sess *Session, expectedTurn string) error {
 				_, err := manager.SteerPrompt(ctx, sess.ID, SteerPromptOpts{
 					Message: "admitted steer after cancellation", MessageID: "message-admitted-steer-failure",
-					IdempotencyKey: "idem-admitted-steer-failure", ExpectedTurnID: sess.CurrentTurnID(),
+					IdempotencyKey: "idem-admitted-steer-failure", ExpectedTurnID: expectedTurn,
 				})
 				return err
 			},
 		},
 		{
-			name: "Should cancel interrupt input when active-turn cancellation fails",
-			submit: func(ctx context.Context, manager *Manager, sess *Session) error {
+			name: "Should dispatch interrupt input after cancellation escalates",
+			submit: func(ctx context.Context, manager *Manager, sess *Session, expectedTurn string) error {
 				_, err := manager.SendPrompt(ctx, sess.ID, SendPromptOpts{
 					Message: "replace after cancellation", Mode: BusyInputModeInterrupt,
-					ExpectedTurnID: sess.CurrentTurnID(),
+					ExpectedTurnID: expectedTurn,
 				})
 				return err
 			},
 		},
 		{
-			name:     "Should cancel and fence admitted interrupt when active-turn cancellation fails",
+			name:     "Should preserve admitted interrupt across cancellation escalation",
 			admitted: true,
-			submit: func(ctx context.Context, manager *Manager, sess *Session) error {
+			submit: func(ctx context.Context, manager *Manager, sess *Session, expectedTurn string) error {
 				_, err := manager.SendPrompt(ctx, sess.ID, SendPromptOpts{
 					Message: "admitted replacement after cancellation", Mode: BusyInputModeInterrupt,
 					MessageID:      "message-admitted-interrupt-failure",
-					IdempotencyKey: "idem-admitted-interrupt-failure", ExpectedTurnID: sess.CurrentTurnID(),
+					IdempotencyKey: "idem-admitted-interrupt-failure", ExpectedTurnID: expectedTurn,
 				})
 				return err
 			},
 		},
 		{
-			name: "Should cancel promoted input when active-turn cancellation fails",
-			submit: func(ctx context.Context, manager *Manager, sess *Session) error {
+			name: "Should dispatch promoted input after cancellation escalates",
+			submit: func(ctx context.Context, manager *Manager, sess *Session, expectedTurn string) error {
 				queued, err := manager.SendPrompt(ctx, sess.ID, SendPromptOpts{
 					Message: "queued before promotion", Mode: BusyInputModeQueue,
 				})
@@ -761,7 +742,7 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 					return err
 				}
 				_, err = manager.PromotePendingInputToSteer(ctx, sess.ID, queued.QueueEntryID, PromotePendingInputOpts{
-					Text: "promoted after cancellation", ExpectedTurnID: sess.CurrentTurnID(),
+					Text: "promoted after cancellation", ExpectedTurnID: expectedTurn,
 				})
 				return err
 			},
@@ -808,26 +789,41 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 			<-activeEntered
 			cancelErr := errors.New("driver cancellation failed")
 			h.driver.cancelHook = func(*fakeProcess) error { return cancelErr }
+			targetTurn := sess.CurrentTurnID()
+			h.driver.stopHook = func(proc *fakeProcess) error {
+				releaseOnce.Do(func() { close(releaseActive) })
+				proc.exit()
+				return nil
+			}
 
-			err = testCase.submit(testutil.Context(t), h.manager, sess)
-			if testCase.admitted {
-				if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
-					t.Fatalf("busy input activation error = %v, want dispatch indeterminate", err)
-				}
-			} else if !errors.Is(err, cancelErr) {
-				t.Fatalf("busy input activation error = %v, want cancellation failure", err)
+			err = testCase.submit(testutil.Context(t), h.manager, sess, targetTurn)
+			if err != nil {
+				t.Fatalf("busy input admission: %v", err)
+			}
+			if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), sess.ID, targetTurn); err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, active.Events)
+			if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+			h.driver.mu.Lock()
+			promptCount := len(h.driver.promptCalls)
+			h.driver.mu.Unlock()
+			if promptCount != 2 || sess.Info().State != StateActive {
+				t.Fatalf("replacement dispatch count=%d state=%s", promptCount, sess.Info().State)
 			}
 			pending, listErr := h.manager.ListPendingInputs(testutil.Context(t), sess.ID)
 			if listErr != nil {
 				t.Fatalf("ListPendingInputs() error = %v", listErr)
 			}
 			if len(pending) != 0 {
-				t.Fatalf("pending inputs after activation failure = %#v, want none", pending)
+				t.Fatalf("pending inputs after replacement dispatch = %#v, want none", pending)
 			}
 			if testCase.admitted {
-				retryErr := testCase.submit(testutil.Context(t), h.manager, sess)
-				if !errors.Is(retryErr, store.ErrSessionPromptDispatchIndeterminate) {
-					t.Fatalf("busy input retry error = %v, want dispatch indeterminate", retryErr)
+				retryErr := testCase.submit(testutil.Context(t), h.manager, sess, targetTurn)
+				if retryErr != nil {
+					t.Fatalf("busy input admission replay error = %v", retryErr)
 				}
 			}
 
@@ -836,7 +832,7 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 		})
 	}
 
-	t.Run("Should fence canceled promotion replay after active-turn cancellation fails", func(t *testing.T) {
+	t.Run("Should replay promotion admission while cancellation escalates", func(t *testing.T) {
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
@@ -880,6 +876,18 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 		}
 		cancelErr := errors.New("driver cancellation failed")
 		h.driver.cancelHook = func(*fakeProcess) error { return cancelErr }
+		forceEntered, releaseForce := make(chan struct{}), make(chan struct{})
+		unblockForce := sync.OnceFunc(func() { close(releaseForce) })
+		t.Cleanup(unblockForce)
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			if proc.handle == sess.processHandle() && !signalClosed(forceEntered) {
+				close(forceEntered)
+				<-releaseForce
+			}
+			releaseOnce.Do(func() { close(releaseActive) })
+			proc.exit()
+			return nil
+		}
 		opts := PromotePendingInputOpts{
 			Text: "promoted after cancellation", ExpectedTurnID: targetTurnID,
 			MessageID: "message-promote-canceled-replay", IdempotencyKey: "idem-promote-canceled-replay",
@@ -887,15 +895,23 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 		_, err = h.manager.PromotePendingInputToSteer(
 			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
 		)
-		if !errors.Is(err, cancelErr) {
-			t.Fatalf("PromotePendingInputToSteer(first) error = %v, want cancellation failure", err)
+		if err != nil {
+			t.Fatalf("PromotePendingInputToSteer(first): %v", err)
 		}
 
 		_, err = h.manager.PromotePendingInputToSteer(
 			testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
 		)
-		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
-			t.Fatalf("PromotePendingInputToSteer(replay) error = %v, want dispatch indeterminate", err)
+		if err != nil {
+			t.Fatalf("PromotePendingInputToSteer(replay): %v", err)
+		}
+		unblockForce()
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), sess.ID, targetTurnID); err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, active.Events)
+		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
+			t.Fatal(err)
 		}
 		pending, listErr := h.manager.ListPendingInputs(testutil.Context(t), sess.ID)
 		if listErr != nil {
@@ -3006,8 +3022,20 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 			if err != nil {
 				t.Fatalf("PromotePendingInputToSteer(replay) error = %v", err)
 			}
-			if replayed.QueueEntryID != first.QueueEntryID {
+			if !replayed.Replayed || replayed.QueueEntryID != first.QueueEntryID {
 				t.Fatalf("promotion replay queue id = %q, want %q", replayed.QueueEntryID, first.QueueEntryID)
+			}
+			opts.ExpectedTurnID = ""
+			automatic, err := h.manager.PromotePendingInputToSteer(
+				testutil.Context(t), sess.ID, queued.QueueEntryID, opts,
+			)
+			if err != nil || automatic.QueueEntryID != first.QueueEntryID || automatic.PreviousTurnID != targetTurnID {
+				t.Fatalf("automatic replay = %#v, %v; want original entry and turn %s", automatic, err, targetTurnID)
+			}
+			opts.ExpectedTurnID = "different-turn"
+			_, err = h.manager.PromotePendingInputToSteer(testutil.Context(t), sess.ID, queued.QueueEntryID, opts)
+			if !errors.Is(err, store.ErrSessionInputMutationConflict) {
+				t.Fatalf("strict replay error = %v, want mutation conflict", err)
 			}
 			if got := managerCancelCalls(h); got != 1 {
 				t.Fatalf("driver cancel calls = %d, want one", got)
@@ -3453,5 +3481,310 @@ func (l *recordingManagedInputLifecycle) waitAmbiguous(t *testing.T) ManagedInpu
 	case <-time.After(5 * time.Second):
 		t.Fatal("managed input ambiguity was not recorded")
 		return ManagedInputReceipt{}
+	}
+}
+
+type steeringTestDriver struct {
+	*fakeDriver
+	steer      func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error)
+	completion <-chan error
+}
+
+var _ AgentSteerer = (*steeringTestDriver)(nil)
+
+func (d *steeringTestDriver) Steer(
+	ctx context.Context,
+	proc *AgentProcess,
+	turnID, text string,
+) (acp.SteerResult, error) {
+	attempt, err := d.steer(ctx, proc, turnID, text)
+	return acp.SteerResult{Attempt: attempt, Completion: d.completion}, err
+}
+
+func TestManagerLiveSteerDelivery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should kill and rebind before dispatching fallback steer ahead of queued input", func(t *testing.T) {
+		t.Parallel()
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("fallback-%d", sequence))
+			proc.handle.caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+			return proc, nil
+		}
+		h.manager.driver = &steeringTestDriver{fakeDriver: h.driver,
+			steer: func(context.Context, *AgentProcess, string, string) (acp.SteerAttempt, error) {
+				return acp.SteerAttemptUnsupported, nil
+			},
+		}
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		previous := sess.processHandle()
+		entered, release, dispatched := make(chan struct{}), make(chan struct{}), make(chan struct{}, 2)
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.cancelHook = func(*fakeProcess) error { return nil }
+		h.driver.stopHook = func(*fakeProcess) error { return errors.New("forced stop refused") }
+		h.driver.killHook = func(proc *fakeProcess) error { proc.exit(); unblock(); return nil }
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			go func() {
+				defer close(events)
+				if req.Message == "active prompt" {
+					close(entered)
+					<-release
+				} else {
+					if proc.handle == previous || sess.Info().State != StateActive {
+						t.Error("replacement dispatched before active runtime rebind")
+					}
+					dispatched <- struct{}{}
+				}
+				emitDonePromptEvents(events, sess.ID, req.TurnID)
+			}()
+			return events, nil
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		active, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "active prompt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		if _, err := h.manager.SendPrompt(
+			ctx,
+			sess.ID,
+			SendPromptOpts{Message: "queued later", Mode: BusyInputModeQueue},
+		); err != nil {
+			t.Fatal(err)
+		}
+		result, err := h.manager.SendPrompt(
+			ctx,
+			sess.ID,
+			SendPromptOpts{Message: "change direction", Mode: BusyInputModeSteer},
+		)
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInterruptFallback {
+			t.Fatalf("fallback = %#v, %v", result, err)
+		}
+		for range 2 {
+			select {
+			case <-dispatched:
+			case <-ctx.Done():
+				t.Fatal("fallback and queued prompt did not dispatch")
+			}
+		}
+		collectEvents(t, active.Events)
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		calls := managerPromptCalls(h)
+		if len(calls) != 3 || !promptRequestEndsWith(calls[1].Message, "change direction") ||
+			calls[2].Message != "queued later" {
+			t.Fatalf("fallback queue order = %#v", calls)
+		}
+		h.driver.mu.Lock()
+		stops, kills := h.driver.stopCalls, h.driver.killCalls
+		h.driver.mu.Unlock()
+		if stops != 1 || kills != 1 || sess.processHandle() == previous || sess.Info().State != StateActive {
+			t.Fatalf("fallback did not use kill+rebind: stops=%d kills=%d", stops, kills)
+		}
+	})
+
+	for _, tc := range []struct {
+		name                 string
+		attempt              acp.SteerAttempt
+		failure              error
+		delivery             store.SteerDeliveryMode
+		lateFailure          bool
+		stopBeforeCompletion bool
+	}{
+		{"Should inject guidance without canceling the live turn", acp.SteerAttemptInjected, nil, store.SteerDeliveryInjected, false, false},
+		{"Should persist accepted guidance pending behind a tool", acp.SteerAttemptPendingInjection, nil, store.SteerDeliveryPendingInjection, false, false},
+		{"Should persist fallback before cancellation when the driver refuses injection", acp.SteerAttemptUnsupported, nil, store.SteerDeliveryInterruptFallback, false, false},
+		{"Should downgrade delivery failure within the same send", acp.SteerAttemptUnsupported, errors.New("injection rejected"), store.SteerDeliveryInterruptFallback, false, false},
+		{"Should fall back after asynchronous delivery fails while preserving acceptance", acp.SteerAttemptPendingInjection, nil, store.SteerDeliveryPendingInjection, true, false},
+		{"Should retire pending guidance after an explicit stop", acp.SteerAttemptPendingInjection, nil, store.SteerDeliveryPendingInjection, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+				proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence))
+				proc.handle.caps.SteerCapability = compozyconfig.SteerCapabilityExtension
+				return proc, nil
+			}
+			var completion chan error
+			if tc.lateFailure || tc.stopBeforeCompletion {
+				completion = make(chan error, 1)
+			}
+			var steerCalls int
+			h.manager.driver = &steeringTestDriver{
+				fakeDriver: h.driver,
+				completion: completion,
+				steer: func(_ context.Context, _ *AgentProcess, turnID, text string) (acp.SteerAttempt, error) {
+					steerCalls++
+					if turnID == "" || text != "change direction" {
+						return acp.SteerAttemptUnsupported, fmt.Errorf("unexpected steer %q/%q", turnID, text)
+					}
+					return tc.attempt, tc.failure
+				},
+			}
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, sess)
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			t.Cleanup(func() {
+				releaseOnce.Do(func() { close(release) })
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+			h.driver.cancelHook = func(*fakeProcess) error {
+				if tc.stopBeforeCompletion {
+					releaseOnce.Do(func() { close(release) })
+					return nil
+				}
+				pending, err := h.manager.inputQueue.List(t.Context(), sess.ID)
+				if err != nil {
+					return err
+				}
+				if len(pending) != 1 || pending[0].SteerDelivery != store.SteerDeliveryInterruptFallback {
+					return fmt.Errorf("fallback not durable before cancellation: %#v", pending)
+				}
+				releaseOnce.Do(func() { close(release) })
+				return nil
+			}
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				go func() {
+					defer close(events)
+					if req.Message == "active prompt" {
+						close(entered)
+						<-release
+					}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
+			active, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "active prompt"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-entered
+			turnID := sess.CurrentTurnID()
+			_, refusedErr := h.manager.stageSteerPrompt(t.Context(), sess, promptRequest{
+				message: "keep the draft", attachments: []AttachmentMeta{{ID: "attachment-not-injectable"}},
+			})
+			if !errors.Is(refusedErr, store.ErrSessionInputSteerTextOnly) || steerCalls != 0 ||
+				managerCancelCalls(h) != 0 {
+				t.Fatalf("attachment refusal=%v, steerCalls=%d", refusedErr, steerCalls)
+			}
+			pendingBefore, listErr := h.manager.inputQueue.List(t.Context(), sess.ID)
+			if listErr != nil || len(pendingBefore) != 0 {
+				t.Fatalf("refusal persisted input=%#v, error=%v", pendingBefore, listErr)
+			}
+
+			older, err := h.manager.inputQueue.StageSteer(t.Context(), inputqueue.InputRequest{
+				SessionID: sess.ID, Text: "older undelivered guidance", TargetTurnID: turnID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			opts := SendPromptOpts{
+				Message:        "change direction",
+				MessageID:      "steer-message",
+				IdempotencyKey: "steer-once",
+			}
+			result, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.SteerDelivery != tc.delivery || result.PreviousTurnID != turnID {
+				t.Fatalf("SendPrompt(steer) = %#v", result)
+			}
+			entry, err := h.manager.inputQueue.Get(t.Context(), sess.ID, result.QueueEntryID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if entry.SteerDelivery != tc.delivery {
+				t.Fatalf("persisted delivery = %q", entry.SteerDelivery)
+			}
+			if tc.delivery != store.SteerDeliveryInterruptFallback {
+				if managerCancelCalls(h) != 0 || sess.CurrentTurnID() != turnID || !sess.IsPrompting() {
+					t.Fatal("injected steer interrupted or replaced the original turn")
+				}
+				if entry.Status != store.SessionInputQueueStatusSent || entry.TurnID != turnID {
+					t.Fatalf("steer entry = %#v", entry)
+				}
+			}
+			marker := requireTranscriptMarker(t, h.manager, sess.ID, transcript.MarkerPromptSuperseded)
+			if marker.Evidence["queue_entry_id"] != older.ID ||
+				marker.Evidence["replacement_entry_id"] != result.QueueEntryID {
+				t.Fatalf("supersession evidence = %#v", marker.Evidence)
+			}
+
+			if tc.stopBeforeCompletion {
+				if err := h.manager.RequestStopWithCause(
+					t.Context(),
+					sess.ID,
+					CauseUserRequested,
+					"operator stop",
+				); err != nil {
+					t.Fatal(err)
+				}
+				completion <- context.Canceled
+				close(completion)
+				collectEvents(t, active.Events)
+				waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				if err := h.manager.WaitForPromptDrains(waitCtx); err != nil {
+					t.Fatal(err)
+				}
+				retired, err := h.manager.inputQueue.Get(t.Context(), sess.ID, result.QueueEntryID)
+				if err != nil || retired.Status != store.SessionInputQueueStatusCanceled || retired.Dispatchable {
+					t.Fatalf("stopped steer=%#v/%v", retired, err)
+				}
+				if managerCancelCalls(h) != 1 || len(managerPromptCalls(h)) != 1 {
+					t.Fatal("stopped steering retried the prompt")
+				}
+				return
+			}
+			if tc.lateFailure {
+				completion <- errors.New("provider rejected queued guidance")
+				close(completion)
+				select {
+				case <-release:
+				case <-time.After(5 * time.Second):
+					t.Fatal("late steer failure never activated fallback")
+				}
+				if managerCancelCalls(h) != 1 {
+					t.Fatal("late fallback must cancel exactly once")
+				}
+			}
+			replayed, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !replayed.Replayed || replayed.SteerDelivery != tc.delivery || steerCalls != 1 {
+				t.Fatalf("replayed = %#v, injection calls = %d", replayed, steerCalls)
+			}
+			if tc.delivery != store.SteerDeliveryInterruptFallback && !tc.lateFailure {
+				if err := h.manager.SetBusyInputDefaultMode("queue"); err != nil {
+					t.Fatal(err)
+				}
+				queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "next follow-up"})
+				if err != nil || queued.Status != store.SessionPromptResultStatusQueued ||
+					queued.PreviousTurnID != turnID {
+					t.Fatalf("changed default did not affect live admission: %#v, %v", queued, err)
+				}
+			}
+			releaseOnce.Do(func() { close(release) })
+			collectEvents(t, active.Events)
+		})
 	}
 }

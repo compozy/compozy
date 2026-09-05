@@ -57,6 +57,8 @@ func NotificationSessionFromInfo(info *Info) *Session {
 		State:                    info.State,
 		stopReason:               info.StopReason,
 		stopDetail:               info.StopDetail,
+		stopEscalated:            info.StopEscalated,
+		stopVerificationFailed:   info.StopVerificationFailed,
 		failure:                  store.CloneSessionFailure(info.Failure),
 		ACPSessionID:             info.ACPSessionID,
 		SoulSnapshotID:           info.SoulSnapshotID,

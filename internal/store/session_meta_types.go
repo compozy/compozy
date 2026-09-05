@@ -38,6 +38,13 @@ type SessionAdvertisedCommandState struct {
 	AdvertisedCommands []SessionAdvertisedCommand `json:"advertised_commands,omitempty"`
 }
 
+// SessionRuntimeBindingState keeps optional runtime failure and selection state compact inside SessionMeta.
+// Embedding preserves the flat session metadata JSON contract.
+type SessionRuntimeBindingState struct {
+	RuntimeFailure   *string                       `json:"runtime_failure,omitempty"`
+	RuntimeSelection *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+}
+
 // SessionProviderExecutionState keeps resolved provider execution settings compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
 type SessionProviderExecutionState struct {
@@ -55,31 +62,32 @@ type SessionMeta struct {
 	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
 	Speed           speedpkg.Speed `json:"speed,omitempty"`
 	*SessionRuntimeDetails
-	SpeedResolution   *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
-	RuntimeStatus     SessionRuntimeStatus          `json:"runtime_status"`
-	RuntimeTransition SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
-	RuntimeFailure    *string                       `json:"runtime_failure,omitempty"`
-	RuntimeGeneration int64                         `json:"runtime_generation,omitempty"`
-	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitempty"`
+	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`
+	RuntimeTransition SessionRuntimeTransition `json:"runtime_transition,omitempty"`
+	RuntimeGeneration int64                    `json:"runtime_generation,omitempty"`
+	*SessionRuntimeBindingState
 	*SessionProviderExecutionState
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
-	NetworkParticipation *participation.Spec     `json:"network_participation"`
-	SessionType          string                  `json:"session_type,omitempty"`
-	Lineage              *SessionLineage         `json:"lineage,omitempty"`
-	State                string                  `json:"state"`
-	StopReason           *StopReason             `json:"stop_reason,omitempty"`
-	StopDetail           string                  `json:"stop_detail,omitempty"`
-	Failure              *SessionFailure         `json:"failure,omitempty"`
-	ACPSessionID         *string                 `json:"acp_session_id,omitempty"`
-	Liveness             *SessionLivenessMeta    `json:"liveness,omitempty"`
-	Sandbox              *SessionSandboxMeta     `json:"sandbox,omitempty"`
-	CreationProfile      *SessionCreationProfile `json:"creation_profile,omitempty"`
-	CreationOptions      *SessionCreationOptions `json:"creation_options,omitempty"`
-	CreationProfileRef   string                  `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest     string                  `json:"policy_spec_digest,omitempty"`
-	CreationDigest       string                  `json:"creation_digest,omitempty"`
+	NetworkParticipation   *participation.Spec     `json:"network_participation"`
+	SessionType            string                  `json:"session_type,omitempty"`
+	Lineage                *SessionLineage         `json:"lineage,omitempty"`
+	State                  string                  `json:"state"`
+	StopReason             *StopReason             `json:"stop_reason,omitempty"`
+	StopEscalated          bool                    `json:"stop_escalated,omitempty"`
+	StopVerificationFailed bool                    `json:"stop_verification_failed,omitempty"`
+	StopDetail             string                  `json:"stop_detail,omitempty"`
+	Failure                *SessionFailure         `json:"failure,omitempty"`
+	ACPSessionID           *string                 `json:"acp_session_id,omitempty"`
+	Liveness               *SessionLivenessMeta    `json:"liveness,omitempty"`
+	Sandbox                *SessionSandboxMeta     `json:"sandbox,omitempty"`
+	CreationProfile        *SessionCreationProfile `json:"creation_profile,omitempty"`
+	CreationOptions        *SessionCreationOptions `json:"creation_options,omitempty"`
+	CreationProfileRef     string                  `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest       string                  `json:"policy_spec_digest,omitempty"`
+	CreationDigest         string                  `json:"creation_digest,omitempty"`
 	*SessionAdvertisedCommandState
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
 	SoulDigest       string    `json:"soul_digest,omitempty"`
@@ -199,6 +207,53 @@ func (m *SessionMeta) clearEmptyProviderExecutionState() {
 	}
 }
 
+// RuntimeFailureValue returns the normalized persisted runtime diagnostic.
+func (m SessionMeta) RuntimeFailureValue() string {
+	if m.SessionRuntimeBindingState == nil {
+		return ""
+	}
+	return SessionRuntimeFailureValue(m.RuntimeFailure)
+}
+
+// SetRuntimeFailure updates the optional runtime diagnostic with value semantics.
+func (m *SessionMeta) SetRuntimeFailure(failure string) {
+	pointer := SessionRuntimeFailurePointer(failure)
+	if m.SessionRuntimeBindingState == nil {
+		if pointer == nil {
+			return
+		}
+		m.SessionRuntimeBindingState = &SessionRuntimeBindingState{}
+	}
+	m.RuntimeFailure = pointer
+	m.clearEmptyRuntimeBindingState()
+}
+
+// RuntimeSelectionValue returns the persisted runtime selection state without exposing nil embedding details.
+func (m SessionMeta) RuntimeSelectionValue() *SessionRuntimeSelectionState {
+	if m.SessionRuntimeBindingState == nil {
+		return nil
+	}
+	return m.RuntimeSelection
+}
+
+// SetRuntimeSelection updates the optional runtime selection state with value semantics.
+func (m *SessionMeta) SetRuntimeSelection(selection *SessionRuntimeSelectionState) {
+	if m.SessionRuntimeBindingState == nil {
+		if selection == nil {
+			return
+		}
+		m.SessionRuntimeBindingState = &SessionRuntimeBindingState{}
+	}
+	m.RuntimeSelection = selection
+	m.clearEmptyRuntimeBindingState()
+}
+
+func (m *SessionMeta) clearEmptyRuntimeBindingState() {
+	if m.RuntimeFailure == nil && m.RuntimeSelection == nil {
+		m.SessionRuntimeBindingState = nil
+	}
+}
+
 // Validate ensures the metadata file remains aligned with the session index schema.
 func (m SessionMeta) Validate() error {
 	if err := requireField(m.ID, "session id"); err != nil {
@@ -241,11 +296,11 @@ func (m SessionMeta) Validate() error {
 	if err := validateSessionRuntime(
 		m.RuntimeStatus,
 		m.RuntimeTransition,
-		SessionRuntimeFailureValue(m.RuntimeFailure),
+		m.RuntimeFailureValue(),
 	); err != nil {
 		return err
 	}
-	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelection); err != nil {
+	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelectionValue()); err != nil {
 		return err
 	}
 	advertisedCommands := m.AdvertisedCommandsValue()

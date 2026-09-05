@@ -11,8 +11,8 @@ bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/reports/2026-09-01-issue-521-522-session-cancel-clear.md;/Users/pedronauck/dev/qa-labs/compozy-issue-521-522-session-cancel-clear-20260901-183338-907244-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-09-01-issue-521-522-session-cancel-clear.md
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/reports/2026-09-01-issue-521-522-session-cancel-clear.md;/Users/pedronauck/dev/qa-labs/compozy-issue-521-522-session-cancel-clear-20260901-183338-907244-lab/qa-artifacts/qa;docs/qa/reports/2026-09-05-sessions-stability-task01-02.md;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-prompt-cancel.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-status-after-cancel.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-prompt-followup.jsonl
+last_report: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md
 overlaps: RT-020; ET-web-session-transcript-calm-grammar
 ---
 
@@ -34,3 +34,12 @@ HTTP, UDS, CLI, native-tool, and provider-backed runtime surfaces.
 QA 2026-09-01: Codex-backed session `sess-a63b87a64ffa9285` canceled active turn
 `turn-8a40d61cac8706d7`, returned `nothing-in-flight` for repeated CLI, HTTP, and native-tool
 requests, and completed `NEXT_TURN_OK` on the same durable session without a late session cancel.
+
+QA impact 2026-09-05 sessions-stability task_02: prompt-cancel is now the turn scope of the shared stop
+ladder (cooperative grace, then forced/kill escalation with a fresh process rebind); the session never
+reads terminal and stays promptable.
+
+QA 2026-09-05: `compozy session prompt-cancel` on a held acpmock turn returned outcome canceled with the
+exact turn id, the session stayed active/idle/attachable, the next prompt answered STUBBORN_ACK, and an
+idle repeat returned nothing-in-flight with CLI exit 66. A cancel-ignoring turn escalated after the 10 s
+cooperative grace (session.stop_escalated scope turn, phase forced) and the session returned to idle.

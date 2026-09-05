@@ -10523,6 +10523,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10552,6 +10553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10581,6 +10583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10610,6 +10613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10721,6 +10725,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10750,6 +10755,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10779,6 +10785,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10808,6 +10815,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10837,6 +10845,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10866,6 +10875,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10957,6 +10967,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -10986,6 +10997,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11015,6 +11027,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11044,6 +11057,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11073,6 +11087,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11102,6 +11117,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11131,6 +11147,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11244,6 +11261,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11273,6 +11291,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11302,6 +11321,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11331,6 +11351,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11360,6 +11381,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -11389,6 +11411,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12396,6 +12419,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12425,6 +12449,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12454,6 +12479,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12483,6 +12509,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12512,6 +12539,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12583,6 +12611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12612,6 +12641,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12641,6 +12671,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12670,6 +12701,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12699,6 +12731,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -12993,6 +13026,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13022,6 +13056,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13051,6 +13086,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13080,6 +13116,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13109,6 +13146,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13175,6 +13213,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13204,6 +13243,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13233,6 +13273,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13262,6 +13303,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13291,6 +13333,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13400,6 +13443,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13429,6 +13473,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13458,6 +13503,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13487,6 +13533,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13516,6 +13563,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13634,6 +13682,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13663,6 +13712,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13692,6 +13742,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13785,6 +13836,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -13930,6 +13982,7 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                attention?: string;
                 /** Format: date-time */
                 attention_changed_at?: string | null;
                 available_commands: {
@@ -13940,8 +13993,16 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                busy_input?: {
+                  default_mode: string;
+                  /** @enum {string} */
+                  steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                } | null;
                 /** Format: date-time */
                 created_at: string;
+                escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -13952,7 +14013,9 @@ export interface operations {
                   active_prompt: boolean;
                   agent_name: string;
                   attachable: boolean;
+                  attention?: string;
                   eligible_for_wake: boolean;
+                  escalated?: boolean | null;
                   /** @enum {string} */
                   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                   /** @enum {string} */
@@ -13969,11 +14032,14 @@ export interface operations {
                   last_error?: string;
                   /** Format: date-time */
                   last_presence_at?: string | null;
+                  /** @enum {string} */
+                  lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                   session_id: string;
                   /** @enum {string} */
                   state: "idle" | "prompting" | "stopped" | "detached";
                   /** Format: date-time */
                   updated_at: string;
+                  verified?: boolean | null;
                   workspace_id: string;
                 } | null;
                 id: string;
@@ -14201,6 +14267,7 @@ export interface operations {
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id?: string;
                 workspace_path?: string;
                 worktree_id?: string;
@@ -14217,6 +14284,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14246,6 +14314,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14275,6 +14344,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14304,6 +14374,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14333,6 +14404,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14362,6 +14434,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14739,6 +14812,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14768,6 +14842,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14797,6 +14872,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14826,6 +14902,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14855,6 +14932,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -14884,6 +14962,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15048,6 +15127,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15077,6 +15157,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15106,6 +15187,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15135,6 +15217,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15164,6 +15247,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15193,6 +15277,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15222,6 +15307,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15386,6 +15472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15415,6 +15502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15444,6 +15532,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15473,6 +15562,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15502,6 +15592,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15531,6 +15622,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15560,6 +15652,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15724,6 +15817,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15753,6 +15847,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15782,6 +15877,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15811,6 +15907,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15840,6 +15937,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15869,6 +15967,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -15898,6 +15997,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16061,6 +16161,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16090,6 +16191,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16119,6 +16221,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16148,6 +16251,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16177,6 +16281,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16206,6 +16311,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16235,6 +16341,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16444,6 +16551,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16473,6 +16581,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16502,6 +16611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16531,6 +16641,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16560,6 +16671,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16589,6 +16701,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16618,6 +16731,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16748,6 +16862,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16909,6 +17024,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16938,6 +17054,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16967,6 +17084,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -16996,6 +17114,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17025,6 +17144,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17054,6 +17174,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17083,6 +17204,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17256,6 +17378,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17285,6 +17408,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17314,6 +17438,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17343,6 +17468,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17372,6 +17498,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17505,6 +17632,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17534,6 +17662,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17697,6 +17826,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17726,6 +17856,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17755,6 +17886,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17784,6 +17916,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17813,6 +17946,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17842,6 +17976,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17871,6 +18006,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17932,6 +18068,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17961,6 +18098,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -17990,6 +18128,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18019,6 +18158,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18185,6 +18325,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18214,6 +18355,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18243,6 +18385,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18272,6 +18415,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18301,6 +18445,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18330,6 +18475,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18359,6 +18505,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18551,6 +18698,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18580,6 +18728,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18755,6 +18904,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -18973,6 +19123,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19002,6 +19153,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19031,6 +19183,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19206,6 +19359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19422,6 +19576,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19451,6 +19606,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19480,6 +19636,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19509,6 +19666,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19538,6 +19696,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19616,6 +19775,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19645,6 +19805,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19674,6 +19835,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19703,6 +19865,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19922,6 +20085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19951,6 +20115,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -19980,6 +20145,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20155,6 +20321,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20245,7 +20412,9 @@ export interface operations {
               active_prompt: boolean;
               agent_name: string;
               attachable: boolean;
+              attention?: string;
               eligible_for_wake: boolean;
+              escalated?: boolean | null;
               /** @enum {string} */
               health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
               /** @enum {string} */
@@ -20262,11 +20431,14 @@ export interface operations {
               last_error?: string;
               /** Format: date-time */
               last_presence_at?: string | null;
+              /** @enum {string} */
+              lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
               session_id: string;
               /** @enum {string} */
               state: "idle" | "prompting" | "stopped" | "detached";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id: string;
             } | null;
             snapshot_id?: string;
@@ -20351,6 +20523,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20380,6 +20553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20409,6 +20583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20438,6 +20613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20635,6 +20811,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20664,6 +20841,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20839,6 +21017,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20942,6 +21121,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -20971,6 +21151,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21048,6 +21229,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21077,6 +21259,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21187,6 +21370,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21216,6 +21400,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21245,6 +21430,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21274,6 +21460,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21424,6 +21611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21453,6 +21641,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21482,6 +21671,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21575,6 +21765,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21723,6 +21914,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21752,6 +21944,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21781,6 +21974,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21810,6 +22004,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21839,6 +22034,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21931,6 +22127,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21960,6 +22157,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -21989,6 +22187,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22018,6 +22217,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22168,6 +22368,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22197,6 +22398,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22226,6 +22428,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22319,6 +22522,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22434,6 +22638,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22463,6 +22668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22556,6 +22762,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22841,6 +23048,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22870,6 +23078,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -22899,6 +23108,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23339,6 +23549,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23368,6 +23579,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23397,6 +23609,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23426,6 +23639,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23455,6 +23669,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23721,6 +23936,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23750,6 +23966,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23779,6 +23996,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23832,6 +24050,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23861,6 +24080,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23890,6 +24110,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -23919,6 +24140,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24357,6 +24579,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24386,6 +24609,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24415,6 +24639,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24444,6 +24669,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24473,6 +24699,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24502,6 +24729,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24658,6 +24886,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24687,6 +24916,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24716,6 +24946,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24745,6 +24976,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24891,6 +25123,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24920,6 +25153,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24949,6 +25183,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -24978,6 +25213,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25135,6 +25371,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25164,6 +25401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25193,6 +25431,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25341,6 +25580,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25370,6 +25610,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25399,6 +25640,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25600,6 +25842,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25629,6 +25872,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25658,6 +25902,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25934,6 +26179,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25963,6 +26209,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -25992,6 +26239,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26021,6 +26269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26050,6 +26299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26230,6 +26480,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26259,6 +26510,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26288,6 +26540,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26341,6 +26594,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26370,6 +26624,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26399,6 +26654,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26428,6 +26684,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26702,6 +26959,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26731,6 +26989,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26760,6 +27019,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26789,6 +27049,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26818,6 +27079,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -26847,6 +27109,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27003,6 +27266,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27032,6 +27296,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27061,6 +27326,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27090,6 +27356,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27149,6 +27416,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27178,6 +27446,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27207,6 +27476,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27236,6 +27506,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27265,6 +27536,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27294,6 +27566,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27369,6 +27642,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27398,6 +27672,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27427,6 +27702,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27456,6 +27732,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27485,6 +27762,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27514,6 +27792,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27582,6 +27861,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27611,6 +27891,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27640,6 +27921,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27669,6 +27951,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27698,6 +27981,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27727,6 +28011,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -27991,6 +28276,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28020,6 +28306,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28049,6 +28336,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28078,6 +28366,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28107,6 +28396,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28369,6 +28659,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28398,6 +28689,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28427,6 +28719,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28456,6 +28749,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28595,6 +28889,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28624,6 +28919,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28653,6 +28949,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28682,6 +28979,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28711,6 +29009,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28780,6 +29079,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28809,6 +29109,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28908,6 +29209,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28937,6 +29239,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28966,6 +29269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -28995,6 +29299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29208,6 +29513,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29237,6 +29543,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29266,6 +29573,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29536,6 +29844,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29565,6 +29874,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29594,6 +29904,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29623,6 +29934,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29834,6 +30146,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29863,6 +30176,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29892,6 +30206,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -29921,6 +30236,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30132,6 +30448,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30161,6 +30478,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30190,6 +30508,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30219,6 +30538,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30328,6 +30648,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30465,6 +30786,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30494,6 +30816,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30705,6 +31028,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30734,6 +31058,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30763,6 +31088,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30792,6 +31118,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30868,6 +31195,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30897,6 +31225,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30926,6 +31255,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -30994,6 +31324,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31023,6 +31354,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31052,6 +31384,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31129,6 +31462,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31158,6 +31492,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31187,6 +31522,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31216,6 +31552,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31245,6 +31582,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31300,6 +31638,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31329,6 +31668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31358,6 +31698,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31445,6 +31786,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31474,6 +31816,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31503,6 +31846,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31532,6 +31876,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31561,6 +31906,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31643,6 +31989,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31672,6 +32019,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31701,6 +32049,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31784,6 +32133,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31813,6 +32163,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31842,6 +32193,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31871,6 +32223,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31900,6 +32253,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31965,6 +32319,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -31994,6 +32349,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -32023,6 +32379,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -32083,6 +32440,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -32112,6 +32470,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -32141,6 +32500,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -34934,6 +35294,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -34992,6 +35353,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35021,6 +35383,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35266,6 +35629,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35295,6 +35659,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35550,6 +35915,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35579,6 +35945,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35609,6 +35976,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -35687,6 +36055,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35716,6 +36085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35804,6 +36174,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -35833,6 +36204,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36087,6 +36459,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36116,6 +36489,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36145,6 +36519,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36229,6 +36604,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36258,6 +36634,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36322,6 +36699,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36570,6 +36948,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36599,6 +36978,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36628,6 +37008,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36731,6 +37112,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36760,6 +37142,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36789,6 +37172,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36848,6 +37232,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36877,6 +37262,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36906,6 +37292,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -36985,6 +37372,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37014,6 +37402,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37043,6 +37432,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37072,6 +37462,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37101,6 +37492,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37161,6 +37553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37190,6 +37583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37256,6 +37650,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37285,6 +37680,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37314,6 +37710,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37343,6 +37740,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37424,6 +37822,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37453,6 +37852,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37529,6 +37929,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37558,6 +37959,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37587,6 +37989,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37616,6 +38019,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37686,6 +38090,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37715,6 +38120,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37744,6 +38150,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37852,6 +38259,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37881,6 +38289,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -37910,6 +38319,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38166,6 +38576,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38195,6 +38606,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38254,6 +38666,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38322,6 +38735,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38351,6 +38765,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38460,6 +38875,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38489,6 +38905,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38576,6 +38993,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38605,6 +39023,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38671,6 +39090,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38700,6 +39120,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38729,6 +39150,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38758,6 +39180,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38893,6 +39316,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -38956,6 +39380,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39024,6 +39449,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39053,6 +39479,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39124,6 +39551,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39153,6 +39581,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39182,6 +39611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39279,6 +39709,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39308,6 +39739,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39337,6 +39769,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39366,6 +39799,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39395,6 +39829,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39453,6 +39888,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39482,6 +39918,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39511,6 +39948,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39540,6 +39978,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39593,6 +40032,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39622,6 +40062,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39651,6 +40092,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39725,6 +40167,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39754,6 +40197,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39783,6 +40227,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39812,6 +40257,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39841,6 +40287,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39870,6 +40317,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -39899,6 +40347,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40015,6 +40464,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40044,6 +40494,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40073,6 +40524,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40102,6 +40554,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40225,6 +40678,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40254,6 +40708,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40283,6 +40738,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40312,6 +40768,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40422,6 +40879,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40475,6 +40933,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40504,6 +40963,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40625,6 +41085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40654,6 +41115,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40683,6 +41145,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40712,6 +41175,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40948,6 +41412,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -40977,6 +41442,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41006,6 +41472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41079,6 +41546,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41108,6 +41576,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41232,6 +41701,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41261,6 +41731,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41385,6 +41856,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41414,6 +41886,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41474,6 +41947,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41503,6 +41977,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41532,6 +42007,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41561,6 +42037,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41676,6 +42153,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41705,6 +42183,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41734,6 +42213,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41851,6 +42331,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41880,6 +42361,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41909,6 +42391,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -41938,6 +42421,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -42089,6 +42573,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -42118,6 +42603,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -42147,6 +42633,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -42176,6 +42663,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -42241,6 +42729,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46080,6 +46569,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46109,6 +46599,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46138,6 +46629,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46167,6 +46659,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46240,6 +46733,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46269,6 +46763,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46298,6 +46793,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46478,6 +46974,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46507,6 +47004,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46536,6 +47034,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46565,6 +47064,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46800,6 +47300,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46829,6 +47330,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46858,6 +47360,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46887,6 +47390,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46963,6 +47467,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -46992,6 +47497,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47021,6 +47527,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47111,6 +47618,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47140,6 +47648,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47169,6 +47678,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47198,6 +47708,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47261,6 +47772,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47290,6 +47802,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47319,6 +47832,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47348,6 +47862,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47439,6 +47954,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47525,6 +48041,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47554,6 +48071,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47583,6 +48101,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47673,6 +48192,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47702,6 +48222,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47731,6 +48252,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47760,6 +48282,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47838,6 +48361,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47867,6 +48391,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47896,6 +48421,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -47990,6 +48516,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48019,6 +48546,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48048,6 +48576,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48077,6 +48606,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48106,6 +48636,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48156,6 +48687,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48185,6 +48717,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48214,6 +48747,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48243,6 +48777,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48307,6 +48842,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48336,6 +48872,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48365,6 +48902,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48394,6 +48932,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48568,6 +49107,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48597,6 +49137,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48626,6 +49167,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48655,6 +49197,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48964,6 +49507,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -48993,6 +49537,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49022,6 +49567,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49051,6 +49597,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49343,6 +49890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49372,6 +49920,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49401,6 +49950,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49430,6 +49980,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49459,6 +50010,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49513,6 +50065,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49567,6 +50120,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49596,6 +50150,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49650,6 +50205,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -49679,6 +50235,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51520,6 +52077,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51605,6 +52163,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51634,6 +52193,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51722,6 +52282,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51751,6 +52312,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51780,6 +52342,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51871,6 +52434,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51900,6 +52464,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -51929,6 +52494,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52021,6 +52587,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52050,6 +52617,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52079,6 +52647,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52158,6 +52727,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52187,6 +52757,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52216,6 +52787,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52245,6 +52817,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52372,6 +52945,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52401,6 +52975,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52430,6 +53005,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52459,6 +53035,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52488,6 +53065,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52517,6 +53095,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52577,6 +53156,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52606,6 +53186,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52635,6 +53216,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52664,6 +53246,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52693,6 +53276,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52722,6 +53306,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52813,6 +53398,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52842,6 +53428,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52871,6 +53458,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52900,6 +53488,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -52994,6 +53583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53023,6 +53613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53052,6 +53643,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53081,6 +53673,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53132,6 +53725,7 @@ export interface operations {
             results: {
               error?: {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -53309,6 +53903,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53338,6 +53933,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53367,6 +53963,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53396,6 +53993,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53425,6 +54023,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53476,6 +54075,7 @@ export interface operations {
             results: {
               error?: {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -53653,6 +54253,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53682,6 +54283,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53711,6 +54313,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53740,6 +54343,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53769,6 +54373,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -53974,6 +54579,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54003,6 +54609,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54032,6 +54639,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54061,6 +54669,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54090,6 +54699,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54119,6 +54729,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54148,6 +54759,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54648,6 +55260,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54677,6 +55290,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54706,6 +55320,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -54735,6 +55350,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55084,6 +55700,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55113,6 +55730,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55142,6 +55760,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55171,6 +55790,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55200,6 +55820,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55229,6 +55850,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55258,6 +55880,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55463,6 +56086,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55492,6 +56116,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55521,6 +56146,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55550,6 +56176,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55579,6 +56206,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55608,6 +56236,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55637,6 +56266,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -55985,6 +56615,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56014,6 +56645,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56043,6 +56675,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56072,6 +56705,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56101,6 +56735,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56130,6 +56765,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56159,6 +56795,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56223,6 +56860,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56252,6 +56890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56281,6 +56920,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56817,6 +57457,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56846,6 +57487,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56875,6 +57517,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56904,6 +57547,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -56984,6 +57628,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57013,6 +57658,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57042,6 +57688,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57071,6 +57718,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57100,6 +57748,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57171,6 +57820,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57200,6 +57850,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57229,6 +57880,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57258,6 +57910,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57329,6 +57982,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57358,6 +58012,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57387,6 +58042,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57416,6 +58072,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57532,6 +58189,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -57542,8 +58200,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -57554,7 +58220,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -57571,11 +58239,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -57803,6 +58474,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -57818,6 +58490,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57847,6 +58520,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57876,6 +58550,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57905,6 +58580,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -57934,6 +58610,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58083,6 +58760,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -58093,8 +58771,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -58105,7 +58791,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -58122,11 +58810,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -58354,6 +59045,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -58369,6 +59061,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58398,6 +59091,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58427,6 +59121,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58456,6 +59151,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58485,6 +59181,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58542,6 +59239,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58571,6 +59269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58600,6 +59299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58690,6 +59390,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58719,6 +59420,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -58800,6 +59502,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -58810,8 +59513,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -58822,7 +59533,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -58839,11 +59552,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -59071,6 +59787,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -59086,6 +59803,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59115,6 +59833,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59171,6 +59890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59200,6 +59920,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59255,6 +59976,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59284,6 +60006,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59353,6 +60076,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59382,6 +60106,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59496,6 +60221,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59525,6 +60251,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59606,6 +60333,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59635,6 +60363,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59664,6 +60393,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59693,6 +60423,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59830,6 +60561,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59859,6 +60591,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59888,6 +60621,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59917,6 +60651,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -59946,6 +60681,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60040,6 +60776,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60175,6 +60912,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60204,6 +60942,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60233,6 +60972,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60262,6 +61002,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60344,6 +61085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60373,6 +61115,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60402,6 +61145,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60495,6 +61239,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60524,6 +61269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60553,6 +61299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60582,6 +61329,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60611,6 +61359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60660,6 +61409,9 @@ export interface operations {
             };
             available_scopes: "user"[];
             config: {
+              busy_input?: {
+                default_mode: string;
+              } | null;
               daemon: {
                 memory_report_interval: string;
                 reload_timeouts: {
@@ -60748,6 +61500,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60783,6 +61536,9 @@ export interface operations {
       content: {
         "application/json": {
           config: {
+            busy_input?: {
+              default_mode: string;
+            } | null;
             daemon: {
               memory_report_interval: string;
               reload_timeouts: {
@@ -60912,6 +61668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60941,6 +61698,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60970,6 +61728,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -60999,6 +61758,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61301,6 +62061,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61675,6 +62436,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61833,6 +62595,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61862,6 +62625,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61891,6 +62655,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -61920,6 +62685,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62239,6 +63005,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62268,6 +63035,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62297,6 +63065,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62326,6 +63095,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62456,6 +63226,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62485,6 +63256,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62514,6 +63286,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62681,6 +63454,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62710,6 +63484,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -62739,6 +63514,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63003,6 +63779,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63032,6 +63809,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63061,6 +63839,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63090,6 +63869,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63119,6 +63899,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63148,6 +63929,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63177,6 +63959,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63346,6 +64129,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63375,6 +64159,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63404,6 +64189,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63433,6 +64219,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63462,6 +64249,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63594,6 +64382,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63623,6 +64412,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63652,6 +64442,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63681,6 +64472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63710,6 +64502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63786,6 +64579,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63815,6 +64609,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63844,6 +64639,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63873,6 +64669,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63902,6 +64699,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -63986,6 +64784,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64015,6 +64814,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64044,6 +64844,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64073,6 +64874,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64102,6 +64904,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64179,6 +64982,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64208,6 +65012,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64237,6 +65042,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64266,6 +65072,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64295,6 +65102,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64372,6 +65180,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64401,6 +65210,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64430,6 +65240,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64459,6 +65270,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64488,6 +65300,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64692,6 +65505,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64939,6 +65753,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64968,6 +65783,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -64997,6 +65813,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65026,6 +65843,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65140,6 +65958,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65295,6 +66114,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65324,6 +66144,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65353,6 +66174,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65382,6 +66204,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65480,6 +66303,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65618,6 +66442,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65647,6 +66472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65676,6 +66502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65705,6 +66532,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65752,6 +66580,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65834,6 +66663,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65863,6 +66693,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -65892,6 +66723,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66030,6 +66862,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66059,6 +66892,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66088,6 +66922,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66117,6 +66952,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66146,6 +66982,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66301,6 +67138,8 @@ export interface operations {
                     } | null;
                   } | null;
                   runtime_provider?: string;
+                  /** @enum {string} */
+                  steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
                   transport?: string;
                 };
                 source: {
@@ -66402,6 +67241,8 @@ export interface operations {
                   } | null;
                 } | null;
                 runtime_provider?: string;
+                /** @enum {string} */
+                steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
                 transport?: string;
               };
               source_metadata: {
@@ -66470,6 +67311,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66625,6 +67467,8 @@ export interface operations {
                     } | null;
                   } | null;
                   runtime_provider?: string;
+                  /** @enum {string} */
+                  steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
                   transport?: string;
                 };
                 source: {
@@ -66726,6 +67570,8 @@ export interface operations {
                   } | null;
                 } | null;
                 runtime_provider?: string;
+                /** @enum {string} */
+                steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
                 transport?: string;
               };
               source_metadata: {
@@ -66792,6 +67638,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66821,6 +67668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -66958,6 +67806,8 @@ export interface operations {
               } | null;
             } | null;
             runtime_provider?: string;
+            /** @enum {string} */
+            steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
             transport?: string;
           };
         };
@@ -67052,6 +67902,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67081,6 +67932,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67110,6 +67962,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67139,6 +67992,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67262,6 +68116,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67291,6 +68146,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67320,6 +68176,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67440,6 +68297,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67469,6 +68327,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67498,6 +68357,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -67731,6 +68591,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68021,6 +68882,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68050,6 +68912,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68079,6 +68942,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68108,6 +68972,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68247,6 +69112,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68384,6 +69250,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68413,6 +69280,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68570,6 +69438,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68599,6 +69468,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68628,6 +69498,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68657,6 +69528,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68780,6 +69652,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68809,6 +69682,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68838,6 +69712,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -68914,6 +69789,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69048,6 +69924,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69077,6 +69954,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69106,6 +69984,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69135,6 +70014,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69309,6 +70189,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69338,6 +70219,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69367,6 +70249,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69396,6 +70279,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69640,6 +70524,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -69680,6 +70565,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69709,6 +70595,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69738,6 +70625,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69767,6 +70655,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69796,6 +70685,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69954,6 +70844,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -69983,6 +70874,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70057,6 +70949,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70086,6 +70979,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70115,6 +71009,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70144,6 +71039,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70218,6 +71114,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70247,6 +71144,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70276,6 +71174,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70430,6 +71329,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70459,6 +71359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70488,6 +71389,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70705,6 +71607,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70734,6 +71637,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70763,6 +71667,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70822,6 +71727,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -70971,6 +71877,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71000,6 +71907,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71029,6 +71937,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71058,6 +71967,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71087,6 +71997,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71157,6 +72068,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71186,6 +72098,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71215,6 +72128,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71244,6 +72158,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71314,6 +72229,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71343,6 +72259,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71372,6 +72289,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71401,6 +72319,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71430,6 +72349,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71489,6 +72409,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71518,6 +72439,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71547,6 +72469,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71576,6 +72499,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71605,6 +72529,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71757,6 +72682,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71786,6 +72712,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71815,6 +72742,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71844,6 +72772,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71873,6 +72802,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71934,6 +72864,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71963,6 +72894,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -71992,6 +72924,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72021,6 +72954,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72050,6 +72984,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72111,6 +73046,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72140,6 +73076,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72169,6 +73106,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72198,6 +73136,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72227,6 +73166,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72288,6 +73228,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72317,6 +73258,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72346,6 +73288,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72375,6 +73318,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72404,6 +73348,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72578,6 +73523,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72607,6 +73553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72636,6 +73583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72665,6 +73613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -72694,6 +73643,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73339,6 +74289,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73468,6 +74419,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73497,6 +74449,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73526,6 +74479,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73619,6 +74573,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73648,6 +74603,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73677,6 +74633,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73729,6 +74686,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73758,6 +74716,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73787,6 +74746,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73816,6 +74776,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73937,6 +74898,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73966,6 +74928,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -73995,6 +74958,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74279,6 +75243,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74308,6 +75273,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74337,6 +75303,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74366,6 +75333,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74395,6 +75363,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74746,6 +75715,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74775,6 +75745,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74804,6 +75775,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -74833,6 +75805,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75037,6 +76010,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75066,6 +76040,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75095,6 +76070,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75124,6 +76100,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75153,6 +76130,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75358,6 +76336,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75387,6 +76366,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75416,6 +76396,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75445,6 +76426,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75474,6 +76456,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75679,6 +76662,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75708,6 +76692,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75737,6 +76722,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75766,6 +76752,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75795,6 +76782,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75953,6 +76941,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -75982,6 +76971,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76011,6 +77001,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76040,6 +77031,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76069,6 +77061,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76274,6 +77267,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76303,6 +77297,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76332,6 +77327,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76361,6 +77357,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76390,6 +77387,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76460,6 +77458,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76489,6 +77488,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76518,6 +77518,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76547,6 +77548,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76576,6 +77578,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76704,6 +77707,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76733,6 +77737,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76762,6 +77767,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -76791,6 +77797,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77008,6 +78015,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77037,6 +78045,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77066,6 +78075,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77095,6 +78105,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77124,6 +78135,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77328,6 +78340,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77357,6 +78370,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77386,6 +78400,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77415,6 +78430,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77444,6 +78460,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77833,6 +78850,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77863,6 +78881,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77892,6 +78911,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77921,6 +78941,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -77950,6 +78971,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78259,6 +79281,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78288,6 +79311,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78317,6 +79341,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78346,6 +79371,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78375,6 +79401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -78404,6 +79431,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79527,6 +80555,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79556,6 +80585,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79585,6 +80615,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79614,6 +80645,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79667,6 +80699,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79696,6 +80729,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79725,6 +80759,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -79754,6 +80789,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80060,6 +81096,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80089,6 +81126,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80118,6 +81156,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80147,6 +81186,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80176,6 +81216,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80610,6 +81651,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80639,6 +81681,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80668,6 +81711,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80697,6 +81741,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80726,6 +81771,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80824,6 +81870,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80853,6 +81900,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80882,6 +81930,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80911,6 +81960,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -80940,6 +81990,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81047,6 +82098,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81076,6 +82128,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81105,6 +82158,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81134,6 +82188,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81163,6 +82218,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81266,6 +82322,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81295,6 +82352,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81324,6 +82382,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81353,6 +82412,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81382,6 +82442,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81612,6 +82673,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81641,6 +82703,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81670,6 +82733,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81699,6 +82763,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -81728,6 +82793,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82037,6 +83103,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82066,6 +83133,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82095,6 +83163,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82124,6 +83193,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82153,6 +83223,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -82182,6 +83253,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -83309,6 +84381,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -83338,6 +84411,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -83367,6 +84441,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -83396,6 +84471,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -83425,6 +84501,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84545,6 +85622,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84574,6 +85652,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84603,6 +85682,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84632,6 +85712,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84829,6 +85910,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84858,6 +85940,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84887,6 +85970,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -84916,6 +86000,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85254,6 +86339,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85283,6 +86369,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85312,6 +86399,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85341,6 +86429,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85370,6 +86459,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85423,6 +86513,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85452,6 +86543,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85481,6 +86573,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85510,6 +86603,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85714,6 +86808,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85743,6 +86838,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85772,6 +86868,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85801,6 +86898,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -85830,6 +86928,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86335,6 +87434,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86364,6 +87464,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86393,6 +87494,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86422,6 +87524,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86540,6 +87643,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86569,6 +87673,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86598,6 +87703,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86627,6 +87733,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86751,6 +87858,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86780,6 +87888,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86809,6 +87918,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86838,6 +87948,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86950,6 +88061,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -86979,6 +88091,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87008,6 +88121,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87063,6 +88177,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87092,6 +88207,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87121,6 +88237,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87351,6 +88468,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87380,6 +88498,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87409,6 +88528,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87438,6 +88558,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87467,6 +88588,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87496,6 +88618,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87525,6 +88648,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87959,6 +89083,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -87988,6 +89113,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88017,6 +89143,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88046,6 +89173,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88075,6 +89203,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88307,6 +89436,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88336,6 +89466,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88365,6 +89496,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88394,6 +89526,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88423,6 +89556,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88645,6 +89779,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88674,6 +89809,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88703,6 +89839,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88732,6 +89869,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88761,6 +89899,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -88990,6 +90129,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89019,6 +90159,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89048,6 +90189,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89077,6 +90219,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89106,6 +90249,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89135,6 +90279,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89164,6 +90309,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89296,6 +90442,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89325,6 +90472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89354,6 +90502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89383,6 +90532,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89597,6 +90747,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89626,6 +90777,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89655,6 +90807,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89684,6 +90837,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89949,6 +91103,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -89978,6 +91133,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90007,6 +91163,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90036,6 +91193,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90065,6 +91223,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90336,6 +91495,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90365,6 +91525,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90394,6 +91555,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90423,6 +91585,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90452,6 +91615,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90886,6 +92050,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90915,6 +92080,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90944,6 +92110,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -90973,6 +92140,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91002,6 +92170,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91254,6 +92423,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91283,6 +92453,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91312,6 +92483,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91341,6 +92513,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91592,6 +92765,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91621,6 +92795,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91650,6 +92825,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -91679,6 +92855,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92064,6 +93241,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92093,6 +93271,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92122,6 +93301,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92151,6 +93331,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92225,6 +93406,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92254,6 +93436,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92283,6 +93466,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92312,6 +93496,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92386,6 +93571,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92415,6 +93601,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92444,6 +93631,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92473,6 +93661,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92547,6 +93736,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92576,6 +93766,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92605,6 +93796,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92634,6 +93826,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92707,6 +93900,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92736,6 +93930,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92765,6 +93960,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92794,6 +93990,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92878,6 +94075,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92907,6 +94105,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92936,6 +94135,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -92965,6 +94165,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -93018,6 +94219,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -93047,6 +94249,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -93076,6 +94279,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -93105,6 +94309,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -93657,6 +94862,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -94616,6 +95822,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -95691,6 +96898,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -96802,6 +98010,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -99231,6 +100440,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -99899,6 +101109,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -100830,6 +102041,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -100888,6 +102100,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -100917,6 +102130,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -100982,6 +102196,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101011,6 +102226,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101040,6 +102256,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101069,6 +102286,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101138,6 +102356,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101167,6 +102386,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101196,6 +102416,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101225,6 +102446,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101275,6 +102497,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101304,6 +102527,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101333,6 +102557,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101362,6 +102587,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101391,6 +102617,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101454,6 +102681,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101483,6 +102711,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101512,6 +102741,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101541,6 +102771,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101570,6 +102801,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101733,6 +102965,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101762,6 +102995,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101791,6 +103025,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101820,6 +103055,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101849,6 +103085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101878,6 +103115,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101907,6 +103145,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -101936,6 +103175,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102101,6 +103341,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102130,6 +103371,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102159,6 +103401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102188,6 +103431,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102217,6 +103461,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102246,6 +103491,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102275,6 +103521,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102304,6 +103551,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102366,6 +103614,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102439,6 +103688,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102468,6 +103718,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102497,6 +103748,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102566,6 +103818,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102595,6 +103848,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102624,6 +103878,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -102792,6 +104047,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -102802,8 +104058,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -102814,7 +104078,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -102831,11 +104097,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -103063,6 +104332,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -103095,6 +104365,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103124,6 +104395,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103174,6 +104446,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103203,6 +104476,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103278,6 +104552,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103307,6 +104582,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103336,6 +104612,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103612,6 +104889,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103641,6 +104919,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103670,6 +104949,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -103699,6 +104979,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104182,6 +105463,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104211,6 +105493,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104240,6 +105523,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104269,6 +105553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104298,6 +105583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104573,6 +105859,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104602,6 +105889,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104631,6 +105919,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104660,6 +105949,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104853,6 +106143,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104882,6 +106173,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -104911,6 +106203,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105101,6 +106394,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105130,6 +106424,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105159,6 +106454,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105257,6 +106553,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105286,6 +106583,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105315,6 +106613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105529,6 +106828,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105558,6 +106858,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -105587,6 +106888,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -106985,6 +108287,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107014,6 +108317,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107043,6 +108347,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107072,6 +108377,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107140,6 +108446,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107169,6 +108476,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107198,6 +108506,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107227,6 +108536,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107256,6 +108566,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107285,6 +108596,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107385,6 +108697,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107414,6 +108727,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107443,6 +108757,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107557,6 +108872,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107586,6 +108902,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107615,6 +108932,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107644,6 +108962,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107673,6 +108992,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107702,6 +109022,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107869,6 +109190,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107898,6 +109220,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107927,6 +109250,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107956,6 +109280,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -107985,6 +109310,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108166,6 +109492,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108195,6 +109522,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108224,6 +109552,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108253,6 +109582,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108458,6 +109788,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108487,6 +109818,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108516,6 +109848,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108545,6 +109878,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108598,6 +109932,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108627,6 +109962,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108749,6 +110085,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108778,6 +110115,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108807,6 +110145,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108836,6 +110175,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108929,6 +110269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108958,6 +110299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -108987,6 +110329,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109016,6 +110359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109069,6 +110413,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109098,6 +110443,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109215,6 +110561,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109244,6 +110591,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109273,6 +110621,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109302,6 +110651,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109331,6 +110681,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109360,6 +110711,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109478,6 +110830,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109507,6 +110860,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109536,6 +110890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109565,6 +110920,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109594,6 +110950,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109623,6 +110980,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109715,6 +111073,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109744,6 +111103,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109773,6 +111133,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109802,6 +111163,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109919,6 +111281,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109948,6 +111311,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -109977,6 +111341,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110006,6 +111371,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110035,6 +111401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110064,6 +111431,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110146,6 +111514,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110175,6 +111544,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110204,6 +111574,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110233,6 +111604,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110262,6 +111634,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110315,6 +111688,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110344,6 +111718,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110462,6 +111837,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110491,6 +111867,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110520,6 +111897,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110549,6 +111927,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110578,6 +111957,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110607,6 +111987,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110673,6 +112054,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110702,6 +112084,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110731,6 +112114,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110760,6 +112144,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110789,6 +112174,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110818,6 +112204,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110894,6 +112281,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110923,6 +112311,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110952,6 +112341,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -110981,6 +112371,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111010,6 +112401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111039,6 +112431,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111068,6 +112461,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111134,6 +112528,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111163,6 +112558,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111192,6 +112588,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111221,6 +112618,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111250,6 +112648,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111279,6 +112678,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111400,6 +112800,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111429,6 +112830,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111458,6 +112860,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111487,6 +112890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111516,6 +112920,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111702,6 +113107,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111731,6 +113137,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111912,6 +113319,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -111941,6 +113349,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -112320,6 +113729,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -112349,6 +113759,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -112378,6 +113789,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -112407,6 +113819,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -112436,6 +113849,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -113878,6 +115292,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -113907,6 +115322,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -113936,6 +115352,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -113998,6 +115415,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114027,6 +115445,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114834,6 +116253,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114863,6 +116283,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114892,6 +116313,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114921,6 +116343,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -114976,6 +116399,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -115005,6 +116429,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -115034,6 +116459,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -115063,6 +116489,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -115092,6 +116519,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116536,6 +117964,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116565,6 +117994,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116594,6 +118024,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116668,6 +118099,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116697,6 +118129,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116764,6 +118197,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116793,6 +118227,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116822,6 +118257,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116851,6 +118287,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116929,6 +118366,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116958,6 +118396,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -116987,6 +118426,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117016,6 +118456,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117229,6 +118670,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117258,6 +118700,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117287,6 +118730,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117316,6 +118760,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117598,6 +119043,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117627,6 +119073,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117656,6 +119103,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117685,6 +119133,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117748,6 +119197,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117777,6 +119227,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117806,6 +119257,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117835,6 +119287,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117864,6 +119317,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117934,6 +119388,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117963,6 +119418,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -117992,6 +119448,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118045,6 +119502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118074,6 +119532,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118139,6 +119598,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118168,6 +119628,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118197,6 +119658,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118226,6 +119688,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118255,6 +119718,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118325,6 +119789,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118354,6 +119819,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118383,6 +119849,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118436,6 +119903,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118465,6 +119933,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118529,6 +119998,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118558,6 +120028,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118587,6 +120058,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118616,6 +120088,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -118645,6 +120118,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120274,6 +121748,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120303,6 +121778,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120332,6 +121808,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120361,6 +121838,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120414,6 +121892,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -120443,6 +121922,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121162,6 +122642,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121224,6 +122705,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121253,6 +122735,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121515,6 +122998,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121544,6 +123028,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121573,6 +123058,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121602,6 +123088,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121631,6 +123118,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121732,6 +123220,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121761,6 +123250,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121790,6 +123280,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121819,6 +123310,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121848,6 +123340,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121877,6 +123370,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -121978,6 +123472,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122007,6 +123502,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122036,6 +123532,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122065,6 +123562,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122094,6 +123592,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122123,6 +123622,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122228,6 +123728,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122257,6 +123758,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122400,6 +123902,7 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                attention?: string;
                 /** Format: date-time */
                 attention_changed_at?: string | null;
                 available_commands: {
@@ -122410,8 +123913,16 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                busy_input?: {
+                  default_mode: string;
+                  /** @enum {string} */
+                  steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                } | null;
                 /** Format: date-time */
                 created_at: string;
+                escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -122422,7 +123933,9 @@ export interface operations {
                   active_prompt: boolean;
                   agent_name: string;
                   attachable: boolean;
+                  attention?: string;
                   eligible_for_wake: boolean;
+                  escalated?: boolean | null;
                   /** @enum {string} */
                   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                   /** @enum {string} */
@@ -122439,11 +123952,14 @@ export interface operations {
                   last_error?: string;
                   /** Format: date-time */
                   last_presence_at?: string | null;
+                  /** @enum {string} */
+                  lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                   session_id: string;
                   /** @enum {string} */
                   state: "idle" | "prompting" | "stopped" | "detached";
                   /** Format: date-time */
                   updated_at: string;
+                  verified?: boolean | null;
                   workspace_id: string;
                 } | null;
                 id: string;
@@ -122671,6 +124187,7 @@ export interface operations {
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id?: string;
                 workspace_path?: string;
                 worktree_id?: string;
@@ -122688,6 +124205,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122717,6 +124235,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122746,6 +124265,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122775,6 +124295,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -122910,6 +124431,7 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                attention?: string;
                 /** Format: date-time */
                 attention_changed_at?: string | null;
                 available_commands: {
@@ -122920,8 +124442,16 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                busy_input?: {
+                  default_mode: string;
+                  /** @enum {string} */
+                  steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                } | null;
                 /** Format: date-time */
                 created_at: string;
+                escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -122932,7 +124462,9 @@ export interface operations {
                   active_prompt: boolean;
                   agent_name: string;
                   attachable: boolean;
+                  attention?: string;
                   eligible_for_wake: boolean;
+                  escalated?: boolean | null;
                   /** @enum {string} */
                   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                   /** @enum {string} */
@@ -122949,11 +124481,14 @@ export interface operations {
                   last_error?: string;
                   /** Format: date-time */
                   last_presence_at?: string | null;
+                  /** @enum {string} */
+                  lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                   session_id: string;
                   /** @enum {string} */
                   state: "idle" | "prompting" | "stopped" | "detached";
                   /** Format: date-time */
                   updated_at: string;
+                  verified?: boolean | null;
                   workspace_id: string;
                 } | null;
                 id: string;
@@ -123181,6 +124716,7 @@ export interface operations {
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id?: string;
                 workspace_path?: string;
                 worktree_id?: string;
@@ -123198,6 +124734,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123227,6 +124764,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123256,6 +124794,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123285,6 +124824,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123427,6 +124967,7 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                attention?: string;
                 /** Format: date-time */
                 attention_changed_at?: string | null;
                 available_commands: {
@@ -123437,8 +124978,16 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                busy_input?: {
+                  default_mode: string;
+                  /** @enum {string} */
+                  steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                } | null;
                 /** Format: date-time */
                 created_at: string;
+                escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -123449,7 +124998,9 @@ export interface operations {
                   active_prompt: boolean;
                   agent_name: string;
                   attachable: boolean;
+                  attention?: string;
                   eligible_for_wake: boolean;
+                  escalated?: boolean | null;
                   /** @enum {string} */
                   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                   /** @enum {string} */
@@ -123466,11 +125017,14 @@ export interface operations {
                   last_error?: string;
                   /** Format: date-time */
                   last_presence_at?: string | null;
+                  /** @enum {string} */
+                  lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                   session_id: string;
                   /** @enum {string} */
                   state: "idle" | "prompting" | "stopped" | "detached";
                   /** Format: date-time */
                   updated_at: string;
+                  verified?: boolean | null;
                   workspace_id: string;
                 } | null;
                 id: string;
@@ -123698,6 +125252,7 @@ export interface operations {
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id?: string;
                 workspace_path?: string;
                 worktree_id?: string;
@@ -123715,6 +125270,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123744,6 +125300,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123773,6 +125330,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123802,6 +125360,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123900,6 +125459,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123929,6 +125489,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -123958,6 +125519,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124044,6 +125606,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124073,6 +125636,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124102,6 +125666,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124131,6 +125696,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124160,6 +125726,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124242,6 +125809,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124271,6 +125839,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124300,6 +125869,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124329,6 +125899,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124440,6 +126011,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124469,6 +126041,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124498,6 +126071,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124527,6 +126101,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124610,6 +126185,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124639,6 +126215,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124668,6 +126245,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124752,6 +126330,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124781,6 +126360,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124810,6 +126390,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124869,6 +126450,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124898,6 +126480,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -124927,6 +126510,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125036,6 +126620,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125065,6 +126650,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125094,6 +126680,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125213,6 +126800,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125242,6 +126830,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125271,6 +126860,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125300,6 +126890,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125411,6 +127002,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125440,6 +127032,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125469,6 +127062,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125498,6 +127092,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125751,6 +127346,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125780,6 +127376,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125809,6 +127406,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125838,6 +127436,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125922,6 +127521,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125951,6 +127551,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -125980,6 +127581,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126009,6 +127611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126090,6 +127693,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126119,6 +127723,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126148,6 +127753,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126267,6 +127873,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126296,6 +127903,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126325,6 +127933,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126437,6 +128046,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126466,6 +128076,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126495,6 +128106,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126524,6 +128136,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126656,6 +128269,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126685,6 +128299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126714,6 +128329,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126743,6 +128359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126826,6 +128443,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126855,6 +128473,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126884,6 +128503,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126913,6 +128533,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -126996,6 +128617,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -127006,8 +128628,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -127018,7 +128648,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -127035,11 +128667,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -127267,6 +128902,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -127282,6 +128918,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127311,6 +128948,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127363,6 +129001,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127392,6 +129031,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127475,6 +129115,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -127485,8 +129126,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -127497,7 +129146,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -127514,11 +129165,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -127746,6 +129400,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -127761,6 +129416,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127790,6 +129446,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127819,6 +129476,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127848,6 +129506,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127917,6 +129576,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127946,6 +129606,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -127975,6 +129636,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128051,6 +129713,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -128061,8 +129724,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -128073,7 +129744,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -128090,11 +129763,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -128322,6 +129998,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -128337,6 +130014,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128366,6 +130044,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128395,6 +130074,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128424,6 +130104,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128516,6 +130197,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -128526,8 +130208,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -128538,7 +130228,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -128555,11 +130247,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -128787,6 +130482,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -128802,6 +130498,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128831,6 +130528,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128860,6 +130558,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128889,6 +130588,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128918,6 +130618,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -128994,6 +130695,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129023,6 +130725,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129052,6 +130755,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129081,6 +130785,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129110,6 +130815,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129139,6 +130845,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129193,6 +130900,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129222,6 +130930,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129251,6 +130960,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129280,6 +130990,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129336,6 +131047,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129365,6 +131077,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129394,6 +131107,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129423,6 +131137,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129489,6 +131204,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129518,6 +131234,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129586,6 +131303,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129615,6 +131333,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129644,6 +131363,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129673,6 +131393,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -129749,6 +131470,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -129759,8 +131481,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -129771,7 +131501,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -129788,11 +131520,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -130020,6 +131755,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -130035,6 +131771,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130064,6 +131801,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130093,6 +131831,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130122,6 +131861,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130196,6 +131936,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130225,6 +131966,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130254,6 +131996,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130346,6 +132089,17 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
               release_reason?: string;
               root_session_id?: string;
               run_id?: string;
@@ -130388,6 +132142,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130417,6 +132172,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130446,6 +132202,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130603,6 +132360,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130632,6 +132390,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130661,6 +132420,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -130690,6 +132450,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131062,6 +132823,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131699,6 +133461,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131728,6 +133491,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131776,7 +133540,9 @@ export interface operations {
               active_prompt: boolean;
               agent_name: string;
               attachable: boolean;
+              attention?: string;
               eligible_for_wake: boolean;
+              escalated?: boolean | null;
               /** @enum {string} */
               health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
               /** @enum {string} */
@@ -131793,11 +133559,14 @@ export interface operations {
               last_error?: string;
               /** Format: date-time */
               last_presence_at?: string | null;
+              /** @enum {string} */
+              lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
               session_id: string;
               /** @enum {string} */
               state: "idle" | "prompting" | "stopped" | "detached";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id: string;
             };
           };
@@ -131811,6 +133580,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131840,6 +133610,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131869,6 +133640,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -131962,6 +133734,17 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 parent_session_id?: string;
+                provider_error?: {
+                  code: string;
+                  /** Format: date-time */
+                  first_seen_at: string;
+                  guidance: string;
+                  /** Format: date-time */
+                  last_seen_at: string;
+                  next_action: string;
+                  occurrence_count: number;
+                  provider: string;
+                } | null;
                 release_reason?: string;
                 root_session_id?: string;
                 run_id?: string;
@@ -132006,6 +133789,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132035,6 +133819,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132064,6 +133849,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132128,7 +133914,9 @@ export interface operations {
               active_prompt: boolean;
               agent_name: string;
               attachable: boolean;
+              attention?: string;
               eligible_for_wake: boolean;
+              escalated?: boolean | null;
               /** @enum {string} */
               health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
               /** @enum {string} */
@@ -132145,11 +133933,14 @@ export interface operations {
               last_error?: string;
               /** Format: date-time */
               last_presence_at?: string | null;
+              /** @enum {string} */
+              lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
               session_id: string;
               /** @enum {string} */
               state: "idle" | "prompting" | "stopped" | "detached";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id: string;
             };
             policy_digest?: string;
@@ -132230,6 +134021,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132259,6 +134051,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132288,6 +134081,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132363,6 +134157,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132392,6 +134187,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132421,6 +134217,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132450,6 +134247,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132479,6 +134277,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132550,6 +134349,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132579,6 +134379,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132608,6 +134409,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132637,6 +134439,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132666,6 +134469,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132695,6 +134499,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -132786,6 +134591,9 @@ export interface operations {
             prompt: {
               canceled_queued_entries?: number;
               delivery: string;
+              /** @enum {string} */
+              disposition?: "direct" | "steering" | "queued" | "interrupting";
+              entry_id?: string;
               /** Format: date-time */
               estimated_send_at?: string | null;
               goal?: {
@@ -132947,9 +134755,12 @@ export interface operations {
               queue_entry_id?: string;
               /** Format: int64 */
               queue_generation?: number;
-              queue_position?: number;
+              queue_position: number;
               replayed: boolean;
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              turn_id?: string;
             };
           };
         };
@@ -132964,6 +134775,9 @@ export interface operations {
             prompt: {
               canceled_queued_entries?: number;
               delivery: string;
+              /** @enum {string} */
+              disposition?: "direct" | "steering" | "queued" | "interrupting";
+              entry_id?: string;
               /** Format: date-time */
               estimated_send_at?: string | null;
               goal?: {
@@ -133125,9 +134939,12 @@ export interface operations {
               queue_entry_id?: string;
               /** Format: int64 */
               queue_generation?: number;
-              queue_position?: number;
+              queue_position: number;
               replayed: boolean;
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              turn_id?: string;
             };
           };
         };
@@ -133140,6 +134957,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -133170,6 +134988,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -133193,6 +135012,9 @@ export interface operations {
                 prompt: {
                   canceled_queued_entries?: number;
                   delivery: string;
+                  /** @enum {string} */
+                  disposition?: "direct" | "steering" | "queued" | "interrupting";
+                  entry_id?: string;
                   /** Format: date-time */
                   estimated_send_at?: string | null;
                   goal?: {
@@ -133354,9 +135176,12 @@ export interface operations {
                   queue_entry_id?: string;
                   /** Format: int64 */
                   queue_generation?: number;
-                  queue_position?: number;
+                  queue_position: number;
                   replayed: boolean;
                   status: string;
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  turn_id?: string;
                 };
               };
         };
@@ -133370,6 +135195,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -133393,6 +135219,9 @@ export interface operations {
                 prompt: {
                   canceled_queued_entries?: number;
                   delivery: string;
+                  /** @enum {string} */
+                  disposition?: "direct" | "steering" | "queued" | "interrupting";
+                  entry_id?: string;
                   /** Format: date-time */
                   estimated_send_at?: string | null;
                   goal?: {
@@ -133554,9 +135383,12 @@ export interface operations {
                   queue_entry_id?: string;
                   /** Format: int64 */
                   queue_generation?: number;
-                  queue_position?: number;
+                  queue_position: number;
                   replayed: boolean;
                   status: string;
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  turn_id?: string;
                 };
               };
         };
@@ -133569,6 +135401,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -133599,6 +135432,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -133622,6 +135456,9 @@ export interface operations {
                 prompt: {
                   canceled_queued_entries?: number;
                   delivery: string;
+                  /** @enum {string} */
+                  disposition?: "direct" | "steering" | "queued" | "interrupting";
+                  entry_id?: string;
                   /** Format: date-time */
                   estimated_send_at?: string | null;
                   goal?: {
@@ -133783,9 +135620,12 @@ export interface operations {
                   queue_entry_id?: string;
                   /** Format: int64 */
                   queue_generation?: number;
-                  queue_position?: number;
+                  queue_position: number;
                   replayed: boolean;
                   status: string;
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                  turn_id?: string;
                 };
               };
         };
@@ -133798,6 +135638,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -133827,6 +135668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -133885,6 +135727,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -133914,6 +135757,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134008,6 +135852,8 @@ export interface operations {
                 token: string;
               }[];
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
               target_turn_id?: string;
               text: string;
             }[];
@@ -134022,6 +135868,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134051,6 +135898,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134156,6 +136004,8 @@ export interface operations {
                 token: string;
               }[];
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
               target_turn_id?: string;
               text: string;
             };
@@ -134170,6 +136020,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134199,6 +136050,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134228,6 +136080,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134277,6 +136130,9 @@ export interface operations {
             prompt: {
               canceled_queued_entries?: number;
               delivery: string;
+              /** @enum {string} */
+              disposition?: "direct" | "steering" | "queued" | "interrupting";
+              entry_id?: string;
               /** Format: date-time */
               estimated_send_at?: string | null;
               goal?: {
@@ -134438,9 +136294,12 @@ export interface operations {
               queue_entry_id?: string;
               /** Format: int64 */
               queue_generation?: number;
-              queue_position?: number;
+              queue_position: number;
               replayed: boolean;
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              turn_id?: string;
             };
           };
         };
@@ -134453,6 +136312,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134482,6 +136342,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134523,7 +136384,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          expected_turn_id: string;
+          expected_turn_id?: string;
           idempotency_key: string;
           message_id: string;
           text: string;
@@ -134541,6 +136402,9 @@ export interface operations {
             prompt: {
               canceled_queued_entries?: number;
               delivery: string;
+              /** @enum {string} */
+              disposition?: "direct" | "steering" | "queued" | "interrupting";
+              entry_id?: string;
               /** Format: date-time */
               estimated_send_at?: string | null;
               goal?: {
@@ -134702,9 +136566,12 @@ export interface operations {
               queue_entry_id?: string;
               /** Format: int64 */
               queue_generation?: number;
-              queue_position?: number;
+              queue_position: number;
               replayed: boolean;
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              turn_id?: string;
             };
           };
         };
@@ -134717,6 +136584,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134746,6 +136614,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134775,6 +136644,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -134804,6 +136674,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135063,6 +136934,7 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                attention?: string;
                 /** Format: date-time */
                 attention_changed_at?: string | null;
                 available_commands: {
@@ -135073,8 +136945,16 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                busy_input?: {
+                  default_mode: string;
+                  /** @enum {string} */
+                  steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                  /** @enum {string} */
+                  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+                } | null;
                 /** Format: date-time */
                 created_at: string;
+                escalated?: boolean | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -135085,7 +136965,9 @@ export interface operations {
                   active_prompt: boolean;
                   agent_name: string;
                   attachable: boolean;
+                  attention?: string;
                   eligible_for_wake: boolean;
+                  escalated?: boolean | null;
                   /** @enum {string} */
                   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                   /** @enum {string} */
@@ -135102,11 +136984,14 @@ export interface operations {
                   last_error?: string;
                   /** Format: date-time */
                   last_presence_at?: string | null;
+                  /** @enum {string} */
+                  lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                   session_id: string;
                   /** @enum {string} */
                   state: "idle" | "prompting" | "stopped" | "detached";
                   /** Format: date-time */
                   updated_at: string;
+                  verified?: boolean | null;
                   workspace_id: string;
                 } | null;
                 id: string;
@@ -135334,6 +137219,7 @@ export interface operations {
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id?: string;
                 workspace_path?: string;
                 worktree_id?: string;
@@ -135361,6 +137247,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135390,6 +137277,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135419,6 +137307,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135498,6 +137387,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135527,6 +137417,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135556,6 +137447,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135663,6 +137555,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -135673,8 +137566,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -135685,7 +137586,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -135702,11 +137605,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -135934,6 +137840,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -135949,6 +137856,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -135978,6 +137886,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136007,6 +137916,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136036,6 +137946,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136065,6 +137976,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136162,6 +138074,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -136172,8 +138085,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -136184,7 +138105,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -136201,11 +138124,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -136433,6 +138359,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -136448,6 +138375,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136477,6 +138405,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136506,6 +138435,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136535,6 +138465,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136614,6 +138545,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -136624,8 +138556,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -136636,7 +138576,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -136653,11 +138595,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -136885,6 +138830,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -136900,6 +138846,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136929,6 +138876,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136958,6 +138906,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -136987,6 +138936,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137104,6 +139054,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137133,6 +139084,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137162,6 +139114,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137255,6 +139208,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137302,8 +139256,10 @@ export interface operations {
             active_prompt: boolean;
             agent_name: string;
             attachable: boolean;
+            attention?: string;
             badge: string;
             eligible_for_wake: boolean;
+            escalated?: boolean | null;
             /** @enum {string} */
             health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
             /** @enum {string} */
@@ -137315,6 +139271,8 @@ export interface operations {
               | "session_health_hung"
               | "session_health_dead"
               | "session_health_unknown";
+            /** @enum {string} */
+            lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
             pending_interactions: {
               choices?: string[];
               /** Format: date-time */
@@ -137337,6 +139295,7 @@ export interface operations {
             state: "idle" | "prompting" | "stopped" | "detached";
             /** Format: date-time */
             updated_at: string;
+            verified?: boolean | null;
             wake_state?: {
               agent_name?: string;
               coalesced_count: number;
@@ -137381,6 +139340,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137410,6 +139370,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137439,6 +139400,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137478,7 +139440,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          expected_turn_id: string;
+          expected_turn_id?: string;
           idempotency_key: string;
           message_id: string;
           text: string;
@@ -137496,6 +139458,9 @@ export interface operations {
             prompt: {
               canceled_queued_entries?: number;
               delivery: string;
+              /** @enum {string} */
+              disposition?: "direct" | "steering" | "queued" | "interrupting";
+              entry_id?: string;
               /** Format: date-time */
               estimated_send_at?: string | null;
               goal?: {
@@ -137657,9 +139622,12 @@ export interface operations {
               queue_entry_id?: string;
               /** Format: int64 */
               queue_generation?: number;
-              queue_position?: number;
+              queue_position: number;
               replayed: boolean;
               status: string;
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              turn_id?: string;
             };
           };
         };
@@ -137672,6 +139640,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137701,6 +139670,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137730,6 +139700,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137759,6 +139730,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137794,14 +139766,91 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          wait?: boolean | null;
+        };
+      };
+    };
     responses: {
+      /** @description Settled stop result or already stopped */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            attention?: string;
+            escalated: boolean;
+            phase?: string;
+            session_id: string;
+            /** @enum {string} */
+            state: "starting" | "active" | "stopping" | "stopped";
+            status: string;
+            stop_cause?: string;
+            stopped_after?: string;
+            verified: boolean;
+          };
+        };
+      };
+      /** @description Stop accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            attention?: string;
+            escalated: boolean;
+            phase?: string;
+            session_id: string;
+            /** @enum {string} */
+            state: "starting" | "active" | "stopping" | "stopped";
+            status: string;
+            stop_cause?: string;
+            stopped_after?: string;
+            verified: boolean;
+          };
+        };
+      };
       /** @description No Content */
       204: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Invalid stop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
       };
       /** @description Session not found */
       404: {
@@ -137811,6 +139860,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137840,6 +139890,37 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Stop manager unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -137940,6 +140021,17 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
               release_reason?: string;
               root_session_id?: string;
               run_id?: string;
@@ -138008,6 +140100,17 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               parent_session_id?: string;
+              provider_error?: {
+                code: string;
+                /** Format: date-time */
+                first_seen_at: string;
+                guidance: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                next_action: string;
+                occurrence_count: number;
+                provider: string;
+              } | null;
               release_reason?: string;
               root_session_id?: string;
               run_id?: string;
@@ -138138,6 +140241,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -138167,6 +140271,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -138196,6 +140301,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -138225,6 +140331,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -138776,6 +140883,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139595,6 +141703,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139694,6 +141803,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139723,6 +141833,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139752,6 +141863,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139781,6 +141893,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -139857,6 +141970,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -139867,8 +141981,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -139879,7 +142001,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -139896,11 +142020,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -140128,6 +142255,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -140143,6 +142271,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140172,6 +142301,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140201,6 +142331,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140273,6 +142404,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140302,6 +142434,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140378,6 +142511,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140407,6 +142541,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140436,6 +142571,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140465,6 +142601,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140494,6 +142631,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140523,6 +142661,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140552,6 +142691,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140639,6 +142779,7 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              attention?: string;
               /** Format: date-time */
               attention_changed_at?: string | null;
               available_commands: {
@@ -140649,8 +142790,16 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              busy_input?: {
+                default_mode: string;
+                /** @enum {string} */
+                steer_capability: "steer_ext" | "concurrent_prompt" | "none";
+                /** @enum {string} */
+                steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              } | null;
               /** Format: date-time */
               created_at: string;
+              escalated?: boolean | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -140661,7 +142810,9 @@ export interface operations {
                 active_prompt: boolean;
                 agent_name: string;
                 attachable: boolean;
+                attention?: string;
                 eligible_for_wake: boolean;
+                escalated?: boolean | null;
                 /** @enum {string} */
                 health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
                 /** @enum {string} */
@@ -140678,11 +142829,14 @@ export interface operations {
                 last_error?: string;
                 /** Format: date-time */
                 last_presence_at?: string | null;
+                /** @enum {string} */
+                lifecycle_state?: "starting" | "active" | "stopping" | "stopped";
                 session_id: string;
                 /** @enum {string} */
                 state: "idle" | "prompting" | "stopped" | "detached";
                 /** Format: date-time */
                 updated_at: string;
+                verified?: boolean | null;
                 workspace_id: string;
               } | null;
               id: string;
@@ -140910,6 +143064,7 @@ export interface operations {
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
+              verified?: boolean | null;
               workspace_id?: string;
               workspace_path?: string;
               worktree_id?: string;
@@ -140925,6 +143080,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140954,6 +143110,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -140983,6 +143140,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -141012,6 +143170,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -141041,6 +143200,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -145928,6 +148088,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148194,6 +150355,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -148255,6 +150417,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148285,6 +150448,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -148447,6 +150611,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148476,6 +150641,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148506,6 +150672,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -148567,6 +150734,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148596,6 +150764,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148625,6 +150794,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148654,6 +150824,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148683,6 +150854,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148713,6 +150885,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -148808,6 +150981,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148837,6 +151011,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148867,6 +151042,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -148928,6 +151104,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148957,6 +151134,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -148986,6 +151164,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -149015,6 +151194,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -149045,6 +151225,7 @@ export interface operations {
           "application/json":
             | {
                 code?: string;
+                current_turn_id?: string;
                 details?: {
                   [key: string]: string;
                 };
@@ -150553,6 +152734,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150582,6 +152764,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150611,6 +152794,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150640,6 +152824,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150738,6 +152923,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150767,6 +152953,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150796,6 +152983,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150825,6 +153013,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150854,6 +153043,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150883,6 +153073,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -150912,6 +153103,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151006,6 +153198,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151035,6 +153228,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151064,6 +153258,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151093,6 +153288,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151122,6 +153318,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151151,6 +153348,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151180,6 +153378,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151298,6 +153497,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151327,6 +153527,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151356,6 +153557,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151411,6 +153613,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151440,6 +153643,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151488,6 +153692,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151517,6 +153722,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151569,6 +153775,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151598,6 +153805,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151627,6 +153835,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151656,6 +153865,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151685,6 +153895,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151714,6 +153925,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151743,6 +153955,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151795,6 +154008,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151824,6 +154038,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151853,6 +154068,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151882,6 +154098,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151911,6 +154128,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151940,6 +154158,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -151969,6 +154188,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152079,6 +154299,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152108,6 +154329,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152137,6 +154359,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152166,6 +154389,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152234,6 +154458,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152263,6 +154488,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152292,6 +154518,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152321,6 +154548,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152350,6 +154578,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152379,6 +154608,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152438,6 +154668,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152467,6 +154698,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152496,6 +154728,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152525,6 +154758,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152554,6 +154788,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152583,6 +154818,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152668,6 +154904,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152697,6 +154934,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152726,6 +154964,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152755,6 +154994,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152784,6 +155024,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152813,6 +155054,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152875,6 +155117,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152904,6 +155147,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152933,6 +155177,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -152962,6 +155207,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -153016,6 +155262,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };
@@ -153045,6 +155292,7 @@ export interface operations {
         content: {
           "application/json": {
             code?: string;
+            current_turn_id?: string;
             details?: {
               [key: string]: string;
             };

@@ -13,6 +13,58 @@ import (
 )
 
 func TestDeliverPromptEventStream(t *testing.T) {
+	t.Run("Should stream provider diagnostics before the terminal error and finish", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time { return at })
+		if err := encoder.Start(writer, "turn-provider"); err != nil {
+			t.Fatalf("start stream: %v", err)
+		}
+		stream := make(chan acp.AgentEvent, 1)
+		stream <- acp.AgentEvent{
+			Type: acp.EventTypeError, TurnID: "turn-provider", Error: "authentication required",
+			ProviderError: &acp.ProviderErrorDiagnostic{
+				Code: acp.ProviderErrorAuthRequired, Provider: "provider-a", NextAction: acp.ProviderFailureActionBindSecret,
+				Guidance: "update credential token=provider-stream-secret", OccurrenceCount: 2, FirstSeenAt: at, LastSeenAt: at,
+			},
+		}
+		close(stream)
+		core.DeliverPromptEventStream(t.Context(), make(chan struct{}), stream, func() {}, encoder, writer)
+		body := writer.String()
+		want := []string{"start", "data-compozy-event", "error", "finish"}
+		if got := promptFrameSignatures(t, body); !reflect.DeepEqual(got, want) {
+			t.Fatalf("frame order = %#v, want %#v", got, want)
+		}
+		if strings.Contains(body, "provider-stream-secret") {
+			t.Fatal("live provider diagnostic leaked a credential")
+		}
+		var diagnostic *acp.ProviderErrorDiagnostic
+		for record := range strings.SplitSeq(body, "\n\n") {
+			data := promptSSEData(record)
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+			var frame struct {
+				Type string `json:"type"`
+				Data struct {
+					ProviderError *acp.ProviderErrorDiagnostic `json:"provider_error"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(data), &frame); err != nil {
+				t.Fatalf("decode frame: %v", err)
+			}
+			if frame.Type == "data-compozy-event" {
+				diagnostic = frame.Data.ProviderError
+			}
+		}
+		if diagnostic == nil || diagnostic.Code != acp.ProviderErrorAuthRequired ||
+			diagnostic.NextAction != acp.ProviderFailureActionBindSecret ||
+			diagnostic.OccurrenceCount != 2 {
+			t.Fatalf("live provider diagnostic = %#v", diagnostic)
+		}
+	})
+
 	t.Run("Should emit an explicit terminal failure when the upstream stream closes without a terminal event", func(
 		t *testing.T,
 	) {

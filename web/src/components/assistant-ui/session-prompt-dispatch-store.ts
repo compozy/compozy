@@ -4,7 +4,6 @@ import { createStoreLogic } from "@xstate/store";
 interface SessionPromptDispatchContext {
   canceled: boolean;
   controller: AbortController | null;
-  generation: number;
   hasLocalRuntimeTail: boolean;
   pending: boolean;
   streamResetGeneration: number;
@@ -24,7 +23,6 @@ export const sessionPromptDispatchLogic = createStoreLogic<
   context: {
     canceled: false,
     controller: null,
-    generation: 0,
     hasLocalRuntimeTail: false,
     pending: false,
     streamResetGeneration: 0,
@@ -43,7 +41,6 @@ export const sessionPromptDispatchLogic = createStoreLogic<
         ...context,
         canceled: true,
         controller: null,
-        generation: context.generation + 1,
         pending: false,
       };
     },
@@ -65,10 +62,6 @@ export const sessionPromptDispatchLogic = createStoreLogic<
         ...context,
         canceled: false,
         controller: event.controller,
-        generation:
-          context.controller === null || context.controller === event.controller
-            ? context.generation
-            : context.generation + 1,
         hasLocalRuntimeTail: true,
         pending: true,
       };

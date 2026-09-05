@@ -35,6 +35,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
+		BusyInput: info.BusyInput,
 		ID:        info.ID,
 		ProfileID: strings.TrimSpace(info.ProfileID),
 		Name:      info.Name,
@@ -64,6 +65,9 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		PendingInteractions:          PendingInteractionPayloadsFromStore(info.PendingInteractions),
 		ArchivedAt:                   cloneTimePtr(info.ArchivedAt),
 		StopReason:                   info.StopReason,
+		Verified:                     new(info.State == session.StateStopped),
+		Escalated:                    new(info.StopEscalated),
+		Attention:                    sessionStopAttention(info),
 		StopDetail:                   info.StopDetail,
 		Failure:                      SessionFailurePayloadFromStore(info.Failure),
 		AvailableCommands:            availableCommandPayloads(info.AdvertisedCommands),
@@ -115,6 +119,8 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		State:                    state,
 		StopReason:               info.StopReason,
 		StopDetail:               strings.TrimSpace(info.StopDetail),
+		StopEscalated:            info.StopEscalated,
+		StopVerificationFailed:   info.StopVerificationFailed,
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		ACPSessionID:             stringPointerValue(info.ACPSessionID),
 		Lineage:                  store.NormalizeSessionLineage(info.ID, info.Lineage),
@@ -123,8 +129,8 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:               strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
+		AttachedTo:               strings.TrimSpace(info.AttachedToValue()),
+		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAtValue()),
 		TranscriptEpoch:          info.TranscriptEpoch,
 		PendingPermissionCount:   attention.PendingPermissionCount,
 		PendingClarifyCount:      attention.PendingClarifyCount,

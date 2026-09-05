@@ -332,15 +332,21 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 		promptTurnID = req.TurnID
 		return source, nil
 	}
+	// The deadline issues the cancel under test; the cleanup stop ladder later
+	// sends a second cooperative cancel to the already-quiesced turn, which must
+	// not replay the provider error into the closed source.
+	var deadlineCancel sync.Once
 	h.driver.cancelHook = func(proc *fakeProcess) error {
-		source <- acp.AgentEvent{
-			Type:      acp.EventTypeError,
-			SessionID: proc.handle.SessionID,
-			TurnID:    promptTurnID,
-			Timestamp: time.Now().UTC(),
-			Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
-		}
-		close(source)
+		deadlineCancel.Do(func() {
+			source <- acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				SessionID: proc.handle.SessionID,
+				TurnID:    promptTurnID,
+				Timestamp: time.Now().UTC(),
+				Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
+			}
+			close(source)
+		})
 		return nil
 	}
 
@@ -361,8 +367,13 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
 		t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
 	}
-	if got := h.driver.cancelCalls; got != 1 {
-		t.Fatalf("driver cancel calls = %d, want 1", got)
+	// The deadline cancels the turn in turn scope; the provider answers that cancel
+	// with a fatal transport error, so the session-scope ladder stops the process
+	// exactly once. Its cooperative phase may re-issue the cancel before the
+	// forced stop verifies exit, which the once-guarded hook above absorbs.
+	h.notifier.waitForStopped(t, session.ID)
+	if got := h.driver.cancelCalls; got < 1 {
+		t.Fatalf("driver cancel calls = %d, want at least 1", got)
 	}
 	if got := h.driver.stopCalls; got != 1 {
 		t.Fatalf("driver stop calls = %d, want 1", got)
@@ -691,57 +702,124 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 
 func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 	t.Parallel()
+	for _, code := range []string{acp.ProviderErrorAuthRequired, acp.ProviderErrorRateLimited} {
+		t.Run("Should persist "+code+" and accept the next turn without stopping", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+			var prompts atomic.Int32
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				stream := make(chan acp.AgentEvent, 1)
+				event := acp.AgentEvent{
+					Type:      acp.EventTypeDone,
+					SessionID: session.Info().ACPSessionID,
+					TurnID:    req.TurnID,
+					Timestamp: at,
+				}
+				if prompts.Add(1) == 1 {
+					event.Type = acp.EventTypeError
+					event.Error = "provider requires recovery"
+					event.Failure = &store.SessionFailure{Kind: store.FailurePrompt, Summary: event.Error}
+					event.ProviderError = &acp.ProviderErrorDiagnostic{
+						Code: code, Provider: "provider-a", NextAction: acp.ProviderFailureActionRetry,
+						Guidance: "retry after provider recovery", OccurrenceCount: 1, FirstSeenAt: at, LastSeenAt: at,
+					}
+					if code == acp.ProviderErrorAuthRequired {
+						event.ProviderError.NextAction = acp.ProviderFailureActionLogin
+					}
+				}
+				stream <- event
+				close(stream)
+				return stream, nil
+			}
+			for _, expected := range []string{acp.EventTypeError, acp.EventTypeDone} {
+				stream, err := h.manager.Prompt(t.Context(), session.ID, "continue")
+				if err != nil {
+					t.Fatalf("prompt before %s: %v", expected, err)
+				}
+				events := collectEvents(t, stream)
+				if len(events) != 1 || events[0].Type != expected {
+					t.Fatalf("prompt events = %#v, want %s", events, expected)
+				}
+			}
+			if current, ok := h.manager.Get(
+				session.ID,
+			); !ok || current != session ||
+				current.Info().State != StateActive {
+				t.Fatal("provider recovery did not preserve the active session")
+			}
+			if h.driver.stopCalls != 0 {
+				t.Fatalf("driver stop calls = %d, want none", h.driver.stopCalls)
+			}
+			stored, err := h.manager.Events(
+				t.Context(),
+				session.ID,
+				store.EventQuery{Type: acp.EventTypeError, Limit: 10},
+			)
+			if err != nil || len(stored) != 1 {
+				t.Fatalf("stored provider errors = %d, error = %v", len(stored), err)
+			}
+			replayed, err := transcript.UnmarshalAgentEvent(stored[0].Content)
+			if err != nil || replayed.ProviderError == nil || replayed.ProviderError.Code != code {
+				t.Fatalf("replayed provider error = %#v, error = %v", replayed.ProviderError, err)
+			}
+		})
+	}
+	t.Run("Should keep generic prompt failures active", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if _, ok := h.manager.Get(session.ID); ok {
+				reportSessionStop(t, h, session.ID)
+			}
+		})
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		if _, ok := h.manager.Get(session.ID); ok {
-			reportSessionStop(t, h, session.ID)
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeError,
+					SessionID: session.Info().ACPSessionID,
+					TurnID:    req.TurnID,
+					Timestamp: time.Now().UTC(),
+					Error:     `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
+					Failure: &store.SessionFailure{
+						Kind:    store.FailurePrompt,
+						Summary: `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
+					},
+				}
+			}()
+			return events, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		}
+
+		if _, ok := h.manager.Get(session.ID); !ok {
+			t.Fatal("session removed after generic prompt failure, want still active")
+		}
+		if got := h.driver.stopCalls; got != 0 {
+			t.Fatalf("driver stop calls = %d, want 0", got)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(active) error = %v", err)
+		}
+		if resumed != session {
+			t.Fatalf("Resume(active) returned %p, want %p", resumed, session)
 		}
 	})
-
-	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		events := make(chan acp.AgentEvent, 1)
-		go func() {
-			defer close(events)
-			events <- acp.AgentEvent{
-				Type:      acp.EventTypeError,
-				SessionID: session.Info().ACPSessionID,
-				TurnID:    req.TurnID,
-				Timestamp: time.Now().UTC(),
-				Error:     `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
-				Failure: &store.SessionFailure{
-					Kind:    store.FailurePrompt,
-					Summary: `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
-				},
-			}
-		}()
-		return events, nil
-	}
-
-	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	events := collectEvents(t, eventsCh)
-	if got, want := len(events), 1; got != want {
-		t.Fatalf("Prompt() events = %d, want %d", got, want)
-	}
-
-	if _, ok := h.manager.Get(session.ID); !ok {
-		t.Fatal("session removed after generic prompt failure, want still active")
-	}
-	if got := h.driver.stopCalls; got != 0 {
-		t.Fatalf("driver stop calls = %d, want 0", got)
-	}
-
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume(active) error = %v", err)
-	}
-	if resumed != session {
-		t.Fatalf("Resume(active) returned %p, want %p", resumed, session)
-	}
 }
 
 func TestCancelPrompt(t *testing.T) {
@@ -810,15 +888,6 @@ func TestCancelPrompt(t *testing.T) {
 		if repeated != cancelResult {
 			t.Fatalf("CancelPrompt(repeated) = %#v, want idempotent %#v", repeated, cancelResult)
 		}
-		if got := h.driver.cancelCalls; got != 1 {
-			t.Fatalf("driver cancel calls = %d, want 1", got)
-		}
-		if got := len(h.driver.interruptScopes); got != 1 {
-			t.Fatalf("driver interrupt calls = %d, want 1", got)
-		}
-		if got := h.driver.interruptScopes[0]; got.SessionID != session.ID || got.TurnID == "" {
-			t.Fatalf("driver interrupt scope = %#v, want session and turn", got)
-		}
 
 		close(firstPromptEvents)
 		var canceledEvents []acp.AgentEvent
@@ -852,6 +921,16 @@ func TestCancelPrompt(t *testing.T) {
 		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
 			t.Fatalf("WaitForPromptDrains() error = %v", err)
 		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+		if got := len(h.driver.interruptScopes); got != 1 {
+			t.Fatalf("driver interrupt calls = %d, want 1", got)
+		}
+		if got := h.driver.interruptScopes[0]; got.SessionID != session.ID || got.TurnID == "" {
+			t.Fatalf("driver interrupt scope = %#v, want session and turn", got)
+		}
+
 		if session.IsPrompting() {
 			t.Fatal("session IsPrompting() = true after canceled prompt drain")
 		}
@@ -943,6 +1022,9 @@ func TestCancelPrompt(t *testing.T) {
 		case <-testutil.Context(t).Done():
 			t.Fatal("prompt setup did not stop after CancelPrompt()")
 		}
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), session.ID, result.TurnID); err != nil {
+			t.Fatal(err)
+		}
 		if session.IsPrompting() {
 			t.Fatal("session IsPrompting() = true after canceled setup")
 		}
@@ -991,78 +1073,49 @@ func TestCancelPrompt(t *testing.T) {
 		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
-		if got := h.driver.cancelCalls; got != 1 {
-			t.Fatalf("driver cancel calls = %d, want 1", got)
+		if got := h.driver.cancelCalls; got != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", got)
 		}
 	})
 
-	t.Run("Should allow retry when the live provider cancel fails", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		session := createSession(t, h)
-		t.Cleanup(func() {
-			session.clearCurrentTurnSource()
-			reportSessionStop(t, h, session.ID)
-		})
-
-		session.setCurrentTurnSource(TurnSourceUser)
-		var attempts atomic.Int32
-		h.driver.cancelHook = func(_ *fakeProcess) error {
-			if attempts.Add(1) == 1 {
-				return errors.New("test: transient provider cancel failure")
+	for _, scopedFailure := range []bool{false, true} {
+		name := "Should escalate a failed provider cancellation automatically"
+		if scopedFailure {
+			name = "Should escalate a failed scoped tool interruption automatically"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			source := make(chan acp.AgentEvent)
+			closeSource := sync.OnceFunc(func() { close(source) })
+			t.Cleanup(closeSource)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			if scopedFailure {
+				h.driver.interruptErr = errors.New("test: scoped interrupt failure")
+			} else {
+				h.driver.cancelHook = func(*fakeProcess) error { return errors.New("test: provider cancel failure") }
 			}
-			return nil
-		}
-
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err == nil {
-			t.Fatal("CancelPrompt(first) error = nil, want provider failure")
-		}
-		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
-		if err != nil {
-			t.Fatalf("CancelPrompt(retry) error = %v", err)
-		}
-		if result.Outcome != PromptCancelOutcomeCanceled {
-			t.Fatalf("CancelPrompt(retry) = %#v, want canceled", result)
-		}
-		if got := h.driver.cancelCalls; got != 2 {
-			t.Fatalf("driver cancel calls = %d, want 2", got)
-		}
-	})
-
-	t.Run("Should allow retry when scoped tool interruption fails", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		session := createSession(t, h)
-		t.Cleanup(func() {
-			session.clearCurrentTurnSource()
-			reportSessionStop(t, h, session.ID)
+			h.driver.stopHook = func(proc *fakeProcess) error { closeSource(); proc.exit(); return nil }
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			events, err := h.manager.Prompt(t.Context(), session.ID, "cancel failing provider")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := h.manager.CancelPrompt(t.Context(), session.ID)
+			if err != nil || result.Outcome != PromptCancelOutcomeCanceled {
+				t.Fatalf("cancel admission = %#v, %v", result, err)
+			}
+			outcome, err := h.manager.AwaitTurnQuiesced(t.Context(), session.ID, result.TurnID)
+			if err != nil || !outcome.Quiesced || !outcome.Escalated || outcome.Phase != StopPhaseForced {
+				t.Fatalf("escalated outcome = %#v, %v", outcome, err)
+			}
+			collectEvents(t, events)
+			if session.Info().State != StateActive || session.IsPrompting() {
+				t.Fatal("session did not remain promptable after escalated cancellation")
+			}
 		})
-
-		session.setCurrentTurnID("turn-scoped-retry")
-		session.setCurrentTurnSource(TurnSourceUser)
-		h.driver.interruptErr = errors.New("test: transient scoped interrupt failure")
-
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err == nil {
-			t.Fatal("CancelPrompt(first) error = nil, want scoped interrupt failure")
-		}
-		h.driver.interruptErr = nil
-
-		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
-		if err != nil {
-			t.Fatalf("CancelPrompt(retry) error = %v", err)
-		}
-		if result.Outcome != PromptCancelOutcomeCanceled || result.TurnID != "turn-scoped-retry" {
-			t.Fatalf("CancelPrompt(retry) = %#v, want canceled scoped turn", result)
-		}
-		if got := h.driver.cancelCalls; got != 2 {
-			t.Fatalf("driver cancel calls = %d, want 2", got)
-		}
-		if got := len(h.driver.interruptScopes); got != 2 {
-			t.Fatalf("driver interrupt calls = %d, want 2", got)
-		}
-	})
+	}
 
 	t.Run("Should no-op for an active session without a prompt", func(t *testing.T) {
 		t.Parallel()
@@ -1094,6 +1147,7 @@ func TestCancelPrompt(t *testing.T) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 
+		previousCancels := h.driver.cancelCalls
 		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
@@ -1101,8 +1155,8 @@ func TestCancelPrompt(t *testing.T) {
 		if result.Outcome != PromptCancelOutcomeNothingInFlight {
 			t.Fatalf("CancelPrompt() = %#v, want nothing-in-flight", result)
 		}
-		if got := h.driver.cancelCalls; got != 0 {
-			t.Fatalf("driver cancel calls = %d, want 0", got)
+		if got := h.driver.cancelCalls; got != previousCancels {
+			t.Fatalf("driver cancel calls = %d, want unchanged %d", got, previousCancels)
 		}
 	})
 
@@ -2663,5 +2717,341 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 
 	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeDenyAll {
 		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeDenyAll)
+	}
+}
+
+func TestCancelTurn(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve natural completion received during cooperative cancellation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		previous := session.processHandle()
+		source := make(chan acp.AgentEvent, 1)
+		closeSource := sync.OnceFunc(func() { close(source) })
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		h.driver.cancelHook = func(*fakeProcess) error {
+			source <- acp.AgentEvent{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn}
+			closeSource()
+			return nil
+		}
+		t.Cleanup(func() {
+			h.driver.mu.Lock()
+			h.driver.cancelHook = nil
+			h.driver.mu.Unlock()
+			closeSource()
+			reportSessionStop(t, h, session.ID)
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		stream, err := h.manager.Prompt(ctx, session.ID, "finish naturally")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turnID := session.CurrentTurnID()
+		if err := h.manager.CancelTurn(ctx, session.ID, turnID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
+		if err != nil || !outcome.Quiesced || outcome.Escalated {
+			t.Fatalf("natural completion outcome = %#v, %v", outcome, err)
+		}
+		delivered := collectEvents(t, stream)
+		if countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+			t.Fatalf("terminal events = %#v", delivered)
+		}
+		for _, event := range delivered {
+			if event.Type == acp.EventTypeDone && event.PromptStopReason != acp.PromptStopReasonEndTurn {
+				t.Fatalf("natural completion reason = %q", event.PromptStopReason)
+			}
+		}
+		if session.Info().State != StateActive || session.processHandle() != previous || isProcessDone(previous) {
+			t.Fatal("natural completion did not preserve the active process")
+		}
+	})
+	t.Run("Should retain stopping and reject work when turn process death cannot be verified", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		previous := session.processHandle()
+		source := make(chan acp.AgentEvent)
+		closeSource := sync.OnceFunc(func() { close(source) })
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		h.driver.cancelHook = func(*fakeProcess) error { return errors.New("cancel rejected") }
+		h.driver.stopHook = func(*fakeProcess) error { return errors.New("stop rejected") }
+		h.driver.killHook = func(*fakeProcess) error { return errors.New("kill rejected") }
+		t.Cleanup(func() {
+			h.driver.mu.Lock()
+			h.driver.cancelHook, h.driver.stopHook, h.driver.killHook = nil, nil, nil
+			h.driver.mu.Unlock()
+			closeSource()
+			reportSessionStop(t, h, session.ID)
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		events, err := h.manager.Prompt(ctx, session.ID, "unresponsive provider")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turnID := session.CurrentTurnID()
+		if err := h.manager.CancelTurn(ctx, session.ID, turnID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
+		if !errors.Is(err, ErrStopVerificationFailed) || outcome.Quiesced || outcome.Phase != StopPhaseKilled {
+			t.Fatalf("unverified outcome = %#v, %v", outcome, err)
+		}
+		if session.Info().State != StateStopping || session.processHandle() != previous || isProcessDone(previous) {
+			t.Fatal("unverified cancellation changed the process or reported terminal")
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.State != string(StateStopping) {
+			t.Fatalf("persisted state = %q", meta.State)
+		}
+		if got := h.notifier.stoppedCount(); got != 0 {
+			t.Fatalf("stopped notifications = %d", got)
+		}
+		if _, err := h.manager.Prompt(ctx, session.ID, "must not dispatch"); !errors.Is(err, ErrSessionNotActive) {
+			t.Fatalf("new work admission = %v", err)
+		}
+		closeSource()
+		collectEvents(t, events)
+	})
+	t.Run("Should let a concurrent session stop prevent turn rebind", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		source := make(chan acp.AgentEvent)
+		closeSource := sync.OnceFunc(func() { close(source) })
+		entered, release := make(chan struct{}, 2), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		t.Cleanup(closeSource)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		h.driver.cancelHook = func(proc *fakeProcess) error {
+			entered <- struct{}{}
+			<-release
+			closeSource()
+			proc.exit()
+			return nil
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		events, err := h.manager.Prompt(ctx, session.ID, "concurrent cancellation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turnID := session.CurrentTurnID()
+		if err := h.manager.CancelTurn(ctx, session.ID, turnID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if err := h.manager.RequestStop(ctx, session.ID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		unblock()
+		turnOutcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
+		if err != nil || !turnOutcome.Quiesced {
+			t.Fatalf("turn outcome = %#v, %v", turnOutcome, err)
+		}
+		stopOutcome, err := h.manager.AwaitStopped(ctx, session.ID)
+		if err != nil || !stopOutcome.Verified || stopOutcome.FinalState != StateStopped {
+			t.Fatalf("session outcome = %#v, %v", stopOutcome, err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		starts, cancels := len(h.driver.startCalls), h.driver.cancelCalls
+		h.driver.mu.Unlock()
+		if starts != 1 || cancels != 2 {
+			t.Fatalf("starts=%d cancels=%d; want one process and one cancellation per scope", starts, cancels)
+		}
+	})
+	t.Run("Should join concurrent cancellation requests and reject an incorrect turn fence", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		for range 2 {
+			if err := h.manager.CancelTurn(
+				t.Context(),
+				session.ID,
+				"",
+				CauseUserRequested,
+			); !errors.Is(
+				err,
+				ErrPromptNotInProgress,
+			) {
+				t.Fatalf("idle cancellation = %v", err)
+			}
+		}
+		h.driver.mu.Lock()
+		idleSignals := h.driver.cancelCalls + h.driver.stopCalls + h.driver.killCalls
+		h.driver.mu.Unlock()
+		if idleSignals != 0 || session.Info().State != StateActive || session.IsPrompting() {
+			t.Fatal("repeated idle cancellation changed the active session or signaled its process")
+		}
+		source := make(chan acp.AgentEvent)
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		h.driver.cancelHook = func(*fakeProcess) error { close(entered); <-release; close(source); return nil }
+		events, err := h.manager.Prompt(t.Context(), session.ID, "wait for cancellation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turnID := session.CurrentTurnID()
+		if err := h.manager.CancelTurn(
+			t.Context(),
+			session.ID,
+			"wrong-turn",
+			CauseUserRequested,
+		); !errors.Is(
+			err,
+			ErrActiveTurnMismatch,
+		) {
+			t.Fatalf("fenced cancellation = %v", err)
+		}
+		if err := h.manager.CancelTurn(t.Context(), session.ID, turnID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		var requests sync.WaitGroup
+		for range 16 {
+			requests.Go(func() {
+				if err := h.manager.CancelTurn(t.Context(), session.ID, turnID, CauseUserRequested); err != nil {
+					t.Errorf("joined cancellation: %v", err)
+				}
+			})
+		}
+		requests.Wait()
+		unblock()
+		outcome, err := h.manager.AwaitTurnQuiesced(t.Context(), session.ID, turnID)
+		if err != nil || !outcome.Quiesced || outcome.Escalated {
+			t.Fatalf("joined outcome = %#v, %v", outcome, err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		calls := h.driver.cancelCalls
+		h.driver.cancelHook = nil
+		h.driver.mu.Unlock()
+		if calls != 1 {
+			t.Fatalf("cooperative cancel calls = %d", calls)
+		}
+		reportSessionStop(t, h, session.ID)
+	})
+	for _, phase := range []StopPhase{StopPhaseCooperative, StopPhaseForced, StopPhaseKilled} {
+		t.Run("Should remain promptable after "+string(phase)+" cancellation", func(t *testing.T) {
+			t.Parallel()
+			grace := 20 * time.Millisecond
+			if phase == StopPhaseCooperative {
+				grace = 2 * time.Second
+			}
+			h := newHarness(t, WithSessionStopConfig(compozyconfig.SessionStopConfig{
+				CooperativeGrace: grace,
+			}))
+			session := createSession(t, h)
+			previous := session.processHandle()
+			source := make(chan acp.AgentEvent)
+			closeSource := sync.OnceFunc(func() { close(source) })
+			t.Cleanup(closeSource)
+			var prompts atomic.Int32
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				if prompts.Add(1) == 1 {
+					return source, nil
+				}
+				events := make(chan acp.AgentEvent, 1)
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, SessionID: proc.handle.SessionID}
+				close(events)
+				return events, nil
+			}
+			h.driver.cancelHook = func(*fakeProcess) error {
+				if phase == StopPhaseCooperative {
+					closeSource()
+				}
+				return nil
+			}
+			h.driver.stopHook = func(proc *fakeProcess) error {
+				if phase == StopPhaseKilled && proc.handle == previous {
+					return errors.New("provider ignored forced stop")
+				}
+				closeSource()
+				proc.exit()
+				return nil
+			}
+			h.driver.killHook = func(proc *fakeProcess) error { closeSource(); proc.exit(); return nil }
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			candidateEntered, releaseCandidate := make(chan struct{}), make(chan struct{})
+			unblockCandidate := sync.OnceFunc(func() { close(releaseCandidate) })
+			t.Cleanup(unblockCandidate)
+			if phase != StopPhaseCooperative {
+				h.driver.startContextHook = func(startCtx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+					close(candidateEntered)
+					select {
+					case <-releaseCandidate:
+						return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "replacement-runtime"), nil
+					case <-startCtx.Done():
+						return nil, startCtx.Err()
+					}
+				}
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			events, err := h.manager.Prompt(ctx, session.ID, "first turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			turnID := session.CurrentTurnID()
+			if err := h.manager.CancelTurn(ctx, session.ID, turnID, CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			if phase != StopPhaseCooperative {
+				select {
+				case <-candidateEntered:
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				}
+				if session.CurrentTurnID() != "" {
+					t.Fatal("old turn has not drained before rebind")
+				}
+				if _, err := h.manager.Prompt(ctx, session.ID, "premature turn"); !errors.Is(err, ErrPromptInProgress) {
+					t.Errorf("prompt admission during rebind = %v", err)
+				}
+				if err := session.reserveConversationRewind(); !errors.Is(err, ErrConversationRewindBusy) {
+					session.releaseConversationRewind()
+					t.Errorf("rewind admission during rebind = %v", err)
+				}
+				if err := session.reserveWorktreeFork(); !errors.Is(err, ErrPromptInProgress) {
+					session.releaseWorktreeFork()
+					t.Errorf("fork admission during rebind = %v", err)
+				}
+				unblockCandidate()
+			}
+			outcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
+			if err != nil || !outcome.Quiesced || outcome.Phase != phase {
+				t.Fatalf("turn outcome = %#v, %v", outcome, err)
+			}
+			collectEvents(t, events)
+			if session.Info().State != StateActive || session.IsPrompting() {
+				t.Fatalf("session after cancel = %#v", session.Info())
+			}
+			if (session.processHandle() == previous) != (phase == StopPhaseCooperative) {
+				t.Fatal("unexpected process binding after cancellation")
+			}
+			next, err := h.manager.Prompt(ctx, session.ID, "next turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := countAgentEvents(collectEvents(t, next), acp.EventTypeDone); got != 1 {
+				t.Fatalf("next turn completed events = %d", got)
+			}
+		})
 	}
 }

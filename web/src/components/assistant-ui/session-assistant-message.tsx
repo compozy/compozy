@@ -5,19 +5,24 @@ import { cn } from "@/lib/utils";
 import { Marker } from "@compozy/ui";
 import { isGoalCommandFailureGuidance } from "@/systems/session/lib/session-goal-chat-transport";
 import { MessageActions } from "./message-actions";
-import { formatMessageError } from "./session-thread-error";
+import { formatMessageError, providerDiagnosticOwnsError } from "./session-thread-error";
 import { SessionThreadErrorBoundary } from "./session-thread-error-boundary";
 import { AssistantMessageTimeline } from "./session-timeline-render";
 
 // Message-level failure as a one-line danger marker. Goal-command failures are
-// owned by SessionGoalCommandErrorNotice in the composer zone, never here.
+// owned by SessionGoalCommandErrorNotice in the composer zone, and a provider
+// diagnostic already rendered by the timeline owns its own failure, never here.
 function SessionMessageErrorNotice() {
   const error = useAuiState(state => {
     const status = state.message.status;
     if (status?.type !== "incomplete" || status.reason !== "error") {
       return null;
     }
-    return formatMessageError(status.error);
+    const message = formatMessageError(status.error);
+    if (message !== null && providerDiagnosticOwnsError(state.message.content, message)) {
+      return null;
+    }
+    return message;
   });
 
   if (error === null || isGoalCommandFailureGuidance(error)) {

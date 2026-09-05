@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type SkillSummary struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Source      string                 `json:"source"`
+	Origin      string                 `json:"origin"`
+	Enabled     bool                   `json:"enabled"`
+	Activation  SkillActivationPayload `json:"activation"`
+}
+
 type SkillsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
 	ForAgent  string `json:"for_agent,omitempty"`
@@ -245,6 +254,14 @@ type State string
 
 type Status string
 
+type SteerDeliveryMode string
+
+const (
+	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
+	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
+	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
+)
+
 type StopReason string
 
 type StuckTaskRun struct {
@@ -327,15 +344,4 @@ type TaskBlockedPayload struct {
 	Details                      json.RawMessage `json:"details,omitempty"`
 	ClearedAt                    time.Time       `json:"cleared_at,omitzero"`
 	ClearNote                    string          `json:"clear_note,omitempty"`
-}
-
-type TaskCancelParams struct {
-	ID       string          `json:"id"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
 }

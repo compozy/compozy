@@ -82,6 +82,15 @@ func (m *Manager) PendingInteractions(
 
 // RecoverPendingInteractions marks requests from a dead turn as restart-orphaned.
 func (m *Manager) RecoverPendingInteractions(ctx context.Context, sessionID string) (int, error) {
+	return m.recoverPendingInteractions(ctx, sessionID, false)
+}
+
+// ExpireRestartInteractions terminalizes decisions whose provider turn was lost during restart.
+func (m *Manager) ExpireRestartInteractions(ctx context.Context, sessionID string) (int, error) {
+	return m.recoverPendingInteractions(ctx, sessionID, true)
+}
+
+func (m *Manager) recoverPendingInteractions(ctx context.Context, sessionID string, expire bool) (int, error) {
 	if m == nil || m.attentionStore == nil {
 		return 0, nil
 	}
@@ -95,33 +104,38 @@ func (m *Manager) RecoverPendingInteractions(ctx context.Context, sessionID stri
 	if _, active := m.Get(target); active {
 		return 0, nil
 	}
-	interactions, err := m.attentionStore.ListPendingInteractions(
-		ctx,
-		target,
-		[]string{store.PendingInteractionStatusPending},
-	)
+	statuses := []string{store.PendingInteractionStatusPending}
+	if expire {
+		statuses = append(statuses, store.PendingInteractionStatusOrphaned)
+	}
+	interactions, err := m.attentionStore.ListPendingInteractions(ctx, target, statuses)
 	if err != nil {
 		return 0, fmt.Errorf("session: list pending interactions during restart recovery: %w", err)
 	}
-	orphaned := 0
+	settled := 0
 	for _, interaction := range interactions {
-		commit, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
+		transition := store.PendingInteractionTransition{
 			InteractionID: interaction.InteractionID,
-			Status:        store.PendingInteractionStatusOrphaned,
-			At:            m.now().UTC(),
-		})
+			Status:        store.PendingInteractionStatusOrphaned, At: m.now().UTC(),
+		}
+		if expire {
+			transition.Status = store.PendingInteractionStatusCanceled
+			transition.Resolution, transition.ResolvedBy = "failed-by-restart", "system"
+		}
+		commit, err := m.transitionPendingInteraction(ctx, transition)
 		if err != nil {
-			return orphaned, fmt.Errorf(
-				"session: orphan interaction %q during restart recovery: %w",
+			return settled, fmt.Errorf(
+				"session: settle interaction %q during restart recovery: %w",
 				interaction.InteractionID,
 				err,
 			)
 		}
-		if commit.Interaction != nil && commit.Interaction.Status == store.PendingInteractionStatusOrphaned {
-			orphaned++
+		if commit.Outcome != store.PendingInteractionOutcomeAlreadyResolved &&
+			commit.Interaction != nil && commit.Interaction.Status == transition.Status {
+			settled++
 		}
 	}
-	return orphaned, nil
+	return settled, nil
 }
 
 func (m *Manager) hydrateSessionAttention(ctx context.Context, target *Session) error {

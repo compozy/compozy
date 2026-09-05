@@ -189,7 +189,7 @@ type stubClient struct {
 	getSessionUsageFn            func(context.Context, string) (SessionUsageRecord, error)
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn                func(context.Context, string) error
+	stopSessionFn                func(context.Context, string, bool) (SessionStopRecord, error)
 	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
@@ -1872,11 +1872,11 @@ func (s *stubClient) RefreshSessionSoul(
 	return AgentSoulRecord{}, errors.New("unexpected RefreshSessionSoul call")
 }
 
-func (s *stubClient) StopSession(ctx context.Context, id string) error {
+func (s *stubClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
 	if s.stopSessionFn != nil {
-		return s.stopSessionFn(ctx, id)
+		return s.stopSessionFn(ctx, id, wait)
 	}
-	return errors.New("unexpected StopSession call")
+	return SessionStopRecord{}, errors.New("unexpected StopSession call")
 }
 
 func (s *stubClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {

@@ -12,6 +12,9 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// SessionStopRecord is the shared termination result.
+type SessionStopRecord = contract.SessionStopPayload
+
 // SessionAttachmentRecord is the shared uploaded session attachment payload.
 type SessionAttachmentRecord = contract.SessionAttachmentPayload
 

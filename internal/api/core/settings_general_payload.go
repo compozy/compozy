@@ -61,6 +61,11 @@ func generalSettingsFromPayload(
 		Daemon:         daemonConfig,
 		Redact:         compozyconfig.RedactConfig{Enabled: payload.Redact.Enabled},
 	}
+	value.FollowUpMode, err = followUpModeFromPayload(payload.BusyInput)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, err
+	}
+
 	if terminalProvided {
 		detachedTTL, parseErr := time.ParseDuration(strings.TrimSpace(payload.Terminal.DetachedTTL))
 		if parseErr != nil {
@@ -110,4 +115,19 @@ func generalSettingsFromPayload(
 	}
 
 	return value, nil
+}
+
+func followUpModeFromPayload(payload *contract.SettingsBusyInputPayload) (*string, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	busy := compozyconfig.DefaultSessionBusyInputConfig()
+	busy.DefaultMode = strings.TrimSpace(payload.DefaultMode)
+	if busy.DefaultMode == "" {
+		return nil, NewSettingsValidationError(errors.New("general.config.busy_input.default_mode is required"))
+	}
+	if err := busy.Validate(); err != nil {
+		return nil, NewSettingsValidationError(err)
+	}
+	return new(busy.DefaultMode), nil
 }

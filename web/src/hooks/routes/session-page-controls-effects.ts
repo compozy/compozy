@@ -1,5 +1,7 @@
 import type { EnqueueObject } from "@xstate/store";
 
+import type { SessionPromptSendResult } from "@/systems/session";
+
 import type {
   SessionPageControlsEventPayloadMap,
   SessionPageControlsState,
@@ -13,14 +15,14 @@ type SessionPageControlsEnqueue = EnqueueObject<
 >;
 
 export function enqueueBusyInput(
-  execute: () => Promise<unknown>,
+  execute: () => Promise<SessionPromptSendResult>,
   enqueue: SessionPageControlsEnqueue,
   requestId: number
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      await execute();
-      trigger.busyInputSucceeded({ requestId });
+      const result = await execute();
+      trigger.busyInputSucceeded({ requestId, result });
     } catch (error) {
       trigger.busyInputFailed({ requestId, error: normalizeError(error, "Busy input failed") });
     }

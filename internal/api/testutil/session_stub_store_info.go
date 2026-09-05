@@ -34,12 +34,11 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		SoulSnapshotID:   info.SoulSnapshotID,
 		SoulDigest:       info.SoulDigest,
 		ParentSoulDigest: info.ParentSoulDigest,
-		AttachedTo:       info.AttachedTo,
-		AttachExpiresAt:  info.AttachExpiresAt,
 		TranscriptEpoch:  info.TranscriptEpoch,
 		CreatedAt:        info.CreatedAt,
 		UpdatedAt:        info.UpdatedAt,
 	}
+	storeInfo.SetAttach(info.AttachedTo, info.AttachExpiresAt)
 	if info.ACPSessionID != "" {
 		acpSessionID := info.ACPSessionID
 		storeInfo.ACPSessionID = &acpSessionID

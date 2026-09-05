@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +19,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -433,6 +435,41 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 
 func TestErrorPayloadForError(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose actionable busy input refusals with their HTTP status", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			err    error
+			code   string
+			status int
+		}{
+			{store.ErrSessionInputQueueFull, "queue_full", http.StatusRequestEntityTooLarge},
+			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
+			{store.ErrSessionInputSteerTextOnly, "steer_attachments_unsupported", http.StatusConflict},
+		} {
+			err := fmt.Errorf("send refused: %w", tc.err)
+			payload := ErrorPayloadForError(err)
+			if payload.Code != tc.code || StatusForSessionError(err) != tc.status {
+				t.Fatalf(
+					"refusal %v = %#v, status=%d; want %s/%d",
+					tc.err,
+					payload,
+					StatusForSessionError(err),
+					tc.code,
+					tc.status,
+				)
+			}
+		}
+	})
+
+	t.Run("Should expose the observed turn in a stale prompt fence refusal", func(t *testing.T) {
+		t.Parallel()
+		err := &session.ActiveTurnMismatchError{ExpectedTurnID: "turn-old", CurrentTurnID: "turn-live"}
+		payload := ErrorPayloadForError(err)
+		if StatusForSessionError(err) != http.StatusConflict || payload.Code != "active_turn_mismatch" ||
+			payload.CurrentTurnID != "turn-live" {
+			t.Fatalf("stale fence refusal=%#v", payload)
+		}
+	})
 
 	t.Run("Should preserve the branch holder path in structured worktree refusal details", func(t *testing.T) {
 		t.Parallel()

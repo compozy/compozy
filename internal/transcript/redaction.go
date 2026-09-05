@@ -34,6 +34,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted = redacted.WithResolvedBy(redactStructuralString(event.ResolvedByValue()))
 	redacted.Error = redactDisplayString(event.Error)
 	redacted.Failure = redactSessionFailure(event.Failure)
+	redacted.ProviderError = redactProviderError(event.ProviderError)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
 	redacted.Goal = redactGoalPromptMeta(event.Goal)
 	if commands := event.AvailableCommandSet(); commands != nil {
@@ -65,6 +66,7 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.ResolvedBy = redactStructuralString(payload.ResolvedBy)
 	payload.Error = redactDisplayString(payload.Error)
 	payload.Failure = redactSessionFailure(payload.Failure)
+	payload.ProviderError = redactProviderError(payload.ProviderError)
 	payload.Synthetic = redactPromptSyntheticMeta(payload.Synthetic)
 	payload.Goal = redactGoalPromptMeta(payload.Goal)
 	payload.Attachments = redactEventAttachments(payload.Attachments)
@@ -200,4 +202,16 @@ func redactDisplayString(value string) string {
 
 func redactStructuralString(value string) string {
 	return structuralRedactor.RedactString(value)
+}
+
+func redactProviderError(diagnostic *acp.ProviderErrorDiagnostic) *acp.ProviderErrorDiagnostic {
+	redacted := acp.CloneProviderErrorDiagnostic(diagnostic)
+	if redacted == nil {
+		return nil
+	}
+	redacted.Code = redactStructuralString(redacted.Code)
+	redacted.Provider = redactDisplayString(redacted.Provider)
+	redacted.NextAction = acp.ProviderFailureAction(redactStructuralString(string(redacted.NextAction)))
+	redacted.Guidance = redactDisplayString(redacted.Guidance)
+	return redacted
 }

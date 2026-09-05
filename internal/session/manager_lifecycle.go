@@ -107,6 +107,16 @@ func (m *Manager) handleProcessExit(
 		return nil
 	}
 
+	if pending := session.pendingTurnStop(proc); pending != nil {
+		select {
+		case <-pending:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if !session.isCurrentProcess(proc) {
+			return nil
+		}
+	}
 	state := session.Info().State
 	if state != StateActive && state != StateStopping {
 		return nil
@@ -216,7 +226,11 @@ func (m *Manager) persistStopClassification(ctx context.Context, session *Sessio
 	session.setStopClassification(stopReason, stopDetail)
 	session.setFailure(failure)
 	session.markExited(m.now())
-	return errors.Join(m.persistSessionLifecycleState(ctx, session, false), bundleErr)
+	persistErr := m.persistSessionLifecycleState(ctx, session, false)
+	if persistErr != nil {
+		persistErr = fmt.Errorf("%w: persist stop classification: %w", ErrRecoveryPersistence, persistErr)
+	}
+	return errors.Join(persistErr, bundleErr)
 }
 
 func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
@@ -275,50 +289,6 @@ func (m *Manager) recordProcessExitEvent(
 	return nil
 }
 
-func (m *Manager) recordSessionStoppedEvent(
-	ctx context.Context,
-	session *Session,
-	waitErr error,
-	promptOwnsTerminalFailure bool,
-) error {
-	stopReason := store.StopReason("")
-	if info := session.Info(); info != nil {
-		stopReason = info.StopReason
-	}
-	turnID, err := m.newPromptTurnID()
-	if err != nil {
-		return err
-	}
-	stopEvent := acp.AgentEvent{
-		Type:       EventTypeSessionStopped,
-		TurnID:     turnID,
-		Timestamp:  m.now(),
-		StopReason: string(stopReason),
-	}
-	if waitErr != nil {
-		if failure := store.CloneSessionFailure(session.Info().Failure); failure != nil {
-			stopEvent.Failure = failure
-			stopEvent.Error = failureSummary(failure, waitErr.Error())
-		} else {
-			stopEvent.Error = diagnostics.RedactAndBound(waitErr.Error(), maxSessionFailureSummaryBytes)
-		}
-		if proc := session.processHandle(); proc != nil {
-			stopEvent.Text = diagnostics.RedactAndBound(proc.Stderr(), maxCrashEvidenceBytes)
-		}
-	}
-
-	normalizedStop := m.normalizeEvent(session, stopEvent.TurnID, stopEvent)
-	if err := m.recordEvent(ctx, session, normalizedStop); err != nil {
-		return err
-	}
-	m.notifyAgentEvent(ctx, session, normalizedStop)
-	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(normalizedStop); ok &&
-		(!promptOwnsTerminalFailure || kind != transcript.MarkerProviderFailure) {
-		m.emitTranscriptMarker(ctx, session, normalizedStop.TurnID, kind, summary, evidence)
-	}
-	return nil
-}
-
 func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
 	failure := store.CloneSessionFailure(event.Failure)
 	failureKind := store.FailureKind("")
@@ -327,9 +297,9 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	}
 	summary := firstTrimmedNonEmpty(event.Error, event.Text)
 	evidence := map[string]any{
-		"event_type":   event.Type,
-		"stop_reason":  event.StopReason,
-		"failure_kind": string(failureKind),
+		transcriptMarkerEvidenceEventTypeKey: event.Type,
+		"stop_reason":                        event.StopReason,
+		"failure_kind":                       string(failureKind),
 	}
 	switch {
 	case event.StopReason == string(store.StopUserCanceled) || failureKind == store.FailureCanceled:
@@ -441,21 +411,16 @@ func (m *Manager) closeSessionRecorder(session *Session) error {
 
 func (m *Manager) markSessionStopped(ctx context.Context, session *Session) error {
 	now := m.now()
+	session.setPendingStopState(true, false)
 	session.clearProcess(now)
 	if err := session.markStopped(now); err != nil {
 		return err
 	}
-	return m.persistSessionLifecycleState(ctx, session, false)
-}
-
-func (m *Manager) leaveSessionNetwork(ctx context.Context, session *Session) error {
-	if err := m.leaveNetworkPeer(ctx, session); err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			m.sessionLogger(session).Warn("session: leave network channel canceled", "error", err)
-			return nil
-		}
-		return fmt.Errorf("session: leave network channel for %q: %w", session.ID, err)
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+		session.setPendingStopState(true, true)
+		return errors.Join(ErrRecoveryPersistence, err)
 	}
+	session.setPendingStopState(false, false)
 	return nil
 }
 

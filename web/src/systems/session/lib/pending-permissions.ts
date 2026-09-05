@@ -27,11 +27,10 @@ interface MessageLike {
   content?: unknown;
 }
 
-/**
- * All undecided permission requests, in first-seen order. A later part for the
- * same `request_id` supersedes the earlier one, so a decided request drops out.
- */
-export function derivePendingPermissions(messages: readonly MessageLike[]): PermissionRequest[] {
+/** The latest permission part per `request_id`, in first-seen order. */
+function latestPermissionParts(
+  messages: readonly MessageLike[]
+): ReadonlyMap<string, CompozyPermissionData> {
   const byRequest = new Map<string, CompozyPermissionData>();
   for (const message of messages) {
     const content = Array.isArray(message.content) ? message.content : [];
@@ -45,12 +44,34 @@ export function derivePendingPermissions(messages: readonly MessageLike[]): Perm
       byRequest.set(part.data.request_id, part.data);
     }
   }
+  return byRequest;
+}
+
+/**
+ * All undecided permission requests, in first-seen order. A later part for the
+ * same `request_id` supersedes the earlier one, so a decided request drops out.
+ */
+export function derivePendingPermissions(messages: readonly MessageLike[]): PermissionRequest[] {
   const pending: PermissionRequest[] = [];
-  for (const data of byRequest.values()) {
+  for (const data of latestPermissionParts(messages).values()) {
     if (normalizePermissionDecision(data.decision) !== null) continue;
     pending.push(toPermissionRequest(data));
   }
   return pending;
+}
+
+/**
+ * Request ids whose latest part carries a recorded decision — the receipts on screen.
+ * Their attribution lives on the daemon's resolved interaction rows, not in the part.
+ */
+export function deriveDecidedPermissionRequestIds(
+  messages: readonly MessageLike[]
+): ReadonlySet<string> {
+  const decided = new Set<string>();
+  for (const [requestId, data] of latestPermissionParts(messages)) {
+    if (normalizePermissionDecision(data.decision) !== null) decided.add(requestId);
+  }
+  return decided;
 }
 
 /**

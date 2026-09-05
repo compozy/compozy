@@ -137,6 +137,8 @@ type Manager struct {
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
+	stopRuns                   map[string]*sessionStopRun
+	turnStopRuns               map[string]*turnStopRun
 	conversationFinalizing     map[string]chan struct{}
 	conversationOperationMu    sync.Mutex
 	conversationOperationLocks map[string]*conversationOperationLock
@@ -231,7 +233,9 @@ type Manager struct {
 	queryStoreRuntime            *queryStoreRuntime
 	assembler                    PromptAssembler
 	supervision                  compozyconfig.SessionSupervisionConfig
+	stopConfig                   compozyconfig.SessionStopConfig
 	busyInput                    compozyconfig.SessionBusyInputConfig
+	busyInputMu                  sync.RWMutex
 	compaction                   compozyconfig.SessionCompactionConfig
 	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration

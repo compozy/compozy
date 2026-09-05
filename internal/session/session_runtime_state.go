@@ -90,6 +90,32 @@ func (s *Session) completeRuntimeTransition(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.completeRuntimeTransitionLocked(proc, selection, strategy, now)
+}
+
+func (s *Session) completeRecoveryTransition(
+	expected *AgentProcess,
+	proc *AgentProcess,
+	selection RuntimeSelection,
+	agentDef compozyconfig.AgentDef,
+	now time.Time,
+) (*AgentProcess, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != expected {
+		return nil, ErrSessionNotActive
+	}
+	previous := s.completeRuntimeTransitionLocked(proc, selection, RuntimeTransitionAutomaticRecovery, now)
+	s.agentDef = compozyconfig.CloneAgentDef(agentDef)
+	return previous, nil
+}
+
+func (s *Session) completeRuntimeTransitionLocked(
+	proc *AgentProcess,
+	selection RuntimeSelection,
+	strategy RuntimeTransitionStrategy,
+	now time.Time,
+) *AgentProcess {
 	previous := s.process
 	s.Provider = strings.TrimSpace(selection.Provider)
 	s.Model = strings.TrimSpace(selection.Model)
@@ -164,6 +190,20 @@ func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failur
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.restoreRuntimeBindingLocked(snapshot, failure, now)
+}
+
+func (s *Session) restoreRecoveryBinding(
+	expected *AgentProcess, snapshot *runtimeBindingSnapshot, failure string, now time.Time,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State == StateActive && s.process == expected {
+		s.restoreRuntimeBindingLocked(snapshot, failure, now)
+	}
+}
+
+func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	s.process = snapshot.process
 	s.Provider = snapshot.selection.Provider
 	s.Model = snapshot.selection.Model

@@ -16,11 +16,13 @@ const (
 	MarkerPromptCancel           = "transcript_marker.prompt_cancel"
 	MarkerPromptTimeout          = "transcript_marker.prompt_timeout"
 	MarkerPromptInterrupted      = "transcript_marker.prompt_interrupted"
+	MarkerPromptSuperseded       = "transcript_marker.prompt_superseded"
 	MarkerPromptSteered          = "transcript_marker.prompt_steered"
 	MarkerPromptQueued           = "transcript_marker.prompt_queued"
 	MarkerPromptAccepted         = "transcript_marker.prompt_accepted"
 	MarkerPromptDropped          = "transcript_marker.prompt_dropped"
 	MarkerSessionUnhealthy       = "transcript_marker.session_unhealthy"
+	MarkerPostStop               = "transcript_marker.post_stop"
 	MarkerSessionRecovered       = "transcript_marker.session_recovered"
 	MarkerProviderFailure        = "transcript_marker.provider_failure"
 	MarkerMCPAuthRequired        = "transcript_marker.mcp_auth_required"
@@ -146,11 +148,13 @@ func validMarkerKind(kind string) bool {
 		MarkerPromptTimeout,
 		MarkerPromptInterrupted,
 		MarkerPromptSteered,
+		MarkerPromptSuperseded,
 		MarkerPromptQueued,
 		MarkerPromptAccepted,
 		MarkerPromptDropped,
 		MarkerSessionUnhealthy,
 		MarkerSessionRecovered,
+		MarkerPostStop,
 		MarkerProviderFailure,
 		MarkerMCPAuthRequired,
 		MarkerFileMutationUnverified:

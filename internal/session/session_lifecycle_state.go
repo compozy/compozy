@@ -112,6 +112,9 @@ func (s *Session) transition(next State, now time.Time) error {
 	}
 
 	s.State = next
+	if next == StateStopped {
+		s.stopVerificationFailed = false
+	}
 	if !now.IsZero() {
 		s.UpdatedAt = now
 	}
@@ -182,7 +185,7 @@ func stopReasonPointer(value store.StopReason) *store.StopReason {
 	return &copyValue
 }
 
-func sessionMetaStopReason(meta store.SessionMeta) store.StopReason {
+func sessionMetaStopReason(meta *store.SessionMeta) store.StopReason {
 	if meta.StopReason == nil {
 		return ""
 	}
@@ -193,4 +196,20 @@ func closedSignalChan() chan struct{} {
 	ch := make(chan struct{})
 	close(ch)
 	return ch
+}
+
+func (s *Session) pendingStopState() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stopStatePending
+}
+
+func (s *Session) setPendingStopState(pending bool, failed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopStatePending = pending
+	if failed {
+		// The process has exited, but the terminal state has not committed.
+		s.State = StateStopping
+	}
 }

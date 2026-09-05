@@ -244,12 +244,15 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
+		close(source)
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), session.ID, turnID); err != nil {
+			t.Fatal(err)
+		}
 		select {
 		case <-providerCtx.Done():
 		default:
-			t.Fatal("provider context is still active after CancelPrompt()")
+			t.Fatal("provider context is still active after verified turn quiescence")
 		}
-		close(source)
 		if events := collectEvents(t, eventsCh); len(events) != 0 {
 			t.Fatalf("delivered events after caller cancellation = %d, want 0", len(events))
 		}
@@ -264,6 +267,36 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 
 func TestPromptRuntimeRecovery(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should discard a recovery candidate when session stop wins the binding race", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		previous := session.processHandle()
+		var candidate *fakeProcess
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if _, _, err := session.prepareStop(time.Now(), CauseUserRequested, "concurrent stop"); err != nil {
+				return nil, err
+			}
+			candidate = newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "recovery-candidate")
+			return candidate, nil
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("cleanup stop: %v", err)
+			}
+		})
+		process, _, err := h.manager.recoverPromptRuntime(testutil.Context(t), session)
+		if !errors.Is(err, ErrSessionNotActive) || process != nil {
+			t.Fatalf("recovery = %v, %v; want no replacement and inactive error", process, err)
+		}
+		if session.Info().State != StateStopping || session.processHandle() != previous {
+			t.Fatal("recovery changed the binding after stop claimed the session")
+		}
+		if candidate == nil || !isProcessDone(candidate.handle) {
+			t.Fatal("discarded recovery candidate was not stopped")
+		}
+	})
 
 	t.Run("Should replace the failed runtime and replay the interrupted turn", func(t *testing.T) {
 		t.Parallel()

@@ -1,5 +1,3 @@
-import { useAui } from "@assistant-ui/react";
-
 import {
   useSessionFirstPrompt,
   type SessionFailurePayload,
@@ -31,7 +29,6 @@ export function useSessionThreadState({
   sessionId,
   sessionState,
 }: UseSessionThreadStateOptions) {
-  const aui = useAui();
   const reducedMotion = usePrefersReducedMotion();
   const composer = useSessionComposerState(sessionId);
   const promptDispatch = useSessionPromptDispatch();
@@ -45,8 +42,13 @@ export function useSessionThreadState({
 
   return {
     composer,
+    // Cancel settles the live transport by aborting the tracked prompt fetch:
+    // the AI SDK reads the abort as a clean cancel (status ready, no error), so
+    // no runtime remount is needed. `thread.cancelRun()` is deliberately not
+    // used — assistant-ui treats a cancelled run as an unsent message, deleting
+    // the trailing user message and re-drafting its text, while the daemon
+    // already accepted and recorded that prompt (US-009.EC-4, US-019.EC-1).
     handleCancelPrompt: () => {
-      aui.thread.cancelRun();
       promptDispatch.cancelPending();
       onCancelPrompt?.();
     },

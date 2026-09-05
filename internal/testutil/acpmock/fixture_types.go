@@ -169,4 +169,7 @@ const (
 	DriverControlWriteRawJSONRPC  DriverControlAction = "write_raw_jsonrpc"
 	DriverControlBlockUntilCancel DriverControlAction = "block_until_cancel"
 	DriverControlDelay            DriverControlAction = "delay"
+	// DriverControlHoldIgnoringCancel keeps the turn open for delay_ms while ignoring
+	// prompt cancellation, so stop ladders must escalate past the cooperative phase.
+	DriverControlHoldIgnoringCancel DriverControlAction = "hold_ignoring_cancel"
 )

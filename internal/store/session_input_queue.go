@@ -74,6 +74,8 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
+	// SupersededIDs identifies entries canceled by the transaction creating this input.
+	SupersededIDs            []string
 	ID                       string
 	SessionID                string
 	PromptAdmissionID        string
@@ -85,6 +87,7 @@ type SessionInputQueueEntry struct {
 	Status                   string
 	Mode                     string
 	Delivery                 string
+	SteerDelivery            SteerDeliveryMode
 	Text                     string
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
@@ -148,6 +151,7 @@ type SessionInputQueueInsert struct {
 	EventID           string
 	Mode              string
 	Delivery          string
+	SteerDelivery     SteerDeliveryMode
 	Text              string
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
@@ -191,6 +195,12 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 // Validate ensures the insert request can be persisted.
 func (r SessionInputQueueInsert) Validate() error {
 	normalized := r.Normalize()
+	if err := normalized.SteerDelivery.Validate(); err != nil {
+		return err
+	}
+	if normalized.SteerDelivery != "" && normalized.Mode != SessionInputQueueModeSteer {
+		return errors.New("store: steer delivery requires steer input")
+	}
 	if err := ValidateSessionInputRuntime(normalized.Runtime); err != nil {
 		return err
 	}

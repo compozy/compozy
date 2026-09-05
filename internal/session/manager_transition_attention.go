@@ -23,7 +23,7 @@ func (m *Manager) durableSessionInfoForLifecycleTransition(
 	}
 	for index := range rows {
 		if strings.TrimSpace(rows[index].ID) == strings.TrimSpace(sessionID) {
-			return sessionInfoFromCatalog(rows[index]), nil
+			return sessionInfoFromCatalog(&rows[index]), nil
 		}
 	}
 	return nil, fmt.Errorf("session: lifecycle attention snapshot not found for %q", sessionID)

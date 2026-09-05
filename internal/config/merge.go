@@ -71,11 +71,16 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
+	Stop        sessionStopOverlay        `toml:"stop"`
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
 	Compaction  sessionCompactionOverlay  `toml:"compaction"`
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
+}
+
+type sessionStopOverlay struct {
+	CooperativeGrace *time.Duration `toml:"cooperative_grace"`
 }
 
 type sessionLimitsOverlay struct {
@@ -110,6 +115,7 @@ type permissionsOverlay struct {
 
 type providerOverlay struct {
 	Command         *string                     `toml:"command"`
+	SteerCapability *SteerCapability            `toml:"steer_capability"`
 	DisplayName     *string                     `toml:"display_name"`
 	Models          *providerModelsOverlay      `toml:"models"`
 	Harness         *ProviderHarness            `toml:"harness"`

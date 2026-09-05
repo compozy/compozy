@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -128,9 +129,16 @@ func (d *Driver) newAgentProcess(
 	policy permissionPolicy,
 	terminalScope LocalTerminalScope,
 ) *AgentProcess {
+	providerAuthMode := compozyconfig.ProviderAuthModeNativeCLI
+	if normalized.ProviderConfig != nil {
+		providerAuthMode = normalized.ProviderConfig.EffectiveAuthMode()
+	}
 	return &AgentProcess{
+		caps:                 Caps{SteerCapability: steerCapabilityForStart(normalized)},
 		PID:                  handle.PID(),
 		AgentName:            normalized.AgentName,
+		providerName:         normalized.ProviderName,
+		providerAuthMode:     providerAuthMode,
 		Command:              command,
 		Args:                 append([]string(nil), args...),
 		Cwd:                  normalized.Cwd,
@@ -223,6 +231,7 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 	}
 
 	process.setCaps(captureCaps(Caps{
+		SteerCapability:       captureSteerCapability(initializeResponse.Meta, process.CapsSnapshot().SteerCapability),
 		SupportsLoadSession:   initializeResponse.AgentCapabilities.LoadSession,
 		SupportsCloseSession:  initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
 		PromptImage:           initializeResponse.AgentCapabilities.PromptCapabilities.Image,

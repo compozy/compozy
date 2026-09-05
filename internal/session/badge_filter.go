@@ -22,6 +22,7 @@ var publicBadgeFilterOrder = []Badge{
 	BadgeFailed,
 	BadgeHung,
 	BadgeUnhealthy,
+	BadgeNeedsAttention,
 }
 
 // ParseBadgeFilters validates, deduplicates, and canonically orders public badge filters.

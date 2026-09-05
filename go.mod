@@ -284,4 +284,4 @@ tool github.com/sqlc-dev/sqlc/cmd/sqlc
 
 replace github.com/compozy/compozy/sdk/go => ./sdk/go
 
-replace github.com/coder/acp-go-sdk => github.com/compozy/acp-go-sdk v0.13.5-compozy.2
+replace github.com/coder/acp-go-sdk => github.com/compozy/acp-go-sdk v0.13.6-0.20260905032329-9bd8c679fc74

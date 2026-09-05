@@ -10,16 +10,18 @@ import (
 )
 
 func requireExpectedActiveTurn(session *Session, expectedTurnID string) (string, error) {
-	if session == nil || !session.IsPrompting() {
+	if session == nil {
 		return "", ErrPromptNotInProgress
 	}
-	activeTurnID := strings.TrimSpace(session.CurrentTurnID())
-	expected := strings.TrimSpace(expectedTurnID)
-	if expected == "" {
-		return "", fmt.Errorf("%w: expected turn id is required", ErrActiveTurnMismatch)
+	session.mu.RLock()
+	activeTurnID := strings.TrimSpace(session.currentTurnID)
+	session.mu.RUnlock()
+	if activeTurnID == "" {
+		return "", ErrPromptNotInProgress
 	}
-	if expected != activeTurnID {
-		return "", fmt.Errorf("%w: expected %s, active %s", ErrActiveTurnMismatch, expected, activeTurnID)
+	expected := strings.TrimSpace(expectedTurnID)
+	if expected != "" && expected != activeTurnID {
+		return "", &ActiveTurnMismatchError{ExpectedTurnID: expected, CurrentTurnID: activeTurnID}
 	}
 	return activeTurnID, nil
 }
@@ -45,7 +47,7 @@ func (m *Manager) activateInterruptingInput(
 			activeTurnID,
 		)
 	}
-	if _, err := m.CancelPrompt(ctx, session.ID); err != nil {
+	if err := m.CancelTurn(ctx, session.ID, entry.TargetTurnID, CauseUserRequested); err != nil {
 		return err
 	}
 	if !session.IsPrompting() {

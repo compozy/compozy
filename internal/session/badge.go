@@ -22,27 +22,33 @@ const (
 	BadgeStopped         Badge = "stopped"
 	BadgeFailed          Badge = "failed"
 	BadgeUnknown         Badge = "unknown"
+	BadgeNeedsAttention  Badge = "needs-attention"
 )
 
 // BadgeInputs are the runtime-truth fields used to compute a session badge.
 type BadgeInputs struct {
-	State               State
-	HealthState         heartbeat.SessionHealthState
-	Health              heartbeat.SessionHealthStatus
-	Failure             *store.SessionFailure
-	PendingAuth         bool
-	PendingClarify      bool
-	ActivePrompt        bool
-	Stalled             bool
-	Unseen              bool
-	IneligibilityReason string
+	State                  State
+	StopVerificationFailed bool
+	HealthState            heartbeat.SessionHealthState
+	Health                 heartbeat.SessionHealthStatus
+	Failure                *store.SessionFailure
+	PendingAuth            bool
+	PendingClarify         bool
+	ActivePrompt           bool
+	Stalled                bool
+	Unseen                 bool
+	IneligibilityReason    string
 }
 
 // CanonicalBadge collapses runtime state, health, and failure classification into
-// the stable ten-token badge vocabulary used by API, CLI, and web clients.
+// the stable badge vocabulary used by API, CLI, and web clients.
 func CanonicalBadge(input BadgeInputs) Badge {
+	if input.StopVerificationFailed && input.State != StateStopped {
+		return BadgeNeedsAttention
+	}
 	failure := store.CloneSessionFailure(input.Failure)
-	terminal := input.State == StateStopped || input.HealthState == heartbeat.SessionHealthStateStopped
+	terminal := input.State == StateStopped ||
+		(input.State == "" && input.HealthState == heartbeat.SessionHealthStateStopped)
 	if terminal && terminalFailureKind(failure) {
 		return BadgeFailed
 	}
@@ -101,9 +107,11 @@ func BadgeForInfo(info *Info) Badge {
 		return BadgeUnknown
 	}
 	return CanonicalBadge(BadgeInputs{
-		State:          info.State,
-		Failure:        info.Failure,
-		PendingAuth:    info.PendingPermission || info.PendingPermissionCount > 0 || infoFailureNeedsAuth(info.Failure),
+		State:                  info.State,
+		StopVerificationFailed: info.StopVerificationFailed,
+		Failure:                info.Failure,
+		PendingAuth: info.PendingPermission || info.PendingPermissionCount > 0 ||
+			infoFailureNeedsAuth(info.Failure),
 		PendingClarify: info.PendingClarifyCount > 0,
 		Stalled:        infoHasDetectedStall(info),
 		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
@@ -159,15 +167,16 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 	pendingClarify := info != nil && info.PendingClarifyCount > 0
 	unseen := info != nil && info.LastSettledRevision > info.LastSeenRevision
 	return CanonicalBadge(BadgeInputs{
-		State:               state,
-		HealthState:         health.State,
-		Health:              health.Health,
-		Failure:             failure,
-		PendingAuth:         pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
-		PendingClarify:      pendingClarify,
-		ActivePrompt:        health.ActivePrompt,
-		Unseen:              unseen,
-		IneligibilityReason: health.IneligibilityReason,
+		State:                  state,
+		StopVerificationFailed: info != nil && info.StopVerificationFailed,
+		HealthState:            health.State,
+		Health:                 health.Health,
+		Failure:                failure,
+		PendingAuth:            pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
+		PendingClarify:         pendingClarify,
+		ActivePrompt:           health.ActivePrompt,
+		Unseen:                 unseen,
+		IneligibilityReason:    health.IneligibilityReason,
 	})
 }
 

@@ -192,8 +192,9 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	stored := admission.Result
 	result := SendPromptResult{
 		Status: stored.Status, Mode: BusyInputMode(stored.Mode),
-		Delivery:  stored.Delivery,
-		MessageID: admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
+		Delivery:      stored.Delivery,
+		SteerDelivery: stored.SteerDelivery,
+		MessageID:     admission.MessageID, IdempotencyKey: admission.IdempotencyKey,
 		QueueEntryID: stored.QueueEntryID, QueuePosition: stored.QueuePosition,
 		QueueGeneration: stored.QueueGeneration, PreviousTurnID: stored.PreviousTurnID,
 		NewTurnID: stored.NewTurnID, CanceledQueuedEntries: stored.CanceledQueuedEntries,
@@ -211,6 +212,7 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 func sessionPromptAdmissionResult(result SendPromptResult) (store.SessionPromptAdmissionResult, error) {
 	stored := store.SessionPromptAdmissionResult{
 		Status: result.Status, Mode: string(result.Mode), Delivery: result.Delivery,
+		SteerDelivery: result.SteerDelivery,
 		QueueEntryID:  result.QueueEntryID,
 		QueuePosition: result.QueuePosition, QueueGeneration: result.QueueGeneration,
 		PreviousTurnID: result.PreviousTurnID, NewTurnID: result.NewTurnID,

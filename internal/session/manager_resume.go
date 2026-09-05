@@ -27,6 +27,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 		return nil, err
 	}
 	defer unlockConversation()
+	if m.hasPendingStopSettlement(target) {
+		return nil, fmt.Errorf("%w: recovered stop for %s has pending persistence", ErrRecoveryPersistence, target)
+	}
 	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
 		return m.waitForResumedSession(ctx, target, session)
 	}

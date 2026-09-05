@@ -33,14 +33,18 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if state.sessions == nil {
 		return errors.New("daemon: boot session repair requires session manager")
 	}
+	if recoverer, ok := state.sessions.(sessionPendingStopRecoverer); ok {
+		if err := recoverer.RecoverPendingStops(ctx); err != nil {
+			return fmt.Errorf("daemon: recover pending session stops: %w", err)
+		}
+	}
 
 	infos, err := state.sessions.ListAll(ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
 		}
-		state.logger.Warn("daemon: boot session repair skipped session list", "error", err)
-		return nil
+		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
 		return err
@@ -89,31 +93,26 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 }
 
 func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {
-	recoverer, ok := state.sessions.(sessionPendingInteractionRecoverer)
+	recoverer, ok := state.sessions.(sessionRestartInteractionExpirer)
 	if !ok {
 		return nil
 	}
 	for _, info := range infos {
-		if info == nil || strings.TrimSpace(info.ID) == "" || info.State == session.StateActive {
+		if info == nil || strings.TrimSpace(info.ID) == "" {
 			continue
 		}
-		recovered, err := recoverer.RecoverPendingInteractions(ctx, info.ID)
+		recovered, err := recoverer.ExpireRestartInteractions(ctx, info.ID)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return fmt.Errorf("daemon: pending interaction recovery canceled: %w", ctxErr)
 			}
-			state.logger.Warn(
-				"daemon: pending interaction recovery failed",
-				"session_id", info.ID,
-				"error", err,
-			)
-			continue
+			return fmt.Errorf("daemon: expire pending interactions for %s: %w", info.ID, err)
 		}
 		if recovered > 0 {
 			state.logger.Info(
 				"daemon: pending interaction recovery complete",
 				"session_id", info.ID,
-				"orphaned", recovered,
+				"expired", recovered,
 			)
 		}
 	}
@@ -148,8 +147,12 @@ type sessionHealthRecoverer interface {
 	RecoverSessionHealth(ctx context.Context) (session.HealthRecoveryResult, error)
 }
 
-type sessionPendingInteractionRecoverer interface {
-	RecoverPendingInteractions(ctx context.Context, sessionID string) (int, error)
+type sessionPendingStopRecoverer interface {
+	RecoverPendingStops(context.Context) error
+}
+
+type sessionRestartInteractionExpirer interface {
+	ExpireRestartInteractions(ctx context.Context, sessionID string) (int, error)
 }
 
 func bootShouldRepairSession(info *session.Info) bool {

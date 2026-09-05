@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type ModelSourceOptionValue struct {
+	ValueID     string `json:"value_id"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+	Order       int    `json:"order,omitempty"`
+}
+
 type ModelSourceRow struct {
 	SourceID               string                        `json:"source_id"`
 	ProviderID             string                        `json:"provider_id"`
@@ -275,8 +284,4 @@ type NetworkMessagePersistedPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

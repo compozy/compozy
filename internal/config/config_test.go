@@ -69,6 +69,9 @@ max_concurrent_agents = 22
 [session.limits]
 timeout = "30m"
 
+[session.stop]
+cooperative_grace = "7s"
+
 [permissions]
 mode = "approve-all"
 
@@ -186,6 +189,9 @@ max_wakes = 80
 	}
 	if cfg.Defaults.Provider != "claude" {
 		t.Fatalf("Load() Defaults.Provider = %q, want %q", cfg.Defaults.Provider, "claude")
+	}
+	if cfg.Session.Stop.CooperativeGrace != 7*time.Second {
+		t.Fatalf("loaded cooperative grace = %s, want 7s", cfg.Session.Stop.CooperativeGrace)
 	}
 	if cfg.Agents.Soul.Enabled {
 		t.Fatal("Load() Agents.Soul.Enabled = true, want false")
@@ -3153,4 +3159,67 @@ func unsetEnvForTest(t *testing.T, key string) {
 			t.Fatalf("restore env %q error = %v", key, err)
 		}
 	})
+}
+
+func TestSessionStopConfig(t *testing.T) {
+	t.Parallel()
+	t.Run("Should default to ten seconds and preserve an omitted override", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultSessionConfig()
+		sessionOverlay{}.Apply(&cfg)
+		if cfg.Stop.CooperativeGrace != 10*time.Second {
+			t.Fatalf("default grace=%s", cfg.Stop.CooperativeGrace)
+		}
+		grace := 7 * time.Second
+		sessionOverlay{Stop: sessionStopOverlay{CooperativeGrace: &grace}}.Apply(&cfg)
+		if cfg.Stop.CooperativeGrace != grace {
+			t.Fatalf("override grace=%s", cfg.Stop.CooperativeGrace)
+		}
+	})
+	t.Run("Should reject nonpositive cooperative grace", func(t *testing.T) {
+		t.Parallel()
+		for _, grace := range []time.Duration{0, -time.Second} {
+			cfg := defaultSessionConfig()
+			cfg.Stop.CooperativeGrace = grace
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "session.stop.cooperative_grace") {
+				t.Fatalf("Validate(%s)=%v", grace, err)
+			}
+		}
+	})
+}
+
+func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		value   string
+		want    string
+		invalid bool
+	}{
+		{name: "Should default omitted mode to steer", want: "steer"},
+		{name: "Should accept steer", value: "steer", want: "steer"},
+		{name: "Should accept queue", value: "queue", want: "queue"},
+		{name: "Should trim an explicit mode", value: " queue ", want: "queue"},
+		{name: "Should preserve legacy interrupt during its compatibility window", value: "interrupt", want: "interrupt"},
+		{name: "Should reject an unknown default mode", value: "automatic", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := SessionBusyInputConfig{DefaultMode: tc.value}
+			err := cfg.Validate()
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "session.busy_input.default_mode") ||
+					!strings.Contains(err.Error(), tc.value) {
+					t.Fatalf("Validate(%q) = %v, want field and rejected value", tc.value, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Normalize().DefaultMode; got != tc.want {
+				t.Fatalf("normalized mode = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

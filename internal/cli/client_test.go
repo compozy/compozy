@@ -19,6 +19,7 @@ import (
 	"time"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -2839,7 +2840,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"commands":[{"id":"builtin:goal","canonical_token":"/goal","display_name":"/goal","description":"Goal","lane":"builtin","source":{"kind":"builtin","scope":"session"},"placements":["standalone"]}],"revision":"rev-commands"}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/stop":
-					return newHTTPResponse(http.StatusNoContent, ``), nil
+					var input contract.StopSessionRequest
+					if err := json.NewDecoder(req.Body).Decode(&input); err != nil || input.Wait == nil || *input.Wait {
+						t.Fatalf("stop request = %#v, %v", input, err)
+					}
+					return newHTTPResponse(
+						http.StatusAccepted,
+						`{"session_id":"sess-1","status":"stopping","state":"stopping","verified":false,"escalated":false}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -3259,8 +3267,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListSessionCommands() = %#v, %v", commands, err)
 	}
 
-	if err := client.StopSession(ctx, "sess-1"); err != nil {
-		t.Fatalf("StopSession() error = %v", err)
+	if result, err := client.StopSession(ctx, "sess-1", false); err != nil || result.State != session.StateStopping {
+		t.Fatalf("StopSession() = %#v, %v", result, err)
 	}
 	t.Run("Should rename a session through the workspace route", func(t *testing.T) {
 		t.Parallel()

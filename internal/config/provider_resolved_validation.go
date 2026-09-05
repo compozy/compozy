@@ -7,6 +7,9 @@ import (
 )
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
+	if err := provider.SteerCapability.Validate(fmt.Sprintf("providers.%s.steer_capability", name)); err != nil {
+		return err
+	}
 	if strings.TrimSpace(provider.Command) == "" {
 		return fmt.Errorf("provider %q command is required", name)
 	}

@@ -11,9 +11,12 @@
  */
 import { terminalAttentionReason } from "@/systems/terminal/parts";
 
-import type { SessionPayload, SessionPendingInteraction } from "../types";
+import type { SessionInteractionRecord, SessionPayload, SessionPendingInteraction } from "../types";
 
 const PENDING_STATUSES: ReadonlySet<string> = new Set(["pending", "orphaned"]);
+
+/** Daemon resolution written when boot reconciliation expires a pre-crash decision. */
+export const RESTART_EXPIRED_RESOLUTION = "failed-by-restart";
 
 export function pendingInteractions(session: SessionPayload): SessionPendingInteraction[] {
   return session.pending_interactions.filter(interaction =>
@@ -59,4 +62,67 @@ export function maskedAttentionNote(session: SessionPayload, badge: string): str
   const questions = pendingClarifyCount(session);
   if (questions === 0) return null;
   return questions === 1 ? "+1 question" : `+${questions} questions`;
+}
+
+/**
+ * Settled decisions the transcript never recorded an answer for, keyed by the provider
+ * request id the transcript's permission/clarify parts carry. Only `canceled` rows
+ * qualify: a resolved or timed-out decision reaches the transcript as its own event, so
+ * projecting it here would double the receipt.
+ */
+export function expiredInteractionsByRequest(
+  rows: readonly SessionInteractionRecord[]
+): ReadonlyMap<string, SessionInteractionRecord> {
+  const byRequest = new Map<string, SessionInteractionRecord>();
+  for (const row of rows) {
+    if (row.status !== "canceled") continue;
+    const requestId = row.provider_request_id.trim();
+    if (requestId) byRequest.set(requestId, row);
+  }
+  return byRequest;
+}
+
+/** The daemon expired this decision because it restarted before anyone answered. */
+export function interactionExpiredByRestart(row: SessionInteractionRecord): boolean {
+  return row.status === "canceled" && row.resolution === RESTART_EXPIRED_RESOLUTION;
+}
+
+/**
+ * Permission decisions the daemon applied, keyed by the provider request id the
+ * transcript's permission parts carry. The transcript part records the decision but
+ * never who made it; the `resolved` row's `resolved_by` is the only attribution
+ * evidence. The daemon's uniqueness is (session, kind, provider request id), so a
+ * resolved clarification may share the id: only `permission` rows attribute a receipt.
+ */
+export function resolvedInteractionsByRequest(
+  rows: readonly SessionInteractionRecord[]
+): ReadonlyMap<string, SessionInteractionRecord> {
+  const byRequest = new Map<string, SessionInteractionRecord>();
+  for (const row of rows) {
+    if (row.kind !== "permission" || row.status !== "resolved") continue;
+    const requestId = row.provider_request_id.trim();
+    if (requestId) byRequest.set(requestId, row);
+  }
+  return byRequest;
+}
+
+/**
+ * Who settled a permission ask, read from the daemon's `resolved_by` actor:
+ * `you` for an operator surface (`operator`, `operator:control`), `agent` for another
+ * session's native approval (`agent_session:<id>`), `timeout` when the ask expired
+ * unanswered, `runtime` when the row names the runtime (`provider`, `system` — also the
+ * daemon's fallback actor, so it never proves whether anyone was asked), and `unknown`
+ * when no row or an unrecognized actor leaves no evidence — never a guessed person.
+ */
+export type PermissionDecisionActor = "you" | "agent" | "timeout" | "runtime" | "unknown";
+
+export function permissionDecisionActor(
+  row: SessionInteractionRecord | undefined
+): PermissionDecisionActor {
+  const resolvedBy = row?.status === "resolved" ? (row.resolved_by?.trim() ?? "") : "";
+  if (resolvedBy === "operator" || resolvedBy.startsWith("operator:")) return "you";
+  if (resolvedBy.startsWith("agent_session:")) return "agent";
+  if (resolvedBy === "timeout") return "timeout";
+  if (resolvedBy === "provider" || resolvedBy === "system") return "runtime";
+  return "unknown";
 }

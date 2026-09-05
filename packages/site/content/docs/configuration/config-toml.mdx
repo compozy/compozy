@@ -281,6 +281,12 @@ max_concurrent_agents = 20
 # 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
 timeout = "0s"
 
+[session.busy_input]
+# Busy follow-ups steer by default; queue defers them until the current turn ends.
+default_mode = "steer"
+queue_cap = 10
+max_text_bytes = 65536
+
 [session.supervision]
 # Short heartbeats update durable liveness only. They are not persisted as session events.
 activity_heartbeat_interval = "30s"
@@ -2658,3 +2664,23 @@ See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, a
 - [Providers](/docs/agents/providers) covers `[providers.<id>.models]` shape and `models.discovery` defaults.
 - [Provider Model Catalog](/docs/agents/model-catalog) explains the catalog projection, OpenAI-compatible endpoint, and extension `model.source`.
 - [File Locations](/docs/configuration/file-locations) lists the exact global and workspace paths.
+
+### Follow-up behavior and steering capability
+
+`session.busy_input.default_mode` defaults to `steer`; choose `queue` to defer busy follow-ups.
+Changes through General Settings apply to subsequent admissions without a daemon restart.
+The historical `interrupt` default remains accepted with a warning through v0.4 and is scheduled
+for removal in v0.5.0. Interrupt remains an explicit per-send action.
+
+`providers.<name>.steer_capability` accepts `steer_ext`, `concurrent_prompt`, or `none`.
+An advertised steering extension takes precedence over this override. Otherwise the daemon uses
+the override, then a binary-verified provider table entry, then `none`. Unverified providers have
+no assumed injection support. This setting applies when a provider process initializes.
+
+```toml
+[providers.custom]
+command = "my-acp-agent"
+steer_capability = "none"
+```
+
+See [Session control plane](/docs/sessions/control-plane) for delivery outcomes and strict fences.

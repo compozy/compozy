@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/transcript"
@@ -44,40 +43,14 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) (PromptCancelResu
 		}
 		return PromptCancelResult{Outcome: PromptCancelOutcomeNothingInFlight}, nil
 	}
-	turnID, proc, cancelPrompt, prompting, alreadyRequested := targetSession.requestCurrentPromptCancellation()
-	if !prompting {
+	run, err := m.requestTurnStop(ctx, targetSession.ID, "", CauseUserRequested)
+	if errors.Is(err, ErrPromptNotInProgress) {
 		return PromptCancelResult{Outcome: PromptCancelOutcomeNothingInFlight}, nil
 	}
-	result := PromptCancelResult{Outcome: PromptCancelOutcomeCanceled, TurnID: turnID}
-	if alreadyRequested {
-		return result, nil
+	if err != nil {
+		return PromptCancelResult{}, err
 	}
-	if cancelPrompt != nil {
-		cancelPrompt()
-	}
-
-	if proc == nil {
-		m.emitPromptCancelMarker(ctx, targetSession, turnID)
-		return result, nil
-	}
-
-	cancelErr := m.driver.Cancel(ctx, proc)
-	if cancelErr != nil {
-		if isProcessDone(proc) {
-			return result, nil
-		}
-		targetSession.retryCurrentPromptCancellation(turnID)
-		return PromptCancelResult{}, fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
-	}
-	if scoped, ok := m.driver.(ScopedInterrupter); ok && strings.TrimSpace(turnID) != "" {
-		if _, err := scoped.Interrupt(ctx, target, turnID); err != nil &&
-			!errors.Is(err, ErrScopedInterruptNotFound) {
-			targetSession.retryCurrentPromptCancellation(turnID)
-			return PromptCancelResult{}, fmt.Errorf("session: interrupt scoped tools for %q: %w", target, err)
-		}
-	}
-	m.emitPromptCancelMarker(ctx, targetSession, turnID)
-	return result, nil
+	return PromptCancelResult{Outcome: PromptCancelOutcomeCanceled, TurnID: run.turnID}, nil
 }
 
 func (m *Manager) emitPromptCancelMarker(ctx context.Context, target *Session, turnID string) {

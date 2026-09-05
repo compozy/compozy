@@ -248,7 +248,7 @@ workspaces and sessions.
 
 An active session still processes one prompt turn at a time, but CompozyOS accepts explicit busy-input
 modes so operators and agents do not have to guess what happens when a prompt is already running.
-`session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
+`session.busy_input.default_mode` defaults to `steer`; `session.busy_input.queue_cap` bounds
 the persisted queue.
 
 The Web composer is available for active and eligible stopped `user`, `system`, `coordinator`, and
@@ -257,14 +257,16 @@ or interrupt the current turn, or stop generation. These are turn-level controls
 sessions still do not expose user-session lifecycle actions such as rename, clear, attach, delete,
 or stop session. Dream and hidden maintenance sessions remain read-only in the Web session view.
 
-| Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `queue`     | `compozy session prompt <id> "<text>" --queue`                                  | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","message_id":"msg_queue_1234","idempotency_key":"idem_queue_1234","runtime":{...}}`                                            | Persists the input and runtime snapshot in FIFO order. The result reports `status: "queued"`, `delivery: "after_turn"`, queue ID, position, and generation. |
-| `interrupt` | `compozy session prompt <id> "<text>" --interrupt --expected-turn-id turn_1234` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","expected_turn_id":"turn_1234","message":"...","message_id":"msg_interrupt_1234","idempotency_key":"idem_interrupt_1234","runtime":{...}}` | Requires the active-turn fence, advances the queue generation, and returns `status: "interrupting"` with `delivery: "interrupt_then_prompt"`.               |
-| `steer`     | `compozy session prompt <id> "<text>" --steer --expected-turn-id turn_1234`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"...","message_id":"msg_steer_1234","idempotency_key":"idem_steer_1234","expected_turn_id":"turn_1234"}`                                                | Requires the active-turn fence and returns the daemon's `status` and `delivery` decision.                                                                   |
+| Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `compozy session prompt <id> "<text>" --queue`                                  | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","message_id":"msg_queue_1234","idempotency_key":"idem_queue_1234","runtime":{...}}`                                            | Persists the input and runtime snapshot in FIFO order. The result reports `status: "queued"`, `delivery: "after_turn"`, queue ID, position, and generation.             |
+| `interrupt` | `compozy session prompt <id> "<text>" --interrupt --expected-turn-id turn_1234` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","expected_turn_id":"turn_1234","message":"...","message_id":"msg_interrupt_1234","idempotency_key":"idem_interrupt_1234","runtime":{...}}` | Resolves an omitted fence or validates an explicit fence, advances the queue generation, and returns `status: "interrupting"` with `delivery: "interrupt_then_prompt"`. |
+| `steer`     | `compozy session prompt <id> "<text>" --steer --expected-turn-id turn_1234`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"...","message_id":"msg_steer_1234","idempotency_key":"idem_steer_1234","expected_turn_id":"turn_1234"}`                                                | Injects into the live turn when supported; otherwise records an interrupt fallback. Reports `disposition` and `steer_delivery`.                                         |
 
-The prompt response is authoritative. Use its `status` and `delivery` fields to decide what happened;
+The prompt response is authoritative. Use `disposition` and `steer_delivery` to inspect the outcome;
 transcript markers retain history but are not a second action result channel.
+
+See [Session control plane](/docs/sessions/control-plane) for delivery outcomes, automatic fences, and exact retries.
 
 ### Managing queued input
 
@@ -357,29 +359,42 @@ side-effect boundary, reloads the daemon-owned transcript, and places `draft_tex
 
 ## Stopping a session
 
-Stop a running session from the CLI:
+Request a stop immediately, or wait for its verified result:
 
 ```bash
 compozy session stop sess-1234
+compozy session stop sess-1234 --wait -o json
 ```
 
-Stop it over HTTP:
+The default command returns the updated session resource. `--wait` returns the stop outcome:
+`state`, `verified`, `escalated`, `stop_cause`, `phase`, and `stopped_after`. A verified result has
+`state: "stopped"` and `verified: true`. If process exit cannot be verified after the final kill,
+the outcome keeps `state: "stopping"`, `verified: false`, and `attention: "stop_verification_failed"`. The diagnostic also persists on the session resource with the nonterminal `needs-attention` badge, so reconnecting does not lose the retry action. A verified retry clears it. Compact `session status` exposes `lifecycle_state`, `verified`, `escalated`, and `attention`; its existing `state` field retains the health-state vocabulary.
+Inspect the process diagnostics and retry the stop; do not treat that outcome as termination.
+
+HTTP and UDS share the same operation:
 
 ```bash
-curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stop
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stop \
+  -H 'Content-Type: application/json' -d '{"wait":false}'
 ```
 
-The stop path is cooperative first and forceful only when needed:
+`wait:false` returns 202 with `status: "stopping"`. `wait:true` returns 200 with the settled stop
+outcome, including the unverified attention branch. An already stopped session returns 200 without
+starting another operation. Closing the requesting client does not abandon an accepted stop.
+The governed native tool `compozy__session_stop` accepts the same `wait` choice and outcome fields.
+Its existing approval and same-workspace, non-self target rules still apply.
 
-1. `active -> stopping`
-2. wait for any in-flight prompt setup to finish
-3. send ACP `session/cancel`
-4. wait for the subprocess to exit
-5. escalate through the subprocess shutdown path if it does not exit cleanly
-6. classify the stop reason
-7. record a terminal `session_stopped` event
-8. close the recorder and write final metadata
-9. `stopping -> stopped`
+For compatibility through v0.4, HTTP/UDS requests that omit `wait` retain synchronous 204 responses
+with a migration warning. Native calls that omit `wait` retain the previous synchronous result and
+include `deprecation`. Send an explicit boolean; implicit synchronous requests are removed in v0.5.0.
+
+The stop path moves `active -> stopping`, requests cooperative cancellation, then escalates to
+process stop and group kill when necessary. `session.stop.cooperative_grace` configures the first
+phase (default `10s`); force and kill verification each have a five-second budget. PID and start-time
+identity must prove process exit before terminal state is published. Session reads expose `verified`
+and the durable `escalated` flag. Turn cancellation uses the same ladder but preserves the logical
+session and rebinds a replacement process when escalation killed the previous one.
 
 Stopping preserves the session directory, catalog row, metadata, events, and selected runtime. It
 ends attach eligibility. A later normal prompt restores the provider history and continues under the

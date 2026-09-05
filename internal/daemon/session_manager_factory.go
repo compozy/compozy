@@ -47,6 +47,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWindowReconciler(deps.WindowReconciler),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithSessionStopConfig(deps.SessionStop),
 			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
 			session.WithSessionCompactionConfig(deps.SessionCompaction),
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),

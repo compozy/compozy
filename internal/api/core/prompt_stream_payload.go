@@ -10,21 +10,22 @@ import (
 func promptAgentEventPayloadFromEvent(event acp.AgentEvent) promptAgentEventPayload {
 	base := AgentEventPayloadFromEvent(event)
 	payload := promptAgentEventPayload{
-		Type:       base.Type,
-		SessionID:  base.SessionID,
-		TurnID:     base.TurnID,
-		RequestID:  base.RequestID,
-		Text:       promptRedactString(base.Text),
-		Title:      promptRedactString(base.Title),
-		ToolCallID: base.ToolCallID,
-		StopReason: promptRedactString(base.StopReason),
-		Action:     promptRedactString(base.Action),
-		Resource:   promptRedactString(base.Resource),
-		Decision:   promptRedactString(base.Decision),
-		Error:      promptRedactString(base.Error),
-		Usage:      promptTokenUsagePayloadFromUsage(event.Usage),
-		Runtime:    base.Runtime,
-		Raw:        promptRedactRaw(base.Raw),
+		Type:          base.Type,
+		SessionID:     base.SessionID,
+		TurnID:        base.TurnID,
+		RequestID:     base.RequestID,
+		Text:          promptRedactString(base.Text),
+		Title:         promptRedactString(base.Title),
+		ToolCallID:    base.ToolCallID,
+		StopReason:    promptRedactString(base.StopReason),
+		Action:        promptRedactString(base.Action),
+		Resource:      promptRedactString(base.Resource),
+		Decision:      promptRedactString(base.Decision),
+		Error:         promptRedactString(base.Error),
+		ProviderError: base.ProviderError,
+		Usage:         promptTokenUsagePayloadFromUsage(event.Usage),
+		Runtime:       base.Runtime,
+		Raw:           promptRedactRaw(base.Raw),
 	}
 	if !event.Timestamp.IsZero() {
 		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)

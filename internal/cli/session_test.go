@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -2154,12 +2155,15 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 
 		client := &profileTestDaemonClient{
 			DaemonClient: withWorkspaceResolution(&stubClient{
-				stopSessionFn: func(ctx context.Context, id string) error {
+				stopSessionFn: func(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
 					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
 						t.Fatalf("StopSession() profile query = %q, want research", got)
 					}
+					if wait {
+						t.Fatal("default stop must accept asynchronously")
+					}
 					stoppedID = id
-					return nil
+					return SessionStopRecord{SessionID: id, State: session.StateStopping, Status: "stopping"}, nil
 				},
 				getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
 					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
@@ -2207,6 +2211,48 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 		}
 		if decoded.State != session.StateStopped {
 			t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
+		}
+	})
+	t.Run("Should return the waited stop outcome without replacing it with a later session read", func(t *testing.T) {
+		t.Parallel()
+		for _, verified := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should preserve verified %t", verified), func(t *testing.T) {
+				t.Parallel()
+				want := SessionStopRecord{SessionID: "sess-1", Status: "stopping", State: session.StateStopping,
+					Escalated: true, Phase: session.StopPhaseKilled, StopCause: "user_requested", StoppedAfter: "4.2s",
+					Attention: "stop_verification_failed"}
+				if verified {
+					want.Verified, want.State, want.Status, want.Attention = true, session.StateStopped, "stopped", ""
+				}
+				client := withWorkspaceResolution(&stubClient{
+					stopSessionFn: func(_ context.Context, id string, wait bool) (SessionStopRecord, error) {
+						if id != "sess-1" || !wait {
+							t.Fatalf("stop request = %s, wait=%t", id, wait)
+						}
+						return want, nil
+					},
+				})
+				stdout, _, err := executeRootCommand(
+					t,
+					newWorkspaceTestDeps(t, client),
+					"session",
+					"stop",
+					"sess-1",
+					"--wait",
+					"-o",
+					"json",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got SessionStopRecord
+				if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+					t.Fatal(err)
+				}
+				if got != want {
+					t.Fatalf("stop result = %#v, want %#v", got, want)
+				}
+			})
 		}
 	})
 }
@@ -2257,6 +2303,36 @@ func TestSessionRemoveDeletesSession(t *testing.T) {
 
 func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should expose unverified stop attention in every output format", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+				return SessionStatusRecord{
+					SessionID: "sess-1", Badge: session.BadgeNeedsAttention,
+					Verified: new(false), Escalated: new(true), Attention: session.StopVerificationFailedCode,
+				}, nil
+			},
+		})
+		for _, format := range []string{"json", "human", "toon"} {
+			output, _, err := executeRootCommand(t, deps, "session", "status", "sess-1", "-o", format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output, session.StopVerificationFailedCode) {
+				t.Fatalf("%s omitted stop attention: %s", format, output)
+			}
+			if format == "json" {
+				var result SessionStatusRecord
+				if err := json.Unmarshal([]byte(output), &result); err != nil {
+					t.Fatal(err)
+				}
+				if result.Verified == nil || *result.Verified || result.Escalated == nil || !*result.Escalated {
+					t.Fatalf("unverified status = %#v", result)
+				}
+			}
+		}
+	})
 
 	deps := newWorkspaceTestDeps(t, &stubClient{
 		getSessionStatusFn: func(_ context.Context, id string) (SessionStatusRecord, error) {
@@ -2796,7 +2872,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			"sess-1",
 			"replace",
 			"--interrupt",
-			"--expected-turn-id",
+			"--expected-turn",
 			"turn-1",
 		)
 		if err != nil {
@@ -2809,18 +2885,22 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require an expected turn for interrupt", func(t *testing.T) {
+	t.Run("Should delegate an omitted interrupt fence to the daemon", func(t *testing.T) {
 		t.Parallel()
-
+		called := false
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			sendSessionPromptFn: func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error) {
-				t.Fatal("SendSessionPrompt() called without an expected turn id")
+			sendSessionPromptFn: func(_ context.Context, _ string, request SessionPromptRequest) (SessionPromptRecord, error) {
+				called = true
+				if request.ExpectedTurnID != "" {
+					t.Fatalf("fence = %q, want automatic daemon resolution", request.ExpectedTurnID)
+				}
 				return SessionPromptRecord{}, nil
 			},
 		})
-
-		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "replace", "--interrupt")
-		assertErrorContains(t, err, "--expected-turn-id is required")
+		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "change direction", "--interrupt")
+		if err != nil || !called {
+			t.Fatalf("automatic interrupt fence: called=%t, error=%v", called, err)
+		}
 	})
 
 	t.Run("Should use steer endpoint", func(t *testing.T) {
@@ -2876,18 +2956,22 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require an expected turn for steer", func(t *testing.T) {
+	t.Run("Should delegate an omitted steer fence to the daemon", func(t *testing.T) {
 		t.Parallel()
-
+		called := false
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			steerSessionPromptFn: func(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error) {
-				t.Fatal("SteerSessionPrompt() called without an expected turn id")
+			steerSessionPromptFn: func(_ context.Context, _ string, request contract.SteerPromptRequest) (SessionPromptRecord, error) {
+				called = true
+				if request.ExpectedTurnID != "" {
+					t.Fatalf("fence = %q, want automatic daemon resolution", request.ExpectedTurnID)
+				}
 				return SessionPromptRecord{}, nil
 			},
 		})
-
-		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "prefer small patch", "--steer")
-		assertErrorContains(t, err, "--expected-turn-id is required")
+		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "change direction", "--steer")
+		if err != nil || !called {
+			t.Fatalf("automatic steer fence: called=%t, error=%v", called, err)
+		}
 	})
 
 	t.Run("Should reject mutually exclusive busy actions", func(t *testing.T) {
@@ -3091,17 +3175,21 @@ func TestSessionInputCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require an active turn fence when promoting input", func(t *testing.T) {
+	t.Run("Should resolve an omitted active turn fence when promoting input", func(t *testing.T) {
 		t.Parallel()
 
+		called := false
 		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			promoteSessionInputFn: func(
-				context.Context,
-				string,
-				string,
-				PromoteSessionInputRequest,
+				_ context.Context,
+				_ string,
+				_ string,
+				request PromoteSessionInputRequest,
 			) (SessionPromptRecord, error) {
-				t.Fatal("PromoteSessionInput() called without an expected turn id")
+				called = true
+				if request.ExpectedTurnID != "" {
+					t.Fatalf("expected fence = %q, want automatic resolution", request.ExpectedTurnID)
+				}
 				return SessionPromptRecord{}, nil
 			},
 		})
@@ -3116,7 +3204,9 @@ func TestSessionInputCommands(t *testing.T) {
 			"queue-1",
 			"Prefer the smaller patch.",
 		)
-		assertErrorContains(t, err, "expected-turn-id")
+		if err != nil || !called {
+			t.Fatalf("automatic promotion called=%v, error=%v", called, err)
+		}
 	})
 
 	t.Run("Should cancel queued input through the input surface", func(t *testing.T) {

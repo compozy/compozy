@@ -90,6 +90,9 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 		Example: "  compozy session input steer sess_1234 queue_entry_1234 " +
 			"\"Prefer the smaller patch.\" --expected-turn-id turn_1234",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := warnExpectedTurnAlias(cmd); err != nil {
+				return err
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -98,9 +101,10 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			expectedTurnID, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID)
-			if err != nil {
-				return err
+			expectedTurnID := strings.TrimSpace(flags.expectedTurnID)
+			if (cmd.Flags().Changed("expected-turn") || cmd.Flags().Changed("expected-turn-id")) &&
+				expectedTurnID == "" {
+				return fmt.Errorf("cli: --expected-turn cannot be empty")
 			}
 			record, err := client.PromoteSessionInput(cmd.Context(), args[0], args[1], PromoteSessionInputRequest{
 				Text: args[2], MessageID: messageID, IdempotencyKey: idempotencyKey, ExpectedTurnID: expectedTurnID,
@@ -114,7 +118,8 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 	bindSessionInputIdentityFlags(cmd, &flags.sessionInputIdentityFlags)
 	cmd.Flags().
 		StringVar(&flags.expectedTurnID, "expected-turn-id", "", "Active turn id that this steer request must match")
-	mustMarkFlagRequired(cmd, "expected-turn-id")
+	cmd.Flags().StringVar(&flags.expectedTurnID, "expected-turn", "", "Optional strict active turn fence")
+	mustMarkFlagHidden(cmd, "expected-turn-id")
 	return cmd
 }
 

@@ -44,7 +44,6 @@ interface SessionComposerQueuedPromptsProps {
   onRemove: (id: string) => void;
   disabled?: boolean;
   editDisabled?: boolean;
-  steerDisabled?: boolean;
 }
 
 /**
@@ -61,7 +60,6 @@ export function SessionComposerQueuedPrompts({
   onRemove,
   disabled = false,
   editDisabled = false,
-  steerDisabled = false,
 }: SessionComposerQueuedPromptsProps) {
   if (prompts.length === 0) {
     return null;
@@ -103,7 +101,7 @@ export function SessionComposerQueuedPrompts({
                 variant="ghost"
                 size="sm"
                 onClick={() => onSteer(prompt)}
-                disabled={disabled || steerDisabled || !mutable || Boolean(prompt.attachments)}
+                disabled={disabled || !mutable || Boolean(prompt.attachments)}
                 data-testid="composer-queued-steer"
                 title={
                   prompt.attachments ? "Queued prompts with files cannot be steered" : undefined

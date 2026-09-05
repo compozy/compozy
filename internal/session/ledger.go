@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,10 @@ func (m *Manager) materializeSessionLedger(ctx context.Context, session *Session
 
 	record := sessionLedgerRecordFromInfo(info, session.DBPath())
 	if err := m.ledgerMaterializer.MaterializeSessionLedger(ledgerCtx, record); err != nil {
-		return fmt.Errorf("session: materialize ledger for %q: %w", info.ID, err)
+		return errors.Join(
+			fmt.Errorf("session: materialize ledger for %q: %w", info.ID, err),
+			m.recordStoppedCleanupFailure(ctx, session, "ledger", err),
+		)
 	}
 	return nil
 }

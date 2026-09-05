@@ -216,6 +216,10 @@ type HeartbeatMutationResponse struct {
 
 // SessionHealthPayload is the metadata-only runtime health row for one session.
 type SessionHealthPayload struct {
+	LifecycleState      session.State                    `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
 	SessionID           string                           `json:"session_id"`
 	WorkspaceID         string                           `json:"workspace_id"`
 	AgentName           string                           `json:"agent_name"`
@@ -238,6 +242,10 @@ type SessionHealthResponse struct {
 
 // SessionStatusResponse returns compact session status plus wake eligibility.
 type SessionStatusResponse struct {
+	LifecycleState      session.State                    `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
 	SessionID           string                           `json:"session_id"`
 	WorkspaceID         string                           `json:"workspace_id"`
 	AgentName           string                           `json:"agent_name"`

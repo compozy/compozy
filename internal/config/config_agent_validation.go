@@ -148,6 +148,9 @@ func (c LimitsConfig) Validate() error {
 
 // Validate ensures session-scoped controls are internally consistent.
 func (c SessionConfig) Validate() error {
+	if err := c.Stop.Validate(); err != nil {
+		return err
+	}
 	if err := c.Limits.Validate(); err != nil {
 		return err
 	}
@@ -186,7 +189,7 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 // DefaultSessionBusyInputConfig returns the default busy-input behavior.
 func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
 	return SessionBusyInputConfig{
-		DefaultMode:  "queue",
+		DefaultMode:  "steer",
 		QueueCap:     10,
 		MaxTextBytes: 64 << 10,
 	}

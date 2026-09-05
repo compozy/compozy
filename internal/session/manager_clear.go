@@ -63,6 +63,9 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve catalog owner for clear %q: %w", target, err)
 	}
+	if m.hasPendingStopSettlement(target) {
+		return nil, fmt.Errorf("%w: recovered stop for %s has pending persistence", ErrRecoveryPersistence, target)
+	}
 
 	sanitized := clearedConversationMeta(meta, m.now())
 	spec, err := m.prepareResumeStart(ctx, sanitized)

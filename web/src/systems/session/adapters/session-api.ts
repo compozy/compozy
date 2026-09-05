@@ -3,21 +3,15 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type {
   ApproveSessionParams,
   CreateSessionParams,
-  FetchSessionEventsParams,
-  SessionLedgerResponse,
-  SessionEventPayload,
   SessionPayload,
-  SessionPromptPayload,
   SessionPromptRequest,
-  SessionPromptResult,
-  SessionSteerPromptRequest,
-  SessionRecapPayload,
+  SessionPromptResponse,
+  SessionPromptSendResult,
   SessionRepairPayload,
   SessionRepairQuery,
   RenameSessionRequest,
   SetSessionRuntimeRequest,
-  SessionUsagePayload,
-  TurnHistoryPayload,
+  SessionStopResult,
 } from "../types";
 import {
   SessionApiError,
@@ -45,6 +39,18 @@ export {
   ClarificationNotAnswerableError,
   fetchSessionClarifications,
 } from "./session-clarification-api";
+export {
+  fetchSessionInteractions,
+  type FetchSessionInteractionsOptions,
+} from "./session-interactions-api";
+export {
+  fetchSessionEvents,
+  fetchSessionHistory,
+  fetchSessionLedger,
+  fetchSessionRecap,
+  fetchSessionUsage,
+  SessionLedgerUnavailableError,
+} from "./session-history-api";
 
 export type {
   ApproveSessionParams,
@@ -132,21 +138,40 @@ export async function renameSession(
   return requireResponseData(data, response, `Failed to rename session "${id}"`).session;
 }
 
+export interface StopSessionOptions {
+  signal?: AbortSignal;
+  /**
+   * Block on the shared stop manager until the ladder settles (verified or
+   * unverified). Off by default: an ordinary stop is accepted with 202 and the
+   * session read model owns the settled state.
+   */
+  wait?: boolean;
+}
+
+/**
+ * Requests a session stop. Without `wait` the daemon answers 202 once the stop
+ * is accepted (or 200 when the session is already stopped) and settles the
+ * session through the shared stop manager; with `wait` it answers 200 with the
+ * settled outcome, including an unverified one. The answer is evidence that
+ * this request settled — session state stays with the read model.
+ */
 export async function stopSession(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
-): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  options: StopSessionOptions = {}
+): Promise<SessionStopResult> {
+  const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
+      body: { wait: options.wait === true },
+      signal: options.signal,
     }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to stop session "${id}"`, id);
   }
+  return requireResponseData(data, response, `Failed to stop session "${id}"`);
 }
 
 export async function cancelSessionPrompt(
@@ -177,24 +202,46 @@ export async function cancelSessionPrompt(
   }
 }
 
+function isPromptEventStream(response: Response): boolean {
+  return (response.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
+}
+
+/**
+ * Busy-send entry point: the daemon answers a busy session with the JSON
+ * disposition envelope. When the session turned idle before admission it
+ * starts a direct turn and streams it instead; the stream is released
+ * immediately (the turn runs detached and the live tail renders it) and the
+ * caller learns the send became a direct turn.
+ */
 export async function sendSessionPrompt(
   workspaceId: string,
   id: string,
   params: SessionPromptRequest,
   signal?: AbortSignal
-): Promise<SessionPromptResult> {
+): Promise<SessionPromptSendResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
       body: params,
+      parseAs: "stream",
       signal,
     }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
-  const result = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
+  const body = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
+  if (isPromptEventStream(response)) {
+    await body?.cancel();
+    return {
+      direct_turn: true,
+      idempotency_key: params.idempotency_key,
+      message_id: params.message_id,
+    };
+  }
+  // The daemon's JSON envelope; the generated response type owns its shape.
+  const result: SessionPromptResponse = await new Response(body).json();
   if (!("prompt" in result)) {
     throw new SessionApiError(
       `Failed to send prompt to session "${id}": invalid response payload`,
@@ -203,26 +250,6 @@ export async function sendSessionPrompt(
     );
   }
   return result.prompt.goal ?? result.prompt;
-}
-
-export async function steerSessionPrompt(
-  workspaceId: string,
-  id: string,
-  params: SessionSteerPromptRequest,
-  signal?: AbortSignal
-): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      body: params,
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to steer session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to steer session "${id}"`).prompt;
 }
 
 export async function resumeSession(
@@ -283,46 +310,6 @@ export async function clearSessionRuntime(
     throwSessionRequestError(response, error, `Failed to clear runtime for session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to clear runtime for session "${id}"`).session;
-}
-
-export async function fetchSessionRecap(
-  workspaceId: string,
-  id: string,
-  limit?: number,
-  signal?: AbortSignal
-): Promise<SessionRecapPayload> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
-    {
-      params: {
-        path: { workspace_id: workspaceId, session_id: id },
-        query: limit === undefined ? undefined : { limit },
-      },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session recap "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session recap "${id}"`).recap;
-}
-
-export async function fetchSessionUsage(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionUsagePayload> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session usage "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session usage "${id}"`).usage;
 }
 
 export async function repairSession(
@@ -407,28 +394,6 @@ export async function clearSessionConversation(
   return body.session;
 }
 
-export async function fetchSessionEvents(
-  workspaceId: string,
-  id: string,
-  params?: FetchSessionEventsParams,
-  signal?: AbortSignal
-): Promise<SessionEventPayload[]> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
-    {
-      params: {
-        path: { workspace_id: workspaceId, session_id: id },
-        query: params,
-      },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session events "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session events "${id}"`).events;
-}
-
 export async function approveSession(
   workspaceId: string,
   id: string,
@@ -446,50 +411,4 @@ export async function approveSession(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to approve permission", id);
   }
-}
-
-export async function fetchSessionHistory(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<TurnHistoryPayload[]> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session history "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session history "${id}"`).history;
-}
-
-export class SessionLedgerUnavailableError extends SessionApiError {
-  constructor(id: string) {
-    super(`Session ledger not materialized: ${id}`, 404, id);
-    this.name = "SessionLedgerUnavailableError";
-  }
-}
-
-export async function fetchSessionLedger(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionLedgerResponse> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    if (response.status === 404) {
-      throw new SessionLedgerUnavailableError(id);
-    }
-    throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session ledger "${id}"`);
 }
