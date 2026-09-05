@@ -24,6 +24,85 @@ import (
 )
 
 func TestDevDaemonReadiness(t *testing.T) {
+	t.Run("Should rebuild changed inputs and preserve the runnable binary after a build failure", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		write := func(name, content string) {
+			t.Helper()
+			path := filepath.Join(root, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatalf("create fixture directory: %v", err)
+			}
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				t.Fatalf("write fixture: %v", err)
+			}
+		}
+		script, err := os.ReadFile(filepath.Join(repositoryRoot(t), "scripts", "build-air.sh"))
+		if err != nil {
+			t.Fatalf("read Air build script: %v", err)
+		}
+		write("scripts/build-air.sh", string(script))
+		write("go.mod", "module example.com/dev-build\n\ngo 1.26.0\n")
+		const mainSource = `package main
+import (
+  _ "embed"
+  "fmt"
+)
+//go:embed message.txt
+var message string
+func main() { fmt.Print(message) }
+`
+		write("cmd/compozy/main.go", mainSource)
+		write("cmd/compozy/message.txt", "original")
+		buildDir := filepath.Join(root, "build")
+		binary := filepath.Join(buildDir, "compozy")
+		build := func(wantSuccess bool) {
+			t.Helper()
+			command := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "build-air.sh"))
+			command.Dir = root
+			command.Env = append(os.Environ(), "GOWORK=off", "GOPROXY=off", "COMPOZY_AIR_BUILD_DIR="+buildDir)
+			output, buildErr := command.CombinedOutput()
+			if (buildErr == nil) != wantSuccess {
+				t.Fatalf("build success = %t, want %t: %v; output=%s", buildErr == nil, wantSuccess, buildErr, output)
+			}
+		}
+		assertOutput := func(want string) {
+			t.Helper()
+			output, runErr := exec.CommandContext(t.Context(), binary).CombinedOutput()
+			if runErr != nil || string(output) != want {
+				t.Fatalf("binary output = %q, want %q: %v", output, want, runErr)
+			}
+		}
+
+		build(true)
+		assertOutput("original")
+		original, err := os.ReadFile(binary)
+		if err != nil {
+			t.Fatalf("read original binary: %v", err)
+		}
+		build(true)
+		repeated, err := os.ReadFile(binary)
+		if err != nil {
+			t.Fatalf("read repeated binary: %v", err)
+		}
+		if !bytes.Equal(original, repeated) {
+			t.Fatal("unchanged inputs produced different executable bytes")
+		}
+		write("cmd/compozy/message.txt", "changed embed")
+		build(true)
+		assertOutput("changed embed")
+		write(
+			"cmd/compozy/main.go",
+			strings.Replace(mainSource, "fmt.Print(message)", `fmt.Print("changed source: ", message)`, 1),
+		)
+		build(true)
+		assertOutput("changed source: changed embed")
+		write("cmd/compozy/main.go", "package main\nthis is invalid Go\n")
+		build(false)
+		assertOutput("changed source: changed embed")
+	})
+
 	t.Run("Should publish the started binary identity exactly once for the current run", func(t *testing.T) {
 		t.Parallel()
 
@@ -215,7 +294,12 @@ if [[ "${1:-}" == "run" && "${2:-}" == "./scripts/air-state-lock" ]]; then
   shift
   exec "$@"
 fi
-if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/compozy" && "${3:-}" == "config" && "${4:-}" == "show" ]]; then
+printf 'unexpected go command: %s\n' "$*" >&2
+exit 2
+`)
+		writeExecutable(t, fakeBinDir, "compozy", `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "config" && "${2:-}" == "show" ]]; then
   if [[ -f "$COMPOZY_TEST_DAEMON_READY_FILE" ]]; then
     printf '%s\n' 'config-after-ready' > "$COMPOZY_TEST_LIFECYCLE_FIFO"
   else
@@ -224,7 +308,7 @@ if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/compozy" && "${3:-}" == "config" &
   printf '%s\n' '{"config":{"http":{"host":"127.0.0.1","port":2123}}}'
   exit 0
 fi
-printf 'unexpected go command: %s\n' "$*" >&2
+printf 'unexpected daemon command: %s\n' "$*" >&2
 exit 2
 `)
 		writeExecutable(t, fakeBinDir, "bun", `#!/usr/bin/env bash
@@ -270,6 +354,7 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 			"AIR_VERSION=test-version",
 			"COMPOZY_WEB_API_PROXY_TARGET=",
 			"COMPOZY_AIR_CACHE_DIR="+airCacheDir,
+			"COMPOZY_AIR_BUILD_DIR="+fakeBinDir,
 			"COMPOZY_TEST_AIR_STATE_DIR="+stateDir,
 			"COMPOZY_TEST_LIFECYCLE_FIFO="+lifecycleFIFO,
 			"COMPOZY_TEST_VITE_STARTED_FIFO="+viteStartedFIFO,

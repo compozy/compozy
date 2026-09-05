@@ -22,7 +22,7 @@ readiness_fifo=
 readiness_marker=
 readiness_fd_open=0
 air_state_dir=$(go run ./scripts/air-state-dir)
-air_build_dir="$repo_root/.tmp/air"
+air_build_dir=${COMPOZY_AIR_BUILD_DIR:-"$repo_root/.tmp/air"}
 dev_run_id="dev-$$-$(date +%s)"
 export COMPOZY_AIR_BUILD_DIR=$air_build_dir
 export COMPOZY_AIR_STATE_DIR=$air_state_dir
@@ -30,7 +30,7 @@ export COMPOZY_AIR_DEV_RUN_ID=$dev_run_id
 
 configured_api_proxy_target() {
   local config_json
-  if ! config_json=$(go run ./cmd/compozy config show -o json); then
+  if ! config_json=$("$air_build_dir/compozy" config show -o json); then
     echo "dev: failed to resolve the daemon HTTP endpoint from the active config" >&2
     return 1
   fi

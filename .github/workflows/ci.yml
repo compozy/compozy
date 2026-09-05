@@ -125,7 +125,7 @@ jobs:
               esac
 
               case "$file" in
-                web/*|packages/*|scripts/*|sdk/*)
+                web/*|packages/*|scripts/*|sdk/*|lint-plugins/*)
                   web=true
                   ;;
               esac

@@ -39,6 +39,12 @@ build_date=$(git show -s --format=%cI HEAD 2>/dev/null) || build_date=
 [[ -n "$build_date" ]] || build_date=unknown
 
 mkdir -p "$build_dir"
+# Go reuses an executable whose build ID matches the current inputs. Seed the
+# next output so unchanged rebuilds can skip linking, while failed builds still
+# leave the running binary untouched. Go validates source, embed, and flag changes.
+if [[ -f "$binary" ]]; then
+  cp -p -- "$binary" "$next_binary"
+fi
 go build \
   -ldflags "-X ${version_package}.Version=${version} -X ${version_package}.Commit=${commit} -X ${version_package}.BuildDate=${build_date}" \
   -o "$next_binary" ./cmd/compozy

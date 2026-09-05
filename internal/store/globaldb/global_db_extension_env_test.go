@@ -18,6 +18,10 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should append portable instance metadata and remote header mapping atomically", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix := globalMigrationPrefixBefore(t, "00065_schema.sql")
+		if err := copyGlobalMigrationTemplate(path, prefix); err != nil {
+			t.Fatalf("copy v64 migration fixture: %v", err)
+		}
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
 			t.Fatalf("sql.Open(v64 fixture) error = %v", err)
@@ -34,7 +38,7 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 		if err := applyGlobalMigrationPrefix(
 			t,
 			legacy,
-			globalMigrationPrefixBefore(t, "00065_schema.sql"),
+			prefix,
 		); err != nil {
 			t.Fatalf("Apply(v64 prefix) error = %v", err)
 		}
@@ -203,6 +207,10 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 
 	t.Run("Should preserve valid extension environment bindings and enforce their ownership kind", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix := globalMigrationPrefixBefore(t, "00039_schema.sql")
+		if err := copyGlobalMigrationTemplate(path, prefix); err != nil {
+			t.Fatalf("copy v38 migration fixture: %v", err)
+		}
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
 			t.Fatalf("sql.Open(v38 fixture) error = %v", err)
@@ -219,7 +227,7 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 		if err := applyGlobalMigrationPrefix(
 			t,
 			legacy,
-			globalMigrationPrefixBefore(t, "00039_schema.sql"),
+			prefix,
 		); err != nil {
 			t.Fatalf("Apply(v38 prefix) error = %v", err)
 		}

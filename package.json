@@ -7,6 +7,7 @@
         "packages/site",
         "web",
         "desktop",
+        "lint-plugins",
         "sdk/typescript",
         "sdk/react",
         "sdk/examples/prompt-enhancer",
@@ -15,6 +16,7 @@
     "scripts": {
         "build": "turbo run build",
         "codegen": "make codegen",
+        "codegen-dev": "make codegen-dev",
         "codegen-check": "bash scripts/codegen-check.sh",
         "dev": "turbo run dev --filter=./web",
         "doctor": "react-doctor",
