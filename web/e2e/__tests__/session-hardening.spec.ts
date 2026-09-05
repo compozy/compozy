@@ -785,11 +785,12 @@ async function startBlockingTurn(
   ui: ReturnType<typeof sessionWindowSelectors>,
   runtime: BrowserRuntime,
   workspaceID: string,
-  sessionID: string
+  sessionID: string,
+  prompt = "block until canceled"
 ): Promise<void> {
-  await ui.composerTextarea.fill("block until canceled");
+  await ui.composerTextarea.fill(prompt);
   await ui.composerTextarea.press("Enter");
-  await expect(ui.chatView).toContainText("block until canceled");
+  await expect(ui.chatView).toContainText(prompt);
   await expect(ui.composerStopButton).toBeVisible();
   await expect
     .poll(async () => {
@@ -958,7 +959,10 @@ test("E2E-015: Stop reads Stopping… until the daemon confirms, guards a double
   const ui = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
 
-  await startBlockingTurn(ui, runtime, workspace.id, session.id);
+  // The turn ignores the cooperative cancel, so "Stopping…" is observable for the
+  // whole cooperative grace before the ladder escalates and the turn settles.
+  const stubbornPrompt = "hold ignoring cancel";
+  await startBlockingTurn(ui, runtime, workspace.id, session.id, stubbornPrompt);
   await expect(ui.composerStopButton).toHaveAttribute("data-state", "stop");
   // A draft typed during the turn belongs to the operator (US-009.EC-4).
   const draft = "after this, only touch the lifecycle tests";
@@ -1004,7 +1008,7 @@ test("E2E-015: Stop reads Stopping… until the daemon confirms, guards a double
   await expect(ui.composerTextarea).toHaveText(draft);
   await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "send");
   // The interrupted turn stays on screen where it was stopped (US-009.AC-4).
-  await expect(ui.chatView).toContainText("block until canceled");
+  await expect(ui.chatView).toContainText(stubbornPrompt);
   await browserArtifacts.captureScreenshot("e2e-015-composer-stopped-draft-kept", appPage);
 });
 
