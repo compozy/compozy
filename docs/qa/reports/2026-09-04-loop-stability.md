@@ -147,9 +147,15 @@ Audit follows `docs/_memory/change-impact.md` and is updated here across cycles.
 - Native tools: existing task-result and task-run reads recover their intended behavior. Briefing consumers receive corrected artifact identity/availability and concise human wording through the same DTO. No IDs, schemas, authorization gates, or transport shapes change. Rerun chooses durable lineage and fresh Goal binding epochs; new runs emit one start event per round.
 - Extensibility/hooks/config: built-in import outputs can be carried safely. No extension manifest, hook, or config key changes. The built-in orchestrated judge now uses the daemon-bound executable; command evaluation receives the existing subprocess environment contract.
 - Workspace data isolation: deduplication is limited to identical results for the already-authorized task-run IDs. The existing task/workspace authorization and generation-payload owner checks remain authoritative; no schema migration or persisted rewrite is needed.
-- Official skill: checked `skills/compozy/references/loops.md`; documented daemon-bound command discovery; existing public operation and result shapes remain unchanged.
+- Official skill/site: `skills/compozy/references/loops.md` documents daemon-bound command discovery. The complete `implement-tasks` YAML example in `packages/site/content/docs/examples/implement-tasks-loop.mdx` mirrors the quoted `COMPOZY_BIN` invocation; existing public operation and result shapes remain unchanged.
 - Web/docs: task-result consumers become readable after automatic succession. `TA-task-run-result-paging`, `LP-web-run-default-read-briefing`, and `LP-run-read-agent-journey` record the affected scenarios. Artifact counts exclude control markers; complete execution history remains in the roster/timeline/Inspect surfaces.
 
 QA scope excludes unrelated network-channel collaboration; the bootstrap contract and its original copy record that explicit adjustment. Provider, role, artifact-reuse, disruption and cross-surface minimums remain enforced.
 
 The targeted lab teardown completed on 2026-09-05 at 03:41 UTC. `qa-artifacts/qa/teardown.json` records `clean: true` and no survivors. Runtime evidence and the project remain available; no QA server is left running. The affected gate and strict evidence audit passed. These results establish the recorded journeys and regression invariants, not a guarantee over every possible Loop definition.
+
+## PR delivery follow-up
+
+PR #554 includes fourteen real application screenshots uploaded with the official GitHub CLI attachment support. Its first full frontend CI run found the site's exact-copy Loop example still using bare `compozy`. The published MDX example now mirrors the shipped YAML; the existing `runtime-docs-truth` suite remains unchanged. The preflight language check also caught retired product wording in the new official-skill paragraph; it now uses the canonical CompozyOS name.
+
+The capture walk also exposes a remaining generation-inspector projection discrepancy: the completed cancellation/rerun case has a done run and approved Goal turn, but generation rows show no verdict/interrupted and the roster can retain pending branches. This is documented in the PR rather than claimed repaired by the current changes.

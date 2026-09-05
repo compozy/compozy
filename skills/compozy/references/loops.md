@@ -423,7 +423,7 @@ authored pipes, redirects, and chaining while preventing inputs, trigger payload
 from introducing shell syntax.
 
 Command criteria inherit the run workspace and daemon environment. `COMPOZY_BIN` identifies the
-executable running that daemon; use `"$COMPOZY_BIN"` for Compozy CLI checks, including when the
+executable running that daemon; use `"$COMPOZY_BIN"` for CompozyOS CLI checks, including when the
 executable was renamed or launched outside the shell PATH. Its directory also leads PATH, matching
 agent subprocess discovery.
 
