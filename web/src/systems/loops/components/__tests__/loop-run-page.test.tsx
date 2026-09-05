@@ -1106,12 +1106,16 @@ describe("LoopRunAboutRail", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "About this run" }));
+    // Operational status and navigation read with About still closed.
+    expect(screen.queryByTestId("loop-run-about-id")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-run-about-last-woke")).toHaveTextContent("Last woke");
     const best = screen.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
     expect(best).toHaveAttribute("href", "#loop-generation-1");
     await userEvent.click(best);
     expect(onOpenGeneration).toHaveBeenCalledWith(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "About this run" }));
+    expect(screen.getByTestId("loop-run-about-id")).toHaveTextContent(run().id);
   });
 });
 

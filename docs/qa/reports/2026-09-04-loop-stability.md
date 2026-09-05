@@ -156,6 +156,10 @@ The targeted lab teardown completed on 2026-09-05 at 03:41 UTC. `qa-artifacts/qa
 
 ## PR delivery follow-up
 
-PR #554 includes fourteen real application screenshots uploaded with the official GitHub CLI attachment support. Its first full frontend CI run found the site's exact-copy Loop example still using bare `compozy`. The published MDX example now mirrors the shipped YAML; the existing `runtime-docs-truth` suite remains unchanged. The preflight language check also caught retired product wording in the new official-skill paragraph; it now uses the canonical CompozyOS name.
+PR #554 includes sixteen real application screenshots uploaded with the official GitHub CLI attachment support. Its first full frontend CI run found the site's exact-copy Loop example still using bare `compozy`. The published MDX example now mirrors the shipped YAML; the existing `runtime-docs-truth` suite remains unchanged. The preflight language check also caught retired product wording in the new official-skill paragraph; it now uses the canonical CompozyOS name.
 
 The capture walk also exposes a remaining generation-inspector projection discrepancy: the completed cancellation/rerun case has a done run and approved Goal turn, but generation rows show no verdict/interrupted and the roster can retain pending branches. This is documented in the PR rather than claimed repaired by the current changes.
+
+The subsequent CI run exposed two operational rows incorrectly folded with static metadata: Last woke and Best result. The About rail now keeps both visible when present, while identity and configuration remain collapsed. Existing watch-events and best-generation E2E assertions are unchanged. E2E-012 now expands About before checking the intentionally folded identity. The pre-existing terminal keyboard test targets the xterm input instead of its non-focusable log wrapper and additionally verifies real command output through the daemon; terminal production code is unchanged.
+
+Controller verification for the CI repair: fresh root Turbo component execution passed 166 tests with no cache; the rebuilt Web app and real daemon passed all four focused Playwright scenarios (default read, durable watch cursor, exhausted best-generation navigation, terminal keyboard activation and command output). Runtime fixtures disposed their owned daemons after each case.

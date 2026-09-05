@@ -25,7 +25,7 @@ not walk its rendered briefing, needs-you, progress, story, Usage, or About cont
 steps:
 1. Start a loop run that reaches a human approval gate and open `/loop-runs/<run-id>` with every disclosure collapsed.
 2. Read the briefing strip, the needs-you card, the progress line and the story without expanding anything.
-3. Confirm the run id appears only in the About rail, never in the main column.
+3. Expand About and confirm the run id appears only there, never in the main column. With About closed, confirm a recorded Last woke timestamp and daemon-selected Best result link remain visible when present.
 4. Confirm the briefing offers no Approve/Reject — only the quiet pointer to the card.
 5. Let the run finish, reload, and confirm the outcome and artifacts lead the page.
 6. Repeat against a failed run and confirm the failure signal is visible with everything collapsed.

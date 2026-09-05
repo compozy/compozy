@@ -49,13 +49,37 @@ export function LoopRunAboutRail({
   ...props
 }: LoopRunAboutRailProps) {
   const best = loopRunBestLabel(run);
+  const showBest = best && run.best_generation !== null && run.best_generation !== undefined;
+  const hasStatusRows = Boolean(showBest || lastWakeAt);
   return (
     <div
       className={cn("border-t border-line-soft px-4.5 py-4", className)}
       data-testid="loop-run-about"
       {...props}
     >
-      <Collapsible>
+      {/* Operational status stays readable with About closed; metadata folds. */}
+      {showBest ? (
+        <PropertyRow label="Best result" data-testid="loop-run-about-best">
+          <a
+            aria-label={`Best result · ${best}`}
+            className="inline-flex min-h-6 items-center rounded-xs font-mono text-mono-id text-info hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+            href={`#loop-generation-${run.best_generation}`}
+            onClick={event => {
+              if (!onOpenGeneration) return;
+              event.preventDefault();
+              onOpenGeneration(run.best_generation as number);
+            }}
+          >
+            {best}
+          </a>
+        </PropertyRow>
+      ) : null}
+      {lastWakeAt ? (
+        <PropertyRow label="Last woke" data-testid="loop-run-about-last-woke">
+          <Time iso={lastWakeAt} />
+        </PropertyRow>
+      ) : null}
+      <Collapsible className={hasStatusRows ? "mt-2" : undefined}>
         <CollapsibleTrigger className="group/about flex w-full items-center gap-1.5 text-left">
           <Info aria-hidden="true" className="size-3 text-muted" />
           <Eyebrow className="text-subtle">About this run</Eyebrow>
@@ -78,27 +102,6 @@ export function LoopRunAboutRail({
           {versionLabel !== undefined ? (
             <PropertyRow label="Version" mono data-testid="loop-run-about-version">
               {versionLabel}
-            </PropertyRow>
-          ) : null}
-          {best && run.best_generation !== null && run.best_generation !== undefined ? (
-            <PropertyRow label="Best result" data-testid="loop-run-about-best">
-              <a
-                aria-label={`Best result · ${best}`}
-                className="inline-flex min-h-6 items-center rounded-xs font-mono text-mono-id text-info hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
-                href={`#loop-generation-${run.best_generation}`}
-                onClick={event => {
-                  if (!onOpenGeneration) return;
-                  event.preventDefault();
-                  onOpenGeneration(run.best_generation as number);
-                }}
-              >
-                {best}
-              </a>
-            </PropertyRow>
-          ) : null}
-          {lastWakeAt ? (
-            <PropertyRow label="Last woke" data-testid="loop-run-about-last-woke">
-              <Time iso={lastWakeAt} />
             </PropertyRow>
           ) : null}
           {inputRows.map(row =>
