@@ -8,6 +8,7 @@ import { useLoopRunDetail } from "./use-loop-run-detail";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  isTerminalLoopStatus,
   LoopForkDialog,
   LoopNodeAmendDialog,
   LoopNodeControlDialog,
@@ -324,6 +325,7 @@ function LoopRunDetail({
       <LoopQuarantineSheet
         isRequeuePending={nodeControls.isPending}
         node={quarantineNode}
+        runEnded={isTerminalLoopStatus(page.effectiveRun.status)}
         onOpenChange={open => {
           if (!open) nodeControls.closeQuarantine();
         }}

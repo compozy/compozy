@@ -1,4 +1,7 @@
-import { Gauge } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronDown, Gauge } from "lucide-react";
+
+import { Button, cn } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
@@ -36,6 +39,12 @@ export function LoopRunStepsProgress({
   // list below is built from the roster itself, so a partial read makes it short —
   // and it has to say so rather than read as the whole round.
   const reachNote = reach ? loopRosterReachNote(reach) : null;
+  // In-page state like the register's lane; opens in place so hidden rows
+  // return in graph order.
+  const [showAll, setShowAll] = useState(false);
+  const listId = useId();
+  const fold = progress.fold;
+  const rows = fold && !showAll ? progress.steps.filter(step => !step.quiet) : progress.steps;
   return (
     <LoopSection
       className="mb-0"
@@ -86,12 +95,41 @@ export function LoopRunStepsProgress({
               </span>
             ) : null}
           </div>
-          {progress.steps.length > 0 ? (
-            <ul className="mt-3.5 flex flex-col" data-testid="loop-run-step-list">
-              {progress.steps.map(step => (
+          {rows.length > 0 ? (
+            <ul className="mt-3.5 flex flex-col" data-testid="loop-run-step-list" id={listId}>
+              {rows.map(step => (
                 <LoopRunStepRow key={step.key} step={step} />
               ))}
             </ul>
+          ) : null}
+          {fold ? (
+            // The summary keeps the folded rows' fates on screen while hidden.
+            <div
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line-soft pt-2"
+              data-testid="loop-run-step-fold"
+            >
+              <Button
+                aria-controls={listId}
+                aria-expanded={showAll}
+                data-testid="loop-run-step-fold-toggle"
+                onClick={() => setShowAll(open => !open)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {showAll ? "Show fewer steps" : `${fold.hiddenCount} more steps`}
+                <ChevronDown
+                  aria-hidden="true"
+                  className={cn(
+                    "transition-transform motion-reduce:transition-none",
+                    showAll && "rotate-180"
+                  )}
+                />
+              </Button>
+              <span className="text-form-hint text-subtle" data-testid="loop-run-step-fold-summary">
+                {fold.summary}
+              </span>
+            </div>
           ) : null}
           {reachNote ? (
             <p className="mt-3 text-form-hint text-subtle" data-testid="loop-run-progress-reach">

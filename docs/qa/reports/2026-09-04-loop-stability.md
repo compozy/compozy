@@ -1,6 +1,6 @@
 # Loop stability — real runtime improvement cycles
 
-Status: in progress. Baseline: `13f4f3dbd`. Scope: loop/graph reliability, built-in engineering loops, and readable operator results.
+Status: PASS for the scoped scenarios and affected delivery gates. Baseline: `13f4f3dbd`. Scope: loop/graph reliability, built-in engineering loops, and readable operator results.
 
 Lab: `/Users/pedronauck/dev/qa-labs/compozy-loop-stability-20260905-015002-636774-lab`; manifest: `qa-artifacts/qa/bootstrap-manifest.json`. Isolated daemon uses port 50084; Web uses port 3000 and the manifest proxy target. The operator's native Codex login is reused according to the provider's `native_cli`/`operator` policy. No production workspace or database is modified.
 
@@ -26,7 +26,7 @@ Evidence under `qa-artifacts/qa/`: `recovery-start.json`, `recovery-status-basel
 
 Real run `looprun-61ec517447b2aae9` reviewed a small invoice library with a deliberately incorrect floor-based implementation and existing nearest-cent acceptance tests. The reviewer reproduced the failing half-cent case, the fixer repaired production code and ran `node --test`, the artifact finalizer resolved the finding, and a second independent review ended the Loop as `done`. The run survived the intervening daemon restart. Initial Web observation: 2 rounds, 6m31s, approximately 194k reported tokens.
 
-The live result page displayed raw JSON from every node in its headline, including intermediate fan-out metadata and old review findings. This obscured the final outcome and pushed progress/history below the viewport. Remediation and further edge-case walks remain in progress.
+The live result page displayed raw JSON from every node in its headline, including intermediate fan-out metadata and old review findings. This obscured the final outcome and pushed progress/history below the viewport. Cycle 2 below records the verified remediation.
 
 ## Cycle 2 — readable outcomes and retained result content
 
@@ -74,21 +74,82 @@ workspace PWD. The built-in judge calls quoted `COMPOZY_BIN` so renamed binaries
 The canonical daemon command suite invokes the actual test executable through that environment;
 the existing ACP suite continues to verify PATH precedence and duplicate removal.
 
-Fresh orchestrated re-walk `looprun-bcd2b1ad861f8a46` finished `done` in generation 1 (91,549 reported tokens). A real worker implemented exact decimal parsing, completed its task and stopped. The command judge accepted that result, and an independent `node --test` passed all 14 invoice tests. Evidence: `orchestrated-fresh-fixed-status.json`, `orchestrated-fresh-fixed-workers.json`, and `invoice-after-orchestrated-fixed-tests.txt`. A separate failure discovered
-when rerunning the canceled predecessor (`goal_control_stale`) remains under investigation for the
-next cycle; no success is claimed for that recovery yet.
+Fresh orchestrated re-walk `looprun-bcd2b1ad861f8a46` finished `done` in generation 1 (91,549 reported tokens). A real worker implemented exact decimal parsing, completed its task and stopped. The command judge accepted that result, and an independent `node --test` passed all 14 invoice tests. Evidence: `orchestrated-fresh-fixed-status.json`, `orchestrated-fresh-fixed-workers.json`, and `invoice-after-orchestrated-fixed-tests.txt`. A separate failure discovered when rerunning the canceled predecessor (`goal_control_stale`) led to the binding and generation repairs in cycle 4 below.
 
 Focused race suites for briefing, command execution, and ACP environment passed using the same
 source changes in an overlay before applying them to the checkout. The same focused suites and the built-in judge contract pass in the current checkout. The affected `make gate` passed: Go lint zero issues; daemon race suite 201.817s, Loop 221.158s, GlobalDB 937.904s; repaired spec-cycle fixture passed in the cached rerun. Web lint zero warnings/errors, typecheck and all 6,797 tests passed (existing cached test evidence). No task-file status was changed to bypass a judge.
+
+## Cycle 4 — terminal generation recovery and lifecycle events
+
+Real rerun of the canceled orchestrated predecessor exposed two independent owner-state errors.
+An unbound Goal checkpoint defaulted to binding epoch 1 although the run-local handle retained a
+closed attempt. Allocation now chooses the next epoch inside the existing checkpoint-owner
+transaction. Active binding policy checks, creation idempotency and explicit rotation fences remain
+unchanged. The canonical binding lifecycle integration suite reproduces the old failure and passes
+with eight concurrent callers and skipped-target rejection. Real closed-session rerun
+`looprun-bcd2b1ad861f8a46` completed generation 2 with a new real Codex session (154,991 cumulative
+reported tokens).
+
+The canceled predecessor also had run cursor 3 with immutable generation 4 already persisted.
+Rerun tried to insert generation 4 again. The service now plans from the latest lineage entry while
+retaining the original run projection for its atomic compare-and-swap. The existing service history
+suite checks latest carried results, parent generation, replay and the original ownership fence.
+Public rerun accepted generation 5 with parent 4 on the same database. Its quarantined cell stayed
+parked and the run settled failed under the existing policy: this verifies correct generation
+selection, not implicit unquarantine. No database row was manually repaired.
+
+Fable's real UI inspection found duplicate initial-round starts. The coordinator emitted both the
+pre-reservation and post-reservation lifecycle event using a stale in-memory cursor. Updating that
+cursor after the first snapshot prevents the second event. The existing succession observability
+matrix reproduced two starts instead of one, then passed after the production fix. Fresh public
+run `looprun-a2ea94c346678c31` completed with zero model tokens and exactly one `generation_started`
+event among its ten timeline entries. Historical event bytes remain unchanged.
+
+Evidence: `orchestrated-completed-binding-fixed-status.json`,
+`orchestrated-generation-fixed-rerun.json`, `orchestrated-generation-fixed-briefing.json`,
+`timeline-fixed-start.json`, `timeline-fixed-status.json`, `timeline-fixed-events.json` under
+`qa-artifacts/`; focused red/green logs are indexed under `qa-artifacts/qa/`. Current-checkout binding lifecycle integration passed with race detection (13.058s), and the
+succession matrix passed (4.190s). The final affected `make gate` passed: Go lint zero issues; daemon race suite 148.035s, Loop 158.463s and GlobalDB 821.279s. Web lint reported zero warnings/errors; typecheck and all 6,807 tests in 748 files passed. Existing test-environment act/navigation/timer diagnostics remain as recorded in the log; no assertion failed. Evidence: `qa-artifacts/qa/final-gate.log` and `final-gate-*.json`.
+
+
+A final real cancellation re-walk started orchestrated run `looprun-8aadd5927f46987b` and waited
+for actual Codex thought/tool events. Public cancellation revoked the in-flight first-generation
+prompt. Rerun then completed generation 2 with a distinct session, binding epoch 2, and an
+approved command judge (73,056 reported tokens). No orchestrator session remained active.
+Evidence: `cancel-recovery-final-{history,cancel,rerun,status,turns,active-sessions}.json` under
+`qa-artifacts/`. This covers cancellation recovery without a pre-existing quarantined cell.
+
+## Cycle 5 — progressive disclosure and terminal quarantine
+
+Claude Fable 5.1 at High effort worked through a named Herdr TUI. It used `eng-design`, `react`,
+`agent-browser` and the `eng-ui-screenshot` capture helpers. Production changes reuse `Button`,
+`cn`, existing state-chip `Pill`/`PillDot` and `Sheet` composites from `@compozy/ui`; no parallel
+primitive, palette or shared-package change was introduced.
+
+Real review/fix progress shrank from seven rows to one, and orchestrated progress from thirteen
+to seven. Successful control/source rows and declined routes fold behind a counted disclosure;
+expansion restores graph order. Running, pending, failed, parked and fan-out rows remain visible.
+Source rows no longer inflate the progress bar. A terminal quarantine entry keeps its hint and
+attempt chain but withdraws Requeue/Cancel and explains that the run ended. Live recovery remains
+available. Existing model, component and route suites cover those behaviors.
+
+The controller inspected the diff and before/after captures, including the terminal sheet and
+`RegisterRoutedGraph` at 1440×900. Evidence is retained in `qa-artifacts/qa/ui/`, including
+`fable-report.md`, `controller-verification.md`, and `VC-20-register-routed-graph.png`. The scoped
+density change is accepted under this user request; the historical task_05 visual bundle is not
+present in this checkout. This work does not claim to change historical reads whose stored status
+is still live. Fresh controller Turbo execution (with `--force`) passed all 183 tests in the three existing suites; zero tasks were cached. Worker-owned Storybook and browser sessions were stopped, and the accepted Fable TUI was retired.
 
 ## Cross-surface impact
 
 Audit follows `docs/_memory/change-impact.md` and is updated here across cycles.
 
-- Native tools: existing task-result and task-run reads recover their intended behavior. Briefing consumers receive corrected artifact identity/availability and concise human wording through the same DTO. No IDs, schemas, gates, or transport shapes change.
+- Native tools: existing task-result and task-run reads recover their intended behavior. Briefing consumers receive corrected artifact identity/availability and concise human wording through the same DTO. No IDs, schemas, authorization gates, or transport shapes change. Rerun chooses durable lineage and fresh Goal binding epochs; new runs emit one start event per round.
 - Extensibility/hooks/config: built-in import outputs can be carried safely. No extension manifest, hook, or config key changes. The built-in orchestrated judge now uses the daemon-bound executable; command evaluation receives the existing subprocess environment contract.
 - Workspace data isolation: deduplication is limited to identical results for the already-authorized task-run IDs. The existing task/workspace authorization and generation-payload owner checks remain authoritative; no schema migration or persisted rewrite is needed.
 - Official skill: checked `skills/compozy/references/loops.md`; documented daemon-bound command discovery; existing public operation and result shapes remain unchanged.
 - Web/docs: task-result consumers become readable after automatic succession. `TA-task-run-result-paging`, `LP-web-run-default-read-briefing`, and `LP-run-read-agent-journey` record the affected scenarios. Artifact counts exclude control markers; complete execution history remains in the roster/timeline/Inspect surfaces.
 
-The lab stays alive only for this same-session sequence. Final audit and targeted teardown with `clean: true` are required before closing the overall QA run.
+QA scope excludes unrelated network-channel collaboration; the bootstrap contract and its original copy record that explicit adjustment. Provider, role, artifact-reuse, disruption and cross-surface minimums remain enforced.
+
+The targeted lab teardown completed on 2026-09-05 at 03:41 UTC. `qa-artifacts/qa/teardown.json` records `clean: true` and no survivors. Runtime evidence and the project remain available; no QA server is left running. The affected gate and strict evidence audit passed. These results establish the recorded journeys and regression invariants, not a guarantee over every possible Loop definition.

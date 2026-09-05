@@ -7,6 +7,7 @@ import type {
   LoopApprovalRequest,
   LoopGateDecision,
 } from "../../lib/loop-events";
+import { isTerminalLoopStatus } from "../../lib/loop-formatters";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import type { LoopRequestView } from "../../lib/loop-request-model";
@@ -78,6 +79,17 @@ const NO_QUARANTINED_NODES: readonly LoopNodeLifecycle[] = [];
 const NO_REQUEST_VIEWS: readonly LoopRequestView[] = [];
 
 /**
+ * Requeue is a live verb: the daemon rejects it once the run has ended, so a
+ * terminal row keeps the reason and the entry but stops asking for one.
+ */
+function quarantineDetail(attempts: number, runEnded: boolean): string {
+  const setAside = attempts > 0 ? `Set aside after ${attempts} attempts.` : "Set aside.";
+  return runEnded
+    ? `${setAside} This run has ended.`
+    : `${setAside} Requeue it from the entry once it is repaired.`;
+}
+
+/**
  * The "Needs you" region: a neutral panelbox whose only colour is the warning
  * glyph. Requests present as a one-at-a-time questionnaire; approval decisions
  * and quarantine entries share the same shell.
@@ -113,6 +125,7 @@ export function LoopRunNeedsYouCard({
     .filter((part): part is string => part !== null)
     .join(" · ");
   const gistCount = (showApproval ? 1 : 0) + quarantinedNodes.length + requests.length;
+  const runEnded = isTerminalLoopStatus(run.status);
   return (
     <LoopSection
       className="mb-0"
@@ -210,10 +223,11 @@ export function LoopRunNeedsYouCard({
                 <div className="text-ws-name font-medium text-fg-strong">
                   {node.label} was quarantined
                 </div>
-                <p className="mt-0.75 max-w-[62ch] text-small-body leading-relaxed text-muted">
-                  {attempts > 0
-                    ? `Set aside after ${attempts} attempts. Requeue it from the entry once it is repaired.`
-                    : "Set aside. Requeue it from the entry once it is repaired."}
+                <p
+                  className="mt-0.75 max-w-[62ch] text-small-body leading-relaxed text-muted"
+                  data-testid={`loop-run-needs-quarantine-detail-${rowKey}`}
+                >
+                  {quarantineDetail(attempts, runEnded)}
                 </p>
                 <div className="mt-1.5 font-mono text-pill-group-badge text-faint">
                   {`node_controls.quarantined true · ${nodeIdentity(node)}`}

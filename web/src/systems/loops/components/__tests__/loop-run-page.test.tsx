@@ -65,6 +65,7 @@ const { checkLoopWaitPayload, loopWaitExpectRequiredKeys } =
   await import("../../lib/loop-node-wait-payload");
 type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
+const { LoopRunStepsProgress } = await import("../run-page/loop-run-steps-progress");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
 const { LoopRunRegisters } = await import("../run-page/loop-run-registers");
 const { projectLoopRunRegisters } = await import("../../lib/loop-run-registers-view");
@@ -307,8 +308,52 @@ describe("LoopRunNeedsYouCard", () => {
     );
     expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-g2")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
+    // A live run can still take the verb, so the row points at it.
+    expect(screen.getByTestId("loop-run-needs-quarantine-detail-fix_batch-g2")).toHaveTextContent(
+      "Requeue it from the entry once it is repaired."
+    );
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
+  });
+
+  it("Should stop instructing a requeue once the run has ended", () => {
+    const onOpenQuarantine = vi.fn();
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "failed" })}
+        request={null}
+        fallbackFacts={[]}
+        showApproval={false}
+        quarantinedNodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "orchestrate",
+            label: "orchestrate",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+            quarantineEntry: {
+              nodeId: "orchestrate",
+              inputRef: "loop-run:r-1:node:orchestrate:input",
+              target: "compozy__goal",
+              episodes: [],
+              requeues: [],
+              truncated: false,
+              attemptCount: 2,
+              hint: "",
+            },
+          }),
+        ]}
+        onOpenQuarantine={onOpenQuarantine}
+        onDecision={vi.fn()}
+      />
+    );
+    // The daemon rejects requeue on a terminal run; the row keeps the reason
+    // and the entry, and no longer asks for a verb nobody can take.
+    const detail = screen.getByTestId("loop-run-needs-quarantine-detail-orchestrate-g2");
+    expect(detail).toHaveTextContent("Set aside after 2 attempts. This run has ended.");
+    expect(detail).not.toHaveTextContent(/requeue/i);
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-orchestrate-g2"));
+    expect(onOpenQuarantine).toHaveBeenCalledWith("orchestrate");
   });
 
   it("Should keep distinct testids when fan-out quarantines two items of the same node", () => {
@@ -918,6 +963,29 @@ describe("LoopQuarantineSheet", () => {
     );
     expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the entry readable but withdraw the verbs once the run has ended", () => {
+    const quarantined = loopNodeLifecycleFixture({
+      state: "quarantined",
+      parked: true,
+      quarantined: true,
+      quarantineEntry: entry,
+    });
+    const props = { onOpenChange: vi.fn(), onVerb: vi.fn(), open: true, runId: "r-1" };
+    const { rerender } = render(<LoopQuarantineSheet {...props} node={quarantined} />);
+    // Live: the verbs are on offer and the foot says the run is still going.
+    expect(screen.getByTestId("loop-quarantine-requeue")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-quarantine-foot")).toHaveTextContent("The run keeps working");
+
+    rerender(<LoopQuarantineSheet {...props} node={quarantined} runEnded />);
+    // Ended: the daemon rejects requeue and cancel, so neither is offered, while
+    // the hint, the facts and the attempt chain stay exactly as retained.
+    expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-quarantine-foot")).toHaveTextContent("This run has ended.");
+    expect(screen.getByTestId("loop-quarantine-hint")).toHaveTextContent(entry.hint);
+    expect(screen.getByTestId("loop-quarantine-chain")).toHaveTextContent("transport failed");
   });
 
   it("Should pair a retained episode with the requeue from the same generation", () => {
@@ -1778,5 +1846,60 @@ describe("LoopRunRegisters roster and generation lanes", () => {
       "event.payload.to_status == 'blocked'"
     );
     expect(screen.getByTestId("loop-run-inspect-cursors")).toHaveTextContent("loop_run_events17");
+  });
+});
+
+// The default read of Progress is the steps the served count is counting. A
+// gate that passed and a branch the route declined carry state but say nothing
+// the reader needs first, so they fold behind their own count — hidden, never
+// dropped, and back in graph order on one click.
+describe("LoopRunStepsProgress fold", () => {
+  function routedProgress() {
+    // VC-20's roster through the production projection: review ran, the gate
+    // passed, write_artifacts was provably declined, collect_fixes is still ahead.
+    return buildScenarioProps(registerFixtures.registerRoutedScenario()).registers.progress!;
+  }
+
+  it("Should hide quiet rows behind a counted summary and keep the way ahead visible", () => {
+    render(<LoopRunStepsProgress progress={routedProgress()} />);
+
+    expect(screen.getByTestId("loop-run-step-review")).toBeInTheDocument();
+    // Reachable-but-unstarted is where the run is going; it never folds.
+    expect(screen.getByTestId("loop-run-step-collect_fixes")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-step-has_issues")).toBeNull();
+    expect(screen.queryByTestId("loop-run-step-write_artifacts")).toBeNull();
+
+    // The fact the hidden rows carried stays on screen while they are hidden.
+    expect(screen.getByTestId("loop-run-step-fold-summary")).toHaveTextContent(
+      "1 succeeded · 1 not taken"
+    );
+    const toggle = screen.getByTestId("loop-run-step-fold-toggle");
+    expect(toggle).toHaveTextContent("2 more steps");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", screen.getByTestId("loop-run-step-list").id);
+  });
+
+  it("Should bring the folded rows back in graph order, not as an appendix", async () => {
+    render(<LoopRunStepsProgress progress={routedProgress()} />);
+
+    await userEvent.click(screen.getByTestId("loop-run-step-fold-toggle"));
+
+    const rows = within(screen.getByTestId("loop-run-step-list")).getAllByRole("listitem");
+    expect(rows.map(row => row.getAttribute("data-node-id"))).toEqual([
+      "review",
+      "has_issues",
+      "write_artifacts",
+      "collect_fixes",
+    ]);
+    // Pending and not-taken stay distinguishable at a glance (SI-14): the
+    // literal word travels with the chip once the row is back.
+    expect(
+      within(screen.getByTestId("loop-run-step-write_artifacts")).getByTestId(
+        "loop-state-chip-not_taken"
+      )
+    ).toHaveTextContent("not taken");
+    const toggle = screen.getByTestId("loop-run-step-fold-toggle");
+    expect(toggle).toHaveTextContent("Show fewer steps");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 });
