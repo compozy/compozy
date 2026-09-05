@@ -310,6 +310,10 @@ func TestBriefingContract(t *testing.T) {
 				"compozy", "loop", "rerun", "--workspace", "workspace with spaces",
 				"--run-id", "run-a", "--from-node", "failed", "--item", "0",
 			})
+			source.Run.Generation = 1
+			if latest := ProjectBriefing(&source); latest.Blockers[0].Unblocker != got.Blockers[0].Unblocker {
+				t.Fatalf("latest persisted round lost recovery guidance: %#v", latest.Blockers)
+			}
 			// An unrelated in-flight cell makes this same suggestion invalid at the owner.
 			source.Outputs = append(source.Outputs, GenerationOutput{
 				Generation: 2, NodeID: "unrelated", Status: "enqueued",

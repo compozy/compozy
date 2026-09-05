@@ -45,3 +45,8 @@ Fresh real-provider re-walk `looprun-bcd2b1ad861f8a46` passed: one actual worker
 decimal parsing, stopped, and the Loop settled `done` in generation 1; all 14 independent invoice
 tests passed. Canceled-run recovery separately exposed binding-epoch allocation and generation
 selection failures under investigation. Evidence: the loop-stability report, cycle 3.
+
+QA 2026-09-05 (loop-stability): rerunning a completed Goal uses a fresh binding epoch after
+terminal cleanup; live run `looprun-bcd2b1ad861f8a46` completed generation 2. The prior canceled
+run's immutable next-round selection also recovers without rewriting history. Quarantined nodes
+remain parked under existing policy. See the loop-stability report, cycle 4.

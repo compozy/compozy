@@ -4020,6 +4020,39 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistPostReserveGenera
 func TestGlobalDBGenerationSuccessionObservabilityCoverageMatrix(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should emit one start when reservation rewrites the same initial generation", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 9, 5, 3, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-same-generation-start", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, run.ID, "run-same-generation-start", now)
+		snapshot := taskpkg.GenerationSnapshot{LoopRunID: string(run.ID), Generation: 1}
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: snapshot, PostReserveSnapshot: &snapshot,
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID: claim.Run.TaskID, RunID: "run-same-generation-followup",
+					RunKind: taskpkg.RunKindCoordinator, LoopRunID: string(run.ID),
+					IdempotencyKey: "same-generation-followup",
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		assertLoopLifecycleEventCounts(ctx, t, globalDB, run.ID, 1, 0)
+	})
+
 	t.Run(
 		"Should persist exactly one provenance row and generation event for every successor origin",
 		func(t *testing.T) {

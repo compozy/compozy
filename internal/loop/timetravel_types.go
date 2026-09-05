@@ -156,6 +156,7 @@ type ForkStoreRequest struct {
 }
 
 type TimeTravelStore interface {
+	GenerationLineageReader
 	LookupRerunReplay(context.Context, WorkspaceID, string, string) (RerunResult, bool, error)
 	CreateRerun(context.Context, RerunStoreRequest) (RerunResult, bool, error)
 	CreateFork(context.Context, ForkStoreRequest) (Run, bool, error)

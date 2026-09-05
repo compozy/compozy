@@ -266,6 +266,7 @@ func nodeBlocker(kind string, source *BriefingSource, node RosterNode) Blocker {
 
 func failureRerunCommand(source *BriefingSource, node RosterNode) string {
 	run := source.Run
+	run.Generation = currentBriefingGeneration(source)
 	if !run.Status.Terminal() || node.Generation != run.Generation {
 		return ""
 	}

@@ -86,3 +86,8 @@ QA result 2026-09-04 (recovery): only current-round node state contributes to bl
 The printed terminal rerun was accepted for the failed receipt import after its manifest became
 available. Generation 2 remained `running / ok`, then settled `done / ok` without old failure
 blockers. CLI keeps all original node history. Evidence: the loop-stability report, cycle 3.
+
+QA 2026-09-05 (loop-stability): a canceled run with cursor 3 and persisted round 4 now reruns from
+round 4 into round 5 without a uniqueness conflict; quarantine remains protected. A fresh
+completed run emits one initial-round start despite pre/post-reservation snapshots. Evidence:
+`docs/qa/reports/2026-09-04-loop-stability.md`, cycle 4.

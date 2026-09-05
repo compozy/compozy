@@ -193,10 +193,16 @@ func allocateNextSessionBindingAttempt(
 	if creatingCount != 0 {
 		return goal.SessionBinding{}, goalControlStaleError("another binding creation attempt is already pending")
 	}
-	if req.TargetBindingEpoch != maximumEpoch+1 {
+	epoch := req.TargetBindingEpoch
+	if req.ExpectedCheckpointBindingEpoch == 0 && epoch == 1 {
+		// A new generation has no binding checkpoint, but the run-local handle
+		// can retain closed attempts from earlier generations. Allocate under
+		// this transaction's owner fence instead of restarting its history.
+		epoch = maximumEpoch + 1
+	}
+	if epoch != maximumEpoch+1 {
 		return goal.SessionBinding{}, goalControlStaleError("binding allocation must target the next epoch")
 	}
-	epoch := req.TargetBindingEpoch
 	attemptID, sessionID := goal.DeriveBindingIdentity(req.CheckpointKey, req.IdentityHandle, epoch)
 	creationOptions := req.CreationOptions
 	creationOptions.SessionID = sessionID
