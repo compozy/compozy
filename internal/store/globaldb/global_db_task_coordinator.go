@@ -254,14 +254,11 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 		}
 	}
 	if err := g.applyCoordinatorGenerationSnapshotIntentsWithExecutor(
-		ctx,
-		exec,
-		loopRun,
-		snapshot,
-		completion.Now,
+		ctx, exec, loopRun, snapshot, completion.Now,
 	); err != nil {
 		return coordinatorBoundaryState{}, err
 	}
+	loopRun.Generation = max(loopRun.Generation, snapshot.Generation)
 	return coordinatorBoundaryState{
 		snapshot:            snapshot,
 		postReserveSnapshot: postReserve,

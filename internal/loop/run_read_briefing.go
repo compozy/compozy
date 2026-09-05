@@ -1,9 +1,15 @@
 package loop
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func (s *computedRunReadService) Briefing(
@@ -24,7 +30,7 @@ func (s *computedRunReadService) Briefing(
 	if err != nil {
 		return Briefing{}, fmt.Errorf("read loop briefing requests: %w", err)
 	}
-	artifacts, err := s.loadArtifacts(ctx, ws, runID, source.Outputs)
+	artifacts, err := s.loadArtifacts(ctx, ws, runID, source.Graph, source.Outputs)
 	if err != nil {
 		return Briefing{}, err
 	}
@@ -33,6 +39,8 @@ func (s *computedRunReadService) Briefing(
 		return Briefing{}, err
 	}
 	return ProjectBriefing(&BriefingSource{
+		Graph:                source.Graph,
+		Outputs:              source.Outputs,
 		Run:                  source.Run,
 		Roster:               roster,
 		Requests:             requests,
@@ -112,6 +120,7 @@ func (s *computedRunReadService) loadArtifacts(
 	ctx context.Context,
 	workspaceID WorkspaceID,
 	runID RunID,
+	graph dsl.Graph,
 	outputs []GenerationOutput,
 ) ([]RunArtifact, error) {
 	refs := outputRefs(outputs)
@@ -127,7 +136,7 @@ func (s *computedRunReadService) loadArtifacts(
 			available[ref] = true
 		}
 	}
-	return artifactsFromOutputs(outputs, available), nil
+	return artifactsFromOutputs(graph, outputs, available), nil
 }
 
 func outputRefs(outputs []GenerationOutput) []string {
@@ -143,21 +152,38 @@ func outputRefs(outputs []GenerationOutput) []string {
 	return refs
 }
 
-func artifactsFromOutputs(outputs []GenerationOutput, available map[string]bool) []RunArtifact {
+func artifactsFromOutputs(graph dsl.Graph, outputs []GenerationOutput, available map[string]bool) []RunArtifact {
+	actions := make(map[string]bool, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		actions[string(node.ID)] = node.Class == dsl.NodeClassAction
+	}
+	outputs = slices.Clone(outputs)
+	slices.SortStableFunc(outputs, func(a, b GenerationOutput) int {
+		return cmp.Compare(b.Generation, a.Generation)
+	})
 	items := make([]RunArtifact, 0)
 	for _, output := range outputs {
-		if output.OutputRef == "" {
+		if output.OutputRef == "" || outputRefRepresentsAbsentValue(output.OutputRef) ||
+			(!actions[output.NodeID] && output.ArtifactName == "" && output.OutputID == "") {
 			continue
 		}
 		availability := ArtifactPruned
-		if available[output.OutputRef] {
+		// Small results live in the generation row itself; blob retention does not own them.
+		if json.Valid([]byte(output.OutputRef)) || available[output.OutputRef] {
 			availability = ArtifactAvailable
+			if output.Status == string(NodeStatePartial) {
+				availability = ArtifactPartial
+			}
 		}
-		if available[output.OutputRef] && output.Status == string(NodeStatePartial) {
-			availability = ArtifactPartial
+		name := strings.TrimSpace(output.ArtifactName)
+		if name == "" {
+			name = strings.TrimSpace(output.OutputID)
+		}
+		if name == "" {
+			name = fmt.Sprintf("%s (round %d, item %d)", output.NodeID, output.Generation, output.ItemIndex+1)
 		}
 		items = append(items, RunArtifact{
-			Name:         output.ArtifactName,
+			Name:         name,
 			Output:       output.OutputID,
 			Ref:          output.OutputRef,
 			Availability: availability,

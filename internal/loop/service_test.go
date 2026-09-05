@@ -2900,6 +2900,58 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rerun the latest persisted generation when cancellation precedes its boundary", func(t *testing.T) {
+		t.Parallel()
+		store := newTimeTravelFakeStore()
+		service := newTestServiceWithOptions(t, store, validDefinition())
+		run, err := service.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			ProfileID: storepkg.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		run.Status, run.Generation = loop.StatusCanceled, 1
+		store.seed(*run)
+		store.generationOutputs[run.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "load", Status: "succeeded", OutputRef: "old-load"},
+			{Generation: 1, NodeID: "agent", Status: "failed"},
+			{Generation: 2, NodeID: "load", Status: "succeeded", OutputRef: "latest-load"},
+			{Generation: 2, NodeID: "agent", Status: "canceled"},
+		}
+		svc := service.(loop.TimeTravelService)
+		input := loop.RerunInput{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			FromNode:    "agent",
+			RequestID:   "rerun-latest",
+			Actor:       humanActor(t),
+		}
+		result, err := svc.RerunFromNode(context.Background(), input)
+		if err != nil {
+			t.Fatalf("RerunFromNode() error = %v", err)
+		}
+		if result.Generation != 3 || result.ParentGeneration != 2 {
+			t.Fatalf("rerun = %#v, want generation 3 from 2", result)
+		}
+		request := store.rerunRequest
+		if request.Source.Generation != 1 || *request.Operation.SourceGeneration != 2 {
+			t.Fatalf("rerun request = %#v, want original CAS and latest provenance", request)
+		}
+		for _, output := range request.NextOutputs {
+			if output.Generation != 3 {
+				t.Fatalf("output = %#v, want generation 3", output)
+			}
+			if output.NodeID == "load" && output.OutputRef != "latest-load" {
+				t.Fatalf("carried output = %#v, want latest result", output)
+			}
+		}
+		store.rerunReplay, store.replayDigest = &result, request.RequestDigest
+		replay, err := svc.RerunFromNode(context.Background(), input)
+		if err != nil || !replay.Replayed || replay.Generation != 3 {
+			t.Fatalf("replay = %#v, error = %v", replay, err)
+		}
+	})
+
 	t.Run("Should create an immutable seeded linked fork UT-078 through UT-082b", func(t *testing.T) {
 		t.Parallel()
 
@@ -3793,6 +3845,27 @@ func (s *timeTravelFakeStore) ListRouteCauses(
 	generation int64,
 ) ([]loop.RouteCause, error) {
 	return append([]loop.RouteCause(nil), s.routes[timeTravelHistoryKey(runID, generation)]...), nil
+}
+
+func (s *timeTravelFakeStore) ListGenerations(
+	_ context.Context,
+	workspaceID, runID string,
+) ([]loop.LoopGeneration, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, ok := s.runs[loop.RunID(runID)]
+	if !ok || string(run.WorkspaceID) != workspaceID {
+		return nil, loop.ErrRunNotFound
+	}
+	seen := map[int]bool{run.Generation: true}
+	for _, output := range s.generationOutputs[run.ID] {
+		seen[output.Generation] = true
+	}
+	var result []loop.LoopGeneration
+	for generation := range seen {
+		result = append(result, loop.LoopGeneration{RunID: runID, Generation: int64(generation)})
+	}
+	return result, nil
 }
 
 func (s *timeTravelFakeStore) CreateRerun(

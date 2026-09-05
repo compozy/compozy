@@ -216,7 +216,7 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 	binDir := filepath.Dir(executable)
 
-	env := daemonMatchedEnv([]string{
+	env := DaemonMatchedEnv([]string{
 		"PATH=/should-be-ignored",
 		"FOO=bar",
 		"COMPOZY_BIN=/should-be-replaced",
@@ -226,16 +226,16 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 
 	gotCompozyBin, ok := envValue(env, "COMPOZY_BIN")
 	if !ok || gotCompozyBin != executable {
-		t.Fatalf("daemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotCompozyBin, ok, executable)
+		t.Fatalf("DaemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotCompozyBin, ok, executable)
 	}
 
 	gotPath, ok := envValue(env, "PATH")
 	if !ok {
-		t.Fatal("daemonMatchedEnv() PATH missing")
+		t.Fatal("DaemonMatchedEnv() PATH missing")
 	}
 	wantPath := binDir + string(os.PathListSeparator) + "/usr/local/bin" + string(os.PathListSeparator) + "/usr/bin"
 	if gotPath != wantPath {
-		t.Fatalf("daemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
+		t.Fatalf("DaemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
 	}
 
 	pathCount := 0
@@ -250,7 +250,7 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 	if pathCount != 1 || compozyBinCount != 1 {
 		t.Fatalf(
-			"daemonMatchedEnv() duplicate entries remain: PATH=%d COMPOZY_BIN=%d env=%#v",
+			"DaemonMatchedEnv() duplicate entries remain: PATH=%d COMPOZY_BIN=%d env=%#v",
 			pathCount,
 			compozyBinCount,
 			env,

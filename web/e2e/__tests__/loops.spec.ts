@@ -1214,6 +1214,7 @@ test("Parked watch-events run renders its durable cursor from the real daemon", 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
   await expect(appPage.getByText(/last woke/i)).toBeVisible();
+  await browserArtifacts.captureScreenshot("loop-run-watch-events-default", appPage);
   await appPage.getByTestId("loop-run-open-inspect").click();
   const watch = appPage.getByTestId("loop-run-inspect-watch");
   await watch.scrollIntoViewIfNeeded();

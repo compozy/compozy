@@ -823,7 +823,7 @@ function rosterRow(
 }
 
 test.describe("Loop run page — two registers", () => {
-  test("E2E-012: the default read answers everything without opening a disclosure", async ({
+  test("E2E-012: the default read shows state and usage with identity in About", async ({
     appPage,
     runtime,
   }) => {
@@ -845,12 +845,12 @@ test.describe("Loop run page — two registers", () => {
     await expect(appPage.getByTestId("loop-run-inspect")).toBeVisible();
     await expect(appPage.getByTestId("loop-run-inspect-panel")).toBeHidden();
 
-    // The id assertion, scoped to the main column. The About rail's labelled
-    // `Run` row is the one place an id belongs in the default read, so grepping
-    // the whole page would fail on the very element the design calls for.
+    // Runtime identity stays out of the main column and remains available
+    // through the About disclosure.
     const mainColumn = appPage.locator("main");
     await expect(mainColumn).not.toContainText("looprun-");
     await expect(mainColumn).not.toContainText("loop.");
+    await appPage.getByRole("button", { name: "About this run", exact: true }).click();
     await expect(appPage.getByTestId("loop-run-detail-rail")).toContainText(runId);
   });
 

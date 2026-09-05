@@ -1181,6 +1181,8 @@ test("E2E-018: keyboard activation opens a working terminal from the dock", asyn
   appPage,
   runtime,
 }) => {
+  assertLaunchRuntime(runtime);
+  const workspace = await runtimeWorkspace(runtime);
   await ensureProjectWorkspace(appPage, runtime);
   const launcher = appPage
     .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
@@ -1194,13 +1196,19 @@ test("E2E-018: keyboard activation opens a working terminal from the dock", asyn
   await expect(terminalWindow).toBeVisible();
   // One activation is the whole flow: the window resolves straight into a
   // terminal, with no launcher step in between.
-  await visibleTerminalPaneID(terminalWindow);
+  const terminalId = await visibleTerminalPaneID(terminalWindow);
 
   const journalToggle = terminalWindow.getByTestId("terminal-journal-toggle");
   await journalToggle.focus();
   await expect(journalToggle).toBeFocused();
 
   const log = await interactiveTerminalLog(terminalWindow);
-  await log.focus();
-  await expect(log).toBeFocused();
+  const input = log.getByRole("textbox", { name: "Terminal input", exact: true });
+  await input.focus();
+  await expect(input).toBeFocused();
+  await appPage.keyboard.type("printf 'keyboard-terminal-%s\\n' ready");
+  await appPage.keyboard.press("Enter");
+  await expect
+    .poll(async () => (await terminalScreen(runtime, workspace.id, terminalId)).content)
+    .toContain("keyboard-terminal-ready");
 });
