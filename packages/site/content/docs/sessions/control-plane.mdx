@@ -17,10 +17,10 @@ Steering uses the live agent's advertised capability. A successful injection pre
 turn. If injection is unavailable or refused, CompozyOS records `interrupt_fallback` before canceling
 the current turn and dispatching the accepted replacement.
 
-| `steer_delivery` | Meaning |
-| --- | --- |
-| `injected` | Guidance was delivered into the active turn. |
-| `pending_injection` | The agent accepted guidance and is waiting to inject it. |
+| `steer_delivery`     | Meaning                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `injected`           | Guidance was delivered into the active turn.                 |
+| `pending_injection`  | The agent accepted guidance and is waiting to inject it.     |
 | `interrupt_fallback` | CompozyOS accepted a replacement through the interrupt path. |
 
 The busy response contains `disposition`, `steer_delivery`, `turn_id`, `entry_id`, `message_id`,

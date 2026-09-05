@@ -1,6 +1,8 @@
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
+import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
+import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
@@ -131,40 +133,47 @@ export function SessionWindowContent({
         sessionActions={sidebar.sessionActions}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {session.runtime.status === "recovering" ? (
-          <SessionRuntimeRecoveryNotice
-            attempt={session.runtime.recovery?.attempt}
-            maxAttempts={session.runtime.recovery?.max_attempts}
-          />
-        ) : controls.stopAttention !== null ? (
-          <SessionStopAttentionNotice
-            isRetrying={controls.isStopRetrying}
-            onRetry={controls.canRetryStop ? controls.handleStop : undefined}
-          />
-        ) : controls.resumeFailure ? (
-          <SessionResumeFailure
-            agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
-            isRetrying={controls.isResuming}
-            message={controls.resumeFailure.message}
-            missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
-            onDismiss={controls.handleDismissResumeFailure}
-            onRetry={controls.handleResume}
-            sessionId={sessionId}
-          />
-        ) : hasUnrecoverableRuntime(session) ? (
-          <SessionResumeFailure
-            agentName={agentName}
-            isRetrying={forkSession.isPending}
-            message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
-            missingProvider={null}
-            onDismiss={() => undefined}
-            onRetry={handleForkDeadSession}
-            retryLabel="Fork into a new session"
-            sessionId={sessionId}
-            showDismiss={false}
-            title="Runtime unavailable"
-          />
-        ) : null}
+        {/* Session-level notices share the transcript's inset rail so they align
+            with the messages below instead of running edge to edge. */}
+        <ThreadContentRail
+          data-testid="session-window-notice-rail"
+          inset={SESSION_THREAD_CONTENT_INSET_DEFAULT}
+        >
+          {session.runtime.status === "recovering" ? (
+            <SessionRuntimeRecoveryNotice
+              attempt={session.runtime.recovery?.attempt}
+              maxAttempts={session.runtime.recovery?.max_attempts}
+            />
+          ) : controls.stopAttention !== null ? (
+            <SessionStopAttentionNotice
+              isRetrying={controls.isStopRetrying}
+              onRetry={controls.canRetryStop ? controls.handleStop : undefined}
+            />
+          ) : controls.resumeFailure ? (
+            <SessionResumeFailure
+              agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
+              isRetrying={controls.isResuming}
+              message={controls.resumeFailure.message}
+              missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
+              onDismiss={controls.handleDismissResumeFailure}
+              onRetry={controls.handleResume}
+              sessionId={sessionId}
+            />
+          ) : hasUnrecoverableRuntime(session) ? (
+            <SessionResumeFailure
+              agentName={agentName}
+              isRetrying={forkSession.isPending}
+              message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+              missingProvider={null}
+              onDismiss={() => undefined}
+              onRetry={handleForkDeadSession}
+              retryLabel="Fork into a new session"
+              sessionId={sessionId}
+              showDismiss={false}
+              title="Runtime unavailable"
+            />
+          ) : null}
+        </ThreadContentRail>
         <SessionThread
           liveDataEnabled={liveDataEnabled}
           sessionId={sessionId}

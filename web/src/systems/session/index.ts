@@ -148,30 +148,8 @@ export {
 
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
-// Attachment surface — byte URLs, prompt parts, item shaping, cards (./attachments).
-export {
-  attachmentExtensionMark,
-  attachmentsFromPromptMessageParts,
-  consumeSubmittedComposerAttachment,
-  formatAttachmentBytes,
-  isImageMediaType,
-  retainSubmittedComposerAttachments,
-  sessionAttachmentBytesURL,
-  sessionAttachmentIdFromURI,
-  sessionAttachmentMediaType,
-  SessionAttachmentFileCard,
-  SessionAttachmentFrame,
-  SessionAttachmentGallery,
-  userMessageAttachmentItems,
-  userMessageHasAttachments,
-  userMessageHasText,
-  type SessionAttachmentFileCardProps,
-  type SessionAttachmentFileItem,
-  type SessionAttachmentFrameProps,
-  type SessionAttachmentGalleryProps,
-  type SessionAttachmentImageItem,
-  type SessionAttachmentItem,
-} from "./attachments";
+// Attachment surface — byte URLs, prompt parts, item shaping, cards; ./attachments is the public list.
+export * from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
@@ -293,28 +271,9 @@ export {
   runningAgentNames,
 } from "./lib/session-running";
 export { invalidateSessionMutationQueries } from "./lib/session-query-invalidation";
-export {
-  DEFAULT_SESSION_BUSY_INPUT_MODE,
-  oppositeSessionBusyInputMode,
-  sessionBusyInputDefaultMode,
-  sessionSteerDelivery,
-} from "./lib/session-busy-input";
-export type {
-  SessionBusyInputAction,
-  SessionBusyInputMode,
-  SessionSteerDelivery,
-} from "./lib/session-busy-input";
-export {
-  describeSessionBusyInputRefusal,
-  SessionBusyInputRefusalError,
-  sessionBusyInputRefusalFromError,
-} from "./lib/session-busy-input-refusal";
-export type {
-  SessionBusyInputRefusal,
-  SessionBusyInputRefusalCode,
-} from "./lib/session-busy-input-refusal";
-export { sessionSendOutcomeFromResult } from "./lib/session-send-outcome";
-export type { SessionSendDisposition, SessionSendOutcome } from "./lib/session-send-outcome";
+// Busy-input surface — default mode, steer delivery, refusals, send outcome.
+// Grouped in ./busy-input; re-exported here.
+export * from "./busy-input";
 
 export { useSessionComposerDraft, useSessionGoalFeedback } from "./hooks/use-session-store";
 export type {

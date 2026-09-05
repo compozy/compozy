@@ -34,7 +34,7 @@ export function SessionStopAttentionNotice({
   return (
     <Alert
       aria-live="polite"
-      className="mt-3 mb-1 w-full"
+      className="my-3 w-full"
       data-attention={STOP_VERIFICATION_FAILED_ATTENTION}
       data-testid="session-stop-attention"
       role="alert"
