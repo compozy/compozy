@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -14,18 +13,17 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sessionSandboxEqual(left, right *store.SessionSandboxMeta) bool {
+// sessionSandboxProjectionEqual compares only the sandbox fields the session
+// catalog persists. The runtime root, additional dirs, and SSH access expiry
+// live in session metadata alone, so reading them back from the catalog would
+// otherwise register as drift on every inactive read and republish an upsert.
+func sessionSandboxProjectionEqual(left, right *store.SessionSandboxMeta) bool {
 	if left == nil || right == nil {
 		return left == right
 	}
 	return left.SandboxID == right.SandboxID && left.Backend == right.Backend &&
 		left.Profile == right.Profile && left.State == right.State && left.InstanceID == right.InstanceID &&
-		left.RuntimeRootDir == right.RuntimeRootDir &&
-		slices.Equal(left.RuntimeAdditionalDirs, right.RuntimeAdditionalDirs) &&
-		bytes.Equal(
-			left.ProviderState,
-			right.ProviderState,
-		) && timesEqual(left.SSHAccessExpiresAt, right.SSHAccessExpiresAt) &&
+		bytes.Equal(left.ProviderState, right.ProviderState) &&
 		timesEqual(left.LastSyncAt, right.LastSyncAt) && left.LastSyncError == right.LastSyncError
 }
 

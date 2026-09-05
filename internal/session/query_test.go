@@ -1297,6 +1297,57 @@ func TestNormalizeStoredSessionIDRejectsWindowsDriveRelativePath(t *testing.T) {
 	}
 }
 
+func TestManagerStatusReadsDoNotRepublishSettledSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read a stopped session repeatedly without reprojecting or waking the catalog", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: an inactive read reconciles the catalog only when the durable
+		// projection actually differs. Runtime-only sandbox fields the catalog never
+		// stores must not count as drift, or every read republishes an upsert and a
+		// catalog subscriber that re-reads on upserts loops forever.
+		catalog := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(catalog))
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		session := createSession(t, h)
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.Sandbox == nil || meta.Sandbox.RuntimeRootDir == "" {
+			t.Fatalf("stopped metadata sandbox = %#v, want runtime-only root recorded", meta.Sandbox)
+		}
+
+		catalogEvents, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		for range 3 {
+			info, err := h.manager.Status(testutil.Context(t), session.ID)
+			if err != nil || info.State != StateStopped {
+				t.Fatalf("Status(stopped) = %#v, %v", info, err)
+			}
+		}
+		if _, err := h.manager.ListAll(testutil.Context(t)); err != nil {
+			t.Fatalf("ListAll() error = %v", err)
+		}
+		select {
+		case event := <-catalogEvents:
+			t.Fatalf("settled session read republished catalog event %+v", event)
+		case <-time.After(200 * time.Millisecond):
+		}
+	})
+}
+
 // exitedProcessLiveness restores the identity of a process that verifiably
 // exited, so an interrupted start is classified from exit proof rather than
 // left as an unverifiable process.

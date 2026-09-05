@@ -24,7 +24,8 @@ func (m *Manager) persistRecoveryCatalog(ctx context.Context, meta *store.Sessio
 		before.StopDetail == after.StopDetail && before.StopEscalated == after.StopEscalated &&
 		before.StopVerificationFailed == after.StopVerificationFailed &&
 		before.ACPSessionID == after.ACPSessionID && sessionFailureEqual(before.Failure, after.Failure) &&
-		sessionLivenessEqual(before.Liveness, after.Liveness) && sessionSandboxEqual(before.Sandbox, after.Sandbox) {
+		sessionLivenessEqual(before.Liveness, after.Liveness) &&
+		sessionSandboxProjectionEqual(before.Sandbox, after.Sandbox) {
 		return nil
 	}
 	if err := m.hydrateSessionInfoAttention(ctx, after); err != nil {
