@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-01
+## 0.3.0 - 2026-09-05
 
 ### ♻️ Refactoring
 
@@ -13,6 +13,7 @@
 ### ⚡ Performance Improvements
 
 - Delegate full gates to pull request CI (#476)
+- Reduce test and development feedback overhead (#556)
 
 ### 🎉 Features
 
@@ -64,6 +65,8 @@
 - Merge spec-cycle task delivery loops (#491)
 - Rebuild ACP runtime catalogs (#498)
 - Support child Loop config overrides (#494)
+- Integrated terminal — runtime-owned shells for people and agents (#490)
+- Live steer and truthful stop for sessions (#555)
 
 ### 🐛 Bug Fixes
 
@@ -166,6 +169,22 @@
 - Scope Loop extension tools to worktrees (#519)
 - Preserve profile-scoped extension Agent skills (#516)
 - Prevent session cancel and clear races (#523)
+- Restore beta 22 release notes and changelog
+- Package site search catalogs
+- Zoom windows without covering others and keep the layout stream alive (#525)
+- Honor route skips within a planning pass (#529)
+- Scope lifecycle loop actions (#531)
+- Preserve profile scope in loop implementers (#527)
+- Stabilize base CI integration (#536)
+- Fence terminal generation outputs and stabilize e2e contracts (#547)
+- Preserve ACP options in loop-managed session profiles (#542)
+- Preserve unresolved review findings (#543)
+- Mark skipped terminal loop nodes as not taken (#544)
+- Sanitize runtime settings when changing providers (#546)
+- Ship the AppImage with the static runtime (#548)
+- Preserve provider failures before output validation (#545)
+- Terminal operating system (#552)
+- Stabilize loop recovery and simplify run inspection (#554)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -179,6 +198,8 @@
 - Preserve loop claim tokens in daemon fixtures (#418)
 - Fix cases failing
 - Fix failing tests
+- Stabilize Windows PTY read readiness
+- Drain Windows PTY startup output
 
 ### Release Notes
 
@@ -194,6 +215,20 @@ The Bundle surface is gone. Extensions are now the single packaging unit, and in
 - Marketplace kinds are now exactly `extension`, `mcp`, and `skill`.
 
 Migration notes: the whole `compozy bundle` command group is removed (`catalog`, `preview`, `activate`, `list`, `get`, `deactivate`, `network-settings`), along with the `compozy__bundles_*` native tools, the `compozy__bundles` toolset, the `bundle` marketplace kind, and the Bundle API surfaces. There is no alias — rebuild bundle-shaped setups as extensions and enable them explicitly.
+
+##### Cancel now stops a Loop run for real, and public Kill operations are gone
+
+Loop cancellation commits the terminal state before cleanup and stops every session that run owns, so a canceled run leaves nothing alive. Because cancel is now forceful, the separate Kill operation is removed from every public surface. (#509)
+
+- Removed CLI commands: `compozy loop kill` and `compozy loop node kill`.
+- Removed HTTP and UDS routes: `POST /workspaces/{workspace_id}/loop-runs/{run_id}/kill` and `POST /workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill`.
+- Removed native tools: `compozy__loop_kill` and `compozy__loop_node_kill`.
+- Public run transition and event vocabulary now exposes only cancellation. Stored `node_killed` events are projected as canceled.
+- Authored Loop DSL now accepts `on_parent_close: terminate` or `abandon`. Stored `cancel` values are normalized to `terminate`.
+- `compozy__loop_cancel` and `compozy__loop_node_cancel` — and their CLI, HTTP, UDS, and Web equivalents — now terminalize immediately instead of requesting cooperative cancellation.
+- Sessions the run only borrowed are left running, workspace isolation is preserved, and a cleanup that fails is retried durably.
+
+Callers still using a Kill route, command, or tool must move to the matching cancel surface; there is no public alias.
 
 ##### Runtime hardening and secret-safe provider login
 
@@ -267,6 +302,20 @@ The repository was already MIT licensed. v0.3 corrects stale BSL-1.1 text in dis
 it does not relicense the code.
 
 #### Features
+
+##### Runtime selection reads live model catalogs
+
+Model discovery and runtime configuration are rebuilt around logical model identities and live provider catalogs, so what you pick in CompozyOS matches what the provider actually offers. (#498)
+
+- Authored model IDs are separate from the transport aliases a provider expects, so a Loop or Agent keeps working when a provider renames its wire identifier.
+- Catalogs are discovered and stored with a five-minute freshness window, refreshed on a timer and on read, and fall back to the last successful result when a provider is unreachable.
+- Cursor launch aliases resolve before the process starts, including the Grok 4.5 and 4.6 Reasoning and Fast combinations. Opus 5 is visible offline while live discovery stays authoritative.
+- Hermes is treated as a discoverable ACP agent with handshake readiness diagnostics. OpenClaw stays described as a provider-managed bridge instead of showing model, Reasoning, or Fast controls it does not have.
+- Curated models can declare `default_speed`; live models outside the curated fallback are admitted, and selected model and Fast settings survive inheritance and restart projection.
+- Speed and typed `acp_options` are available on Agent definitions, session and prompt overrides, roles, Loops, Tasks, the CLI, HTTP, UDS, native tools, extension contracts, OpenAPI, and the SDKs. The shared Runtime Selector is wired into Agent, session, role, Loop, Task, and onboarding surfaces.
+- The New Session dialog no longer carries a first-message box. Create the session, then send the first prompt from the composer. This was a Web-only field; no API payload changed.
+
+This ships database migrations `00093` through `00097` and regenerated contract output.
 
 ##### Agent Plugins install as extensions
 
@@ -343,6 +392,17 @@ same hostname over Tailscale Funnel on 443. (#331)
 - Third-party providers implement the same `connectivity.provider` contract from the Go and
   TypeScript SDKs, gated by install-source trust and control-digest re-confirmation on every enable
   and boot.
+
+##### A parent Loop can reconfigure one child run
+
+The reserved `run-loop` action accepts an optional `params.config_overrides` object, so a parent Loop can give one child run its own iteration limits, budgets, environment, reattempt behavior, and runtime selection without touching the child's stored configuration. (#494)
+
+- Works with both `await` and `detach`.
+- Exact node-output references stay typed, and unknown literal fields are rejected before the child starts.
+- Override values can be filled from templates.
+- The override set is closed and excludes operator-owned lifecycle and request-expiry policy.
+- The Loop editor exposes the overrides as JSON, and malformed JSON, unknown settings, wrong types, or trailing data block the run instead of failing mid-flight.
+- If Goal binding fails while a run is starting, the task run is terminalized instead of staying live.
 
 ##### Complete Loop node lifecycle
 
@@ -433,6 +493,17 @@ resources: {
   },
 },
 ```
+
+##### Large Loop action results survive instead of breaking the run
+
+A Loop action can now return a payload larger than the task-run envelope without losing coordinator restart safety. Results up to 16 KiB stay inline; anything larger is stored in the existing Loop blob store and read back byte for byte through a workspace-authorized paging resource. A result above the action budget fails with the typed `action_result_too_large` error before the task completes, so the lease is released instead of the run stalling. (#510)
+
+- Adds `compozy task run result`, task-run result paging over HTTP and UDS, the Host API `tasks/runs/result` resource, and the `compozy__task_run_result` native tool.
+- `compozy__tool_list` now returns deterministic pages so the global tool-result limit stays enforceable; `compozy__tool_info` still returns full descriptors.
+- The Task UI shows and copies bounded results.
+- Spec-cycle Task fan-out is a hard cut from embedded bodies to `path` plus `body_ref`.
+
+No `config.toml` key was added or removed — the existing tool-result budget remains the source of truth.
 
 ##### Fan-out settles with an honest count
 
@@ -797,6 +868,13 @@ Blocking issues: {{ .previous.verdicts.quality.blocking_issues }}
 
 The autonomous memory extractor could write operational chatter into curated memory, and a generated slug collision could overwrite an unrelated entry. The deterministic scanner now rejects Memory v2 operational identifiers — `memory_propose`, native `compozy__memory_*` tool names, controller event names, and scanner rule IDs — and extractor, provider, and dreaming candidates no longer update an existing memory solely because their generated slug collides. Explicit filename-collision updates from direct CLI or user writes keep working. (#396)
 
+##### App status asks the app instead of guessing from the process
+
+`compozy app status` and `compozy app open` decided whether the desktop app was running by matching a recorded process ID and its start timestamp. When that timestamp comparison did not line up, a perfectly healthy app was reported as not running, and `app open` refused to reuse it. Both commands now probe the app's own control socket and take its answer. (#494)
+
+- A control channel that reports not running, or is unavailable, still resolves to "not running" instead of failing the command.
+- Any other probe failure is surfaced as an error rather than silently read as a stopped app.
+
 ##### Dry-run proves the run you are about to submit
 
 A Loop could validate, dry-run cleanly, and then fail at submission with `executed definition template manifest changed`. The compiler folded default values into the definition it stored, but compiled templates from the definition _before_ those defaults — so a persisted run carried more template keys than its own snapshot, and hydration rightly refused it. Compilation now uses one canonical definition throughout, and dry-run exercises the exact snapshot boundary a real submission uses. (#313, #317)
@@ -842,6 +920,14 @@ Session prompts no longer duplicate, reorder, or disappear when an optimistic We
 
 Migration notes: external prompt and steer inputs now require both `message_id` and `idempotency_key`, and Goal prompt responses use the standard wrapped prompt-result envelope.
 
+##### An extension Loop can call the tools its own extension ships
+
+A code-backed extension can contribute both Loops and tools, but the external-source policy stopped a contributed Loop from resolving a tool owned by that same extension, so the action failed with `unknown_action_kind`. The manifest owner is now preserved through resource loading, compilation, executed snapshots, and hydration, and execution adds exactly that same-owner extension source to the normal allow set. (#503)
+
+- Trusted-source status is never granted, and tools from other extensions stay denied.
+- Loop schema compilation snapshots the operator registry once per compilation instead of reprojecting it repeatedly.
+- Extension installation and enablement retry transient `SQLITE_BUSY` conflicts, and lifecycle tokens prevent stale cleanup from disabling a replacement installation.
+
 ##### Fan-out filters actually filter
 
 A `filter` on a fan-out node was accepted at authoring time but never applied, so batching and `max_fan_out` still saw the whole candidate list. Each filter is now evaluated against the raw candidate before batching and branch limits. (#438)
@@ -879,6 +965,14 @@ The changelog on `compozy.com` now reads published releases directly from GitHub
 
 Migration notes: the release workflow no longer publishes a site changelog receipt commit, and the generator scripts behind it are removed.
 
+##### Loop extension tools run in the worktree the Loop selected
+
+Extension tools invoked from a Loop now resolve against the selected ready worktree instead of the workspace root, so work stays where the run was pointed. Direct and root-scoped calls are unchanged. (#519)
+
+- Web Loop environment authoring is limited to inherit, workspace root, and a named worktree; directory and per-run values set through the API or CLI remain visible and read-only.
+- A worktree is resolved by workspace ID and worktree ref and must be ready before it is used.
+- Removing a worktree now takes an exclusive usage lease, so `compozy worktree remove` and the matching delete route report that an operation is in progress while a Loop action is holding that worktree, instead of pulling it out from under the run.
+
 ##### Loop runs keep their lineage, permissions, and results
 
 Three Loop defects that broke supervision of long runs are fixed. (#420, #407, #408)
@@ -909,6 +1003,15 @@ Two lifecycle bugs in Loop `run-agent` actions, both reproduced against `v0.3.0-
 - A retryable output failure keeps the same worker session active instead of orphaning it, so a retry reuses the worker and only terminal settlement ends it.
 - No public API, schema, migration, or config key changed; existing Loop and session reads simply expose corrected stored state.
 
+##### You can talk to managed sessions again
+
+The Web composer now follows prompt authority instead of lifecycle ownership, so eligible `user`, `system`, `coordinator`, and `spawned` sessions can all be prompted while active or stopped. An eligible stopped session resumes under the same durable session ID and transcript. (#517)
+
+- The composer's stop control now cancels the current turn instead of stopping the whole session, so you can interrupt one answer and keep going.
+- Managed sessions still cannot be renamed, cleared, attached, archived, deleted, or stopped as a whole.
+- Dream, maintenance, archived, transitional, and unrecoverable sessions stay read-only.
+- Session lifecycle docs and the official CompozyOS skill describe the new prompt boundary.
+
 ##### Skills load through the native seam inside managed sessions
 
 Managed sessions load installed skills through the native `compozy__skill_view` tool only — including skills that are not listed in the prompt catalog. The earlier attempt to give managed agents a private CLI socket is removed rather than kept as a fallback: provider code runs as the daemon user, so environment values, headers, process ancestry, and file modes cannot tell those requests apart from an operator's. (#314, #323)
@@ -929,11 +1032,27 @@ Loop action runs now have exactly one daemon-owned worker, cancellation survives
 - Resuming a stopped session discards the stopped ledger projection first and restores it if provider startup or the clear rolls back, so forensic projections stop conflicting and the full history is rematerialized on the next stop.
 - Enablement of a bundled extension is a fresh-home default, not an override: generic local and marketplace installs stay disabled by default, and stored state survives restart and update.
 
+##### Orchestrated task delivery uses the implementer you picked
+
+`implement-tasks` running in `mode=orchestrated` replaced your selected `implementer` Agent with `code_implementer`. The typed Agent input now flows through the orchestrated objective, the conductor skill, and `compozy spawn`, so every worker runs as the Agent you chose and keeps its identity, Agent-local Skills, permissions, provider defaults, and category runtime overrides. (#502)
+
+- `code_implementer` is still the default, so omitting the input behaves as before.
+- A recovered session whose Agent does not match fails closed instead of being adopted silently.
+- Settlement still requires completed Task frontmatter and zero live workers created by the conductor.
+
 ##### Pi providers receive the secret, not its variable name
 
 CompozyOS wrote a Pi credential slot's target environment name, such as `ZAI_API_KEY`, straight into the session `models.json` `apiKey` field. Pi reads a bare uppercase value as a literal API key, so the provider received the variable name instead of the secret, the upstream request failed, and the session could finish without an assistant message. The Pi runtime now writes `$ZAI_API_KEY`-style references, which Pi resolves from the secret CompozyOS already injects into the provider process. (#404)
 
 Migration notes: this covers the built-in `pi_acp` bound-secret providers — z.ai, OpenRouter, Moonshot/Kimi, xAI, MiniMax, Mistral, Groq, and Vercel AI Gateway.
+
+##### Profile-scoped extension Agents keep their own Skills
+
+An extension Agent scoped to one Profile leaked into `default`, and Agent-local Skill lookup could read the wrong Agent definition. CompozyOS now publishes the already-projected Agent set and resolves Agent-scoped Skill queries through the selected global, Profile, or Workspace lens, passing the concrete Agent definition to the Skill registry. (#516)
+
+- Two Agents with the same name in different Profiles stay isolated, and `skill list|where|view --for-agent` returns each one's own Skill body.
+- Profile-only scope keeps both the Profile ID and the Profile name.
+- No command, flag, route, or payload shape changed — existing reads simply return the correctly scoped resources.
 
 ##### Recover a Loop-owned task run without losing its place
 
@@ -958,6 +1077,21 @@ Onboarding seeded every daemon registration into the selectable project draft, i
 ##### Resource-only extensions need no toolchain
 
 An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
+
+##### Canceling a prompt and clearing a conversation no longer collide
+
+Two timing failures met in the same flow — cancel an active prompt, clear the conversation, keep using the session. Both are fixed. (#523)
+
+- A late prompt cancel could cancel the next turn. Prompt cancellation now owns only the active request and becomes a no-op once that prompt has settled; the whole-session `session/cancel` is sent exactly once, and only by Stop.
+- Because of that, an ACP agent process no longer receives a `session/cancel` notification when a single prompt is canceled — only the SDK's request-scoped `$/cancel_request`. An agent that aborted a turn by listening for `session/cancel` must handle the request-scoped cancellation instead.
+- A transcript read could land inside the conversation-clear replacement window, report `session not found`, and drive the clear endpoint to HTTP 500. The finalization barrier is now published as soon as the conversation-operation lock is taken and held through stop, backup, database replacement, and restart, so readers wait for the clear instead of seeing a session that appears to be missing.
+
+##### A fan-out roster shows only the workers that exist
+
+Fan-out roster projection treated the highest stored item index as a contiguous range, so a run holding only item `2`, or items `2` and `5`, invented rows for the missing indexes and left them pending forever. Roster rows, rollups, and run progress now project the exact stored item indexes. (#518)
+
+- Response shapes and routes are unchanged across CLI, HTTP, UDS, `compozy__loop_runs`, and Web; the same reads now return correct results.
+- The Loop running guide and the official CompozyOS skill document sparse-index behavior, and clarify that `not_taken` requires durable route evidence.
 
 ##### The daemon owns a managed worker's outcome
 
