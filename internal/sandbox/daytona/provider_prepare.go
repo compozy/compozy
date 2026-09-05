@@ -2,6 +2,7 @@ package daytona
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -33,19 +34,21 @@ func (p *daytonaProvider) foundSandboxState(
 	}
 
 	providerState := providerState{
-		Version:               providerStateVersion,
-		SandboxID:             found.ID(),
-		SandboxName:           found.Name(),
-		APIURL:                config.apiURL,
-		SSHHost:               p.sshHost,
-		LocalRootDir:          localRoot,
-		LocalAdditionalDirs:   cloneStrings(localAdditional),
-		RuntimeRootDir:        runtimeRoot,
-		RuntimeAdditionalDirs: cloneStrings(runtimeAdditional),
-		Persistence:           req.Sandbox.Persistence,
-		StartupSource:         config.startupSource,
-		StartupRef:            config.startupRef,
-		PreparedAt:            p.now().UTC(),
+		Version:                providerStateVersion,
+		SandboxID:              found.ID(),
+		LauncherProcessID:      config.existing.LauncherProcessID,
+		LauncherSidecarVersion: config.existing.LauncherSidecarVersion,
+		SandboxName:            found.Name(),
+		APIURL:                 config.apiURL,
+		SSHHost:                p.sshHost,
+		LocalRootDir:           localRoot,
+		LocalAdditionalDirs:    cloneStrings(localAdditional),
+		RuntimeRootDir:         runtimeRoot,
+		RuntimeAdditionalDirs:  cloneStrings(runtimeAdditional),
+		Persistence:            req.Sandbox.Persistence,
+		StartupSource:          config.startupSource,
+		StartupRef:             config.startupRef,
+		PreparedAt:             p.now().UTC(),
 	}
 	rawState, err := encodeProviderState(providerState)
 	if err != nil {
@@ -75,21 +78,25 @@ func (p *daytonaProvider) buildPrepared(
 	remoteEnv map[string]string,
 ) (sandbox.Prepared, error) {
 	daytona := req.Sandbox.Daytona
+	launcherProcessID := rand.Text()
+	info.LauncherSidecarVersion = launcherSidecarVersion
 	providerState := providerState{
-		Version:               providerStateVersion,
-		SandboxID:             instance.ID(),
-		SandboxName:           instance.Name(),
-		APIURL:                info.APIURL,
-		SSHHost:               p.sshHost,
-		LocalRootDir:          req.LocalRootDir,
-		LocalAdditionalDirs:   cloneStrings(req.LocalAdditionalDirs),
-		RuntimeRootDir:        runtimeRoot,
-		RuntimeAdditionalDirs: cloneStrings(runtimeAdditional),
-		Persistence:           req.Sandbox.Persistence,
-		StartupSource:         daytona.StartupSource,
-		StartupRef:            daytona.StartupRef,
-		SSHAccessExpiresAt:    &access.ExpiresAt,
-		PreparedAt:            p.now().UTC(),
+		Version:                providerStateVersion,
+		SandboxID:              instance.ID(),
+		LauncherProcessID:      launcherProcessID,
+		LauncherSidecarVersion: launcherSidecarVersion,
+		SandboxName:            instance.Name(),
+		APIURL:                 info.APIURL,
+		SSHHost:                p.sshHost,
+		LocalRootDir:           req.LocalRootDir,
+		LocalAdditionalDirs:    cloneStrings(req.LocalAdditionalDirs),
+		RuntimeRootDir:         runtimeRoot,
+		RuntimeAdditionalDirs:  cloneStrings(runtimeAdditional),
+		Persistence:            req.Sandbox.Persistence,
+		StartupSource:          daytona.StartupSource,
+		StartupRef:             daytona.StartupRef,
+		SSHAccessExpiresAt:     &access.ExpiresAt,
+		PreparedAt:             p.now().UTC(),
 	}
 	rawState, err := encodeProviderState(providerState)
 	if err != nil {
@@ -124,7 +131,11 @@ func (p *daytonaProvider) buildPrepared(
 		State:                 state,
 		RuntimeRootDir:        runtimeRoot,
 		RuntimeAdditionalDirs: cloneStrings(runtimeAdditional),
-		Launcher:              &daytonaLauncher{transport: p.launcherTransport, sandbox: info},
+		Launcher: &daytonaLauncher{
+			transport: p.launcherTransport,
+			sandbox:   info,
+			processID: launcherProcessID,
+		},
 		Launch: sandbox.LaunchSpec{
 			Command:        req.AgentCommand,
 			Cwd:            runtimeRoot,

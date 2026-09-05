@@ -7,6 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import {
+  SessionBusyInputRefusalError,
+  type SessionBusyInputDraft,
+  type SessionSendOutcome,
+} from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -302,6 +307,13 @@ function createFetchMock(options?: {
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
     ) {
       return jsonResponse({ clarifications: [] });
+    }
+
+    if (
+      pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+    ) {
+      return jsonResponse({ interactions: [] });
     }
 
     if (
@@ -1637,6 +1649,85 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
   });
 
+  it("Should let the provider diagnostic own a live prompt failure instead of rendering it twice", async () => {
+    // The live stream's errorText and the persisted diagnostic event carry the same daemon summary.
+    const summary = "provider authentication required";
+    const transcript = [
+      {
+        id: "assistant-provider-auth",
+        role: "assistant",
+        status: { type: "incomplete", reason: "error", error: summary },
+        parts: [
+          { type: "text", text: "Partial answer before the auth lapse.", state: "done" },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "error",
+              turn_id: "assistant-provider-auth",
+              error: summary,
+              failure: { kind: "prompt_failure", summary },
+              provider_error: {
+                code: "provider_auth_required",
+                provider: "claude-code",
+                next_action: "login",
+                guidance: "run provider auth login for this provider",
+                occurrence_count: 1,
+                first_seen_at: "2026-09-05T14:02:00Z",
+                last_seen_at: "2026-09-05T14:02:00Z",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as unknown as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByText("Partial answer before the auth lapse.")).toBeInTheDocument();
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveAttribute("data-provider-error", "provider_auth_required");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
+  });
+
+  it("Should keep an unrelated message error beside an earlier provider diagnostic", async () => {
+    const transcript = [
+      {
+        id: "assistant-provider-then-transport",
+        role: "assistant",
+        status: { type: "incomplete", reason: "error", error: "connection stalled" },
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "error",
+              turn_id: "assistant-provider-then-transport",
+              error: "provider rate limited",
+              failure: { kind: "prompt_failure", summary: "provider rate limited" },
+              provider_error: {
+                code: "provider_rate_limited",
+                provider: "claude-code",
+                next_action: "retry",
+                guidance: "retry after the provider recovers",
+                occurrence_count: 1,
+                first_seen_at: "2026-09-05T14:02:00Z",
+                last_seen_at: "2026-09-05T14:02:00Z",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as unknown as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("session-error-notice")).toHaveAttribute(
+      "data-provider-error",
+      "provider_rate_limited"
+    );
+    expect(screen.getByTestId("session-message-error")).toHaveTextContent("connection stalled");
+  });
+
   it("Should expose Goal only on settled successful assistant text while preserving copy", async () => {
     // Copy remains available for non-streaming partial/error output, but Goal prefill
     // requires an independently settled successful assistant response.
@@ -2355,13 +2446,17 @@ describe("SessionThread composer running semantics", () => {
     clearSessionTerminalQuote(primarySessionFixture.id);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     takePendingTerminalQuote();
-    clearSessionTerminalQuote(primarySessionFixture.id);
     vi.unstubAllGlobals();
     // The listener tier latches in module scope once a stream authorizes.
     resetGatewayStreamAuth();
-    act(() => {
+    // The tree is still mounted here (RTL's own cleanup runs after this hook),
+    // so every store reset the quote slot or composer subscribes to is a React
+    // update. Discarding a non-empty draft also re-hydrates the Lexical editor,
+    // which commits on a microtask — the async act drains it before the hook ends.
+    await act(async () => {
+      clearSessionTerminalQuote(primarySessionFixture.id);
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
@@ -2382,8 +2477,12 @@ describe("SessionThread composer running semantics", () => {
     firstView.unmount();
     renderComposer({ isSessionRunning: false });
 
-    expect(await screen.findByTestId("composer-input")).toHaveTextContent("keep this draft");
-    await waitFor(() => expect(composerText()).toBe("keep this draft"));
+    // Hydration lands in the editor on Lexical's own commit; wait for that
+    // commit (the rendered text), not merely for the input to exist.
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-input")).toHaveTextContent("keep this draft")
+    );
+    expect(composerText()).toBe("keep this draft");
   });
 
   it("Should insert a standalone command token without submitting the prompt", async () => {
@@ -2737,30 +2836,135 @@ describe("SessionThread composer running semantics", () => {
     expect(composerText()).toBe("Live draft");
   });
 
-  it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
+  it("Should steer the draft on Enter while running (daemon default) and suppress the runtime send", async () => {
     const onQueuePrompt = vi.fn(() => Promise.resolve());
-    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
 
     const editable = await findComposerEditable();
-    await setComposerText("queue this follow-up");
+    await setComposerText("steer this follow-up");
     // While running, assistant-ui's own thread is idle, so a plain Enter would submit
-    // to the runtime; our interception must queue instead and clear the draft.
+    // to the runtime; our interception must perform the follow-up default instead.
     await act(async () => {
       fireEvent.keyDown(editable, { key: "Enter" });
     });
 
     await waitFor(() => {
-      expect(onQueuePrompt).toHaveBeenCalledWith({
-        message: "queue this follow-up",
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer this follow-up",
         attachments: [],
       });
     });
-    expect(onQueuePrompt).toHaveBeenCalledTimes(1);
+    expect(onSteerPrompt).toHaveBeenCalledTimes(1);
+    expect(onQueuePrompt).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(composerText()).toBe("");
     });
     // The runtime send never fired, so no user message entered the thread.
-    expect(screen.queryByText("queue this follow-up")).not.toBeInTheDocument();
+    expect(screen.queryByText("steer this follow-up")).not.toBeInTheDocument();
+  });
+
+  it("Should queue on Enter when the daemon default is queue and steer with the modifier (E2E-012 unit shadow)", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({
+      busyInputDefaultMode: "queue",
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+    });
+
+    const editable = await findComposerEditable();
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "queue");
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-modifier", "steer");
+    await setComposerText("park this one");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+
+    await setComposerText("redirect this one");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+    await waitFor(() =>
+      expect(onSteerPrompt).toHaveBeenCalledWith({ message: "redirect this one", attachments: [] })
+    );
+    // The modifier is one-shot: the hint still reads the configured default.
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "queue");
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("UT-086: Should do nothing on Enter with an empty draft during a turn", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
+
+    const editable = await findComposerEditable();
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should answer an accepted busy send inline with its disposition", async () => {
+    const user = userEvent.setup();
+    const onSteerPrompt = vi.fn(() =>
+      Promise.resolve({
+        disposition: "steering" as const,
+        entryId: "inp_4d9",
+        idempotencyKey: "idk_1f77",
+        messageId: "msg_01k4",
+        queuePosition: null,
+        replayed: false,
+        steerDelivery: "pending_injection" as const,
+        turnId: "t_9f2",
+      })
+    );
+    const onQueuePrompt = vi.fn(() =>
+      Promise.resolve({
+        disposition: "queued" as const,
+        entryId: "inp_4d8",
+        idempotencyKey: "idk_9b02",
+        messageId: "msg_01k3",
+        queuePosition: 2,
+        replayed: false,
+        steerDelivery: null,
+        turnId: "t_9f2",
+      })
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("only the lifecycle tests");
+    await user.click(screen.getByTestId("composer-steer-button"));
+
+    const steerNote = await screen.findByTestId("composer-feedback-note");
+    expect(steerNote).toHaveAttribute("data-kind", "disposition");
+    expect(steerNote).toHaveTextContent(
+      "Steering — the agent sees it when the current tool finishes"
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("pending_injection");
+    await waitFor(() => expect(composerText()).toBe(""));
+
+    await setComposerText("ship it with tests");
+    // Typing again retires the previous note before the next send answers.
+    expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Queued #2 — runs after the current turn"
+      )
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("inp_4d8");
   });
 
   it("Should admit only one busy-input submission while a queue request is pending", async () => {
@@ -2783,6 +2987,143 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
     resolveQueue?.();
     await waitFor(() => expect(composerText()).toBe(""));
+  });
+
+  it("Should consume only the submitted text and files when the operator keeps working during a busy send", async () => {
+    const user = userEvent.setup();
+    let resolveQueue: ((outcome: SessionSendOutcome) => void) | undefined;
+    const onQueuePrompt = vi.fn(
+      (_draft: SessionBusyInputDraft) =>
+        new Promise<SessionSendOutcome>(resolve => {
+          resolveQueue = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "sent.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("ship it with tests");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("sent.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    const sentAttachmentId = onQueuePrompt.mock.calls[0]?.[0].attachments[0]?.id;
+    expect(sentAttachmentId).toMatch(/^att_/);
+
+    // The editor stays writable while the daemon answers: keep typing and add a file.
+    await setComposerText("ship it with tests and update the changelog");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("later.png"));
+    });
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+
+    await act(async () => {
+      resolveQueue?.({
+        disposition: "queued",
+        entryId: "inp_4d8",
+        idempotencyKey: "idk_9b02",
+        messageId: "msg_01k3",
+        queuePosition: 1,
+        replayed: false,
+        steerDelivery: null,
+        turnId: "t_9f2",
+      });
+    });
+
+    // Only what was sent leaves the field; the newer text and file stay, and the
+    // remainder is exact — the separator the operator typed is theirs too.
+    await waitFor(() => expect(composerText()).toBe(" and update the changelog"));
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1));
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("later.png");
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      " and update the changelog"
+    );
+    // The disposition still answers the send that just landed.
+    expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent("Queued #1");
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep newly typed indented text exactly after an attachment-only busy send is accepted", async () => {
+    const user = userEvent.setup();
+    let resolveQueue: (() => void) | undefined;
+    const onQueuePrompt = vi.fn(
+      (_draft: SessionBusyInputDraft) =>
+        new Promise<void>(resolve => {
+          resolveQueue = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "only-file.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("only-file.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(composerText()).toBe("");
+    await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onQueuePrompt.mock.calls[0]?.[0]).toMatchObject({ message: "" });
+
+    // An empty sent prefix means everything typed meanwhile is the operator's,
+    // including the indentation they started with.
+    const indented = "    - keep the leading indent";
+    await setComposerText(indented);
+    await act(async () => {
+      resolveQueue?.();
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument()
+    );
+    expect(composerText()).toBe(indented);
+    await waitFor(() =>
+      expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(indented)
+    );
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("Should leave a rewritten draft untouched when the busy send it replaced is accepted", async () => {
+    const user = userEvent.setup();
+    let resolveSteer: (() => void) | undefined;
+    const onSteerPrompt = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveSteer = resolve;
+        })
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("only the lifecycle tests");
+    await user.click(screen.getByTestId("composer-steer-button"));
+    await waitFor(() => expect(onSteerPrompt).toHaveBeenCalledOnce());
+
+    await setComposerText("actually, the store package too");
+    await act(async () => {
+      resolveSteer?.();
+    });
+
+    await waitFor(() => expect(composerText()).toBe("actually, the store package too"));
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      "actually, the store package too"
+    );
   });
 
   it("Should queue ready attachment refs and keep steer text-only", async () => {
@@ -2832,7 +3173,7 @@ describe("SessionThread composer running semantics", () => {
     ).toBe(false);
   });
 
-  it("Should show an error toast and preserve the draft when queue fails", async () => {
+  it("Should state a failed queue send inline and preserve the draft", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.reject(new Error("queue failed")));
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
@@ -2841,9 +3182,10 @@ describe("SessionThread composer running semantics", () => {
     await setComposerText("queue this follow-up");
     await user.click(screen.getByTestId("composer-queue-button"));
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("queue failed");
-    });
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-kind", "refusal");
+    expect(note).toHaveTextContent("Not sent — queue failed");
+    expect(toast.error).not.toHaveBeenCalled();
     expect(composerText()).toBe("queue this follow-up");
   });
 
@@ -2859,9 +3201,96 @@ describe("SessionThread composer running semantics", () => {
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("queue failed synchronously");
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Not sent — queue failed synchronously"
+      );
     });
     expect(composerText()).toBe("queue this follow-up");
+  });
+
+  it("UT-100: Should state the reason and keep text and attachments when a busy send is refused", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.reject(
+        new SessionBusyInputRefusalError({ code: "active_turn_mismatch", currentTurnId: "t_9f3" })
+      )
+    );
+    const fetch = createFetchMock({ attachmentUpload: { name: "restored.png" } });
+    vi.stubGlobal("fetch", fetch);
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Only touch the lifecycle tests");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("restored.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-kind", "refusal");
+    expect(note).toHaveAttribute("data-code", "active_turn_mismatch");
+    expect(note).toHaveTextContent(
+      "Not sent — the turn changed before this went out. Your draft is back."
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent(
+      "active_turn_mismatch"
+    );
+    expect(composerText()).toBe("Only touch the lifecycle tests");
+    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should refuse a steer-on-Enter that carries files inline, without a toast", async () => {
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "files.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+      promptImageCapability: "supported",
+    });
+
+    const editable = await findComposerEditable();
+    await setComposerText("review this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("files.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    // The steer gate lives in the route hook; here the handler stands in for it.
+    onSteerPrompt.mockImplementationOnce(() =>
+      Promise.reject(
+        new SessionBusyInputRefusalError({
+          attachmentCount: 1,
+          code: "steer_attachments_unsupported",
+        })
+      )
+    );
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Not sent — steer can't carry files on this agent. Queue it, or remove the file."
+      )
+    );
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+    expect(composerText()).toBe("review this image");
+    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("Should steer the current draft while running and clear it after success", async () => {
@@ -2882,9 +3311,10 @@ describe("SessionThread composer running semantics", () => {
     });
   });
 
-  it("Should steer the active turn with Cmd/Ctrl+Shift+Enter while running", async () => {
+  it("Should queue with Cmd/Ctrl+Enter as the one-shot opposite of the steer default", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onSteerPrompt = vi.fn(() => Promise.resolve());
-    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
 
     const editable = await findComposerEditable();
     // The contenteditable itself carries the accessible name (screen readers
@@ -2892,23 +3322,25 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => {
       expect(editable).toHaveAttribute("aria-label", "Session prompt");
     });
-    await setComposerText("steer to the new direction");
+    await setComposerText("park this for later");
     await act(async () => {
-      fireEvent.keyDown(editable, { key: "Enter", shiftKey: true, metaKey: true });
+      fireEvent.keyDown(editable, { key: "Enter", ctrlKey: true });
     });
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith({
-        message: "steer to the new direction",
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "park this for later",
         attachments: [],
       });
       expect(composerText()).toBe("");
     });
+    expect(onSteerPrompt).not.toHaveBeenCalled();
   });
 
-  it("Should keep queue available but fence steer and interrupt until the active turn id arrives", async () => {
+  it("Should keep steer and interrupt available before the active turn id arrives", async () => {
+    // The daemon resolves the live turn at admission when no fence is sent
+    // (invariant 6); the composer no longer holds the verbs hostage to the poll.
     renderComposer({
-      busyInputFenceAvailable: false,
       isSessionRunning: true,
       onInterruptPrompt: vi.fn(),
       onQueuePrompt: vi.fn(),
@@ -2916,11 +3348,11 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await screen.findByTestId("composer-input");
-    await setComposerText("wait for the turn fence");
+    await setComposerText("the daemon resolves the fence");
 
     expect(screen.getByTestId("composer-queue-button")).toBeEnabled();
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
-    expect(screen.getByTestId("composer-interrupt-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
+    expect(screen.getByTestId("composer-interrupt-button")).toBeEnabled();
   });
 
   it("Should silently preserve the draft when the queue owner is replaced", async () => {
@@ -2939,6 +3371,74 @@ describe("SessionThread composer running semantics", () => {
     expect(composerText()).toBe("queue this follow-up");
   });
 
+  // Invariant (US-009.AC-1/EC-1, ADR-004): while a stop is landing the primary
+  // control is a guarded "Stopping…" pill that takes no activation; Steer and
+  // Interrupt are absent, Queue stays, and Enter queues. Owning layer: composer
+  // action row + controller. Canonical suite: this file.
+  it("Should render the guarded Stopping… pill, keep only Queue, and queue on Enter while a stop lands", async () => {
+    const user = userEvent.setup();
+    const onCancelPrompt = vi.fn();
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const onInterruptPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onCancelPrompt,
+      onInterruptPrompt,
+      onQueuePrompt,
+      onSteerPrompt,
+      stopPhase: "stopping",
+    });
+
+    const editable = await findComposerEditable();
+    const pill = screen.getByTestId("composer-stop-button");
+    expect(pill).toHaveAttribute("data-state", "stopping");
+    expect(pill).toHaveAttribute("aria-disabled", "true");
+    expect(pill).toHaveTextContent("Stopping…");
+    await user.click(pill);
+    await user.dblClick(pill);
+    expect(onCancelPrompt).not.toHaveBeenCalled();
+
+    expect(screen.queryByTestId("composer-steer-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("composer-interrupt-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-queue-button")).toBeInTheDocument();
+    const hint = screen.getByTestId("composer-enter-hint");
+    expect(hint).toHaveAttribute("data-enter", "queue");
+    expect(hint).not.toHaveAttribute("data-modifier");
+
+    // The field stays editable: the draft is not at risk, and both Enter variants queue it.
+    expect(editable).not.toHaveAttribute("inert");
+    await setComposerText("after the stop, do this");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+    await waitFor(() =>
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "after the stop, do this",
+        attachments: [],
+      })
+    );
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    expect(onInterruptPrompt).not.toHaveBeenCalled();
+  });
+
+  it("Should issue one cancel for a double-click on Stop", async () => {
+    const user = userEvent.setup();
+    const onCancelPrompt = vi.fn();
+    renderComposer({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onCancelPrompt,
+      onQueuePrompt: vi.fn(),
+    });
+
+    const stop = await screen.findByTestId("composer-stop-button");
+    expect(stop).toHaveAttribute("data-state", "stop");
+    await user.dblClick(stop);
+    expect(onCancelPrompt).toHaveBeenCalledOnce();
+  });
+
   it("Should show the accent Send disc while idle and the danger Stop disc while running", async () => {
     const { rerender } = renderComposerRerenderable({ isSessionRunning: false });
 
@@ -2952,9 +3452,13 @@ describe("SessionThread composer running semantics", () => {
     const stop = await screen.findByTestId("composer-stop-button");
     expect(stop).toHaveAttribute("aria-label", "Stop generation");
     expect(screen.queryByTestId("composer-send-button")).not.toBeInTheDocument();
-    // Busy: Enter has one meaning — queue the draft — and the hint says so.
-    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/queue/);
-    expect(screen.getByTestId("composer-enter-hint")).not.toHaveTextContent(/send/);
+    // Busy: Enter performs the daemon default (steer) and the modifier the opposite.
+    const hint = screen.getByTestId("composer-enter-hint");
+    expect(hint).toHaveAttribute("data-enter", "steer");
+    expect(hint).toHaveAttribute("data-modifier", "queue");
+    expect(hint).toHaveTextContent(/steer/);
+    expect(hint).toHaveTextContent(/queue/);
+    expect(hint).not.toHaveTextContent(/send/);
   });
 
   it("Should render queued rows with steer, edit, and remove wired to real entries", async () => {
@@ -3024,7 +3528,10 @@ describe("SessionThread composer running semantics", () => {
     const row = await screen.findByTestId("composer-queued-prompt-row");
     await user.click(within(row).getByTestId("composer-queued-edit"));
 
-    await waitFor(() => expect(composerText()).toBe("What failed?"));
+    await waitFor(() => {
+      expect(composerText()).toBe("What failed?");
+      expect(screen.getByTestId("composer-input")).toHaveTextContent("What failed?");
+    });
     expect(composerText()).not.toContain("<terminal_context");
     expect(screen.getByTestId("terminal-quote-block")).toBeInTheDocument();
     expect(peekSessionTerminalQuote(primarySessionFixture.id)?.text).toBe(quote.text);
@@ -3047,6 +3554,9 @@ describe("SessionThread composer running semantics", () => {
 
     const row = await screen.findByTestId("composer-queued-prompt-row");
     await user.click(within(row).getByTestId("composer-queued-edit"));
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-input")).toHaveTextContent("Edit this queued prompt.")
+    );
     rerender({
       allowBusyInput: true,
       isSessionRunning: true,
@@ -3060,24 +3570,6 @@ describe("SessionThread composer running semantics", () => {
     expect(onQueuePrompt).not.toHaveBeenCalled();
     expect(onReplaceQueuedPrompt).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Couldn't update queued prompt.");
-  });
-
-  it("Should disable queued steer when the active-turn fence is unavailable", async () => {
-    renderComposer({
-      allowBusyInput: true,
-      busyInputFenceAvailable: false,
-      isSessionRunning: true,
-      onQueuePrompt: vi.fn(),
-      onRemoveQueuedPrompt: vi.fn(),
-      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
-      onSteerQueuedPrompt: vi.fn(),
-      queuedPrompts: [{ id: "inq-1", text: "Wait for a turn fence." }],
-    });
-
-    const row = await screen.findByTestId("composer-queued-prompt-row");
-    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
-    expect(within(row).getByTestId("composer-queued-edit")).toBeEnabled();
-    expect(within(row).getByTestId("composer-queued-remove")).toBeEnabled();
   });
 
   it("Should not overwrite an existing draft when editing a queued prompt", async () => {

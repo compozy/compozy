@@ -8,6 +8,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -56,6 +57,11 @@ type AgentProcess struct {
 	done          chan struct{}
 	stopRequested bool
 	stopMu        sync.RWMutex
+
+	providerName      string
+	providerAuthMode  compozyconfig.ProviderAuthMode
+	providerFailureMu sync.Mutex
+	providerFailures  map[string]ProviderErrorDiagnostic
 
 	promptMu     sync.RWMutex
 	activePrompt *activePromptState

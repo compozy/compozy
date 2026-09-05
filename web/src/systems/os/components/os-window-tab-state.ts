@@ -12,6 +12,7 @@ export function sessionTabState(session: SessionPayload | undefined): OsWindowTa
       return "needs-input";
     case "hung":
     case "failed":
+    case "needs-attention":
     case "unhealthy":
       return "attention";
     default:

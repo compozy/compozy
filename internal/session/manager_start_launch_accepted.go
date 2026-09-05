@@ -128,12 +128,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	session := accepted.session
 
 	if session.stopWasRequested() {
-		var stopErr error
-		if accepted.proc != nil && !isProcessDone(accepted.proc) {
-			stopErr = m.driver.Stop(cleanupCtx, accepted.proc)
-		}
-		finalizeErr := m.finalizeStopped(cleanupCtx, session, context.Cause(accepted.run.ctx))
-		return errors.Join(stopErr, finalizeErr)
+		return m.settleCanceledSessionStart(cleanupCtx, accepted)
 	}
 	if !accepted.persistFailure {
 		return m.discardAcceptedSessionStart(cleanupCtx, accepted, startErr)

@@ -20,8 +20,18 @@ import {
   SettingsTile,
   SettingsTiles,
 } from "@/systems/settings";
+import { DEFAULT_SESSION_BUSY_INPUT_MODE, type SessionBusyInputMode } from "@/systems/session";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@compozy/ui";
+import {
+  Button,
+  PillGroup,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Spinner,
+  type PillGroupItem,
+} from "@compozy/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";
@@ -43,6 +53,29 @@ const PERMISSION_OPTIONS = [
     description: "Agents act freely. For trusted work only.",
   },
 ];
+
+/**
+ * Follow-up behavior mirrors `session.busy_input.default_mode` — daemon-owned,
+ * so the composer, the CLI, and native tools resolve the same default (ADR-002).
+ */
+const FOLLOW_UP_OPTIONS: ReadonlyArray<PillGroupItem<SessionBusyInputMode>> = [
+  {
+    value: "steer",
+    label: "Steer immediately",
+    testId: "settings-page-general-follow-up-steer",
+  },
+  {
+    value: "queue",
+    label: "Queue until the turn ends",
+    testId: "settings-page-general-follow-up-queue",
+  },
+];
+
+function followUpModeFromConfig(config: {
+  busy_input?: { default_mode: string } | null;
+}): SessionBusyInputMode {
+  return config.busy_input?.default_mode === "queue" ? "queue" : DEFAULT_SESSION_BUSY_INPUT_MODE;
+}
 
 function parseSessionTimeoutSeconds(raw: string): number {
   if (!raw) return 0;
@@ -169,6 +202,25 @@ export function GeneralSettingsPage() {
       <ToolApprovalGrantsSection />
 
       <SettingsGroup title="Sessions">
+        <SettingRow
+          data-testid="settings-page-general-follow-up"
+          label="Follow-up behavior"
+          control={
+            <PillGroup
+              aria-label="Follow-up behavior"
+              data-testid="settings-page-general-follow-up-group"
+              items={FOLLOW_UP_OPTIONS.map(item => ({ ...item, disabled: page.isSaving }))}
+              onChange={mode =>
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return { ...current, busy_input: { default_mode: mode } };
+                })
+              }
+              size="sm"
+              value={followUpModeFromConfig(draft)}
+            />
+          }
+        />
         <SettingRow
           data-testid="settings-page-general-session-timeout"
           help="A session with no activity for this long is ended and kept in history."

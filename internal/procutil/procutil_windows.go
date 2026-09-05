@@ -94,7 +94,7 @@ func signalZero(pid int, sig syscall.Signal) error {
 		return fmt.Errorf("procutil: signal process %d with %s: %w", pid, sig.String(), waitErr)
 	}
 	if state != syscall.WAIT_TIMEOUT {
-		return fmt.Errorf("procutil: signal process %d with %s: process is not running", pid, sig.String())
+		return fmt.Errorf("procutil: signal process %d with %s: %w", pid, sig.String(), os.ErrProcessDone)
 	}
 	return nil
 }

@@ -89,4 +89,6 @@ type handlerConfig struct {
 	extensions          ExtensionService
 	hostedMCP           *mcppkg.HostedService
 	mcpHostAPI          mcppkg.HostAPIInvoker
+
+	onProviderAuthSuccess func()
 }

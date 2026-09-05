@@ -23,3 +23,13 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 The gate is a security boundary, not a layout choice: native ACP providers own their login state and MUST NOT require Compozy-bound credential slots (`internal/CLAUDE.md` § Provider auth boundary), and the daemon rejects `credential_slots` under any mode other than `bound_secret`.
 
 src: web/src/systems/settings/components/provider-edit-form-auth-fields.tsx; web/src/systems/settings/components/provider-edit-form-credential-fields.tsx; web/src/systems/settings/lib/provider-draft.ts
+
+
+## Reauthentication invalidates startup failures
+
+1. With a native CLI provider logged out, attempt to create a session and observe the authentication-required diagnostic.
+2. Complete the provider-owned login, then run the live authentication probe through the provider surface (`POST /api/providers/:provider_id/auth/probe`). Confirm it reports `authenticated`.
+3. Immediately retry session creation, within the 30-second pre-start cache TTL. The daemon must probe readiness again and accept the authenticated provider, without restarting the daemon or changing provider settings.
+4. Repeat through the UDS provider probe. A failed or canceled probe must not be treated as successful authentication. Other workspaces and profiles must still verify their own credentials.
+
+2026-09-05 sessions-stability task02: shared HTTP/UDS success invalidates the daemon-owned pre-start cache. Focused API/cache tests cover the transition; this real-provider walk remains pending for final QA.

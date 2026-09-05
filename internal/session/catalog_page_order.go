@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sessionCatalogPosition(info store.SessionInfo, sortKey string) store.SessionCatalogPosition {
+func sessionCatalogPosition(info *store.SessionInfo, sortKey string) store.SessionCatalogPosition {
 	position := store.SessionCatalogPosition{
 		PrimaryAt:   info.UpdatedAt.UTC(),
 		SecondaryAt: info.CreatedAt.UTC(),
@@ -30,7 +30,7 @@ func sessionCatalogPosition(info store.SessionInfo, sortKey string) store.Sessio
 	return position
 }
 
-func sessionCatalogAttentionRank(info store.SessionInfo) store.SessionCatalogAttentionRank {
+func sessionCatalogAttentionRank(info *store.SessionInfo) store.SessionCatalogAttentionRank {
 	switch ClassForBadge(BadgeForInfo(sessionInfoFromCatalog(info))) {
 	case AttentionNeedsYou:
 		return store.SessionCatalogAttentionRankNeedsYou

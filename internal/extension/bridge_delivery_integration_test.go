@@ -1009,6 +1009,19 @@ func (d *scriptedPromptDriver) snapshotPrompts() []acp.PromptRequest {
 	return append([]acp.PromptRequest(nil), d.prompts...)
 }
 
+// VerifyExit is the fake's OS-identity seam: the process is gone once its done channel closed.
+func (d *scriptedPromptDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return true, nil
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (d *scriptedPromptDriver) Cancel(context.Context, *session.AgentProcess) error {
 	return nil
 }

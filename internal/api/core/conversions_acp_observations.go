@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func availableCommandPayloads(commands []store.SessionAdvertisedCommand) []contract.ACPAvailableCommandPayload {
@@ -32,7 +33,8 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		AvailableCommands: availableCommandPayloads(event.AvailableCommandSet().Values()), Action: event.Action,
 		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
 		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
-		Goal: goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
+		ProviderError: providerErrorDiagnosticPayload(event.ProviderError),
+		Goal:          goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
 		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
 		Raw:           payloadJSONBytes(event.Raw),
 	}
@@ -66,4 +68,11 @@ func goalPromptMetaPayload(meta *acp.GoalPromptMeta) *contract.GoalPromptMeta {
 		PromptAttempt: normalized.PromptAttempt,
 		PromptID:      normalized.PromptID,
 	}
+}
+
+func providerErrorDiagnosticPayload(diagnostic *acp.ProviderErrorDiagnostic) *acp.ProviderErrorDiagnostic {
+	if diagnostic == nil {
+		return nil
+	}
+	return transcript.RedactAgentEvent(acp.AgentEvent{ProviderError: diagnostic}).ProviderError
 }

@@ -18,20 +18,22 @@ const (
 )
 
 type providerState struct {
-	Version               int                     `json:"version"`
-	SandboxID             string                  `json:"sandbox_id"`
-	SandboxName           string                  `json:"sandbox_name,omitempty"`
-	APIURL                string                  `json:"api_url,omitempty"`
-	SSHHost               string                  `json:"ssh_host,omitempty"`
-	LocalRootDir          string                  `json:"local_root_dir"`
-	LocalAdditionalDirs   []string                `json:"local_additional_dirs,omitempty"`
-	RuntimeRootDir        string                  `json:"runtime_root_dir"`
-	RuntimeAdditionalDirs []string                `json:"runtime_additional_dirs,omitempty"`
-	Persistence           sandbox.PersistenceMode `json:"persistence"`
-	StartupSource         sandbox.DaytonaStartupSource
-	StartupRef            string     `json:"startup_ref,omitempty"`
-	SSHAccessExpiresAt    *time.Time `json:"ssh_access_expires_at,omitempty"`
-	PreparedAt            time.Time  `json:"prepared_at"`
+	Version                int                     `json:"version"`
+	SandboxID              string                  `json:"sandbox_id"`
+	LauncherProcessID      string                  `json:"launcher_process_id,omitempty"`
+	LauncherSidecarVersion string                  `json:"launcher_sidecar_version,omitempty"`
+	SandboxName            string                  `json:"sandbox_name,omitempty"`
+	APIURL                 string                  `json:"api_url,omitempty"`
+	SSHHost                string                  `json:"ssh_host,omitempty"`
+	LocalRootDir           string                  `json:"local_root_dir"`
+	LocalAdditionalDirs    []string                `json:"local_additional_dirs,omitempty"`
+	RuntimeRootDir         string                  `json:"runtime_root_dir"`
+	RuntimeAdditionalDirs  []string                `json:"runtime_additional_dirs,omitempty"`
+	Persistence            sandbox.PersistenceMode `json:"persistence"`
+	StartupSource          sandbox.DaytonaStartupSource
+	StartupRef             string     `json:"startup_ref,omitempty"`
+	SSHAccessExpiresAt     *time.Time `json:"ssh_access_expires_at,omitempty"`
+	PreparedAt             time.Time  `json:"prepared_at"`
 }
 
 func decodeProviderState(raw json.RawMessage) (providerState, error) {
@@ -41,6 +43,10 @@ func decodeProviderState(raw json.RawMessage) (providerState, error) {
 	var state providerState
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return providerState{}, fmt.Errorf("sandbox/daytona: decode provider state: %w", err)
+	}
+	// Pre-versioned identities belong to the original endpoint, never the newest sidecar.
+	if state.LauncherProcessID != "" && state.LauncherSidecarVersion == "" {
+		state.LauncherSidecarVersion = "compozy-daytona-launcher-sidecar-v1"
 	}
 	return state, nil
 }

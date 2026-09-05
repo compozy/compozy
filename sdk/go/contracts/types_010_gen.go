@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type ForgeCapabilitiesRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+}
+
 type ForgeCapabilitiesResponse struct {
 	Served             bool     `json:"served"`
 	Available          bool     `json:"available"`
@@ -197,11 +201,4 @@ type HeartbeatPolicyPayload struct {
 	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 	Limits           AuthoredContextLimitsPayload       `json:"limits"`
 	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-type HeartbeatPreferencesPayload struct {
-	MinInterval  string                            `json:"min_interval"`
-	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
-	Context      HeartbeatContextProjectionPayload `json:"context"`
 }

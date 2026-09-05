@@ -21,6 +21,26 @@ const runtime: RuntimeActivityPayload = {
   last_activity_detail: "running command",
 };
 
+function providerErrorEvent(
+  overrides: Partial<NonNullable<AgentEventPayload["provider_error"]>> = {}
+): AgentEventPayload {
+  return {
+    type: "error",
+    error: "provider authentication required",
+    failure: { kind: "prompt_failure", summary: "provider authentication required" },
+    provider_error: {
+      code: "provider_auth_required",
+      provider: "claude-code",
+      next_action: "login",
+      guidance: "run provider auth login for this provider",
+      occurrence_count: 1,
+      first_seen_at: "2026-09-05T14:02:00Z",
+      last_seen_at: "2026-09-05T14:02:00Z",
+      ...overrides,
+    },
+  };
+}
+
 describe("RuntimeActivityNotice", () => {
   it("recognizes runtime progress and warning events only when activity exists", () => {
     expect(isRuntimeActivityEvent({ type: "runtime_progress", runtime })).toBe(true);
@@ -44,6 +64,14 @@ describe("RuntimeActivityNotice", () => {
       })
     ).toBe(true);
     expect(isSessionErrorEvent({ type: "runtime_warning", error: "failed" })).toBe(false);
+  });
+
+  it("recognizes an actionable provider error even without free-text detail", () => {
+    const { error: _error, failure: _failure, ...bare } = providerErrorEvent();
+    expect(isSessionErrorEvent(bare)).toBe(true);
+    expect(
+      isSessionErrorEvent({ ...bare, provider_error: { ...bare.provider_error!, code: "unknown" } })
+    ).toBe(false);
   });
 
   it("recognizes transcript marker events", () => {
@@ -160,6 +188,103 @@ describe("RuntimeActivityNotice", () => {
     );
   });
 
+  it("renders an auth lapse as a provider notice naming the provider and the daemon status command", () => {
+    render(<RuntimeActivityNotice event={providerErrorEvent()} />);
+
+    const notice = screen.getByTestId("session-error-notice");
+    expect(screen.getByRole("alert")).toBe(notice);
+    expect(notice).toHaveAttribute("data-tone", "danger");
+    expect(notice).toHaveAttribute("data-provider-error", "provider_auth_required");
+    expect(notice).toHaveAttribute("data-provider-next-action", "login");
+    expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(
+      "claude-code needs sign-in"
+    );
+    // The real recovery command, with a literal placeholder — never an interpolated shell string.
+    expect(screen.getByTestId("provider-error-command")).toHaveTextContent(
+      "compozy provider auth status <provider> --remote"
+    );
+    // The session survives: no "Session failed", no raw code or failure kind in the sentence.
+    expect(notice).not.toHaveTextContent("Session failed");
+    expect(notice).not.toHaveTextContent("provider_auth_required");
+    expect(notice).not.toHaveTextContent("prompt_failure");
+    expect(screen.queryByTestId("provider-error-occurrence")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { next_action: "bind_secret", subject: "claude-code credential needs updating" },
+    { next_action: "inspect", subject: "claude-code authentication failed" },
+  ])(
+    "renders the daemon's $next_action auth recovery without sign-in copy",
+    ({ next_action, subject }) => {
+      render(<RuntimeActivityNotice event={providerErrorEvent({ next_action })} />);
+
+      const notice = screen.getByTestId("session-error-notice");
+      expect(notice).toHaveAttribute("data-provider-next-action", next_action);
+      expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(subject);
+      expect(notice).not.toHaveTextContent("sign-in");
+      expect(notice).not.toHaveTextContent("signed in");
+      expect(screen.queryByTestId("provider-error-command")).not.toBeInTheDocument();
+    }
+  );
+
+  it("renders a rate limit as a wait-then-retry notice with occurrence context on repeats", () => {
+    render(
+      <RuntimeActivityNotice
+        event={providerErrorEvent({
+          code: "provider_rate_limited",
+          next_action: "retry",
+          occurrence_count: 3,
+          first_seen_at: "2026-09-05T14:02:00Z",
+          last_seen_at: "2026-09-05T14:09:00Z",
+        })}
+      />
+    );
+
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveAttribute("data-provider-next-action", "retry");
+    expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(
+      "claude-code is rate limited"
+    );
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "Wait for the provider to recover, then send your message again."
+    );
+    const occurrence = screen.getByTestId("provider-error-occurrence");
+    expect(occurrence).toHaveTextContent(/^3 times since \d{1,2}:\d{2}/);
+    expect(occurrence.className).toContain("tabular-nums");
+  });
+
+  it.each([
+    { code: "provider_auth_required", subject: "claude-code authentication failed" },
+    { code: "provider_rate_limited", subject: "claude-code is rate limited" },
+  ])(
+    "falls back to neutral inspection for an unknown next_action on $code",
+    ({ code, subject }) => {
+      render(<RuntimeActivityNotice event={providerErrorEvent({ code, next_action: "wait" })} />);
+
+      const notice = screen.getByTestId("session-error-notice");
+      expect(notice).toHaveAttribute("data-provider-next-action", "inspect");
+      expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(subject);
+      expect(notice).not.toHaveTextContent("sign-in");
+    }
+  );
+
+  it("keeps the generic failure notice for error events without a known provider diagnostic", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "error",
+          error: "peer disconnected before response",
+          failure: { kind: "process_exit", summary: "peer disconnected before response" },
+          provider_error: null,
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("session-error-notice")).toHaveTextContent("Session failed");
+    expect(screen.getByTestId("session-error-meta")).toHaveTextContent("process_exit");
+    expect(screen.queryByTestId("provider-error-subject")).not.toBeInTheDocument();
+  });
+
   it("renders transcript markers with marker semantics", () => {
     render(
       <RuntimeActivityNotice
@@ -186,6 +311,36 @@ describe("RuntimeActivityNotice", () => {
     expect(kind).toHaveTextContent("transcript_marker.prompt_timeout");
     expect(kind.className).not.toContain("font-mono");
     expect(kind.className).toContain("tabular-nums");
+  });
+
+  it("renders the post-stop marker as a neutral discard note, never as an alert", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          turn_id: "turn_9f2",
+          text: "Late agent output discarded after the session stopped.",
+          title: "transcript_marker.post_stop",
+          raw: {
+            kind: "transcript_marker.post_stop",
+            occurred_at: "2026-09-05T12:00:00Z",
+            summary: "Late agent output discarded after the session stopped.",
+            evidence: { event_type: "agent_message" },
+          },
+        }}
+      />
+    );
+
+    const notice = screen.getByTestId("transcript-marker-notice");
+    expect(notice).toHaveAttribute("data-tone", "neutral");
+    expect(notice).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
+      "The agent sent more output after you stopped it — discarded; the reply was not changed."
+    );
+    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
+      "transcript_marker.post_stop"
+    );
   });
 
   it("renders the file-mutation verifier marker with warning semantics", () => {

@@ -251,6 +251,7 @@ const sessionPromptInputSchema = `{
 		"idempotency_key":{"type":"string","minLength":1},
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 		"expected_turn_id":{"type":"string","minLength":1},
+		"wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],
@@ -301,6 +302,10 @@ const sessionPromptOutputSchema = `{
 			"required":["status","delivery","message_id","idempotency_key","replayed"],
 			"properties":{
 				"status":{"type":"string"},
+				"disposition":{"type":"string","enum":["direct","steering","queued","interrupting"]},
+				"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
+				"turn_id":{"type":"string"},
+				"entry_id":{"type":"string"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 				"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
 				"message_id":{"type":"string"},
@@ -348,7 +353,7 @@ const sessionInputCancelInputSchema = `{
 
 const sessionInputPromoteInputSchema = `{
 	"type":"object",
-	"required":["session_id","queue_entry_id","text","message_id","idempotency_key","expected_turn_id"],
+	"required":["session_id","queue_entry_id","text","message_id","idempotency_key"],
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string","minLength":1},
@@ -391,6 +396,7 @@ const sessionInputPayloadSchema = `{
 		"status":{"type":"string"},
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 		"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
+		"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
 		"text":{"type":"string","minLength":1},
 		"queue_generation":{"type":"integer"},
 		"enqueued_at":{"type":"string","format":"date-time"},

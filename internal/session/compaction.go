@@ -22,6 +22,7 @@ const (
 
 type sessionCompactionState struct {
 	inFlight      bool
+	retired       bool
 	cancel        context.CancelFunc
 	done          chan struct{}
 	attemptTurnID string
@@ -73,6 +74,11 @@ func (m *Manager) maybeCompact(session *Session, usage acp.TokenUsage) error {
 	turnID := strings.TrimSpace(usage.TurnID)
 	if turnID == "" {
 		return errors.New("session: compaction usage turn id is required")
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.State != StateActive {
+		return nil
 	}
 
 	m.compactionLifecycle.mu.Lock()
@@ -190,6 +196,9 @@ func (m *Manager) compactPersistedReplaySpan(ctx context.Context, work compactio
 					"session: update compaction coverage: %w",
 					compactErr,
 				)
+			}
+			if cancelErr := compactCtx.Err(); cancelErr != nil {
+				return hookspkg.ContextPostCompactPayload{}, cancelErr
 			}
 			if archiveErr := archiveCompactionSpan(
 				compactCtx,

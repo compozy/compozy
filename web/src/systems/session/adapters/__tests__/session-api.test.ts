@@ -35,7 +35,6 @@ import {
   resumeSession,
   sendSessionPrompt,
   setSessionRuntime,
-  steerSessionPrompt,
   stopSession,
   unarchiveSession,
 } from "../session-api";
@@ -385,12 +384,71 @@ describe("renameSession", () => {
 });
 
 describe("stopSession", () => {
-  it("calls POST stop endpoint", async () => {
-    mockEmptyResponse();
+  it("requests an asynchronous stop by default and resolves with the acceptance", async () => {
+    const accepted = {
+      escalated: false,
+      session_id: "sess-001",
+      state: "stopping",
+      status: "stopping",
+      stop_cause: "user_requested",
+      verified: false,
+    };
+    mockJsonResponse(accepted, { status: 202 });
+    const controller = new AbortController();
 
-    await stopSession(WORKSPACE_ID, "sess-001");
+    await expect(
+      stopSession(WORKSPACE_ID, "sess-001", { signal: controller.signal })
+    ).resolves.toEqual(accepted);
 
     await expectFetchRequest({
+      body: { wait: false },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+      signal: controller.signal,
+    });
+  });
+
+  // A retry of `stop_verification_failed` waits on the daemon's settled answer,
+  // which is allowed to be unverified again: the adapter surfaces it as-is.
+  it("waits for the settled outcome when asked and surfaces an unverified answer", async () => {
+    const unverified = {
+      attention: "stop_verification_failed",
+      escalated: true,
+      phase: "forced",
+      session_id: "sess-001",
+      state: "stopping",
+      status: "stopping",
+      stop_cause: "user_requested",
+      stopped_after: "20s",
+      verified: false,
+    };
+    mockJsonResponse(unverified);
+
+    await expect(stopSession(WORKSPACE_ID, "sess-001", { wait: true })).resolves.toEqual(
+      unverified
+    );
+
+    await expectFetchRequest({
+      body: { wait: true },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
+    });
+  });
+
+  it("resolves when the session is already stopped", async () => {
+    const alreadyStopped = {
+      escalated: false,
+      session_id: "sess-001",
+      state: "stopped",
+      status: "already-stopped",
+      verified: true,
+    };
+    mockJsonResponse(alreadyStopped);
+
+    await expect(stopSession(WORKSPACE_ID, "sess-001")).resolves.toEqual(alreadyStopped);
+
+    await expectFetchRequest({
+      body: { wait: false },
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/stop",
     });
@@ -583,26 +641,90 @@ describe("sendSessionPrompt", () => {
   });
 });
 
-describe("steerSessionPrompt", () => {
-  it("sends the required durable prompt identities with steering text", async () => {
-    mockJsonResponse({ prompt: { status: "steering" } }, { status: 202 });
+describe("sendSessionPrompt busy-send answers", () => {
+  const request = {
+    idempotency_key: "idempotency-002",
+    message_id: "message-002",
+    messages: [
+      {
+        id: "message-002",
+        parts: [{ text: "Focus on the failing test.", type: "text" }],
+        role: "user" as const,
+      },
+    ],
+    mode: "steer" as const,
+  };
 
-    await steerSessionPrompt(WORKSPACE_ID, "sess-001", {
-      expected_turn_id: "turn-001",
+  it("returns the disposition envelope for a busy send", async () => {
+    mockJsonResponse(
+      {
+        prompt: {
+          delivery: "direct",
+          disposition: "steering",
+          idempotency_key: "idempotency-002",
+          message_id: "message-002",
+          queue_position: 0,
+          replayed: false,
+          status: "steering",
+          steer_delivery: "injected",
+          turn_id: "turn-001",
+        },
+      },
+      { status: 202 }
+    );
+
+    const result = await sendSessionPrompt(WORKSPACE_ID, "sess-001", request);
+
+    expect(result).toMatchObject({ disposition: "steering", steer_delivery: "injected" });
+    await expectFetchRequest({
+      body: request,
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt",
+    });
+  });
+
+  it("releases a direct-turn event stream and reports the turn as direct", async () => {
+    // The turn ended before admission: the daemon started a direct turn and
+    // streamed it. The stream must be released, never awaited to completion.
+    const cancel = vi.fn(() => Promise.resolve());
+    const body = new ReadableStream<Uint8Array>({
+      cancel,
+      start() {
+        // Never closes on its own — a live prompt stream.
+      },
+    });
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(body, {
+        headers: { "Content-Type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" },
+        status: 200,
+      })
+    );
+
+    const result = await sendSessionPrompt(WORKSPACE_ID, "sess-001", request);
+
+    expect(result).toEqual({
+      direct_turn: true,
       idempotency_key: "idempotency-002",
       message_id: "message-002",
-      text: "Focus on the failing test.",
     });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
 
-    await expectFetchRequest({
-      body: {
-        expected_turn_id: "turn-001",
-        idempotency_key: "idempotency-002",
-        message_id: "message-002",
-        text: "Focus on the failing test.",
+  it("carries the daemon's refusal code and current turn on the typed error", async () => {
+    mockJsonResponse(
+      {
+        code: "active_turn_mismatch",
+        current_turn_id: "turn-002",
+        error: "session: active turn mismatch: expected turn-001, active turn-002",
       },
-      method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/steer",
+      { status: 409 }
+    );
+
+    await expect(sendSessionPrompt(WORKSPACE_ID, "sess-001", request)).rejects.toMatchObject({
+      code: "active_turn_mismatch",
+      currentTurnId: "turn-002",
+      name: "SessionApiError",
+      status: 409,
     });
   });
 });

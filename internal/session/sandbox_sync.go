@@ -28,8 +28,11 @@ func (m *Manager) syncSandboxToRuntime(
 		envpkg.SyncDirectionToRuntime,
 		envpkg.SyncReasonStart,
 		provider.SyncToRuntime,
+		m.persistSessionMetadataOnly,
 	)
 }
+
+type sandboxMetadataWriter func(*Session) error
 
 type sandboxSyncRunner func(context.Context, envpkg.SessionState, envpkg.SyncOptions) (envpkg.SyncResult, error)
 
@@ -41,6 +44,7 @@ func (m *Manager) syncSandboxRuntime(
 	direction envpkg.SyncDirection,
 	reason envpkg.SyncReason,
 	run sandboxSyncRunner,
+	persist sandboxMetadataWriter,
 ) error {
 	started := time.Now()
 	m.logSandboxLifecycle(sandboxEventFromMeta(
@@ -69,7 +73,7 @@ func (m *Manager) syncSandboxRuntime(
 	meta = cloneSessionSandboxMeta(meta)
 	meta.LastSyncAt = &now
 	if err != nil {
-		return m.finishSandboxSyncError(ctx, session, state, meta, direction, reason, sandboxSyncOutcome{
+		return m.finishSandboxSyncError(ctx, session, state, meta, direction, reason, persist, sandboxSyncOutcome{
 			result:     result,
 			duration:   duration,
 			errorsList: errorsList,
@@ -77,7 +81,7 @@ func (m *Manager) syncSandboxRuntime(
 			err:        err,
 		})
 	}
-	return m.finishSandboxSyncSuccess(ctx, session, state, meta, direction, reason, sandboxSyncOutcome{
+	return m.finishSandboxSyncSuccess(ctx, session, state, meta, direction, reason, persist, sandboxSyncOutcome{
 		result:     result,
 		duration:   duration,
 		errorsList: errorsList,
@@ -100,11 +104,12 @@ func (m *Manager) finishSandboxSyncSuccess(
 	meta *store.SessionSandboxMeta,
 	direction envpkg.SyncDirection,
 	reason envpkg.SyncReason,
+	persist sandboxMetadataWriter,
 	outcome sandboxSyncOutcome,
 ) error {
 	meta.LastSyncError = ""
 	session.setSandbox(meta, outcome.syncTime)
-	if err := m.persistSessionMetadataOnly(session); err != nil {
+	if err := persist(session); err != nil {
 		return err
 	}
 	if err := m.dispatchSandboxSyncAfter(
@@ -139,9 +144,10 @@ func (m *Manager) finishSandboxSyncError(
 	meta *store.SessionSandboxMeta,
 	direction envpkg.SyncDirection,
 	reason envpkg.SyncReason,
+	persist sandboxMetadataWriter,
 	outcome sandboxSyncOutcome,
 ) error {
-	err := syncSandboxWriteError(m, session, meta, outcome)
+	err := syncSandboxWriteError(session, meta, persist, outcome)
 	errorsList := syncResultErrors(outcome.result, err)
 	if afterErr := m.dispatchSandboxSyncAfter(
 		ctx,
@@ -177,14 +183,14 @@ func (m *Manager) finishSandboxSyncError(
 }
 
 func syncSandboxWriteError(
-	m *Manager,
 	session *Session,
 	meta *store.SessionSandboxMeta,
+	persist sandboxMetadataWriter,
 	outcome sandboxSyncOutcome,
 ) error {
 	meta.LastSyncError = outcome.err.Error()
 	session.setSandbox(meta, outcome.syncTime)
-	if writeErr := m.persistSessionMetadataOnly(session); writeErr != nil {
+	if writeErr := persist(session); writeErr != nil {
 		return errors.Join(outcome.err, writeErr)
 	}
 	return outcome.err

@@ -191,6 +191,7 @@ describe("childSessionSignalTone", () => {
     const asking = treeSession("sess-asking", { parent: "p", badge: "waiting-for-input" });
     const failed = treeSession("sess-failed", { parent: "p", badge: "failed" });
     const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
+    const unverified = treeSession("sess-unverified", { parent: "p", badge: "needs-attention" });
 
     expect(childSessionSignalTone([stopped])).toBeNull();
     expect(childSessionSignalTone([stopped, running])).toBe("accent");
@@ -198,6 +199,10 @@ describe("childSessionSignalTone", () => {
     expect(childSessionSignalTone([running, hung, waiting])).toBe("danger");
     expect(childSessionSignalTone([running, asking])).toBe("danger");
     expect(childSessionSignalTone([running, failed])).toBe("danger");
+    // An unverified stop needs the operator but is inked warning: it escalates
+    // above running without reading as a failure of the operator's work.
+    expect(childSessionSignalTone([running, unverified])).toBe("warning");
+    expect(childSessionSignalTone([running, unverified, waiting])).toBe("danger");
   });
 
   it("Should leave finished-unseen work unsignalled — done is an inbox item, not an escalation", () => {

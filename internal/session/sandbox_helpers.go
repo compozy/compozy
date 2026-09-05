@@ -1,16 +1,33 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	envpkg "github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 )
+
+func sessionSandboxEqual(left, right *store.SessionSandboxMeta) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.SandboxID == right.SandboxID && left.Backend == right.Backend &&
+		left.Profile == right.Profile && left.State == right.State && left.InstanceID == right.InstanceID &&
+		left.RuntimeRootDir == right.RuntimeRootDir &&
+		slices.Equal(left.RuntimeAdditionalDirs, right.RuntimeAdditionalDirs) &&
+		bytes.Equal(
+			left.ProviderState,
+			right.ProviderState,
+		) && timesEqual(left.SSHAccessExpiresAt, right.SSHAccessExpiresAt) &&
+		timesEqual(left.LastSyncAt, right.LastSyncAt) && left.LastSyncError == right.LastSyncError
+}
 
 func syncResultErrors(result envpkg.SyncResult, err error) []string {
 	if err == nil && len(result.Errors) == 0 {

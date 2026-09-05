@@ -12,6 +12,7 @@ const sessionPromptInterruptedKey = "interrupted"
 
 const (
 	goalLiveKey         = "live"
+	entryIDField        = "entry_id"
 	idempotencyKeyField = "idempotency_key"
 	idempotencyKeyLabel = "Idempotency Key"
 )
@@ -119,6 +120,19 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 	rows := []keyValue{
 		{Label: sessionStatusValue, Value: stringOrDash(result.Status)},
 	}
+	if result.Disposition != "" {
+		rows = append(rows, keyValue{Label: "Disposition", Value: string(result.Disposition)})
+	}
+	if result.SteerDelivery != "" {
+		rows = append(rows, keyValue{Label: "Steer Delivery", Value: string(result.SteerDelivery)})
+	}
+	if result.MessageID != "" {
+		rows = append(rows, keyValue{Label: cliMessageIDValue, Value: result.MessageID})
+	}
+	if result.IdempotencyKey != "" {
+		rows = append(rows, keyValue{Label: idempotencyKeyLabel, Value: result.IdempotencyKey})
+	}
+
 	if result.Mode != "" {
 		rows = append(rows, keyValue{Label: bridgeModeValue, Value: string(result.Mode)})
 	}
@@ -148,6 +162,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 
 func sessionPromptFields() []string {
 	return []string{
+		"disposition", "steer_delivery", "turn_id", entryIDField, "message_id", "idempotency_key", "replayed",
 		sessionStatusKey,
 		bridgeModeKey,
 		cliDeliveryKey,
@@ -162,6 +177,8 @@ func sessionPromptFields() []string {
 
 func sessionPromptValues(result SessionPromptResultRecord) []string {
 	return []string{
+		string(result.Disposition), string(result.SteerDelivery), result.TurnID, result.EntryID,
+		result.MessageID, result.IdempotencyKey, strconv.FormatBool(result.Replayed),
 		result.Status,
 		string(result.Mode),
 		string(result.Delivery),

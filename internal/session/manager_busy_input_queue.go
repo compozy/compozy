@@ -25,6 +25,7 @@ func (m *Manager) enqueueBusyPrompt(
 		ctx,
 		inputqueue.InputRequest{
 			SessionID:        session.ID,
+			TargetTurnID:     session.CurrentTurnID(),
 			Text:             req.message,
 			Generation:       generation,
 			Runtime:          storeRuntimeSelection(req.runtime),
@@ -61,6 +62,7 @@ func (m *Manager) enqueueBusyPrompt(
 		Status:          store.SessionPromptResultStatusQueued,
 		Mode:            BusyInputModeQueue,
 		Delivery:        entry.Delivery,
+		PreviousTurnID:  entry.TargetTurnID,
 		QueueEntryID:    entry.ID,
 		QueuePosition:   position,
 		QueueGeneration: entry.SessionGeneration,

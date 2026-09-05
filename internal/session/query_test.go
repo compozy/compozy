@@ -17,6 +17,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/procutil"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -1077,15 +1078,15 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		return compareSessionCatalogPosition(
-			sessionCatalogPosition(candidates[i], query.Sort),
-			sessionCatalogPosition(candidates[j], query.Sort),
+			sessionCatalogPosition(&candidates[i], query.Sort),
+			sessionCatalogPosition(&candidates[j], query.Sort),
 		) < 0
 	})
 	if query.After != nil {
 		filtered := candidates[:0]
 		for index := range candidates {
 			info := &candidates[index]
-			if compareSessionCatalogPosition(sessionCatalogPosition(*info, query.Sort), *query.After) > 0 {
+			if compareSessionCatalogPosition(sessionCatalogPosition(info, query.Sort), *query.After) > 0 {
 				filtered = append(filtered, *info)
 			}
 		}
@@ -1153,7 +1154,7 @@ func (c *pagedRecordingSessionCatalog) PageSessions(
 		return store.SessionCatalogPage{}, nil
 	}
 	page := store.SessionCatalogPage{Total: 1}
-	position := sessionCatalogPosition(c.durable, query.Sort)
+	position := sessionCatalogPosition(&c.durable, query.Sort)
 	if query.After == nil || compareSessionCatalogPosition(position, *query.After) > 0 {
 		page.Sessions = []store.SessionInfo{c.durable}
 	}
@@ -1296,113 +1297,186 @@ func TestNormalizeStoredSessionIDRejectsWindowsDriveRelativePath(t *testing.T) {
 	}
 }
 
+// exitedProcessLiveness restores the identity of a process that verifiably
+// exited, so an interrupted start is classified from exit proof rather than
+// left as an unverifiable process.
+func exitedProcessLiveness(proc *AgentProcess) *store.SessionLivenessMeta {
+	startedAt := proc.StartedAt
+	return &store.SessionLivenessMeta{SubprocessPID: proc.PID, SubprocessStartedAt: &startedAt}
+}
+
 func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	originalACP := session.Info().ACPSessionID
+	t.Run("Should retry catalog projection after metadata recovery already committed", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		target := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), target.ID); err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, target.MetaPath())
+		meta.State, meta.StopDetail, meta.StopReason = string(StateStarting), "", nil
+		if err := store.WriteSessionMeta(target.MetaPath(), meta); err != nil {
+			t.Fatal(err)
+		}
+		projectionErr := errors.New("catalog unavailable")
+		catalog.setUpdateErr(projectionErr)
+		if _, err := h.manager.Status(t.Context(), target.ID); !errors.Is(err, projectionErr) {
+			t.Fatalf("failed projection: %v", err)
+		}
+		if _, err := h.manager.ListAll(t.Context()); !errors.Is(err, projectionErr) {
+			t.Fatalf("session inventory hid incomplete recovery: %v", err)
+		}
+		// Without recorded process identity the interrupted start cannot prove exit,
+		// so the committed recovery is a truthful stopping with startup attribution.
+		if meta := readMeta(t, target.MetaPath()); meta.State != string(StateStopping) {
+			t.Fatalf("metadata recovery did not commit: %s", meta.State)
+		}
+		catalog.setUpdateErr(nil)
+		info, err := h.manager.Status(t.Context(), target.ID)
+		if err != nil || info.StopReason != store.StopError {
+			t.Fatalf("recovery retry: %#v, %v", info, err)
+		}
+		rows, err := catalog.ListSessions(t.Context(), store.SessionListQuery{ID: target.ID})
+		if err != nil || len(rows) != 1 || rows[0].StopReason != store.StopError {
+			t.Fatalf("retried catalog: %#v, %v", rows, err)
+		}
+	})
+	t.Run("Should persist recovered state consistently in metadata and catalog", func(t *testing.T) {
+		t.Parallel()
+		catalog := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionCatalog(catalog))
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		useExitedProcessForHealthRecovery(t, h)
+		session := createSession(t, h)
+		exited := h.driver.lastProcess().handle
+		originalACP := session.Info().ACPSessionID
 
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
 
-	meta, err := store.ReadSessionMeta(session.MetaPath())
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	meta.State = string(StateStarting)
-	meta.StopReason = nil
-	meta.StopDetail = ""
-	meta.ACPSessionID = stringPointer(originalACP)
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
-		t.Fatalf("WriteSessionMeta() error = %v", err)
-	}
+		meta, err := store.ReadSessionMeta(session.MetaPath())
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		meta.State = string(StateStarting)
+		meta.StopReason = nil
+		meta.StopDetail = ""
+		meta.ACPSessionID = stringPointer(originalACP)
+		meta.Liveness = exitedProcessLiveness(exited)
+		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
 
-	info, err := h.manager.Status(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Status(repaired) error = %v", err)
-	}
-	if got := info.State; got != StateStopped {
-		t.Fatalf("Status(repaired).State = %q, want %q", got, StateStopped)
-	}
-	if got := info.StopReason; got != store.StopError {
-		t.Fatalf("Status(repaired).StopReason = %q, want %q", got, store.StopError)
-	}
-	if got := info.StopDetail; got != resumeStopDetailStartIncomplete {
-		t.Fatalf("Status(repaired).StopDetail = %q, want %q", got, resumeStopDetailStartIncomplete)
-	}
-	if got := info.ACPSessionID; got != "" {
-		t.Fatalf("Status(repaired).ACPSessionID = %q, want empty", got)
-	}
+		info, err := h.manager.Status(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Status(repaired) error = %v", err)
+		}
+		if got := info.State; got != StateStopped {
+			t.Fatalf("Status(repaired).State = %q, want %q", got, StateStopped)
+		}
+		if got := info.StopReason; got != store.StopError {
+			t.Fatalf("Status(repaired).StopReason = %q, want %q", got, store.StopError)
+		}
+		if got := info.StopDetail; got != resumeStopDetailStartIncomplete {
+			t.Fatalf("Status(repaired).StopDetail = %q, want %q", got, resumeStopDetailStartIncomplete)
+		}
+		if got := info.ACPSessionID; got != "" {
+			t.Fatalf("Status(repaired).ACPSessionID = %q, want empty", got)
+		}
 
-	repairedMeta, err := store.ReadSessionMeta(session.MetaPath())
-	if err != nil {
-		t.Fatalf("ReadSessionMeta(repaired) error = %v", err)
-	}
-	if got := repairedMeta.State; got != string(StateStopped) {
-		t.Fatalf("repaired meta state = %q, want %q", got, StateStopped)
-	}
-	if repairedMeta.StopReason == nil || *repairedMeta.StopReason != store.StopError {
-		t.Fatalf("repaired meta stop reason = %#v, want %q", repairedMeta.StopReason, store.StopError)
-	}
-	if got := repairedMeta.StopDetail; got != resumeStopDetailStartIncomplete {
-		t.Fatalf("repaired meta stop detail = %q, want %q", got, resumeStopDetailStartIncomplete)
-	}
-	if repairedMeta.ACPSessionID != nil {
-		t.Fatalf("repaired meta ACPSessionID = %#v, want nil", repairedMeta.ACPSessionID)
-	}
+		repairedMeta, err := store.ReadSessionMeta(session.MetaPath())
+		if err != nil {
+			t.Fatalf("ReadSessionMeta(repaired) error = %v", err)
+		}
+		if got := repairedMeta.State; got != string(StateStopped) {
+			t.Fatalf("repaired meta state = %q, want %q", got, StateStopped)
+		}
+		if repairedMeta.StopReason == nil || *repairedMeta.StopReason != store.StopError {
+			t.Fatalf("repaired meta stop reason = %#v, want %q", repairedMeta.StopReason, store.StopError)
+		}
+		if got := repairedMeta.StopDetail; got != resumeStopDetailStartIncomplete {
+			t.Fatalf("repaired meta stop detail = %q, want %q", got, resumeStopDetailStartIncomplete)
+		}
+		if repairedMeta.ACPSessionID != nil {
+			t.Fatalf("repaired meta ACPSessionID = %#v, want nil", repairedMeta.ACPSessionID)
+		}
+		catalogRows, err := catalog.ListSessions(
+			t.Context(),
+			store.SessionListQuery{ID: session.ID, ReadScope: store.ReadScope{AllProfiles: true}},
+		)
+		if err != nil || len(catalogRows) != 1 {
+			t.Fatalf("recovered catalog: %#v, %v", catalogRows, err)
+		}
+		row := catalogRows[0]
+		if row.State != string(info.State) || row.StopReason != info.StopReason || row.StopDetail != info.StopDetail ||
+			row.ACPSessionID != nil {
+			t.Fatalf("catalog disagrees with recovered status: %#v", row)
+		}
+	})
 }
 
 func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
+	t.Run("Should retain stalled live process identity and reject resume", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
 
-	meta, err := store.ReadSessionMeta(session.MetaPath())
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	lastUpdate := time.Now().UTC().Add(-DefaultLivenessStallAfter - time.Minute)
-	startedAt := time.Now().UTC().Add(-10 * time.Minute)
-	meta.State = string(StateActive)
-	meta.StopReason = nil
-	meta.StopDetail = ""
-	meta.Liveness = &store.SessionLivenessMeta{
-		SubprocessPID:       os.Getpid(),
-		SubprocessStartedAt: &startedAt,
-		LastUpdateAt:        &lastUpdate,
-	}
-	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
-		t.Fatalf("WriteSessionMeta() error = %v", err)
-	}
+		meta, err := store.ReadSessionMeta(session.MetaPath())
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		lastUpdate := time.Now().UTC().Add(-DefaultLivenessStallAfter - time.Minute)
+		startedAt, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.State = string(StateActive)
+		meta.StopReason = nil
+		meta.StopDetail = ""
+		meta.Liveness = &store.SessionLivenessMeta{
+			SubprocessPID:       os.Getpid(),
+			SubprocessStartedAt: &startedAt,
+			LastUpdateAt:        &lastUpdate,
+		}
+		if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
 
-	info, err := h.manager.Status(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Status(stalled) error = %v", err)
-	}
-	if got, want := info.State, StateStopped; got != want {
-		t.Fatalf("Status(stalled).State = %q, want %q", got, want)
-	}
-	if got, want := info.StopReason, store.StopAgentCrashed; got != want {
-		t.Fatalf("Status(stalled).StopReason = %q, want %q", got, want)
-	}
-	if got, want := info.StopDetail, resumeStopDetailAgentStalled; got != want {
-		t.Fatalf("Status(stalled).StopDetail = %q, want %q", got, want)
-	}
-	if info.Liveness == nil {
-		t.Fatal("Status(stalled).Liveness = nil, want liveness metadata")
-	}
-	if got, want := info.Liveness.StallState, store.SessionStallStateDetected; got != want {
-		t.Fatalf("Status(stalled).Liveness.StallState = %q, want %q", got, want)
-	}
-	if got, want := info.Liveness.StallReason, store.SessionStallReasonActivityTimeout; got != want {
-		t.Fatalf("Status(stalled).Liveness.StallReason = %q, want %q", got, want)
-	}
+		info, err := h.manager.Status(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Status(stalled) error = %v", err)
+		}
+		if got, want := info.State, StateStopping; got != want {
+			t.Fatalf("Status(stalled).State = %q, want %q", got, want)
+		}
+		if got, want := info.StopReason, store.StopAgentCrashed; got != want {
+			t.Fatalf("Status(stalled).StopReason = %q, want %q", got, want)
+		}
+		if got, want := info.StopDetail, resumeStopDetailAgentStalled; got != want {
+			t.Fatalf("Status(stalled).StopDetail = %q, want %q", got, want)
+		}
+		if info.Liveness == nil {
+			t.Fatal("Status(stalled).Liveness = nil, want liveness metadata")
+		}
+		if got, want := info.Liveness.StallState, store.SessionStallStateDetected; got != want {
+			t.Fatalf("Status(stalled).Liveness.StallState = %q, want %q", got, want)
+		}
+		if got, want := info.Liveness.StallReason, store.SessionStallReasonActivityTimeout; got != want {
+			t.Fatalf("Status(stalled).Liveness.StallReason = %q, want %q", got, want)
+		}
+		if _, err := h.manager.Resume(t.Context(), session.ID); !errors.Is(err, ErrStopVerificationFailed) {
+			t.Fatalf("resume while old process is alive: %v", err)
+		}
+	})
 }
 
 func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
@@ -1523,14 +1597,24 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events(after prompt) error = %v", err)
 	}
-	if len(afterPrompt) != 2 {
-		t.Fatalf("Events(after prompt) = %d events, want 2", len(afterPrompt))
+	// The fake process only exits on the forced stop, so the shared ladder records
+	// its escalation before the terminal event and its marker.
+	wantAfterPrompt := []string{
+		events.SessionStopEscalated,
+		EventTypeSessionStopped,
+		events.TranscriptMarkerCreated,
 	}
-	if got := afterPrompt[0].Type; got != EventTypeSessionStopped {
-		t.Fatalf("Events(after prompt)[0].Type = %q, want %q", got, EventTypeSessionStopped)
+	if len(afterPrompt) != len(wantAfterPrompt) {
+		types := make([]string, 0, len(afterPrompt))
+		for _, event := range afterPrompt {
+			types = append(types, event.Type)
+		}
+		t.Fatalf("Events(after prompt) = %d events %v, want %v", len(afterPrompt), types, wantAfterPrompt)
 	}
-	if got := afterPrompt[1].Type; got != events.TranscriptMarkerCreated {
-		t.Fatalf("Events(after prompt)[1].Type = %q, want %q", got, events.TranscriptMarkerCreated)
+	for index, want := range wantAfterPrompt {
+		if got := afterPrompt[index].Type; got != want {
+			t.Fatalf("Events(after prompt)[%d].Type = %q, want %q", index, got, want)
+		}
 	}
 
 	stoppedHistory, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})
@@ -1540,8 +1624,17 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	if len(stoppedHistory) != 2 {
 		t.Fatalf("History(stopped) = %d turns, want 2", len(stoppedHistory))
 	}
-	if got := stoppedHistory[1].Events[0].Type; got != EventTypeSessionStopped {
-		t.Fatalf("History(stopped)[1] first event type = %q, want %q", got, EventTypeSessionStopped)
+	// The stop's whole footprint shares one history turn: the ladder escalation
+	// record precedes the terminal event instead of opening a turn of its own.
+	stopTurnTypes := make([]string, 0, len(stoppedHistory[1].Events))
+	for _, event := range stoppedHistory[1].Events {
+		stopTurnTypes = append(stopTurnTypes, event.Type)
+	}
+	if got := stopTurnTypes[0]; got != events.SessionStopEscalated {
+		t.Fatalf("History(stopped)[1] events = %v, want ladder escalation first", stopTurnTypes)
+	}
+	if got := countEventType(stoppedHistory[1].Events, EventTypeSessionStopped); got != 1 {
+		t.Fatalf("History(stopped)[1] events = %v, want one %q", stopTurnTypes, EventTypeSessionStopped)
 	}
 }
 

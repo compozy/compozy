@@ -3,6 +3,8 @@ package spec
 import (
 	"reflect"
 
+	"github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -24,6 +26,9 @@ import (
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[config.SteerCapability]():                  config.SteerCapabilityValues(),
+		reflect.TypeFor[session.Disposition]():                     session.DispositionValues(),
+		reflect.TypeFor[store.SteerDeliveryMode]():                 store.SteerDeliveryModeValues(),
 		reflect.TypeFor[contract.TerminalMode]():                   contract.TerminalModeValues(),
 		reflect.TypeFor[contract.TerminalActorKind]():              contract.TerminalActorKindValues(),
 		reflect.TypeFor[contract.TerminalSignal]():                 contract.TerminalSignalValues(),

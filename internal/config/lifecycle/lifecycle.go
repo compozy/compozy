@@ -99,6 +99,7 @@ var Matrix = []Rule{
 	{Pattern: "extensions.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "defaults.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "limits.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "session.busy_input.default_mode", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "session.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "permissions.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "tools.clarify.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

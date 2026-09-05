@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -245,14 +246,15 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		return err
 	}
 	session.Sandbox = sandbox
-	session.AttachedTo = strings.TrimSpace(row.attachedTo)
+	var attachExpiresAt *time.Time
 	if row.attachExpiresAt.Valid && strings.TrimSpace(row.attachExpiresAt.String) != "" {
-		attachExpiresAt, parseErr := store.ParseTimestamp(row.attachExpiresAt.String)
+		parsed, parseErr := store.ParseTimestamp(row.attachExpiresAt.String)
 		if parseErr != nil {
 			return fmt.Errorf("store: parse session attach expires at: %w", parseErr)
 		}
-		session.AttachExpiresAt = &attachExpiresAt
+		attachExpiresAt = &parsed
 	}
+	session.SetAttach(strings.TrimSpace(row.attachedTo), attachExpiresAt)
 	session.TranscriptEpoch = row.transcriptEpoch
 	if err := populateSessionAttentionScanParts(session, row); err != nil {
 		return err
@@ -318,6 +320,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.archivedAt,
 		&row.acpSessionID,
 		&row.stopReason,
+		&row.session.StopEscalated, &row.session.StopVerificationFailed,
 		&row.stopDetail,
 		&row.failureKind,
 		&row.failureSummary,
@@ -328,8 +331,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.stallState,
 		&row.stallReason,
 		&row.activityJSON,
-		&row.attachedTo,
-		&row.attachExpiresAt,
+		&row.attachedTo, &row.attachExpiresAt,
 		&row.transcriptEpoch,
 		&row.pendingPermissionCount,
 		&row.pendingClarifyCount,
@@ -349,8 +351,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.envProviderStateJSON,
 		&row.envLastSyncAt,
 		&row.envLastSyncError,
-		&row.createdAtRaw,
-		&row.updatedAtRaw,
+		&row.createdAtRaw, &row.updatedAtRaw,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}

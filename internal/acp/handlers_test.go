@@ -500,52 +500,58 @@ func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
 
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
+	t.Run("Should attribute automatic rejection to timeout", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-	proc.permissionTimeout = 25 * time.Millisecond
-	active, err := proc.beginPrompt("turn-timeout", 8)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissionTimeout = 25 * time.Millisecond
+		active, err := proc.beginPrompt("turn-timeout", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	title := "permission request"
-	kind := acpsdk.ToolKindEdit
-	response, reqErr := proc.handleInbound(
-		context.Background(),
-		acpsdk.ClientMethodSessionRequestPermission,
-		mustMarshalJSON(acpsdk.RequestPermissionRequest{
-			SessionId: "sess-direct",
-			Options: []acpsdk.PermissionOption{
-				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
-				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
-			},
-			ToolCall: acpsdk.ToolCallUpdate{
-				ToolCallId: "tool-timeout",
-				Title:      &title,
-				Kind:       &kind,
-			},
-		}),
-	)
-	if reqErr != nil {
-		t.Fatalf("handleInbound(permission timeout) error = %v", reqErr)
-	}
+		title := "permission request"
+		kind := acpsdk.ToolKindEdit
+		response, reqErr := proc.handleInbound(
+			t.Context(),
+			acpsdk.ClientMethodSessionRequestPermission,
+			mustMarshalJSON(acpsdk.RequestPermissionRequest{
+				SessionId: "sess-direct",
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+				ToolCall: acpsdk.ToolCallUpdate{
+					ToolCallId: "tool-timeout",
+					Title:      &title,
+					Kind:       &kind,
+				},
+			}),
+		)
+		if reqErr != nil {
+			t.Fatalf("handleInbound(permission timeout) error = %v", reqErr)
+		}
 
-	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
-	if !ok {
-		t.Fatalf("handleInbound(permission timeout) type = %T, want RequestPermissionResponse", response)
-	}
-	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
-		t.Fatalf("permission timeout outcome = %#v, want reject-once option", permissionResponse.Outcome)
-	}
+		permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+		if !ok {
+			t.Fatalf("handleInbound(permission timeout) type = %T, want RequestPermissionResponse", response)
+		}
+		if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
+			t.Fatalf("permission timeout outcome = %#v, want reject-once option", permissionResponse.Outcome)
+		}
 
-	events := collectEventsUntilCount(t, active.events, 2)
-	if events[0].Decision != "" {
-		t.Fatalf("initial timeout decision = %q, want empty", events[0].Decision)
-	}
-	if events[1].Decision != string(decisionRejectOnce) {
-		t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
-	}
+		events := collectEventsUntilCount(t, active.events, 2)
+		if events[0].Decision != "" {
+			t.Fatalf("initial timeout decision = %q, want empty", events[0].Decision)
+		}
+		if events[1].Decision != string(decisionRejectOnce) {
+			t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
+		}
+		if got := events[1].ResolvedByValue(); got != "timeout" {
+			t.Fatalf("final timeout resolved_by = %q, want timeout", got)
+		}
+	})
 }
 
 func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T) {

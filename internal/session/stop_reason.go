@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -66,139 +65,41 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 	}
 }
 
-// RequestStopWithCause marks a session as stopping and sends the cooperative ACP
-// cancel signal without forcing process termination.
+// RequestStopWithCause persists stopping and starts the shared escalation operation.
 func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
-	if m == nil {
-		return errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return errors.New("session: request stop context is required")
-	}
-	if cause == CauseNone {
-		cause = CauseUserRequested
-	}
-	if err := m.waitForConversationFinalization(ctx, id); err != nil {
-		return err
-	}
-	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
-		return err
-	}
-
-	session, proc, alreadyStopped, stopWasAlreadyRequested, observedProcessExit, err := m.prepareStopWithCause(
-		ctx,
-		id,
-		cause,
-		detail,
-	)
-	if err != nil {
-		return err
-	}
-	if alreadyStopped {
-		return nil
-	}
-	if proc == nil {
-		return m.finalizeStopped(ctx, session, nil)
-	}
-	if observedProcessExit {
-		waitErr := proc.Wait()
-		reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
-
-		finalizeErr := m.finalizeStopped(ctx, session, waitErr)
-		if finalizeErr != nil {
-			return finalizeErr
-		}
-		return nil
-	}
-
-	cancelErr := m.driver.Cancel(ctx, proc)
-	if cancelErr != nil && !isProcessDone(proc) {
-		return fmt.Errorf("session: request cooperative stop for %q: %w", id, cancelErr)
-	}
-	if isProcessDone(proc) {
-		waitErr := proc.Wait()
-		reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
-
-		finalizeErr := m.finalizeStopped(ctx, session, waitErr)
-		if finalizeErr != nil {
-			return errors.Join(cancelErr, finalizeErr)
-		}
-		return nil
-	}
-	return cancelErr
+	_, err := m.requestSessionStop(ctx, id, cause, detail)
+	return err
 }
 
-// StopWithCause stops a session while preserving the explicit stop initiator.
+// StopWithCause waits for the same operation used by asynchronous stop requests.
 func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
-	if m == nil {
-		return errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return errors.New("session: stop context is required")
-	}
-	if cause == CauseNone {
-		cause = CauseUserRequested
-	}
-	if err := m.waitForConversationFinalization(ctx, id); err != nil {
+	previousRun := m.finalizedStopRun(id)
+	run, err := m.requestSessionStop(ctx, id, cause, detail)
+	if err != nil || run == nil {
 		return err
 	}
-	if handled, err := m.stopStartingSession(ctx, id, cause, detail); handled {
-		return err
-	}
-
-	session, proc, alreadyStopped, stopWasAlreadyRequested, observedProcessExit, err := m.prepareStopWithCause(
-		ctx,
-		id,
-		cause,
-		detail,
-	)
-	if err != nil {
-		return err
-	}
-	if alreadyStopped {
+	outcome, err := waitSessionStopRun(ctx, run)
+	if previousRun == run && outcome.Verified && outcome.FinalState == StateStopped {
 		return nil
 	}
-	if proc == nil {
-		return m.finalizeStopped(ctx, session, nil)
-	}
-	if observedProcessExit {
-		waitErr := proc.Wait()
-		reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
+	return err
+}
 
-		return m.finalizeStopped(ctx, session, waitErr)
+func (m *Manager) finalizedStopRun(id string) *sessionStopRun {
+	if m == nil {
+		return nil
 	}
-
-	finalization := m.observeFinalization(session)
-	doneBeforeStop := isProcessDone(proc)
-	stopErr := m.driver.Stop(ctx, proc)
-	doneAfterStop := isProcessDone(proc)
-	if stopErr == nil && !doneAfterStop {
-		select {
-		case <-proc.Done():
-			doneAfterStop = true
-		case <-ctx.Done():
-			waitErr := fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
-			m.finishFinalization(session.ID, waitErr)
-			return waitErr
-		}
+	id = strings.TrimSpace(id)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.sessions[id] != nil || m.finalizing[id] != nil {
+		return nil
 	}
-	if stopErr != nil {
-		if !doneBeforeStop && !doneAfterStop {
-			stopErr = fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
-			m.finishFinalization(session.ID, stopErr)
-			return stopErr
-		}
-		stopErr = nil
+	run := m.stopRuns[id]
+	if run == nil || !signalClosed(run.done) {
+		return nil
 	}
-
-	waitErr := proc.Wait()
-	reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
-
-	finalizeErr := m.finalizeObservedStop(ctx, session, finalization, waitErr)
-	if finalizeErr != nil {
-		return errors.Join(stopErr, finalizeErr)
-	}
-	return nil
+	return run
 }
 
 // StopWithSpawnTTL stops a spawned session and classifies its prompt state

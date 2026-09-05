@@ -6,6 +6,9 @@ export type {
   AnswerClarificationResult,
   ApproveSessionParams,
   ClarificationPending,
+  SessionInteractionRecord,
+  SessionInteractionStatus,
+  SessionInteractionsResponse,
   ClarifyEventView,
   ClarifyStatus,
   CreateSessionParams,
@@ -34,7 +37,10 @@ export type {
   SessionPromptPayload,
   SessionPromptRequest,
   SessionPromptResponse,
+  SessionStopResult,
+  SessionPromptDirectTurn,
   SessionPromptResult,
+  SessionPromptSendResult,
   PromoteSessionInputRequest,
   ReplaceSessionInputRequest,
   SessionGoalCommandResult,
@@ -106,6 +112,7 @@ export {
   ClarificationNotAnswerableError,
   createSession,
   fetchSessionClarifications,
+  fetchSessionInteractions,
   deleteSession,
   fetchSession,
   fetchSessionCommands,
@@ -130,7 +137,6 @@ export {
   SessionApiError,
   SessionLedgerUnavailableError,
   SessionNotFoundError,
-  steerSessionPrompt,
   stopSession,
   unarchiveSession,
 } from "./adapters/session-api";
@@ -167,8 +173,9 @@ export {
   type SessionAttachmentItem,
 } from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
-export { isClarifyEventData } from "./lib/clarify-event";
+export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
+export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list
 // preferences, presence lease. Grouped in ./attention; re-exported here.
@@ -244,6 +251,8 @@ export {
 export {
   sessionClarificationsOptions,
   sessionCommandsOptions,
+  sessionExpiredInteractionsOptions,
+  sessionResolvedInteractionsOptions,
   sessionInputsOptions,
   sessionAttentionSummaryOptions,
   sessionDetailOptions,
@@ -283,6 +292,29 @@ export {
   isUserControllableSession,
   runningAgentNames,
 } from "./lib/session-running";
+export { invalidateSessionMutationQueries } from "./lib/session-query-invalidation";
+export {
+  DEFAULT_SESSION_BUSY_INPUT_MODE,
+  oppositeSessionBusyInputMode,
+  sessionBusyInputDefaultMode,
+  sessionSteerDelivery,
+} from "./lib/session-busy-input";
+export type {
+  SessionBusyInputAction,
+  SessionBusyInputMode,
+  SessionSteerDelivery,
+} from "./lib/session-busy-input";
+export {
+  describeSessionBusyInputRefusal,
+  SessionBusyInputRefusalError,
+  sessionBusyInputRefusalFromError,
+} from "./lib/session-busy-input-refusal";
+export type {
+  SessionBusyInputRefusal,
+  SessionBusyInputRefusalCode,
+} from "./lib/session-busy-input-refusal";
+export { sessionSendOutcomeFromResult } from "./lib/session-send-outcome";
+export type { SessionSendDisposition, SessionSendOutcome } from "./lib/session-send-outcome";
 
 export { useSessionComposerDraft, useSessionGoalFeedback } from "./hooks/use-session-store";
 export type {
@@ -311,6 +343,8 @@ export {
   type AnswerClarificationVariables,
 } from "./hooks/use-session-clarifications";
 export { useSessionRuntimeRenderContext } from "./hooks/use-session-runtime-render-context";
+export { useSessionExpiredInteractions } from "./hooks/use-session-expired-interactions";
+export { useSessionResolvedInteractions } from "./hooks/use-session-resolved-interactions";
 export {
   useWorkspaceSessionActivity,
   workspaceSessionActivityFromResults,
@@ -349,16 +383,14 @@ export {
   useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
-  useInterruptSessionPrompt,
-  useQueueSessionPrompt,
   useRepairSession,
   useRenameSession,
   useResumeSession,
   useSendSessionPrompt,
-  useSteerSessionPrompt,
   useStopSession,
   useUnarchiveSession,
   type CancelQueuedSessionPromptParams,
+  type StopSessionParams,
   type RepairSessionParams,
   type RenameSessionParams,
   type SendSessionPromptParams,
@@ -408,6 +440,15 @@ export {
   SessionRuntimeRecoveryNotice,
   type SessionRuntimeRecoveryNoticeProps,
 } from "./components/session-runtime-recovery-notice";
+export {
+  SessionStopAttentionNotice,
+  type SessionStopAttentionNoticeProps,
+} from "./components/session-stop-attention-notice";
+export {
+  STOP_VERIFICATION_FAILED_ATTENTION,
+  sessionStopAttention,
+  type SessionStopAttention,
+} from "./lib/session-stop-attention";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,
@@ -439,7 +480,9 @@ export {
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {
   PermissionDataPart,
+  PermissionExpiredReceipt,
   PermissionReceipt,
+  type PermissionExpiredReceiptProps,
   type PermissionReceiptProps,
 } from "./components/permission-data-part";
 export { PermissionDock, type PermissionDockProps } from "./components/permission-dock";
@@ -454,7 +497,10 @@ export {
 } from "./components/goal/goal-head-action";
 export { SessionGoalStrip, type SessionGoalStripProps } from "./components/goal/session-goal-strip";
 export { useSessionGoalHeader } from "./hooks/use-session-goal-header";
-export { ClarificationReceipt } from "./components/clarification-receipt";
+export {
+  ClarificationReceipt,
+  type ClarificationReceiptProps,
+} from "./components/clarification-receipt";
 export {
   ClarificationDataPart,
   type ClarificationDataPartProps,

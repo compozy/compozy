@@ -24,7 +24,7 @@ import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-r
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
-import type { TranscriptMessage } from "@/systems/session/types";
+import type { SessionInteractionRecord, TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
 import {
@@ -430,6 +430,14 @@ function composerText(): string {
   return requireComposerAui().composer.getState().text;
 }
 
+/** Counts mounts of the runtime subtree: a remount of the provider re-runs it. */
+function RuntimeMountProbe({ onMount }: { onMount: () => void }) {
+  useEffect(() => {
+    onMount();
+  }, [onMount]);
+  return null;
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
@@ -442,6 +450,7 @@ function renderSessionThread(
     isSessionRunning?: boolean;
     liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
+    onRuntimeMount?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
     runtimeSnapshot?: SessionPromptRuntimeSnapshot;
     strictMode?: boolean;
@@ -459,6 +468,7 @@ function renderSessionThread(
           liveTailEnabled={options.liveTailEnabled}
         >
           <ComposerAuiProbe />
+          {options.onRuntimeMount ? <RuntimeMountProbe onMount={options.onRuntimeMount} /> : null}
           {options.onRuntimeTranscriptCommit ? (
             <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
           ) : null}
@@ -546,6 +556,17 @@ function countClarificationFetches(fetchMock: ReturnType<typeof vi.fn>): number 
   }).length;
 }
 
+function interactionFetchSearches(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return fetchMock.mock.calls
+    .map(([input]) => getRequestURL(input as RequestInfo | URL))
+    .filter(
+      url =>
+        url.pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+    )
+    .map(url => url.search);
+}
+
 function fixtureWorkspaceId(): string {
   const workspaceId = primarySessionFixture.workspace_id;
   if (!workspaceId) {
@@ -569,7 +590,6 @@ describe("SessionChatRuntimeProvider", () => {
     expect(first.signal.aborted).toBe(true);
     expect(store.getSnapshot().context).toMatchObject({
       controller: second,
-      generation: 1,
       pending: true,
     });
   });
@@ -708,6 +728,7 @@ describe("SessionChatRuntimeProvider", () => {
   let lastPromptMessageID = "";
   let promptResponseSequence = 0;
   let streamTickets: string[] = [];
+  let settledInteractions: SessionInteractionRecord[] = [];
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -731,6 +752,7 @@ describe("SessionChatRuntimeProvider", () => {
     lastPromptMessageID = "";
     promptResponseSequence = 0;
     streamTickets = [];
+    settledInteractions = [];
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
@@ -808,6 +830,20 @@ describe("SessionChatRuntimeProvider", () => {
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
       ) {
         return jsonResponse({ clarifications: [] });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+      ) {
+        return jsonResponse({ interactions: settledInteractions });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
+      ) {
+        return jsonResponse({ inputs: [] });
       }
 
       if (
@@ -1378,6 +1414,51 @@ describe("SessionChatRuntimeProvider", () => {
           .attachments.map(attachment => attachment.name)
       ).toEqual(["first.txt", "second.txt"])
     );
+  });
+
+  // Invariant (UT-105, US-019.EC-1 / US-009.EC-4): cancelling a prompt never
+  // changes the runtime identity — no remount — so the transport settles while
+  // the composer draft and the runtime subtree stay in place. Owning layer:
+  // chat-runtime provider integration. Canonical suite: this file.
+  it("UT-105: Should settle a cancelled prompt without remounting the runtime or losing the draft", async () => {
+    const promptResponse = createDeferred<Response>();
+    const onCancelPrompt = vi.fn();
+    const onRuntimeMount = vi.fn();
+    const user = userEvent.setup();
+    promptResponsePromise = promptResponse.promise;
+
+    renderSessionThread({ onCancelPrompt, onRuntimeMount });
+
+    try {
+      await screen.findByTestId("composer-input");
+      await waitFor(() => expect(onRuntimeMount).toHaveBeenCalledOnce());
+      const runtimeBeforeCancel = requireComposerAui();
+
+      await setComposerText("cancel this one");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      const promptRequest = fetchMock.mock.calls.find(([input]) =>
+        getPathname(input as RequestInfo | URL).endsWith("/prompt")
+      );
+      expect(await screen.findByText("cancel this one")).toBeInTheDocument();
+      // The operator keeps typing while the turn runs: that draft is theirs.
+      await setComposerText("next question, kept");
+
+      await user.click(screen.getByTestId("composer-stop-button"));
+
+      expect(onCancelPrompt).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(true);
+        expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
+      });
+      expect(onRuntimeMount).toHaveBeenCalledOnce();
+      expect(requireComposerAui()).toBe(runtimeBeforeCancel);
+      expect(composerText()).toBe("next question, kept");
+      // The interrupted turn stays on screen at the point it was stopped.
+      expect(screen.getByText("cancel this one")).toBeInTheDocument();
+    } finally {
+      promptResponse.resolve(sseResponse([]));
+    }
   });
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
@@ -2023,6 +2104,183 @@ describe("SessionChatRuntimeProvider", () => {
     // composer instead (owned by session-decision-dock.test.tsx).
     expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
+  }, 10_000);
+
+  function pendingPermissionTranscript(requestId: string): TranscriptMessage[] {
+    return [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: `transcript_permission_${requestId}`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-permission",
+            data: {
+              type: "permission",
+              request_id: requestId,
+              title: "compozy__terminal_exec",
+              action: "session/request_permission",
+              timestamp: "2026-09-05T10:00:00Z",
+              raw: {
+                tool_id: "compozy__terminal_exec",
+                tool_input: {
+                  command: "bun",
+                  args: ["test"],
+                  cwd: "~/dev/atlas-api",
+                  risk: "ordinary",
+                },
+              },
+            },
+          },
+        ],
+      } as TranscriptMessage,
+    ];
+  }
+
+  function restartExpiredRow(requestId: string): SessionInteractionRecord {
+    return {
+      interaction_id: `int_${requestId}`,
+      kind: "permission",
+      provider_request_id: requestId,
+      turn_id: "turn_001",
+      title: "compozy__terminal_exec",
+      tool_id: "compozy__terminal_exec",
+      status: "canceled",
+      created_at: "2026-09-05T10:00:00Z",
+      resolved_at: "2026-09-05T10:02:00Z",
+      resolution: "failed-by-restart",
+      resolved_by: "system",
+    };
+  }
+
+  it("does not read the daemon's settled interactions while the transcript shows no undecided ask", async () => {
+    renderSessionThread();
+    await waitFor(() => expect(countClarificationFetches(fetchMock)).toBeGreaterThan(0));
+    expect(interactionFetchSearches(fetchMock)).toEqual([]);
+  });
+
+  it("re-reads settled interactions on the live cadence while an ask is still genuinely open, and keeps rewind blocked", async () => {
+    vi.useFakeTimers();
+    transcriptMessages = pendingPermissionTranscript("turn_001:perm_open");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"])
+      );
+    });
+    expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_500);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=canceled"]);
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+  }, 10_000);
+
+  it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
+    vi.useFakeTimers();
+    settledInteractions = [restartExpiredRow("turn_001:perm_expired")];
+    transcriptMessages = pendingPermissionTranscript("turn_001:perm_expired");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument()
+      );
+    });
+    const receipt = screen.getByTestId("permission-expired-receipt");
+    expect(receipt).toHaveAttribute("data-resolution", "failed-by-restart");
+    expect(receipt).toHaveTextContent(
+      "Not decided · CompozyOS restarted before you answered — bun test did not run"
+    );
+    expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    // The other rewind blockers (pending clarifications, queued inputs) settle on
+    // their own reads; the settled ask must not be the one holding rewind.
+    await act(async () => {
+      await vi.waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
+  }, 10_000);
+
+  function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {
+    const [user, ask] = pendingPermissionTranscript(requestId);
+    const part = (ask as { parts: { data: Record<string, unknown> }[] }).parts[0];
+    return [
+      user as TranscriptMessage,
+      { ...ask, parts: [{ ...part, data: { ...part?.data, decision } }] } as TranscriptMessage,
+    ];
+  }
+
+  function resolvedRow(requestId: string, resolvedBy: string): SessionInteractionRecord {
+    return {
+      ...restartExpiredRow(requestId),
+      status: "resolved",
+      resolution: "reject-once",
+      resolved_by: resolvedBy,
+    };
+  }
+
+  it("attributes a decided ask from the daemon's resolved row with one read and no polling", async () => {
+    vi.useFakeTimers();
+    settledInteractions = [resolvedRow("turn_001:perm_timeout", "timeout")];
+    transcriptMessages = decidedPermissionTranscript("turn_001:perm_timeout", "reject-once");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("permission-rejected-notice")).toHaveAttribute(
+          "data-actor",
+          "timeout"
+        )
+      );
+    });
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Timed out before anyone answered · bun test did not run"
+    );
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
+  }, 10_000);
+
+  it("keeps a decided ask neutral when the daemon has no resolved row for it", async () => {
+    vi.useFakeTimers();
+    transcriptMessages = decidedPermissionTranscript("turn_001:perm_legacy", "reject-once");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"])
+      );
+    });
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-actor", "unknown");
+    expect(receipt).toHaveTextContent("Not allowed · bun test did not run");
+    expect(receipt).not.toHaveTextContent("by you");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
   }, 10_000);
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {

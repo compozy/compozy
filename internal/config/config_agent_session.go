@@ -40,11 +40,17 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
+	Stop        SessionStopConfig        `toml:"stop"`
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
 	Compaction  SessionCompactionConfig  `toml:"compaction"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
+}
+
+// SessionStopConfig bounds the cooperative phase before process termination.
+type SessionStopConfig struct {
+	CooperativeGrace time.Duration `toml:"cooperative_grace"`
 }
 
 // SessionAttachmentsConfig controls persisted session-attachment admission and retention.

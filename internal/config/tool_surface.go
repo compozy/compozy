@@ -72,6 +72,7 @@ var (
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
 		"limits.max_concurrent_agents":                             ConfigValueInt,
 		"session.limits.timeout":                                   ConfigValueDuration,
+		"session.stop.cooperative_grace":                           ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":          ConfigValueDuration,
 		"session.supervision.progress_notify_interval":             ConfigValueDuration,
 		"session.supervision.prompt_deadline":                      ConfigValueDuration,
@@ -301,6 +302,7 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 			"auth_mode",
 			"env_policy",
 			"home_policy",
+			"steer_capability",
 			"auth_status_command":
 			policy.Kind = ConfigValueString
 			return policy, nil

@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type TaskCancelParams struct {
+	ID       string          `json:"id"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type TaskCatalogFacetsPayload struct {
+	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
+	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
+}
+
 type TaskCatalogItemPayload struct {
 	ID                           string                 `json:"id"`
 	ProfileID                    string                 `json:"profile_id"`
@@ -272,19 +283,4 @@ type TaskDependencyPayload struct {
 	DependsOnTaskID string         `json:"depends_on_task_id"`
 	Kind            DependencyKind `json:"kind"`
 	CreatedAt       time.Time      `json:"created_at"`
-}
-
-type TaskDependencyReferencePayload struct {
-	TaskID          string               `json:"task_id"`
-	DependsOnTaskID string               `json:"depends_on_task_id"`
-	Kind            DependencyKind       `json:"kind"`
-	CreatedAt       time.Time            `json:"created_at"`
-	DependsOn       TaskReferencePayload `json:"depends_on"`
-}
-
-type TaskDesignationRollupPayload struct {
-	DesignationGroupID string          `json:"designation_group_id"`
-	TaskID             string          `json:"task_id"`
-	Summary            json.RawMessage `json:"summary"`
-	CreatedAt          time.Time       `json:"created_at"`
 }

@@ -44,6 +44,20 @@ type sessionCommandCatalogManagerStub struct {
 	calls   *atomic.Int32
 }
 
+type sessionStopManagerStub struct {
+	testutil.StubSessionManager
+	request func(context.Context, string, session.StopCause) error
+	await   func(context.Context, string) (session.StopOutcome, error)
+}
+
+func (s sessionStopManagerStub) RequestStop(ctx context.Context, id string, cause session.StopCause) error {
+	return s.request(ctx, id, cause)
+}
+
+func (s sessionStopManagerStub) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
+	return s.await(ctx, id)
+}
+
 type sessionProfileServiceStub struct {
 	core.ProfileService
 }
@@ -676,6 +690,105 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if got := stopResp.Body.String(); got != "" {
 			t.Fatalf("stop body = %q, want empty", got)
+		}
+	})
+
+	t.Run("Should distinguish stop acceptance from verified and unverified outcomes", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name            string
+			body            string
+			state           session.State
+			outcome         session.StopOutcome
+			err             error
+			status          int
+			wantState       session.State
+			requests, waits int
+			attention       string
+		}{
+			{name: "accept without waiting", body: `{"wait":false}`, state: session.StateActive,
+				status: http.StatusAccepted, wantState: session.StateStopping, requests: 1},
+			{name: "return verified escalation", body: `{"wait":true}`, state: session.StateActive,
+				outcome: session.StopOutcome{
+					FinalState: session.StateStopped,
+					Verified:   true,
+					Escalated:  true,
+					Cause:      session.CauseUserRequested,
+					Phase:      session.StopPhaseKilled,
+					Elapsed:    4200 * time.Millisecond,
+				},
+				status: http.StatusOK, wantState: session.StateStopped, requests: 1, waits: 1},
+			{name: "retain stopping when verification fails", body: `{"wait":true}`, state: session.StateActive,
+				outcome: session.StopOutcome{FinalState: session.StateStopping, Escalated: true,
+					Cause: session.CauseUserRequested, Phase: session.StopPhaseKilled},
+				err: session.ErrStopVerificationFailed, status: http.StatusOK, wantState: session.StateStopping,
+				requests: 1, waits: 1, attention: "stop_verification_failed"},
+			{name: "avoid restarting an already completed stop", body: `{"wait":true}`, state: session.StateStopped,
+				status: http.StatusOK, wantState: session.StateStopped},
+			{name: "reject invalid wait type", body: `{"wait":"yes"}`, state: session.StateActive,
+				status: http.StatusBadRequest},
+			{name: "retain operational wait errors", body: `{"wait":true}`, state: session.StateActive,
+				err: errors.New("catalog unavailable"), status: http.StatusInternalServerError, requests: 1, waits: 1},
+		}
+		for _, tt := range tests {
+			t.Run("Should "+tt.name, func(t *testing.T) {
+				t.Parallel()
+				requests, waits := 0, 0
+				base := testutil.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						info := testutil.NewSessionInfo(id)
+						info.State = tt.state
+						return info, nil
+					},
+				}
+				fixture := newHandlerFixture(
+					t,
+					base,
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+					nil,
+					nil,
+				)
+				fixture.Handlers.Sessions = sessionStopManagerStub{StubSessionManager: base,
+					request: func(_ context.Context, id string, cause session.StopCause) error {
+						requests++
+						if id != "sess-a" || cause != session.CauseUserRequested {
+							t.Fatalf("stop request = %s/%v", id, cause)
+						}
+						return nil
+					},
+					await: func(_ context.Context, id string) (session.StopOutcome, error) {
+						waits++
+						if id != "sess-a" {
+							t.Fatalf("stop wait = %s", id)
+						}
+						return tt.outcome, tt.err
+					},
+				}
+				response := performRequest(t, fixture.Engine, http.MethodPost,
+					"/workspaces/ws-workspace/sessions/sess-a/stop", []byte(tt.body))
+				if response.Code != tt.status {
+					t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
+				}
+				if requests != tt.requests || waits != tt.waits {
+					t.Fatalf("stop calls = %d/%d", requests, waits)
+				}
+				if tt.status >= 400 {
+					return
+				}
+				var payload contract.SessionStopPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.State != tt.wantState || payload.Verified != (tt.wantState == session.StateStopped) ||
+					payload.Attention != tt.attention || payload.SessionID != "sess-a" {
+					t.Fatalf("stop payload = %#v", payload)
+				}
+				if tt.waits == 1 && (payload.Escalated != tt.outcome.Escalated || payload.Phase != tt.outcome.Phase ||
+					payload.StoppedAfter != tt.outcome.Elapsed.String() || payload.StopCause != "user_requested") {
+					t.Fatalf("stop outcome projection = %#v", payload)
+				}
+			})
 		}
 	})
 

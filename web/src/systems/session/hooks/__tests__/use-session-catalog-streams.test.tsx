@@ -1,16 +1,114 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
+import { primarySessionFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
+import { sessionDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
+import type { SessionTranscriptData } from "../../lib/session-transcript-query";
+import type {
+  NormalizedSessionTranscriptResponse,
+  SessionMessage,
+  SessionPayload,
+  SessionState,
+} from "../../types";
 import {
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
 import { sessionCatalogStreamsLogic } from "../session-catalog-streams-store";
+
+vi.mock("../../adapters/session-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-api")>()),
+  fetchSession: vi.fn(),
+  fetchSessionTranscript: vi.fn(),
+}));
+
+import { fetchSession, fetchSessionTranscript } from "../../adapters/session-api";
+
+const WORKSPACE_ID = primarySessionFixture.workspace_id ?? "ws_primary";
+const SESSION_ID = primarySessionFixture.id;
+const POST_STOP_MARKER_KIND = "transcript_marker.post_stop";
+
+function sessionWithState(state: SessionState): SessionPayload {
+  return { ...primarySessionFixture, state };
+}
+
+function textMessage(id: string, text: string): SessionMessage {
+  return { id, role: "assistant", parts: [{ type: "text", text }] };
+}
+
+function postStopMarkerMessage(id: string): SessionMessage {
+  return {
+    id,
+    role: "assistant",
+    parts: [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "transcript_marker.created",
+          session_id: SESSION_ID,
+          turn_id: "turn-late",
+          text: "Late agent output discarded after the session stopped.",
+          title: POST_STOP_MARKER_KIND,
+          raw: {
+            kind: POST_STOP_MARKER_KIND,
+            occurred_at: "2026-09-05T12:00:00Z",
+            summary: "Late agent output discarded after the session stopped.",
+            evidence: { event_type: "agent_message" },
+          },
+        },
+      },
+    ] as unknown as SessionMessage["parts"],
+  };
+}
+
+function transcriptResponse(messages: SessionMessage[]): NormalizedSessionTranscriptResponse {
+  const entries = messages.map((message, index) => ({
+    message,
+    sequence: index + 1,
+    start_sequence: index + 1,
+  }));
+  return {
+    entries,
+    epoch: 1,
+    generation: 1,
+    has_older: false,
+    limit: 200,
+    max_sequence: entries.length,
+  };
+}
+
+function seededTranscript(messages: SessionMessage[]): SessionTranscriptData {
+  const response = transcriptResponse(messages);
+  return { pages: [{ ...response, cursor: response.max_sequence }], pageParams: [undefined] };
+}
+
+function transcriptHasPostStopMarker(data: SessionTranscriptData | undefined): boolean {
+  return (data?.pages[0]?.entries ?? []).some(entry =>
+    JSON.stringify(entry.message).includes(POST_STOP_MARKER_KIND)
+  );
+}
+
+function createQueryClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+/** A mounted session page: the detail read plus the transcript the live tail owns while live. */
+function useMountedSessionPage(factory: (url: string) => SessionCatalogEventSource) {
+  useSessionCatalogStreams({ eventSourceFactory: factory });
+  const detail = useQuery(sessionDetailOptions(WORKSPACE_ID, SESSION_ID));
+  const transcript = useInfiniteQuery(sessionTranscriptOptions(WORKSPACE_ID, SESSION_ID));
+  return { detailState: detail.data?.state, transcript: transcript.data };
+}
 
 class FakeCatalogEventSource implements SessionCatalogEventSource {
   readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
@@ -51,6 +149,7 @@ function wrapper(queryClient: QueryClient) {
 }
 
 describe("useSessionCatalogStreams", () => {
+  beforeEach(() => vi.clearAllMocks());
   afterEach(() => resetProfileViews());
 
   it("Should keep late source status events behind the current connection generation", () => {
@@ -270,6 +369,126 @@ describe("useSessionCatalogStreams", () => {
     });
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should wake a stopped session's mounted transcript only after the authoritative detail read settles", async () => {
+    // Invariant: the post-stop discard marker reaches an already-mounted transcript
+    // without navigation, remount, reconnect, or polling — the catalog upsert re-reads
+    // the detail and re-reads the transcript only once that read says the session is
+    // no longer live. Cached live state that is already stale must never decide it.
+    const queryClient = createQueryClient();
+    const detailKey = sessionKeys.detail(WORKSPACE_ID, SESSION_ID);
+    const transcriptKey = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+    const foreignTranscriptKey = sessionKeys.transcript(WORKSPACE_ID, "sess_other");
+    const otherWorkspaceTranscriptKey = sessionKeys.transcript("ws_other", SESSION_ID);
+    queryClient.setQueryData(detailKey, sessionWithState("active"));
+    queryClient.setQueryData(transcriptKey, seededTranscript([textMessage("m1", "Working…")]));
+    queryClient.setQueryData(foreignTranscriptKey, seededTranscript([textMessage("f1", "Other")]));
+    queryClient.setQueryData(
+      otherWorkspaceTranscriptKey,
+      seededTranscript([textMessage("w1", "Elsewhere")])
+    );
+    const foreignBefore = queryClient.getQueryData(foreignTranscriptKey);
+    const otherWorkspaceBefore = queryClient.getQueryData(otherWorkspaceTranscriptKey);
+    let resolveDetail: ((session: SessionPayload) => void) | undefined;
+    vi.mocked(fetchSession).mockImplementation(
+      () =>
+        new Promise<SessionPayload>(resolve => {
+          resolveDetail = resolve;
+        })
+    );
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([textMessage("m1", "Working…"), postStopMarkerMessage("late-1")])
+    );
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result } = renderHook(() => useMountedSessionPage(factory), {
+      wrapper: wrapper(queryClient),
+    });
+    expect(result.current.detailState).toBe("active");
+
+    act(() => {
+      sources[0]?.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+      });
+    });
+
+    await waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(1));
+    // The wake landed while the cache still said active: no transcript read yet, and
+    // no fabricated stopped state either.
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData<SessionPayload>(detailKey)?.state).toBe("active");
+
+    await act(async () => {
+      resolveDetail?.(sessionWithState("stopped"));
+    });
+
+    await waitFor(() => expect(transcriptHasPostStopMarker(result.current.transcript)).toBe(true));
+    expect(result.current.detailState).toBe("stopped");
+    expect(fetchSessionTranscript).toHaveBeenCalledTimes(1);
+    expect(fetchSessionTranscript).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      SESSION_ID,
+      {},
+      expect.any(AbortSignal)
+    );
+    expect(sources).toHaveLength(1);
+    expect(queryClient.getQueryData(foreignTranscriptKey)).toBe(foreignBefore);
+    expect(queryClient.getQueryData(otherWorkspaceTranscriptKey)).toBe(otherWorkspaceBefore);
+  });
+
+  it("Should leave a live session's transcript to the live tail on a catalog wake", async () => {
+    const queryClient = createQueryClient();
+    const detailKey = sessionKeys.detail(WORKSPACE_ID, SESSION_ID);
+    const transcriptKey = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData(detailKey, sessionWithState("active"));
+    queryClient.setQueryData(transcriptKey, seededTranscript([textMessage("m1", "Working…")]));
+    const transcriptBefore = queryClient.getQueryData(transcriptKey);
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([postStopMarkerMessage("never")])
+    );
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    renderHook(() => useMountedSessionPage(factory), { wrapper: wrapper(queryClient) });
+
+    act(() => {
+      sources[0]?.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+      });
+    });
+    await waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(transcriptKey)).toBe(transcriptBefore);
+
+    // A deletion re-reads the detail but never wakes the transcript, even once the
+    // authoritative read is no longer live.
+    vi.mocked(fetchSession).mockResolvedValue(sessionWithState("stopped"));
+    act(() => {
+      sources[0]?.emit("session_catalog_changed", {
+        kind: "deleted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+      });
+    });
+    await waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
   });
 
   it("Should keep the shell alive when global source construction fails", () => {

@@ -20,6 +20,7 @@ import (
 	ssepkg "github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/store"
 
+	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workref"
 )
 
@@ -56,6 +57,7 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		EventCorrelation: sessionEventCorrelation(event),
 		Content:          PayloadJSON(event.Content),
 		Goal:             sessionEventGoalPromptMeta(event.Content),
+		ProviderError:    sessionEventProviderError(event),
 		Timestamp:        event.Timestamp,
 	}
 	if info != nil && info.Lineage != nil {
@@ -247,4 +249,15 @@ func parseSessionEventCorrelationTimestamp(value string) (*time.Time, error) {
 	}
 	normalized := parsed.UTC()
 	return &normalized, nil
+}
+
+func sessionEventProviderError(event store.SessionEvent) *acp.ProviderErrorDiagnostic {
+	if event.Type != acp.EventTypeError {
+		return nil
+	}
+	decoded, err := transcript.UnmarshalAgentEvent(event.Content)
+	if err != nil {
+		return nil
+	}
+	return decoded.ProviderError
 }

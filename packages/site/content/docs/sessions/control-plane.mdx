@@ -1,0 +1,51 @@
+---
+title: Session control plane
+description: Send follow-ups, steer active work, and replay accepted commands.
+---
+
+A prompt sent while a session is working follows `session.busy_input.default_mode`, which defaults
+to `steer`. An idle session starts a normal turn. Explicit `--queue`, `--steer`, and `--interrupt`
+flags override the busy default for one send.
+
+```bash
+compozy session prompt sess_1234 "Prefer the smaller patch."
+compozy session prompt sess_1234 "Run the next check." --queue
+compozy session prompt sess_1234 "Change direction." --steer --expected-turn turn_1234 -o json
+```
+
+Steering uses the live agent's advertised capability. A successful injection preserves the active
+turn. If injection is unavailable or refused, CompozyOS records `interrupt_fallback` before canceling
+the current turn and dispatching the accepted replacement.
+
+| `steer_delivery` | Meaning |
+| --- | --- |
+| `injected` | Guidance was delivered into the active turn. |
+| `pending_injection` | The agent accepted guidance and is waiting to inject it. |
+| `interrupt_fallback` | CompozyOS accepted a replacement through the interrupt path. |
+
+The busy response contains `disposition`, `steer_delivery`, `turn_id`, `entry_id`, `message_id`,
+`idempotency_key`, `queue_position`, and `replayed`. Non-steering responses omit `steer_delivery`.
+HTTP and UDS return this object inside `prompt`; CLI JSON and native tools use the same envelope.
+Legacy `status`, `delivery`, and queue fields remain available during the compatibility window.
+Use `steer_delivery` for the injection outcome; legacy `delivery` describes dispatch scheduling.
+
+An omitted `expected_turn_id` lets the daemon capture the current turn at admission. An explicit
+fence is strict: an obsolete ID returns `409 active_turn_mismatch` with `current_turn_id`, before
+queue mutation or cancellation. CLI `--expected-turn` supplies this fence. The older
+`--expected-turn-id` flag remains supported with a deprecation warning until v0.5.0.
+
+Keep both returned identities when retrying an uncertain send:
+
+```bash
+compozy session prompt sess_1234 "Prefer the smaller patch." \
+  --message-id msg_original --idempotency-key idem_original
+```
+
+Reuse the original text, runtime, mode, and explicit fence. A changed request with the same identity
+returns `send_conflict`. A resolved steer acceptance replays the recorded delivery without injecting
+or canceling again.
+
+`compozy__session_prompt` defaults to `wait:false`: it returns durable acceptance immediately.
+Set `wait:true` to wait for completion and receive a terminal runtime error if the turn fails.
+The follow-up preference is daemon-owned, so changing **Follow-up behavior** in Settings affects
+subsequent busy admissions through Web, CLI, HTTP, UDS, and native tools.

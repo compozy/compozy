@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -18,15 +19,16 @@ type SessionEventPayload struct {
 	WorkspaceID   string `json:"workspace_id,omitempty"`
 	WorkspacePath string `json:"workspace_path,omitempty"`
 	store.EventCorrelation
-	ParentSessionID string                 `json:"parent_session_id,omitempty"`
-	RootSessionID   string                 `json:"root_session_id,omitempty"`
-	SpawnDepth      int                    `json:"spawn_depth"`
-	Content         json.RawMessage        `json:"content"`
-	Goal            *GoalPromptMeta        `json:"goal,omitempty"`
-	StopReason      store.StopReason       `json:"stop_reason,omitempty"`
-	StopDetail      string                 `json:"stop_detail,omitempty"`
-	Failure         *SessionFailurePayload `json:"failure,omitempty"`
-	Timestamp       time.Time              `json:"timestamp"`
+	ParentSessionID string                       `json:"parent_session_id,omitempty"`
+	RootSessionID   string                       `json:"root_session_id,omitempty"`
+	SpawnDepth      int                          `json:"spawn_depth"`
+	Content         json.RawMessage              `json:"content"`
+	Goal            *GoalPromptMeta              `json:"goal,omitempty"`
+	StopReason      store.StopReason             `json:"stop_reason,omitempty"`
+	StopDetail      string                       `json:"stop_detail,omitempty"`
+	Failure         *SessionFailurePayload       `json:"failure,omitempty"`
+	ProviderError   *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
+	Timestamp       time.Time                    `json:"timestamp"`
 }
 
 // TurnHistoryPayload is the shared turn history response payload.

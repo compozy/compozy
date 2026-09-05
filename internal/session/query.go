@@ -76,6 +76,9 @@ func (m *Manager) mergePersistedSessionInfos(
 		}
 		meta, err := m.readMetaWithContext(ctx, id)
 		if err != nil {
+			if errors.Is(err, ErrRecoveryPersistence) {
+				return nil, nil, err
+			}
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
 			}

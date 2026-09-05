@@ -48,16 +48,25 @@ func (m *Manager) repairInactiveMeta(
 	ctx context.Context,
 	metaPath string,
 	meta store.SessionMeta,
-) (store.SessionMeta, error) {
+) (_ store.SessionMeta, err error) {
 	if ctx == nil {
 		return store.SessionMeta{}, errResumeRepairContextRequired
 	}
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("%w: %w", ErrRecoveryPersistence, err)
+		}
+	}()
 
 	classified, changed := ClassifyInactiveMetaForRecovery(m.now(), meta)
 	if !changed {
-		return meta, nil
+		err := m.persistRecoveryCatalog(ctx, &meta)
+		return meta, err
 	}
-	return m.persistResumeCrashClassification(metaPath, classified)
+	if err := m.prepareClassifiedExitSettlement(&meta, &classified); err != nil {
+		return meta, err
+	}
+	return m.persistResumeCrashClassification(ctx, metaPath, &classified)
 }
 
 func (m *Manager) restoreFailedResumeStart(
@@ -68,7 +77,7 @@ func (m *Manager) restoreFailedResumeStart(
 	restored := meta
 	restored.State = string(StateStopped)
 	if clearACP {
-		if sessionMetaStopReason(restored) != store.StopAgentCrashed {
+		if sessionMetaStopReason(&restored) != store.StopAgentCrashed {
 			restored.StopReason = resumeStopReasonPointer(store.StopError)
 			restored.StopDetail = resumeStopDetailStartIncomplete
 		}
@@ -213,8 +222,10 @@ func (m *Manager) validateEventStore(meta store.SessionMeta) error {
 	return nil
 }
 
-func (m *Manager) persistResumeCrashClassification(metaPath string, meta store.SessionMeta) (store.SessionMeta, error) {
-	classified := meta
+func (m *Manager) persistResumeCrashClassification(
+	ctx context.Context, metaPath string, meta *store.SessionMeta,
+) (store.SessionMeta, error) {
+	classified := *meta
 	classified.UpdatedAt = m.now()
 	if err := store.WriteSessionMeta(metaPath, classified); err != nil {
 		annotated := AnnotateUnpersistedRecovery(classified, err)
@@ -222,11 +233,14 @@ func (m *Manager) persistResumeCrashClassification(metaPath string, meta store.S
 			"session.resume.crash_classification_persist_failed",
 			"phase", "resume",
 			"previous_state", strings.TrimSpace(meta.State),
-			"stop_reason", sessionMetaStopReason(annotated),
+			"stop_reason", sessionMetaStopReason(&annotated),
 			"stop_detail", strings.TrimSpace(annotated.StopDetail),
 			"error", err,
 		)
-		return annotated, nil
+		return annotated, fmt.Errorf("session: persist recovered metadata for %q: %w", meta.ID, err)
+	}
+	if err := m.persistRecoveryCatalog(ctx, &classified); err != nil {
+		return classified, err
 	}
 
 	reason := ""

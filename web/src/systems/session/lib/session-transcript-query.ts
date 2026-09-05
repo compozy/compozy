@@ -1,6 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 
 import { isAgentEventPayload } from "./message-parts";
+import { isProviderErrorEvent } from "./provider-error";
 
 import type {
   NormalizedSessionTranscriptEntry,
@@ -95,32 +96,55 @@ function eventTurnID(part: unknown, event: ReturnType<typeof compozyEventFromPar
   return event.turn_id?.trim() || null;
 }
 
-function providerFailureTurnIDs(messages: readonly SessionMessage[]): ReadonlySet<string> {
-  const turnIDs = new Set<string>();
+function isProviderFailureMarker(event: NonNullable<ReturnType<typeof compozyEventFromPart>>) {
+  return (
+    event.type === "transcript_marker.created" &&
+    (event.marker?.kind ?? event.title) === PROVIDER_FAILURE_MARKER
+  );
+}
+
+/**
+ * Turn ids that recorded a provider failure, split by which record should
+ * survive projection: the daemon emits both a raw `error` event and a
+ * `provider_failure` marker for the same turn, and the transcript shows one.
+ * The marker wins by default; an `error` carrying an actionable provider
+ * diagnostic (auth lapse, rate limit) wins instead because it names the
+ * provider, the next step, and the occurrence context the marker lacks.
+ */
+function providerFailureTurnIDs(messages: readonly SessionMessage[]): {
+  markerTurnIDs: ReadonlySet<string>;
+  diagnosticTurnIDs: ReadonlySet<string>;
+} {
+  const markerTurnIDs = new Set<string>();
+  const diagnosticTurnIDs = new Set<string>();
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       const event = compozyEventFromPart(part);
-      if (!event || event.type !== "transcript_marker.created") continue;
-      if ((event.marker?.kind ?? event.title) !== PROVIDER_FAILURE_MARKER) continue;
+      if (!event) continue;
       const turnID = eventTurnID(part, event);
-      if (turnID) turnIDs.add(turnID);
+      if (!turnID) continue;
+      if (isProviderFailureMarker(event)) markerTurnIDs.add(turnID);
+      else if (isProviderErrorEvent(event)) diagnosticTurnIDs.add(turnID);
     }
   }
-  return turnIDs;
+  return { markerTurnIDs, diagnosticTurnIDs };
 }
 
 function projectTranscriptMessages(messages: readonly SessionMessage[]): SessionMessage[] {
-  const failureTurnIDs = providerFailureTurnIDs(messages);
-  if (failureTurnIDs.size === 0) return [...messages];
+  const { markerTurnIDs, diagnosticTurnIDs } = providerFailureTurnIDs(messages);
+  if (markerTurnIDs.size === 0) return [...messages];
 
   const projected: SessionMessage[] = [];
   for (const message of messages) {
     const parts = message.parts ?? [];
     const visibleParts = parts.filter(part => {
       const event = compozyEventFromPart(part);
-      if (!event || event.type !== "error") return true;
+      if (!event) return true;
       const turnID = eventTurnID(part, event);
-      return !turnID || !failureTurnIDs.has(turnID);
+      if (!turnID || !markerTurnIDs.has(turnID)) return true;
+      if (event.type === "error") return isProviderErrorEvent(event);
+      if (isProviderFailureMarker(event)) return !diagnosticTurnIDs.has(turnID);
+      return true;
     });
     if (visibleParts.length === 0) continue;
     projected.push(

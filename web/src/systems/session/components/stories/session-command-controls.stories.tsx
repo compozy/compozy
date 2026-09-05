@@ -39,6 +39,48 @@ const errorEvent: AgentEventPayload = {
   timestamp: "2026-05-14T15:32:02Z",
 };
 
+const providerAuthEvent: AgentEventPayload = {
+  type: "error",
+  error: "provider authentication required",
+  failure: { kind: "prompt_failure", summary: "provider authentication required" },
+  provider_error: {
+    code: "provider_auth_required",
+    provider: "claude-code",
+    next_action: "login",
+    guidance: "run provider auth login for this provider",
+    occurrence_count: 1,
+    first_seen_at: "2026-09-05T14:02:00Z",
+    last_seen_at: "2026-09-05T14:02:00Z",
+  },
+  timestamp: "2026-09-05T14:02:00Z",
+};
+
+const providerBoundSecretEvent: AgentEventPayload = {
+  ...providerAuthEvent,
+  provider_error: {
+    ...providerAuthEvent.provider_error!,
+    provider: "openai-bound",
+    next_action: "bind_secret",
+    guidance: "update the provider credential binding and retry",
+  },
+};
+
+const providerRateLimitEvent: AgentEventPayload = {
+  type: "error",
+  error: "provider rate limited",
+  failure: { kind: "prompt_failure", summary: "provider rate limited" },
+  provider_error: {
+    code: "provider_rate_limited",
+    provider: "claude-code",
+    next_action: "retry",
+    guidance: "retry after the provider recovers",
+    occurrence_count: 3,
+    first_seen_at: "2026-09-05T14:02:00Z",
+    last_seen_at: "2026-09-05T14:09:00Z",
+  },
+  timestamp: "2026-09-05T14:09:00Z",
+};
+
 const markerEvent: AgentEventPayload = {
   type: "transcript_marker.created",
   text: "1 file mutation failed and was not recovered in this turn. Verify the affected file before trusting completion claims.",
@@ -77,8 +119,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * RuntimeActivityNotice exposes progress, warning, marker, and failure states
- * without opening a live session.
+ * RuntimeActivityNotice exposes progress, warning, marker, failure, and
+ * actionable provider error states without opening a live session.
  */
 export const RuntimeActivity: Story = {
   args: {},
@@ -88,6 +130,9 @@ export const RuntimeActivity: Story = {
       <RuntimeActivityNotice event={warningEvent} />
       <RuntimeActivityNotice event={markerEvent} />
       <RuntimeActivityNotice event={errorEvent} />
+      <RuntimeActivityNotice event={providerAuthEvent} />
+      <RuntimeActivityNotice event={providerBoundSecretEvent} />
+      <RuntimeActivityNotice event={providerRateLimitEvent} />
     </div>
   ),
 };

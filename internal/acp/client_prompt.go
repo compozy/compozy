@@ -36,22 +36,17 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		acpsdk.AgentMethodSessionPrompt,
 		promptRequest,
 	)
+	// Drain admitted steering before closing its owning turn's event stream.
+	active.steerMu.Lock()
+	active.finishing = true
+	active.steerMu.Unlock()
+	active.steerWG.Wait()
 
 	if err != nil {
 		if proc.stopWasRequested() && shouldSuppressPromptErrorOnStop(err) {
 			return
 		}
-		failure, _ := FailureFromError(err, store.FailurePrompt)
-		event := AgentEvent{
-			Type:      EventTypeError,
-			SessionID: proc.SessionID,
-			TurnID:    req.TurnID,
-			Timestamp: timeNowUTC(),
-			Error:     firstTrimmedNonEmpty(failureSummary(failure), err.Error()),
-			Failure:   failure,
-			Raw:       requestErrorRaw(err),
-		}
-		proc.emitPromptEvent(event)
+		proc.emitPromptEvent(proc.promptErrorEvent(req, err, timeNowUTC()))
 		return
 	}
 	if _, included := promptRequest.Meta["system"]; included {

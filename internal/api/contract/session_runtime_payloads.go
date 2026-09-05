@@ -60,6 +60,7 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
+	BusyInput                    *session.BusyInputState     `json:"busy_input,omitempty"`
 	ID                           string                      `json:"id"`
 	ProfileID                    string                      `json:"profile_id"`
 	ProfileName                  string                      `json:"profile_name"`
@@ -86,6 +87,9 @@ type SessionPayload struct {
 	ArchivedAt                   *time.Time                  `json:"archived_at"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
+	Attention  string           `json:"attention,omitempty"`
+	Verified   *bool            `json:"verified,omitempty"`
+	Escalated  *bool            `json:"escalated,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail        string                       `json:"stop_detail,omitempty"`
 	Failure           *SessionFailurePayload       `json:"failure,omitempty"`

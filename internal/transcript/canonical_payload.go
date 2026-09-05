@@ -35,6 +35,7 @@ type canonicalEventPayload struct {
 	ResolvedBy        string                           `json:"resolved_by,omitempty"`
 	Error             string                           `json:"error,omitempty"`
 	Failure           *store.SessionFailure            `json:"failure,omitempty"`
+	ProviderError     *acp.ProviderErrorDiagnostic     `json:"provider_error,omitempty"`
 	Synthetic         *acp.PromptSyntheticMeta         `json:"synthetic,omitempty"`
 	Goal              *acp.GoalPromptMeta              `json:"goal,omitempty"`
 	AvailableCommands []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`

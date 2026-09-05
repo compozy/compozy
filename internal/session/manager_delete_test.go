@@ -152,6 +152,43 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject stop requests after deleting a previously stopped session", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Delete(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := h.manager.RequestStop(
+				t.Context(),
+				active.ID,
+				CauseUserRequested,
+			); !errors.Is(
+				err,
+				ErrSessionNotFound,
+			) {
+				t.Fatalf("stop deleted session = %v, want ErrSessionNotFound", err)
+			}
+		}
+	})
+
+	t.Run("Should retain recovered session history until process exit is verified", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := seedRecoveredRemoteStop(t, h)
+		before := readStoredEvents(t, active)
+		if err := h.manager.Delete(testutil.Context(t), active.ID); !errors.Is(err, ErrStopVerificationFailed) {
+			t.Fatalf("delete bypassed unverified recovered process: %v", err)
+		}
+		meta := readMeta(t, active.MetaPath())
+		if meta.State != string(StateStopping) || len(readStoredEvents(t, active)) != len(before) {
+			t.Fatal("rejected delete changed recovered history or terminal truth")
+		}
+	})
 
 	cases := []struct {
 		name string
@@ -586,11 +623,15 @@ func TestManagerDelete(t *testing.T) {
 			name: "Should wrap stop errors with delete context",
 			run: func(t *testing.T) {
 				h := newHarness(t)
+				cleanupTestManager(t, h.manager)
 				session := createSession(t, h)
 				stopErr := errors.New("driver stop failed")
 				h.driver.stopHook = func(*fakeProcess) error {
 					return stopErr
 				}
+				h.driver.cancelHook = h.driver.stopHook
+				h.driver.killHook = h.driver.stopHook
+				t.Cleanup(h.driver.lastProcess().exit)
 
 				err := h.manager.Delete(testutil.Context(t), session.ID)
 				if !errors.Is(err, stopErr) {
@@ -598,6 +639,9 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), `session: stop "`) {
 					t.Fatalf("Delete() error = %q, want stop context", err.Error())
+				}
+				if meta := readMeta(t, session.MetaPath()); meta.State != string(StateStopping) {
+					t.Fatal("failed termination removed history or persisted a false terminal state")
 				}
 			},
 		},

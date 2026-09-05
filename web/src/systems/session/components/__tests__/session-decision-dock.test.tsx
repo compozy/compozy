@@ -25,8 +25,9 @@ import {
   fetchSessionClarifications,
 } from "../../adapters/session-clarification-api";
 import { derivePendingPermissions } from "../../lib/pending-permissions";
+import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import { SessionTranscriptThreadProvider } from "../../lib/session-transcript-thread-context";
-import type { ClarificationPending } from "../../types";
+import type { ClarificationPending, SessionInteractionRecord } from "../../types";
 import { SessionDecisionDock } from "../session-decision-dock";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -77,6 +78,7 @@ interface RenderDockOptions {
   clarifications?: ClarificationPending[];
   clarificationError?: Error;
   enabled?: boolean;
+  expiredInteractions?: ReadonlyMap<string, SessionInteractionRecord>;
 }
 
 function renderDock({
@@ -85,6 +87,7 @@ function renderDock({
   clarifications = [] as ClarificationPending[],
   clarificationError,
   enabled = true,
+  expiredInteractions,
 }: RenderDockOptions = {}) {
   if (clarificationError) {
     vi.mocked(fetchSessionClarifications).mockRejectedValue(clarificationError);
@@ -92,17 +95,30 @@ function renderDock({
     vi.mocked(fetchSessionClarifications).mockResolvedValue(clarifications);
   }
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const dock = (
+    <SessionTranscriptThreadProvider
+      liveMessages={liveMessages}
+      messages={messages}
+      status="success"
+      error={null}
+      retry={vi.fn()}
+    >
+      <SessionDecisionDock enabled={enabled} sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
+    </SessionTranscriptThreadProvider>
+  );
   return render(
     <QueryClientProvider client={queryClient}>
-      <SessionTranscriptThreadProvider
-        liveMessages={liveMessages}
-        messages={messages}
-        status="success"
-        error={null}
-        retry={vi.fn()}
-      >
-        <SessionDecisionDock enabled={enabled} sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
-      </SessionTranscriptThreadProvider>
+      {expiredInteractions ? (
+        <SessionRuntimeRenderProvider
+          expiredInteractions={expiredInteractions}
+          sessionId={SESSION_ID}
+          workspaceId={WORKSPACE_ID}
+        >
+          {dock}
+        </SessionRuntimeRenderProvider>
+      ) : (
+        dock
+      )}
     </QueryClientProvider>
   );
 }
@@ -279,6 +295,49 @@ describe("SessionDecisionDock", () => {
       liveMessages: [permissionMessage("req-1")],
     });
     expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
+  });
+
+  it("Should not dock a permission the daemon expired at a restart, and count only live asks", async () => {
+    const expired: SessionInteractionRecord = {
+      interaction_id: "int-1",
+      kind: "permission",
+      provider_request_id: "req-expired",
+      turn_id: "turn-001",
+      status: "canceled",
+      created_at: "2026-09-05T10:00:00Z",
+      resolution: "failed-by-restart",
+      resolved_by: "system",
+    };
+    const { container, rerender } = renderDock({
+      messages: [permissionMessage("req-expired")],
+      expiredInteractions: new Map([["req-expired", expired]]),
+    });
+    await waitFor(() => expect(fetchSessionClarifications).toHaveBeenCalled());
+    expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
+
+    rerender(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <SessionRuntimeRenderProvider
+          expiredInteractions={new Map([["req-expired", expired]])}
+          sessionId={SESSION_ID}
+          workspaceId={WORKSPACE_ID}
+        >
+          <SessionTranscriptThreadProvider
+            messages={[permissionMessage("req-expired"), permissionMessage("req-live")]}
+            status="success"
+            error={null}
+            retry={vi.fn()}
+          >
+            <SessionDecisionDock sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
+          </SessionTranscriptThreadProvider>
+        </SessionRuntimeRenderProvider>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-count")).not.toBeInTheDocument();
   });
 
   it("Should decide on digit keys 1–4, with key 4 firing while the menu is closed", async () => {

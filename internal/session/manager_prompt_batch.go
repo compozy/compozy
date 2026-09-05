@@ -20,6 +20,9 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	events []acp.AgentEvent,
 	fatal *promptPumpFatal,
 ) (*store.SessionFailure, string, bool) {
+	if len(events) > 0 && m.discardStoppedPromptEvent(ctx, session, turnState.turnID, events[0].Type) {
+		return nil, "", false
+	}
 	normalized := make([]acp.AgentEvent, 0, len(events))
 	for _, event := range events {
 		next, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, false, fatal)
@@ -38,11 +41,17 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		}
 	}
 	if err := m.recordPromptEventBatch(ctx, session, normalized); err != nil {
+		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, normalized[0].Type, err) {
+			return nil, "", false
+		}
 		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 		return failure, errorText, true
 	}
 
 	for _, event := range normalized {
+		if m.discardStoppedPromptEvent(ctx, session, turnState.turnID, event.Type) {
+			return nil, "", false
+		}
 		loop.fileMutations.Observe(event)
 		m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, event)
 		m.notifyManagedPromptEvent(ctx, session, turnState, event)

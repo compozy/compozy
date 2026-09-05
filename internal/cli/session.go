@@ -50,19 +50,27 @@ const (
 )
 
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
+	var wait bool
 	cmd := &cobra.Command{
 		Use:   "stop <id>",
 		Short: "Stop a session",
-		Example: `  # Stop a running session
-  compozy session stop sess_1234`,
+		Example: `  # Request a stop without waiting for termination
+  compozy session stop sess_1234
+
+  # Wait for the verified result or attention diagnostic
+  compozy session stop sess_1234 --wait -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			if err := client.StopSession(cmd.Context(), args[0]); err != nil {
+			result, err := client.StopSession(cmd.Context(), args[0], wait)
+			if err != nil {
 				return err
+			}
+			if wait {
+				return writeCommandOutput(cmd, sessionStopBundle(result))
 			}
 
 			info, err := client.GetSession(cmd.Context(), args[0])
@@ -72,6 +80,7 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
+	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for verified termination or a verification failure")
 	return cmd
 }
 

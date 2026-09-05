@@ -39,6 +39,7 @@ type SessionManagerDeps struct {
 	WindowReconciler        session.WindowReconciler
 	SandboxRegistry         *sandbox.Registry
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
+	SessionStop             compozyconfig.SessionStopConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
 	SessionCompaction       compozyconfig.SessionCompactionConfig
 	SessionInputQueue       store.SessionInputQueueStore
@@ -100,6 +101,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WindowReconciler:        reconciler,
 		SandboxRegistry:         state.sandboxRegistry,
 		SessionSupervision:      state.cfg.Session.Supervision,
+		SessionStop:             state.cfg.Session.Stop,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
 		SessionCompaction:       state.cfg.Session.Compaction,
 		SessionInputQueue:       sessionInputQueueStoreDependency(state.registry),

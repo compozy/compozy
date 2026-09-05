@@ -1,6 +1,8 @@
 import type { UIMessage as AIUIMessage } from "ai";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { SessionBusyInputAction } from "./lib/session-busy-input";
+import type { SessionSendOutcome } from "./lib/session-send-outcome";
 
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
 type SessionCatalogStreamPayload = OperationResponse<"streamSessionCatalog", 200>;
@@ -36,6 +38,12 @@ export type CoordinatorConfigPayload = OperationResponse<
 
 export type SessionEventsResponse = OperationResponse<"listSessionEvents", 200>;
 export type SessionEventPayload = SessionEventsResponse["events"][number];
+/**
+ * Actionable provider diagnostic attached to prompt-failure error events
+ * (auth lapse, rate limit). Derived from the API contract; the session
+ * survives these, so it is never a terminal failure.
+ */
+export type ProviderErrorDiagnosticPayload = NonNullable<SessionEventPayload["provider_error"]>;
 export type FetchSessionEventsParams = OperationQuery<"listSessionEvents">;
 
 export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>;
@@ -75,7 +83,14 @@ export interface SessionBusyInputDraft {
   message: string;
 }
 
-export type SessionBusyInputHandler = (draft: SessionBusyInputDraft) => void | Promise<unknown>;
+/**
+ * A busy-send verb. Resolves with the daemon's disposition envelope so the
+ * composer can answer inline; a refusal rejects with the reason and never
+ * consumes the draft.
+ */
+export type SessionBusyInputHandler = (
+  draft: SessionBusyInputDraft
+) => void | Promise<SessionSendOutcome | void>;
 
 export interface SessionPromptRequest {
   attachments?: SessionPromptAttachment[];
@@ -87,22 +102,34 @@ export interface SessionPromptRequest {
     parts: Array<{ text?: string; type: string }>;
     role: "user";
   }>;
-  mode?: "queue" | "interrupt";
+  mode?: SessionBusyInputAction;
   runtime?: OperationRequestBody<"sendSessionPrompt">["runtime"];
-}
-export interface SessionSteerPromptRequest {
-  expected_turn_id: string;
-  idempotency_key: string;
-  message_id: string;
-  text: string;
 }
 export type SessionPromptResponse =
   | OperationResponse<"sendSessionPrompt", 200>
   | OperationResponse<"sendSessionPrompt", 202>;
+/**
+ * The daemon's stop answer: 202 acceptance (`wait: false`), or the settled
+ * verified/unverified outcome and the already-stopped case (200).
+ */
+export type SessionStopResult =
+  | OperationResponse<"stopSession", 200>
+  | OperationResponse<"stopSession", 202>;
 type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>;
 export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
 export type SessionGoalCommandResult = NonNullable<SessionPromptPayload["goal"]>;
 export type SessionPromptResult = SessionPromptPayload | SessionGoalCommandResult;
+/**
+ * The daemon found the session idle at admission and started a direct turn,
+ * answering with the prompt event stream instead of the JSON envelope. The
+ * stream is released so the live tail owns the turn (SD-010).
+ */
+export interface SessionPromptDirectTurn {
+  direct_turn: true;
+  idempotency_key: string;
+  message_id: string;
+}
+export type SessionPromptSendResult = SessionPromptResult | SessionPromptDirectTurn;
 export type SessionInputsResponse = OperationResponse<"listSessionInputs", 200>;
 export type SessionInputPayload = SessionInputsResponse["inputs"][number];
 export type ReplaceSessionInputRequest = OperationRequestBody<"replaceSessionInput">;
@@ -124,6 +151,17 @@ export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
 export type ApproveSessionParams = OperationRequestBody<"approveSession">;
 export type PermissionDecision = ApproveSessionParams["decision"];
 
+export type SessionInteractionsResponse = OperationResponse<"listSessionInteractions", 200>;
+/**
+ * One restart-durable interaction record as the daemon lists it. Same shape as
+ * the `pending_interactions` rows embedded on the session payload, read here
+ * with an explicit status filter so settled decisions (expired at a daemon
+ * restart, timed out, resolved) stay reachable after the live projection drops them.
+ */
+export type SessionInteractionRecord = SessionInteractionsResponse["interactions"][number];
+export type SessionInteractionStatus = NonNullable<
+  NonNullable<OperationQuery<"listSessionInteractions">>["status"]
+>;
 export type ClarificationsResponse = OperationResponse<"listSessionClarifications", 200>;
 /** Live pending clarification projection — the exact authority for pending truth. */
 export type ClarificationPending = ClarificationsResponse["clarifications"][number];
@@ -225,6 +263,7 @@ export interface AgentEventPayload {
   decision?: string;
   error?: string;
   failure?: SessionFailurePayload;
+  provider_error?: ProviderErrorDiagnosticPayload | null;
   usage?: TokenUsagePayload;
   runtime?: RuntimeActivityPayload;
   marker?: TranscriptMarkerPayload;

@@ -2176,6 +2176,7 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		"mode",
 		"runtime",
 		"session_id",
+		"wait",
 		"workspace",
 	})
 	if !slices.Equal(input.Required, []string{
@@ -2406,9 +2407,24 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		t.Fatalf("%s prompt schema = %#v, want object", owner, prompt)
 	}
 	assertClosedObjectSchema(t, owner+" prompt", prompt, []string{
-		"canceled_queued_entries", "delivery", "estimated_send_at", "goal", "idempotency_key", "message_id",
-		"mode", "new_turn_id", "previous_turn_id", "queue_entry_id", "queue_generation", "queue_position",
-		"replayed", "status",
+		"canceled_queued_entries",
+		"delivery",
+		"disposition",
+		"entry_id",
+		"estimated_send_at",
+		"goal",
+		"idempotency_key",
+		"message_id",
+		"mode",
+		"new_turn_id",
+		"previous_turn_id",
+		"queue_entry_id",
+		"queue_generation",
+		"queue_position",
+		"replayed",
+		"status",
+		"steer_delivery",
+		"turn_id",
 	})
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
 		t.Fatalf(
@@ -2510,7 +2526,7 @@ func assertSessionInputPromoteSchema(t *testing.T, descriptor toolspkg.Descripto
 	assertSessionInputMutationSchema(t, descriptor, []string{
 		"expected_turn_id", "idempotency_key", "message_id", "queue_entry_id", "session_id", "text", "workspace",
 	}, []string{
-		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key", "expected_turn_id",
+		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key",
 	}, true)
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }
@@ -2569,7 +2585,7 @@ func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObj
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
 		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "queue_generation",
-		"runtime", "session_id", "status", "target_turn_id", "text",
+		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
 	})
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",

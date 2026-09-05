@@ -1,3 +1,4 @@
+import { isProviderErrorEvent } from "../lib/provider-error";
 import type { AgentEventPayload } from "../types";
 
 const RUNTIME_EVENT_TYPES = new Set(["runtime_progress", "runtime_warning"]);
@@ -26,7 +27,10 @@ export function isOperationalStatusEvent(event: AgentEventPayload): boolean {
 }
 
 export function isSessionErrorEvent(event: AgentEventPayload): boolean {
-  return event.type === "error" && (hasText(event.error) || hasText(event.failure?.summary));
+  return (
+    event.type === "error" &&
+    (hasText(event.error) || hasText(event.failure?.summary) || isProviderErrorEvent(event))
+  );
 }
 
 export function isTranscriptMarkerEvent(event: AgentEventPayload): boolean {

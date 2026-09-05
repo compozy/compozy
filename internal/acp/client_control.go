@@ -51,6 +51,9 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 		return nil, err
 	}
 
+	active.steerMu.Lock()
+	active.steerContext = promptCtx
+	active.steerMu.Unlock()
 	proc.startReservedChildTask(run, func() {
 		d.runPrompt(promptCtx, proc, active, req)
 	})
@@ -73,6 +76,37 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	}
 	if proc.cancelCurrentPrompt() {
 		return nil
+	}
+	return nil
+}
+
+// CancelCooperatively requests peer cancellation without ending the local prompt.
+// The prompt response or process exit remains the evidence that work has stopped.
+func (d *Driver) CancelCooperatively(ctx context.Context, proc *AgentProcess) error {
+	if ctx == nil {
+		return errors.New("acp: context is required")
+	}
+	if proc == nil {
+		return errors.New("acp: agent process is required")
+	}
+	if proc.conn == nil {
+		return errProcessConnectionUninitialized
+	}
+	if strings.TrimSpace(proc.SessionID) == "" {
+		return errors.New("acp: session id is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	active := proc.currentPrompt()
+	if active == nil || !active.cooperativeCancelSent.CompareAndSwap(false, true) {
+		return nil
+	}
+	err := proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel,
+		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)})
+	if err != nil {
+		active.cooperativeCancelSent.Store(false)
+		return fmt.Errorf("acp: request cooperative prompt cancellation: %w", err)
 	}
 	return nil
 }
@@ -107,7 +141,11 @@ func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req 
 
 // Stop terminates the subprocess and waits for it to exit.
 func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
-	return d.stop(ctx, proc, false)
+	stopErr := d.stop(ctx, proc, false)
+	if stopErr != nil {
+		return stopErr
+	}
+	return d.verifyStoppedProcess(proc)
 }
 
 func (d *Driver) stop(ctx context.Context, proc *AgentProcess, inspection bool) error {

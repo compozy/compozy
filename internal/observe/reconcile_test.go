@@ -41,6 +41,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 			RuntimeStatus:        store.SessionRuntimeUnbound,
 			StopReason:           &stopReason,
 			StopDetail:           "requested by API",
+			StopEscalated:        true,
 			CreatedAt:            now,
 			UpdatedAt:            now,
 		}); err != nil {
@@ -70,6 +71,9 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		}
 		if sessions[0].StopReason != store.StopUserCanceled {
 			t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
+		}
+		if !sessions[0].StopEscalated {
+			t.Fatal("reconciliation lost persisted stop escalation")
 		}
 		if sessions[0].StopDetail != "requested by API" {
 			t.Fatalf("sessions[0].StopDetail = %q, want %q", sessions[0].StopDetail, "requested by API")
@@ -201,19 +205,21 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				SessionRuntimeDetails: &store.SessionRuntimeDetails{
 					ACPOptions: []store.SessionACPOptionSelection{{ID: "mode", ValueID: "plan"}},
 				},
-				RuntimeFailure:    store.SessionRuntimeFailurePointer(" runtime warning "),
 				RuntimeStatus:     store.SessionRuntimeReady,
 				RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
 				RuntimeGeneration: 2,
-				RuntimeSelection: store.NewSessionRuntimeSelectionState(&store.SessionRuntimeSelection{
-					Provider:        "cursor",
-					Model:           "grok-4.6",
-					ReasoningEffort: "xhigh",
-					Speed:           speedpkg.SpeedFast,
-					ACPOptions: []store.SessionACPOptionSelection{{
-						ID: "thinking", BoolValue: new(true),
-					}},
-				}, 1),
+				SessionRuntimeBindingState: &store.SessionRuntimeBindingState{
+					RuntimeFailure: store.SessionRuntimeFailurePointer(" runtime warning "),
+					RuntimeSelection: store.NewSessionRuntimeSelectionState(&store.SessionRuntimeSelection{
+						Provider:        "cursor",
+						Model:           "grok-4.6",
+						ReasoningEffort: "xhigh",
+						Speed:           speedpkg.SpeedFast,
+						ACPOptions: []store.SessionACPOptionSelection{{
+							ID: "thinking", BoolValue: new(true),
+						}},
+					}, 1),
+				},
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				SessionType:          "worker",

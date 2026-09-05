@@ -14,6 +14,9 @@ const (
 
 func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
 	var changed []string
+	if desired.FollowUpMode != nil && cfg.Session.BusyInput.Normalize().DefaultMode != *desired.FollowUpMode {
+		changed = append(changed, "session.busy_input.default_mode")
+	}
 	if cfg.Limits.MaxConcurrentAgents != desired.Limits.MaxConcurrentAgents {
 		changed = append(changed, "limits.max_concurrent_agents")
 	}
@@ -96,6 +99,14 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
 	}
 	updates = append(updates, terminalSettingUpdates(settings.Terminal)...)
+	if settings.FollowUpMode != nil {
+		if err := editor.SetValue(
+			[]string{"session", "busy_input", "default_mode"},
+			*settings.FollowUpMode,
+		); err != nil {
+			return err
+		}
+	}
 	return applyValueUpdates(editor, updates)
 }
 

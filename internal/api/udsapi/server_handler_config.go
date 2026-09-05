@@ -74,5 +74,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		extensions:          s.extensions,
 		hostedMCP:           s.hostedMCP,
 		mcpHostAPI:          s.mcpHostAPI,
+
+		onProviderAuthSuccess: s.onProviderAuthSuccess,
 	}
 }

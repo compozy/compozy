@@ -6,16 +6,22 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 type activePromptState struct {
-	turnID     string
-	runID      string
-	generation int64
-	events     chan AgentEvent
-	activity   chan struct{}
-	detached   chan struct{}
-	cancel     context.CancelFunc
+	steerMu               sync.Mutex
+	steerContext          context.Context
+	steerWG               sync.WaitGroup
+	finishing             bool
+	turnID                string
+	runID                 string
+	generation            int64
+	events                chan AgentEvent
+	activity              chan struct{}
+	detached              chan struct{}
+	cancel                context.CancelFunc
+	cooperativeCancelSent atomic.Bool
 
 	sendMu sync.Mutex
 	closed bool

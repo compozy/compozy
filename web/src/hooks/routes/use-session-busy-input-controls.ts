@@ -4,16 +4,19 @@ import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";
 import {
   queuedPromptAttachmentSummary,
+  SessionBusyInputRefusalError,
+  sessionSendOutcomeFromResult,
   useCancelSessionInput,
-  useInterruptSessionPrompt,
   usePromoteSessionInput,
-  useQueueSessionPrompt,
   useReplaceSessionInput,
+  useSendSessionPrompt,
   useSessionInputs,
-  useSteerSessionPrompt,
   type QueuedPrompt,
+  type SessionBusyInputAction,
+  type SessionBusyInputDraft,
   type SessionBusyInputHandler,
   type SessionPromptRuntimeSnapshot,
+  type SessionSendOutcome,
 } from "@/systems/session";
 
 import {
@@ -39,9 +42,7 @@ export function useSessionBusyInputControls({
   store,
   workspaceId,
 }: UseSessionBusyInputControlsOptions) {
-  const queueMutation = useQueueSessionPrompt({ workspaceId });
-  const interruptMutation = useInterruptSessionPrompt({ workspaceId });
-  const steerMutation = useSteerSessionPrompt({ workspaceId });
+  const sendMutation = useSendSessionPrompt({ workspaceId });
   const inputs = useSessionInputs(workspaceId, sessionId);
   const cancelInput = useCancelSessionInput(workspaceId, sessionId);
   const replaceInput = useReplaceSessionInput(workspaceId, sessionId);
@@ -63,82 +64,59 @@ export function useSessionBusyInputControls({
     replaceInput.isPending ||
     promoteInput.isPending;
 
-  const handleQueuePrompt: SessionBusyInputHandler = draft => {
+  /**
+   * Every busy verb goes through one gate. A gate that cannot honor the send
+   * rejects with its reason (US-004.AC-3) — never a silent no-op — and the
+   * daemon's answer resolves as the disposition envelope. The known active turn
+   * rides along as a strict fence; when the poll has not reported one yet the
+   * daemon resolves the live turn itself (invariant 6).
+   */
+  const submitBusyInput = (
+    action: SessionBusyInputAction,
+    draft: SessionBusyInputDraft
+  ): Promise<SessionSendOutcome | void> => {
     const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      (text.length === 0 && draft.attachments.length === 0)
-    ) {
-      return;
+    const attachmentCount = draft.attachments.length;
+    if (!promptControlsAvailable) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "session_not_promptable" })
+      );
+    }
+    if (isBusyInputPending(store.getSnapshot().context)) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "send_in_flight" })
+      );
+    }
+    if (text.length === 0 && attachmentCount === 0) {
+      return Promise.resolve();
+    }
+    if (action === "steer" && attachmentCount > 0) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "steer_attachments_unsupported" })
+      );
     }
     const runtime = getRuntimeSnapshot?.() ?? null;
     return requestBusyInput(store, () =>
       store.trigger.busyInputRequested({
         execute: () =>
-          queueMutation.mutateAsync({
+          sendMutation.mutateAsync({
             id: sessionId,
             message: text,
-            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
+            mode: action,
+            ...(activeTurnId.length > 0 ? { expectedTurnId: activeTurnId } : {}),
+            ...(attachmentCount > 0 ? { attachments: draft.attachments } : {}),
             ...(runtime ? { runtime } : {}),
           }),
-        kind: "queue",
+        kind: action,
         message: text,
       })
     );
   };
 
-  const handleInterruptPrompt: SessionBusyInputHandler = draft => {
-    const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      (text.length === 0 && draft.attachments.length === 0) ||
-      activeTurnId.length === 0
-    ) {
-      return;
-    }
-    const runtime = getRuntimeSnapshot?.() ?? null;
-    return requestBusyInput(store, () =>
-      store.trigger.busyInputRequested({
-        execute: () =>
-          interruptMutation.mutateAsync({
-            expectedTurnId: activeTurnId,
-            id: sessionId,
-            message: text,
-            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
-            ...(runtime ? { runtime } : {}),
-          }),
-        kind: "interrupt",
-        message: text,
-      })
-    );
-  };
-
-  const handleSteerPrompt: SessionBusyInputHandler = draft => {
-    const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      draft.attachments.length > 0 ||
-      text.length === 0 ||
-      activeTurnId.length === 0
-    ) {
-      return;
-    }
-    return requestBusyInput(store, () =>
-      store.trigger.busyInputRequested({
-        execute: () =>
-          steerMutation.mutateAsync({
-            expectedTurnId: activeTurnId,
-            id: sessionId,
-            message: text,
-          }),
-        kind: "steer",
-        message: text,
-      })
-    );
-  };
+  const handleQueuePrompt: SessionBusyInputHandler = draft => submitBusyInput("queue", draft);
+  const handleSteerPrompt: SessionBusyInputHandler = draft => submitBusyInput("steer", draft);
+  const handleInterruptPrompt: SessionBusyInputHandler = draft =>
+    submitBusyInput("interrupt", draft);
 
   return {
     handleInterruptPrompt,
@@ -163,14 +141,14 @@ export function useSessionBusyInputControls({
     },
     handleSteerPrompt,
     handleSteerQueuedPrompt: (prompt: QueuedPrompt) => {
-      if (!promptControlsAvailable || pending || activeTurnId.length === 0 || prompt.attachments) {
+      if (!promptControlsAvailable || pending || prompt.attachments) {
         return;
       }
       promoteInput.mutate(
         {
           queueEntryId: prompt.id,
           request: {
-            expected_turn_id: activeTurnId,
+            ...(activeTurnId.length > 0 ? { expected_turn_id: activeTurnId } : {}),
             idempotency_key: createClientId(),
             message_id: createClientId(),
             text: prompt.text,
@@ -189,12 +167,20 @@ export function useSessionBusyInputControls({
   };
 }
 
-function requestBusyInput(store: SessionPageControlsStore, request: () => void): Promise<void> {
-  return awaitStoreRequest<{ requestId: number }, SessionBusyInputSettlement, void>({
+function requestBusyInput(
+  store: SessionPageControlsStore,
+  request: () => void
+): Promise<SessionSendOutcome | void> {
+  return awaitStoreRequest<
+    { requestId: number },
+    SessionBusyInputSettlement,
+    SessionSendOutcome | void
+  >({
     notAcceptedMessage: "Busy input request was not accepted",
     request,
     resolveSettlement: settlement => {
       if (settlement.outcome === "failed") throw settlement.error;
+      return sessionSendOutcomeFromResult(settlement.result) ?? undefined;
     },
     subscribeAccepted: listener => store.on("busyInputAccepted", listener),
     subscribeSettled: listener => store.on("busyInputSettled", listener),

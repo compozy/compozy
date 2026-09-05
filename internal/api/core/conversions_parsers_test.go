@@ -31,6 +31,26 @@ func testEventSummaryWithContent(summary store.EventSummary, content json.RawMes
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose durable escalation without claiming unverified stopping is terminal", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []session.State{session.StateActive, session.StateStopping, session.StateStopped} {
+			info := &session.Info{
+				ID:                     "sess-1",
+				State:                  state,
+				StopEscalated:          true,
+				StopVerificationFailed: state == session.StateStopping,
+			}
+			payload := core.SessionPayloadFromInfo(info)
+			if (payload.Attention == session.StopVerificationFailedCode) != (state == session.StateStopping) {
+				t.Fatalf("attention for %s = %q", state, payload.Attention)
+			}
+			if payload.Escalated == nil || !*payload.Escalated || payload.Verified == nil ||
+				*payload.Verified != (state == session.StateStopped) {
+				t.Fatalf("stop resource for %s = %#v", state, payload)
+			}
+		}
+	})
+
 	t.Run("Should map session info into a sanitized session payload", func(t *testing.T) {
 		t.Parallel()
 
@@ -376,7 +396,12 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			CreatedAt:                time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			UpdatedAt:                time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 		}
+		info.StopEscalated = true
+		info.StopVerificationFailed = true
 		payload := core.SessionPayloadFromStoreInfo(&info)
+		if payload.Escalated == nil || !*payload.Escalated {
+			t.Fatal("catalog lost durable stop escalation")
+		}
 		if payload.Runtime.Status != session.RuntimeStatusReady ||
 			payload.Runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
 			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "codex" ||
@@ -574,6 +599,27 @@ func TestAgentPayloadFromDef(t *testing.T) {
 }
 
 func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
+	t.Run("Should expose actionable provider errors without terminal session diagnostics", func(t *testing.T) {
+		t.Parallel()
+		payload := core.SessionEventPayloadFromEvent(store.SessionEvent{
+			Type:      "error",
+			SessionID: "session",
+			TurnID:    "turn",
+			Content:   `{"type":"error","provider_error":{"code":"provider_auth_required","provider":"claude","next_action":"login","guidance":"login token=hidden-auth","occurrence_count":2,"first_seen_at":"2026-09-05T12:00:00Z","last_seen_at":"2026-09-05T12:01:00Z"}}`,
+		}, &session.Info{State: session.StateActive})
+		if payload.ProviderError == nil || payload.ProviderError.Code != "provider_auth_required" ||
+			payload.ProviderError.NextAction != "login" ||
+			payload.ProviderError.OccurrenceCount != 2 {
+			t.Fatalf("provider error payload = %#v", payload.ProviderError)
+		}
+		if strings.Contains(payload.ProviderError.Guidance, "hidden-auth") {
+			t.Fatal("provider guidance exposed a credential")
+		}
+		if payload.Failure != nil || payload.StopReason != "" {
+			t.Fatalf("nonterminal provider error exposed stop diagnostics: %#v", payload)
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should include stop diagnostics from session info", func(t *testing.T) {

@@ -13,7 +13,6 @@ import {
   resumeSession,
   SessionApiError,
   sendSessionPrompt,
-  steerSessionPrompt,
   stopSession,
   unarchiveSession,
 } from "../adapters/session-api";
@@ -26,10 +25,10 @@ import {
 } from "../lib/session-query-invalidation";
 import type {
   SessionPayload,
-  SessionPromptPayload,
   SessionPromptAttachment,
   SessionPromptRequest,
-  SessionPromptResult,
+  SessionPromptPayload,
+  SessionPromptSendResult,
   SessionRepairQuery,
 } from "../types";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
@@ -105,14 +104,21 @@ export function useCreateSession() {
   });
 }
 
+export interface StopSessionParams {
+  id: string;
+  /** Wait for the settled outcome instead of the 202 acceptance. */
+  wait?: boolean;
+}
+
 export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
-    mutationFn: (id: string) => stopSession(requireWorkspace(workspaceId), id),
-    onSettled: (_data, _error, id) => {
+    mutationFn: ({ id, wait }: StopSessionParams) =>
+      stopSession(requireWorkspace(workspaceId), id, { wait }),
+    onSettled: (_data, _error, { id }) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
   });
@@ -324,14 +330,6 @@ function createPromptIdentity(): { idempotencyKey: string; messageId: string } {
   };
 }
 
-function requireExpectedTurnId(expectedTurnId: string | undefined): string {
-  const value = expectedTurnId?.trim() ?? "";
-  if (value.length === 0) {
-    throw new Error("A session steer or interrupt action requires a non-empty expected_turn_id");
-  }
-  return value;
-}
-
 const actionPromptIdentities = new WeakMap<
   SessionPromptActionParams,
   {
@@ -386,78 +384,24 @@ function promptRequestFromAction(
   };
 }
 
+/**
+ * The one busy-send mutation: `mode` names the verb (steer | queue | interrupt)
+ * the composer resolved — from the daemon default, the one-shot modifier, or an
+ * explicit button. `expectedTurnId` is a strict fence when provided; omitted, the
+ * daemon resolves the active turn at admission and echoes it (invariant 6).
+ */
 export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
-  return useMutation<SessionPromptResult, Error, SendSessionPromptParams>({
+  return useMutation<SessionPromptSendResult, Error, SendSessionPromptParams>({
     mutationFn: params =>
       sendSessionPrompt(
         requireWorkspace(workspaceId),
         params.id,
         promptRequestFromAction(params, params.mode)
       ),
-    onSettled: (_data, _error, params) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
-    },
-  });
-}
-
-export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: params =>
-      sendSessionPrompt(
-        requireWorkspace(workspaceId),
-        params.id,
-        promptRequestFromAction(params, "queue")
-      ),
-    onSettled: (_data, _error, params) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
-    },
-  });
-}
-
-export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: params => {
-      const expectedTurnId = requireExpectedTurnId(params.expectedTurnId);
-      return sendSessionPrompt(
-        requireWorkspace(workspaceId),
-        params.id,
-        promptRequestFromAction({ ...params, expectedTurnId }, "interrupt")
-      );
-    },
-    onSettled: (_data, _error, params) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
-    },
-  });
-}
-
-export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
-
-  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
-    mutationFn: params => {
-      const expectedTurnId = requireExpectedTurnId(params.expectedTurnId);
-      const identity = promptIdentityForAction(params);
-      return steerSessionPrompt(requireWorkspace(workspaceId), params.id, {
-        expected_turn_id: expectedTurnId,
-        idempotency_key: identity.idempotencyKey,
-        message_id: identity.messageId,
-        text: params.message,
-      });
-    },
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },

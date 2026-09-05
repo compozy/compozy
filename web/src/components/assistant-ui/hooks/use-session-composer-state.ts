@@ -11,8 +11,22 @@ import {
   useSessionComposerDraft,
 } from "@/systems/session";
 
+/** What one busy send took from the composer, captured at submission time. */
+export interface SessionComposerSubmission {
+  /** Raw composer text (not the wire message) when the send was requested. */
+  composerText: string;
+  /** Composer attachment ids that rode along with the send. */
+  attachmentIds: readonly string[];
+}
+
 export interface SessionComposerState {
   clearComposer: (options?: { retainAttachments?: boolean }) => void;
+  /**
+   * Removes exactly what an accepted busy send took, and returns the text left
+   * in the field. The editor stays writable while a send is in flight, so
+   * anything typed or attached after submission belongs to the operator.
+   */
+  consumeSubmittedDraft: (submission: SessionComposerSubmission) => string;
   persistComposerText: (text: string) => void;
   setComposerText: (text: string) => void;
   setComposerInputElement: (handle: SessionComposerInputHandle | null) => void;
@@ -43,6 +57,39 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     aui.composer.setText("");
     composerInputHandleRef.current?.clear();
     void aui.composer.clearAttachments();
+  };
+
+  const consumeSubmittedDraft = ({
+    composerText: submittedText,
+    attachmentIds,
+  }: SessionComposerSubmission) => {
+    const state = aui.composer.getState();
+    const submittedIds = new Set(attachmentIds);
+    const submittedAttachments = state.attachments.filter(attachment =>
+      submittedIds.has(attachment.id)
+    );
+    retainSubmittedComposerAttachments(submittedAttachments);
+    for (const attachment of submittedAttachments) {
+      void aui.composer.attachment({ id: attachment.id }).remove();
+    }
+    const currentText = state.text;
+    if (!currentText.startsWith(submittedText)) {
+      // The operator rewrote the field while the send was in flight: it is theirs.
+      return currentText;
+    }
+    // Exact remainder: whatever the operator authored after the sent prefix,
+    // leading whitespace and indentation included (an attachment-only send has
+    // an empty prefix, so the whole field is theirs).
+    const remainder = currentText.slice(submittedText.length);
+    if (remainder.length === 0) {
+      sessionStore.trigger.composerDraftDiscarded({ sessionId });
+      aui.composer.setText("");
+      composerInputHandleRef.current?.clear();
+      return "";
+    }
+    sessionStore.trigger.composerDraftChanged({ sessionId, text: remainder });
+    aui.composer.setText(remainder);
+    return remainder;
   };
 
   const persistComposerText = (text: string) => {
@@ -88,6 +135,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   return {
     clearComposer,
     composerText,
+    consumeSubmittedDraft,
     isRunning,
     persistComposerText,
     prefillComposer,

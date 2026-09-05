@@ -66,6 +66,7 @@ CREATE TABLE session_health (
 			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer', 'interrupt')),
 			delivery TEXT NOT NULL DEFAULT 'after_turn'
 				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
+			steer_delivery TEXT CHECK (steer_delivery IN ('injected', 'pending_injection', 'interrupt_fallback')),
 			text TEXT NOT NULL,
 			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 			attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
@@ -123,6 +124,8 @@ CREATE TABLE sessions (
 		archived_at    TEXT,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
+		stop_escalated BOOLEAN NOT NULL DEFAULT FALSE CHECK (stop_escalated IN (0, 1)),
+		stop_verification_failed BOOLEAN NOT NULL DEFAULT FALSE CHECK (stop_verification_failed IN (0, 1)),
 		stop_detail    TEXT,
 		subprocess_pid INTEGER NOT NULL DEFAULT 0,
 		subprocess_started_at TEXT,

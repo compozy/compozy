@@ -9,10 +9,11 @@ import (
 )
 
 type sessionStartRun struct {
-	ctx    context.Context
-	cancel context.CancelCauseFunc
-	done   chan struct{}
-	err    error
+	ctx         context.Context
+	cancel      context.CancelCauseFunc
+	done        chan struct{}
+	err         error
+	stopOutcome *StopOutcome
 
 	recorderReady     chan struct{}
 	recorderReadyOnce sync.Once

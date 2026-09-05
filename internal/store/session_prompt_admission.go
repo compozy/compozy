@@ -40,16 +40,17 @@ var (
 
 // SessionPromptAdmissionResult is the durable non-streaming result replayed for one admitted command.
 type SessionPromptAdmissionResult struct {
-	Status                string          `json:"status"`
-	Mode                  string          `json:"mode,omitempty"`
-	QueueEntryID          string          `json:"queue_entry_id,omitempty"`
-	QueuePosition         int             `json:"queue_position,omitempty"`
-	QueueGeneration       int64           `json:"queue_generation,omitempty"`
-	Delivery              string          `json:"delivery,omitempty"`
-	PreviousTurnID        string          `json:"previous_turn_id,omitempty"`
-	NewTurnID             string          `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries int             `json:"canceled_queued_entries,omitempty"`
-	Goal                  json.RawMessage `json:"goal,omitempty"`
+	Status                string            `json:"status"`
+	Mode                  string            `json:"mode,omitempty"`
+	QueueEntryID          string            `json:"queue_entry_id,omitempty"`
+	QueuePosition         int               `json:"queue_position,omitempty"`
+	QueueGeneration       int64             `json:"queue_generation,omitempty"`
+	Delivery              string            `json:"delivery,omitempty"`
+	SteerDelivery         SteerDeliveryMode `json:"steer_delivery,omitempty"`
+	PreviousTurnID        string            `json:"previous_turn_id,omitempty"`
+	NewTurnID             string            `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitempty"`
+	Goal                  json.RawMessage   `json:"goal,omitempty"`
 }
 
 // SessionPromptAdmission is the durable command receipt for one external prompt or steer request.

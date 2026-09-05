@@ -115,14 +115,14 @@ func (m *Manager) updateStoppedRuntimeSelection(
 			return nil, err
 		}
 	}
-	_, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+	_, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	if selectionRevision != expectedRevision {
 		return nil, runtimeSelectionConflict(expectedRevision, selectionRevision)
 	}
-	meta.RuntimeSelection = store.NewSessionRuntimeSelectionState(
+	meta.SetRuntimeSelection(store.NewSessionRuntimeSelectionState(
 		storeSessionRuntimeSelection(selection),
 		selectionRevision+1,
-	)
+	))
 	meta.UpdatedAt = m.now()
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {

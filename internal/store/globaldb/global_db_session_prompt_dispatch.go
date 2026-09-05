@@ -17,7 +17,9 @@ func commitQueuedPromptAdmissionDispatch(
 	entry *store.SessionInputQueueEntry,
 	nowRaw string,
 ) error {
-	if entry.PromptAdmissionID == "" {
+	if entry.PromptAdmissionID == "" || entry.SteerDelivery != "" {
+		// A resolved steer receipt records acceptance. Its fallback queue entry
+		// owns subsequent delivery state without reopening that receipt.
 		return nil
 	}
 	affected, err := sqlcgen.New(exec).CommitQueuedSessionPromptAdmissionDispatch(
@@ -46,7 +48,7 @@ func completeQueuedPromptAdmissionDispatch(
 	entry *store.SessionInputQueueEntry,
 	nowRaw string,
 ) error {
-	if entry.PromptAdmissionID == "" {
+	if entry.PromptAdmissionID == "" || entry.SteerDelivery != "" {
 		return nil
 	}
 	affected, err := sqlcgen.New(exec).CompleteQueuedSessionPromptAdmissionDispatch(
@@ -76,7 +78,7 @@ func markQueuedPromptAdmissionIndeterminate(
 	summary string,
 	nowRaw string,
 ) error {
-	if entry.PromptAdmissionID == "" {
+	if entry.PromptAdmissionID == "" || entry.SteerDelivery != "" {
 		return nil
 	}
 	summary = strings.TrimSpace(summary)

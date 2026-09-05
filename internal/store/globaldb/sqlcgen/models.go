@@ -1721,6 +1721,8 @@ type Session struct {
 	ArchivedAt               sql.NullString `json:"archived_at"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
+	StopEscalated            bool           `json:"stop_escalated"`
+	StopVerificationFailed   bool           `json:"stop_verification_failed"`
 	StopDetail               sql.NullString `json:"stop_detail"`
 	SubprocessPid            int64          `json:"subprocess_pid"`
 	SubprocessStartedAt      sql.NullString `json:"subprocess_started_at"`
@@ -1807,6 +1809,7 @@ type SessionInputQueue struct {
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Delivery                 string         `json:"delivery"`
+	SteerDelivery            sql.NullString `json:"steer_delivery"`
 	Text                     string         `json:"text"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`

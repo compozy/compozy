@@ -397,6 +397,7 @@ describe("attention-first ordering (UT-066)", () => {
     expect(attentionBand("waiting-for-input")).toBe("needs-you");
     expect(attentionBand("waiting-for-auth")).toBe("needs-you");
     expect(attentionBand("failed")).toBe("needs-you");
+    expect(attentionBand("needs-attention")).toBe("needs-you");
     expect(attentionBand("done")).toBe("finished");
     expect(attentionBand("running")).toBe("working");
     expect(attentionBand("idle")).toBe("rest");

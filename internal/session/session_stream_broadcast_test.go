@@ -643,6 +643,36 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain retryable closure after finalization detaches the recorder", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		ctx := testutil.Context(t)
+		if err := h.manager.closeSessionRecorder(sess); err != nil {
+			t.Fatalf("closeSessionRecorder() error = %v", err)
+		}
+		event := store.SessionEvent{
+			ID: "post-stop:detached-recorder", SessionID: sess.ID, TurnID: "detached-turn",
+			Type: EventTypeGoalSnapshotChanged, AgentName: "system", Content: `{}`,
+			Timestamp: time.Date(2026, 7, 10, 19, 1, 0, 0, time.UTC),
+		}
+		if _, err := h.manager.appendDurableSessionEventAttempt(ctx, sess.ID, event); !errors.Is(err, store.ErrClosed) {
+			t.Fatalf("append during recorder detachment = %v, want retryable closed store", err)
+		}
+		recorder, err := sessiondb.OpenSessionDB(ctx, testSessionDBOwner(sess.ID, sess.WorkspaceID), sess.DBPath())
+		if err != nil {
+			t.Fatalf("reopen recorder for lifecycle cleanup: %v", err)
+		}
+		sess.setRecorder(recorder)
+		if err := h.manager.Stop(ctx, sess.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		persisted, err := h.manager.appendDurableSessionEvent(ctx, sess.ID, event)
+		if err != nil || persisted.ID != event.ID {
+			t.Fatalf("append after finalization = %#v, %v", persisted, err)
+		}
+	})
+
 	t.Run("Should retry through active session finalization after the recorder closes", func(t *testing.T) {
 		t.Parallel()
 

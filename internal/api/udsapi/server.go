@@ -130,6 +130,8 @@ type Server struct {
 	serveErr     error
 	streamCancel context.CancelFunc
 	state        serverState
+
+	onProviderAuthSuccess func()
 }
 
 // Handlers expose request/response and SSE endpoints for the Compozy API.
@@ -354,4 +356,11 @@ func New(opts ...Option) (*Server, error) {
 	registerRoutes(server.engine, server.handlers)
 
 	return server, nil
+}
+
+// WithProviderAuthSuccess observes a successful live authentication probe.
+func WithProviderAuthSuccess(callback func()) Option {
+	return func(server *Server) {
+		server.onProviderAuthSuccess = callback
+	}
 }

@@ -15,6 +15,9 @@ func (m *Manager) finishPressureCompaction(sessionID string) {
 			close(state.done)
 			state.done = nil
 		}
+		if state.retired {
+			delete(m.compactionLifecycle.runs, sessionID)
+		}
 	}
 	m.compactionLifecycle.mu.Unlock()
 }
@@ -27,33 +30,25 @@ func (m *Manager) armCompactionCooldown(sessionID string) {
 	m.compactionLifecycle.mu.Unlock()
 }
 
-func (m *Manager) cancelAndWaitSessionCompaction(ctx context.Context, sessionID string) error {
+// cancelSessionCompaction leaves an in-flight run tracked for manager shutdown.
+// Session finalization must not depend on an external compactor returning.
+func (m *Manager) cancelSessionCompaction(sessionID string) {
 	if m == nil {
-		return nil
+		return
 	}
 	m.compactionLifecycle.mu.Lock()
+	defer m.compactionLifecycle.mu.Unlock()
 	state := m.compactionLifecycle.runs[sessionID]
 	if state == nil {
-		m.compactionLifecycle.mu.Unlock()
-		return nil
+		return
 	}
+	state.retired = true
 	if state.cancel != nil {
 		state.cancel()
 	}
-	done := state.done
-	m.compactionLifecycle.mu.Unlock()
-
-	if done != nil {
-		select {
-		case <-done:
-		case <-ctx.Done():
-			return fmt.Errorf("session: wait for context compaction for %q: %w", sessionID, ctx.Err())
-		}
+	if !state.inFlight {
+		delete(m.compactionLifecycle.runs, sessionID)
 	}
-	m.compactionLifecycle.mu.Lock()
-	delete(m.compactionLifecycle.runs, sessionID)
-	m.compactionLifecycle.mu.Unlock()
-	return nil
 }
 
 func (m *Manager) shutdownCompactions(ctx context.Context) error {

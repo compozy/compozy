@@ -442,6 +442,83 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	for _, migration := range []string{"00102_schema.sql", "00103_schema.sql"} {
+		t.Run("Should preserve sessions and queued inputs through "+migration, func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, migration))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, statement := range []string{
+				`INSERT INTO workspaces(id, root_dir, name, created_at, updated_at) VALUES ('ws-escalation', '/escalation', 'escalation', '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z')`,
+				`INSERT INTO sessions(id, profile_id, agent_name, workspace_id, state, created_at, updated_at) SELECT 'sess-escalation', id, 'coder', 'ws-escalation', 'stopped', '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z' FROM profiles LIMIT 1`,
+				`INSERT INTO session_input_queue(id, session_id, status, mode, text, enqueued_at, updated_at) VALUES ('queued-escalation', 'sess-escalation', 'queued', 'queue', 'preserved input', '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z')`,
+			} {
+				if _, err := prior.ExecContext(ctx, statement); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if migration == "00103_schema.sql" {
+				if _, err := prior.ExecContext(ctx, "UPDATE sessions SET stop_escalated = 1"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
+			}
+			upgraded, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := upgraded.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			var escalated, verificationFailed bool
+			if err := upgraded.db.QueryRowContext(ctx, "SELECT stop_escalated, stop_verification_failed FROM sessions WHERE id = 'sess-escalation'").
+				Scan(&escalated, &verificationFailed); err != nil {
+				t.Fatal(err)
+			}
+			if escalated != (migration == "00103_schema.sql") || verificationFailed {
+				t.Fatal("historical stop flags changed during upgrade")
+			}
+			var queuedText string
+			if err := upgraded.db.QueryRowContext(ctx, "SELECT text FROM session_input_queue WHERE id = 'queued-escalation'").
+				Scan(&queuedText); err != nil {
+				t.Fatal(err)
+			}
+			if queuedText != "preserved input" {
+				t.Fatalf("queued text = %q", queuedText)
+			}
+			if err := upgraded.UpdateSessionState(ctx, SessionStateUpdate{
+				ID:                     "sess-escalation",
+				State:                  "stopped",
+				StopReasonSet:          true,
+				StopEscalated:          true,
+				StopVerificationFailed: true,
+				UpdatedAt:              time.Now().UTC(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			upgraded, err = OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, "SELECT stop_escalated, stop_verification_failed FROM sessions WHERE id = 'sess-escalation'").
+				Scan(&escalated, &verificationFailed); err != nil {
+				t.Fatal(err)
+			}
+			if !escalated || !verificationFailed {
+				t.Fatal("stop flags lost across reopen")
+			}
+		})
+	}
 	t.Run("Should preserve loop config rows while adding environment storage", func(t *testing.T) {
 		t.Parallel()
 
@@ -2543,6 +2620,7 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 				WorkspaceID:   workspaceID,
 				State:         "stopped",
 				StopReason:    tc.stopReason,
+				StopEscalated: tc.stopReason != "",
 				StopDetail:    tc.stopDetail,
 				CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 				UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
@@ -2564,6 +2642,9 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 			}
 			if got, want := len(sessions), 1; got != want {
 				t.Fatalf("len(sessions) = %d, want %d", got, want)
+			}
+			if sessions[0].StopEscalated != session.StopEscalated {
+				t.Fatalf("stop escalation = %t, want %t", sessions[0].StopEscalated, session.StopEscalated)
 			}
 			if got, want := sessions[0].StopReason, tc.stopReason; got != want {
 				t.Fatalf("sessions[0].StopReason = %q, want %q", got, want)

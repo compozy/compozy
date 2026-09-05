@@ -8,6 +8,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspace"
@@ -17,6 +18,23 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	switch {
+	case errors.Is(err, session.ErrActiveTurnMismatch):
+		payload.Code = "active_turn_mismatch"
+		if fence, ok := errors.AsType[*session.ActiveTurnMismatchError](err); ok {
+			payload.CurrentTurnID = fence.CurrentTurnID
+		}
+	case errors.Is(err, store.ErrSessionPromptIdempotencyConflict),
+		errors.Is(err, store.ErrSessionPromptMessageConflict), errors.Is(err, store.ErrSessionInputMutationConflict):
+		payload.Code = "send_conflict"
+	case errors.Is(err, store.ErrSessionInputQueueFull):
+		payload.Code = "queue_full"
+	case errors.Is(err, store.ErrSessionInputSteerTextOnly):
+		payload.Code = "steer_attachments_unsupported"
+	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),
+		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
+		payload.Code = "session_not_promptable"
+	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}

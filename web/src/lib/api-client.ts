@@ -75,3 +75,25 @@ export function requireResponseData<T>(
   }
   return data;
 }
+
+function apiErrorStringField(error: unknown, key: string): string | undefined {
+  if (error == null || typeof error !== "object") {
+    return undefined;
+  }
+  const candidate = Reflect.get(error, key);
+  if (typeof candidate !== "string") {
+    return undefined;
+  }
+  const normalized = candidate.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+/** The daemon's deterministic error code (`ErrorPayload.code`), when the body carries one. */
+export function apiErrorCode(error: unknown): string | undefined {
+  return apiErrorStringField(error, "code");
+}
+
+/** The turn the daemon reports as active on a fence refusal (`ErrorPayload.current_turn_id`). */
+export function apiErrorCurrentTurnId(error: unknown): string | undefined {
+  return apiErrorStringField(error, "current_turn_id");
+}

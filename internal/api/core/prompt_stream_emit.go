@@ -113,6 +113,11 @@ func (e *PromptStreamEncoder) emitPermission(writer FlushWriter, event acp.Agent
 }
 
 func (e *PromptStreamEncoder) emitError(writer FlushWriter, event acp.AgentEvent) error {
+	if event.ProviderError != nil {
+		if err := e.emitGenericEvent(writer, event); err != nil {
+			return err
+		}
+	}
 	if err := e.closeOpenBlocks(writer); err != nil {
 		return err
 	}

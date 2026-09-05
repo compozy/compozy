@@ -44,7 +44,7 @@ compozy session prompt <id> <message> [flags]
 ```
       --acp-option stringArray    ACP select override as id=value (repeatable)
       --acp-toggle stringArray    ACP boolean override as id=true|false (repeatable)
-      --expected-turn-id string   Active turn id that this steer or interrupt request must match
+      --expected-turn string      Optional strict active turn fence
   -h, --help                      help for prompt
       --idempotency-key string    Stable command idempotency key for an explicit retry
       --interrupt                 Interrupt the active turn before sending this prompt
@@ -54,7 +54,7 @@ compozy session prompt <id> <message> [flags]
       --queue                     Queue the prompt if the session is busy
       --reasoning-effort string   Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)
       --speed string              Runtime speed for this prompt (normal|fast)
-      --steer                     Replace the fenced active turn with steering guidance
+      --steer                     Deliver guidance into the active turn, with automatic fallback
 ```
 
 ### Options inherited from parent commands

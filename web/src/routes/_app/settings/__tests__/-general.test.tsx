@@ -83,6 +83,7 @@ const envelope = {
     restart: { available: true, behavior: "action_trigger" as const, name: "restart" },
   },
   config: {
+    busy_input: { default_mode: "steer" },
     daemon: {
       memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
@@ -333,6 +334,43 @@ describe("GeneralSettingsPage", () => {
     expect(screen.getByTestId("settings-page-general-memory-report-interval-input")).toHaveValue(
       "0s"
     );
+  });
+
+  it("reads the daemon follow-up default and writes the flipped value through the page draft handler", () => {
+    let nextDraft: Envelope["config"] = envelope.config;
+    pageState.setDraft.mockImplementation((update: SetStateAction<Envelope["config"] | null>) => {
+      const updated = typeof update === "function" ? update(envelope.config) : update;
+      if (updated !== null) nextDraft = updated;
+    });
+    render(<GeneralSettingsPage />);
+
+    const group = screen.getByTestId("settings-page-general-follow-up-group");
+    expect(within(group).getByTestId("settings-page-general-follow-up-steer")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(within(group).getByTestId("settings-page-general-follow-up-queue")).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    fireEvent.click(screen.getByTestId("settings-page-general-follow-up-queue"));
+    expect(pageState.setDraft).toHaveBeenCalledTimes(1);
+    expect(nextDraft.busy_input).toEqual({ default_mode: "queue" });
+    expect(nextDraft.session_timeout).toBe(envelope.config.session_timeout);
+  });
+
+  it("renders the queue follow-up value and locks the control while saving", () => {
+    pageState.draft = structuredClone(envelope.config);
+    pageState.draft.busy_input = { default_mode: "queue" };
+    pageState.isSaving = true;
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-follow-up-queue")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByTestId("settings-page-general-follow-up-steer")).toBeDisabled();
   });
 
   it("reads the secret redaction switch and marks it restart-required", () => {

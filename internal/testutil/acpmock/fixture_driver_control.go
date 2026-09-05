@@ -18,7 +18,7 @@ func (d DriverControlStep) Validate(path string) error {
 		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
 	}
 	switch d.Action {
-	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay:
+	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay, DriverControlHoldIgnoringCancel:
 		if strings.TrimSpace(d.RawJSONRPC) != "" {
 			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
 		}
@@ -32,12 +32,12 @@ func (d DriverControlStep) Validate(path string) error {
 	if d.Async && d.Action == DriverControlBlockUntilCancel {
 		return fmt.Errorf("acpmock: %s.async is invalid for block_until_cancel", path)
 	}
-	if d.Action == DriverControlDelay {
+	if d.Action == DriverControlDelay || d.Action == DriverControlHoldIgnoringCancel {
 		if d.DelayMS == 0 {
-			return fmt.Errorf("acpmock: %s.delay_ms must be > 0 for delay", path)
+			return fmt.Errorf("acpmock: %s.delay_ms must be > 0 for %s", path, d.Action)
 		}
 		if d.Async {
-			return fmt.Errorf("acpmock: %s.async is invalid for delay", path)
+			return fmt.Errorf("acpmock: %s.async is invalid for %s", path, d.Action)
 		}
 	}
 	return nil

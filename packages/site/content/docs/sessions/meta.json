@@ -1,5 +1,13 @@
 {
     "title": "Sessions",
     "icon": "Activity",
-    "pages": ["lifecycle", "orchestration", "health", "resume", "events", "permissions"]
+    "pages": [
+        "lifecycle",
+        "control-plane",
+        "orchestration",
+        "health",
+        "resume",
+        "events",
+        "permissions"
+    ]
 }

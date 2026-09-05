@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
-import { useSelector, useStore } from "@xstate/store-react";
+import { useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
@@ -95,17 +95,20 @@ function SessionRuntimeExtensions({
   liveTailEnabled: boolean;
   children: ReactNode;
 }) {
-  const { resetRuntime, rewindBlocked, transcript } = useSessionRuntimeExtensions({
-    eventSourceFactory,
-    liveTailEnabled,
-    promptDispatch,
-    sessionId,
-    workspaceId,
-  });
+  const { expiredInteractions, resolvedInteractions, resetRuntime, rewindBlocked, transcript } =
+    useSessionRuntimeExtensions({
+      eventSourceFactory,
+      liveTailEnabled,
+      promptDispatch,
+      sessionId,
+      workspaceId,
+    });
 
   return (
     <SessionRuntimeRenderProvider
       durableMessageIds={transcript.durableMessageIds}
+      expiredInteractions={expiredInteractions}
+      resolvedInteractions={resolvedInteractions}
       resetRuntime={resetRuntime}
       rewindBlocked={rewindBlocked}
       sessionId={sessionId}
@@ -191,15 +194,21 @@ function SessionChatRuntimeBinding({
   );
 }
 
+/**
+ * The runtime identity is the session identity. Switching workspace or session
+ * rebuilds the runtime; cancelling, stopping, or steering a turn never does
+ * (US-019.EC-1): the dispatch store's `pendingCanceled` aborts the tracked
+ * prompt fetch, which the AI SDK reads as a clean cancel, while the composer
+ * draft, attachments, reading position, and the interrupted turn stay put.
+ */
 export function SessionChatRuntimeProvider(props: SessionChatRuntimeProviderProps) {
   const promptDispatch = useStore(sessionPromptDispatchLogic);
   const [promptRecovery] = useState(() => new SessionPromptRecovery());
-  const runtimeGeneration = useSelector(promptDispatch, snapshot => snapshot.context.generation);
 
   return (
     <SessionChatRuntimeBinding
       {...props}
-      key={`${props.workspaceId}:${props.sessionId}:${runtimeGeneration}`}
+      key={`${props.workspaceId}:${props.sessionId}`}
       promptDispatch={promptDispatch}
       promptRecovery={promptRecovery}
     />

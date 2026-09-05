@@ -24,7 +24,7 @@ func (s *Session) beginPromptSetup() error {
 	if s.conversationRewindReserved {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved {
+	if s.worktreeForkReserved || s.turnStopPending {
 		return ErrPromptInProgress
 	}
 	if s.process == nil {
@@ -57,7 +57,7 @@ func (s *Session) beginExclusivePromptSetupLocked() (*AgentProcess, error) {
 	if s.conversationRewindReserved {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved {
+	if s.worktreeForkReserved || s.turnStopPending {
 		return nil, ErrPromptInProgress
 	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
@@ -82,7 +82,7 @@ func (s *Session) reserveConversationRewind() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
+	if s.turnStopPending || s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
 		s.currentTurnSource != "" || s.currentTurnID != "" {
 		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
 	}

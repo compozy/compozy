@@ -9,6 +9,7 @@ import (
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
+	SteerCapability compozyconfig.SteerCapability
 	Command         string
 	DisplayName     string
 	Models          compozyconfig.ProviderModelsConfig

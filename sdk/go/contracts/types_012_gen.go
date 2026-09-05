@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type HookSkillSource uint8
+
 type HookSource uint8
 
 type Image struct {
@@ -189,11 +191,3 @@ type InputPreSubmitPayload struct {
 	ContextBlocks  []ContextBlock            `json:"context_blocks,omitempty"`
 	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
 }
-
-type IssueSeverity string
-
-const (
-	IssueSeverityError   IssueSeverity = "error"
-	IssueSeverityWarning IssueSeverity = "warning"
-	IssueSeverityWarn    IssueSeverity = "warn"
-)

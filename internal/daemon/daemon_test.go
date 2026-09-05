@@ -1578,8 +1578,16 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 
 		registry := &recordingRegistry{path: homePaths.DatabaseFile}
 		observer := &fakeObserver{result: store.ReconcileResult{Indexed: []string{"sess-a"}}}
-		sessionManager := &fakeSessionManager{}
-		var signals []string
+		recoveryCalls := 0
+		sessionManager := &pendingStopRecoveryManager{
+			fakeSessionManager: &fakeSessionManager{
+				infos: orphanTestSessions(t, time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)),
+			},
+			recoveryHook: func(context.Context) error {
+				recoveryCalls++
+				return nil
+			},
+		}
 		d.openRegistry = func(context.Context, string) (Registry, error) {
 			return registry, nil
 		}
@@ -1589,16 +1597,6 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return observer, nil
 		}
-		d.listProcesses = func(context.Context) ([]processInfo, error) {
-			return []processInfo{{PID: 1001, PPID: 444}, {PID: 2002, PPID: 111}}, nil
-		}
-		d.orphanGraceWait = 2 * time.Millisecond
-		d.orphanPollWait = time.Millisecond
-		d.signalProcess = func(pid int, sig syscall.Signal) error {
-			signals = append(signals, sig.String()+":"+strconvString(pid))
-			return nil
-		}
-		d.processAlive = func(pid int) bool { return pid == 1001 }
 
 		if err := d.boot(testutil.Context(t)); err != nil {
 			t.Fatalf("boot() error = %v", err)
@@ -1619,8 +1617,8 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 		if !observer.reconciled {
 			t.Fatal("boot() did not call observer.Reconcile")
 		}
-		if got, want := signals, []string{"terminated:1001", "killed:1001"}; !testutil.EqualStringSlices(got, want) {
-			t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
+		if recoveryCalls != 1 {
+			t.Fatalf("boot stop recovery calls = %d, want 1", recoveryCalls)
 		}
 
 		info, err := ReadInfo(homePaths.DaemonInfo)
@@ -1631,37 +1629,6 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 			t.Fatalf("daemon info pid = %d, want %d", got, want)
 		}
 	})
-}
-
-func TestCleanupOrphansAllowsGracefulExitBeforeSIGKILL(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	d := newTestDaemon(t, homePaths, &cfg)
-
-	var (
-		signals   []string
-		aliveCall int
-	)
-	d.listProcesses = func(context.Context) ([]processInfo, error) {
-		return []processInfo{{PID: 1001, PPID: 444}}, nil
-	}
-	d.orphanGraceWait = 10 * time.Millisecond
-	d.orphanPollWait = time.Millisecond
-	d.signalProcess = func(pid int, sig syscall.Signal) error {
-		signals = append(signals, sig.String()+":"+strconvString(pid))
-		return nil
-	}
-	d.processAlive = func(_ int) bool {
-		aliveCall++
-		return aliveCall == 1
-	}
-
-	if err := d.cleanupOrphans(testutil.Context(t), 444); err != nil {
-		t.Fatalf("cleanupOrphans() error = %v", err)
-	}
-	if got, want := signals, []string{"terminated:1001"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
-	}
 }
 
 func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
@@ -4768,31 +4735,11 @@ func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
 	}
 }
 
-func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
-	d, err := New(WithLogger(discardLogger()))
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	d.listProcesses = func(context.Context) ([]processInfo, error) {
-		return nil, errors.New("ps failed")
-	}
-	if err := d.cleanupOrphans(testutil.Context(t), 1); err == nil || !strings.Contains(err.Error(), "ps failed") {
-		t.Fatalf("cleanupOrphans(list failure) error = %v, want ps failed", err)
-	}
-
-	d.listProcesses = func(context.Context) ([]processInfo, error) {
-		return []processInfo{{PID: 10, PPID: 5}}, nil
-	}
-	d.signalProcess = func(int, syscall.Signal) error {
-		return errors.New("signal failed")
-	}
-	if err := d.cleanupOrphans(testutil.Context(t), 5); err == nil || !strings.Contains(err.Error(), "signal failed") {
-		t.Fatalf("cleanupOrphans(signal failure) error = %v, want signal failed", err)
-	}
-	if err := d.cleanupOrphans(testutil.Context(t), 0); err != nil {
-		t.Fatalf("cleanupOrphans(no stale pid) error = %v", err)
-	}
+func orphanTestSessions(t *testing.T, started time.Time) []*session.Info {
+	t.Helper()
+	return []*session.Info{{ID: "sess-orphan", State: session.StateStopping, Liveness: &store.SessionLivenessMeta{
+		SubprocessPID: 1001, SubprocessStartedAt: &started,
+	}}}
 }
 
 func TestOptionsConfigureDaemon(t *testing.T) {
@@ -6073,23 +6020,6 @@ func TestResolveDaemonPortUsesReporterWhenAvailable(t *testing.T) {
 	}
 }
 
-func TestListProcessesAndSignalProcess(t *testing.T) {
-	processes, err := listProcesses(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("listProcesses() error = %v", err)
-	}
-	if len(processes) == 0 {
-		t.Fatal("listProcesses() returned no processes")
-	}
-
-	if err := procutil.Signal(os.Getpid(), syscall.Signal(0)); err != nil {
-		t.Fatalf("procutil.Signal(self, 0) error = %v", err)
-	}
-	if err := procutil.Signal(0, syscall.SIGTERM); err == nil {
-		t.Fatal("procutil.Signal(invalid pid) error = nil, want non-nil")
-	}
-}
-
 func TestProcessAliveAndRuntimeLoggerHelpers(t *testing.T) {
 	if procutil.Alive(0) {
 		t.Fatal("procutil.Alive(0) = true, want false")
@@ -7173,16 +7103,18 @@ func (f supportBundleShutdownerFunc) Shutdown(ctx context.Context) error {
 }
 
 type fakeSessionManager struct {
-	mu                sync.Mutex
-	infos             []*session.Info
-	sessionEvents     map[string][]store.SessionEvent
-	nextEventSequence int64
-	onStop            func(string)
-	stopErr           func(string) error
-	stopWithCauseErr  func(string, session.StopCause, string) error
-	requestStopErr    func(string, session.StopCause, string) error
-	createCalls       []session.CreateOpts
-	promptCalls       []struct {
+	pendingRecoveryErr error
+	listAllErr         error
+	mu                 sync.Mutex
+	infos              []*session.Info
+	sessionEvents      map[string][]store.SessionEvent
+	nextEventSequence  int64
+	onStop             func(string)
+	stopErr            func(string) error
+	stopWithCauseErr   func(string, session.StopCause, string) error
+	requestStopErr     func(string, session.StopCause, string) error
+	createCalls        []session.CreateOpts
+	promptCalls        []struct {
 		id  string
 		msg string
 	}
@@ -7385,14 +7317,16 @@ func (f *fakeSessionManager) List() []*session.Info {
 }
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
-	return f.List(), nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*session.Info(nil), f.infos...), f.listAllErr
 }
 
-func (f *fakeSessionManager) RecoverPendingInteractions(_ context.Context, sessionID string) (int, error) {
+func (f *fakeSessionManager) ExpireRestartInteractions(_ context.Context, sessionID string) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pendingRecoveryCalls = append(f.pendingRecoveryCalls, sessionID)
-	return 1, nil
+	return 1, f.pendingRecoveryErr
 }
 
 func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
@@ -7767,6 +7701,48 @@ func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversat
 func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should settle pending stops before crash inventory and stop boot on settlement failure", func(t *testing.T) {
+		t.Parallel()
+		settlementErr := errors.New("verified terminal settlement unavailable")
+		manager := &pendingStopRecoveryManager{
+			fakeSessionManager: &fakeSessionManager{listAllErr: errors.New("inventory must follow settlement")},
+			recoveryErr:        settlementErr,
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		daemon := &Daemon{}
+		if err := daemon.bootSessionRepair(testutil.Context(t), state); !errors.Is(err, settlementErr) {
+			t.Fatalf("boot bypassed pending terminal settlement: %v", err)
+		}
+	})
+
+	t.Run("Should stop boot when restart decisions cannot be expired", func(t *testing.T) {
+		t.Parallel()
+		expiryErr := errors.New("decision store unavailable")
+		manager := &fakeSessionManager{
+			pendingRecoveryErr: expiryErr,
+			infos:              []*session.Info{{ID: "sess-old", State: session.StateStopped}},
+		}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		daemon := &Daemon{}
+		if err := daemon.bootSessionRepair(t.Context(), state); !errors.Is(err, expiryErr) {
+			t.Fatalf("boot hid decision expiry failure: %v", err)
+		}
+	})
+	t.Run("Should stop boot when recovered session inventory is unavailable", func(t *testing.T) {
+		t.Parallel()
+		inventoryErr := errors.New("session catalog recovery failed")
+		manager := &fakeSessionManager{listAllErr: inventoryErr}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		daemon := &Daemon{}
+		if err := daemon.bootSessionRepair(t.Context(), state); !errors.Is(err, inventoryErr) {
+			t.Fatalf("boot accepted incomplete recovery: %v", err)
+		}
+		manager.mu.Lock()
+		defer manager.mu.Unlock()
+		if len(manager.repairCalls) != 0 || len(manager.pendingRecoveryCalls) != 0 {
+			t.Fatal("boot continued with an incomplete inventory")
+		}
+	})
 	t.Run("ShouldRepairOnlyStoppedCrashOrErrorSessions", func(t *testing.T) {
 		t.Parallel()
 
@@ -7800,6 +7776,7 @@ func TestBootSessionRepair(t *testing.T) {
 			"sess-crash",
 			"sess-error",
 			"sess-complete",
+			"sess-active",
 		}; !slices.Equal(
 			got,
 			want,
@@ -7807,6 +7784,19 @@ func TestBootSessionRepair(t *testing.T) {
 			t.Fatalf("pending recovery calls = %#v, want %#v", got, want)
 		}
 	})
+}
+
+type pendingStopRecoveryManager struct {
+	*fakeSessionManager
+	recoveryErr  error
+	recoveryHook func(context.Context) error
+}
+
+func (m *pendingStopRecoveryManager) RecoverPendingStops(ctx context.Context) error {
+	if m.recoveryHook != nil {
+		return m.recoveryHook(ctx)
+	}
+	return m.recoveryErr
 }
 
 func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {

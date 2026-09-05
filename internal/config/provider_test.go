@@ -2770,3 +2770,42 @@ func hasMCPServer(servers []MCPServer, name string) bool {
 
 	return false
 }
+
+func TestProviderSteerCapabilityConfig(t *testing.T) {
+	t.Parallel()
+	for _, value := range []SteerCapability{"", SteerCapabilityExtension, SteerCapabilityConcurrentPrompt, SteerCapabilityNone} {
+		t.Run("Should resolve steering override "+string(value), func(t *testing.T) {
+			t.Parallel()
+			cfg := Config{}
+			cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: value}}
+			provider, err := cfg.ResolveProvider("codex")
+			if err != nil {
+				t.Fatalf("ResolveProvider() error = %v", err)
+			}
+			if provider.SteerCapability != value {
+				t.Fatalf("steer capability = %q, want %q", provider.SteerCapability, value)
+			}
+		})
+	}
+	t.Run("Should reject an unknown steering mechanism at the config boundary", func(t *testing.T) {
+		t.Parallel()
+		cfg := Config{}
+		cfg.Providers = map[string]ProviderConfig{"codex": {SteerCapability: "auto"}}
+		_, err := cfg.ResolveProvider("codex")
+		if err == nil || !strings.Contains(err.Error(), "providers.codex.steer_capability") {
+			t.Fatalf("ResolveProvider() error = %v", err)
+		}
+	})
+	t.Run("Should preserve an explicit none override through TOML overlays", func(t *testing.T) {
+		t.Parallel()
+		var overlay providerOverlay
+		if _, err := toml.Decode(`steer_capability = "none"`, &overlay); err != nil {
+			t.Fatal(err)
+		}
+		provider := ProviderConfig{SteerCapability: SteerCapabilityExtension}
+		overlay.Apply(&provider)
+		if provider.SteerCapability != SteerCapabilityNone {
+			t.Fatalf("steer capability = %q", provider.SteerCapability)
+		}
+	})
+}

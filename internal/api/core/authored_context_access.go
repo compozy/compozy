@@ -87,6 +87,10 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return contract.SessionHealthPayload{}, "", false
 	}
+	payload.LifecycleState = info.State
+	payload.Verified = new(info.State == session.StateStopped)
+	payload.Escalated = new(info.StopEscalated)
+	payload.Attention = sessionStopAttention(info)
 	return payload, session.BadgeForHealth(info, health), true
 }
 

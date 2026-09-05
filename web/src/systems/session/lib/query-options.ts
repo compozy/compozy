@@ -6,6 +6,7 @@ import {
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionInputs,
+  fetchSessionInteractions,
   fetchSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
@@ -22,6 +23,7 @@ import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState, SessionsResponse } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
+import { expiredInteractionsByRequest } from "./session-pending-interactions";
 import {
   nextTranscriptPageParam,
   transcriptPageFromResponse,
@@ -34,6 +36,11 @@ import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/sy
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
+
+/** True when `queryKey` starts with every element of `scope`, element by element. */
+function queryKeyHasScope(queryKey: readonly unknown[], scope: readonly unknown[]): boolean {
+  return scope.every((element, index) => queryKey[index] === element);
+}
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 export const SESSION_OWNER_STALE_TIME_MS = 30_000;
@@ -215,6 +222,68 @@ export function sessionClarificationsOptions(workspace: string, id: string, enab
     queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal),
     staleTime: 5_000,
     enabled: !!workspace && !!id && enabled,
+  });
+}
+
+/**
+ * Decisions the daemon settled without the transcript recording an answer — today the
+ * pre-crash permission/clarification asks a daemon restart expires (`canceled`,
+ * resolution `failed-by-restart`). Read while the transcript shows an undecided ask; the
+ * live control cadence re-reads only while some undecided ask is still unknown to the
+ * settled map, so a transcript whose every open ask has a settled row keeps its cached
+ * receipts without polling, and a session with nothing undecided never asks.
+ */
+export function sessionExpiredInteractionsOptions(
+  workspace: string,
+  id: string,
+  options: { enabled?: boolean; undecidedRequestIds?: ReadonlySet<string> } = {}
+) {
+  const undecided = options.undecidedRequestIds ?? new Set<string>();
+  return queryOptions({
+    queryKey: sessionKeys.interactions(workspace, id, "canceled"),
+    queryFn: ({ signal }) =>
+      fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
+    refetchInterval: query => {
+      const rows = query.state.data;
+      if (!rows) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+      const settled = expiredInteractionsByRequest(rows);
+      for (const requestId of undecided) {
+        if (!settled.has(requestId)) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+      }
+      return false;
+    },
+    staleTime: 5_000,
+    enabled: !!workspace && !!id && (options.enabled ?? true),
+  });
+}
+
+/**
+ * Decisions the daemon applied, read for who made them: the transcript's permission
+ * part records the decision but not the actor, and only the `resolved` interaction
+ * row carries `resolved_by`. The daemon settles the row before it writes the transcript
+ * part, so one read per newly decided ask is enough: the decided request ids fence the
+ * key, a new decision re-reads once, and the previous rows stay as placeholder while
+ * the re-read is in flight. A decision without a row (pre-attention history) reads
+ * neutral rather than polling for evidence that will never arrive.
+ */
+export function sessionResolvedInteractionsOptions(
+  workspace: string,
+  id: string,
+  options: { enabled?: boolean; decidedRequestIds?: ReadonlySet<string> } = {}
+) {
+  const fence = [...(options.decidedRequestIds ?? new Set<string>())].sort();
+  const scope = sessionKeys.interactions(workspace, id, "resolved");
+  return queryOptions({
+    queryKey: [...scope, fence] as const,
+    queryFn: ({ signal }) =>
+      fetchSessionInteractions(workspace, id, { status: "resolved", signal }),
+    // Previous rows bridge only a fence change inside the same workspace/session
+    // scope. Across scopes a reused provider request id would otherwise present
+    // the previous session's actor while the new read is still in flight.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery && queryKeyHasScope(previousQuery.queryKey, scope) ? previousData : undefined,
+    staleTime: SESSION_LIVE_REFETCH_INTERVAL_MS,
+    enabled: !!workspace && !!id && (options.enabled ?? true),
   });
 }
 

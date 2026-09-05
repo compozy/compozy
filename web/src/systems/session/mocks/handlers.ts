@@ -144,7 +144,8 @@ export const handlers: HttpHandler[] = [
         attentionOnly &&
         session.badge !== "waiting-for-input" &&
         session.badge !== "waiting-for-auth" &&
-        session.badge !== "failed"
+        session.badge !== "failed" &&
+        session.badge !== "needs-attention"
       ) {
         return false;
       }
@@ -178,7 +179,8 @@ export const handlers: HttpHandler[] = [
       if (
         session.badge === "waiting-for-input" ||
         session.badge === "waiting-for-auth" ||
-        session.badge === "failed"
+        session.badge === "failed" ||
+        session.badge === "needs-attention"
       ) {
         needsYou += 1;
         totals.needs_you += 1;

@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // PendingInput is one daemon-owned operator input waiting for dispatch.
@@ -18,6 +19,7 @@ type PendingInput struct {
 	Status           string
 	Mode             BusyInputMode
 	Delivery         string
+	SteerDelivery    store.SteerDeliveryMode
 	Text             string
 	QueueGeneration  int64
 	EnqueuedAt       time.Time
@@ -73,6 +75,7 @@ type SendPromptResult struct {
 	Status                string
 	Mode                  BusyInputMode
 	Delivery              string
+	SteerDelivery         store.SteerDeliveryMode
 	MessageID             string
 	IdempotencyKey        string
 	Replayed              bool

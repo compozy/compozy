@@ -32,6 +32,10 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		return
 	}
 	response := contract.SessionStatusResponse{
+		LifecycleState:      health.LifecycleState,
+		Verified:            health.Verified,
+		Escalated:           health.Escalated,
+		Attention:           health.Attention,
 		SessionID:           health.SessionID,
 		WorkspaceID:         health.WorkspaceID,
 		AgentName:           health.AgentName,

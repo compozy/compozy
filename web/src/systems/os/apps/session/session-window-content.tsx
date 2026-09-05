@@ -13,6 +13,7 @@ import {
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
   SessionSidebar,
+  SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
   useCreateSession,
 } from "@/systems/session";
@@ -135,6 +136,11 @@ export function SessionWindowContent({
             attempt={session.runtime.recovery?.attempt}
             maxAttempts={session.runtime.recovery?.max_attempts}
           />
+        ) : controls.stopAttention !== null ? (
+          <SessionStopAttentionNotice
+            isRetrying={controls.isStopRetrying}
+            onRetry={controls.canRetryStop ? controls.handleStop : undefined}
+          />
         ) : controls.resumeFailure ? (
           <SessionResumeFailure
             agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
@@ -179,8 +185,10 @@ export function SessionWindowContent({
           onSteerPrompt={controls.handleSteerPrompt}
           isBusyInputPending={controls.isBusyInputPending}
           isSessionRunning={controls.isSessionRunning}
+          stopPhase={controls.stopPhase}
           allowBusyInput={controls.allowBusyInput}
-          busyInputFenceAvailable={Boolean(session.activity?.turn_id?.trim())}
+          busyInputDefaultMode={controls.busyInputDefaultMode}
+          busyInputSteerDelivery={controls.busyInputSteerDelivery}
           queuedPrompts={controls.queuedPrompts}
           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}

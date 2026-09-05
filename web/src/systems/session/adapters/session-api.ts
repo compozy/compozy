@@ -7,10 +7,9 @@ import type {
   SessionLedgerResponse,
   SessionEventPayload,
   SessionPayload,
-  SessionPromptPayload,
   SessionPromptRequest,
-  SessionPromptResult,
-  SessionSteerPromptRequest,
+  SessionPromptResponse,
+  SessionPromptSendResult,
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
@@ -18,6 +17,7 @@ import type {
   SetSessionRuntimeRequest,
   SessionUsagePayload,
   TurnHistoryPayload,
+  SessionStopResult,
 } from "../types";
 import {
   SessionApiError,
@@ -45,6 +45,10 @@ export {
   ClarificationNotAnswerableError,
   fetchSessionClarifications,
 } from "./session-clarification-api";
+export {
+  fetchSessionInteractions,
+  type FetchSessionInteractionsOptions,
+} from "./session-interactions-api";
 
 export type {
   ApproveSessionParams,
@@ -132,21 +136,40 @@ export async function renameSession(
   return requireResponseData(data, response, `Failed to rename session "${id}"`).session;
 }
 
+export interface StopSessionOptions {
+  signal?: AbortSignal;
+  /**
+   * Block on the shared stop manager until the ladder settles (verified or
+   * unverified). Off by default: an ordinary stop is accepted with 202 and the
+   * session read model owns the settled state.
+   */
+  wait?: boolean;
+}
+
+/**
+ * Requests a session stop. Without `wait` the daemon answers 202 once the stop
+ * is accepted (or 200 when the session is already stopped) and settles the
+ * session through the shared stop manager; with `wait` it answers 200 with the
+ * settled outcome, including an unverified one. The answer is evidence that
+ * this request settled — session state stays with the read model.
+ */
 export async function stopSession(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
-): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  options: StopSessionOptions = {}
+): Promise<SessionStopResult> {
+  const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
+      body: { wait: options.wait === true },
+      signal: options.signal,
     }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to stop session "${id}"`, id);
   }
+  return requireResponseData(data, response, `Failed to stop session "${id}"`);
 }
 
 export async function cancelSessionPrompt(
@@ -177,24 +200,46 @@ export async function cancelSessionPrompt(
   }
 }
 
+function isPromptEventStream(response: Response): boolean {
+  return (response.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
+}
+
+/**
+ * Busy-send entry point: the daemon answers a busy session with the JSON
+ * disposition envelope. When the session turned idle before admission it
+ * starts a direct turn and streams it instead; the stream is released
+ * immediately (the turn runs detached and the live tail renders it) and the
+ * caller learns the send became a direct turn.
+ */
 export async function sendSessionPrompt(
   workspaceId: string,
   id: string,
   params: SessionPromptRequest,
   signal?: AbortSignal
-): Promise<SessionPromptResult> {
+): Promise<SessionPromptSendResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
       body: params,
+      parseAs: "stream",
       signal,
     }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
-  const result = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
+  const body = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
+  if (isPromptEventStream(response)) {
+    await body?.cancel();
+    return {
+      direct_turn: true,
+      idempotency_key: params.idempotency_key,
+      message_id: params.message_id,
+    };
+  }
+  // The daemon's JSON envelope; the generated response type owns its shape.
+  const result: SessionPromptResponse = await new Response(body).json();
   if (!("prompt" in result)) {
     throw new SessionApiError(
       `Failed to send prompt to session "${id}": invalid response payload`,
@@ -203,26 +248,6 @@ export async function sendSessionPrompt(
     );
   }
   return result.prompt.goal ?? result.prompt;
-}
-
-export async function steerSessionPrompt(
-  workspaceId: string,
-  id: string,
-  params: SessionSteerPromptRequest,
-  signal?: AbortSignal
-): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      body: params,
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to steer session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to steer session "${id}"`).prompt;
 }
 
 export async function resumeSession(

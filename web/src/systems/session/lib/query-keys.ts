@@ -72,6 +72,9 @@ export const sessionKeys = {
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,
   clarifications: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "clarifications"] as const,
+  /** Restart-durable interaction records read by one explicit daemon status. */
+  interactions: (workspace: string, id: string, status: string) =>
+    [...sessionKeys.detail(workspace, id), "interactions", status] as const,
   inputQueue: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "input-queue"] as const,
   recap: (workspace: string, id: string, limit?: number) =>

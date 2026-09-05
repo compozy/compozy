@@ -47,13 +47,15 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 	cmd := newSessionPromptCobraCommand(deps, flags)
 	cmd.Flags().BoolVar(&flags.queue, "queue", false, "Queue the prompt if the session is busy")
 	cmd.Flags().BoolVar(&flags.interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
-	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Replace the fenced active turn with steering guidance")
+	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Deliver guidance into the active turn, with automatic fallback")
 	cmd.Flags().StringVar(
 		&flags.expectedTurnID,
 		"expected-turn-id",
 		"",
 		"Active turn id that this steer or interrupt request must match",
 	)
+	cmd.Flags().StringVar(&flags.expectedTurnID, "expected-turn", "", "Optional strict active turn fence")
+	mustMarkFlagHidden(cmd, "expected-turn-id")
 	cmd.Flags().StringVar(&flags.messageID, "message-id", "", "Stable authored message id for an explicit retry")
 	cmd.Flags().StringVar(
 		&flags.idempotencyKey,
@@ -107,12 +109,12 @@ func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []
 	if modeCount > 1 {
 		return errors.New("cli: choose only one of --queue, --interrupt, or --steer")
 	}
-	if flags.steer || flags.interrupt {
-		if _, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID); err != nil {
-			return err
-		}
-	} else if cmd.Flags().Changed("expected-turn-id") {
-		return errors.New("cli: --expected-turn-id applies only to --steer or --interrupt")
+	if err := warnExpectedTurnAlias(cmd); err != nil {
+		return err
+	}
+	if (cmd.Flags().Changed("expected-turn") || cmd.Flags().Changed("expected-turn-id")) &&
+		strings.TrimSpace(flags.expectedTurnID) == "" {
+		return errors.New("cli: --expected-turn must not be blank")
 	}
 	if len(args) != 2 {
 		return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
@@ -163,6 +165,7 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 	}
 	return streamPromptEventsJSONL(cmd, client, args[0], SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
+		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
 	})
 }
 
@@ -184,27 +187,20 @@ func runSessionPromptAction(
 		return SessionPromptRecord{}, err
 	}
 	if flags.steer {
-		expectedTurnID, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID)
-		if err != nil {
-			return SessionPromptRecord{}, err
-		}
 		return client.SteerSessionPrompt(cmd.Context(), args[0], contract.SteerPromptRequest{
-			Text: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, ExpectedTurnID: expectedTurnID,
+			Text: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey,
+			ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
 		})
 	}
 	request := SessionPromptRequest{
 		Message: args[1], MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
+		ExpectedTurnID: strings.TrimSpace(flags.expectedTurnID),
 	}
 	if flags.queue {
 		request.Mode = contract.PromptModeQueue
 	}
 	if flags.interrupt {
 		request.Mode = contract.PromptModeInterrupt
-		expectedTurnID, err := changedNonEmptyStringFlag(cmd, "expected-turn-id", flags.expectedTurnID)
-		if err != nil {
-			return SessionPromptRecord{}, err
-		}
-		request.ExpectedTurnID = expectedTurnID
 	}
 	return client.SendSessionPrompt(cmd.Context(), args[0], request)
 }

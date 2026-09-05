@@ -18,6 +18,54 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
+	t.Run("Should preserve the resolved steer delivery through queue leasing", func(t *testing.T) {
+		t.Parallel()
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
+			t.Run("Should round trip "+string(delivery), func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				db := openTestGlobalDB(t)
+				sessionID := registerInputQueueSession(t, db)
+				now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+				entry, err := db.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+					ID: "steer-delivery", SessionID: sessionID, TargetTurnID: "active-turn", Text: "change direction",
+					SteerDelivery: delivery, QueueCap: 10, Now: now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if entry.SteerDelivery != delivery {
+					t.Fatalf("inserted delivery = %q, want %q", entry.SteerDelivery, delivery)
+				}
+				claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+				if err != nil || !ok {
+					t.Fatalf("ClaimNextSessionInput() = %v, %v", ok, err)
+				}
+				if claimed.SteerDelivery != delivery {
+					t.Fatalf("claimed delivery = %q, want %q", claimed.SteerDelivery, delivery)
+				}
+			})
+		}
+	})
+	t.Run("Should reject internal unsupported delivery before persisting a steer", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		_, err := db.StageSessionSteer(t.Context(), store.SessionInputQueueInsert{
+			ID: "unsupported-steer", SessionID: sessionID, Text: "change direction", SteerDelivery: "unsupported",
+			QueueCap: 10, Now: time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
+		})
+		if err == nil || !strings.Contains(err.Error(), "invalid steer delivery") {
+			t.Fatalf("StageSessionSteer() error = %v", err)
+		}
+		entries, err := db.ListPendingSessionInputs(t.Context(), sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("persisted rejected steer: %#v", entries)
+		}
+	})
 	t.Run("Should preserve the runtime snapshot through queue leasing", func(t *testing.T) {
 		t.Parallel()
 
@@ -261,6 +309,24 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(new) error = %v", err)
 		}
+		if _, ok, err := globalDB.ReserveSessionSteer(
+			ctx,
+			sessionID,
+			"steer-new",
+			now.Add(2*time.Second),
+		); err != nil ||
+			!ok {
+			t.Fatalf("ReserveSessionSteer(new) = %v, %v", ok, err)
+		}
+		if _, err := globalDB.ResolveSessionSteer(
+			ctx,
+			sessionID,
+			"steer-new",
+			store.SteerDeliveryInterruptFallback,
+			now.Add(2*time.Second),
+		); err != nil {
+			t.Fatalf("ResolveSessionSteer(new) error = %v", err)
+		}
 		queued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
 			ID:                "queue-after-steer",
 			SessionID:         sessionID,
@@ -316,7 +382,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("StageSessionSteer(dispatching) error = %v", err)
 		}
-		leased, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		leased, ok, err := globalDB.ReserveSessionSteer(ctx, sessionID, "steer-dispatching", now.Add(time.Second))
 		if err != nil {
 			t.Fatalf("ClaimNextSessionInput() error = %v", err)
 		}
@@ -652,6 +718,7 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			"turn_id",
 			"event_id",
 			"attachments_json",
+			"steer_delivery",
 		})
 		assertTableHasColumns(t, globalDB.db, "session_prompt_admissions", []string{
 			"attachments_json",
@@ -861,6 +928,9 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high", Speed: "fast",
 		}); !reflect.DeepEqual(got, want) {
 			t.Fatalf("migrated queue runtime = %#v, want %#v", got, want)
+		}
+		if entry.SteerDelivery != "" {
+			t.Fatalf("pre-steering row delivery = %q, want unset", entry.SteerDelivery)
 		}
 		if entry.PromptAdmissionID != admissionID || entry.MessageID != "message-before-00094" ||
 			entry.IdempotencyKey != "idem-before-00094" || entry.TurnID != "turn-before-00094" ||
@@ -1221,6 +1291,154 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 }
 
 func TestGlobalDBSessionPromptAdmission(t *testing.T) {
+	t.Run("Should settle pending steer once without changing its acceptance receipt", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name     string
+			delivery store.SteerDeliveryMode
+			stale    bool
+		}{
+			{"Should record successful injection", store.SteerDeliveryInjected, false},
+			{"Should release fallback once", store.SteerDeliveryInterruptFallback, false},
+			{"Should fence late failure from an older generation", store.SteerDeliveryInterruptFallback, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				delivery := tc.delivery
+				t.Parallel()
+				ctx := t.Context()
+				db := openTestGlobalDB(t)
+				sessionID := registerInputQueueSession(t, db)
+				now := time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)
+				req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "late-steer", now)
+				req.Mode = store.SessionInputQueueModeSteer
+				_, entry, _, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{
+					ID: "late-steer", SessionID: sessionID, Text: "change direction", TargetTurnID: "original-turn",
+					Delivery: store.SessionInputDeliveryInterruptThenPrompt, QueueCap: 10, Now: now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, ok, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now); err != nil || !ok {
+					t.Fatalf("reserve=%v/%v", ok, err)
+				}
+				if _, err := db.ResolveSessionSteer(
+					ctx,
+					sessionID,
+					entry.ID,
+					store.SteerDeliveryPendingInjection,
+					now,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if tc.stale {
+					if _, err := db.AdvanceSessionInputGeneration(ctx, sessionID, now); err != nil {
+						t.Fatal(err)
+					}
+				}
+				settled, changed, err := db.SettlePendingSessionSteer(
+					ctx,
+					sessionID,
+					entry.ID,
+					delivery,
+					now.Add(time.Second),
+				)
+				if err != nil || changed == tc.stale || (!tc.stale && settled.SteerDelivery != delivery) {
+					t.Fatalf("settle=%#v/%v/%v", settled, changed, err)
+				}
+				if _, changed, err := db.SettlePendingSessionSteer(
+					ctx,
+					sessionID,
+					entry.ID,
+					delivery,
+					now.Add(2*time.Second),
+				); err != nil ||
+					changed {
+					t.Fatalf("duplicate settlement=%v/%v", changed, err)
+				}
+				claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(3*time.Second))
+				wantDispatch := !tc.stale && delivery == store.SteerDeliveryInterruptFallback
+				if err != nil || ok != wantDispatch || (ok && claimed.ID != entry.ID) {
+					t.Fatalf("dispatch=%#v/%v/%v", claimed, ok, err)
+				}
+				receipt, found, err := db.ReplaySessionPromptAdmission(ctx, req)
+				if err != nil || !found || receipt.Result == nil ||
+					receipt.Result.SteerDelivery != store.SteerDeliveryPendingInjection {
+					t.Fatalf("acceptance changed=%#v/%v/%v", receipt, found, err)
+				}
+			})
+		}
+	})
+	t.Run("Should reserve steering once and replay its resolved delivery atomically", func(t *testing.T) {
+		t.Parallel()
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
+			t.Run("Should resolve "+string(delivery), func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				db := openTestGlobalDB(t)
+				sessionID := registerInputQueueSession(t, db)
+				now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+				req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "steer-reservation", now)
+				req.Mode = store.SessionInputQueueModeSteer
+				_, entry, _, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{
+					ID: "reserved-steer", SessionID: sessionID, Text: "change direction", TargetTurnID: "original-turn",
+					Delivery: store.SessionInputDeliveryInterruptThenPrompt, QueueCap: 10, Now: now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, premature, err := db.ClaimNextSessionInput(ctx, sessionID, now)
+				if err != nil || premature {
+					t.Fatalf("queue claimed steering before delivery resolution: claimed=%v error=%v", premature, err)
+				}
+				reserved, ok, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(time.Second))
+				if err != nil || !ok || reserved.Status != store.SessionInputQueueStatusDispatching {
+					t.Fatalf("ReserveSessionSteer() = %#v, %v, %v", reserved, ok, err)
+				}
+				_, second, err := db.ReserveSessionSteer(ctx, sessionID, entry.ID, now.Add(2*time.Second))
+				if err != nil || second {
+					t.Fatalf("duplicate ReserveSessionSteer() = %v, %v", second, err)
+				}
+				_, dispatched, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+				if err != nil || dispatched {
+					t.Fatalf("queue claimed a reserved steer: %v, %v", dispatched, err)
+				}
+				_, _, err = db.ClaimSessionPromptAdmission(ctx, req)
+				if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+					t.Fatalf("in-flight replay = %v", err)
+				}
+				resolved, err := db.ResolveSessionSteer(ctx, sessionID, entry.ID, delivery, now.Add(3*time.Second))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resolved.SteerDelivery != delivery {
+					t.Fatalf("resolved delivery = %q", resolved.SteerDelivery)
+				}
+				if delivery == store.SteerDeliveryInterruptFallback {
+					if resolved.Status != store.SessionInputQueueStatusQueued {
+						t.Fatalf("fallback status = %q", resolved.Status)
+					}
+					claimed, ok, claimErr := db.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
+					if claimErr != nil || !ok || claimed.ID != entry.ID {
+						t.Fatalf(
+							"resolved fallback must dispatch: entry=%#v claimed=%v error=%v",
+							claimed,
+							ok,
+							claimErr,
+						)
+					}
+				} else if resolved.Status != store.SessionInputQueueStatusSent || resolved.TurnID != "original-turn" {
+					t.Fatalf("injected input lost its original turn: %#v", resolved)
+				}
+				replay, found, err := db.ReplaySessionPromptAdmission(ctx, req)
+				if err != nil || !found || replay.Result == nil {
+					t.Fatalf("ReplaySessionPromptAdmission() = %#v, %v, %v", replay, found, err)
+				}
+				if replay.Result.SteerDelivery != delivery || replay.Result.PreviousTurnID != "original-turn" {
+					t.Fatalf("replayed steer = %#v", replay.Result)
+				}
+			})
+		}
+	})
 	t.Run("Should preserve the legacy queue terminal path without an admission receipt", func(t *testing.T) {
 		t.Parallel()
 
@@ -1425,19 +1643,19 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StageAdmittedSessionSteer() error = %v", err)
 		}
-		consumed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		consumed, ok, err := globalDB.ReserveSessionSteer(ctx, sessionID, staged.ID, now.Add(time.Second))
 		if err != nil {
-			t.Fatalf("ClaimNextSessionInput(first) error = %v", err)
+			t.Fatalf("ReserveSessionSteer(first) error = %v", err)
 		}
 		if !ok || consumed.ID != staged.ID || consumed.Status != store.SessionInputQueueStatusDispatching {
-			t.Fatalf("ClaimNextSessionInput(first) = %#v/%v, want dispatching %q", consumed, ok, staged.ID)
+			t.Fatalf("ReserveSessionSteer(first) = %#v/%v, want dispatching %q", consumed, ok, staged.ID)
 		}
-		_, ok, err = globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+		_, ok, err = globalDB.ReserveSessionSteer(ctx, sessionID, staged.ID, now.Add(2*time.Second))
 		if err != nil {
-			t.Fatalf("ClaimNextSessionInput(second) error = %v", err)
+			t.Fatalf("ReserveSessionSteer(second) error = %v", err)
 		}
 		if ok {
-			t.Fatal("ClaimNextSessionInput(second) ok = true, want false while lease is active")
+			t.Fatal("ReserveSessionSteer(second) ok = true, want false while lease is active")
 		}
 		_, _, err = globalDB.ClaimSessionPromptAdmission(ctx, admissionReq)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
@@ -1634,6 +1852,10 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			t.Fatalf("StageAdmittedSessionSteer(second) = created %v, error %v", created, err)
 		}
 
+		if len(secondEntry.SupersededIDs) != 1 || secondEntry.SupersededIDs[0] != firstEntry.ID {
+			t.Fatalf("superseded steering identities = %v, want [%s]", secondEntry.SupersededIDs, firstEntry.ID)
+		}
+
 		_, replayedEntry, created, err := globalDB.StageAdmittedSessionSteer(
 			ctx,
 			firstAdmission,
@@ -1647,12 +1869,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			replayedEntry.Status != store.SessionInputQueueStatusCanceled {
 			t.Fatalf("replayed entry = %#v, created=%v", replayedEntry, created)
 		}
-		consumed, ok, err := globalDB.PeekNextSessionInput(ctx, sessionID)
-		if err != nil {
-			t.Fatalf("PeekNextSessionInput() error = %v", err)
-		}
-		if !ok || consumed.ID != secondEntry.ID {
-			t.Fatalf("PeekNextSessionInput() = %#v/%v, want %q", consumed, ok, secondEntry.ID)
+		pending, err := globalDB.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil || len(pending) != 1 || pending[0].ID != secondEntry.ID || pending[0].Dispatchable {
+			t.Fatalf("pending steering = %#v, error=%v; want only unresolved %q", pending, err, secondEntry.ID)
 		}
 	})
 

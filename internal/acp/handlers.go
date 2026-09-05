@@ -253,7 +253,7 @@ func (p *AgentProcess) handleRequestPermission(
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "timeout", raw,
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	case <-ctx.Done():

@@ -109,7 +109,7 @@ func (s *service) putProvider(
 		return MutationResult{}, err
 	}
 	settings = reconciledSettings
-	settings, err = s.preserveProviderAuthLoginCommand(ctx, name, settings)
+	settings, err = s.preserveProviderOptionalFields(ctx, name, settings)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -167,12 +167,12 @@ func (s *service) putProvider(
 	), nil
 }
 
-func (s *service) preserveProviderAuthLoginCommand(
+func (s *service) preserveProviderOptionalFields(
 	ctx context.Context,
 	name string,
 	settings ProviderSettings,
 ) (ProviderSettings, error) {
-	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
+	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") && settings.SteerCapability != "" {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -183,7 +183,12 @@ func (s *service) preserveProviderAuthLoginCommand(
 	if !ok {
 		return settings, nil
 	}
-	settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
+	if !settings.AuthLoginCmdSet && strings.TrimSpace(settings.AuthLoginCmd) == "" {
+		settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
+	}
+	if settings.SteerCapability == "" {
+		settings.SteerCapability = provider.SteerCapability
+	}
 	return settings, nil
 }
 
@@ -242,6 +247,7 @@ func (s *service) prepareProviderSecretWrites(
 func providerConfigFromSettings(settings ProviderSettings) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
 		Command:         strings.TrimSpace(settings.Command),
+		SteerCapability: settings.SteerCapability,
 		DisplayName:     strings.TrimSpace(settings.DisplayName),
 		Models:          providerModelsConfigFromSettings(settings.Models),
 		Harness:         settings.Harness,

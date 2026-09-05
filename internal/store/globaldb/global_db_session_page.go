@@ -25,7 +25,7 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
-	state, archived_at, acp_session_id, stop_reason, stop_detail,
+	state, archived_at, acp_session_id, stop_reason, stop_escalated, stop_verification_failed, stop_detail,
 	failure_kind, failure_summary, crash_bundle_path,
 	subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 	activity_json, attached_to, attach_expires_at, transcript_epoch,

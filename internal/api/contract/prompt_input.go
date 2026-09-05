@@ -21,9 +21,6 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 
 // ExtractPromptInputWithAttachmentLimit validates prompt input against the effective attachment limit.
 func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments int) (PromptInput, error) {
-	if err := req.ValidateBusyInputFence(); err != nil {
-		return PromptInput{}, err
-	}
 	messageID := strings.TrimSpace(req.MessageID)
 	if messageID == "" {
 		return PromptInput{}, errors.New("message_id is required")
@@ -73,17 +70,6 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 	return PromptInput{}, errors.New("latest user message is required")
 }
 
-// ValidateBusyInputFence requires stale-action protection for commands that replace an active turn.
-func (r SendPromptRequest) ValidateBusyInputFence() error {
-	switch r.Mode {
-	case PromptModeSteer, PromptModeInterrupt:
-		if strings.TrimSpace(r.ExpectedTurnID) == "" {
-			return errors.New("expected_turn_id is required")
-		}
-	}
-	return nil
-}
-
 func promptUIMessageText(message PromptUIMessage) string {
 	if content := strings.TrimSpace(message.Content); content != "" {
 		return content
@@ -112,9 +98,6 @@ func (r SteerPromptRequest) Validate() error {
 	if strings.TrimSpace(r.IdempotencyKey) == "" {
 		return errors.New("idempotency_key is required")
 	}
-	if strings.TrimSpace(r.ExpectedTurnID) == "" {
-		return errors.New("expected_turn_id is required")
-	}
 	return nil
 }
 
@@ -127,9 +110,6 @@ func (r ReplaceSessionInputRequest) Validate() error {
 func (r PromoteSessionInputRequest) Validate() error {
 	if err := validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey); err != nil {
 		return err
-	}
-	if strings.TrimSpace(r.ExpectedTurnID) == "" {
-		return errors.New("expected_turn_id is required")
 	}
 	return nil
 }

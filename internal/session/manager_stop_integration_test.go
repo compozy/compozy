@@ -4,11 +4,13 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -41,6 +43,12 @@ func TestSessionStopACPHelperProcess(t *testing.T) {
 		return
 	}
 
+	if path := os.Getenv("COMPOZY_TEST_STUBBORN_PROMPTS"); path != "" {
+		signal.Ignore(syscall.SIGTERM)
+		conn := acpsdk.NewAgentSideConnection(stubbornSessionACPAgent{path: path}, os.Stdout, os.Stdin)
+		<-conn.Done()
+		select {} // This fixture requires verified process killing even after stdin closes.
+	}
 	conn := acpsdk.NewAgentSideConnection(sessionStopACPAgent{}, os.Stdout, os.Stdin)
 	<-conn.Done()
 	os.Exit(0)
@@ -884,4 +892,138 @@ func (sessionStopACPAgent) SetSessionConfigOption(
 	acpsdk.SetSessionConfigOptionRequest,
 ) (acpsdk.SetSessionConfigOptionResponse, error) {
 	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
+}
+
+// stubbornSessionACPAgent blocks only the first durable prompt across process restarts.
+// Routing uses the admission count, independent of rendered prompt text.
+type stubbornSessionACPAgent struct {
+	sessionStopACPAgent
+	path string
+}
+
+type stubbornSessionPrompt struct {
+	PID  int    `json:"pid"`
+	Text string `json:"text"`
+}
+
+func (a stubbornSessionACPAgent) Prompt(ctx context.Context, req acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
+	file, err := os.OpenFile(a.path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o600)
+	if err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return acpsdk.PromptResponse{}, errors.Join(err, file.Close())
+	}
+	var text strings.Builder
+	for _, block := range req.Prompt {
+		if block.Text != nil {
+			text.WriteString(block.Text.Text)
+		}
+	}
+	err = json.NewEncoder(file).Encode(stubbornSessionPrompt{PID: os.Getpid(), Text: text.String()})
+	if err := errors.Join(err, file.Close()); err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
+	if info.Size() == 0 {
+		<-ctx.Done()
+		return acpsdk.PromptResponse{}, ctx.Err()
+	}
+	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
+}
+
+func TestManagerIntegrationSteerFallback(t *testing.T) {
+	t.Run("Should escalate an ignored cancellation and rebind before ordered replacement dispatch", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "prompts.jsonl")
+		command := shellquote.Join("env", "COMPOZY_TEST_STUBBORN_PROMPTS="+path) + " " + sessionStopHelperCommand(t)
+		h := newRealACPIntegrationHarness(t, command)
+		queue := openManagerInputQueueStore(t)
+		h.manager = newManagerWithHarness(t, h, WithDriver(h.manager.driver), WithSessionInputQueueStore(queue),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}))
+		registerManagerInputQueueWorkspace(t, queue, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queue, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), sess.ID); err != nil {
+				t.Errorf("cleanup Stop: %v", err)
+			}
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		active, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "active prompt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := waitForStubbornSessionPrompts(ctx, t, path, 1)
+		turnID := sess.CurrentTurnID()
+		if _, err := h.manager.SendPrompt(
+			ctx,
+			sess.ID,
+			SendPromptOpts{Message: "queued later", Mode: BusyInputModeQueue},
+		); err != nil {
+			t.Fatal(err)
+		}
+		result, err := h.manager.SendPrompt(
+			ctx,
+			sess.ID,
+			SendPromptOpts{Message: "change direction", Mode: BusyInputModeSteer},
+		)
+		if err != nil || result.SteerDelivery != store.SteerDeliveryInterruptFallback {
+			t.Fatalf("fallback = %#v, %v", result, err)
+		}
+		outcome, err := h.manager.AwaitTurnQuiesced(ctx, sess.ID, turnID)
+		if err != nil || !outcome.Quiesced || !outcome.Escalated {
+			t.Fatalf("cancel outcome = %#v, %v", outcome, err)
+		}
+		prompts := waitForStubbornSessionPrompts(ctx, t, path, 3)
+		collectEvents(t, active.Events)
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if len(prompts) != 3 || !promptRequestEndsWith(prompts[1].Text, "change direction") ||
+			!promptRequestEndsWith(prompts[2].Text, "queued later") {
+			t.Fatalf("prompt order = %#v", prompts)
+		}
+		if prompts[1].PID == first[0].PID || prompts[2].PID != prompts[1].PID {
+			t.Fatalf("process rebind = %#v", prompts)
+		}
+		waitForSessionStopProcessExit(t, first[0].PID, time.Second)
+		if sess.Info().State != StateActive || sess.IsPrompting() {
+			t.Fatalf("session after replacement = %#v", sess.Info())
+		}
+		if got := readMeta(t, sess.MetaPath()).State; got != string(StateActive) {
+			t.Fatalf("persisted state = %s", got)
+		}
+	})
+}
+
+func waitForStubbornSessionPrompts(ctx context.Context, t *testing.T, path string, count int) []stubbornSessionPrompt {
+	t.Helper()
+	for {
+		data, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		var prompts []stubbornSessionPrompt
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if line == "" {
+				continue
+			}
+			var prompt stubbornSessionPrompt
+			if err := json.Unmarshal([]byte(line), &prompt); err != nil {
+				break
+			} // Writer may still be appending the final line.
+			prompts = append(prompts, prompt)
+		}
+		if len(prompts) >= count {
+			return prompts
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("waiting for %d subprocess prompts: got %d: %v", count, len(prompts), ctx.Err())
+			return nil
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 }

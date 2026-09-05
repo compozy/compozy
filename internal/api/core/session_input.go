@@ -107,6 +107,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 		IdempotencyKey: input.IdempotencyKey, TargetTurnID: input.TargetTurnID,
 		Status: input.Status, Mode: contract.PromptMode(input.Mode),
 		Delivery: contract.PromptDelivery(input.Delivery), Text: input.Text,
+		SteerDelivery:   input.SteerDelivery,
 		QueueGeneration: input.QueueGeneration, EnqueuedAt: input.EnqueuedAt,
 	}
 	if input.Runtime != nil {

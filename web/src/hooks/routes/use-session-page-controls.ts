@@ -1,10 +1,13 @@
+import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
 import { useAui, useAuiState } from "@assistant-ui/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
   cancelSessionPrompt,
+  invalidateSessionMutationQueries,
   useClearSessionConversation,
   useDeleteSession,
   useRenameSession,
@@ -14,12 +17,17 @@ import {
   canPromptSession,
   isSessionRunning,
   isUserControllableSession,
+  sessionBusyInputDefaultMode,
+  sessionSteerDelivery,
+  sessionStopAttention,
   useUnarchiveSession,
   type SessionPayload,
   type SessionPromptRuntimeSnapshot,
 } from "@/systems/session";
 import {
   createSessionPageControlsLogic,
+  isStopRequestActive,
+  isStopRetryPending,
   type ResumeProviderUnavailableDetail,
   type SessionResumeFailure,
 } from "./session-page-controls-store";
@@ -39,6 +47,7 @@ export function useSessionPageControls(
   options: UseSessionPageControlsOptions = {}
 ) {
   const aui = useAui();
+  const queryClient = useQueryClient();
   const workspaceId = options.workspaceId ?? "";
   const onDeleteSuccess = options.onDeleteSuccess;
   const getRuntimeSnapshot = options.getRuntimeSnapshot;
@@ -70,6 +79,16 @@ export function useSessionPageControls(
     createSessionPageControlsLogic().createStore()
   );
   const controlsState = useSelector(store, snapshot => snapshot.context);
+  const sessionState = session.state;
+  // The daemon's lifecycle is the only thing that settles an accepted stop:
+  // every poll or invalidation result enters the store as evidence.
+  useEffect(() => {
+    store.trigger.lifecycleObserved({
+      running: daemonRunning,
+      state: sessionState,
+      turnId: activeTurnId,
+    });
+  }, [activeTurnId, daemonRunning, sessionState, store]);
   const busyInput = useSessionBusyInputControls({
     activeTurnId,
     getRuntimeSnapshot,
@@ -84,12 +103,31 @@ export function useSessionPageControls(
     }
 
     store.trigger.stopRequested({
-      execute: () => cancelSessionPrompt(workspaceId, sessionId),
+      execute: async () => {
+        await cancelSessionPrompt(workspaceId, sessionId);
+        // The request's outcome is its acceptance. The reread that carries the
+        // lifecycle evidence belongs to TanStack Query: a refetch failure lands
+        // in query state and is logged, never on the accepted stop.
+        invalidateSessionMutationQueries(queryClient, workspaceId, sessionId).catch(error => {
+          console.error("Failed to reread the session after cancelling its prompt", error);
+        });
+      },
       failureMessage: "Failed to stop the current prompt.",
+      scope: "turn",
+      turnId: activeTurnId,
     });
   };
 
-  const isStopping = controlsState.stop.phase === "pending";
+  const stopRequestActive = isStopRequestActive(controlsState);
+  // Stopping reads true from the first activation until the daemon confirms
+  // the stop landed; a session the daemon itself reports as `stopping` reads
+  // the same way even when no request of ours is in flight (US-009.AC-1/AC-3).
+  const isStopping = stopRequestActive || sessionState === "stopping";
+  // The daemon could not verify the stop: the session stays `stopping` and
+  // carries the attention until the daemon reads `stopped`. Neither
+  // acceptance, escalation, nor time clears it here — the read model does.
+  const stopAttention = sessionStopAttention(session);
+  const isStopRetrying = isStopRetryPending(controlsState);
   const isResuming = controlsState.resume.phase === "pending";
   const isUnarchiving = unarchiveMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -97,7 +135,7 @@ export function useSessionPageControls(
   const isClearing = clearMutation.isPending;
   const busyInputPending = busyInput.pending;
   const controlsBusy =
-    isStopping ||
+    stopRequestActive ||
     isResuming ||
     isUnarchiving ||
     isDeleting ||
@@ -107,14 +145,22 @@ export function useSessionPageControls(
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = userControllable && hasConversationContent && !controlsBusy && !effectiveRunning;
 
+  // Stop and its retry are one action with one owner. A retry of an
+  // unverified stop is the same session stop, waited on (`wait: true`) so the
+  // request resolves with the daemon's settled answer; that answer only says
+  // this request settled — the session read model still owns the truth.
   const handleStop = () => {
     if (controlsBusy || !userControllable) {
       return;
     }
 
+    const retry = stopAttention !== null;
     store.trigger.stopRequested({
-      execute: () => stopMutation.mutateAsync(sessionId),
+      execute: () => stopMutation.mutateAsync({ id: sessionId, wait: retry }),
       failureMessage: null,
+      retry,
+      scope: "session",
+      turnId: activeTurnId,
     });
   };
 
@@ -190,7 +236,10 @@ export function useSessionPageControls(
   return {
     canClear,
     canPrompt,
+    canRetryStop: userControllable,
     allowBusyInput: canPrompt,
+    busyInputDefaultMode: sessionBusyInputDefaultMode(session),
+    busyInputSteerDelivery: sessionSteerDelivery(session),
     handleCancelPrompt,
     handleClear,
     handleDismissResumeFailure,
@@ -211,10 +260,13 @@ export function useSessionPageControls(
     isRenaming,
     isResuming,
     isSessionRunning: daemonRunning,
+    isStopRetrying,
     isStopping,
     isUnarchiving,
     messages,
     queuedPrompts: busyInput.queuedPrompts,
     resumeFailure: controlsState.resume.failure,
+    stopAttention,
+    stopPhase: isStopping ? ("stopping" as const) : ("idle" as const),
   };
 }

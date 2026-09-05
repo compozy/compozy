@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type TerminalCommandStartedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	CommandID   string    `json:"command_id"`
+	Command     string    `json:"command"`
+	Cwd         string    `json:"cwd"`
+	DetectedBy  string    `json:"detected_by"`
+}
+
+type TerminalExit struct {
+	Cause  string  `json:"cause"`
+	Code   *int    `json:"code,omitempty"`
+	Signal *string `json:"signal,omitempty"`
+}
+
 type TerminalInputProvidedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -298,13 +322,3 @@ type ToolResult struct {
 	DurationMS int64                      `json:"duration_ms"`
 	Trust      ResultTrust                `json:"trust,omitempty"`
 }
-
-type ToolResultPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	ToolResult json.RawMessage `json:"tool_result,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-}
-
-type ToolsetID string

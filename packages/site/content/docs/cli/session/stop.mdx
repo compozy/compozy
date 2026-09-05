@@ -14,14 +14,18 @@ compozy session stop <id> [flags]
 ### Examples
 
 ```
-  # Stop a running session
+  # Request a stop without waiting for termination
   compozy session stop sess_1234
+
+  # Wait for the verified result or attention diagnostic
+  compozy session stop sess_1234 --wait -o json
 ```
 
 ### Options
 
 ```
   -h, --help   help for stop
+      --wait   Wait for verified termination or a verification failure
 ```
 
 ### Options inherited from parent commands

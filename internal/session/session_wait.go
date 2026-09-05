@@ -64,6 +64,7 @@ var waitBadgeVocabulary = []Badge{
 	BadgeFailed,
 	BadgeHung,
 	BadgeUnhealthy,
+	BadgeNeedsAttention,
 }
 
 var defaultWaitBadges = []Badge{

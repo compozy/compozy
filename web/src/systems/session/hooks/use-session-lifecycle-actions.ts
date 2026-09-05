@@ -75,7 +75,7 @@ export function useSessionLifecycleActions(
     pendingSessionId = rename.variables.id;
   } else if (stop.isPending) {
     pendingAction = "stop";
-    pendingSessionId = stop.variables;
+    pendingSessionId = stop.variables.id;
   } else if (archive.isPending) {
     pendingAction = "archive";
     pendingSessionId = archive.variables;
@@ -120,7 +120,7 @@ export function useSessionLifecycleActions(
         if (!rename.isPending) setRenameTarget(session);
       },
       onStop: session =>
-        stop.mutate(session.id, { onError: error => reportActionError("stop", error) }),
+        stop.mutate({ id: session.id }, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
         archive.mutate(session.id, { onError: error => reportActionError("archive", error) }),
       onUnarchive: session =>

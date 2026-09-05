@@ -73,7 +73,7 @@ is rejected instead of crossing catalog boundaries. See the generated
 ## Find sessions that need attention
 
 Session badges come from one daemon-owned precedence order. `waiting-for-auth`,
-`waiting-for-input`, and `failed` mean the session needs you. `done` means a turn settled while no
+`waiting-for-input`, `failed`, and `needs-attention` mean the session needs you. A stop verification failure remains nonterminal with `attention: "stop_verification_failed"` until a verified retry succeeds. `done` means a turn settled while no
 operator client was visibly focused on the session, and the result has not been seen yet. Starting a
 new turn or entering a terminal lifecycle state outranks `done`; reading a session through the CLI or
 API never clears it.

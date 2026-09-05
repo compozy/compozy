@@ -7,10 +7,12 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
+import { isLiveSessionState } from "../lib/query-options";
 import type {
   OperatorNotificationEventPayload,
   SessionAttentionEventPayload,
   SessionCatalogEventPayload,
+  SessionPayload,
 } from "../types";
 import {
   sessionCatalogStreamsLogic,
@@ -94,6 +96,33 @@ function invalidateGlobalSessionViews(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
 }
 
+/**
+ * Re-reads the session detail, then wakes a stopped session's mounted transcript.
+ *
+ * A catalog upsert is the only signal for a transcript entry appended after the
+ * session stopped (the post-stop discard marker): the transcript stream has already
+ * ended on the terminal frame and a stopped session never polls. The decision is
+ * taken from the authoritative detail read, never from the cached state — the wake
+ * can arrive while the cache still says active/stopping although the daemon has
+ * already stopped — so the transcript is re-read only after the detail invalidation
+ * settles as non-live. Live sessions keep the live tail as the transcript's sole
+ * owner, and an unknown state is left to the live tail's own detail read.
+ */
+async function refreshSessionDetail(
+  queryClient: QueryClient,
+  payload: SessionCatalogEventPayload
+): Promise<void> {
+  const detailKey = sessionKeys.detail(payload.workspace_id, payload.session_id);
+  await queryClient.invalidateQueries({ queryKey: detailKey, exact: true });
+  if (payload.kind !== "upserted") return;
+  const state = queryClient.getQueryData<SessionPayload>(detailKey)?.state;
+  if (state === undefined || isLiveSessionState(state)) return;
+  await queryClient.invalidateQueries({
+    queryKey: sessionKeys.transcript(payload.workspace_id, payload.session_id),
+    exact: true,
+  });
+}
+
 function openSessionCatalogStream(
   queryClient: QueryClient,
   eventSourceFactory: SessionCatalogEventSourceFactory,
@@ -112,10 +141,7 @@ function openSessionCatalogStream(
     void queryClient.invalidateQueries({
       queryKey: sessionKeys.workspaceLists(payload.workspace_id),
     });
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.detail(payload.workspace_id, payload.session_id),
-      exact: true,
-    });
+    void refreshSessionDetail(queryClient, payload);
     // Same session, whichever lens is holding it open.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
     invalidateGlobalSessionViews(queryClient);

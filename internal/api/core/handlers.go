@@ -234,6 +234,19 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
+	var req contract.StopSessionRequest
+	if err := decodeOptionalJSONBody(c, &req); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if req.Wait != nil {
+		h.stopSessionWithResult(c, info, *req.Wait)
+		return
+	}
+	c.Header(
+		"Warning",
+		`299 compozy "Bodyless stop is deprecated; send {wait:false} or {wait:true}; removed in v0.5.0"`,
+	)
 	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

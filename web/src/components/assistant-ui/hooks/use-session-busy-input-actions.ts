@@ -2,19 +2,26 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { sessionBusyInputLogic } from "./session-busy-input-store";
+import type { SessionComposerSubmission } from "./use-session-composer-state";
 import {
+  oppositeSessionBusyInputMode,
   splitQuotedPrompt,
   stageChosenSessionTerminalQuote,
   type QueuedPrompt,
+  type SessionBusyInputAction,
   type SessionBusyInputDraft,
   type SessionBusyInputHandler,
+  type SessionBusyInputMode,
 } from "@/systems/session";
 
 export type { SessionBusyInputHandler } from "@/systems/session";
 
 interface UseSessionBusyInputActionsOptions {
+  busyInputDefaultMode: SessionBusyInputMode;
   canSubmitBusyInput: boolean;
-  clearComposer: (options?: { retainAttachments?: boolean }) => void;
+  consumeSubmittedDraft: (submission: SessionComposerSubmission) => string;
+  /** The raw composer text and attachment ids a send would take right now. */
+  submission: SessionComposerSubmission;
   onInterruptPrompt?: SessionBusyInputHandler;
   onQueuePrompt?: SessionBusyInputHandler;
   onRemoveQueuedPrompt?: (id: string) => void;
@@ -42,8 +49,10 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function useSessionBusyInputActions({
+  busyInputDefaultMode,
   canSubmitBusyInput,
-  clearComposer,
+  consumeSubmittedDraft,
+  submission,
   onInterruptPrompt,
   onQueuePrompt,
   onRemoveQueuedPrompt,
@@ -60,30 +69,47 @@ export function useSessionBusyInputActions({
     store,
     snapshot => snapshot.context.editingQueuedPromptId
   );
+  const feedback = useSelector(store, snapshot => snapshot.context.feedback);
+
+  const handlerFor = (action: SessionBusyInputAction): SessionBusyInputHandler | undefined => {
+    switch (action) {
+      case "queue":
+        return onQueuePrompt;
+      case "steer":
+        return onSteerPrompt;
+      case "interrupt":
+        return onInterruptPrompt;
+    }
+  };
 
   const handleBusyInputAction = (
+    action: SessionBusyInputAction,
     handler: SessionBusyInputHandler | undefined,
-    failureMessage: string,
-    onSuccess?: () => void
+    options: { onFailure?: (error: unknown) => void; onSuccess?: () => void } = {}
   ) => {
     store.trigger.submissionRequested({
+      action,
       canSubmit: canSubmitBusyInput,
-      clearComposer,
+      consumeSubmittedDraft,
       handler,
       draft: {
         attachments: draft.attachments.map(attachment => ({ ...attachment })),
         message: draft.message,
       },
-      onFailure: error => {
-        if (!isAbortError(error)) {
-          toast.error(describeComposerActionError(error, failureMessage));
-        }
+      submission: {
+        attachmentIds: [...submission.attachmentIds],
+        composerText: submission.composerText,
       },
+      onFailure: options.onFailure,
       onSuccess: () => {
         onDraftConsumed?.();
-        onSuccess?.();
+        options.onSuccess?.();
       },
     });
+  };
+
+  const submitVerb = (action: SessionBusyInputAction) => {
+    handleBusyInputAction(action, handlerFor(action));
   };
 
   const handleQueueAction = () => {
@@ -95,27 +121,44 @@ export function useSessionBusyInputActions({
         return;
       }
       handleBusyInputAction(
-        nextDraft => onReplaceQueuedPrompt(editingQueuedPrompt, nextDraft.message),
-        "Couldn't update queued prompt.",
-        () => {
-          store.trigger.editCompleted();
+        "queue",
+        async nextDraft => {
+          await onReplaceQueuedPrompt(editingQueuedPrompt, nextDraft.message);
+        },
+        {
+          onFailure: error => {
+            if (!isAbortError(error)) {
+              toast.error(describeComposerActionError(error, "Couldn't update queued prompt."));
+            }
+          },
+          onSuccess: () => {
+            store.trigger.editCompleted();
+          },
         }
       );
       return;
     }
-    handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
+    submitVerb("queue");
   };
 
-  const handleSteerAction = () => {
-    if (draft.attachments.length > 0) {
-      toast.error("Remove attachments before steering the active turn.");
+  const handleSteerAction = () => submitVerb("steer");
+  const handleInterruptAction = () => submitVerb("interrupt");
+
+  /**
+   * Enter follows the daemon default; the modifier performs the opposite for
+   * exactly one send (US-003.AC-3). An in-progress queued-prompt edit keeps
+   * Enter on the edit path.
+   */
+  const handleEnterAction = (variant: "default" | "opposite") => {
+    const mode =
+      variant === "default"
+        ? busyInputDefaultMode
+        : oppositeSessionBusyInputMode(busyInputDefaultMode);
+    if (mode === "queue" || editingQueuedPromptId !== null) {
+      handleQueueAction();
       return;
     }
-    handleBusyInputAction(onSteerPrompt, "Couldn't steer prompt.");
-  };
-
-  const handleInterruptAction = () => {
-    handleBusyInputAction(onInterruptPrompt, "Couldn't interrupt prompt.");
+    handleSteerAction();
   };
 
   const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
@@ -139,9 +182,16 @@ export function useSessionBusyInputActions({
     onRemoveQueuedPrompt?.(id);
   };
 
+  const dismissFeedback = () => {
+    store.trigger.feedbackDismissed();
+  };
+
   return {
+    dismissFeedback,
+    feedback,
     handleBusyInputAction,
     handleEditQueuedPrompt,
+    handleEnterAction,
     handleInterruptAction,
     handleQueueAction,
     handleRemoveQueuedPrompt,
