@@ -33,7 +33,7 @@ func attachTaskRunResultDescriptors(
 	}
 	placeholders, args := sqlInPlaceholders(runIDs)
 	// dynamic-sql: the run-id batch changes the IN arity and prevents per-run descriptor queries.
-	query := `SELECT output.task_run_id, output.output_ref, blob.byte_size
+	query := `SELECT DISTINCT output.task_run_id, output.output_ref, blob.byte_size
 		FROM loop_generation_outputs AS output
 		JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
 		WHERE output.task_run_id IN (` + placeholders + `)
@@ -92,7 +92,7 @@ func (g *TaskRunRepo) ReadTaskRunResultPage(
 	}
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT output.output_ref, blob.payload_json, blob.byte_size
+		`SELECT DISTINCT output.output_ref, blob.payload_json, blob.byte_size
 		 FROM loop_generation_outputs AS output
 		 JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
 		 WHERE output.task_run_id = ? AND output.output_ref IS NOT NULL
