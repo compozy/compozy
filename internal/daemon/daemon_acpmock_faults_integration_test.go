@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -202,20 +203,17 @@ func openGatedSessionStream(
 	t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, sessionID string,
 ) *http.Response {
 	t.Helper()
-	transport := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		connection, err := (&net.Dialer{}).DialContext(ctx, network, address)
-		if err != nil {
-			return nil, err
-		}
-		tcp, ok := connection.(*net.TCPConn)
-		if !ok {
-			return nil, errors.Join(errors.New("expected TCP stream connection"), connection.Close())
-		}
-		if err := tcp.SetReadBuffer(1024); err != nil {
-			return nil, errors.Join(err, connection.Close())
-		}
-		return connection, nil
+	// Set the receive window before TCP negotiation. Shrinking it after dialing
+	// still lets Linux buffer this entire storm, so the peer never backpressures
+	// the SSE writer and the intended slow-consumer condition is not exercised.
+	dialer := &net.Dialer{Control: func(_, _ string, connection syscall.RawConn) error {
+		var bufferErr error
+		controlErr := connection.Control(func(fd uintptr) {
+			bufferErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024)
+		})
+		return errors.Join(controlErr, bufferErr)
 	}}
+	transport := &http.Transport{DialContext: dialer.DialContext}
 	t.Cleanup(transport.CloseIdleConnections)
 	request, err := http.NewRequestWithContext(
 		ctx,
