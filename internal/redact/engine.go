@@ -1,6 +1,7 @@
 package redact
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -34,7 +35,9 @@ func (e *Engine) RedactString(value string) string {
 		return redacted
 	}
 	for _, pattern := range heuristicProviderTokenPatterns {
-		redacted = pattern.ReplaceAllString(redacted, Marker)
+		if strings.Contains(redacted, pattern.prefix) {
+			redacted = pattern.expression.ReplaceAllString(redacted, Marker)
+		}
 	}
 	return redactEntropyCandidates(redacted)
 }

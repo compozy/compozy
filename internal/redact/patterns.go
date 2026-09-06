@@ -70,10 +70,22 @@ var heuristicProviderTokenPatterns = compileProviderTokenPatterns([]string{
 	`fpk_[A-Za-z0-9]{30,}`,
 })
 
-func compileProviderTokenPatterns(patterns []string) []*regexp.Regexp {
-	compiled := make([]*regexp.Regexp, 0, len(patterns))
+type providerTokenPattern struct {
+	expression *regexp.Regexp
+	prefix     string
+}
+
+func compileProviderTokenPatterns(patterns []string) []providerTokenPattern {
+	compiled := make([]providerTokenPattern, 0, len(patterns))
 	for _, pattern := range patterns {
-		compiled = append(compiled, regexp.MustCompile(`\b(?:`+pattern+`)`))
+		// Derive the required literal before adding the word-boundary assertion,
+		// which would prevent LiteralPrefix from finding it. An empty prefix
+		// remains valid and simply leaves that expression's scan unconditional.
+		prefix, _ := regexp.MustCompile(pattern).LiteralPrefix()
+		compiled = append(compiled, providerTokenPattern{
+			expression: regexp.MustCompile(`\b(?:` + pattern + `)`),
+			prefix:     prefix,
+		})
 	}
 	return compiled
 }

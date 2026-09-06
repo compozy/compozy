@@ -35,6 +35,8 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 				"xoxb-slack-secret-value",
 				"xapp-slack-app-secret",
 				"ghp_githubsecretvalue",
+				"AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+				"rk_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			}, " "),
 			leaks: []string{
 				"bearer-token-value",
@@ -42,6 +44,8 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 				"xoxb-slack-secret-value",
 				"xapp-slack-app-secret",
 				"ghp_githubsecretvalue",
+				"AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+				"rk_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 		},
 		{
