@@ -1520,23 +1520,26 @@ func TestSessionCompactionConfigDefaultsAndValidation(t *testing.T) {
 	})
 }
 
-func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T) {
-	t.Run("Should reject warning threshold after timeout", func(t *testing.T) {
-		t.Parallel()
-
+// Invariant: quiet and grace are independent nonnegative durations. Owner: config decoder/validator; canonical config suite.
+func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
+	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
 		cfg := DefaultSessionSupervisionConfig()
-		cfg.InactivityWarningAfter = 2 * time.Minute
-		cfg.InactivityTimeout = time.Minute
-
-		err := cfg.Validate()
-		if err == nil {
-			t.Fatal("SessionSupervisionConfig.Validate() error = nil, want non-nil")
+		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
 		}
-		if !strings.Contains(err.Error(), "session.supervision.inactivity_warning_after") ||
-			!strings.Contains(err.Error(), "session.supervision.inactivity_timeout") {
-			t.Fatalf("SessionSupervisionConfig.Validate() error = %v, want threshold context", err)
+	}
+	for _, field := range []string{"quiet_after", "stop_grace"} {
+		cfg := DefaultSessionSupervisionConfig()
+		if field == "quiet_after" {
+			cfg.QuietAfter = -time.Second
+		} else {
+			cfg.StopGrace = -time.Second
 		}
-	})
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
+			t.Fatalf("%s: %v", field, err)
+		}
+	}
 }
 
 func TestSessionSupervisionConfigValidateRejectsNegativePromptDeadline(t *testing.T) {

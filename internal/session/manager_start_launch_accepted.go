@@ -36,7 +36,11 @@ func (m *Manager) runAcceptedSessionStartAndDispatch(accepted *acceptedSessionSt
 	if err := m.runAcceptedSessionStart(accepted); err != nil {
 		return err
 	}
-	m.startNextQueuedInputPrompt(accepted.session.ID)
+	// Resume owns the dispatch kick after releasing its conversation lock and
+	// publishing the completed transition, including logical-only resumes.
+	if accepted.spec.startAction != sessionStartActionResume {
+		m.startNextQueuedInputPrompt(accepted.session.ID)
+	}
 	return nil
 }
 
@@ -54,6 +58,9 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	accepted.storage = storage
 	session.setRecorder(storage.recorder)
 	accepted.run.signalRecorderReady()
+	if err := m.projectInputClearTraces(ctx, session); err != nil {
+		return startupFailure("session queue clear projection failed", err)
+	}
 
 	runtime := accepted.runtime
 	if err := m.prepareAcceptedSessionRuntime(ctx, spec, &runtime, m.now()); err != nil {

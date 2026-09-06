@@ -32,11 +32,12 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	if o.PromptDeadline != nil {
 		dst.PromptDeadline = *o.PromptDeadline
 	}
-	if o.InactivityWarningAfter != nil {
-		dst.InactivityWarningAfter = *o.InactivityWarningAfter
+	applySupervisionCompatibility(o, dst)
+	if o.QuietAfter != nil {
+		dst.QuietAfter = *o.QuietAfter
 	}
-	if o.InactivityTimeout != nil {
-		dst.InactivityTimeout = *o.InactivityTimeout
+	if o.StopGrace != nil {
+		dst.StopGrace = *o.StopGrace
 	}
 	if o.TimeoutCancelGrace != nil {
 		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace

@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskRunAttachSessionParams struct {
+	ID        string `json:"id"`
+	SessionID string `json:"session_id"`
+}
+
 type TaskRunCancelParams struct {
 	ID       string          `json:"id"`
 	Reason   string          `json:"reason,omitempty"`
@@ -452,15 +457,4 @@ type TaskRunReleasedPayload struct {
 	PreviousSessionID            string    `json:"previous_session_id,omitempty"`
 	RecoveryAction               string    `json:"recovery_action,omitempty"`
 	RecoveryReason               string    `json:"recovery_reason,omitempty"`
-}
-
-type TaskRunResultPage struct {
-	RunID      string `json:"run_id"`
-	ResultRef  string `json:"result_ref,omitempty"`
-	Offset     int64  `json:"offset"`
-	Bytes      int64  `json:"bytes"`
-	TotalBytes int64  `json:"total_bytes"`
-	DataBase64 string `json:"data_base64"`
-	NextOffset *int64 `json:"next_offset,omitempty"`
-	EOF        bool   `json:"eof"`
 }

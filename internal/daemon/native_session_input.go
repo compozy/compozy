@@ -61,8 +61,13 @@ func (n *daemonNativeTools) sessionInputsList(
 	for _, pendingInput := range inputs {
 		payloads = append(payloads, core.SessionInputPayloadFromSession(pendingInput))
 	}
+	summary, err := n.deps.Sessions.InputQueueSummary(ctx, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	return structuredResult(
-		contract.SessionInputListResponse{Inputs: payloads},
+		contract.SessionInputListResponse{Inputs: payloads,
+			Queue: &contract.SessionQueueSummaryPayload{Entries: len(inputs), Cap: summary.Cap}},
 		fmt.Sprintf("%d pending session inputs", len(payloads)),
 	)
 }

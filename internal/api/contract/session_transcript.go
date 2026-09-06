@@ -10,11 +10,13 @@ const (
 	SessionStreamEventTranscriptDelta     = "transcript_delta"
 	SessionStreamEventGoalSnapshotChanged = "goal_snapshot_changed"
 	SessionStreamEventCommandsChanged     = "session_commands_changed"
+	SessionStreamEventConsumerDegraded    = "stream.consumer_degraded"
 
 	TranscriptSnapshotReasonFenceMissing       = "fence_missing"
 	TranscriptSnapshotReasonEpochMismatch      = "epoch_mismatch"
 	TranscriptSnapshotReasonGenerationMismatch = "generation_mismatch"
 	TranscriptSnapshotReasonSequenceReset      = "sequence_reset"
+	TranscriptSnapshotReasonCursorExpired      = "cursor_expired"
 )
 
 // SessionTranscriptResponse wraps one bounded chronological transcript page.
@@ -64,10 +66,25 @@ type SessionCommandsChangedPayload struct {
 
 // SessionStreamPayload documents the possible SSE frame payloads.
 type SessionStreamPayload struct {
-	Raw                 *SessionEventPayload           `json:"raw,omitempty"`
-	TranscriptSnapshot  *TranscriptSnapshotPayload     `json:"transcript_snapshot,omitempty"`
-	TranscriptDelta     *TranscriptDeltaPayload        `json:"transcript_delta,omitempty"`
-	GoalSnapshotChanged *GoalSnapshotChangedPayload    `json:"goal_snapshot_changed,omitempty"`
-	CommandsChanged     *SessionCommandsChangedPayload `json:"session_commands_changed,omitempty"`
-	SessionStopped      *SessionEventPayload           `json:"session_stopped,omitempty"`
+	ConsumerDegraded    *SessionConsumerDegradedPayload `json:"consumer_degraded,omitempty"`
+	Raw                 *SessionEventPayload            `json:"raw,omitempty"`
+	TranscriptSnapshot  *TranscriptSnapshotPayload      `json:"transcript_snapshot,omitempty"`
+	TranscriptDelta     *TranscriptDeltaPayload         `json:"transcript_delta,omitempty"`
+	GoalSnapshotChanged *GoalSnapshotChangedPayload     `json:"goal_snapshot_changed,omitempty"`
+	CommandsChanged     *SessionCommandsChangedPayload  `json:"session_commands_changed,omitempty"`
+	SessionStopped      *SessionEventPayload            `json:"session_stopped,omitempty"`
 }
+
+// SessionConsumerDegradedPayload tells the client to catch up from its last delivered cursor.
+type SessionConsumerDegradedPayload struct {
+	SessionID       string `json:"session_id"`
+	AfterSequence   int64  `json:"after_sequence"`
+	ThroughSequence int64  `json:"through_sequence"`
+	Refresh         bool   `json:"refresh"`
+}
+
+// SessionTranscriptSearchResponse is the bounded full-history search result.
+type SessionTranscriptSearchResponse = transcript.SearchResult
+
+// SessionTranscriptOutlineResponse is the full retained operator-message trail.
+type SessionTranscriptOutlineResponse = transcript.OutlineResult

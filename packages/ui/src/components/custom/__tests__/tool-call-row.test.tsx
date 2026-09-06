@@ -10,6 +10,7 @@ import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
   { status: "running", label: "Running", tone: "text-subtle" },
   { status: "failed", label: "Error", tone: "text-danger" },
+  { status: "absorbed", label: "Failed", tone: "text-subtle" },
   { status: "success", label: "Done", tone: "text-subtle" },
   { status: "empty", label: "Empty", tone: "text-subtle" },
 ];
@@ -76,6 +77,14 @@ describe("ToolCallRow", () => {
     expect(
       container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
     ).toBe("pending");
+    expect(statusGlyph(container)).toBeNull();
+  });
+
+  it("Should render no glyph for a stopped call — its word carries the state", () => {
+    const { container } = render(<ToolCallRow toolName="Bash" status="stopped" />);
+    expect(
+      container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
+    ).toBe("stopped");
     expect(statusGlyph(container)).toBeNull();
   });
 

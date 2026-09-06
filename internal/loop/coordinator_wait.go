@@ -54,6 +54,14 @@ func evaluateWaitNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
+	if intent.Kind == NodeWaitKindEvent && intent.NextEscalationAt == nil {
+		lifecycle, resolveErr := ResolveNodeLifecycleConfig(node, nil, eval.effective.Lifecycle)
+		if resolveErr != nil {
+			return GenerationOutput{}, nil, resolveErr
+		}
+		deadline := now.Add(lifecycle.AdmissionHorizon)
+		intent.NextEscalationAt = &deadline
+	}
 	output.Status = generationOutputWaiting
 	output.TaskRunID = ""
 	output.NextAttemptAt = nil

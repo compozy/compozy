@@ -111,6 +111,11 @@ func (w *PeriodicWorker) clearRun(done <-chan struct{}) {
 
 func (w *PeriodicWorker) run(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
+	if ctx.Err() == nil {
+		if err := w.sweep(ctx); err != nil && w.onError != nil {
+			w.onError(err)
+		}
+	}
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 	for {

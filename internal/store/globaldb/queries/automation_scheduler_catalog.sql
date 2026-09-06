@@ -1,29 +1,29 @@
 -- name: GetAutomationSchedulerState :one
-SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
        consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);
 
 -- name: ListAutomationSchedulerStates :many
-SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
        consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 FROM automation_scheduler_state ORDER BY job_id ASC;
 
 -- name: UpsertAutomationSchedulerState :exec
 INSERT INTO automation_scheduler_state (
-  job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+  job_id, deferred_until, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
   schedule_hash, catch_up_policy, misfire_grace_seconds,
   consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 ) VALUES (
-  sqlc.arg(job_id), sqlc.narg(next_run_at), sqlc.narg(last_run_at),
+  sqlc.arg(job_id), sqlc.narg(deferred_until), sqlc.narg(next_run_at), sqlc.narg(last_run_at),
   sqlc.narg(last_scheduled_at), sqlc.arg(last_fire_id), sqlc.arg(schedule_hash),
   sqlc.arg(catch_up_policy), sqlc.arg(misfire_grace_seconds),
   sqlc.arg(consecutive_resume_failures), sqlc.narg(last_misfire_at),
   sqlc.arg(misfire_count), sqlc.arg(updated_at)
 )
 ON CONFLICT(job_id) DO UPDATE SET
-  next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
+  deferred_until = excluded.deferred_until, next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
   last_scheduled_at = excluded.last_scheduled_at, last_fire_id = excluded.last_fire_id,
   schedule_hash = excluded.schedule_hash, catch_up_policy = excluded.catch_up_policy,
   misfire_grace_seconds = excluded.misfire_grace_seconds,
@@ -119,3 +119,21 @@ FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
 LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = t.id
 ORDER BY requested.ordinal;
+
+-- name: SetAutomationScheduledDeferral :execrows
+UPDATE automation_scheduler_state
+SET deferred_until = sqlc.narg(retry_at), updated_at = sqlc.arg(updated_at)
+WHERE job_id = sqlc.arg(job_id) AND last_fire_id = sqlc.arg(fire_id)
+AND schedule_hash = sqlc.arg(schedule_hash);
+
+-- name: CancelSupersededAutomationReservation :exec
+UPDATE automation_runs SET status = 'canceled', ended_at = sqlc.arg(ended_at),
+ delivery_error = 'Scheduled fire superseded before dispatch', delivery_error_at = sqlc.arg(ended_at)
+WHERE automation_runs.job_id = sqlc.arg(job_id) AND status = 'scheduled'
+AND fire_id = (SELECT last_fire_id FROM automation_scheduler_state WHERE automation_scheduler_state.job_id = sqlc.arg(job_id));
+
+-- name: RestoreUnstartedAutomationReservation :execrows
+UPDATE automation_runs SET status = 'scheduled'
+WHERE id = sqlc.arg(run_id) AND job_id = sqlc.arg(job_id) AND fire_id = sqlc.arg(fire_id)
+AND status IN ('scheduled', 'running') AND ended_at IS NULL
+AND session_id IS NULL AND task_id IS NULL AND task_run_id IS NULL AND loop_run_id IS NULL;

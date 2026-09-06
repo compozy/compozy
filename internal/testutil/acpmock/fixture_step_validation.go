@@ -68,6 +68,13 @@ func exactStringMatch(want string, got string) bool {
 
 // Validate ensures the step kind and payload are internally consistent.
 func (s Step) Validate(path string) error {
+	if s.BurstCount < 0 || s.BurstCount > 100000 {
+		return fmt.Errorf("acpmock: %s.burst_count must be between 0 and 100000", path)
+	}
+	if s.BurstCount > 0 && ((s.Kind != StepKindAssistant && s.Kind != StepKindThought) ||
+		len(s.Chunks) != 0 || s.Text == "") {
+		return fmt.Errorf("acpmock: %s.burst_count requires assistant or thought text without chunks", path)
+	}
 	if err := s.validateKindPayload(path); err != nil {
 		return err
 	}

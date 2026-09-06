@@ -167,7 +167,7 @@ Two operational details matter here:
 - One session processes one prompt turn at a time. Stop logic waits for in-flight prompt setup to finish before it asks the ACP driver to stop the subprocess.
 - Long-running prompts stay healthy through runtime activity supervision. CompozyOS updates
   `activity.last_activity_at` on real ACP events and metadata-only waiting heartbeats, then emits
-  lower-frequency `runtime_progress` and `runtime_warning` events for clients.
+  lower-frequency `runtime_progress` events. Only actual work evidence prevents silence supervision.
 - CompozyOS also maintains a separate metadata-only [session health](/docs/sessions/health)
   record (`state`, `health`, `attachable`, `eligible_for_wake`). Activity supervision feeds
   health, but the two are distinct authorities — supervision owns timers and persisted progress
@@ -306,26 +306,33 @@ affect a newer turn.
 
 ### Runtime activity supervision
 
-Activity supervision is designed for prompts that may run for hours. It treats inactivity as the
-failure mode, not total elapsed time.
+Supervision inspects every live session, including idle sessions. Any fresh work signal
+keeps the session alive: agent progress, a verified running tool, an active child, a recently
+reconciled Loop run, a held task lease, or a scheduled wait with a future deadline.
+Opening a session, subscribing to its events, and provider-wait heartbeats do not renew work evidence.
 
-For each active prompt turn, CompozyOS tracks:
+Inspect `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning`
+with `compozy session status <id> -o json`, the session resource, or `compozy__session_describe`.
+Signals are rebuilt from their owners after restart. They are not persisted as keep-alive flags.
+Expired evidence stops counting as work. A stale tool, stopping child, or Loop raises attention;
+a source inspection error is `unknown`, raises attention, and prevents an automatic inactivity stop
+until the source can be inspected again.
 
-- turn ID and source
-- turn start time
-- last activity time, kind, and detail
-- current tool and tool call ID when known
-- last progress notification time
-- idle and elapsed seconds
+After `session.supervision.quiet_after` of observed silence (default `30m`), CompozyOS records
+one `session.supervision_warning` and shows it in the open session. Continued silence for
+`session.supervision.stop_grace` (default `10m`) requests the normal stop ladder with cause
+`inactivity`. `session.supervision_stopped` records verified termination. Persisted stop metadata
+uses `stop_reason: "timeout"` and `stop_detail: "inactivity"`. New work clears the warning and
+cancels the pending automatic stop. `quiet_after = "0"` disables both actions;
+`stop_grace = "0"` keeps the warning but disables automatic stop.
 
-Short heartbeats keep `last_activity_at` fresh in session metadata and health output. They do not
-enter the persisted event stream. `runtime_progress` events are persisted only at
-`session.supervision.progress_notify_interval`, and `runtime_warning` is persisted once when
-`session.supervision.inactivity_warning_after` is crossed.
+Event waits without an authored expiry receive the effective admission horizon, normally `168h`.
+Existing expiryless waits use their original creation time and pinned configuration when upgraded.
+An expired wait follows the existing attention path instead of keeping a session alive forever.
 
-When `session.supervision.inactivity_timeout` is crossed, CompozyOS cancels the prompt cooperatively. If
-the prompt does not finish within `session.supervision.timeout_cancel_grace`, the session is stopped
-with stop reason `timeout`.
+`runtime_progress` remains a periodic progress projection. Metadata-only activity heartbeats and
+progress projections do not themselves prove fresh work. Explicit prompt/session wall-clock budgets
+remain opt-in controls separate from silence supervision.
 
 ## Rewinding a conversation
 
@@ -432,17 +439,17 @@ session record should be deleted.
 
 CompozyOS has separate timeout concepts:
 
-| Timeout                                    | What it protects                                                                              |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                                          |
-| `session.supervision.inactivity_timeout`   | Prompt inactivity limit. Long-running prompts remain healthy if activity continues.           |
-| `session.supervision.timeout_cancel_grace` | Grace period after inactivity timeout cancel before CompozyOS stops the session as `timeout`. |
-| ACP driver stop timeout                    | Subprocess shutdown escalation after cooperative stop.                                        |
-| Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                                            |
+| Timeout                                    | What it protects                                                              |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                          |
+| `session.supervision.quiet_after`          | Observed silence before one warning; zero disables silence actions.           |
+| `session.supervision.stop_grace`           | Continued silence after the warning before the standard stop ladder.          |
+| `session.supervision.prompt_deadline`      | Optional total prompt budget; zero disables it.                               |
+| `session.supervision.timeout_cancel_grace` | Grace after explicit prompt-budget cancellation.                              |
+| `session.stop.cooperative_grace`           | Cooperative phase of the stop ladder, followed by bounded forced/kill phases. |
+| Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                            |
 
-The important distinction is that inactivity timeout is not wall-clock timeout. A long prompt can
-run beyond `inactivity_timeout` as long as CompozyOS keeps observing real activity or controlled waiting
-heartbeats.
+A session may run indefinitely while fresh work exists and no explicit wall-clock budget is set.
 
 ## Stop reasons
 
@@ -455,7 +462,7 @@ The session manager currently emits these persisted stop classifications:
 | `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                                             |
 | `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                                              |
 | `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                                            |
-| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and CompozyOS stopped the session.                          |
+| `timeout`         | An explicit runtime budget expired, or silence supervision completed its warning/grace path (`stop_detail: inactivity`).                                         |
 | `error`           | Start or stop failed, or ACP reported a transport failure and the subprocess then exited successfully with code `0`.                                             |
 | `agent_crashed`   | The subprocess exited with a non-zero code, a signal, or a wait error; also used when CompozyOS repairs stale `active`/`stopping` metadata after a daemon crash. |
 | `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                                                   |

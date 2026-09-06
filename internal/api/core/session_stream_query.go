@@ -16,6 +16,7 @@ func (h *BaseHandlers) parseSessionStreamEventQuery(c *gin.Context) (store.Event
 		return store.EventQuery{}, err
 	}
 	if lastEventID := strings.TrimSpace(c.GetHeader("Last-Event-ID")); lastEventID != "" {
+		query.Forward = true
 		query.AfterSequence, err = parseLastEventID(lastEventID, h.transportName())
 		if err != nil {
 			return store.EventQuery{}, err
@@ -32,7 +33,12 @@ func normalizeSessionStreamQuery(
 	options sessionStreamOptions,
 ) (store.EventQuery, error) {
 	if options.frameMode == contract.SessionStreamFrameRaw {
-		return query, nil
+		if query.AfterSequence == 0 && query.Limit == 0 {
+			return store.EventQuery{}, fmt.Errorf(
+				"raw initial catch-up requires a bounded limit; use frames=transcript for a snapshot",
+			)
+		}
+		return applyBoundedSessionReadDefault(query)
 	}
 	if query.Type != "" || query.AgentName != "" || query.TurnID != "" || !query.Since.IsZero() {
 		return store.EventQuery{}, fmt.Errorf("raw event filters are not supported for transcript streams")

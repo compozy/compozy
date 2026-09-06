@@ -182,14 +182,14 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 			CompleteRunFn: func(_ context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 				calls = append(calls, "complete")
 				return &taskpkg.Run{
-					ID:       runID,
-					TaskID:   "task-1",
-					Status:   taskpkg.TaskRunStatusCompleted,
-					Attempt:  1,
-					Origin:   actor.Origin,
-					QueuedAt: now,
-					EndedAt:  now.Add(3 * time.Minute),
-					Result:   &result.Value,
+					ID:             runID,
+					TaskID:         "task-1",
+					Status:         taskpkg.TaskRunStatusCompleted,
+					Attempt:        1,
+					Origin:         actor.Origin,
+					QueuedAt:       now,
+					EndedAt:        now.Add(3 * time.Minute),
+					RunResultState: &taskpkg.RunResultState{Result: &result.Value},
 				}, nil
 			},
 		}

@@ -566,6 +566,7 @@ export const networkChannelFixture: NetworkChannel = {
   session_count: 6,
   sessions: [
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.product,
@@ -587,6 +588,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
     },
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.cto,
@@ -608,6 +610,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
     },
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.cfo,
@@ -629,6 +632,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.finance,
     },
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.compliance,
@@ -650,6 +654,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.risk,
     },
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.frontend,
@@ -671,6 +676,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.product,
     },
     {
+      supervision: null,
       profile_id: DEFAULT_NETWORK_OWNER.profile_id,
       profile_name: DEFAULT_NETWORK_OWNER.profile_name,
       id: storySessionIds.support,

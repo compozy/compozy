@@ -129,6 +129,8 @@ type Step struct {
 
 	Text   string   `json:"text,omitempty"`
 	Chunks []string `json:"chunks,omitempty"`
+	// BurstCount repeats Text without delivery pacing to exercise transport pressure.
+	BurstCount int `json:"burst_count,omitempty"`
 
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
 	Title       string          `json:"title,omitempty"`

@@ -10,6 +10,9 @@ import (
 )
 
 const (
+	// Keep batched persistence from rebuilding oversized live-delivery frames.
+	sessionEventCoalesceMaxTextBytes = 4096
+
 	sessionEventTypeAgentMessage = "agent_message"
 	sessionEventTypeThought      = "thought"
 
@@ -23,7 +26,7 @@ const (
 )
 
 var coalescingPayloadBlocklist = map[string]struct{}{
-	"title":                          {},
+	sessionEventPayloadTitleKey:      {},
 	"tool_name":                      {},
 	"tool_call_id":                   {},
 	"tool_input":                     {},
@@ -89,7 +92,8 @@ func coalesceSessionEventBatch(events []store.SessionEvent) ([]store.SessionEven
 			out = append(out, event)
 			continue
 		}
-		if pending != nil && pending.key == candidate.key {
+		if pending != nil && pending.key == candidate.key &&
+			pending.text.Len()+len(candidate.text) <= sessionEventCoalesceMaxTextBytes {
 			pending.append(candidate)
 			continue
 		}

@@ -7,7 +7,7 @@ journey: J-operate-terminal-by-cli
 expected: Non-interactive terminal verbs expose structured success and error output; attached open and attach accept shared input immediately with no control flags; CLI projections agree with HTTP and UDS; selectors obey profile rules.
 entry_points: compozy terminal; HTTP and UDS /api/workspaces/{workspace_id}/terminals list, create, exec, input-requests, journal, recordings, artifacts, get, delete, attach-ticket, terminal stream, read, signal, wait, answer, reject, recording; catalog stream
 qa_status: pass
-bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-attach-profile-scope; BUG-20260826-terminal-cli-raw-mode; BUG-20260826-terminal-config-set-unsupported
+bug_ids: BUG-20260906-terminal-detach-close-race; BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-attach-profile-scope; BUG-20260826-terminal-cli-raw-mode; BUG-20260826-terminal-config-set-unsupported
 fix_status: fixed
 retest_status:
 fix_commits: b745ebcbcfe6
@@ -57,3 +57,5 @@ and the CLI timing and raw-mode suites passed three times under `-race`.
 concurrent whole commands, and observed each other's output. One detached with the documented chord
 while the other remained writable. CLI, UDS, and HTTP state/journal/tail projections agreed, SIGINT
 reported delivered and produced exit 130, and the runtime advertised wire v3 with no control flags.
+
+QA impact 2026-09-06: the stream owner now preserves a completed double-key detach when the server closes before the input writer reports completion. The deterministic CLI race regression passes; the unchanged E2E-001 golden-path re-walk passed 3/3 in 18.7s with Bash and the rebuilt daemon/CLI (`.cache/sessions-cli-detach-bash-e2e.log`). Existing unrelated CLI contract evidence remains applicable. See BUG-20260906-terminal-detach-close-race.

@@ -81,6 +81,9 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 // EventSummaryQuery filters event summaries through one explicit profile or the
 // AllProfiles aggregate.
 type EventSummaryQuery struct {
+	// SequenceOrder selects a bounded recent stream window; Forward selects its next page, including cursor zero.
+	SequenceOrder bool
+	Forward       bool
 	ReadScope     ReadScope
 	SessionID     string
 	WorkspaceID   string

@@ -35,6 +35,8 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 				"xoxb-slack-secret-value",
 				"xapp-slack-app-secret",
 				"ghp_githubsecretvalue",
+				"AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+				"rk_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			}, " "),
 			leaks: []string{
 				"bearer-token-value",
@@ -42,6 +44,8 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 				"xoxb-slack-secret-value",
 				"xapp-slack-app-secret",
 				"ghp_githubsecretvalue",
+				"AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+				"rk_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 		},
 		{
@@ -106,6 +110,12 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 			name:  "Should redact generic token assignments",
 			input: "connect: token=cause-secret",
 			leaks: []string{"cause-secret"},
+		},
+		{
+			name:  "Should find a secret assignment after a long streaming text chunk",
+			input: strings.Repeat("0123456789abcdef", 4096) + " password: tail-secret-value",
+			want:  strings.Repeat("0123456789abcdef", 4096) + " password: " + Marker,
+			leaks: []string{"tail-secret-value"},
 		},
 		{
 			name: "Should redact every gateway credential shape",
@@ -744,10 +754,25 @@ func testProcessEnabledSnapshot(t *testing.T) {
 
 func BenchmarkEngineRedactString(b *testing.B) {
 	engine := New(Options{})
-	payload := "assistant output with sk-ant-api03-abcdefghijklmnopqrstuv and visible context"
-	b.ReportAllocs()
-	for b.Loop() {
-		engine.RedactString(payload)
+	chunk := strings.Repeat("0123456789abcdef", 4096)
+	for _, tc := range []struct {
+		name    string
+		payload string
+	}{
+		{
+			name:    "provider message",
+			payload: "assistant output with sk-ant-api03-abcdefghijklmnopqrstuv and visible context",
+		},
+		{name: "streaming text", payload: chunk},
+		{name: "streaming envelope", payload: `{"type":"agent_message","text":"` + chunk + `"}`},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.SetBytes(int64(len(tc.payload)))
+			b.ReportAllocs()
+			for b.Loop() {
+				engine.RedactString(tc.payload)
+			}
+		})
 	}
 }
 

@@ -85,6 +85,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			payload.Diagnostic = &item
 		}
 	}
+	enrichSessionInputError(&payload, err)
 	return payload
 }
 

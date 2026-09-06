@@ -12,7 +12,10 @@ import (
 
 const advanceTranscriptProjectionGeneration = `-- name: AdvanceTranscriptProjectionGeneration :exec
 UPDATE transcript_projection_state
-SET generation = generation + 1, active_entry_key = NULL
+SET generation = generation + 1,
+    active_entry_key = CASE WHEN EXISTS (
+        SELECT 1 FROM transcript_entries WHERE entry_key = active_entry_key
+    ) THEN active_entry_key ELSE NULL END
 WHERE singleton = 1
 `
 
@@ -108,10 +111,8 @@ func (q *Queries) ClearTranscriptToolRoutes(ctx context.Context) error {
 const countArchivedTranscriptEventsBeforeSequence = `-- name: CountArchivedTranscriptEventsBeforeSequence :one
 SELECT COUNT(*)
 FROM events
-JOIN transcript_entries
-  ON transcript_entries.entry_key = events.transcript_entry_key
-WHERE events.archived = 1
-  AND transcript_entries.start_sequence < ?1
+WHERE archived = 1 AND transcript_entry_key <> ''
+  AND sequence < ?1
 `
 
 func (q *Queries) CountArchivedTranscriptEventsBeforeSequence(ctx context.Context, beforeSequence int64) (int64, error) {
@@ -121,25 +122,57 @@ func (q *Queries) CountArchivedTranscriptEventsBeforeSequence(ctx context.Contex
 	return count, err
 }
 
-const deleteTranscriptEntriesFromSequence = `-- name: DeleteTranscriptEntriesFromSequence :exec
-DELETE FROM transcript_entries
-WHERE start_sequence >= ?1
+const countTranscriptEntriesCrossingCut = `-- name: CountTranscriptEntriesCrossingCut :one
+WITH bounds AS (SELECT CAST(?1 AS INTEGER) AS cut_from,
+                      CAST(?2 AS INTEGER) AS cut_to)
+SELECT COUNT(*) FROM transcript_entries AS e, bounds
+WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
+              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+  AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
+              AND (sequence < bounds.cut_from OR sequence > bounds.cut_to))
 `
 
-func (q *Queries) DeleteTranscriptEntriesFromSequence(ctx context.Context, fromSequence int64) error {
-	_, err := q.db.ExecContext(ctx, deleteTranscriptEntriesFromSequence, fromSequence)
+type CountTranscriptEntriesCrossingCutParams struct {
+	FromSequence int64 `json:"from_sequence"`
+	ToSequence   int64 `json:"to_sequence"`
+}
+
+func (q *Queries) CountTranscriptEntriesCrossingCut(ctx context.Context, arg CountTranscriptEntriesCrossingCutParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTranscriptEntriesCrossingCut, arg.FromSequence, arg.ToSequence)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteTranscriptEntriesInRange = `-- name: DeleteTranscriptEntriesInRange :exec
+DELETE FROM transcript_entries
+WHERE start_sequence BETWEEN ?1 AND ?2
+`
+
+type DeleteTranscriptEntriesInRangeParams struct {
+	FromSequence int64 `json:"from_sequence"`
+	ToSequence   int64 `json:"to_sequence"`
+}
+
+func (q *Queries) DeleteTranscriptEntriesInRange(ctx context.Context, arg DeleteTranscriptEntriesInRangeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTranscriptEntriesInRange, arg.FromSequence, arg.ToSequence)
 	return err
 }
 
-const deleteTranscriptToolRoutesFromSequence = `-- name: DeleteTranscriptToolRoutesFromSequence :exec
-DELETE FROM transcript_tool_routes
-WHERE entry_key IN (
-    SELECT entry_key FROM transcript_entries WHERE start_sequence >= ?1
+const deleteTranscriptToolRoutesInRange = `-- name: DeleteTranscriptToolRoutesInRange :exec
+DELETE FROM transcript_tool_routes WHERE entry_key IN (
+ SELECT entry_key FROM transcript_entries
+ WHERE start_sequence BETWEEN ?1 AND ?2
 )
 `
 
-func (q *Queries) DeleteTranscriptToolRoutesFromSequence(ctx context.Context, fromSequence int64) error {
-	_, err := q.db.ExecContext(ctx, deleteTranscriptToolRoutesFromSequence, fromSequence)
+type DeleteTranscriptToolRoutesInRangeParams struct {
+	FromSequence int64 `json:"from_sequence"`
+	ToSequence   int64 `json:"to_sequence"`
+}
+
+func (q *Queries) DeleteTranscriptToolRoutesInRange(ctx context.Context, arg DeleteTranscriptToolRoutesInRangeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTranscriptToolRoutesInRange, arg.FromSequence, arg.ToSequence)
 	return err
 }
 
@@ -458,6 +491,17 @@ SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events
 
 func (q *Queries) MaxEventSequence(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, maxEventSequence)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const minActiveEventSequence = `-- name: MinActiveEventSequence :one
+SELECT CAST(COALESCE(MIN(sequence), 0) AS INTEGER) FROM events WHERE archived = 0
+`
+
+func (q *Queries) MinActiveEventSequence(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, minActiveEventSequence)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

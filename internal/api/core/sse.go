@@ -183,6 +183,9 @@ func LogEventAfterCursor(event store.EventSummary, cursor LogsCursor) bool {
 		return true
 	}
 
+	if cursor.Sequence > 0 && event.Sequence > 0 {
+		return event.Sequence > cursor.Sequence
+	}
 	timestamp := event.Timestamp.UTC()
 	switch {
 	case timestamp.After(cursor.Timestamp):

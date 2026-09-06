@@ -102,7 +102,7 @@ export function TerminalPane({
       data-compact={compact ? "true" : undefined}
       data-testid={`terminal-pane-${terminal.id}`}
     >
-      <div className="relative min-h-0 min-w-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
         <TerminalView
           aria-label={terminal.title}
@@ -129,12 +129,12 @@ export function TerminalPane({
           show={display.showConnecting}
           status={display.status}
         />
+        <TerminalPaneSelectionBar
+          actions={selectionActions}
+          selection={selection}
+          terminalId={terminal.id}
+        />
       </div>
-      <TerminalPaneSelectionBar
-        actions={selectionActions}
-        selection={selection}
-        terminalId={terminal.id}
-      />
       {requestRegion}
       <TerminalPaneStreamStatus
         onReconnect={onReconnect}
@@ -190,14 +190,16 @@ function TerminalPaneSelectionBar({
 }) {
   if (!selection || !actions) return null;
   return (
-    <TerminalSelectionActions
-      hasActiveSession={actions.hasActiveSession}
-      onChooseSession={() => actions.onChooseSession(selection)}
-      onCopy={() => actions.onCopy(selection)}
-      onSendToConversation={() => actions.onSendToConversation(selection)}
-      onStartSession={() => actions.onStartSession(selection)}
-      quote={terminalQuoteFromSelection(terminalId, selection)}
-    />
+    <div className="absolute right-3.5 bottom-3 z-10">
+      <TerminalSelectionActions
+        hasActiveSession={actions.hasActiveSession}
+        onChooseSession={() => actions.onChooseSession(selection)}
+        onCopy={() => actions.onCopy(selection)}
+        onSendToConversation={() => actions.onSendToConversation(selection)}
+        onStartSession={() => actions.onStartSession(selection)}
+        quote={terminalQuoteFromSelection(terminalId, selection)}
+      />
+    </div>
   );
 }
 

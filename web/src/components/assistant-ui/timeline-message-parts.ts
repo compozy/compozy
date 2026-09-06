@@ -39,6 +39,14 @@ function partTurnId(
   return fallbackTurnId;
 }
 
+// The daemon's projected part position (search results name it as `part_index`).
+function partIndexOf(part: Record<string, unknown>): number | undefined {
+  const raw = stringField(part, "partIndex");
+  if (raw === undefined) return undefined;
+  const index = Number.parseInt(raw, 10);
+  return Number.isInteger(index) && index >= 0 ? index : undefined;
+}
+
 function partTimestamp(part: Record<string, unknown>): string | undefined {
   const own = stringField(part, "timestamp");
   if (own) return own;
@@ -62,15 +70,32 @@ export function toTimelineParts(message: {
     const turnId = partTurnId(part, fallbackTurnId);
     const timestamp = partTimestamp(part);
     const state = stringField(part, "state");
+    const partIndex = partIndexOf(part);
     const type = stringField(part, "type");
     if (type === "text") {
       return [
-        { kind: "text", id, text: stringField(part, "text") ?? "", turnId, timestamp, state },
+        {
+          kind: "text",
+          id,
+          text: stringField(part, "text") ?? "",
+          turnId,
+          timestamp,
+          state,
+          partIndex,
+        },
       ];
     }
     if (type === "reasoning") {
       return [
-        { kind: "reasoning", id, text: stringField(part, "text") ?? "", turnId, timestamp, state },
+        {
+          kind: "reasoning",
+          id,
+          text: stringField(part, "text") ?? "",
+          turnId,
+          timestamp,
+          state,
+          partIndex,
+        },
       ];
     }
     if (type === "tool-call") {
@@ -89,13 +114,14 @@ export function toTimelineParts(message: {
           turnId,
           timestamp,
           state,
+          partIndex,
         },
       ];
     }
     if (type === "data" || (typeof type === "string" && type.startsWith("data-"))) {
       const dataName = type === "data" ? stringField(part, "name") : type.slice("data-".length);
       const name = dataName ? `data-${dataName}` : "data";
-      return [{ kind: "data", id, name, data: part.data, turnId, timestamp, state }];
+      return [{ kind: "data", id, name, data: part.data, turnId, timestamp, state, partIndex }];
     }
     return [];
   });

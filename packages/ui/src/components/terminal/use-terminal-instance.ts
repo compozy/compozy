@@ -130,7 +130,7 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
       // The first proposal has to come from the attach itself. A container that
       // never resizes again would otherwise leave the daemon with no size at
       // all, and the resize observer only speaks when geometry changes.
-      reportProposedDimensions(instance, emitProposedDimensions);
+      reportProposedDimensions(instance, container, emitProposedDimensions);
       scheduleGlyphRefresh(instance, fonts.settled);
     })();
 
@@ -153,7 +153,7 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
     if (!container || !view || typeof view.ResizeObserver !== "function") return undefined;
     const observer = new view.ResizeObserver(() => {
       const instance = instanceRef.current;
-      if (instance) reportProposedDimensions(instance, emitProposedDimensions);
+      if (instance) reportProposedDimensions(instance, container, emitProposedDimensions);
     });
     observer.observe(container);
     return () => observer.disconnect();
@@ -179,15 +179,29 @@ function applyViewOptions(instance: TerminalInstance, view: TerminalViewOptions)
   if (view.readOnly) instance.terminal.blur();
 }
 
-/** Publishes a size the container could host. A degenerate fit says nothing. */
+/**
+ * Publishes a size the container could host. A degenerate fit says nothing,
+ * and neither does a view without a rendered box: under a hidden ancestor the
+ * fit addon reads the host's percentage sizes as pixel counts and proposes a
+ * few cells, which the daemon would apply to every attachment of the PTY.
+ * A hidden view keeps whatever it last proposed while it was shown.
+ */
 function reportProposedDimensions(
   instance: TerminalInstance,
+  container: HTMLElement,
   report: (dimensions: TerminalDimensions) => void
 ): void {
+  if (!hasRenderedBox(container)) return;
   const proposed = instance.fit.proposeDimensions();
   if (proposed && proposed.cols > 0 && proposed.rows > 0) {
     report(proposed);
   }
+}
+
+/** A box the layout actually produced, and not one a hidden ancestor collapsed. */
+function hasRenderedBox(element: HTMLElement): boolean {
+  if (element.getClientRects().length === 0) return false;
+  return typeof element.checkVisibility === "function" ? element.checkVisibility() : true;
 }
 
 function createInstance(

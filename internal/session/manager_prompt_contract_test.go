@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -314,8 +316,8 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 		ActivityHeartbeatInterval: time.Hour,
 		ProgressNotifyInterval:    0,
-		InactivityWarningAfter:    0,
-		InactivityTimeout:         0,
+		QuietAfter:                0,
+		StopGrace:                 0,
 		TimeoutCancelGrace:        2 * time.Second,
 		PromptDeadline:            20 * time.Millisecond,
 	}))
@@ -1058,20 +1060,49 @@ func TestCancelPrompt(t *testing.T) {
 	t.Run("Should ignore cancel errors once the process is already done", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		cleanupCtx := testutil.Context(t)
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			reportSessionStop(t, h, session.ID)
 		})
+		stopping := make(chan struct{})
+		release := make(chan struct{})
+		releaseFinalization := sync.OnceFunc(func() { close(release) })
+		defer releaseFinalization()
+		signalStopping := sync.OnceFunc(func() { close(stopping) })
+		catalog.mu.Lock()
+		catalog.updateHook = func(update store.SessionStateUpdate) error {
+			if update.State == string(StateStopping) {
+				signalStopping()
+				select {
+				case <-release:
+				case <-cleanupCtx.Done():
+					return cleanupCtx.Err()
+				}
+			}
+			return nil
+		}
+		catalog.mu.Unlock()
 
 		session.setCurrentTurnSource(TurnSourceUser)
 		h.driver.cancelHook = func(_ *fakeProcess) error {
 			return errors.New("test: cancel after process exit")
 		}
 		h.driver.lastProcess().exit()
+		select {
+		case <-stopping:
+		case <-t.Context().Done():
+			t.Fatal("process exit did not begin finalization")
+		}
 
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		result, err := h.manager.CancelPrompt(t.Context(), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeNothingInFlight {
+			t.Fatalf("CancelPrompt() = %#v, want nothing in flight", result)
 		}
 		if got := h.driver.cancelCalls; got != 0 {
 			t.Fatalf("driver cancel calls = %d, want 0", got)
@@ -2351,33 +2382,6 @@ func TestWaitForPromptDrains(t *testing.T) {
 		}
 	})
 
-	t.Run("Should join a queued synthetic forward through the prompt task owner", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		source := make(chan acp.AgentEvent, 1)
-		out := make(chan acp.AgentEvent)
-		source <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "queued"}
-		h.manager.startTrackedPromptTask(func() {
-			h.manager.forwardQueuedSyntheticPrompt("session-missing", out, source)
-		})
-
-		waitCtx, cancelWait := context.WithCancel(testutil.Context(t))
-		cancelWait()
-		if err := h.manager.WaitForPromptDrains(waitCtx); !errors.Is(err, context.Canceled) {
-			t.Fatalf("WaitForPromptDrains(blocked forward) error = %v, want cancellation", err)
-		}
-
-		event := <-out
-		if event.Text != "queued" {
-			t.Fatalf("forwarded event text = %q, want queued", event.Text)
-		}
-		close(source)
-		if err := h.manager.WaitForPromptDrains(testutil.Context(t)); err != nil {
-			t.Fatalf("WaitForPromptDrains(released forward) error = %v", err)
-		}
-	})
-
 	t.Run("Should cancel and join live process watchers during shutdown", func(t *testing.T) {
 		t.Parallel()
 
@@ -2722,6 +2726,50 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 
 func TestCancelTurn(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain stopping when verified turn completion cannot be persisted", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		source := make(chan acp.AgentEvent)
+		closeSource := sync.OnceFunc(func() { close(source) })
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		h.driver.cancelHook = func(*fakeProcess) error { closeSource(); return nil }
+		var fail atomic.Bool
+		fail.Store(true)
+		writeErr := errors.New("turn receipt unavailable")
+		session.setRecorder(&terminalWriteFailingRecorder{
+			EventRecorder: session.recorderHandle(), fail: &fail, writeErr: writeErr,
+			eventType: eventspkg.SessionTurnQuiesced,
+		})
+		t.Cleanup(func() {
+			fail.Store(false)
+			closeSource()
+			reportSessionStop(t, h, session.ID)
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		stream, err := h.manager.Prompt(ctx, session.ID, "cancel with unavailable receipt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		turnID := session.CurrentTurnID()
+		if err := h.manager.CancelTurn(ctx, session.ID, turnID, CauseUserRequested); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
+		if !errors.Is(err, writeErr) || !outcome.Quiesced {
+			t.Fatalf("physical quiescence and persistence failure = %#v, %v", outcome, err)
+		}
+		collectEvents(t, stream)
+		if session.Info().State != StateStopping ||
+			countEventType(readStoredEvents(t, session), eventspkg.SessionTurnQuiesced) != 0 {
+			t.Fatal("failed receipt released admission or claimed durable completion")
+		}
+		if _, err := h.manager.Prompt(ctx, session.ID, "must not dispatch"); !errors.Is(err, ErrSessionNotActive) {
+			t.Fatalf("new work after receipt failure = %v", err)
+		}
+	})
+
 	t.Run("Should preserve natural completion received during cooperative cancellation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -2800,6 +2848,9 @@ func TestCancelTurn(t *testing.T) {
 		outcome, err := h.manager.AwaitTurnQuiesced(ctx, session.ID, turnID)
 		if !errors.Is(err, ErrStopVerificationFailed) || outcome.Quiesced || outcome.Phase != StopPhaseKilled {
 			t.Fatalf("unverified outcome = %#v, %v", outcome, err)
+		}
+		if countEventType(readStoredEvents(t, session), eventspkg.SessionTurnQuiesced) != 0 {
+			t.Fatal("unverified process death produced a verified receipt")
 		}
 		if session.Info().State != StateStopping || session.processHandle() != previous || isProcessDone(previous) {
 			t.Fatal("unverified cancellation changed the process or reported terminal")
@@ -3039,6 +3090,26 @@ func TestCancelTurn(t *testing.T) {
 				t.Fatalf("turn outcome = %#v, %v", outcome, err)
 			}
 			collectEvents(t, events)
+			// The lifecycle owner must persist one verified receipt before admitting another turn.
+			stored := readStoredEvents(t, session)
+			if countEventType(stored, eventspkg.SessionTurnQuiesced) != 1 {
+				t.Fatalf("turn completion receipts = %#v", stored)
+			}
+			for _, event := range stored {
+				if event.Type != eventspkg.SessionTurnQuiesced {
+					continue
+				}
+				var payload struct {
+					Raw turnQuiescedPayload `json:"raw"`
+				}
+				if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if !payload.Raw.Verified || payload.Raw.Phase != phase || payload.Raw.TurnID != turnID ||
+					payload.Raw.StopCause != "user_requested" || payload.Raw.Escalated != outcome.Escalated {
+					t.Fatalf("durable turn outcome = %#v", payload.Raw)
+				}
+			}
 			if session.Info().State != StateActive || session.IsPrompting() {
 				t.Fatalf("session after cancel = %#v", session.Info())
 			}
@@ -3054,4 +3125,38 @@ func TestCancelTurn(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: cleanup retires one turn atomically and cannot erase newer ownership.
+// Owner: prompt lifecycle; canonical manager_prompt_contract_test.go suite.
+func TestPromptCompletionOwnership(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve a newer turn when an older completion arrives late", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		sess := &Session{
+			currentTurnID:        "new-turn",
+			currentTurnSource:    TurnSourceUser,
+			currentPromptMessage: "new draft",
+			currentPromptDone:    done,
+		}
+		clearPromptState(sess, "old-turn")
+		if !sess.IsPrompting() || sess.CurrentTurnID() != "new-turn" || sess.CurrentPromptMessage() != "new draft" {
+			t.Fatal("late completion erased current ownership")
+		}
+		select {
+		case <-done:
+			t.Fatal("late completion closed current completion channel")
+		default:
+		}
+		clearPromptState(sess, "new-turn")
+		if sess.IsPrompting() || sess.CurrentTurnID() != "" || sess.CurrentPromptMessage() != "" {
+			t.Fatal("current completion left partial ownership")
+		}
+		select {
+		case <-done:
+		default:
+			t.Fatal("current completion did not close its channel")
+		}
+	})
 }

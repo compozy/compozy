@@ -38,6 +38,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootTaskRoles(ctx, state) },
 		func() error { return startBootLoopCoordinators(ctx, state) },
 		func() error { return d.bootScheduler(ctx, state, cleanup) },
+		func() error { return d.bootSessionSupervision(ctx, state, cleanup) },
 	}
 	for _, step := range steps {
 		if err := ctx.Err(); err != nil {

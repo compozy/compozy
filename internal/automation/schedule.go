@@ -38,6 +38,7 @@ type SchedulerStore interface {
 	SaveSchedulerState(ctx context.Context, state SchedulerState) (SchedulerState, error)
 	DeleteSchedulerState(ctx context.Context, jobID string) error
 	ClaimScheduledRun(ctx context.Context, claim SchedulerClaim) (SchedulerClaimResult, error)
+	SetScheduledDeferral(ctx context.Context, claim SchedulerClaim, retryAt *time.Time) (SchedulerState, error)
 	RecordRunDeliveryError(ctx context.Context, runID string, runErr error) (Run, error)
 }
 
@@ -88,10 +89,11 @@ type schedulerRuntime struct {
 }
 
 type scheduledRegistration struct {
-	definition   Job
-	registeredAt time.Time
-	state        SchedulerState
-	cancel       context.CancelFunc
+	capacityWaiting bool
+	definition      Job
+	registeredAt    time.Time
+	state           SchedulerState
+	cancel          context.CancelFunc
 }
 
 type schedulePlan struct {

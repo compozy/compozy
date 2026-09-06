@@ -154,3 +154,29 @@ SET state = sqlc.arg(state), attempts = attempts + 1, delivered_at = sqlc.arg(de
 WHERE loop_run_id = sqlc.arg(loop_run_id)
   AND delivery_id = sqlc.arg(delivery_id)
   AND state = 'pending';
+
+-- name: ListSessionLoopWork :many
+SELECT lr.id, lr.created_at,
+ CAST(COALESCE((SELECT MAX(tr.ended_at) FROM task_runs tr
+  WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator' AND tr.status = 'completed'), '') AS TEXT) AS reconciled_at
+FROM loop_runs lr
+WHERE lr.workspace_id = sqlc.arg(workspace_id)
+AND (sqlc.arg(all_profiles) = 1 OR lr.profile_id = sqlc.arg(profile_id))
+AND lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
+AND (lr.origin_session_id = sqlc.arg(session_id) OR lr.id = sqlc.arg(owner_run_id)
+ OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = sqlc.arg(session_id)))
+ORDER BY lr.id;
+
+-- name: ListExpirylessLoopEventWaits :many
+SELECT wait.loop_run_id, wait.generation, wait.node_id, wait.item_index, wait.created_at
+FROM loop_node_waits wait JOIN loop_runs run ON run.id = wait.loop_run_id
+WHERE wait.kind = 'event' AND wait.claim_state = 'waiting' AND wait.next_escalation_at IS NULL
+AND run.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
+ORDER BY wait.loop_run_id, wait.generation, wait.node_id, wait.item_index
+LIMIT sqlc.arg(page_limit);
+
+-- name: BackfillLoopEventWaitDeadline :execrows
+UPDATE loop_node_waits SET next_escalation_at = sqlc.arg(deadline)
+WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
+AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
+AND kind = 'event' AND claim_state = 'waiting' AND next_escalation_at IS NULL;

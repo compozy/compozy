@@ -211,6 +211,27 @@ func TestOpenSessionDBDisablesAutomaticWALCheckpoints(t *testing.T) {
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: physical checkpoint writes serialize with guarded connection opens.
+	// Owner: SessionDB WAL coordination; canonical passive-checkpoint suite.
+	t.Run("Should wait for an in-flight family guard before checkpointing", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-guard")
+		lease, err := AcquireFamilyLease(testutil.Context(t), db.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 25*time.Millisecond)
+		defer cancel()
+		if err := db.passiveCheckpoint(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("checkpoint during guarded open = %v, want deadline while lease held", err)
+		}
+		lease.Release()
+		if err := db.passiveCheckpoint(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should keep live read-only openers complete after passive checkpoints", func(t *testing.T) {
 		t.Parallel()
 
@@ -300,6 +321,78 @@ func TestSessionDBAppendEventIfAbsent(t *testing.T) {
 func TestSessionDBArchivesEventRangesWithoutDeletingHistory(t *testing.T) {
 	t.Parallel()
 
+	// Invariant UT-076/077: compacting prior turns changes ledger visibility and
+	// projection generation atomically while an active assistant keeps its identity.
+	// Owner: session transcript persistence; canonical archive suite.
+	t.Run("Should cut a completed prefix and preserve active streaming identity", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-compact-projection")
+		ctx := t.Context()
+		var input []SessionEvent
+		for _, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeUserMessage, TurnID: "old", Text: "question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "old", Text: "answer"},
+			{Type: acp.EventTypeDone, TurnID: "old"},
+			{Type: acp.EventTypeUserMessage, TurnID: "current", Text: "new question"},
+			{Type: acp.EventTypeAgentMessage, TurnID: "current", Text: "live"},
+		} {
+			input = append(input, canonicalStoreEvent(t, event, "coder"))
+		}
+		persisted, err := db.RecordPersistedBatch(ctx, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		activeID := before.Entries[len(before.Entries)-1].Message.ID
+		if _, err := db.ArchiveEvents(
+			ctx,
+			store.EventArchiveRequest{FromSequence: persisted[0].Sequence, ToSequence: persisted[2].Sequence},
+		); err != nil {
+			t.Fatal(err)
+		}
+		after, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Generation != before.Generation+1 || len(after.Entries) != 2 ||
+			after.Entries[1].Message.ID != activeID {
+			t.Fatalf("cut projection = %+v", after)
+		}
+		if err := db.Record(
+			ctx,
+			canonicalStoreEvent(
+				t,
+				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "current", Text: " tail"},
+				"coder",
+			),
+		); err != nil {
+			t.Fatal(err)
+		}
+		continued, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(continued.Entries) != 2 || continued.Entries[1].Message.ID != activeID {
+			t.Fatalf("active identity changed: %+v", continued)
+		}
+		visible, err := db.Query(ctx, EventQuery{Archive: store.EventArchiveUnarchived})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range visible {
+			if event.TurnID == "old" {
+				t.Fatalf("archived event visible: %+v", event)
+			}
+		}
+		archive, err := db.Query(ctx, EventQuery{Archive: store.EventArchiveArchived})
+		if err != nil || len(archive) != 3 {
+			t.Fatalf("retained archive = %+v, %v", archive, err)
+		}
+	})
+
 	t.Run("Should archive one idempotent range while preserving history", func(t *testing.T) {
 		t.Parallel()
 
@@ -371,6 +464,45 @@ func TestSessionDBArchivesEventRangesWithoutDeletingHistory(t *testing.T) {
 func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
 	t.Parallel()
 
+	// Invariant UT-113: independent single Record calls awaiting the writer may
+	// share a durable chunk row; every acknowledged byte survives and rows stay bounded.
+	// Owner: session writer; existing persistence/coalescing suite.
+	t.Run("Should coalesce concurrent single writes before acknowledging durability", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-single-writes")
+		event := canonicalStoreEvent(t, acp.AgentEvent{Type: acp.EventTypeAgentMessage,
+			TurnID: "turn-single", Text: "x"}, "coder")
+		const chunks = 64
+		start := make(chan struct{})
+		results := make(chan error, chunks)
+		for range chunks {
+			go func() { <-start; results <- db.Record(t.Context(), event) }()
+		}
+		close(start)
+		for range chunks {
+			if err := <-results; err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := db.Query(t.Context(), EventQuery{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) >= chunks {
+			t.Fatalf("single writes did not coalesce: %d rows", len(rows))
+		}
+		var text strings.Builder
+		for i, row := range rows {
+			if row.Sequence != int64(i+1) {
+				t.Fatalf("noncontiguous row: %+v", row)
+			}
+			text.WriteString(storedAgentText(t, row))
+		}
+		if text.String() != strings.Repeat("x", chunks) {
+			t.Fatalf("acknowledged text = %q", text.String())
+		}
+	})
+
 	t.Run("Should persist contiguous same-turn text chunks as one event row", func(t *testing.T) {
 		t.Parallel()
 
@@ -419,6 +551,36 @@ func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
 			t.Fatalf("len(stored) = %d, want %d", got, want)
 		}
 		assertEventSequences(t, stored, []int64{1, 2})
+	})
+
+	t.Run("Should retain bounded delivery frames and all bytes in a large persistence batch", func(t *testing.T) {
+		t.Parallel()
+		sessionDB := openTestSessionDB(t, "sess-coalesce-bounded")
+		var batch []SessionEvent
+		var want strings.Builder
+		for index := range 80 {
+			text := strings.Repeat(fmt.Sprintf("chunk-%03d ", index), 200)
+			want.WriteString(text)
+			batch = append(batch, canonicalStoreEvent(t, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: "acp-bounded", TurnID: "turn-bounded",
+				Text: text, Timestamp: time.Date(2026, 7, 7, 12, 0, index, 0, time.UTC),
+			}, "coder"))
+		}
+		persisted, err := sessionDB.RecordPersistedBatch(t.Context(), batch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got strings.Builder
+		for index, event := range persisted {
+			text := storedAgentText(t, event)
+			if len(text) > 4096 || event.Sequence != int64(index+1) {
+				t.Fatalf("persisted frame: bytes=%d sequence=%d", len(text), event.Sequence)
+			}
+			got.WriteString(text)
+		}
+		if got.String() != want.String() {
+			t.Fatal("large batch changed text bytes or order")
+		}
 	})
 
 	t.Run("Should flush coalesced text when a non chunk boundary appears", func(t *testing.T) {
@@ -602,8 +764,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 6 || firstStatus.AppliedCount != 6 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 6", firstStatus)
+		if firstStatus.Version != 8 || firstStatus.AppliedCount != 8 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 8", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -751,8 +913,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 6 || status.AppliedCount != 6 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 6", status)
+		if status.Version != 8 || status.AppliedCount != 8 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 8", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -1155,6 +1317,336 @@ func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.
 
 func TestSessionDBTranscriptProjection(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should identify the exact projected part and field of a navigation hit", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestSessionDB(t, "sess-navigation-source")
+		at := time.Date(2026, 9, 6, 10, 0, 0, 0, time.UTC)
+		longQuery := strings.Repeat("z", 240)
+		var input []SessionEvent
+		for i, event := range []acp.AgentEvent{
+			{Type: acp.EventTypeUserMessage, Text: "inspect the source"},
+			{Type: acp.EventTypeAgentMessage, Text: "opening prose İalpha ΟΣ " + longQuery},
+			{Type: acp.EventTypeToolCall, Title: "inspect-tool-title", ToolCallID: "source-call",
+				Raw: json.RawMessage(`{"rawInput":{"path":"source-input-needle"}}`)},
+			{Type: acp.EventTypeToolResult, ToolCallID: "source-call",
+				Raw: json.RawMessage(`{"status":"completed","rawOutput":{"stdout":"source-output-needle"}}`)},
+			{Type: acp.EventTypeAgentMessage, Text: "closing prose"},
+			{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn},
+		} {
+			event.SessionID, event.TurnID = "sess-navigation-source", "source-turn"
+			event.Timestamp = at.Add(time.Duration(i) * time.Millisecond)
+			input = append(input, canonicalStoreEvent(t, event, "coder"))
+		}
+		if _, err := db.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct{ query, field string }{
+			{"opening prose", "text"}, {"alpha", "text"}, {"οσ", "text"}, {longQuery, "text"},
+			{"inspect-tool-title", "title"}, {"source-input-needle", "input"},
+			{"source-output-needle", "output"}, {"closing prose", "text"},
+		} {
+			result, err := db.TranscriptSearch(ctx, transcript.SearchQuery{Query: tc.query})
+			if err != nil || len(result.Matches) != 1 {
+				t.Fatalf("search %q = %#v, %v", tc.query, result, err)
+			}
+			match := result.Matches[0]
+			if match.PartIndex == nil || match.Field != tc.field {
+				t.Fatalf("source for %q = %#v", tc.query, match)
+			}
+			var part *transcript.UIMessagePart
+			for _, entry := range page.Entries {
+				if entry.StartSequence == match.Sequence && *match.PartIndex >= 0 &&
+					*match.PartIndex < len(entry.Message.Parts) {
+					part = &entry.Message.Parts[*match.PartIndex]
+				}
+			}
+			if part == nil {
+				t.Fatalf("source cursor for %q does not resolve: %#v", tc.query, match)
+			}
+			text := map[string]string{"text": part.Text, "title": part.Title, "input": string(part.Input), "output": string(part.Output)}[tc.field]
+			if !strings.Contains(strings.ToLower(text), strings.ToLower(tc.query)) ||
+				!strings.Contains(strings.ToLower(match.Snippet), strings.ToLower(tc.query)) {
+				t.Fatalf("source/snippet for %q = %q / %q", tc.query, text, match.Snippet)
+			}
+		}
+	})
+
+	t.Run("Should search and outline all retained projected messages with bounded matches", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestSessionDB(t, "sess-navigation")
+		emptySearch, err := db.TranscriptSearch(ctx, transcript.SearchQuery{Query: "missing"})
+		if err != nil || emptySearch.Matches == nil || len(emptySearch.Matches) != 0 || emptySearch.Truncated {
+			t.Fatalf("empty search = %#v, %v", emptySearch, err)
+		}
+		emptyOutline, err := db.TranscriptOutline(ctx)
+		if err != nil || emptyOutline.Entries == nil || len(emptyOutline.Entries) != 0 {
+			t.Fatalf("empty outline = %#v, %v", emptyOutline, err)
+		}
+		at := time.Date(2026, 9, 1, 13, 40, 2, 0, time.UTC)
+		input := make([]SessionEvent, 0, 615)
+		for i := range 205 {
+			turn := fmt.Sprintf("navigation-%03d", i)
+			for _, event := range []acp.AgentEvent{
+				{Type: acp.EventTypeUserMessage, Text: fmt.Sprintf("operator question %03d", i)},
+				{Type: acp.EventTypeAgentMessage, Text: fmt.Sprintf("Café lifecycle reply %03d with 100%% coverage", i)},
+				{Type: acp.EventTypeDone, StopReason: string(acp.PromptStopReasonEndTurn)},
+			} {
+				event.SessionID, event.TurnID, event.Timestamp = "sess-navigation", turn, at.Add(
+					time.Duration(i)*time.Second,
+				)
+				input = append(input, canonicalStoreEvent(t, event, "coder"))
+			}
+		}
+		if _, err := db.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		result, err := db.TranscriptSearch(ctx, transcript.SearchQuery{Query: "CAFÉ lifecycle", Limit: 2})
+		if err != nil || len(result.Matches) != 2 || !result.Truncated {
+			t.Fatalf("bounded search = %#v, %v", result, err)
+		}
+		if result.Matches[0].Sequence != 2 || result.Matches[1].Sequence != 5 ||
+			result.Matches[0].Role != "assistant" ||
+			result.Matches[0].TurnID != "navigation-000" ||
+			!strings.Contains(result.Matches[0].Snippet, "Café lifecycle") {
+			t.Fatalf("search identities/snippets = %#v", result.Matches)
+		}
+		for _, query := range []string{"reply 204", "100% coverage"} {
+			result, err = db.TranscriptSearch(ctx, transcript.SearchQuery{Query: query, Limit: 1000})
+			if err != nil || len(result.Matches) == 0 || result.Truncated {
+				t.Fatalf("full-history %q = %#v, %v", query, result, err)
+			}
+		}
+		result, err = db.TranscriptSearch(ctx, transcript.SearchQuery{Query: "reply 204", Limit: 1})
+		if err != nil || len(result.Matches) != 1 || result.Truncated || result.Matches[0].Sequence != 614 {
+			t.Fatalf("last page exact limit = %#v, %v", result, err)
+		}
+		result, err = db.TranscriptSearch(ctx, transcript.SearchQuery{Query: "assistant", Limit: 1})
+		if err != nil || len(result.Matches) != 0 {
+			t.Fatalf("metadata must not match: %#v, %v", result, err)
+		}
+		for _, query := range []transcript.SearchQuery{{Query: " "}, {Query: "x", Limit: -1}, {Query: "x", Limit: 1001}} {
+			if _, err := db.TranscriptSearch(ctx, query); err == nil {
+				t.Fatalf("invalid query accepted: %#v", query)
+			}
+		}
+		outline, err := db.TranscriptOutline(ctx)
+		if err != nil || len(outline.Entries) != 205 {
+			t.Fatalf("outline length = %d, %v", len(outline.Entries), err)
+		}
+		for i, entry := range outline.Entries {
+			if entry.Sequence != int64(i*3+1) || entry.TurnID != fmt.Sprintf("navigation-%03d", i) ||
+				entry.Preview != fmt.Sprintf(
+					"operator question %03d",
+					i,
+				) || !strings.Contains(entry.ReplyPreview, fmt.Sprintf("reply %03d", i)) ||
+				!entry.At.Equal(at.Add(time.Duration(i)*time.Second)) {
+				t.Fatalf("outline[%d] = %#v", i, entry)
+			}
+		}
+		if _, err := db.ArchiveEvents(ctx, store.EventArchiveRequest{FromSequence: 1, ToSequence: 3}); err != nil {
+			t.Fatal(err)
+		}
+		result, err = db.TranscriptSearch(ctx, transcript.SearchQuery{Query: "reply 000"})
+		if err != nil || len(result.Matches) != 0 {
+			t.Fatalf("archived entry still searchable: %#v, %v", result, err)
+		}
+		outline, err = db.TranscriptOutline(ctx)
+		if err != nil || len(outline.Entries) != 204 || outline.Entries[0].Sequence != 4 {
+			t.Fatalf("archive outline = %#v, %v", outline, err)
+		}
+	})
+
+	t.Run(
+		"Should migrate projected display facts without changing transcript identity or event content",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerTestSQLDBCleanup(t, "display migration prefix", prefix)
+			if err := store.Apply(
+				ctx,
+				prefix,
+				sessionMigrationPrefixBefore(t, "00008_projection_display.sql"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			owner := testSessionDBOwner("sess-display-upgrade")
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+				owner.SessionID,
+				owner.WorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO transcript_projection_state (singleton,projection_version,generation) VALUES (1,1,3)`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			at := "2026-09-06T11:00:00.123456789Z"
+			userJSON := `{"id":"user-stable","role":"user","metadata":{"turn_id":"turn-stable","message_id":"user-stable"},"parts":[{"type":"text","text":"Keep this guidance"}]}`
+			toolJSON := `{"id":"assistant-stable","role":"assistant","parts":[{"type":"text","text":"Before"},{"type":"tool-Preparing file…","title":"Preparing file…","toolCallId":"write-stable","state":"output-available","input":{"content":"preserved"},"output":{"text":"written"}},{"type":"text","text":"After"}]}`
+			eventContent := `{"schema":"compozy.transcript.v1","type":"tool_result","tool_call_id":"write-stable","tool_name":"Write","title":"Write"}`
+			for index, row := range []struct{ kind, id, message, eventType, content string }{
+				{"user", "user-stable", userJSON, "user_message", `{"type":"user_message","text":"Keep this guidance"}`},
+				{"assistant", "assistant-stable", toolJSON, "tool_result", eventContent},
+			} {
+				seq := index + 1
+				if _, err := prefix.ExecContext(ctx, `INSERT INTO transcript_entries
+			(entry_key,kind,logical_id,turn_id,base_message_id,message_id,start_sequence,updated_sequence,complete,message_json)
+			VALUES (?,?,?,'turn-stable',?,?,?,?,1,?)`, row.id, row.kind, row.id, row.id, row.id, seq, seq, row.message); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := prefix.ExecContext(ctx, `INSERT INTO events
+			(id,sequence,turn_id,type,agent_name,content,timestamp,transcript_entry_key,archived)
+			VALUES (?,?,'turn-stable',?,'coder',?,?,?,1)`, row.id, seq, row.eventType, row.content, at, row.id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				reopened, err := OpenSessionDB(ctx, owner, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				page, err := reopened.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+				if err != nil || len(page.Entries) != 2 {
+					t.Fatalf("migrated page=%#v/%v", page, err)
+				}
+				user, assistant := page.Entries[0], page.Entries[1]
+				var metadata map[string]any
+				if err := json.Unmarshal(user.Message.Metadata, &metadata); err != nil {
+					t.Fatal(err)
+				}
+				if user.Message.ID != "user-stable" || user.StartSequence != 1 || metadata["timestamp"] != at ||
+					metadata["turn_id"] != "turn-stable" || transcript.UIMessageText(user.Message) != "Keep this guidance" {
+					t.Fatalf("migrated user=%#v/%#v", user, metadata)
+				}
+				parts := assistant.Message.Parts
+				if assistant.Message.ID != "assistant-stable" || assistant.StartSequence != 2 || len(parts) != 3 ||
+					parts[0].Text != "Before" || parts[2].Text != "After" || parts[1].Type != "tool-Write" || parts[1].Title != "Write" ||
+					parts[1].ToolCallID != "write-stable" || string(parts[1].Input) != `{"content":"preserved"}` || string(parts[1].Output) != `{"text":"written"}` {
+					t.Fatalf("migrated assistant=%#v", assistant)
+				}
+				var content string
+				var archived int
+				if err := reopened.db.QueryRowContext(ctx, `SELECT content, archived FROM events WHERE id='assistant-stable'`).
+					Scan(&content, &archived); err != nil {
+					t.Fatal(err)
+				}
+				if content != eventContent || archived != 1 || page.Generation != 3 {
+					t.Fatalf("ledger/generation changed=%s/%d/%d", content, archived, page.Generation)
+				}
+				if err := reopened.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+	)
+
+	t.Run(
+		"Should preserve navigation content across the index migration and use its ordered access",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			prefix, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Apply(ctx, prefix, sessionMigrationPrefixBefore(t, "00007_schema.sql")); err != nil {
+				t.Fatal(err)
+			}
+			// The owning migration suite already covers open/refusal; this case proves the new query plan and preserved data.
+			message := `{"id":"legacy-msg","role":"user","parts":[{"type":"text","text":"legacy lifecycle"}]}`
+			if _, err := prefix.ExecContext(ctx, `INSERT INTO transcript_entries
+   (entry_key,kind,logical_id,turn_id,base_message_id,message_id,start_sequence,updated_sequence,complete,message_json)
+   VALUES ('legacy','user','legacy','legacy-turn','legacy-msg','legacy-msg',7,7,1,?)`, message); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO events (id,sequence,turn_id,type,agent_name,content,timestamp,transcript_entry_key)
+   VALUES ('event-legacy',7,'legacy-turn','user_message','coder','{}','2026-09-01T13:40:02Z','legacy')`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO session_db_owner (singleton,session_id,workspace_id) VALUES (1,?,?)`,
+				"sess-navigation-upgrade",
+				testSessionDBWorkspaceID,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prefix.ExecContext(
+				ctx,
+				`INSERT INTO transcript_projection_state (singleton,projection_version,generation) VALUES (1,1,1)`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := prefix.Close(); err != nil {
+				t.Fatal(err)
+			}
+			reopened, err := OpenSessionDB(ctx, testSessionDBOwner("sess-navigation-upgrade"), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			result, err := reopened.TranscriptSearch(ctx, transcript.SearchQuery{Query: "lifecycle"})
+			if err != nil || len(result.Matches) != 1 || result.Matches[0].Sequence != 7 {
+				t.Fatalf("migrated search = %#v, %v", result, err)
+			}
+			outline, err := reopened.TranscriptOutline(ctx)
+			if err != nil || len(outline.Entries) != 1 || outline.Entries[0].Preview != "legacy lifecycle" {
+				t.Fatalf("migrated outline = %#v, %v", outline, err)
+			}
+			rows, err := reopened.db.QueryContext(ctx, `EXPLAIN QUERY PLAN SELECT start_sequence FROM transcript_entries
+   WHERE kind='user' AND start_sequence > 0 ORDER BY start_sequence LIMIT 200`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := rows.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			indexed := false
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				indexed = indexed || strings.Contains(detail, "idx_transcript_entries_role_sequence")
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if !indexed {
+				t.Fatal("operator navigation did not use the role/sequence index")
+			}
+		},
+	)
 
 	t.Run("Should update one stable entry across streamed event writes", func(t *testing.T) {
 		t.Parallel()
@@ -1711,10 +2203,10 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("TranscriptPage() error = %v", err)
 		}
-		if got, want := len(page.Entries), 3; got != want {
+		if got, want := len(page.Entries), 1; got != want {
 			t.Fatalf("len(visible entries) = %d, want %d", got, want)
 		}
-		_, err = sessionDB.ConversationRewindTarget(ctx, page.Entries[2].Message.ID)
+		_, err = sessionDB.ConversationRewindTarget(ctx, page.Entries[0].Message.ID)
 		if !errors.Is(err, store.ErrConversationRewindTargetInvalid) {
 			t.Fatalf("ConversationRewindTarget(compacted prefix) error = %v, want target invalid", err)
 		}
@@ -2701,6 +3193,11 @@ func TestSessionDBQueryFilters(t *testing.T) {
 			wantSeqs:  []int64{1, 2, 4},
 			wantTypes: []string{"agent_message", "tool_call", "error"},
 		},
+
+		// Invariant UT-073: a forward page returns the next rows without skipping
+		// the retained gap. Owner: session store; canonical event query suite.
+		{name: "Should return next bounded forward page", query: EventQuery{AfterSequence: 1, Limit: 2},
+			wantSeqs: []int64{2, 3}, wantTypes: []string{"tool_call", "agent_message"}},
 		{
 			name:      "follow compatible after sequence filter",
 			query:     EventQuery{AfterSequence: 2},

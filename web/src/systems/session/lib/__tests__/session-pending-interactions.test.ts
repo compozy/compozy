@@ -33,6 +33,7 @@ function interaction(
 
 function sessionWith(rows: SessionPendingInteraction[]): SessionPayload {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id: "sess-1",

@@ -21,14 +21,14 @@ func sessionInputListBundle(response SessionInputListRecord) outputBundle {
 		},
 		func(input SessionInputRecord) []string {
 			return []string{
-				stringOrDash(input.ID), stringOrDash(string(input.Mode)), stringOrDash(input.Status),
+				stringOrDash(input.ID), stringOrDash(string(input.Mode)), stringOrDash(string(input.Status)),
 				stringOrDash(string(input.Delivery)), stringOrDash(input.TargetTurnID),
 				stringOrDash(input.Text), formatTime(input.EnqueuedAt),
 			}
 		},
 		func(input SessionInputRecord) []string {
 			return []string{
-				input.ID, string(input.Mode), input.Status, string(input.Delivery), input.TargetTurnID,
+				input.ID, string(input.Mode), string(input.Status), string(input.Delivery), input.TargetTurnID,
 				input.Text, formatTime(input.EnqueuedAt),
 			}
 		},
@@ -58,7 +58,7 @@ func sessionInputRows(input SessionInputRecord) []keyValue {
 		{Label: cliMessageIDValue, Value: stringOrDash(input.MessageID)},
 		{Label: idempotencyKeyLabel, Value: stringOrDash(input.IdempotencyKey)},
 		{Label: "Target Turn", Value: stringOrDash(input.TargetTurnID)},
-		{Label: automationStatusValue, Value: stringOrDash(input.Status)},
+		{Label: automationStatusValue, Value: stringOrDash(string(input.Status))},
 		{Label: "Mode", Value: stringOrDash(string(input.Mode))},
 		{Label: cliDeliveryValue, Value: stringOrDash(string(input.Delivery))},
 		{Label: "Text", Value: stringOrDash(input.Text)},
@@ -81,7 +81,7 @@ func sessionInputFields() []string {
 
 func sessionInputValues(input SessionInputRecord) []string {
 	return []string{
-		input.ID, input.SessionID, input.MessageID, input.IdempotencyKey, input.TargetTurnID, input.Status,
+		input.ID, input.SessionID, input.MessageID, input.IdempotencyKey, input.TargetTurnID, string(input.Status),
 		string(input.Mode), string(input.Delivery), input.Text, strconv.FormatInt(input.QueueGeneration, 10),
 		formatTime(input.EnqueuedAt), sessionInputRuntime(input.Runtime),
 	}

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -26,6 +27,9 @@ func (m *Manager) ListPendingInputs(ctx context.Context, id string) ([]PendingIn
 	}
 	entries, err := m.inputQueue.List(ctx, session.ID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.projectInputClearTraces(ctx, session); err != nil {
 		return nil, err
 	}
 	inputs := make([]PendingInput, 0, len(entries))
@@ -163,6 +167,8 @@ func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	return PendingInput{
 		ID:               entry.ID,
 		SessionID:        entry.SessionID,
+		OwnerKind:        entry.OwnerKind,
+		OwnerID:          cmp.Or(entry.LoopRunID, entry.TaskRunID),
 		MessageID:        entry.MessageID,
 		IdempotencyKey:   entry.IdempotencyKey,
 		TargetTurnID:     entry.TargetTurnID,

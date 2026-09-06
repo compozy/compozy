@@ -18,6 +18,7 @@ export const fraudSessions: SessionPayload[] = sessionFixtures.filter(
 );
 
 const fallbackFraudSession: SessionPayload = {
+  supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   id: storySessionIds.fraud,

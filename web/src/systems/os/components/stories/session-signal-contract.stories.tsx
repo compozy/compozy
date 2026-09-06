@@ -22,6 +22,7 @@ function session(
   pendingInteractions: SessionPayload["pending_interactions"] = []
 ): SessionPayload {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id,

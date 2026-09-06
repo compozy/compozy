@@ -9,10 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -30,6 +32,212 @@ const (
 	faultyMockAgentName      = "mock-faulty"
 	recoverableMockAgentName = "mock-recoverable-fault"
 )
+
+func TestDaemonE2EACPmockTransportStorm(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Run("Should persist all fifty thousand chunks while an HTTP watcher stops reading", func(t *testing.T) {
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "transport_storm_fixture.json"),
+				FixtureAgent: "transport-storm", AgentName: "mock-transport-storm",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		defer cancel()
+		created := createFixtureBackedSession(t, ctx, harness, "mock-transport-storm", "transport storm")
+		slow := openGatedSessionStream(t, ctx, harness, created.ID)
+		defer func() {
+			if err := slow.Body.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := harness.PromptSessionHTTP(ctx, created.ID, "flood transport"); err != nil {
+			diagnosticCtx, cancelDiagnostic := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelDiagnostic()
+			if captureErr := harness.CaptureSessionEvents(diagnosticCtx, created.ID); captureErr != nil {
+				t.Logf("capture stalled storm: %v", captureErr)
+			}
+			state, stateErr := harness.GetSession(diagnosticCtx, created.ID)
+			t.Logf(
+				"stalled storm runtime=%#v state error=%v; artifacts=%s",
+				state.Runtime,
+				stateErr,
+				harness.Artifacts.RootDir(),
+			)
+			t.Fatal(err)
+		}
+		var stored compozycontract.SessionEventsResponse
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodGet,
+			"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+created.ID+"/events?limit=1000",
+			nil,
+			&stored,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(stored.Events) == 0 || stored.Events[0].Sequence != 1 {
+			t.Fatal("storm evidence must include the complete durable event window")
+		}
+		var text strings.Builder
+		completed := false
+		for _, event := range decodeAgentEvents(t, stored.Events) {
+			if event.Type == "error" {
+				t.Fatalf("storm failed: %#v", event)
+			}
+			if event.Type == "agent_message" && strings.HasPrefix(event.Text, "0123456789abcdef") {
+				text.WriteString(event.Text)
+			}
+			completed = completed || event.Type == "agent_message" && event.Text == "storm complete"
+		}
+		want := strings.Repeat("0123456789abcdef0123456789abcdef", 50000)
+		if !completed || text.String() != want {
+			t.Fatalf(
+				"persisted storm bytes = %d, want %d; completed=%v; events=%d",
+				text.Len(),
+				len(want),
+				completed,
+				len(stored.Events),
+			)
+		}
+		if err := harness.Artifacts.CaptureJSON(e2etest.ArtifactKindEvents, stored.Events); err != nil {
+			t.Fatal(err)
+		}
+		var logs compozycontract.LogsListResponse
+		waitForRuntimeCondition(t, "slow watcher degrade marker", 10*time.Second, func() bool {
+			err := harness.HTTPJSON(ctx, http.MethodGet,
+				"/api/logs?session_id="+created.ID+"&type=stream.consumer_degraded&limit=100", nil, &logs)
+			return err == nil && len(logs.Events) > 0
+		})
+		if len(logs.Events) != 1 {
+			t.Fatalf("degrade events = %d, want one per shed watcher", len(logs.Events))
+		}
+		degraded := logs.Events[0]
+		var correlation struct {
+			TurnID string `json:"turn_id"`
+		}
+		if err := json.Unmarshal(degraded.Content, &correlation); err != nil {
+			t.Fatal(err)
+		}
+		if degraded.SessionID != created.ID || degraded.WorkspaceID != harness.WorkspaceID ||
+			correlation.TurnID == "" || degraded.ActorID != "daemon" || degraded.ActorKind != "system" {
+			t.Fatalf("degrade correlation = %#v", degraded)
+		}
+	})
+}
+
+func TestDaemonE2EACPmockTransportWedge(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Run("Should release a wedged provider through the public cancellation path", func(t *testing.T) {
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "transport_storm_fixture.json"),
+				FixtureAgent: "transport-storm", AgentName: "mock-transport-wedge",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+		created := createFixtureBackedSession(t, ctx, harness, "mock-transport-wedge", "transport wedge")
+		var cancellation compozycontract.SessionPromptCancelResponse
+		stream, err := harness.PromptSessionHTTPWithEvents(
+			ctx,
+			created.ID,
+			"wedge transport",
+			func(record e2etest.SSEEvent) error {
+				if record.Event != "agent_message" || cancellation.TurnID != "" {
+					return nil
+				}
+				return harness.HTTPJSON(ctx, http.MethodPost,
+					"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+created.ID+"/prompt/cancel", nil, &cancellation)
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cancellation.Outcome != "canceled" || cancellation.TurnID == "" || !sseStreamContainsEvent(stream, "done") {
+			t.Fatalf("wedged turn cancellation = %#v; stream=%#v", cancellation, stream)
+		}
+		stored, err := harness.SessionEvents(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		terminal := false
+		for _, event := range decodeAgentEvents(t, stored.Events) {
+			terminal = terminal || event.Type == "done" && event.PromptStopReason == "cancelled"
+		}
+		if !terminal {
+			t.Fatal("wedged turn did not persist its cancellation terminal")
+		}
+		// The public ledger must replay verified turn completion after cancellation settles.
+		waitForRuntimeCondition(t, "durable turn quiescence receipt", 10*time.Second, func() bool {
+			current, err := harness.SessionEvents(ctx, created.ID)
+			if err != nil {
+				return false
+			}
+			for _, event := range current.Events {
+				if event.Type != eventspkg.SessionTurnQuiesced {
+					continue
+				}
+				var payload struct {
+					Raw struct {
+						Verified  bool   `json:"verified"`
+						TurnID    string `json:"turn_id"`
+						StopCause string `json:"stop_cause"`
+					} `json:"raw"`
+				}
+				if err := json.Unmarshal(event.Content, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if !payload.Raw.Verified || payload.Raw.TurnID != cancellation.TurnID ||
+					payload.Raw.StopCause != "user_requested" {
+					t.Fatalf("turn quiescence receipt = %#v", payload)
+				}
+				return true
+			}
+			return false
+		})
+	})
+}
+
+func openGatedSessionStream(
+	t *testing.T, ctx context.Context, harness *e2etest.RuntimeHarness, sessionID string,
+) *http.Response {
+	t.Helper()
+	// Set the receive window before TCP negotiation. Shrinking it after dialing
+	// still lets Linux buffer this entire storm, so the peer never backpressures
+	// the SSE writer and the intended slow-consumer condition is not exercised.
+	dialer := &net.Dialer{Control: func(_, _ string, connection syscall.RawConn) error {
+		var bufferErr error
+		controlErr := connection.Control(func(fd uintptr) {
+			bufferErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024)
+		})
+		return errors.Join(controlErr, bufferErr)
+	}}
+	transport := &http.Transport{DialContext: dialer.DialContext}
+	t.Cleanup(transport.CloseIdleConnections)
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		harness.HTTPURL(
+			"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+		),
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := (&http.Client{Transport: transport}).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		t.Fatalf("open gated stream = %d: %s; %v", response.StatusCode, body, errors.Join(readErr, closeErr))
+	}
+	// The body remains unread until the test has observed durable completion.
+	return response
+}
 
 func TestDaemonE2EACPmockCrashMidStreamRecoversInterruptedTurn(t *testing.T) {
 	acpmock.RequireDriver(t)
@@ -304,8 +512,8 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 		harness, session := startFaultyMockSession(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
 			cfg.Session.Supervision.ProgressNotifyInterval = 20 * time.Millisecond
-			cfg.Session.Supervision.InactivityWarningAfter = 0
-			cfg.Session.Supervision.InactivityTimeout = 0
+			cfg.Session.Supervision.QuietAfter = 0
+			cfg.Session.Supervision.StopGrace = 0
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

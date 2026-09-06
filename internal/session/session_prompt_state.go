@@ -207,22 +207,6 @@ func (s *Session) promptCancellationRequested(turnID string) bool {
 	return s.currentPromptCancelTurn == target
 }
 
-func (s *Session) clearPromptCancellation(turnID string) {
-	if s == nil {
-		return
-	}
-
-	target := strings.TrimSpace(turnID)
-	if target == "" {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.currentPromptCancelTurn == target {
-		s.currentPromptCancelTurn = ""
-	}
-}
-
 func (s *Session) clearCurrentTurnSource() {
 	if s == nil {
 		return
@@ -231,58 +215,4 @@ func (s *Session) clearCurrentTurnSource() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentTurnSource = ""
-}
-
-func (s *Session) clearCurrentTurnID() {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.currentTurnID = ""
-}
-
-func (s *Session) finishCurrentPromptCompletion() {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.currentPromptDone != nil {
-		close(s.currentPromptDone)
-		s.currentPromptDone = nil
-	}
-}
-
-func (s *Session) clearCurrentPromptMeta() {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.currentPromptMeta = acp.PromptMeta{}
-}
-
-func (s *Session) clearCurrentPromptMessage() {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.currentPromptMessage = ""
-}
-
-func (s *Session) clearCurrentPromptCancel() {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.currentPromptCancel = nil
-	s.promptCancelRequested = false
 }

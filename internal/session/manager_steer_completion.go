@@ -39,6 +39,10 @@ func (m *Manager) watchSteerCompletion(session *Session, entryID, targetTurnID s
 		if !changed {
 			return
 		}
+		if err := m.recordInjectedSteerInput(ctx, session, &resolved); err != nil {
+			m.sessionLogger(session).
+				Error("session: persist confirmed guidance failed", "entry_id", entryID, "error", err)
+		}
 		m.emitSteerMarker(ctx, session, &resolved)
 		if deliveryErr == nil {
 			return

@@ -40,6 +40,11 @@ type SessionManager interface {
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
 	SteerPrompt(ctx context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error)
 	ListPendingInputs(ctx context.Context, id string) ([]session.PendingInput, error)
+	ClearPendingInputs(
+		ctx context.Context,
+		id string,
+		caller session.PromptCaller,
+	) (session.ClearPendingInputsResult, error)
 	ReplacePendingInput(
 		ctx context.Context,
 		id string,

@@ -23,6 +23,11 @@ the current turn and dispatching the accepted replacement.
 | `pending_injection`  | The agent accepted guidance and is waiting to inject it.     |
 | `interrupt_fallback` | CompozyOS accepted a replacement through the interrupt path. |
 
+Confirmed live steering persists one authored message with its original identity in the active
+turn. Pending and superseded guidance retain their authored text and identity in durable delivery
+receipts. If pending injection later falls back, its replacement turn is allocated before queue
+dispatch; replay keeps the original acceptance outcome and does not deliver the input twice.
+
 The busy response contains `disposition`, `steer_delivery`, `turn_id`, `entry_id`, `message_id`,
 `idempotency_key`, `queue_position`, and `replayed`. Non-steering responses omit `steer_delivery`.
 HTTP and UDS return this object inside `prompt`; CLI JSON and native tools use the same envelope.
@@ -49,3 +54,86 @@ or canceling again.
 Set `wait:true` to wait for completion and receive a terminal runtime error if the turn fails.
 The follow-up preference is daemon-owned, so changing **Follow-up behavior** in Settings affects
 subsequent busy admissions through Web, CLI, HTTP, UDS, and native tools.
+
+Session details expose `stop_cause` alongside `stop_reason`, `stop_detail`,
+`verified` and `escalated`. The cause distinguishes manual stop (`user_requested`),
+inactivity and other termination sources. An active session without a stop has no
+cause; a stopped session retains its classification after reload.
+
+Turn cancellation commits `session.turn_quiesced` after verifying quiescence and
+completing any necessary provider rebind, before accepting the next turn. Its raw
+payload includes `scope: "turn"`, `turn_id`, `verified`, `escalated`, `phase`,
+`elapsed_ms` and `stop_cause`. This receipt survives reload; a
+`session.stop_escalated` event alone records an attempted action, not its outcome.
+If the receipt cannot be persisted, the session retains `stopping` and rejects new
+work instead of reporting durable completion.
+
+The Web transcript groups completed tools and settled turns, keeps stopped turns
+open, and shows Thinking before the first content arrives. Scrolling up pauses
+following; the jump control returns to live. Smooth prose streaming can be disabled
+in Settings and respects reduced motion.
+
+## Manage parked follow-ups
+
+Interrupt cancels the active turn and preserves parked follow-ups, including entries owned by
+other actors. The replacement runs first; the preserved queue then continues in dispatch order.
+Use the explicit clear command when you intend to remove parked work:
+
+```bash
+compozy session input list sess_1234 -o json
+compozy session input edit sess_1234 queue_entry_1234 "Run the focused check."
+compozy session input steer sess_1234 queue_entry_1234 "Check this first."
+compozy session input cancel sess_1234 queue_entry_1234
+compozy session input clear sess_1234 -o json
+```
+
+HTTP and UDS expose the same operation at `DELETE /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue`.
+Agents use `compozy__session_inputs_clear`. The response contains `cleared_count`, `queue_generation`,
+and `inputs` with each entry's outcome. A dispatching entry finishes according to its dispatch
+outcome; clear does not stop the active turn. Each removed entry leaves a `queue_cleared` transcript
+marker with its ID and the actor who cleared it. Queue removal and durable evidence commit together.
+
+The queue list includes owner attribution and uses only `queued`, `dispatching`, `sent`, `failed`,
+and `canceled` statuses. A client that loses an acknowledgment retains the original identity locally
+as an unconfirmed send. Retrying that identity resolves the recorded outcome without another dispatch.
+
+The queue list and session status include `queue: {entries, cap}`, so clients can show the limit
+before a send is refused. A full queue returns HTTP/UDS `409 queue_full` with `queue_cap` and
+`queue_count` in diagnostic evidence. Steering and interrupt replacements remain admitted at cap.
+An interrupt with no text or attachments only stops the active turn; it adds no replacement.
+
+Daemon-authored follow-ups use this same durable queue with `owner_kind: "synthetic"`. They retain
+their prompt metadata through restart and share the dispatch order with human follow-ups. Goal-owned
+entries remain visible with their owner identity; clearing a parked Goal entry settles its waiting
+prompt as control-fenced and paused.
+
+## Find a message in retained history
+
+Search covers the session's retained materialized transcript, including messages outside the
+loaded Web window. It matches literal text without case sensitivity; each result names the
+message's stable start sequence, turn, role and a bounded snippet.
+
+```sh
+compozy session search <session-id> "lifecycle" --limit 50 -o json
+compozy session outline <session-id> -o json
+```
+
+The HTTP and UDS twins are `GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search?q=lifecycle&limit=50`
+and `GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline`.
+Agents use `compozy__session_search` with `session_id`, optional `workspace`, `q` and optional
+`limit`, or `compozy__session_outline` with `session_id` and optional `workspace`.
+
+Search returns `{matches, truncated}` in chronological order. The default is 200 matching
+messages, capped at 1000; `truncated: true` means additional matches were omitted. Queries
+must contain 1–4096 bytes after trimming. A literal `%` or `_` is ordinary text. Empty
+results are an empty array, not a transport error.
+
+Outline returns `{entries}` with one row per retained sent message, its turn, timestamp,
+message preview and latest reply preview. Previews are limited to 160 characters. Both
+reads share the session's workspace authorization and exclude compacted or rewound entries.
+Use the sequence to load the matching transcript context; re-read after a history reset.
+
+Search matches retain their stable entry `sequence` and include `part_index` and
+`field` hints for the first matching field in that projected message. These let
+clients open folded tool content directly; the snippet is a preview, not a source
+location. Literal queries can match prose, tool titles, names, inputs and outputs.

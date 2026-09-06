@@ -73,6 +73,7 @@ func (q ChangeQuery) Normalize() (ChangeQuery, error) {
 
 // ChangePage is one bounded set of entries shaped by events after a cursor.
 type ChangePage struct {
+	MinSequence int64   `json:"min_sequence"`
 	Entries     []Entry `json:"entries"`
 	Generation  int64   `json:"generation"`
 	MaxSequence int64   `json:"max_sequence"`

@@ -98,6 +98,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
 
   const setComposerText = (text: string) => {
     persistComposerText(text);
+    aui.composer.setText(text);
   };
 
   const prefillComposer = (text: string) => {

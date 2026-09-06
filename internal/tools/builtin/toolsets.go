@@ -82,6 +82,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionRuntimeSet.String(),
 			toolspkg.ToolIDSessionRuntimeClear.String(),
 			toolspkg.ToolIDSessionInputsList.String(),
+			toolspkg.ToolIDSessionInputsClear.String(),
 			toolspkg.ToolIDSessionInputReplace.String(),
 			toolspkg.ToolIDSessionInputCancel.String(),
 			toolspkg.ToolIDSessionInputPromote.String(),

@@ -35,11 +35,12 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		BusyInput: info.BusyInput,
-		ID:        info.ID,
-		ProfileID: strings.TrimSpace(info.ProfileID),
-		Name:      info.Name,
-		AgentName: info.AgentName,
+		Supervision: session.CloneSupervisionState(info.Supervision),
+		BusyInput:   info.BusyInput,
+		ID:          info.ID,
+		ProfileID:   strings.TrimSpace(info.ProfileID),
+		Name:        info.Name,
+		AgentName:   info.AgentName,
 		Runtime: contract.SessionRuntimePayload{
 			Status:            info.RuntimeStatus,
 			Transition:        info.RuntimeTransition,
@@ -65,6 +66,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		PendingInteractions:          PendingInteractionPayloadsFromStore(info.PendingInteractions),
 		ArchivedAt:                   cloneTimePtr(info.ArchivedAt),
 		StopReason:                   info.StopReason,
+		StopCause:                    sessionStopCause(info),
 		Verified:                     new(info.State == session.StateStopped),
 		Escalated:                    new(info.StopEscalated),
 		Attention:                    sessionStopAttention(info),

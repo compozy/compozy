@@ -38,3 +38,12 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The agent response demonstrating a pre-restart fact after degraded resume.
 - Byte-identical event-store hash before/after the prune pass, and a successful `session/load` run
   with no replay and no marker.
+
+QA impact 2026-09-06 sessions-stability task_06 (final walk owned by task_10): compact
+settled history during an active watched turn. Compare the remaining events and
+transcript with the reset snapshot, verify the generation advances once and the active
+message keeps its identity/content without a visible jump. Reconnect from a retention-
+erased cursor and verify a stated cursor_expired snapshot. Focused store/manager checks
+are recorded in sessions-stability/memory/task_06.md; this browser walk has not run.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for the selected pressure-compaction/recovery branch: profile-bound resume succeeds; first and repeated archives advance generation0→1→2, preserve raw event contents and current authored/assistant identity, and reset old-generation/expired cursors. The actual Find query invalidates without losing focus. The full historical degraded-provider-load forensic charter is not rerun or newly claimed. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

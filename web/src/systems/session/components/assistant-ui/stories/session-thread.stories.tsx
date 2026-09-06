@@ -1,6 +1,10 @@
+import {
+  baseArgs,
+  GoalCommandErrorFixture,
+  renderWithTranscriptState,
+  quietTimelineStory,
+} from "./session-thread-story-runtime";
 import { primarySessionFixture, sessionCommandCatalogFixture } from "@/systems/session/mocks";
-import { type ComponentProps, type ReactNode, useEffect } from "react";
-import { sessionStore } from "@/systems/session/stores/session-store";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScrollToBottomPill } from "@/components/assistant-ui/scroll-to-bottom-pill";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
@@ -8,7 +12,6 @@ import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
@@ -18,27 +21,21 @@ import {
   mixedStreamingTranscript,
   transcriptPayload,
 } from "./session-thread-story-transcripts";
+import {
+  completedGroupTranscript,
+  giantPayloadTranscript,
+  interruptedOpenTranscript,
+  largeTranscriptEntries,
+  largeTranscriptPage,
+  liveToolTranscript,
+  parallelToolsTranscript,
+  partialFailureTranscript,
+  steerFallbackTranscript,
+  steerMarkersTranscript,
+  streamingProseTranscript,
+} from "./session-thread-story-quiet-transcripts";
 
 const storyWorkspaceId = primarySessionFixture.workspace_id ?? "ws_alpha";
-
-function GoalCommandErrorFixture({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    sessionStore.trigger.goalCommandReported({
-      sessionId: primarySessionFixture.id,
-      result: {
-        outcome: "error",
-        reason_code: "goal_objective_required",
-        replaced_run_id: null,
-        snapshot: null,
-      },
-    });
-    return () => {
-      sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
-    };
-  }, []);
-
-  return children;
-}
 
 /**
  * Storybook stories for the assistant-ui session thread shell.
@@ -85,32 +82,6 @@ const meta: Meta<typeof SessionThread> = {
 export default meta;
 
 type Story = StoryObj<typeof meta>;
-
-const baseArgs = {
-  sessionId: primarySessionFixture.id,
-  agentName: primarySessionFixture.agent_name,
-  canPrompt: true,
-  onCancelPrompt: () => undefined,
-};
-
-function renderWithTranscriptState(
-  args: ComponentProps<typeof SessionThread>,
-  state: {
-    status: "pending" | "error" | "success";
-    error?: Error | null;
-  }
-) {
-  return (
-    <SessionTranscriptThreadProvider
-      messages={[]}
-      status={state.status}
-      error={state.error ?? null}
-      retry={() => undefined}
-    >
-      <SessionThread {...args} />
-    </SessionTranscriptThreadProvider>
-  );
-}
 
 /**
  * Transcript loading state — shimmer message skeleton, never the empty-state copy.
@@ -172,40 +143,6 @@ export const SlashCommandCatalog: Story = {
       await userEvent.type(input, "/");
       await expect(canvas.getByLabelText("Session commands")).toBeVisible();
     });
-  },
-};
-
-/**
- * Running composer with queued follow-ups — the strip fuses onto the composer top,
- * each row exposing steer / edit / remove; the primary disc is the `--danger` Stop
- * and Enter queues (hint visible).
- */
-export const QueuedComposer: Story = {
-  args: {
-    sessionId: primarySessionFixture.id,
-    agentName: primarySessionFixture.agent_name,
-    canPrompt: true,
-    isSessionRunning: true,
-    allowBusyInput: true,
-    onCancelPrompt: () => undefined,
-    onQueuePrompt: () => undefined,
-    onInterruptPrompt: () => undefined,
-    onSteerPrompt: () => undefined,
-    onRemoveQueuedPrompt: () => undefined,
-    onSteerQueuedPrompt: () => undefined,
-    queuedPrompts: [
-      { id: "inq-1", text: "Add a regression test for the reconnect path." },
-      { id: "inq-2", text: "Then update the CLI docs for `--frames`." },
-    ],
-  },
-  parameters: {
-    ...storybookMswParameters({
-      session: [
-        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
-        ),
-      ],
-    }),
   },
 };
 
@@ -470,4 +407,78 @@ export const ScrollToBottomAffordance: Story = {
       <ScrollToBottomPill visible onClick={() => undefined} />
     </div>
   ),
+};
+
+// --- Quiet timeline (ADR-006..009, task_07 VC-01..VC-09) ---------------------
+
+/** VC-01 — a settled turn folded behind "Worked for · counts", then the live turn: prose, the completed-tools group, and the one live row ("Running shell — …"). */
+export const QuietTimelineLiveRow: Story = quietTimelineStory(liveToolTranscript, {
+  running: true,
+  currentTool: "Bash",
+});
+
+/** VC-02 — three tools in flight stay one honest row: "Running 3 tools…" with the layers glyph, expandable to the in-flight list. */
+export const QuietTimelineParallelTools: Story = quietTimelineStory(parallelToolsTranscript, {
+  running: true,
+});
+
+/** VC-03 — six settled tools of the live turn rest as "Ran 4 commands, edited 1 file, read 3 files"; open reveals the production ToolCallRows. */
+export const QuietTimelineCompletedGroup: Story = quietTimelineStory(completedGroupTranscript, {
+  running: true,
+  currentTool: "Bash",
+});
+
+/** VC-04 — one absorbed failure: "· 1 failed" in the same ink, subtle × and the word "failed" inside; no danger, the live row keeps going. */
+export const QuietTimelinePartialFailure: Story = quietTimelineStory(partialFailureTranscript, {
+  running: true,
+  currentTool: "Bash",
+});
+
+/** VC-06 — the turn you stopped stays open: the running call reads "stopped", the label is "You stopped after 1m 40s" in warning ink. */
+export const QuietTimelineInterruptedOpen: Story = quietTimelineStory(interruptedOpenTranscript);
+
+/** VC-06 (right) — a steer that fell back to interrupt folds normally: "Interrupted after 48s · replaced by your steer · Ran 2 commands". */
+export const QuietTimelineSteerFallbackFold: Story = quietTimelineStory(steerFallbackTranscript);
+
+/** VC-07 — steer markers under the operator's bubbles: injected, pending injection, superseded (quieter), fallback, and from the queue. */
+export const QuietTimelineSteerMarkers: Story = quietTimelineStory(steerMarkersTranscript);
+
+/** VC-08 — a 12,480-line tool result: the expanded body shows the head; the strip says how much of how much and offers Show all / Download. */
+export const QuietTimelineGiantPayload: Story = quietTimelineStory(giantPayloadTranscript);
+
+/** VC-09 — assistant prose still streaming: the smooth reveal on (default), off under reduced motion or the Smooth streaming setting. */
+export const QuietTimelineStreamingProse: Story = quietTimelineStory(streamingProseTranscript, {
+  running: true,
+});
+
+/** VC-11 — the lead reply landed, two spawned agents still run: the status row keeps working with "2 agents running". */
+export const QuietTimelineChildrenRunning: Story = quietTimelineStory(liveToolTranscript, {
+  running: true,
+  agents: 2,
+});
+
+const LARGE_TRANSCRIPT = largeTranscriptEntries();
+
+/**
+ * E2E-018 seed — 3,000 entries served 200 at a time through `before_sequence`,
+ * the way the daemon pages history. Scroll up to load older pages; pages far
+ * above the reader are released from memory and reload on the way back.
+ */
+export const ThreeThousandEntries: Story = {
+  args: baseArgs,
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+          ({ request }) => {
+            const before = new URL(request.url).searchParams.get("before_sequence");
+            return HttpResponse.json(
+              largeTranscriptPage(LARGE_TRANSCRIPT, before === null ? null : Number(before))
+            );
+          }
+        ),
+      ],
+    }),
+  },
 };

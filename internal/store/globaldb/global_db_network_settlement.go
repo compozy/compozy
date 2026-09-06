@@ -411,7 +411,7 @@ func settledNetworkWakeBudgetReason(
 	switch {
 	case budget.wakesUsed >= bounds.MaxWakes:
 		return networkWakeExhaustionMaxWakes, nil
-	case budget.wallMSUsed >= durationMillisecondsCeil(totalWall):
+	case totalWall > 0 && budget.wallMSUsed >= durationMillisecondsCeil(totalWall):
 		return networkWakeExhaustionMaxTotalWallTime, nil
 	case budget.inputTokensUsed >= bounds.MaxInputTokens:
 		return networkWakeExhaustionMaxInputTokens, nil

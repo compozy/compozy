@@ -92,7 +92,6 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 	errs := appendLifecycleErr(nil, session.stopFinalizationErr)
 	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
 	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
-	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
 	m.clearResumeReplay(session.ID)
 
 	m.removeActive(session.ID)

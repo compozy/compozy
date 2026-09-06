@@ -44,8 +44,10 @@ func (m *Manager) createPreparedJobResource(ctx context.Context, prepared Job) (
 		return Job{}, err
 	}
 	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		persistCtx1, cancelPersist1 := persistenceContext(ctx)
+		defer cancelPersist1()
 		if rollbackErr := deleteResourceRecord(
-			persistenceContext(ctx),
+			persistCtx1,
 			m.jobResources,
 			m.resourceActor,
 			created,
@@ -87,8 +89,10 @@ func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
 		return Job{}, err
 	}
 	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		persistCtx2, cancelPersist2 := persistenceContext(ctx)
+		defer cancelPersist2()
 		if rollbackErr := restoreUpdatedResourceRecord(
-			persistenceContext(ctx),
+			persistCtx2,
 			m.jobResources,
 			m.resourceActor,
 			current,
@@ -118,8 +122,10 @@ func (m *Manager) deleteJobResource(ctx context.Context, id string) error {
 		return err
 	}
 	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		persistCtx3, cancelPersist3 := persistenceContext(ctx)
+		defer cancelPersist3()
 		if rollbackErr := recreateDeletedResourceRecord(
-			persistenceContext(ctx),
+			persistCtx3,
 			m.jobResources,
 			m.resourceActor,
 			current,

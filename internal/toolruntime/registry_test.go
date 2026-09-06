@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -580,4 +581,104 @@ func listAllRecords(t *testing.T, store *MemoryStore) []ProcessRecord {
 		t.Fatalf("ListProcessRecords() error = %v", err)
 	}
 	return records
+}
+
+// Invariant: only registry reconciliation renews PID evidence; reads and checkpoint identity changes cannot do so.
+// Owner: toolruntime; canonical registry lifecycle suite (UT-124).
+func TestRegistryObservationsRequireFreshIdentityVerification(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	identityLive := true
+	verifications := 0
+	registry := NewRegistry(
+		NewMemoryStore(),
+		WithNow(func() time.Time { return now }),
+		WithVerifier(func(int, time.Time) bool {
+			verifications++
+			return identityLive
+		}),
+	)
+	handle, err := registry.Register(t.Context(), RegisterConfig{
+		ID: "tool", Source: ProcessSourceACPTerminal, Owner: ProcessOwner{SessionID: "session"},
+		PID: 1234, StartedAt: now.Add(-time.Minute), Command: "long-tool",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial := registry.Observations("session")
+	if len(initial) != 1 || !initial[0].VerifiedAt.Equal(now) {
+		t.Fatalf("initial evidence = %#v", initial)
+	}
+	now = now.Add(3 * SweepInterval)
+	for range 3 {
+		observation := registry.Observations("session")
+		if len(observation) != 1 || !observation[0].VerifiedAt.Equal(initial[0].VerifiedAt) {
+			t.Fatal("read renewed evidence")
+		}
+	}
+	if verifications != 1 {
+		t.Fatalf("reads verified PID %d times", verifications)
+	}
+	if err := registry.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !registry.Observations("session")[0].VerifiedAt.Equal(now) {
+		t.Fatal("reconciliation did not refresh identity")
+	}
+	nextPID := 4567
+	if err := handle.Checkpoint(t.Context(), ProcessCheckpoint{PID: &nextPID}); err != nil {
+		t.Fatal(err)
+	}
+	if !registry.Observations("session")[0].VerifiedAt.IsZero() {
+		t.Fatal("new PID inherited old verification")
+	}
+	identityLive = false
+	if err := registry.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(registry.Observations("session")) != 0 {
+		t.Fatal("exited process still counts as work")
+	}
+}
+
+// Invariant: an inspection of an old identity cannot retire its replacement.
+// Owner: toolruntime; canonical registry lifecycle suite.
+func TestRegistryReconcileFencesReplacedIdentity(t *testing.T) {
+	t.Parallel()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	now := time.Now().UTC()
+	registry := NewRegistry(NewMemoryStore(), WithVerifier(func(_ int, _ time.Time) bool {
+		if calls.Add(1) == 2 {
+			close(entered)
+			<-release
+			return false
+		}
+		return true
+	}))
+	handle, err := registry.Register(t.Context(), RegisterConfig{ID: "tool", Source: ProcessSourceACPTerminal,
+		Owner: ProcessOwner{SessionID: "session"}, PID: 1234, StartedAt: now, Command: "tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- registry.Reconcile(t.Context()) }()
+	<-entered
+	pid := 4567
+	if err := handle.Checkpoint(t.Context(), ProcessCheckpoint{PID: &pid}); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	observations := registry.Observations("session")
+	if len(observations) != 1 || observations[0].Record.PID != pid || !observations[0].VerifiedAt.IsZero() {
+		t.Fatalf("replacement evidence = %#v", observations)
+	}
+	if err := registry.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if registry.Observations("session")[0].VerifiedAt.IsZero() {
+		t.Fatal("replacement did not receive its own verification")
+	}
 }

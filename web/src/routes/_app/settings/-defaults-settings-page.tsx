@@ -1,6 +1,8 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, Input, NativeSelect, NativeSelectOption, Spinner } from "@compozy/ui";
+import { Button, Input, NativeSelect, NativeSelectOption, Spinner, Switch } from "@compozy/ui";
+
+import { useSmoothStreamingPreference } from "@/systems/session";
 
 import {
   SettingRow,
@@ -13,6 +15,25 @@ import {
   useSettingsSaveBarState,
   useSettingsTopbar,
 } from "@/systems/settings";
+
+// Client-local presentation preference (ADR-008, S10): stored per browser,
+// never a daemon key, so it lives outside the persona draft and its save bar.
+function SmoothStreamingSetting() {
+  const smoothStreaming = useSmoothStreamingPreference();
+  return (
+    <SettingRow
+      control={
+        <Switch
+          aria-label="Smooth streaming"
+          checked={smoothStreaming.enabled}
+          data-testid="settings-page-defaults-smooth-streaming"
+          onCheckedChange={checked => smoothStreaming.setEnabled(checked === true)}
+        />
+      }
+      label="Smooth streaming"
+    />
+  );
+}
 
 export function DefaultsSettingsPage() {
   const page = useSettingsPersonaPage();
@@ -161,6 +182,7 @@ export function DefaultsSettingsPage() {
           }
           label="Sandbox"
         />
+        <SmoothStreamingSetting />
       </SettingsGroup>
     </SettingsPageFrame>
   );

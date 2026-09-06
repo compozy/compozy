@@ -31,6 +31,9 @@ func (m *Manager) recordSessionStopEscalation(
 	session.mu.Lock()
 	previouslyEscalated := session.stopEscalated
 	session.stopEscalated = true
+	if !session.stopVerifiedOutcome.Verified {
+		session.stopVerifiedOutcome.Phase = phase
+	}
 	session.mu.Unlock()
 	var persistErr error
 	if !previouslyEscalated || phase == StopPhaseForced {

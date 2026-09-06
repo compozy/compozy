@@ -185,17 +185,7 @@ func (p *AgentProcess) handleRequestPermission(
 	request acpsdk.RequestPermissionRequest,
 ) (acpsdk.RequestPermissionResponse, error) {
 	turnID := p.activeTurnID()
-	resource := ""
-	if request.ToolCall.Title != nil {
-		resource = *request.ToolCall.Title
-	}
-	if len(request.ToolCall.Locations) > 0 {
-		resource = request.ToolCall.Locations[0].Path
-	}
-	title := ""
-	if request.ToolCall.Title != nil {
-		title = *request.ToolCall.Title
-	}
+	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
 	requestID := p.nextPermissionRequestID(turnID, request)
@@ -233,7 +223,10 @@ func (p *AgentProcess) handleRequestPermission(
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 
-	requestID, pending := p.registerPendingPermission(turnID, request)
+	requestID, pending, err := p.registerPendingPermission(turnID, request)
+	if err != nil {
+		return acpsdk.RequestPermissionResponse{}, err
+	}
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw)
@@ -256,9 +249,28 @@ func (p *AgentProcess) handleRequestPermission(
 			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "timeout", raw,
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	case <-p.permissionConnectionDone():
+		return acpsdk.RequestPermissionResponse{
+			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
+		}, nil
 	case <-ctx.Done():
 		return acpsdk.RequestPermissionResponse{
 			Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
 		}, nil
 	}
+}
+
+func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {
+	resource := ""
+	if request.ToolCall.Title != nil {
+		resource = *request.ToolCall.Title
+	}
+	if len(request.ToolCall.Locations) > 0 {
+		resource = request.ToolCall.Locations[0].Path
+	}
+	title := ""
+	if request.ToolCall.Title != nil {
+		title = *request.ToolCall.Title
+	}
+	return resource, title
 }

@@ -114,10 +114,18 @@ func (g *SessionRepo) SettlePendingSessionSteer(
 	if now.IsZero() {
 		now = g.now()
 	}
+	fallbackTurnID := ""
+	if delivery == store.SteerDeliveryInterruptFallback {
+		fallbackTurnID, err = store.NewID("turn")
+		if err != nil {
+			return entry, false, fmt.Errorf("store: allocate fallback steer turn: %w", err)
+		}
+	}
 	err = g.withImmediateTransaction(ctx, "settle pending session steer", func(exec globalSQLExecutor) error {
 		affected, updateErr := sqlcgen.New(exec).SettlePendingSessionSteer(ctx, sqlcgen.SettlePendingSessionSteerParams{
 			SessionID: sessionID, ID: entryID, Now: store.FormatTimestamp(now),
-			SteerDelivery: sql.NullString{String: string(delivery), Valid: true},
+			FallbackTurnID: fallbackTurnID,
+			SteerDelivery:  sql.NullString{String: string(delivery), Valid: true},
 		})
 		if updateErr != nil {
 			return fmt.Errorf("store: settle pending steer: %w", updateErr)

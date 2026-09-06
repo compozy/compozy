@@ -60,15 +60,63 @@ func (s *SessionDB) writeArchiveEvents(
 		ToSequence:   request.ToSequence,
 	}
 	err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
-		count, err := sqlcgen.New(tx).ArchiveEventRange(ctx, sqlcgen.ArchiveEventRangeParams{
-			FromSequence: request.FromSequence,
-			ToSequence:   request.ToSequence,
-		})
+		count, err := archiveTranscriptRange(ctx, sqlcgen.New(tx), request)
 		if err != nil {
-			return fmt.Errorf("store: archive session event range: %w", err)
+			return err
 		}
+
 		result.ArchivedCount = count
 		return nil
 	})
 	return result, err
+}
+
+// archiveTranscriptRange is the shared atomic cut for compaction and rewind.
+// It never cuts a live/partially covered entry or changes the surviving active identity.
+func archiveTranscriptRange(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	request store.EventArchiveRequest,
+) (int64, error) {
+	crossing, err := queries.CountTranscriptEntriesCrossingCut(ctx, sqlcgen.CountTranscriptEntriesCrossingCutParams{
+		FromSequence: request.FromSequence, ToSequence: request.ToSequence,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("store: inspect transcript archive boundary: %w", err)
+	}
+	if crossing != 0 {
+		return 0, errors.New("store: archive range cuts an incomplete transcript entry")
+	}
+	count, err := queries.ArchiveEventRange(
+		ctx,
+		sqlcgen.ArchiveEventRangeParams{FromSequence: request.FromSequence, ToSequence: request.ToSequence},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("store: archive transcript range: %w", err)
+	}
+	if count == 0 {
+		return 0, nil
+	}
+	if err := queries.DeleteTranscriptToolRoutesInRange(
+		ctx,
+		sqlcgen.DeleteTranscriptToolRoutesInRangeParams{
+			FromSequence: request.FromSequence,
+			ToSequence:   request.ToSequence,
+		},
+	); err != nil {
+		return 0, fmt.Errorf("store: cut transcript routes: %w", err)
+	}
+	if err := queries.DeleteTranscriptEntriesInRange(
+		ctx,
+		sqlcgen.DeleteTranscriptEntriesInRangeParams{
+			FromSequence: request.FromSequence,
+			ToSequence:   request.ToSequence,
+		},
+	); err != nil {
+		return 0, fmt.Errorf("store: cut transcript entries: %w", err)
+	}
+	if err := queries.AdvanceTranscriptProjectionGeneration(ctx); err != nil {
+		return 0, fmt.Errorf("store: advance archive generation: %w", err)
+	}
+	return count, nil
 }

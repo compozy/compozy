@@ -10,6 +10,7 @@ import {
 import { Spinner } from "@compozy/ui";
 
 import { useDesktop } from "../../hooks/use-desktop";
+import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { profileFlowFromSearch, type ProfileFlowSearch } from "@/systems/profiles";
 import { SETTINGS_SECTIONS } from "@/systems/settings";
@@ -144,6 +145,7 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
 }
 
 export function SettingsWindow({ windowId }: { windowId: string }) {
+  const { coordinator } = useOsShell();
   const route = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_SETTINGS_ROUTE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const connection = useDaemonConnectionStatus();
@@ -178,6 +180,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
         <SettingsWindowNav
           activeSlug={activeSlug}
           connection={connection}
+          onNavigate={route => coordinator.userNavigate(route)}
           searchInputRef={searchInputRef}
         />
         <div

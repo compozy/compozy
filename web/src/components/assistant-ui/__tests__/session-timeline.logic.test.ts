@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveSessionRows,
-  visibleWorkEntries,
   type SessionTimelinePart,
   type SessionTimelineToolPart,
 } from "../session-timeline.logic";
@@ -43,7 +42,6 @@ describe("session timeline derivation", () => {
     if (workRow?.kind !== "work") throw new Error("expected work row");
     expect(workRow.entries).toHaveLength(8);
     expect(workRow.summary?.label).toBe("Read 8 files");
-    expect(workRow.grouped).toBe(false);
     expect(workRow.expanded).toBe(false);
     expect(workRow.active).toBe(false);
   });
@@ -60,7 +58,7 @@ describe("session timeline derivation", () => {
     expect(workRow.groupId).toBe(groupId);
     expect(workRow.expanded).toBe(true);
     expect(workRow.summary).not.toBeNull();
-    expect(visibleWorkEntries(workRow)).toHaveLength(8);
+    expect(workRow.entries).toHaveLength(8);
   });
 
   it("Should keep a work disclosure expanded when the rendered part id is replaced", () => {
@@ -86,7 +84,7 @@ describe("session timeline derivation", () => {
     expect(initialWork.groupId).toBe(groupId);
     expect(rederivedWork.groupId).toBe(groupId);
     expect(rederivedWork.expanded).toBe(true);
-    expect(visibleWorkEntries(rederivedWork)).toHaveLength(5);
+    expect(rederivedWork.entries).toHaveLength(5);
   });
 
   it("Should keep a work disclosure stable when calls reorder or duplicate events settle", () => {
@@ -156,49 +154,61 @@ describe("session timeline derivation", () => {
     expect(closedWork.expanded).toBe(false);
   });
 
-  it("Should give settled success and failure chunks distinct group identities", () => {
-    const liveParts = Array.from({ length: 5 }, (_, index) =>
+  it("Should retain the completed group's identity while calls settle, failures included", () => {
+    const liveParts = Array.from({ length: 3 }, (_, index) =>
       tool(index + 1, { status: "running", result: undefined })
     );
     const liveRows = deriveSessionRows(liveParts, { activeTurnId: "turn-1" });
-    const liveWork = liveRows.find(row => row.kind === "work");
-    if (liveWork?.kind !== "work") throw new Error("expected live work row");
+    expect(liveRows.map(row => row.kind)).toEqual(["live-tool"]);
 
+    // Two calls settle (one failed) while the third still runs: one completed
+    // group ahead of the live row, the failure counted inside it.
+    const partial = liveParts.map((part, index) =>
+      index === 2
+        ? part
+        : index === 1
+          ? { ...part, status: "settled" as const, isError: true, result: { error: "boom" } }
+          : { ...part, status: "settled" as const, result: { content: "file-1" } }
+    );
+    const partialRows = deriveSessionRows(partial, { activeTurnId: "turn-1" });
+    expect(partialRows.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    const group = partialRows[0];
+    if (group?.kind !== "work") throw new Error("expected completed group");
+    expect(group.summary?.failedCount).toBe(1);
     const anchors = new Map([
       [
-        liveWork.groupId,
-        { groupId: liveWork.groupId, turnId: "turn-1", anchorToolCallId: "tool-call-1" },
+        group.groupId,
+        { groupId: group.groupId, turnId: "turn-1", anchorToolCallId: "tool-call-1" },
       ],
     ]);
+
     const settledParts = liveParts.map((part, index) =>
-      index === 2
-        ? { ...part, status: "settled" as const, isError: true, result: undefined }
+      index === 1
+        ? { ...part, status: "settled" as const, isError: true, result: { error: "boom" } }
         : { ...part, status: "settled" as const, result: { content: `file-${index + 1}` } }
     );
     const settledRows = deriveSessionRows(settledParts, { workGroupAnchors: anchors });
-    const workRows = settledRows.filter(row => row.kind === "work");
-
-    expect(workRows).toHaveLength(3);
-    expect(new Set(workRows.map(row => row.groupId)).size).toBe(3);
-    const failedRow = workRows.find(row => row.entries[0]?.isError === true);
-    if (failedRow?.kind !== "work") throw new Error("expected failed work row");
-    expect(failedRow.entries).toHaveLength(1);
-    expect(failedRow.summary).toBeNull();
+    expect(settledRows.map(row => row.kind)).toEqual(["work"]);
+    const settled = settledRows[0];
+    if (settled?.kind !== "work") throw new Error("expected settled group");
+    expect(settled.groupId).toBe(group.groupId);
+    expect(settled.entries).toHaveLength(3);
+    expect(settled.summary?.failedCount).toBe(1);
   });
 
-  it("Should avoid identity collisions when an expanded run splits after a lower-sorting call", () => {
+  it("Should keep an expanded group's identity when a lower-sorting call settles into it", () => {
     const historicalGroupId = "work:turn-1:tool-call-4";
-    const streamingParts = [
-      tool(4, { status: "running", result: undefined }),
-      tool(5, { status: "running", result: undefined }),
-    ];
-    const expandedRows = deriveSessionRows(streamingParts, {
-      activeTurnId: "turn-1",
-      expandedWorkGroupIds: new Set([historicalGroupId]),
-    });
+    const expandedRows = deriveSessionRows(
+      [tool(4), tool(5), tool(6, { status: "running", result: undefined })],
+      {
+        activeTurnId: "turn-1",
+        expandedWorkGroupIds: new Set([historicalGroupId]),
+      }
+    );
     const expandedWork = expandedRows.find(row => row.kind === "work");
     if (expandedWork?.kind !== "work") throw new Error("expected expanded work row");
     expect(expandedWork.groupId).toBe(historicalGroupId);
+    expect(expandedWork.expanded).toBe(true);
 
     const observedAnchors = new Map([
       [
@@ -211,15 +221,15 @@ describe("session timeline derivation", () => {
       ],
     ]);
     const settledRows = deriveSessionRows(
-      [tool(1), tool(4, { isError: true, result: undefined }), tool(5)],
-      { workGroupAnchors: observedAnchors }
+      [tool(1), tool(4, { isError: true, result: { error: "boom" } }), tool(5)],
+      { workGroupAnchors: observedAnchors, expandedWorkGroupIds: new Set([historicalGroupId]) }
     );
     const workRows = settledRows.filter(row => row.kind === "work");
 
-    expect(workRows).toHaveLength(3);
-    expect(new Set(workRows.map(row => row.groupId)).size).toBe(workRows.length);
+    expect(workRows).toHaveLength(1);
     expect(workRows[0]?.groupId).toBe(historicalGroupId);
-    expect(workRows[1]?.groupId).not.toBe(historicalGroupId);
+    expect(workRows[0]?.expanded).toBe(true);
+    expect(workRows[0]?.summary?.failedCount).toBe(1);
   });
 
   it("Should break the cluster into two runs when text and reasoning interleave", () => {
@@ -243,35 +253,143 @@ describe("session timeline derivation", () => {
     expect(last.entries).toHaveLength(1);
   });
 
-  it("Should cap the live tail at four visible calls with the overflow toggle above them", () => {
-    const four = deriveSessionRows(
-      Array.from({ length: 4 }, (_, index) =>
-        tool(index + 1, { status: "running", result: undefined })
-      )
+  // UT-085 / UT-089 (ADR-006 rule 1): the live turn derives exactly one live row
+  // for the calls still running — one call reads as itself, several stay one
+  // honest row with a count — and progress ticks never become rows.
+  it("Should derive exactly one live row that replaces itself and counts parallel calls", () => {
+    const single = deriveSessionRows(
+      [
+        tool(1),
+        tool(2),
+        tool(3, {
+          toolName: "Bash",
+          args: { command: "go test" },
+          status: "running",
+          result: undefined,
+        }),
+      ],
+      { activeTurnId: "turn-1" }
     );
-    const five = deriveSessionRows(
-      Array.from({ length: 5 }, (_, index) =>
-        tool(index + 1, { status: "running", result: undefined })
-      )
-    );
+    expect(single.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    const live = single[1];
+    if (live?.kind !== "live-tool") throw new Error("expected live row");
+    expect(live.id).toBe("live:turn-1");
+    expect(live.entries.map(entry => entry.id)).toEqual(["tool-3"]);
+    expect(live.agent).toBe(false);
 
-    // Four running tools stay inline (no overflow), and a fifth streamed part
-    // keeps the same group id, capping the visible set at the four latest with
-    // the "+N previous tool calls" toggle rendered above the visible tail.
-    expect(four).toHaveLength(1);
-    expect(five[0]).toMatchObject({ kind: "work-toggle", hiddenCount: 1, expanded: false });
-    const grouped = five[1];
-    if (grouped?.kind !== "work") throw new Error("expected work row");
-    expect(four[0]?.id).toBe(grouped.id);
-    expect(grouped.visibleCount).toBe(4);
-    expect(grouped.summary).toBeNull();
-    expect(grouped.active).toBe(true);
-    expect(visibleWorkEntries(grouped).map(entry => entry.id)).toEqual([
-      "tool-2",
-      "tool-3",
-      "tool-4",
-      "tool-5",
+    const parallel = deriveSessionRows(
+      [
+        tool(1, { status: "running", result: undefined }),
+        tool(2, { status: "running", result: undefined }),
+        tool(3, { status: "running", result: undefined }),
+      ],
+      { activeTurnId: "turn-1" }
+    );
+    expect(parallel).toHaveLength(1);
+    const row = parallel[0];
+    if (row?.kind !== "live-tool") throw new Error("expected live row");
+    expect(row.entries).toHaveLength(3);
+    expect(row.id).toBe("live:turn-1");
+    expect(row.expanded).toBe(false);
+    expect(
+      deriveSessionRows(
+        [
+          tool(1, { status: "running", result: undefined }),
+          tool(2, { status: "running", result: undefined }),
+        ],
+        { activeTurnId: "turn-1", expandedWorkGroupIds: new Set(["live:turn-1"]) }
+      )[0]
+    ).toMatchObject({ kind: "live-tool", expanded: true });
+  });
+
+  it("Should drop progress ticks so they never append rows", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { status: "running", result: undefined }),
+        {
+          kind: "data",
+          id: "tick-1",
+          name: "data-compozy-event",
+          data: { type: "runtime_progress", runtime: { elapsed_seconds: 4, idle_seconds: 0 } },
+          turnId: "turn-1",
+        },
+        {
+          kind: "data",
+          id: "tick-2",
+          name: "data-compozy-event",
+          data: { type: "runtime_progress", runtime: { elapsed_seconds: 9, idle_seconds: 0 } },
+          turnId: "turn-1",
+        },
+      ],
+      { activeTurnId: "turn-1" }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["live-tool"]);
+  });
+
+  it("Should give each running child agent its own live row, never counted into the parallel row", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, {
+          toolName: "Task",
+          args: { description: "review the diff" },
+          status: "running",
+          result: undefined,
+        }),
+        tool(2, {
+          toolName: "Task",
+          args: { description: "scout the store" },
+          status: "running",
+          result: undefined,
+        }),
+        tool(3, {
+          toolName: "Bash",
+          args: { command: "go vet" },
+          status: "running",
+          result: undefined,
+        }),
+      ],
+      { activeTurnId: "turn-1" }
+    );
+    expect(rows.map(row => row.kind)).toEqual(["live-tool", "live-tool", "live-tool"]);
+    expect(rows.map(row => (row.kind === "live-tool" ? row.agent : null))).toEqual([
+      true,
+      true,
+      false,
     ]);
+    const shell = rows[2];
+    if (shell?.kind !== "live-tool") throw new Error("expected live row");
+    expect(shell.entries.map(entry => entry.id)).toEqual(["tool-3"]);
+  });
+
+  // UT-087: completed tools of the live turn collapse into one expandable group
+  // sentence; a single completed call stays a row of its own.
+  it("Should collapse the live turn's completed tools into one group sentence", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "Bash", args: { command: "go test" } }),
+      tool(2, { toolName: "Bash", args: { command: "go vet" } }),
+      tool(3, { toolName: "Edit", args: { file_path: "/src/a.ts" } }),
+      tool(4, { toolName: "Edit", args: { file_path: "/src/b.ts" } }),
+      tool(5, {
+        toolName: "Bash",
+        args: { command: "go build" },
+        status: "running",
+        result: undefined,
+      }),
+    ];
+    const rows = deriveSessionRows(parts, { activeTurnId: "turn-1" });
+    expect(rows.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    const group = rows[0];
+    if (group?.kind !== "work") throw new Error("expected group row");
+    expect(group.active).toBe(true);
+    expect(group.summary?.label).toBe("Ran 2 commands, edited 2 files");
+    expect(group.summary?.failedCount).toBe(0);
+    expect(group.expanded).toBe(false);
+
+    const lone = deriveSessionRows([tool(1), tool(2, { status: "running", result: undefined })], {
+      activeTurnId: "turn-1",
+    });
+    expect(lone.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    expect(lone[0]).toMatchObject({ kind: "work", summary: null, active: true });
   });
 
   it("Should keep the trailing run of the active turn open even when fully settled", () => {
@@ -283,7 +401,8 @@ describe("session timeline derivation", () => {
     expect(rows).toHaveLength(1);
     const workRow = rows[0];
     if (workRow?.kind !== "work") throw new Error("expected work row");
-    expect(workRow.summary).toBeNull();
+    // Completed tools of the live turn rest as the group sentence, still active.
+    expect(workRow.summary?.label).toBe("Read 3 files");
     expect(workRow.active).toBe(true);
   });
 
@@ -299,40 +418,47 @@ describe("session timeline derivation", () => {
 
     const rows = deriveSessionRows(parts, { activeTurnId: "turn-1" });
 
-    expect(rows.map(row => row.kind)).toEqual(["work", "text", "work"]);
+    expect(rows.map(row => row.kind)).toEqual(["work", "text", "live-tool"]);
     const [settled, , live] = rows;
-    if (settled?.kind !== "work" || live?.kind !== "work") throw new Error("expected work rows");
+    if (settled?.kind !== "work" || live?.kind !== "live-tool") throw new Error("expected rows");
     expect(settled.summary?.label).toBe("Read 3 files");
     expect(settled.active).toBe(false);
-    expect(live.summary).toBeNull();
-    expect(live.active).toBe(true);
+    expect(live.entries.map(entry => entry.id)).toEqual(["tool-4", "tool-5"]);
   });
 
-  it("Should keep failed calls individually visible between collapsed summary runs", () => {
+  // UT-088 (ADR-009): a failure the agent absorbed stays inside the group as
+  // information — counted in "· N failed" — never as turn-level danger.
+  it("Should keep an absorbed failure inside the group with a failed count, not as an alarm", () => {
     const parts: SessionTimelinePart[] = [
-      tool(1),
-      tool(2),
-      tool(3, {
+      tool(1, { toolName: "Bash", args: { command: "go test" } }),
+      tool(2, {
         toolName: "Bash",
-        args: { command: "make verify" },
+        args: { command: "go test -count=3" },
         isError: true,
+        result: { error: "FAIL" },
+      }),
+      tool(3, { toolName: "Edit", args: { file_path: "/src/a.ts" } }),
+      tool(4, {
+        toolName: "Bash",
+        args: { command: "go test -race" },
+        status: "running",
         result: undefined,
       }),
-      tool(4),
-      tool(5),
     ];
 
-    const rows = deriveSessionRows(parts);
+    const rows = deriveSessionRows(parts, { activeTurnId: "turn-1" });
 
-    expect(rows.map(row => row.kind)).toEqual(["work", "work", "work"]);
-    const [before, failed, after] = rows;
-    if (before?.kind !== "work" || failed?.kind !== "work" || after?.kind !== "work") {
-      throw new Error("expected three work rows");
-    }
-    expect(before.summary?.label).toBe("Read 2 files");
-    expect(failed.summary).toBeNull();
-    expect(failed.entries.map(entry => entry.id)).toEqual(["tool-3"]);
-    expect(after.summary?.label).toBe("Read 2 files");
+    expect(rows.map(row => row.kind)).toEqual(["work", "live-tool"]);
+    const group = rows[0];
+    if (group?.kind !== "work") throw new Error("expected group row");
+    expect(group.entries.map(entry => entry.id)).toEqual(["tool-1", "tool-2", "tool-3"]);
+    expect(group.summary?.label).toBe("Ran 2 commands, edited 1 file");
+    expect(group.summary?.failedCount).toBe(1);
+
+    // A settled run with a failure folds the same way once the turn moves on.
+    const settled = deriveSessionRows(parts.slice(0, 3));
+    expect(settled).toHaveLength(1);
+    expect(settled[0]).toMatchObject({ kind: "work", active: false });
   });
 
   it("Should order summary categories Ran, Edited, Read, Searched, agent, Used with distinct-file counts", () => {
@@ -356,7 +482,7 @@ describe("session timeline derivation", () => {
     // Fixed presentation order regardless of call order; the two same-path
     // Reads count as one distinct file.
     expect(workRow.summary?.label).toBe(
-      "Ran 1 command · Edited 1 file · Read 1 file · Searched 1 file · Ran 1 agent task · Used 1 tool"
+      "Ran 1 command, edited 1 file, read 1 file, searched 1 file, ran 1 agent task, used 1 tool"
     );
   });
 
@@ -397,7 +523,10 @@ describe("session timeline derivation", () => {
     // Duration is the span between the turn's first and last fixture timestamps.
     expect(foldRow.label).toBe("Worked for 5s");
     expect(foldRow.durationMs).toBe(5000);
-    expect(foldRow.interrupted).toBe(false);
+    expect(foldRow.cause).toBe("settled");
+    expect(foldRow.open).toBe(false);
+    // A lone Read has no group sentence, so the fold carries the duration alone.
+    expect(foldRow.counts).toBeNull();
     expect(foldRow.rows.map(row => row.kind)).toEqual(["reasoning", "work"]);
     // The terminal assistant message is never folded inside the disclosure.
     expect(foldRow.rows.some(row => row.kind === "text")).toBe(false);
@@ -465,7 +594,9 @@ describe("session timeline derivation", () => {
     const foldedWork = foldRow.rows[0];
     if (foldedWork?.kind !== "work") throw new Error("expected folded work");
     expect(foldedWork.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
-    expect(foldedWork.summary?.label).toBe("Read 2 files");
+    // Inside the fold the calls read as rows — no second disclosure; the sentence lives on the fold.
+    expect(foldedWork.summary).toBeNull();
+    expect(foldRow.counts).toBe("Read 2 files");
   });
 
   it("Should keep a settled terminal open outside a turn fold and summary", () => {
@@ -516,7 +647,7 @@ describe("session timeline derivation", () => {
     const work = rows.filter(row => row.kind === "work");
     expect(work).toHaveLength(2);
     expect(work[0]?.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
-    expect(work[0]?.summary).toBeNull();
+    expect(work[0]?.summary?.label).toBe("Read 2 files");
     expect(work[0]?.active).toBe(true);
     expect(work[1]?.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_exec"]);
     expect(work[1]?.summary).toBeNull();
@@ -531,9 +662,11 @@ describe("session timeline derivation", () => {
           kind: "data",
           id: "runtime-progress-1",
           name: "data-compozy-event",
+          // A runtime warning is a visible row (a status event would render nothing and never become one).
           data: {
-            type: "terminal_output",
-            text: "12 tests passed\n",
+            type: "runtime_warning",
+            text: "Provider slow to answer",
+            runtime: { elapsed_seconds: 40, idle_seconds: 30 },
           },
           turnId: "turn-generic-data",
           timestamp: "2026-08-26T12:00:04Z",
@@ -611,7 +744,7 @@ describe("session timeline derivation", () => {
     );
 
     expect(rows.some(row => row.kind === "turn-fold")).toBe(false);
-    expect(rows.map(row => row.kind)).toEqual(["work", "text"]);
+    expect(rows.map(row => row.kind)).toEqual(["live-tool", "text"]);
   });
 
   it("Should fold an interrupted turn expanded and label the interruption", () => {
@@ -642,7 +775,8 @@ describe("session timeline derivation", () => {
     expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
     const foldRow = rows[0];
     if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-    expect(foldRow.interrupted).toBe(true);
+    expect(foldRow.cause).toBe("stopped");
+    expect(foldRow.open).toBe(true);
     expect(foldRow.label).toBe("You stopped after 7s");
     expect(foldRow.rows.map(row => row.kind)).toEqual(["reasoning", "work"]);
     expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });
@@ -667,7 +801,8 @@ describe("session timeline derivation", () => {
 
     const foldRow = rows[0];
     if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-    expect(foldRow.interrupted).toBe(true);
+    expect(foldRow.cause).toBe("stopped");
+    expect(foldRow.open).toBe(true);
     expect(foldRow.label).toBe("You stopped after 5s");
   });
 
@@ -683,7 +818,7 @@ describe("session timeline derivation", () => {
     expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
     const foldRow = rows[0];
     if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-    expect(foldRow.interrupted).toBe(false);
+    expect(foldRow.cause).toBe("settled");
     expect(foldRow.durationMs).toBe(0);
     expect(foldRow.label).toBe("Worked");
   });
@@ -747,6 +882,171 @@ describe("session timeline derivation", () => {
     // A still-streaming reasoning part keeps the row live so the turn stays open.
     expect(second.streaming).toBe(true);
   });
+});
+
+// UT-091: a settled turn folds behind its duration and its work counts; the
+// final answer stays outside the fold.
+it("Should fold a settled turn behind duration and counts with the answer outside", () => {
+  const rows = deriveSessionRows(
+    [
+      tool(1, {
+        toolName: "Bash",
+        args: { command: "go test" },
+        turnId: "turn-c",
+        timestamp: "2026-07-07T12:00:00Z",
+      }),
+      tool(2, {
+        toolName: "Bash",
+        args: { command: "go vet" },
+        turnId: "turn-c",
+        timestamp: "2026-07-07T12:01:00Z",
+      }),
+      tool(3, {
+        toolName: "Read",
+        args: { file_path: "/src/a.ts" },
+        turnId: "turn-c",
+        timestamp: "2026-07-07T12:03:00Z",
+      }),
+      text("answer", "Done — 14 tests updated.", "turn-c", "2026-07-07T12:04:12Z"),
+    ],
+    { foldSettledTurns: true }
+  );
+  expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+  const foldRow = rows[0];
+  if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
+  expect(foldRow.label).toBe("Worked for 4m 12s · Ran 2 commands, read 1 file");
+  expect(foldRow.counts).toBe("Ran 2 commands, read 1 file");
+  expect(foldRow.cause).toBe("settled");
+  expect(foldRow.open).toBe(false);
+});
+
+// UT-093: a zero-tool turn has no fold row — message and answer only.
+it("Should derive no fold row for a zero-tool turn", () => {
+  const rows = deriveSessionRows(
+    [
+      text(
+        "only-answer",
+        "Three of the manager tests are flaky.",
+        "turn-z",
+        "2026-07-07T12:00:00Z"
+      ),
+    ],
+    { foldSettledTurns: true, activeTurnId: undefined }
+  );
+  expect(rows.map(row => row.kind)).toEqual(["text"]);
+});
+
+// UT-094: a turn a fallback steer interrupted folds like a settled one but
+// names its true cause; a turn that failed stays open under a danger label.
+it("Should fold a superseded turn with its true cause and keep a failed turn open", () => {
+  const superseded = deriveSessionRows(
+    [
+      tool(1, {
+        toolName: "Bash",
+        args: { command: "go test" },
+        turnId: "turn-s",
+        timestamp: "2026-07-07T12:00:00Z",
+      }),
+      tool(3, {
+        toolName: "Bash",
+        args: { command: "go build" },
+        turnId: "turn-s",
+        timestamp: "2026-07-07T12:00:10Z",
+      }),
+      tool(2, {
+        toolName: "Bash",
+        args: { command: "go vet" },
+        turnId: "turn-s",
+        timestamp: "2026-07-07T12:00:20Z",
+        status: "running",
+        result: undefined,
+      }),
+      {
+        kind: "reasoning",
+        id: "reason-s",
+        text: "Halfway",
+        turnId: "turn-s",
+        timestamp: "2026-07-07T12:00:48Z",
+        state: "done",
+      },
+    ],
+    { foldSettledTurns: true, supersededTurnIds: new Set(["turn-s"]) }
+  );
+  expect(superseded.map(row => row.kind)).toEqual(["turn-fold"]);
+  const fold = superseded[0];
+  if (fold?.kind !== "turn-fold") throw new Error("expected fold row");
+  expect(fold.cause).toBe("steer_fallback");
+  expect(fold.open).toBe(false);
+  expect(fold.label).toBe("Interrupted after 48s · replaced by your steer · Ran 2 commands");
+  // The call still running at the interrupt reads stopped, not running.
+  const work = fold.rows.find(
+    row => row.kind === "work" && row.entries.some(entry => entry.id === "tool-2")
+  );
+  if (work?.kind !== "work") throw new Error("expected the stopped call inside the fold");
+  expect(work.entries.find(entry => entry.id === "tool-2")?.status).toBe("interrupted");
+
+  const failed = deriveSessionRows(
+    [
+      tool(1, { turnId: "turn-f", timestamp: "2026-07-07T12:00:00Z" }),
+      tool(2, { turnId: "turn-f", timestamp: "2026-07-07T12:02:03Z" }),
+    ],
+    { foldSettledTurns: true, failedTurnIds: new Set(["turn-f"]) }
+  );
+  const failedFold = failed[0];
+  if (failedFold?.kind !== "turn-fold") throw new Error("expected fold row");
+  expect(failedFold).toMatchObject({ cause: "failed", open: true, label: "Failed after 2m 3s" });
+});
+
+// UT-090: decision asks and errors are rich rows — they split tool groups and
+// never disappear into a settled turn's fold.
+it.each([
+  { label: "session errors", event: { type: "error", error: "provider exploded" } },
+  {
+    label: "file mutation verification warnings",
+    event: {
+      type: "transcript_marker.created",
+      marker: {
+        kind: "transcript_marker.file_mutation_unverified",
+        summary: "File mutation failed and was not recovered.",
+        occurred_at: "2026-07-07T12:00:02Z",
+      },
+    },
+  },
+  {
+    label: "raw file mutation verification warnings",
+    event: {
+      type: "transcript_marker.created",
+      raw: {
+        kind: "transcript_marker.file_mutation_unverified",
+        summary: "File mutation failed and was not recovered.",
+        occurred_at: "2026-07-07T12:00:02Z",
+      },
+    },
+  },
+])("Should keep $label out of tool groups and outside the fold", ({ event }) => {
+  const rows = deriveSessionRows(
+    [
+      tool(1, { turnId: "turn-r", timestamp: "2026-07-07T12:00:00Z" }),
+      tool(2, { turnId: "turn-r", timestamp: "2026-07-07T12:00:01Z" }),
+      {
+        kind: "data",
+        id: "error-r",
+        name: "data-compozy-event",
+        data: event,
+        turnId: "turn-r",
+        timestamp: "2026-07-07T12:00:02Z",
+      },
+      tool(3, { turnId: "turn-r", timestamp: "2026-07-07T12:00:03Z" }),
+      tool(4, { turnId: "turn-r", timestamp: "2026-07-07T12:00:04Z" }),
+      text("answer-r", "Recovered.", "turn-r", "2026-07-07T12:00:05Z"),
+    ],
+    { foldSettledTurns: true }
+  );
+  // The error row splits the run into two groups and stays visible beside the fold.
+  expect(rows.map(row => row.kind)).toEqual(["turn-fold", "data", "text"]);
+  const fold = rows[0];
+  if (fold?.kind !== "turn-fold") throw new Error("expected fold row");
+  expect(fold.rows.map(row => row.kind)).toEqual(["work", "work"]);
 });
 
 describe("changed-files roll-up derivation", () => {
@@ -855,7 +1155,11 @@ describe("marker clustering", () => {
       kind: "data",
       id,
       name: "data-compozy-event",
-      data: { type: "runtime", marker: { kind, occurred_at: timestamp, summary: kind } },
+      // The daemon's wire shape: a `transcript_marker.created` event carrying the marker.
+      data: {
+        type: "transcript_marker.created",
+        marker: { kind, occurred_at: timestamp, summary: kind },
+      },
       turnId,
       timestamp,
       state: "done",

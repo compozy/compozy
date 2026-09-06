@@ -130,6 +130,11 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	if s.promptSetupDone == nil {
 		s.promptSetupDone = closedSignalChan()
 	}
+	if cause == CauseInactivity && s.State == StateActive {
+		if s.supervisionStopAt.IsZero() || now.Before(s.supervisionStopAt) {
+			return false, nil, errSupervisionActivityResumed
+		}
+	}
 	cause = s.resolveSpawnTTLStopCauseLocked(cause)
 
 	switch s.State {
@@ -145,6 +150,7 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 		}
 		s.applyStopCauseLocked(cause, detail)
 		s.State = StateStopping
+		s.stopStartedAt = now
 		if !now.IsZero() {
 			s.UpdatedAt = now
 		}
@@ -213,4 +219,14 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 	defer s.mu.Unlock()
 	s.stopReason = reason
 	s.stopDetail = strings.TrimSpace(detail)
+}
+
+// StoppingDeadline derives the fixed stop episode budget without renewing it on reads.
+func (s *Session) StoppingDeadline(cooperativeGrace time.Duration) time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.State != StateStopping || s.stopStartedAt.IsZero() {
+		return time.Time{}
+	}
+	return s.stopStartedAt.Add(cooperativeGrace + stopForcedGrace + stopKillGrace)
 }

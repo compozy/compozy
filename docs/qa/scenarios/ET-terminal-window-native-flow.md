@@ -28,3 +28,9 @@ Walk:
 3. Use the head's New terminal; confirm a second terminal joins the frame as an OS window tab and the deck is the only tab strip visible.
 4. Use the dock's right-click Open in new window; confirm another terminal opens without touching the existing ones.
 5. End a session from the head's overflow Close terminal; confirm the window stays put on the exit bar until you close it yourself.
+
+QA re-walk 2026-09-06: the terminal grid now fills a flex column whose height follows the window. A targeted rendered probe measured the host at 395px inside a 417px container; hidden panes cast no minimum-size vote. All 12 terminal journeys passed, including live watcher-size agreement after reflow. Evidence: `.cache/sessions-terminal-artifacts-probe2b/` and `.cache/sessions-terminal-e2e002-fixed2-all2-results.json`; BUG-20260906-hidden-terminal-pane-minimum-vote.
+
+QA re-walk 2026-09-06: the packaged macOS Terminal E2E-013 journey passes input, clipboard, accelerators, zoom/refit and IME in 14.5s. Its watcher compares the current RESIZED grid with the visible size vote, accounting for the viewers footer. Evidence: `.cache/sessions-final-desktop-terminal-e2e-run2.log`; web/dist restored byte-for-byte.
+
+Final selection-layout re-walk 2026-09-06: the packaged macOS Terminal E2E-013 passes again in12.8s with selection actions over the grid. Clipboard selection, accelerators, zoom/refit and IME remain functional; `.cache/sessions-final-desktop-selection-e2e.log`, with web/dist restored byte-for-byte.

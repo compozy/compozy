@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import type { UIMessage } from "../../types";
@@ -95,6 +95,12 @@ function queryBody(): HTMLElement | null {
 }
 
 describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compozy/ui", () => {
+  // This suite owns terminal-vs-tool rendering. Canvas drawing is browser I/O;
+  // model an unavailable drawing context while retaining the real terminal block.
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -154,11 +160,13 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
 
-  it("Should fail a resultless tool once the owning turn settles", () => {
+  it("Should read a resultless tool as an absorbed failure once the owning turn settles", () => {
     render(<SessionToolCallRow message={makeToolMessage()} turnSettled />);
 
-    expect(queryRoot()).toHaveAttribute("data-status", "failed");
-    expect(queryStatusIndicator()).toHaveAttribute("aria-label", "Error");
+    // No result after the turn settled is a failure the turn moved past, not
+    // the failure that ended it (ADR-009): subtle ×, never danger.
+    expect(queryRoot()).toHaveAttribute("data-status", "absorbed");
+    expect(queryStatusIndicator()).toHaveAttribute("aria-label", "Failed");
     expect(queryToolName()).toHaveTextContent("Read file");
     expect(queryToolName()).not.toHaveTextContent("Reading...");
     expect(queryPreview()).toHaveTextContent("Tool call failed");
@@ -218,9 +226,11 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
 
   it("Should map a runtime error to failed with a neutral heading and the error-first-line preview", async () => {
     const user = userEvent.setup();
+    // Danger only when the failure ended the turn (ADR-009).
     render(
       <SessionToolCallRow
         message={makeToolMessage({ toolResult: { error: "not found" }, toolError: true })}
+        turnFailed
       />
     );
     expect(queryRoot()?.getAttribute("data-status")).toBe("failed");
@@ -244,7 +254,9 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     );
   });
 
-  it("Should flag error-shaped output as failed while keeping the heading neutral (not a runtime error)", () => {
+  // ADR-009 / US-026.AC-3: a failure the turn absorbed is information — subtle ×
+  // plus the word "failed" — never the danger glyph.
+  it("Should read an absorbed failure as a subtle × with the word failed, not danger", () => {
     render(
       <SessionToolCallRow
         message={makeToolMessage({
@@ -254,8 +266,12 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
         })}
       />
     );
-    expect(queryRoot()?.getAttribute("data-status")).toBe("failed");
-    expect(queryStatusIndicator()?.getAttribute("aria-label")).toBe("Error");
+    expect(queryRoot()?.getAttribute("data-status")).toBe("absorbed");
+    const indicator = queryStatusIndicator();
+    expect(indicator?.getAttribute("aria-label")).toBe("Failed");
+    expect(indicator?.getAttribute("class")).toContain("text-subtle");
+    expect(indicator?.getAttribute("class")).not.toContain("text-danger");
+    expect(screen.getByTestId("tool-call-state-word")).toHaveTextContent("failed");
     const headingEl = queryToolName();
     expect(headingEl).toHaveTextContent("Ran command");
     expect(headingEl?.className).not.toContain("text-danger");
@@ -267,7 +283,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const user = userEvent.setup();
     render(<SessionToolCallRow message={makeToolMessage({ toolError: true })} />);
 
-    expect(queryRoot()).toHaveAttribute("data-status", "failed");
+    expect(queryRoot()).toHaveAttribute("data-status", "absorbed");
     expect(queryPreview()).toHaveTextContent("Tool call failed");
     await user.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
     expect(document.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
@@ -287,6 +303,22 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     );
 
     expect(queryPreview()).toHaveTextContent("read denied workspace is read-only");
+  });
+
+  // ADR-009: the call that was running when the operator stopped the turn reads
+  // "stopped" in settled ink, with no glyph at all.
+  it("Should read a call cut by the operator's stop as stopped with no glyph", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({ toolName: "Bash", toolInput: { command: "go test" } })}
+        interrupted
+        turnSettled
+      />
+    );
+    expect(queryRoot()).toHaveAttribute("data-status", "stopped");
+    expect(queryStatusIndicator()).toBeNull();
+    expect(screen.getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
+    expect(queryToolName()).toHaveTextContent("Ran command");
   });
 
   it("Should toggle the specialized output body by click and keyboard", async () => {
@@ -571,5 +603,54 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     );
     expect(screen.getByText("bounded preview")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  // Invariant (BUG-20260906-find-specialized-tool-field): a find reveal names the field the
+  // daemon matched; the row opens and renders that field's whole raw payload beside the
+  // tool's own display, so the searched text is on screen even when the specialized
+  // renderer never shows it or the bounded preview would have cut it. Without a reveal the
+  // specialized display is unchanged. Owner: SessionToolCallRow. Canonical suite: this file.
+  it("Should render the matched raw input beside a specialized Read display on a find reveal", () => {
+    const message = makeToolMessage({
+      toolInput: { file_path: "notes/ação-café.md", query: "ação λ café" },
+      toolResult: { stdout: "# café\n" },
+    });
+    const revealed = render(
+      <SessionToolCallRow message={message} revealOpen revealField="input" />
+    );
+    expect(screen.getByTestId("read-content")).toHaveTextContent("notes/ação-café.md");
+    const matched = screen.getByTestId("tool-matched-field");
+    expect(matched).toHaveAttribute("data-field", "input");
+    expect(matched).toHaveTextContent("Input");
+    expect(matched).toHaveTextContent('"query": "ação λ café"');
+    expect(queryRoot()).toHaveAttribute("data-expanded", "true");
+
+    revealed.unmount();
+
+    // Outside navigation the specialized display stands alone.
+    render(<SessionToolCallRow message={message} defaultExpanded />);
+    expect(screen.getByTestId("read-content")).toBeInTheDocument();
+    expect(screen.queryByTestId("tool-matched-field")).not.toBeInTheDocument();
+  });
+
+  it("Should reveal a matched output past the bounded preview in full, keeping the strip", () => {
+    const lines = Array.from({ length: 260 }, (_, index) =>
+      index === 250 ? "needle λ line" : `line ${index + 1}`
+    );
+    const message = makeToolMessage({
+      toolName: "Bash",
+      toolInput: { command: "cat notes.txt" },
+      toolResult: { stdout: lines.join("\n") },
+    });
+    render(<SessionToolCallRow message={message} revealOpen revealField="output" />);
+    const matched = screen.getByTestId("tool-matched-field");
+    expect(matched).toHaveAttribute("data-field", "output");
+    expect(matched).toHaveTextContent("needle λ line");
+    // The matched payload starts whole; the tool's own bounded display keeps its preview.
+    expect(within(matched).getByTestId("detail-payload-note")).toHaveTextContent("All 260 lines");
+    expect(within(matched).getByTestId("detail-payload-show-all")).toHaveTextContent("Show less");
+    // A header field needs no body payload: title/tool name/file already show.
+    render(<SessionToolCallRow message={message} revealOpen revealField="tool_name" />);
+    expect(screen.getAllByTestId("tool-matched-field")).toHaveLength(1);
   });
 });

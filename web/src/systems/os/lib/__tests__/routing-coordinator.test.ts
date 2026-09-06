@@ -526,6 +526,85 @@ describe("RoutingCoordinator", () => {
     });
   });
 
+  it("Should reconcile a user navigation whose location is already current", () => {
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const profiles = route("/settings/profiles");
+
+    // No route report follows: the router treats a same-location navigation as a no-op.
+    coordinator.userNavigate(profiles);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(profiles);
+    expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({
+      app: "settings",
+      instanceKey: undefined,
+      route: profiles,
+    });
+    expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
+  });
+
+  it("Should let a newer user navigation supersede a pending open's history write", async () => {
+    const settings = windowFixture("settings", "/settings/profiles");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const general = route("/settings/general");
+    const profiles = route("/settings/profiles");
+    store.deferLifecycle();
+
+    const pending = coordinator.userOpen({ app: "settings", route: general });
+    // The runtime projects the navigate before the daemon answers (route intent).
+    store.setAuthoritativeFocus(settings.id, general);
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    // The operator picks Profiles while the daemon still holds the open.
+    coordinator.userNavigate(profiles);
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(profiles);
+
+    store.settleLifecycle(true);
+    await expect(pending).resolves.toBe(settings.id);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(store.spies.openOrFocus).toHaveBeenLastCalledWith({
+      app: "settings",
+      instanceKey: undefined,
+      route: profiles,
+    });
+    expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
+  });
+
+  it("Should let a route the coordinator did not write supersede a pending open's history write", async () => {
+    const settings = windowFixture("settings", "/settings/layouts");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const general = route("/settings/general");
+    const profiles = route("/settings/profiles");
+    store.deferLifecycle();
+
+    const pending = coordinator.userOpen({ app: "settings", route: general });
+    store.setAuthoritativeFocus(settings.id, general);
+
+    // An in-window link changed the location; its own navigation wrote history.
+    coordinator.reportRouteMatch(profiles);
+
+    store.settleLifecycle(true);
+    await expect(pending).resolves.toBe(settings.id);
+
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(store.spies.openOrFocus).toHaveBeenLastCalledWith({
+      app: "settings",
+      instanceKey: undefined,
+      route: profiles,
+    });
+    expect(store.getState().windows[settings.id]?.route).toEqual(profiles);
+  });
+
   it("Should let a link route own the single focus transition and history write", async () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");

@@ -390,6 +390,7 @@ func newIntegrationService(
 			context.Context,
 			loop.WorkspaceID,
 			string,
+			string,
 		) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
 		}),

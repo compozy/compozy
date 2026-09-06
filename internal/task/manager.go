@@ -110,42 +110,44 @@ type managerOptions struct {
 // Service centralizes canonical task-domain creation, mutation, read, and
 // graph-management rules above the persistence layer.
 type Service struct {
-	store                 Store
-	sessions              SessionExecutor
-	runtimeViews          RuntimeViewReader
-	inspectReader         InspectStateReader
-	eventObserver         EventObserver
-	reviewObserver        RunReviewRequestedObserver
-	taskHooks             RunHookDispatcher
-	coordinatorRunner     CoordinatorRunner
-	coordinatorPostCommit CoordinatorPostCommitHandler
-	generationFinalizer   GenerationStateFinalizer
-	coordinatorTimerArmer CoordinatorTimerArmer
-	wakeNotifier          WakeNotifier
-	participationResolver participation.Resolver
-	taskAuthorizer        ResourceAuthorizer
-	runReadAuthorizer     RunReadAuthorizer
-	coordinatorStatusOK   func(string) bool
-	coordinatorHookOK     func(string) bool
-	profileValidation     ExecutionProfileValidationOptions
-	worktreeRefValidator  WorktreeRefValidator
-	forceRecovery         ForceRecoveryOptions
-	now                   func() time.Time
-	newID                 func(prefix string) (string, error)
-	cancelGracePeriod     time.Duration
-	starvationAge         time.Duration
-	blockRecurrenceLimit  int
-	workspaceActiveRunCap int
-	workAdmission         admission.Checker
-	workspaceAccess       workspaceaccess.Policy
-	actionResultMaxBytes  int
-	forceRateLimiter      *forceRunRateLimiter
-	wakeMu                sync.Mutex
-	wakeEventIDs          map[string]struct{}
-	wakeEventOrder        []string
-	liveMu                sync.Mutex
-	liveSubscribers       map[uint64]*taskStreamSubscriber
-	nextSubscriberID      uint64
+	schedulerCountersMu     sync.RWMutex
+	schedulerCountersReader func() SchedulerCounters
+	store                   Store
+	sessions                SessionExecutor
+	runtimeViews            RuntimeViewReader
+	inspectReader           InspectStateReader
+	eventObserver           EventObserver
+	reviewObserver          RunReviewRequestedObserver
+	taskHooks               RunHookDispatcher
+	coordinatorRunner       CoordinatorRunner
+	coordinatorPostCommit   CoordinatorPostCommitHandler
+	generationFinalizer     GenerationStateFinalizer
+	coordinatorTimerArmer   CoordinatorTimerArmer
+	wakeNotifier            WakeNotifier
+	participationResolver   participation.Resolver
+	taskAuthorizer          ResourceAuthorizer
+	runReadAuthorizer       RunReadAuthorizer
+	coordinatorStatusOK     func(string) bool
+	coordinatorHookOK       func(string) bool
+	profileValidation       ExecutionProfileValidationOptions
+	worktreeRefValidator    WorktreeRefValidator
+	forceRecovery           ForceRecoveryOptions
+	now                     func() time.Time
+	newID                   func(prefix string) (string, error)
+	cancelGracePeriod       time.Duration
+	starvationAge           time.Duration
+	blockRecurrenceLimit    int
+	workspaceActiveRunCap   int
+	workAdmission           admission.Checker
+	workspaceAccess         workspaceaccess.Policy
+	actionResultMaxBytes    int
+	forceRateLimiter        *forceRunRateLimiter
+	wakeMu                  sync.Mutex
+	wakeEventIDs            map[string]struct{}
+	wakeEventOrder          []string
+	liveMu                  sync.Mutex
+	liveSubscribers         map[uint64]*taskStreamSubscriber
+	nextSubscriberID        uint64
 }
 
 var _ Manager = (*Service)(nil)

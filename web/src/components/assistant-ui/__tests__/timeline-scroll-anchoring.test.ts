@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 
+import { revealTargetInNestedScrollers } from "../hooks/thread-scroll-landing";
+import { measureVirtualRow } from "../hooks/use-thread-scroll-controller";
+
 import {
+  composerGrowthAdjustment,
+  consumeSnapToEnd,
   createVirtualizerMeasurementState,
+  FOLD_SETTLE_FRAMES,
+  FOLLOW_REARM_BAND_PX,
   getAnchoredTurnMetrics,
   getRowBottom,
+  INITIAL_SCROLL_OWNERSHIP,
+  measuredComposerOverlay,
+  NEW_TURN_ANCHOR_OFFSET_PX,
   nextScrollMode,
+  prependScrollTop,
+  resolveTimelineIsAtEnd,
+  scrollOwnershipTransition,
+  shouldMaintainEnd,
   type TimelineListMeasurementState,
   type TimelineScrollMode,
 } from "../timeline-scroll-anchoring";
@@ -229,5 +243,217 @@ describe("virtualizer measurement shim", () => {
 
     expect(shim.scroll).toBe(0);
     expect(shim.data.length).toBe(1);
+  });
+});
+
+// Suite: scroll ownership reducer (ADR-007, US-024, UT-096..UT-098).
+// Invariant: one owner at a time — an upward gesture detaches following at once,
+// following re-arms only inside the 40px band or through the pill, a fold toggle
+// suppresses end-maintenance for two frames, send anchors the new turn against
+// the measured composer overlap, steering a streaming turn snaps, older history
+// restores the exact offset via the height delta, and composer growth moves the
+// viewport only while following.
+describe("scroll ownership reducer", () => {
+  it("Should detach following instantly on an upward gesture and re-arm only inside the band", () => {
+    const free = scrollOwnershipTransition(INITIAL_SCROLL_OWNERSHIP, {
+      type: "user-scroll",
+      direction: "up",
+      atEnd: true,
+    });
+    expect(free.mode).toBe("free-scrolling");
+    // A downward gesture that has not reached the band keeps the reader in control.
+    expect(
+      scrollOwnershipTransition(free, { type: "user-scroll", direction: "down", atEnd: false }).mode
+    ).toBe("free-scrolling");
+    expect(
+      scrollOwnershipTransition(free, { type: "user-scroll", direction: "down", atEnd: true }).mode
+    ).toBe("following-end");
+    expect(scrollOwnershipTransition(free, { type: "reached-end" }).mode).toBe("following-end");
+    expect(scrollOwnershipTransition(free, { type: "jump-to-latest" }).mode).toBe("following-end");
+    expect(FOLLOW_REARM_BAND_PX).toBe(40);
+    expect(resolveTimelineIsAtEnd({ contentLength: 1_000, scroll: 560, scrollLength: 400 })).toBe(
+      true
+    );
+    expect(resolveTimelineIsAtEnd({ contentLength: 1_000, scroll: 559, scrollLength: 400 })).toBe(
+      false
+    );
+  });
+
+  it("Should suppress end-maintenance for two frames after a fold toggles", () => {
+    const toggled = scrollOwnershipTransition(INITIAL_SCROLL_OWNERSHIP, { type: "fold-toggled" });
+    expect(toggled.foldSettleFrames).toBe(FOLD_SETTLE_FRAMES);
+    expect(shouldMaintainEnd(toggled)).toBe(false);
+    const one = scrollOwnershipTransition(toggled, { type: "frame" });
+    expect(shouldMaintainEnd(one)).toBe(false);
+    const two = scrollOwnershipTransition(one, { type: "frame" });
+    expect(shouldMaintainEnd(two)).toBe(true);
+    expect(scrollOwnershipTransition(two, { type: "frame" })).toBe(two);
+    // A reader in free mode never gets end-maintenance, frames or not.
+    expect(
+      shouldMaintainEnd(
+        scrollOwnershipTransition(two, { type: "user-scroll", direction: "up", atEnd: false })
+      )
+    ).toBe(false);
+  });
+
+  it("Should anchor a send against the measured composer overlap and snap on a steer during streaming", () => {
+    const anchored = scrollOwnershipTransition(INITIAL_SCROLL_OWNERSHIP, { type: "new-turn" });
+    expect(anchored.mode).toBe("anchoring-new-turn");
+    expect(measuredComposerOverlay({ bottom: 900 }, { top: 860 })).toBe(40);
+    expect(measuredComposerOverlay({ bottom: 900 }, { top: 900 })).toBe(0);
+    expect(measuredComposerOverlay({ bottom: 900 }, null)).toBe(0);
+    const metrics = getAnchoredTurnMetrics({
+      state: buildState({ positions: [0, 80, 200], sizes: [80, 120, 600], scrollLength: 640 }),
+      anchorIndex: 1,
+      composerOverlayHeight: 40,
+      anchorOffset: NEW_TURN_ANCHOR_OFFSET_PX,
+    });
+    expect(metrics?.usableViewportHeight).toBe(640 - 40 - NEW_TURN_ANCHOR_OFFSET_PX);
+    expect(scrollOwnershipTransition(anchored, { type: "anchor-outgrown" }).mode).toBe(
+      "following-end"
+    );
+
+    const steered = scrollOwnershipTransition(anchored, { type: "steer", streaming: true });
+    expect(steered).toMatchObject({ mode: "following-end", snapToEnd: true });
+    expect(consumeSnapToEnd(steered)).toMatchObject({ mode: "following-end", snapToEnd: false });
+    // A steer that lands on an idle turn behaves like a send.
+    expect(
+      scrollOwnershipTransition(INITIAL_SCROLL_OWNERSHIP, { type: "steer", streaming: false })
+    ).toMatchObject({ mode: "anchoring-new-turn", snapToEnd: false });
+  });
+
+  it("Should restore the exact offset after a prepend and move for composer growth only while following", () => {
+    expect(prependScrollTop({ scrollTop: 320, scrollHeight: 4_000 }, 5_200)).toBe(1_520);
+    expect(prependScrollTop({ scrollTop: 0, scrollHeight: 4_000 }, 3_000)).toBe(0);
+    expect(composerGrowthAdjustment("following-end", 56)).toBe(56);
+    expect(composerGrowthAdjustment("following-end", -20)).toBe(0);
+    expect(composerGrowthAdjustment("free-scrolling", 56)).toBe(0);
+    expect(composerGrowthAdjustment("anchoring-new-turn", 56)).toBe(0);
+  });
+});
+
+// Invariant (BUG-20260906-find-specialized-tool-field, long-payload landing): a located
+// range inside a nested scrolling box (a payload's bounded body) is first scrolled into that
+// box — innermost first, keeping a margin, moving nothing that already shows it — so the
+// conversation's outer alignment can measure content that is actually on screen; the
+// viewport itself and the row are never treated as nested scrollers.
+// Owning layer: scroll landing geometry (`thread-scroll-landing.ts`). Canonical suite: this file.
+describe("nested scroller reveal", () => {
+  interface Box {
+    top: number;
+    height: number;
+  }
+
+  function rect({ top, height }: Box): DOMRect {
+    return {
+      bottom: top + height,
+      height,
+      left: 0,
+      right: 100,
+      toJSON: () => ({}),
+      top,
+      width: 100,
+      x: 0,
+      y: top,
+    } as DOMRect;
+  }
+
+  /** A viewport > row > payload box (scrolls) > text node; the range sits at `lineTop` inside the box's content. */
+  function scene(lineTop: number, boxHeight = 384) {
+    const viewport = document.createElement("div");
+    const row = document.createElement("div");
+    const box = document.createElement("pre");
+    const text = document.createTextNode("x".repeat(200));
+    box.append(text);
+    row.append(box);
+    viewport.append(row);
+    let scrollTop = 0;
+    Object.defineProperty(box, "scrollTop", {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = Math.max(0, value);
+      },
+    });
+    Object.defineProperty(box, "scrollHeight", { value: 6_000 });
+    Object.defineProperty(box, "clientHeight", { value: boxHeight });
+    viewport.getBoundingClientRect = () => rect({ height: 640, top: 0 });
+    row.getBoundingClientRect = () => rect({ height: 6_100, top: 100 });
+    box.getBoundingClientRect = () => rect({ height: boxHeight, top: 140 });
+    const range = new Range();
+    range.setStart(text, 10);
+    range.setEnd(text, 20);
+    range.getBoundingClientRect = () => rect({ height: 14.5, top: 140 + lineTop - scrollTop });
+    return { box, range, row, viewport, isScroller: (element: Element) => element === box };
+  }
+
+  it("Should scroll the payload box until a line below its bottom edge shows with a margin", () => {
+    const { box, range, row, viewport, isScroller } = scene(4_136);
+    expect(revealTargetInNestedScrollers(viewport, row, range, isScroller)).toBe(true);
+    // 4136 + 14.5 - 384 + 24 = 3790.5: the line rests 24px above the box's bottom.
+    expect(box.scrollTop).toBeCloseTo(3_790.5, 5);
+    expect(range.getBoundingClientRect().bottom).toBeLessThanOrEqual(140 + 384 - 24);
+    expect(range.getBoundingClientRect().top).toBeGreaterThanOrEqual(140 + 24);
+  });
+
+  it("Should scroll back up for a line above the box's top edge and leave a visible line alone", () => {
+    const above = scene(0);
+    above.box.scrollTop = 900;
+    expect(
+      revealTargetInNestedScrollers(above.viewport, above.row, above.range, above.isScroller)
+    ).toBe(true);
+    expect(above.box.scrollTop).toBe(0);
+
+    const visible = scene(100);
+    expect(
+      revealTargetInNestedScrollers(
+        visible.viewport,
+        visible.row,
+        visible.range,
+        visible.isScroller
+      )
+    ).toBe(false);
+    expect(visible.box.scrollTop).toBe(0);
+  });
+
+  it("Should never scroll the viewport or the row as if they were nested boxes", () => {
+    const { range, row, viewport } = scene(4_136);
+    expect(revealTargetInNestedScrollers(viewport, row, range, () => true)).toBe(true);
+    // Only the box moved: the outer alignment owns the viewport and the row.
+    expect(viewport.scrollTop).toBe(0);
+    expect(row.scrollTop).toBe(0);
+  });
+});
+
+// Suite: virtual row measurement (BUG-20260906-promoted-turn-missing-live).
+// Invariant: a mounted row that renders nothing measures 0 — never its
+// estimate — so the virtual layout equals the real scroll height and the last
+// rows stay reachable at the bottom; only an element no layout engine has sized
+// keeps the estimate. Owning layer: thread scroll controller (virtualizer).
+describe("virtual row measurement", () => {
+  const virtualizer = { options: { estimateSize: () => 144 }, indexFromElement: () => 7 };
+  const row = () => document.createElement("div");
+  const observed = (blockSize: number) =>
+    ({ borderBoxSize: [{ blockSize, inlineSize: 800 }] }) as unknown as ResizeObserverEntry;
+
+  it("Should measure an observed empty row as zero, not its estimate", () => {
+    expect(measureVirtualRow(row(), observed(0), virtualizer)).toBe(0);
+    expect(measureVirtualRow(row(), observed(41.6), virtualizer)).toBe(42);
+  });
+
+  it("Should measure a laid-out empty row as zero and an unsized element by its estimate", () => {
+    const laidOut = row();
+    document.body.append(laidOut);
+    try {
+      // jsdom has no layout: stand in for a rendered box with no height.
+      laidOut.getClientRects = () => [{}] as unknown as DOMRectList;
+      expect(measureVirtualRow(laidOut, undefined, virtualizer)).toBe(0);
+      const sized = row();
+      Object.defineProperty(sized, "offsetHeight", { value: 88 });
+      expect(measureVirtualRow(sized, undefined, virtualizer)).toBe(88);
+      // No client rects at all: nothing measured this element yet.
+      expect(measureVirtualRow(row(), undefined, virtualizer)).toBe(144);
+    } finally {
+      laidOut.remove();
+    }
   });
 });

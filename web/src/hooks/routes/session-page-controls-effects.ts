@@ -37,8 +37,8 @@ export function enqueueStop(
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      await execute();
-      trigger.stopSucceeded({ requestId });
+      const result = await execute();
+      trigger.stopSucceeded({ requestId, result });
     } catch (error) {
       trigger.stopFailed({
         error: normalizeError(error, "Failed to stop session."),

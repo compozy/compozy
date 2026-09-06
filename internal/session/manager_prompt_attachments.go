@@ -14,6 +14,9 @@ func (m *Manager) parseSendPromptRequest(
 	attachments := cloneAttachmentMeta(opts.Attachments)
 	message := strings.TrimSpace(opts.Message)
 	if message == "" && len(attachments) == 0 {
+		if opts.Mode == BusyInputModeInterrupt {
+			return m.parsePromptRequestWithMessagePolicy(ctx, id, PromptOpts{TurnSource: TurnSourceUser}, true)
+		}
 		return promptRequest{}, errors.New("session: prompt message is required")
 	}
 	if message != "" {

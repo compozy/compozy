@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,26 +26,61 @@ import (
 
 func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
 	t.Parallel()
-	client, server := newTerminalClientTestPair(t)
-	done := make(chan error, 1)
-	input := strings.NewReader(string([]byte{terminalDetachByte, terminalDetachByte}))
-	go func() {
-		done <- runTerminalClientStream(
-			t.Context(), client, terminalStreamModeWrite, input, io.Discard,
-		)
-	}()
-	frame := readTerminalClientTestFrame(t, server)
-	if frame.Op != terminalwire.ClientOpDetach {
-		t.Fatalf("opcode = %d, want DETACH", frame.Op)
-	}
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("runTerminalClientStream() error = %v", err)
+	t.Run("Should finish after the detach chord", func(t *testing.T) {
+		t.Parallel()
+		client, server := newTerminalClientTestPair(t)
+		done := make(chan error, 1)
+		input := strings.NewReader(string([]byte{terminalDetachByte, terminalDetachByte}))
+		go func() {
+			done <- runTerminalClientStream(
+				t.Context(), client, terminalStreamModeWrite, input, io.Discard,
+			)
+		}()
+		frame := readTerminalClientTestFrame(t, server)
+		if frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("opcode = %d, want DETACH", frame.Op)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("client did not finish after the detach chord")
-	}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runTerminalClientStream() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("client did not finish after the detach chord")
+		}
+	})
+	t.Run("Should preserve detach when the server closes before the input writer returns", func(t *testing.T) {
+		t.Parallel()
+		var transport *terminalDelayedWriteConn
+		dialer := *websocket.DefaultDialer
+		dialer.NetDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			transport = &terminalDelayedWriteConn{Conn: conn, closed: make(chan struct{})}
+			return transport, nil
+		}
+		client, server := newTerminalClientTestPairWithDialer(t, &dialer)
+		transport.delay.Store(true)
+		done := make(chan error, 1)
+		go func() {
+			input := strings.NewReader(string([]byte{terminalDetachByte, terminalDetachByte}))
+			done <- runTerminalClientStream(t.Context(), client, terminalStreamModeWrite, input, io.Discard)
+		}()
+		if frame := readTerminalClientTestFrame(t, server); frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("opcode = %d, want DETACH", frame.Op)
+		}
+		closeTerminalClientTestSocket(t, server)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("completed detach returned a reconnect error: %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("client did not finish after the peer accepted detach")
+		}
+	})
 }
 
 func TestTerminalClientReadStream(t *testing.T) {
@@ -556,7 +592,32 @@ type terminalFDTestReader struct {
 
 func (r terminalFDTestReader) Fd() uintptr { return r.fd }
 
+type terminalDelayedWriteConn struct {
+	net.Conn
+	delay     atomic.Bool
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func (c *terminalDelayedWriteConn) Write(payload []byte) (int, error) {
+	count, err := c.Conn.Write(payload)
+	if c.delay.Load() {
+		<-c.closed
+	}
+	return count, err
+}
+
+func (c *terminalDelayedWriteConn) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return c.Conn.Close()
+}
+
 func newTerminalClientTestPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
+	t.Helper()
+	return newTerminalClientTestPairWithDialer(t, websocket.DefaultDialer)
+}
+
+func newTerminalClientTestPairWithDialer(t *testing.T, dialer *websocket.Dialer) (*websocket.Conn, *websocket.Conn) {
 	t.Helper()
 	upgraded := make(chan terminalClientTestUpgrade, 1)
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
@@ -566,7 +627,7 @@ func newTerminalClientTestPair(t *testing.T) (*websocket.Conn, *websocket.Conn) 
 	}))
 	t.Cleanup(httpServer.Close)
 	target := "ws" + strings.TrimPrefix(httpServer.URL, terminalClientHTTPProtocol)
-	client, response, err := websocket.DefaultDialer.Dial(target, nil)
+	client, response, err := dialer.Dial(target, nil)
 	if response != nil && response.Body != nil {
 		if closeErr := response.Body.Close(); closeErr != nil {
 			t.Fatalf("close upgrade response: %v", closeErr)

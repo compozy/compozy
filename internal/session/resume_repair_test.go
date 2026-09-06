@@ -259,6 +259,35 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 func TestValidateInfrastructure(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name        string
+		profileID   string
+		profileName string
+	}{
+		{name: "default", profileID: store.DefaultProfileID, profileName: "default"},
+		{name: "named", profileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", profileName: "marketing"},
+	} {
+		t.Run("Should validate an agent from the stored "+tc.name+" profile", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t, WithProfileNameResolver(profileNameResolverMap{tc.profileID: tc.profileName}))
+			h.resolver.mu.Lock()
+			profileWorkspace := h.resolver.byRef[h.workspaceID]
+			profileWorkspace.Agents = []compozyconfig.AgentDef{{
+				Name: "profile-only", Provider: "claude", Prompt: "Use this profile's instructions.",
+			}}
+			h.resolver.byProfile[tc.profileName] = profileWorkspace
+			h.resolver.mu.Unlock()
+			meta := validResumeMeta(h, "sess-profile-"+tc.name)
+			meta.ProfileID = tc.profileID
+			meta.AgentName = "profile-only"
+			writeResumeEventStore(t, h.homePaths, meta.ID, []byte("not-empty"))
+
+			if errs := h.manager.validateInfrastructure(testutil.Context(t), meta); len(errs) != 0 {
+				t.Fatalf("validateInfrastructure() errors = %v, want the persisted profile agent", errs)
+			}
+		})
+	}
+
 	t.Run("Should valid infrastructure", func(t *testing.T) {
 		t.Parallel()
 

@@ -725,6 +725,9 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					http.StatusAccepted,
 					`{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`,
 				), nil
+			case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue":
+				return newHTTPResponse(http.StatusOK,
+					`{"inputs":[{"id":"queue-1","status":"canceled"}],"cleared_count":1,"queue_generation":3}`), nil
 			default:
 				return nil, fmt.Errorf("unexpected request = %s %s", req.Method, req.URL.Path)
 			}
@@ -741,6 +744,14 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 		}
 		if len(inputs.Inputs) != 1 || inputs.Inputs[0].ID != "queue-1" || inputs.Inputs[0].QueueGeneration != 2 {
 			t.Fatalf("ListSessionInputs() = %#v", inputs)
+		}
+	})
+	t.Run("Should clear pending input in workspace session scope", func(t *testing.T) {
+		t.Parallel()
+		result, err := client.ClearSessionInputs(t.Context(), "sess-1")
+		if err != nil || result.ClearedCount != 1 || result.QueueGeneration != 3 ||
+			len(result.Inputs) != 1 || result.Inputs[0].Status != contract.SessionInputCanceled {
+			t.Fatalf("ClearSessionInputs() = %#v, %v", result, err)
 		}
 	})
 

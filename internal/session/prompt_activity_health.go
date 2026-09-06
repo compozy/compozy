@@ -131,16 +131,6 @@ func (s *promptActivitySupervisor) progressText(now time.Time) string {
 	return strings.Join(parts, " ")
 }
 
-func (s *promptActivitySupervisor) warningText(now time.Time) string {
-	activity := s.runtimeActivity(now)
-	return fmt.Sprintf("Runtime activity is stale (%d seconds idle).", activity.IdleSeconds)
-}
-
-func (s *promptActivitySupervisor) timeoutText(now time.Time) string {
-	activity := s.runtimeActivity(now)
-	return fmt.Sprintf("Runtime activity timed out (%d seconds idle).", activity.IdleSeconds)
-}
-
 func (s *promptActivitySupervisor) promptDeadlineText(now time.Time) string {
 	activity := s.runtimeActivity(now)
 	if activity.ElapsedMS <= 0 {
@@ -162,10 +152,6 @@ func unhealthyProcessText(health subprocess.HealthState) string {
 
 func unhealthyProcessDiagnostic(health subprocess.HealthState) string {
 	return diagnostics.RedactAndBound(unhealthyProcessText(health), maxSessionFailureSummaryBytes)
-}
-
-func (s *promptActivitySupervisor) idleSecondsLocked(now time.Time) int64 {
-	return store.SessionActivityIdleSeconds(&s.activity, now)
 }
 
 func (s *promptActivitySupervisor) now() time.Time {

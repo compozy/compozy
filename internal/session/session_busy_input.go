@@ -21,7 +21,14 @@ func (s *Session) busyInputStateLocked(caps acp.Caps) *BusyInputState {
 	if capability == "" {
 		capability = config.SteerCapabilityNone
 	}
+	delivery := s.steerDelivery
+	if delivery == "" {
+		delivery = store.SteerDeliveryInterruptFallback
+		if capability == config.SteerCapabilityExtension || capability == config.SteerCapabilityConcurrentPrompt {
+			delivery = store.SteerDeliveryInjected
+		}
+	}
 	return &BusyInputState{
-		DefaultMode: s.followUpMode(), SteerCapability: capability, SteerDelivery: s.steerDelivery,
+		DefaultMode: s.followUpMode(), SteerCapability: capability, SteerDelivery: delivery,
 	}
 }

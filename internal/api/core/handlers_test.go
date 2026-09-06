@@ -1957,7 +1957,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw",
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=200",
 			nil,
 		)
 		if streamResp.Code != http.StatusOK {
@@ -2379,7 +2379,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve raw stream initial replay limit and unbound polling", func(t *testing.T) {
+	t.Run("Should preserve raw stream initial replay limit and bound forward polling", func(t *testing.T) {
 		t.Parallel()
 
 		done := make(chan struct{})
@@ -2426,8 +2426,8 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t.Fatalf("initial Events() limit = %d, want 2", initialQuery.Limit)
 		}
 		pollQuery := <-pollSeen
-		if pollQuery.Limit != 0 {
-			t.Fatalf("poll Events() limit = %d, want 0", pollQuery.Limit)
+		if pollQuery.Limit <= 0 || pollQuery.Limit > 1000 {
+			t.Fatalf("poll Events() limit = %d, want bounded forward page", pollQuery.Limit)
 		}
 		if pollQuery.AfterSequence != 11 {
 			t.Fatalf("poll Events() after_sequence = %d, want 11", pollQuery.AfterSequence)

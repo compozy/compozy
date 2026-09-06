@@ -13,6 +13,8 @@ import (
 type PendingInput struct {
 	ID               string
 	SessionID        string
+	OwnerKind        string
+	OwnerID          string
 	MessageID        string
 	IdempotencyKey   string
 	TargetTurnID     string
@@ -26,6 +28,12 @@ type PendingInput struct {
 	Runtime          *RuntimeSelection
 	SkillInvocations []commandpkg.Invocation
 	Attachments      []AttachmentMeta
+}
+
+type ClearPendingInputsResult struct {
+	Inputs          []PendingInput
+	ClearedCount    int
+	QueueGeneration int64
 }
 
 // ReplacePendingInputOpts carries an atomic queued-input replacement.

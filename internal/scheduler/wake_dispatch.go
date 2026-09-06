@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -41,6 +42,10 @@ func (s *Scheduler) dispatchWakeTargets(
 	for idx := range targets {
 		target := &targets[idx]
 		if err := s.waker.Wake(ctx, target); err != nil {
+			if errors.Is(err, ErrWakeSkipped) {
+				result.WakeSkipped++
+				continue
+			}
 			errs = append(errs, fmt.Errorf(
 				"scheduler: wake session %q for run %q: %w",
 				target.Session.ID,
@@ -79,6 +84,10 @@ func (s *Scheduler) dispatchWakeBatch(
 	for idx := range targets {
 		target := &targets[idx]
 		if err := wakeErrs[idx]; err != nil {
+			if errors.Is(err, ErrWakeSkipped) {
+				result.WakeSkipped++
+				continue
+			}
 			errs = append(errs, fmt.Errorf(
 				"scheduler: wake session %q for run %q: %w",
 				target.Session.ID,
@@ -186,6 +195,7 @@ func (s *Scheduler) recordCycle(now time.Time, result CycleResult) {
 	s.mu.Lock()
 	s.stats.Cycles++
 	s.stats.WakeAttempts += result.WakeAttempts
+	s.stats.WakeSkipped += result.WakeSkipped
 	s.stats.WakeSucceeded += result.WakeSucceeded
 	s.stats.WakeFailed += result.WakeFailed
 	s.stats.NoMatchRuns += result.NoMatchRuns

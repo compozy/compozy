@@ -2139,6 +2139,7 @@ type terminalCloseFailingRecorder struct {
 
 type terminalWriteFailingRecorder struct {
 	EventRecorder
+	eventType   string
 	fail        *atomic.Bool
 	writeErr    error
 	afterCommit bool
@@ -2148,11 +2149,15 @@ func (r *terminalWriteFailingRecorder) AppendEventIfAbsent(
 	ctx context.Context,
 	event store.SessionEvent,
 ) (store.SessionEvent, error) {
-	if event.Type == EventTypeSessionStopped && r.fail.Load() && !r.afterCommit {
+	eventType := r.eventType
+	if eventType == "" {
+		eventType = EventTypeSessionStopped
+	}
+	if event.Type == eventType && r.fail.Load() && !r.afterCommit {
 		return store.SessionEvent{}, r.writeErr
 	}
 	persisted, err := recordIdempotentSessionEvent(ctx, r.EventRecorder, event)
-	if event.Type == EventTypeSessionStopped && r.fail.Load() {
+	if event.Type == eventType && r.fail.Load() {
 		return persisted, errors.Join(err, r.writeErr)
 	}
 	return persisted, err

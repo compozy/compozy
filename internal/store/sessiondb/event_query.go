@@ -44,6 +44,10 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 		return baseQuery + sessionEventsOrderASCClause, args, nil
 	}
 
+	if query.AfterSequence > 0 || query.Forward {
+		return baseQuery + " ORDER BY sequence ASC LIMIT ?", append(args, query.Limit), nil
+	}
+
 	return "SELECT " + projection +
 			" FROM (" + baseQuery + " ORDER BY sequence DESC LIMIT ?) AS recent_events" +
 			" ORDER BY sequence ASC",

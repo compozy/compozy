@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,7 +21,7 @@ func (h *BaseHandlers) stopSessionWithResult(c *gin.Context, info *session.Info,
 	if info.State == session.StateStopped {
 		c.JSON(http.StatusOK, contract.SessionStopPayload{
 			SessionID: info.ID, Status: "already-stopped", State: info.State,
-			Verified: true, Escalated: info.StopEscalated,
+			Verified: true, Escalated: info.StopEscalated, StopCause: sessionStopCause(info),
 		})
 		return
 	}
@@ -68,4 +69,46 @@ func sessionStopAttention(info *session.Info) string {
 		return session.StopVerificationFailedCode
 	}
 	return ""
+}
+
+// sessionStopCause exposes the live cause or derives the public token from the
+// existing durable classification when reading a stopped session after restart.
+func sessionStopCause(info *session.Info) string {
+	if info == nil {
+		return ""
+	}
+	if info.StopCause != session.CauseNone {
+		return info.StopCause.String()
+	}
+	switch info.StopReason {
+	case store.StopCompleted:
+		switch info.StopDetail {
+		case "conversation cleared":
+			return session.CauseClearConversation.String()
+		case "conversation rewound":
+			return session.CauseConversationRewind.String()
+		default:
+			return session.CauseCompleted.String()
+		}
+	case store.StopUserCanceled, store.StopMaxIterations, store.StopLoopDetected, store.StopBudgetExceeded:
+		return session.CauseUserRequested.String()
+	case store.StopTimeout:
+		if info.StopDetail == "inactivity" {
+			return session.CauseInactivity.String()
+		}
+		return session.CauseTimeout.String()
+	case store.StopAgentCrashed:
+		return session.CauseProcessExited.String()
+	case store.StopHookStopped:
+		return session.CauseHookDenied.String()
+	case store.StopShutdown:
+		return session.CauseShutdown.String()
+	case store.StopError:
+		if info.StopDetail == "process exited unexpectedly" {
+			return session.CauseProcessExited.String()
+		}
+		return session.CauseFailed.String()
+	default:
+		return ""
+	}
 }

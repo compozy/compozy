@@ -8581,6 +8581,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		renameCalls := 0
 		promptSubmitCalls := 0
 		var listedInputSessionID string
+		clearInputCalls := 0
 		var replacedInput struct {
 			sessionID string
 			entryID   string
@@ -8768,6 +8769,16 @@ func TestDaemonNativeTools(t *testing.T) {
 						Generation:      7,
 						MaxSequence:     17,
 						DraftText:       "try another path",
+					}, nil
+				},
+				ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
+					if id != "sess-1" || caller.Kind != "human" || caller.ID != "operator" {
+						t.Fatalf("native clear target/actor = %q, %#v", id, caller)
+					}
+					clearInputCalls++
+					return session.ClearPendingInputsResult{
+						ClearedCount: 1, QueueGeneration: 5,
+						Inputs: []session.PendingInput{{ID: "input-queued", Status: "canceled"}},
 					}, nil
 				},
 				ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
@@ -9273,6 +9284,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if rewindSubmitCalls != 1 {
 			t.Fatalf("RewindConversation calls = %d after denied workspace, want 1", rewindSubmitCalls)
+		}
+
+		clearInputsResult, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputsClear,
+			Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(session_inputs_clear) = %v", err)
+		}
+		requireNativeStructuredContains(t, clearInputsResult, []byte(`"cleared_count":1`))
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputsClear,
+			Input:  json.RawMessage(`{"workspace":"ws-foreign-stable","session_id":"sess-1"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if clearInputCalls != 1 {
+			t.Fatalf("clear dispatch count = %d, want one authorized mutation", clearInputCalls)
 		}
 
 		inputsResult, err := registry.Call(
@@ -11996,6 +12024,62 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		profileID   string
+		profileName string
+		unavailable bool
+	}{
+		{name: "Should apply policy for an agent in the default session profile", profileID: store.DefaultProfileID, profileName: "default"},
+		{name: "Should apply policy for an agent in a named session profile", profileID: "profile-marketing", profileName: "marketing"},
+		{name: "Should reject an agent absent from the session profile", profileID: "profile-sales", profileName: "sales", unavailable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			workspaces := apitest.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
+				},
+				ResolveForProfileFn: func(_ context.Context, ref, profileName string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != "ws-profile" || profileName != tc.profileName {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+					}
+					if tc.unavailable {
+						return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
+					}
+					return workspacepkg.ResolvedWorkspace{Config: cfg, Agents: []compozyconfig.AgentDef{{
+						Name: "profile-agent", Provider: "opencode", Prompt: "Work.", Permissions: "deny-all",
+					}}}, nil
+				},
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, WorkspaceResolver: workspaces,
+				ProfileNames: promptSkillsProfileNameResolver{tc.profileID: tc.profileName},
+				Sessions: &nativeToolPolicySessionStub{info: &session.Info{
+					ID: "sess-profile", ProfileID: tc.profileID,
+					WorkspaceID: "ws-profile", AgentName: "profile-agent",
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "sess-profile"})
+			if tc.unavailable {
+				if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+					t.Fatalf("Resolve(other profile agent) error = %v, want unavailable", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Resolve(profile agent) error = %v", err)
+			}
+			if inputs.SystemPermissionMode != toolspkg.PermissionModeDenyAll {
+				t.Fatalf("permission mode = %q, want profile agent deny-all", inputs.SystemPermissionMode)
+			}
+		})
+	}
 
 	t.Run("Should resolve full default projection and scoped runtime policy inputs", func(t *testing.T) {
 		t.Parallel()

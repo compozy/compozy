@@ -1,0 +1,38 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "transport-storm",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "match": { "user_text": "noop" },
+                    "steps": [{ "kind": "assistant", "text": "ready" }]
+                },
+                {
+                    "match": { "user_text": "flood transport" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "0123456789abcdef0123456789abcdef",
+                            "burst_count": 50000
+                        },
+                        { "kind": "thought", "text": "storm persisted" },
+                        { "kind": "assistant", "text": "storm complete" }
+                    ]
+                },
+                {
+                    "match": { "user_text": "wedge transport" },
+                    "steps": [
+                        { "kind": "assistant", "text": "wedged until canceled" },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "block_until_cancel" }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

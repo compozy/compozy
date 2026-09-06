@@ -326,7 +326,7 @@ func TestStreamSessionInitialEventsErrorWithoutLiveSubscription(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw",
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=200",
 			nil,
 		)
 		if resp.Code != http.StatusInternalServerError {

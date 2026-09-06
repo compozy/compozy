@@ -1334,6 +1334,24 @@ func newMemorySchedulerStore() *memorySchedulerStore {
 	}
 }
 
+// Invariant: the same scheduled fire owns every busy-gate retry; scheduler suite's I/O store.
+func (s *memorySchedulerStore) SetScheduledDeferral(
+	_ context.Context,
+	claim SchedulerClaim,
+	retryAt *time.Time,
+) (SchedulerState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.states[claim.JobID]
+	if state.LastFireID != claim.FireID || state.ScheduleHash != claim.ScheduleHash {
+		return SchedulerState{}, ErrScheduledFireAlreadyClaimed
+	}
+	state.DeferredUntil = cloneTimePointer(retryAt)
+	s.states[claim.JobID] = state
+	notify(s.stateCh)
+	return state, nil
+}
+
 func (s *memorySchedulerStore) GetSchedulerState(_ context.Context, jobID string) (SchedulerState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1385,6 +1403,9 @@ func (s *memorySchedulerStore) ClaimScheduledRun(
 	defer s.mu.Unlock()
 	current := s.states[claim.JobID]
 	if current.LastFireID == claim.FireID {
+		if current.DeferredUntil != nil {
+			return SchedulerClaimResult{State: current, Run: s.runs[claim.RunID]}, nil
+		}
 		return SchedulerClaimResult{}, ErrScheduledFireAlreadyClaimed
 	}
 	skipReason := claim.SkipReason

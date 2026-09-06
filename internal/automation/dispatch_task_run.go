@@ -87,7 +87,9 @@ func (d *Dispatcher) transitionRun(
 	next := *current
 	mutate(&next, d.now())
 
-	updated, err := d.runs.UpdateRun(persistenceContext(ctx), next)
+	persistCtx1, cancelPersist1 := persistenceContext(ctx)
+	defer cancelPersist1()
+	updated, err := d.runs.UpdateRun(persistCtx1, next)
 	if err != nil {
 		return cloneRun(current), fmt.Errorf("automation: update run %q: %w", current.ID, err)
 	}

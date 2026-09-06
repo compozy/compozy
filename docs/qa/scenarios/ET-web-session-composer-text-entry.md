@@ -7,7 +7,7 @@ journey: J-17
 expected: In a newly created session, sequential keyboard entry preserves every character including spaces, opening and closing the Next prompt runtime selector does not alter the draft, and the same behavior remains correct after a refresh and deep-link return.
 entry_points: web agent detail New session; web destination session composer; web session deep link
 qa_status: pass
-bug_ids: BUG-20260815-session-composer-draft-reload;BUG-20260825-session-composer-window-fails
+bug_ids: BUG-20260906-runtime-selector-closing-focus; BUG-20260815-session-composer-draft-reload;BUG-20260825-session-composer-window-fails
 fix_status: fixed
 retest_status: pass
 fix_commits: f54e62b;acbbb25;current-pr-head;current-working-tree
@@ -45,3 +45,5 @@ QA verdict 2026-08-26 (release CI remediation): passed in a fresh isolated daemo
 composer preserved leading, repeated, and trailing spaces plus emoji and Japanese text through the
 runtime selector and a full reload; a clean-browser deep link rendered the editor and accepted a
 second exact draft without console errors.
+
+QA re-walk 2026-09-06: selecting the runtime, closing with Escape, entering the composer and submitting now preserves composer focus through the popup exit. The provider/model-override browser journey asserts focus after the popup closes and passed with the combined repaired build. Existing model/effort persistence and ordinary Escape restoration also pass. See BUG-20260906-runtime-selector-closing-focus and `.cache/sessions-selector-root-integrated-green.log`.

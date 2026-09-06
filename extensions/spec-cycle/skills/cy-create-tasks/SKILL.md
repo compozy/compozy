@@ -1,6 +1,6 @@
 ---
 name: cy-create-tasks
-description: "Create or refine a task graph from an existing Compozy spec, with outcome, dependency, and test ownership."
+description: "Create or refine a task graph from an existing CompozyOS spec, with outcome, dependency, and test ownership."
 ---
 
 # Create Tasks

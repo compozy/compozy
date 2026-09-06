@@ -82,10 +82,10 @@ func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandF
   compozy session prompt sess_1234 "Run the next check." --queue
 
   # Replace the fenced active turn with steering guidance
-  compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn-id turn_1234
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer --expected-turn turn_1234
 
   # Interrupt the fenced active turn before sending a replacement
-  compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn-id turn_1234
+  compozy session prompt sess_1234 "Use this direction instead." --interrupt --expected-turn turn_1234
 
   # Manage an already queued input
   compozy session input list sess_1234
@@ -274,6 +274,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			query := SessionEventQuery{
+				Forward:       cmd.Flags().Changed("after"),
 				Type:          eventType,
 				Last:          last,
 				AfterSequence: afterSequence,

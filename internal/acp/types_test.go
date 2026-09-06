@@ -506,52 +506,31 @@ func TestEmitPromptEventDeferredToolResultsStayBounded(t *testing.T) {
 		}
 	})
 
-	t.Run("Should drop the oldest deferred tool result when the cap is reached", func(t *testing.T) {
+	t.Run("Should preserve accepted deferred results before terminating a saturated prompt", func(t *testing.T) {
 		t.Parallel()
-
-		proc := &AgentProcess{}
+		proc := &AgentProcess{SessionID: "sess-deferred"}
 		active, err := proc.beginPrompt("turn-1", maxPendingToolResults*2)
 		if err != nil {
-			t.Fatalf("beginPrompt() error = %v", err)
+			t.Fatal(err)
 		}
-
+		defer proc.endPrompt(active)
 		for i := 0; i <= maxPendingToolResults; i++ {
-			toolCallID := "tool-" + strconv.Itoa(i)
-			proc.emitPromptEvent(AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: toolCallID})
+			proc.emitPromptEvent(
+				AgentEvent{Type: EventTypeToolResult, TurnID: "turn-1", ToolCallID: "tool-" + strconv.Itoa(i)},
+			)
 		}
-
-		if got, want := len(active.pendingToolResults), maxPendingToolResults; got != want {
-			t.Fatalf("len(active.pendingToolResults) = %d, want %d", got, want)
+		for i := range maxPendingToolResults {
+			event, open := <-active.events
+			if !open || event.Type != EventTypeToolResult || event.ToolCallID != "tool-"+strconv.Itoa(i) {
+				t.Fatalf("accepted result %d = %#v, open=%v", i, event, open)
+			}
 		}
-		if _, ok := active.pendingToolResultIDs["tool-0"]; ok {
-			t.Fatal("oldest deferred tool result remained buffered after the cap was exceeded")
+		failure, open := <-active.events
+		if !open || failure.Type != EventTypeError || !strings.Contains(failure.Error, ErrIngestSaturated.Error()) {
+			t.Fatalf("saturation failure = %#v, open=%v", failure, open)
 		}
-		if _, ok := active.pendingToolResultIDs["tool-128"]; !ok {
-			t.Fatal("newest deferred tool result was not retained after the cap was exceeded")
-		}
-
-		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-0"})
-		event := <-active.events
-		if event.Type != EventTypeToolCall {
-			t.Fatalf("oldest tool call event = %q, want %q", event.Type, EventTypeToolCall)
-		}
-		select {
-		case event := <-active.events:
-			t.Fatalf("dropped oldest tool result was still emitted: %#v", event)
-		default:
-		}
-
-		proc.emitPromptEvent(AgentEvent{Type: EventTypeToolCall, TurnID: "turn-1", ToolCallID: "tool-128"})
-		first := <-active.events
-		if first.Type != EventTypeToolCall {
-			t.Fatalf("newest tool call event = %q, want %q", first.Type, EventTypeToolCall)
-		}
-		second := <-active.events
-		if second.Type != EventTypeToolResult {
-			t.Fatalf("newest tool result event = %q, want %q", second.Type, EventTypeToolResult)
-		}
-		if got, want := second.ToolCallID, "tool-128"; got != want {
-			t.Fatalf("newest tool result ToolCallID = %q, want %q", got, want)
+		if _, open := <-active.events; open {
+			t.Fatal("saturated prompt remained open")
 		}
 	})
 }

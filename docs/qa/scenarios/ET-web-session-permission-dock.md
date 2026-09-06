@@ -73,3 +73,5 @@ and `text-[10px]` to `text-mono-id` (keycaps stay mono on purpose — they repre
 The decision semantics — which buttons render, the 1–4 and 1–9 key maps, key 4 with the split menu
 closed, digit shortcuts yielding to focused inputs, one receipt per outcome, queue order — are
 untouched by the pass and are the parts a re-walk should confirm still hold.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for the adjacent selected canary: a real controlled ACP edit permission persisted across reload, the browser Allow once choice reached the driver, and the same turn finished with its receipt. A separate native clarification rendered in the dock and Staging returned choice0/fallbackfalse with the answered receipt. The integrated report names the public evidence and inspected screenshots. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

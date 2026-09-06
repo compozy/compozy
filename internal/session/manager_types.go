@@ -132,6 +132,8 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	supervisionMu              sync.Mutex
+	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
 	lifecycleMu                sync.Mutex
 	sessions                   map[string]*Session
@@ -157,9 +159,6 @@ type Manager struct {
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
 
-	syntheticMu             sync.Mutex
-	syntheticQueues         map[string][]queuedSyntheticPrompt
-	syntheticDispatching    map[string]bool
 	soulLocksMu             sync.Mutex
 	soulLocks               map[string]chan struct{}
 	sessionHealthHookMu     sync.Mutex

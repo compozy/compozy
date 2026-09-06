@@ -255,5 +255,7 @@ func (s *service) activateCancellationResult(ctx context.Context, result *Cancel
 	if result == nil || s.coordinatorActivator == nil || result.Coordinator == nil {
 		return
 	}
-	s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), *result.Coordinator)
+	activationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), task.DefaultRunLeaseDuration)
+	defer cancel()
+	s.coordinatorActivator.ActivateCoordinatorRun(activationCtx, *result.Coordinator)
 }

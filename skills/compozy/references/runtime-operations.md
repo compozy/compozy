@@ -126,7 +126,7 @@ duplicating checkpoint-covered context. Inspect
 `session.compaction_fired` for the admitted sequence span; the event is correlation evidence, not a
 success verdict for the later archive.
 
-The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `compozy session events --follow` already requests raw frames.
+The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. A reconnect at the current watermark receives an empty `transcript_delta` with `has_more: false`; it confirms catch-up without advancing the cursor. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `compozy session events --follow` already requests raw frames.
 
 ### Workspace knowledge on live turns
 
@@ -288,9 +288,10 @@ the CLI uses `--unbounded`.
 
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
 runtime flags uses the durable `selected` value first, then the current `effective` selection; both
-being absent is invalid while the session is unbound. A queued prompt retains its submitted snapshot until dispatch. An interrupt advances the
-input generation, drops stale queued entries, then applies the replacement prompt's snapshot only
-after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
+being absent is invalid while the session is unbound. A queued prompt retains its submitted snapshot
+until dispatch. An interrupt preserves every parked entry and applies the replacement prompt's
+snapshot after the current turn becomes idle. The replacement runs before parked follow-ups.
+Inspect the prompt result's queue ID, queue position, and queue
 generation instead of assuming a busy input ran immediately.
 
 Busy sends resolve `session.busy_input.default_mode` (default `steer`), unless an explicit
@@ -310,7 +311,27 @@ HTTP and UDS expose the same daemon-owned queue at
 `idempotency_key`; promotion also submits `expected_turn_id`. Re-read the queue after each mutation
 instead of keeping a client-side shadow list.
 
+Clear parked entries explicitly with `compozy session input clear <session-id>`,
+`DELETE .../prompt/queue`, or `compozy__session_inputs_clear`. The response contains `inputs`
+with per-entry statuses, `cleared_count`, and `queue_generation`. Entries already dispatching
+retain their dispatch outcome. Every removed entry has a durable `queue_cleared` transcript trace
+with the actor identity. A lost transcript projection is repaired from the durable trace.
+Queue list and session status include `queue: {entries, cap}`. A full queue returns `queue_full`
+with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt remain admitted.
+An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored
+synthetic follow-ups share the durable queue and retain their metadata across restart.
+`session.queue_cleared` and `session.queue_clear_failed` identify the session, turn, actor, and
+entry (when applicable); clearing a parked Goal prompt settles it as control-fenced/paused.
+
+Queue statuses are `queued|dispatching|sent|failed|canceled`; `unconfirmed` is client-local and
+must be resolved by replaying the original send identity, never by inventing another queue row.
+
 ### Prompt identities and explicit retries
+
+Confirmed live steering persists one authored message with its original identity in the active
+turn. Pending and superseded guidance retain their authored text and identity in durable delivery
+receipts. If pending injection later falls back, its replacement turn is allocated before queue
+dispatch; replay keeps the original acceptance outcome and does not deliver the input twice.
 
 Every prompt and steer submission carries a durable `message_id` and an `idempotency_key`. The CLI
 generates both for a new `compozy session prompt` command. To retry one uncertain submission, provide
@@ -813,3 +834,84 @@ credential, or `inspect` to check a no-auth provider configuration. `provider_ra
 provider recovers. The failed turn ends but the session remains usable; do not stop or recreate it
 solely for these codes. `occurrence_count` and first/last-seen timestamps are scoped to that provider
 process, and old events can omit this additive object. No retry-after seconds are implied.
+
+## Silence supervision and scheduling pressure
+
+Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
+session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
+active children, reconciled Loop runs, future task leases, and future scheduled waits prevent
+inactivity termination. Reads, subscriptions, provider waiting and runtime progress projections
+do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
+
+With no work, `session.supervision.quiet_after` defaults to 30m and emits one warning; `stop_grace`
+defaults to 10m and then uses the standard stop ladder with inactivity cause. Fresh work clears
+the warning. Zero quiet disables both actions; zero grace keeps warning only. A warning's
+`stop_at: null` means no automatic stop. Stop now uses the usual authorized stop surface.
+Canonical events are `session.supervision_warning`, `session.supervision_stopped`, and
+`session.supervision_source_error`. Persisted inactivity stop metadata remains timeout/inactivity.
+
+Expiryless event waits use the pinned admission horizon (default 168h), including upgrade from
+their original creation time. Live's aggregate wall budget defaults to zero; per-wake, count,
+token and depth limits remain independent. Old inactivity config keys remain deprecated through
+v0.4; new timing keys select the current zero semantics.
+
+`compozy scheduler status -o json` includes cumulative `counters` since daemon boot, including
+wake attempts, skipped, succeeded, failed, capacity waiting observations, spawns and attention.
+A skipped/coalesced/rate-limited heartbeat never counts as sent or arms cooldown; its pending-task
+fallback may still run. Old capacity-waiting runs escalate once through bounded fan-out, coalesced
+spawn, `scheduler.capacity_waiting_escalated`, and needs_attention. Recover parked work through
+the existing task-run recovery command after resolving capacity.
+
+A scheduled automation fire blocked by the shared concurrency gate retains its original fire/run
+identity with `durable.deferred_until`. Gate release wakes the existing schedule loop. Restart
+retries that fire before applying catch-up policy to later missed times. Replacing or removing the
+schedule cancels the superseded reservation. No additional task-run claimer is introduced.
+
+### Recovering a live session view
+
+Read events after a cursor with a bounded limit to obtain the next events in sequence order.
+Raw initial streams require a limit; `compozy session events --follow` supplies a bounded window.
+For transcript SSE, preserve the cursor together with its epoch and generation. Apply a
+`transcript_snapshot` with `reset: true` as a replacement for that session's cached window;
+`reason: "cursor_expired"` identifies a position removed by retention.
+A `stream.consumer_degraded` frame does not advance the cursor: drain transcript updates
+through its `through_sequence` before treating the view as current. Compaction advances the
+projection generation atomically while preserving the active turn; archived event history
+remains available explicitly. Log resume positions now use stable monotonic sequences.
+
+### Navigate a session's retained history
+
+Use `compozy__session_search` (`session_id`, optional `workspace`, literal `q`, optional
+`limit`) to find projected message content beyond the loaded window. It returns
+`matches: [{sequence, turn_id, role, snippet}]` plus `truncated`; default limit 200,
+maximum 1000, query 1–4096 bytes. Matching is case-insensitive and treats wildcard characters
+literally. An empty array is a valid no-match result. Results use stable message start
+sequences in chronological order and never include another workspace's session.
+
+Use `compozy__session_outline` (`session_id`, optional `workspace`) for the full retained
+operator trail: `entries: [{sequence, turn_id, preview, reply_preview, at}]`, with 160-character
+previews. HTTP/UDS routes are `/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search`
+and `/transcript/outline`; CLI twins are `compozy session search <id> <query> --limit 50 -o json`
+and `compozy session outline <id> -o json`.
+After compaction/rewind/clear, re-read navigation against the current transcript fences.
+
+Session resource reads include `stop_cause` with the existing `stop_reason`,
+`stop_detail`, `verified` and `escalated` fields. Use the cause to distinguish
+`user_requested` from `inactivity`; a session with no stop has no cause. The shared
+HTTP/UDS/CLI/native projection retains the persisted classification after reload.
+
+Turn cancellation also appends `session.turn_quiesced` to the canonical session
+ledger. Its raw payload carries `scope: "turn"`, `turn_id`, `verified`, `escalated`,
+`phase`, `elapsed_ms` and `stop_cause`, after verified quiescence and any necessary
+provider rebind, before new work is admitted. Read the receipt through existing
+session events/observe surfaces; a pre-action `session.stop_escalated` is not proof
+of successful termination. Receipt persistence failure retains `stopping` and
+rejects new work. Session-scoped stops retain their existing terminal receipt.
+
+Transcript search also returns additive `part_index` and `field` hints for the
+first matching field of each projected message. Resolve the zero-based index in
+`message.parts`; `field` is `text`, `title`, `tool_name`, `filename`, `error`, `input`
+or `output`. The stable entry sequence remains the result identity. Use these
+hints to reveal the correct work row instead of inferring a location from snippets.
+
+A queued edit arriving after dispatch started returns409 with `code: "entry_dispatching"`, including when the entry is already sent. The Web preserves the refused edit after the current composer draft. A raw stream replaying an older session_stopped episode stays live when the session has resumed; current session status owns stream termination.

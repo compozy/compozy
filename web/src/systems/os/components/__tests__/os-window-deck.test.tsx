@@ -63,6 +63,7 @@ function frameFixture(overrides: Partial<OsWindowFrameModel> = {}): OsWindowFram
 
 function sessionFixture(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    supervision: null,
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "session:review",

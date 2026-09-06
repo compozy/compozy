@@ -29,6 +29,7 @@ const (
 type BadgeInputs struct {
 	State                  State
 	StopVerificationFailed bool
+	SupervisionAttention   bool
 	HealthState            heartbeat.SessionHealthState
 	Health                 heartbeat.SessionHealthStatus
 	Failure                *store.SessionFailure
@@ -43,7 +44,7 @@ type BadgeInputs struct {
 // CanonicalBadge collapses runtime state, health, and failure classification into
 // the stable badge vocabulary used by API, CLI, and web clients.
 func CanonicalBadge(input BadgeInputs) Badge {
-	if input.StopVerificationFailed && input.State != StateStopped {
+	if (input.StopVerificationFailed || input.SupervisionAttention) && input.State != StateStopped {
 		return BadgeNeedsAttention
 	}
 	failure := store.CloneSessionFailure(input.Failure)
@@ -67,8 +68,7 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	if badge, ok := degradedHealthBadge(input); ok {
 		return badge
 	}
-	if input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
-		input.HealthState == heartbeat.SessionHealthStatePrompting {
+	if runningBadgeInput(input) {
 		return BadgeRunning
 	}
 	if idleEligibleBadgeInput(input) && input.Unseen {
@@ -109,6 +109,7 @@ func BadgeForInfo(info *Info) Badge {
 	return CanonicalBadge(BadgeInputs{
 		State:                  info.State,
 		StopVerificationFailed: info.StopVerificationFailed,
+		SupervisionAttention:   supervisionNeedsAttention(info.Supervision),
 		Failure:                info.Failure,
 		PendingAuth: info.PendingPermission || info.PendingPermissionCount > 0 ||
 			infoFailureNeedsAuth(info.Failure),
@@ -169,6 +170,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 	return CanonicalBadge(BadgeInputs{
 		State:                  state,
 		StopVerificationFailed: info != nil && info.StopVerificationFailed,
+		SupervisionAttention:   info != nil && supervisionNeedsAttention(info.Supervision),
 		HealthState:            health.State,
 		Health:                 health.Health,
 		Failure:                failure,
@@ -195,4 +197,9 @@ func failureKindIsAuth(failure *store.SessionFailure) bool {
 
 func infoFailureNeedsAuth(failure *store.SessionFailure) bool {
 	return failureKindIsAuth(failure)
+}
+
+func runningBadgeInput(input BadgeInputs) bool {
+	return input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
+		input.HealthState == heartbeat.SessionHealthStatePrompting
 }

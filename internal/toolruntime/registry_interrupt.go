@@ -65,7 +65,7 @@ func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (Interru
 	var errs []error
 	for _, candidate := range candidates {
 		report.Matched++
-		if err := r.updateState(ctx, candidate.record.ID, ProcessStateInterrupting, nil, "", nil); err != nil {
+		if err := r.updateState(ctx, candidate.record.ID, ProcessStateInterrupting, "", nil); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -97,7 +97,6 @@ func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (Interru
 			ctx,
 			candidate.record.ID,
 			ProcessStateInterrupted,
-			nil,
 			scope.Reason,
 			&completedAt,
 		); err != nil {

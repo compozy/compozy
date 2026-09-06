@@ -19,6 +19,7 @@ type readOnlyPoolLease struct {
 
 var _ store.EventReadCloser = (*readOnlyPoolLease)(nil)
 var _ transcript.Reader = (*readOnlyPoolLease)(nil)
+var _ transcript.NavigationReader = (*readOnlyPoolLease)(nil)
 var _ store.ConversationRewindReader = (*readOnlyPoolLease)(nil)
 
 func newReadOnlyPoolLease(
@@ -86,6 +87,36 @@ func (l *readOnlyPoolLease) TranscriptChanges(
 		return transcript.ChangePage{}, errors.New("store: pooled recorder has no transcript projection")
 	}
 	return reader.TranscriptChanges(ctx, query)
+}
+
+func (l *readOnlyPoolLease) TranscriptSearch(
+	ctx context.Context,
+	query transcript.SearchQuery,
+) (transcript.SearchResult, error) {
+	reader, err := l.navigationReader()
+	if err != nil {
+		return transcript.SearchResult{}, err
+	}
+	return reader.TranscriptSearch(ctx, query)
+}
+
+func (l *readOnlyPoolLease) TranscriptOutline(ctx context.Context) (transcript.OutlineResult, error) {
+	reader, err := l.navigationReader()
+	if err != nil {
+		return transcript.OutlineResult{}, err
+	}
+	return reader.TranscriptOutline(ctx)
+}
+
+func (l *readOnlyPoolLease) navigationReader() (transcript.NavigationReader, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return nil, errors.New("store: read-only pool lease recorder is required")
+	}
+	reader, ok := l.entry.recorder.(transcript.NavigationReader)
+	if !ok {
+		return nil, errors.New("store: pooled recorder has no transcript navigation")
+	}
+	return reader, nil
 }
 
 func (l *readOnlyPoolLease) ConversationRewindTarget(

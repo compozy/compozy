@@ -46,7 +46,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[roles.memory_controller]`          | In-process memory-controller model routing and call bounds.                          | enabled, `pi` + `anthropic/claude-haiku-4`, 250 ms, top-K 5, prompt v1, 256 output tokens             |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                          |
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                      |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                     |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes                    |
 | `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
@@ -292,11 +292,11 @@ max_text_bytes = 65536
 activity_heartbeat_interval = "30s"
 # 0 disables periodic progress events.
 progress_notify_interval = "10m"
-# 0 disables inactivity warnings.
-inactivity_warning_after = "15m"
-# 0 disables inactivity timeout.
-inactivity_timeout = "30m"
-# Grace period after cooperative prompt cancel before CompozyOS stops the session as timeout.
+# 0 disables both silence warning and automatic stop.
+quiet_after = "30m"
+# 0 disables automatic stop after the warning.
+stop_grace = "10m"
+# Grace after an explicit prompt-budget cancellation.
 timeout_cancel_grace = "30s"
 
 [session.compaction]
@@ -907,7 +907,7 @@ max_replay_age = 300
 [network.live.defaults]
 max_wakes = 8
 max_wake_wall_time = "5m"
-max_total_wall_time = "30m"
+max_total_wall_time = "0"
 max_input_tokens = 200000
 max_output_tokens = 50000
 max_wake_depth = 3
@@ -1293,20 +1293,25 @@ generation.
 
 ## `[session.supervision]`
 
-Session supervision keeps long-running prompts observable without turning every heartbeat into a
-stored event. CompozyOS updates session metadata on short heartbeats and only writes durable events for
-lower-frequency progress, warnings, and timeout classification.
+Session supervision uses fresh work evidence across active and idle sessions. See
+[session lifecycle](/docs/sessions/lifecycle#runtime-activity-supervision) for signal validity,
+quiet warnings, unknown-source attention, and the stop ladder.
 
-This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as CompozyOS
-continues to observe runtime activity or controlled waiting heartbeats.
+| Field                         | Type     | Default | Valid values          | Description                                                                              |
+| ----------------------------- | -------- | ------- | --------------------- | ---------------------------------------------------------------------------------------- |
+| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration. | Metadata heartbeat cadence; actual agent progress remains fresh for twice this interval. |
+| `progress_notify_interval`    | duration | `10m`   | Zero or positive.     | Periodic `runtime_progress` cadence; zero disables it.                                   |
+| `prompt_deadline`             | duration | `0s`    | Zero or positive.     | Optional total prompt budget.                                                            |
+| `quiet_after`                 | duration | `30m`   | Zero or positive.     | Observed silence before one warning. Zero disables warning and automatic stop.           |
+| `stop_grace`                  | duration | `10m`   | Zero or positive.     | Continued silence after the warning before stopping. Zero disables only automatic stop.  |
+| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration. | Grace after explicit prompt-budget cancellation.                                         |
 
-| Field                         | Type     | Default | Valid values                  | Description                                                                                      |
-| ----------------------------- | -------- | ------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work.    |
-| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.         |
-| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before CompozyOS emits one `runtime_warning`. Zero disables the warning.                |
-| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before CompozyOS cancels the prompt cooperatively. Zero disables inactivity timeout.    |
-| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before CompozyOS stops the session with stop reason `timeout`. |
+The released `inactivity_warning_after` and `inactivity_timeout` keys remain readable and writable
+through the v0.4 compatibility window and emit a deprecation warning. Remove them before v0.5.0.
+A file using only those keys retains their independent absolute timers, including disabled warnings
+and equal warning/stop thresholds. Setting either new timing key selects the new zero semantics;
+explicit new values override the corresponding translated legacy value. With ordinary positive
+legacy thresholds, migrate the warning threshold to `quiet_after` and their difference to `stop_grace`.
 
 ## `[session.compaction]`
 
@@ -2561,16 +2566,18 @@ ceilings used only after an execution explicitly selects Live. It never selects 
 ### `[network.live.defaults]`
 
 Defaults fill omitted bounds only after Live is selected. They never convert Local into Live.
+The aggregate wall budget defaults to disabled. Per-wake wall time, wake count, tokens, depth, and
+configured ceilings remain enforced.
 
-| Field                 | Type     | Default  | Validation                                  |
-| --------------------- | -------- | -------- | ------------------------------------------- |
-| `max_wakes`           | integer  | `8`      | Positive and at or below its limit.         |
-| `max_wake_wall_time`  | duration | `5m`     | Positive and at or below its limit.         |
-| `max_total_wall_time` | duration | `30m`    | Positive and at or below its limit.         |
-| `max_input_tokens`    | integer  | `200000` | Positive and at or below its limit.         |
-| `max_output_tokens`   | integer  | `50000`  | Positive and at or below its limit.         |
-| `max_wake_depth`      | integer  | `3`      | Positive and at or below its limit.         |
-| `coalesce_window`     | duration | `500ms`  | Between the configured minimum and maximum. |
+| Field                 | Type     | Default  | Validation                                                                           |
+| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------ |
+| `max_wakes`           | integer  | `8`      | Positive and at or below its limit.                                                  |
+| `max_wake_wall_time`  | duration | `5m`     | Positive and at or below its limit.                                                  |
+| `max_total_wall_time` | duration | `0`      | Zero disables the aggregate wall budget; positive values must stay within the limit. |
+| `max_input_tokens`    | integer  | `200000` | Positive and at or below its limit.                                                  |
+| `max_output_tokens`   | integer  | `50000`  | Positive and at or below its limit.                                                  |
+| `max_wake_depth`      | integer  | `3`      | Positive and at or below its limit.                                                  |
+| `coalesce_window`     | duration | `500ms`  | Between the configured minimum and maximum.                                          |
 
 ### `[network.live.limits]`
 

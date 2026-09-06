@@ -7,7 +7,9 @@ import {
   sessionSteerDelivery,
 } from "../session-busy-input";
 import {
+  classifySessionBusyInputFailure,
   describeSessionBusyInputRefusal,
+  describeSessionBusyInputUnconfirmed,
   SessionBusyInputRefusalError,
   sessionBusyInputRefusalFromError,
 } from "../session-busy-input-refusal";
@@ -152,9 +154,53 @@ describe("session busy-input read models", () => {
       code: "not_delivered",
       currentTurnId: null,
       message: "daemon unreachable",
+      queueCap: null,
     });
     const gate = new SessionBusyInputRefusalError({ code: "send_in_flight" });
     expect(sessionBusyInputRefusalFromError(gate)).toEqual(gate.refusal);
+  });
+
+  // Invariant (task_03/06 truth): only a proven non-delivery reads as a refusal — a client
+  // gate or the daemon's own 4xx answer. A transport failure, a 5xx or an unknown error
+  // leaves admission unknown (the daemon may have accepted the send before the answer was
+  // lost): the same classifier that retains the identity for Retry says "unconfirmed".
+  // Owner: busy-input failure classification (lib). Canonical suite: this file.
+  it("Should tell a proven refusal from an unacknowledged send with the retention classifier", () => {
+    expect(classifySessionBusyInputFailure(new DOMException("gone", "AbortError"))).toBeNull();
+    const gate = new SessionBusyInputRefusalError({ code: "send_in_flight" });
+    expect(classifySessionBusyInputFailure(gate)).toEqual({
+      kind: "refusal",
+      refusal: gate.refusal,
+    });
+    expect(
+      classifySessionBusyInputFailure(
+        new SessionApiError("full", 409, "sess-1", { code: "queue_full", queueCap: 10 })
+      )
+    ).toMatchObject({ kind: "refusal", refusal: { code: "queue_full", queueCap: 10 } });
+    // A daemon 4xx without a known code still answered: proven, with its own sentence.
+    expect(
+      classifySessionBusyInputFailure(new SessionApiError("no such session", 404, "sess-1"))
+    ).toMatchObject({
+      kind: "refusal",
+      refusal: { code: "not_delivered", message: "no such session" },
+    });
+    expect(classifySessionBusyInputFailure(new TypeError("Failed to fetch"))).toEqual({
+      kind: "unconfirmed",
+      message: "Failed to fetch",
+    });
+    expect(classifySessionBusyInputFailure(new SessionApiError("upstream", 502, "sess-1"))).toEqual(
+      { kind: "unconfirmed", message: "upstream" }
+    );
+    expect(classifySessionBusyInputFailure(new Error(""))).toEqual({
+      kind: "unconfirmed",
+      message: null,
+    });
+    expect(describeSessionBusyInputUnconfirmed("Failed to fetch")).toBe(
+      "Not confirmed — Failed to fetch. Retry replays the same message; nothing is sent twice."
+    );
+    expect(describeSessionBusyInputUnconfirmed(null)).toBe(
+      "Not confirmed — CompozyOS didn't answer. Retry replays the same message; nothing is sent twice."
+    );
   });
 
   it("Should describe every refusal as a 'Not sent' sentence with its reason", () => {
@@ -164,6 +210,7 @@ describe("session busy-input read models", () => {
         code: "steer_attachments_unsupported",
         currentTurnId: null,
         message: null,
+        queueCap: null,
       })
     ).toBe("Not sent — steer can't carry files on this agent. Queue it, or remove the 2 files.");
     expect(
@@ -172,6 +219,7 @@ describe("session busy-input read models", () => {
         code: "turn_ended",
         currentTurnId: null,
         message: null,
+        queueCap: null,
       })
     ).toBe("Not sent — the turn ended. Send it normally.");
     expect(
@@ -180,6 +228,7 @@ describe("session busy-input read models", () => {
         code: "not_delivered",
         currentTurnId: null,
         message: null,
+        queueCap: null,
       })
     ).toBe("Not sent — CompozyOS didn't answer. Your draft is back.");
   });

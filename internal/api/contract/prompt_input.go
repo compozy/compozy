@@ -35,7 +35,7 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 	}
 	topLevelMessage := strings.TrimSpace(req.Message)
 	if len(req.Messages) == 0 {
-		if topLevelMessage == "" && len(attachments) == 0 {
+		if topLevelMessage == "" && len(attachments) == 0 && req.Mode != PromptModeInterrupt {
 			return PromptInput{}, errors.New("message is required")
 		}
 		return PromptInput{
@@ -54,7 +54,7 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 			return PromptInput{}, errors.New("latest user message id must equal message_id")
 		}
 		authored := promptUIMessageText(message)
-		if authored == "" && len(attachments) == 0 {
+		if authored == "" && len(attachments) == 0 && req.Mode != PromptModeInterrupt {
 			return PromptInput{}, errors.New("message is required")
 		}
 		if topLevelMessage != "" && topLevelMessage != authored {

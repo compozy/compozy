@@ -149,6 +149,7 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 	case normalized.Operation == SessionPromptOperationSteer && len(normalized.Attachments) > 0:
 		return ErrSessionInputSteerTextOnly
 	case normalized.AuthoredText == "" &&
+		(normalized.Operation != SessionPromptOperationPrompt || normalized.Mode != SessionInputQueueModeInterrupt) &&
 		(normalized.Operation == SessionPromptOperationSteer || len(normalized.Attachments) == 0):
 		return errors.New("store: session prompt admission authored text is required")
 	case normalized.TurnID == "":

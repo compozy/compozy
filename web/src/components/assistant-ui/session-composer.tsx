@@ -3,7 +3,14 @@ import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import type { QueuedPrompt, SessionBusyInputMode, SessionSteerDelivery } from "@/systems/session";
+import {
+  SessionQueueStrip,
+  type QueuedPrompt,
+  type SessionBusyInputMode,
+  type SessionSendOutcome,
+  type SessionSteerDelivery,
+  type UnconfirmedSend,
+} from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionCommandChip } from "./session-composer-chip";
@@ -20,7 +27,6 @@ import {
 } from "./session-composer-lexical-plugins";
 import { SessionAttachmentStrip } from "./session-attachment-strip";
 import { SessionComposerDropRoot } from "./session-attachment-drop-overlay";
-import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import { SessionComposerActionRow } from "./session-composer-action-row";
 import { SessionComposerFeedbackNote } from "./session-composer-feedback-note";
 import {
@@ -68,6 +74,14 @@ export interface SessionComposerProps {
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
   onSteerQueuedPrompt?: (prompt: QueuedPrompt) => void;
+  /** Explicit clear-all (`DELETE …/prompt/queue`); the strip offers it only when present. */
+  onClearQueue?: () => Promise<unknown>;
+  /** The daemon's queue cap once a refusal named it; at cap the queue affordances are absent. */
+  queueCap?: number | null;
+  /** Client-local sends whose acknowledgment was lost; Retry replays the same identity. */
+  unconfirmedSends?: UnconfirmedSend[];
+  onRetryUnconfirmedSend?: (id: string) => Promise<SessionSendOutcome | void>;
+  onDiscardUnconfirmedSend?: (id: string) => void;
   contentInset?: SessionThreadContentInset;
   inactivePlaceholder?: string;
   decisionDock?: ReactNode;
@@ -114,13 +128,19 @@ function SessionComposerQueue() {
   const actions = useSessionComposerActionsContext();
   const meta = useSessionComposerMetaContext();
   return (
-    <SessionComposerQueuedPrompts
+    <SessionQueueStrip
       prompts={meta.queuedPrompts}
+      unconfirmedSends={meta.unconfirmedSends}
+      queueCap={meta.queueCap}
       onSteer={meta.onSteerQueuedPrompt!}
-      onEdit={actions.handleEditQueuedPrompt}
       onRemove={actions.handleRemoveQueuedPrompt}
+      onSaveEdit={meta.onReplaceQueuedPrompt ? actions.handleSaveQueuedPromptEdit : undefined}
+      onClear={meta.onClearQueue}
+      onRetryUnconfirmed={
+        meta.onRetryUnconfirmedSend ? actions.handleRetryUnconfirmedSend : undefined
+      }
+      onDiscardUnconfirmed={meta.onDiscardUnconfirmedSend}
       disabled={meta.isBusyInputPending}
-      editDisabled={!meta.onReplaceQueuedPrompt}
     />
   );
 }
@@ -221,6 +241,9 @@ function SessionComposerControls() {
       busyInputSteerDelivery={meta.busyInputSteerDelivery}
       composerAttachmentCount={state.composerAttachmentCount}
       environmentControl={meta.environmentControl}
+      handleDisconnectedSend={
+        state.transportDisconnected ? actions.handleDisconnectedSend : undefined
+      }
       handleInterruptAction={actions.handleInterruptAction}
       handleQueueAction={actions.handleQueueAction}
       handleSteerAction={actions.handleSteerAction}
@@ -228,7 +251,7 @@ function SessionComposerControls() {
       onInterruptPrompt={
         meta.allowBusyInput && !state.stopping ? meta.onInterruptPrompt : undefined
       }
-      onQueuePrompt={meta.allowBusyInput ? meta.onQueuePrompt : undefined}
+      onQueuePrompt={meta.allowBusyInput && !state.queueFull ? meta.onQueuePrompt : undefined}
       onSteerPrompt={meta.allowBusyInput && !state.stopping ? meta.onSteerPrompt : undefined}
       promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
       promptImageCapability={meta.promptImageCapability}

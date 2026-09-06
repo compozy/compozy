@@ -231,6 +231,12 @@ func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 				decisionRejectOnce,
 			)
 		}
+		if got := permissionEvents[len(permissionEvents)-1].ResolvedByValue(); got != "timeout" {
+			t.Fatalf("final permission resolver = %q, want timeout", got)
+		}
+		if proc.HasPendingPermission() {
+			t.Fatal("timed out permission remained pending")
+		}
 	})
 }
 

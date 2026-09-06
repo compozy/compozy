@@ -75,11 +75,12 @@ type SessionLimitsConfig struct {
 
 // SessionSupervisionConfig defines runtime activity monitoring controls applied to sessions.
 type SessionSupervisionConfig struct {
+	compatibilityQuietPolicy  *QuietPolicy
 	ActivityHeartbeatInterval time.Duration `toml:"activity_heartbeat_interval,omitempty"`
 	ProgressNotifyInterval    time.Duration `toml:"progress_notify_interval,omitempty"`
 	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
-	InactivityWarningAfter    time.Duration `toml:"inactivity_warning_after,omitempty"`
-	InactivityTimeout         time.Duration `toml:"inactivity_timeout,omitempty"`
+	QuietAfter                time.Duration `toml:"quiet_after"`
+	StopGrace                 time.Duration `toml:"stop_grace"`
 	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 

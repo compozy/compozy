@@ -7,12 +7,12 @@ journey: J-15
 expected: compozy session prompt-cancel and compozy__session_prompt_cancel use the same idempotent cancellation path as HTTP/UDS, return the canceled turn once, report nothing-in-flight on repeat, and keep the session alive for a later prompt.
 entry_points: compozy session prompt-cancel; compozy__session_prompt_cancel; POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel over HTTP and UDS
 qa_status: pass
-bug_ids:
+bug_ids: BUG-20260906-cancel-exited-session-race
 fix_status: fixed
 retest_status: pass
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/reports/2026-09-01-issue-521-522-session-cancel-clear.md;/Users/pedronauck/dev/qa-labs/compozy-issue-521-522-session-cancel-clear-20260901-183338-907244-lab/qa-artifacts/qa;docs/qa/reports/2026-09-05-sessions-stability-task01-02.md;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-prompt-cancel.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-status-after-cancel.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkB-prompt-followup.jsonl
-last_report: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md
+last_report: docs/qa/reports/2026-09-06-sessions-stability.md
 overlaps: RT-020; ET-web-session-transcript-calm-grammar
 ---
 
@@ -43,3 +43,7 @@ QA 2026-09-05: `compozy session prompt-cancel` on a held acpmock turn returned o
 exact turn id, the session stayed active/idle/attachable, the next prompt answered STUBBORN_ACK, and an
 idle repeat returned nothing-in-flight with CLI exit 66. A cancel-ignoring turn escalated after the 10 s
 cooperative grace (session.stop_escalated scope turn, phase forced) and the session returned to idle.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for the selected turn-cancel/rebind branch. Public cancel settled the exact turn, idle repeat retained exit66, and subsequent prompts completed on the same durable session. Task01/02 exhaustive ladder proof is reused; current native and browser integration is recorded in the integrated report. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+
+QA re-walk 2026-09-06: Known-session cancellation remains nothing-in-flight when process exit races the stop claim. The deterministic canonical case fails before the production fix and passes afterward; real subprocess stop/resume integration and the complete session race suite pass. See BUG-20260906-cancel-exited-session-race and the integrated report.

@@ -11,7 +11,7 @@ const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
 
 const networkLiveLimitsMaxWakesPath = "network.live.limits.max_wakes"
 const networkLiveLimitsMinCoalesceWindowPath = "network.live.limits.min_coalesce_window"
-const defaultNetworkLiveTotalWallTime = "30m"
+const defaultNetworkLiveTotalWallTime = "0"
 
 // NetworkConfig controls Network availability and bounded Live participation defaults.
 type NetworkConfig struct {

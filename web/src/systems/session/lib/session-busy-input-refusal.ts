@@ -1,9 +1,10 @@
 import { SessionApiError } from "../adapters/session-api-errors";
+import { isSendAcknowledgmentLost } from "./session-unconfirmed-send";
 
 /**
- * Closed set of reasons a busy send does not go out. Daemon codes keep their
- * `_dx.md` spelling; the client-only reasons (`send_in_flight`, `not_delivered`)
- * name gates the browser applies before or instead of a daemon answer.
+ * Closed set of reasons a send does not go out. Daemon codes keep their
+ * `_dx.md` spelling; the client-only reasons (`send_in_flight`, `disconnected`,
+ * `not_delivered`) name gates the browser applies before or instead of a daemon answer.
  */
 export type SessionBusyInputRefusalCode =
   | "active_turn_mismatch"
@@ -11,8 +12,10 @@ export type SessionBusyInputRefusalCode =
   | "session_not_promptable"
   | "steer_attachments_unsupported"
   | "queue_full"
+  | "entry_dispatching"
   | "send_conflict"
   | "send_in_flight"
+  | "disconnected"
   | "not_delivered";
 
 export interface SessionBusyInputRefusal {
@@ -23,6 +26,8 @@ export interface SessionBusyInputRefusal {
   currentTurnId: string | null;
   /** How many files the refused draft carried (steer refusals name them). */
   attachmentCount: number;
+  /** The cap a `queue_full` refusal named; `null` for every other reason. */
+  queueCap: number | null;
 }
 
 /** Thrown by busy-input gates and mapped from daemon refusals; the draft is never consumed. */
@@ -35,6 +40,7 @@ export class SessionBusyInputRefusalError extends Error {
       code: refusal.code,
       currentTurnId: refusal.currentTurnId ?? null,
       message: refusal.message ?? null,
+      queueCap: refusal.queueCap ?? null,
     };
     super(describeSessionBusyInputRefusal(resolved));
     this.name = "SessionBusyInputRefusalError";
@@ -47,6 +53,7 @@ const DAEMON_REFUSAL_CODES: ReadonlySet<string> = new Set([
   "session_not_promptable",
   "steer_attachments_unsupported",
   "queue_full",
+  "entry_dispatching",
   "send_conflict",
 ]);
 
@@ -82,10 +89,16 @@ export function sessionBusyInputRefusalFromError(
     // A fence refusal with no live turn means the turn settled: send normally.
     const code: SessionBusyInputRefusalCode =
       error.code === "active_turn_mismatch" && currentTurnId === null ? "turn_ended" : error.code;
-    return { attachmentCount, code, currentTurnId, message: error.message };
+    return {
+      attachmentCount,
+      code,
+      currentTurnId,
+      message: error.message,
+      queueCap: error.queueCap,
+    };
   }
   const message = error instanceof Error && error.message.trim().length > 0 ? error.message : null;
-  return { attachmentCount, code: "not_delivered", currentTurnId: null, message };
+  return { attachmentCount, code: "not_delivered", currentTurnId: null, message, queueCap: null };
 }
 
 /** The plain sentence the composer shows; the code rides beside it as mono. */
@@ -103,14 +116,52 @@ export function describeSessionBusyInputRefusal(refusal: SessionBusyInputRefusal
       return `Not sent — steer can't carry files on this agent. Queue it, or remove ${files}.`;
     }
     case "queue_full":
-      return "Not sent — the queue is full. Steer, interrupt, or clear the queue.";
+      return refusal.queueCap
+        ? `Not queued — the queue is full (${refusal.queueCap} of ${refusal.queueCap}). Steer or interrupt, or clear the queue.`
+        : "Not queued — the queue is full. Steer or interrupt, or clear the queue.";
+    case "entry_dispatching":
+      return "That one is already sending — your edit is here as a new message.";
     case "send_conflict":
-      return "Not sent — this send identity was already used with different text.";
+      return "Not sent — this identity was used with different text. Send it as a new message.";
     case "send_in_flight":
       return "Not sent — another send is still in flight. Your draft is back.";
+    case "disconnected":
+      return "Not sent — you're disconnected right now. Your draft is kept; it sends when you press Enter after the connection is back.";
     case "not_delivered":
       return refusal.message
         ? `Not sent — ${refusal.message}`
         : "Not sent — CompozyOS didn't answer. Your draft is back.";
   }
+}
+
+/**
+ * What a failed busy send is, truthfully. A refusal is a proven non-delivery:
+ * a client gate that never let the request leave, or the daemon's own answer
+ * (a 4xx). Anything else — a transport failure, a 5xx, an unknown error — left
+ * admission unknown: the daemon may have accepted the send before the answer
+ * was lost, so the composer must not say "Not sent"; the retained identity in
+ * the queue strip is the truth and Retry replays it (US-007). Aborts are `null`.
+ */
+export type SessionBusyInputFailure =
+  | { kind: "refusal"; refusal: SessionBusyInputRefusal }
+  | { kind: "unconfirmed"; message: string | null };
+
+export function classifySessionBusyInputFailure(
+  error: unknown,
+  context: { attachmentCount?: number } = {}
+): SessionBusyInputFailure | null {
+  if (isAbortError(error)) return null;
+  const proven = error instanceof SessionBusyInputRefusalError || !isSendAcknowledgmentLost(error);
+  if (proven) {
+    const refusal = sessionBusyInputRefusalFromError(error, context);
+    return refusal ? { kind: "refusal", refusal } : null;
+  }
+  const message = error instanceof Error && error.message.trim().length > 0 ? error.message : null;
+  return { kind: "unconfirmed", message };
+}
+
+/** The composer's line for a send whose acknowledgment was lost; the strip row carries Retry. */
+export function describeSessionBusyInputUnconfirmed(message: string | null): string {
+  const detail = message ?? "CompozyOS didn't answer";
+  return `Not confirmed — ${detail}. Retry replays the same message; nothing is sent twice.`;
 }

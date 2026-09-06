@@ -570,11 +570,21 @@ describe("cancelSessionPrompt", () => {
   it("calls POST prompt cancel endpoint", async () => {
     mockEmptyResponse();
 
-    await cancelSessionPrompt(WORKSPACE_ID, "sess-001");
+    // A daemon that sent no body leaves the verdict unknown, never invented.
+    await expect(cancelSessionPrompt(WORKSPACE_ID, "sess-001")).resolves.toBeNull();
 
     await expectFetchRequest({
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/cancel",
+    });
+  });
+
+  it("returns the daemon's cancel verdict from the 200 body", async () => {
+    mockJsonResponse({ outcome: "nothing-in-flight", session_id: "sess-001" });
+
+    await expect(cancelSessionPrompt(WORKSPACE_ID, "sess-001")).resolves.toEqual({
+      outcome: "nothing-in-flight",
+      session_id: "sess-001",
     });
   });
 

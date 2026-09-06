@@ -35,6 +35,9 @@ func (s *Scheduler) reconcileSchedulerState(
 		state = mergeSchedulerState(existing, job, plan, now, defaultPolicy)
 	}
 
+	if state.DeferredUntil != nil {
+		return state, nil
+	}
 	if !plan.register {
 		state.NextRunAt = nil
 		state.LastMisfireAt = timePointer(now)
@@ -50,7 +53,7 @@ func (s *Scheduler) reconcileSchedulerState(
 	if !state.NextRunAt.After(now) {
 		return s.reconcileMissedSchedulerState(ctx, job, state, now)
 	}
-	return state, nil
+	return s.store.SaveSchedulerState(ctx, state)
 }
 
 func initialSchedulerState(
@@ -101,6 +104,7 @@ func mergeSchedulerState(
 	if scheduleChanged {
 		state.NextRunAt = timePointer(plan.nextRun)
 		state.ScheduleHash = desiredScheduleHash
+		state.DeferredUntil = nil
 		state.ConsecutiveResumeFailures = 0
 	}
 	return state
@@ -118,7 +122,9 @@ func (s *Scheduler) reconcileMissedSchedulerState(
 		return s.store.SaveSchedulerState(ctx, state)
 	}
 
-	result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), SchedulerClaim{
+	persistCtx1, cancelPersist1 := persistenceContext(ctx)
+	defer cancelPersist1()
+	result, err := s.store.ClaimScheduledRun(persistCtx1, SchedulerClaim{
 		ProfileID:            job.ProfileID,
 		JobID:                job.ID,
 		RunID:                scheduledRunID(job.ID, missedAt),

@@ -122,6 +122,7 @@ type TurnHistoryRecord = contract.TurnHistoryPayload
 
 // SessionEventQuery captures the CLI filters for session event/history queries.
 type SessionEventQuery struct {
+	Forward       bool
 	Type          string
 	AgentName     string
 	TurnID        string

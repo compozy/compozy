@@ -5289,6 +5289,11 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface SessionQueueSummaryPayload {
+  entries: number;
+  cap: number;
+}
+
 export type Badge = string;
 
 export interface PendingInteractionPayload {
@@ -5308,6 +5313,7 @@ export interface PendingInteractionPayload {
 }
 
 export interface SessionStatusResponse {
+  queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;
   verified?: boolean;
   escalated?: boolean;

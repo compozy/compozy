@@ -106,13 +106,15 @@ export function useSessionPageControls(
 
     store.trigger.stopRequested({
       execute: async () => {
-        await cancelSessionPrompt(workspaceId, sessionId);
-        // The request's outcome is its acceptance. The reread that carries the
+        // The daemon's verdict (`canceled` / `nothing-in-flight`) is the request's
+        // outcome and enters the store as evidence. The reread that carries the
         // lifecycle evidence belongs to TanStack Query: a refetch failure lands
         // in query state and is logged, never on the accepted stop.
+        const verdict = await cancelSessionPrompt(workspaceId, sessionId);
         invalidateSessionMutationQueries(queryClient, workspaceId, sessionId).catch(error => {
           console.error("Failed to reread the session after cancelling its prompt", error);
         });
+        return verdict;
       },
       failureMessage: "Failed to stop the current prompt.",
       scope: "turn",
@@ -233,14 +235,17 @@ export function useSessionPageControls(
     busyInputSteerDelivery: sessionSteerDelivery(session),
     handleCancelPrompt,
     handleClear,
+    handleClearQueue: busyInput.handleClearQueue,
     handleDismissResumeFailure,
     handleDelete,
+    handleDiscardUnconfirmedSend: busyInput.handleDiscardUnconfirmedSend,
     handleInterruptPrompt: busyInput.handleInterruptPrompt,
     handleQueuePrompt: busyInput.handleQueuePrompt,
     handleRemoveQueuedPrompt: busyInput.handleRemoveQueuedPrompt,
     handleReplaceQueuedPrompt: busyInput.handleReplaceQueuedPrompt,
     handleRename,
     handleResume,
+    handleRetryUnconfirmedSend: busyInput.handleRetryUnconfirmedSend,
     handleSteerPrompt: busyInput.handleSteerPrompt,
     handleSteerQueuedPrompt: busyInput.handleSteerQueuedPrompt,
     handleStop,
@@ -255,10 +260,14 @@ export function useSessionPageControls(
     isStopping,
     isUnarchiving,
     messages,
+    queueCap: busyInput.queueCap,
     queuedPrompts: busyInput.queuedPrompts,
     resumeFailure: controlsState.resume.failure,
     stopAttention,
+    /** The daemon answered the last turn stop with `nothing-in-flight` (US-009.EC-2); cleared by the store after a few seconds. */
+    stopCompletionNote: controlsState.stopCompletion !== null,
     stopPhase: isStopping ? ("stopping" as const) : ("idle" as const),
+    unconfirmedSends: busyInput.unconfirmedSends,
   };
 }
 

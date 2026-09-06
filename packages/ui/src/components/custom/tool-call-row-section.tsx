@@ -43,9 +43,12 @@ export function ToolCallRowSection({
   label: string;
 } & ToolCallRowSectionProps) {
   return (
-    <div data-slot={`tool-call-row-${slot}`} className="flex min-w-0 flex-col gap-1.5">
-      <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <div data-slot={`tool-call-row-${slot}-body`} className="min-w-0">
+    // The row body bounds its sections (`max-h-64`): a section is a shrinkable
+    // flex column so a child that scrolls internally (a bounded payload) can give
+    // up height and keep what follows it — its counts and actions — in view.
+    <div data-slot={`tool-call-row-${slot}`} className="flex min-h-0 min-w-0 flex-col gap-1.5">
+      <Eyebrow className="shrink-0 text-subtle">{label}</Eyebrow>
+      <div data-slot={`tool-call-row-${slot}-body`} className="flex min-h-0 min-w-0 flex-col">
         <ToolCallSectionBody source={source} format={format} language={language}>
           {children}
         </ToolCallSectionBody>

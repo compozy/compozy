@@ -97,8 +97,14 @@ func applyLegacyRawPayload(
 	if event.Type == acp.EventTypePermission ||
 		event.Type == acp.EventTypeClarify ||
 		event.Type == events.SessionCompactionFired ||
+		event.Type == events.SessionSupervisionWarning ||
+		event.Type == events.SessionSupervisionStopped ||
+		event.Type == events.SessionSupervisionSourceError ||
+		event.Type == events.SessionTurnQuiesced ||
 		event.Type == events.SessionStopEscalated ||
 		event.Type == events.SessionStopVerificationFailed ||
+		event.Type == events.SessionQueueCleared ||
+		event.Type == events.SessionQueueClearFailed ||
 		event.Type == events.TranscriptMarkerCreated ||
 		event.Type == events.TranscriptMarkerRedacted {
 		payload.Raw = acp.CloneRawMessage(event.Raw)

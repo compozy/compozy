@@ -60,6 +60,6 @@ func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acce
 	if !result.Verified {
 		return errors.Join(err, m.recordSessionStopVerificationFailure(settleCtx, session, result.StopOutcome))
 	}
-	session.retainVerifiedStopOutcome(result.StopOutcome)
+	result.StopOutcome = session.retainVerifiedStopOutcome(result.StopOutcome)
 	return errors.Join(err, m.finalizeStopped(settleCtx, session, context.Cause(accepted.run.ctx)))
 }

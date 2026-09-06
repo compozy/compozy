@@ -6,6 +6,9 @@ export type SessionBusyInputMode = "steer" | "queue";
 /** Every explicit busy-send verb the composer can issue; explicit verbs always win over the default. */
 export type SessionBusyInputAction = SessionBusyInputMode | "interrupt";
 
+/** Any send the client retains an identity for: a busy verb, or the idle prompt that starts a turn. */
+export type SessionSendAction = SessionBusyInputAction | "prompt";
+
 /** Public steer delivery vocabulary — exactly the daemon's `SteerDeliveryMode`. */
 export type SessionSteerDelivery = "injected" | "pending_injection" | "interrupt_fallback";
 

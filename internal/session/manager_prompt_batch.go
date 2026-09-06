@@ -36,9 +36,7 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	}
 
 	if loop.activity != nil {
-		for _, event := range normalized {
-			loop.activity.observeEvent(event)
-		}
+		loop.activity.observeEventBatch(normalized)
 	}
 	if err := m.recordPromptEventBatch(ctx, session, normalized); err != nil {
 		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, normalized[0].Type, err) {
@@ -143,6 +141,7 @@ func (m *Manager) dispatchPersistedRecordedEvent(
 		event.Timestamp = persisted.Timestamp
 	}
 
+	m.recordPersistedWorkProgress(session, event)
 	m.dispatchEventPostRecord(ctx, session, event, persisted.Content, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, persisted.Content)
 	m.publishSessionEvent(ctx, session, persisted)

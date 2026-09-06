@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { WifiOff } from "lucide-react";
 
 import { Button, Eyebrow, Skeleton, Spinner } from "@compozy/ui";
 
@@ -181,9 +182,51 @@ function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => v
 }
 
 /**
+ * Never loaded, and the live stream gave up (US-018.AC-2): the pane says the
+ * conversation didn't sync and how many tries, and offers Try again — it never
+ * poses as an empty session. Nothing is lost: the history is saved.
+ */
+function ThreadSyncFailed({ attempts, onRetry }: { attempts: number; onRetry: () => void }) {
+  return (
+    <div className={STATE_PANE_FRAME}>
+      <div
+        className="flex max-w-md flex-col items-center gap-2.5 text-center"
+        role="alert"
+        data-testid="thread-transcript-sync-failed"
+      >
+        <span
+          aria-hidden="true"
+          className="grid size-8.5 place-items-center rounded-md bg-canvas-soft text-subtle"
+        >
+          <WifiOff className="size-4" />
+        </span>
+        <p className="text-small-body font-medium text-fg-strong">
+          This conversation didn&apos;t sync
+        </p>
+        <p className="max-w-[44ch] text-eyebrow text-muted text-pretty">
+          Couldn&apos;t reach CompozyOS after {attempts} tries. Nothing here is lost — the history
+          is saved.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          className="mt-1"
+          onClick={onRetry}
+          variant="outline"
+          data-testid="thread-transcript-sync-failed-retry"
+        >
+          Try again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * State branch for an empty-count transcript: `pending` → skeleton, `error` → retryable
- * pane, `success` → empty-state copy. Extracted so the three states are unit-testable in
- * isolation from the assistant-ui runtime that wraps the message rows.
+ * pane, a dead live stream → sync-failed pane, `success` → empty-state copy. Extracted so
+ * the states are unit-testable in isolation from the assistant-ui runtime that wraps the
+ * message rows.
  */
 export function ThreadStatePane({
   status,
@@ -194,6 +237,7 @@ export function ThreadStatePane({
   failure,
   startupFailed,
   isSessionRunning = false,
+  syncFailure = null,
 }: {
   status: SessionTranscriptThreadStatus;
   agentName: string;
@@ -203,6 +247,8 @@ export function ThreadStatePane({
   failure?: SessionFailurePayload | null;
   startupFailed?: boolean;
   isSessionRunning?: boolean;
+  /** Retries exhausted on the live stream; `attempts` names how many. */
+  syncFailure?: { attempts: number; retry: () => void } | null;
 }) {
   if (sessionState === "starting") {
     return <ThreadStarting agentName={agentName} />;
@@ -215,6 +261,9 @@ export function ThreadStatePane({
   }
   if (status === "error") {
     return <ThreadError error={error} onRetry={onRetry} />;
+  }
+  if (syncFailure) {
+    return <ThreadSyncFailed attempts={syncFailure.attempts} onRetry={syncFailure.retry} />;
   }
   if (isSessionRunning) {
     // The sole live-status indicator lives between the viewport and composer.

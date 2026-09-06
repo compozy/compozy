@@ -6582,7 +6582,8 @@ export interface paths {
     get: operations["listSessionInputs"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Clear queued input with attributed per-entry traces */
+    delete: operations["clearSessionInputs"];
     options?: never;
     head?: never;
     patch?: never;
@@ -6820,6 +6821,40 @@ export interface paths {
     };
     /** Get a bounded materialized transcript page */
     get: operations["getSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the full retained operator-message trail with reply previews */
+    get: operations["getSessionTranscriptOutline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search retained transcript messages with bounded literal matches */
+    get: operations["searchSessionTranscript"];
     put?: never;
     post?: never;
     delete?: never;
@@ -14092,6 +14127,10 @@ export interface operations {
                 profile_icon?: string;
                 profile_id: string;
                 profile_name: string;
+                queue?: {
+                  cap: number;
+                  entries: number;
+                } | null;
                 resolved_network_participation?:
                   | (
                       | {
@@ -14248,6 +14287,7 @@ export interface operations {
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
+                stop_cause?: string;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:
@@ -14261,6 +14301,42 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                supervision: {
+                  quiet_warning: {
+                    /** Format: date-time */
+                    quiet_since: string;
+                    /** Format: date-time */
+                    stop_at: string | null;
+                    /** Format: date-time */
+                    warned_at: string;
+                  } | null;
+                  sources: {
+                    error?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    state: string;
+                  }[];
+                  work_signals: {
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    /** Format: date-time */
+                    since: string;
+                  }[];
+                } | null;
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
@@ -56839,6 +56915,18 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              counters?: {
+                capacity_waiting_runs: number;
+                cycles: number;
+                /** Format: date-time */
+                last_cycle_at?: string | null;
+                needs_attention: number;
+                spawn_requested: number;
+                wake_attempts: number;
+                wake_failed: number;
+                wake_skipped: number;
+                wake_succeeded: number;
+              } | null;
               needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
@@ -57604,6 +57692,18 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              counters?: {
+                capacity_waiting_runs: number;
+                cycles: number;
+                /** Format: date-time */
+                last_cycle_at?: string | null;
+                needs_attention: number;
+                spawn_requested: number;
+                wake_attempts: number;
+                wake_failed: number;
+                wake_skipped: number;
+                wake_succeeded: number;
+              } | null;
               needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
@@ -57799,6 +57899,18 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              counters?: {
+                capacity_waiting_runs: number;
+                cycles: number;
+                /** Format: date-time */
+                last_cycle_at?: string | null;
+                needs_attention: number;
+                spawn_requested: number;
+                wake_attempts: number;
+                wake_failed: number;
+                wake_skipped: number;
+                wake_succeeded: number;
+              } | null;
               needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
@@ -57961,6 +58073,18 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              counters?: {
+                capacity_waiting_runs: number;
+                cycles: number;
+                /** Format: date-time */
+                last_cycle_at?: string | null;
+                needs_attention: number;
+                spawn_requested: number;
+                wake_attempts: number;
+                wake_failed: number;
+                wake_skipped: number;
+                wake_succeeded: number;
+              } | null;
               needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
@@ -58299,6 +58423,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -58455,6 +58583,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -58468,6 +58597,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -58870,6 +59035,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -59026,6 +59195,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -59039,6 +59209,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -59612,6 +59818,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -59768,6 +59978,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -59781,6 +59992,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -104157,6 +104404,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -104313,6 +104564,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -104326,6 +104578,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -124012,6 +124300,10 @@ export interface operations {
                 profile_icon?: string;
                 profile_id: string;
                 profile_name: string;
+                queue?: {
+                  cap: number;
+                  entries: number;
+                } | null;
                 resolved_network_participation?:
                   | (
                       | {
@@ -124168,6 +124460,7 @@ export interface operations {
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
+                stop_cause?: string;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:
@@ -124181,6 +124474,42 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                supervision: {
+                  quiet_warning: {
+                    /** Format: date-time */
+                    quiet_since: string;
+                    /** Format: date-time */
+                    stop_at: string | null;
+                    /** Format: date-time */
+                    warned_at: string;
+                  } | null;
+                  sources: {
+                    error?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    state: string;
+                  }[];
+                  work_signals: {
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    /** Format: date-time */
+                    since: string;
+                  }[];
+                } | null;
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
@@ -124541,6 +124870,10 @@ export interface operations {
                 profile_icon?: string;
                 profile_id: string;
                 profile_name: string;
+                queue?: {
+                  cap: number;
+                  entries: number;
+                } | null;
                 resolved_network_participation?:
                   | (
                       | {
@@ -124697,6 +125030,7 @@ export interface operations {
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
+                stop_cause?: string;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:
@@ -124710,6 +125044,42 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                supervision: {
+                  quiet_warning: {
+                    /** Format: date-time */
+                    quiet_since: string;
+                    /** Format: date-time */
+                    stop_at: string | null;
+                    /** Format: date-time */
+                    warned_at: string;
+                  } | null;
+                  sources: {
+                    error?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    state: string;
+                  }[];
+                  work_signals: {
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    /** Format: date-time */
+                    since: string;
+                  }[];
+                } | null;
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
@@ -125077,6 +125447,10 @@ export interface operations {
                 profile_icon?: string;
                 profile_id: string;
                 profile_name: string;
+                queue?: {
+                  cap: number;
+                  entries: number;
+                } | null;
                 resolved_network_participation?:
                   | (
                       | {
@@ -125233,6 +125607,7 @@ export interface operations {
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
+                stop_cause?: string;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:
@@ -125246,6 +125621,42 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                supervision: {
+                  quiet_warning: {
+                    /** Format: date-time */
+                    quiet_since: string;
+                    /** Format: date-time */
+                    stop_at: string | null;
+                    /** Format: date-time */
+                    warned_at: string;
+                  } | null;
+                  sources: {
+                    error?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    state: string;
+                  }[];
+                  work_signals: {
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    /** Format: date-time */
+                    since: string;
+                  }[];
+                } | null;
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
@@ -128727,6 +129138,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -128883,6 +129298,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -128896,6 +129312,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -129225,6 +129677,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -129381,6 +129837,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -129394,6 +129851,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -129823,6 +130316,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -129979,6 +130476,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -129992,6 +130490,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -130307,6 +130841,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -130463,6 +131001,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -130476,6 +131015,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -131580,6 +132155,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -131736,6 +132315,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -131749,6 +132329,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -135821,6 +136437,8 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              owner_id?: string;
+              owner_kind?: string;
               /** Format: int64 */
               queue_generation: number;
               runtime?: {
@@ -135851,12 +136469,194 @@ export interface operations {
                 start: number;
                 token: string;
               }[];
-              status: string;
+              /** @enum {string} */
+              status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
               target_turn_id?: string;
               text: string;
             }[];
+            queue?: {
+              cap: number;
+              entries: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  clearSessionInputs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Per-entry clear outcomes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            cleared_count: number;
+            inputs: {
+              attachments?: {
+                /** Format: int64 */
+                bytes: number;
+                height: number;
+                id: string;
+                kind: string;
+                mime_type: string;
+                name: string;
+                sha256: string;
+                width: number;
+              }[];
+              delivery: string;
+              /** Format: date-time */
+              enqueued_at: string;
+              id: string;
+              idempotency_key?: string;
+              message_id?: string;
+              mode: string;
+              owner_id?: string;
+              owner_kind?: string;
+              /** Format: int64 */
+              queue_generation: number;
+              runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
+                model?: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+              } | null;
+              session_id: string;
+              skill_invocations?: {
+                command_id: string;
+                end: number;
+                name: string;
+                source: {
+                  id?: string;
+                  key?: string;
+                  kind: string;
+                  origin?: string;
+                  scope: string;
+                };
+                start: number;
+                token: string;
+              }[];
+              /** @enum {string} */
+              status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
+              /** @enum {string} */
+              steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+              target_turn_id?: string;
+              text: string;
+            }[];
+            /** Format: int64 */
+            queue_generation: number;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -135973,6 +136773,8 @@ export interface operations {
               idempotency_key?: string;
               message_id?: string;
               mode: string;
+              owner_id?: string;
+              owner_kind?: string;
               /** Format: int64 */
               queue_generation: number;
               runtime?: {
@@ -136003,7 +136805,8 @@ export interface operations {
                 start: number;
                 token: string;
               }[];
-              status: string;
+              /** @enum {string} */
+              status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
               /** @enum {string} */
               steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
               target_turn_id?: string;
@@ -137044,6 +137847,10 @@ export interface operations {
                 profile_icon?: string;
                 profile_id: string;
                 profile_name: string;
+                queue?: {
+                  cap: number;
+                  entries: number;
+                } | null;
                 resolved_network_participation?:
                   | (
                       | {
@@ -137200,6 +138007,7 @@ export interface operations {
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
+                stop_cause?: string;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:
@@ -137213,6 +138021,42 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                supervision: {
+                  quiet_warning: {
+                    /** Format: date-time */
+                    quiet_since: string;
+                    /** Format: date-time */
+                    stop_at: string | null;
+                    /** Format: date-time */
+                    warned_at: string;
+                  } | null;
+                  sources: {
+                    error?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    state: string;
+                  }[];
+                  work_signals: {
+                    /** @enum {string} */
+                    kind:
+                      | "agent_progress"
+                      | "tool_running"
+                      | "active_child"
+                      | "loop_run"
+                      | "task_lease"
+                      | "scheduled_wait";
+                    ref?: string;
+                    /** Format: date-time */
+                    since: string;
+                  }[];
+                } | null;
                 /** Format: int64 */
                 transcript_epoch?: number;
                 /** @enum {string} */
@@ -137665,6 +138509,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -137821,6 +138669,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -137834,6 +138683,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -138184,6 +139069,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -138340,6 +139229,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -138353,6 +139243,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -138655,6 +139581,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -138811,6 +139741,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -138824,6 +139755,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -139290,6 +140257,10 @@ export interface operations {
               tool_id?: string;
               turn_id?: string;
             }[];
+            queue?: {
+              cap: number;
+              entries: number;
+            } | null;
             session_id: string;
             /** @enum {string} */
             state: "idle" | "prompting" | "stopped" | "detached";
@@ -139979,6 +140950,14 @@ export interface operations {
         };
         content: {
           "text/event-stream": {
+            consumer_degraded?: {
+              /** Format: int64 */
+              after_sequence: number;
+              refresh: boolean;
+              session_id: string;
+              /** Format: int64 */
+              through_sequence: number;
+            } | null;
             goal_snapshot_changed?: {
               bound_session_id: string | null;
               /** @enum {string} */
@@ -141917,6 +142896,322 @@ export interface operations {
       };
     };
   };
+  getSessionTranscriptOutline: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              /** Format: date-time */
+              at: string;
+              preview: string;
+              reply_preview: string;
+              /** Format: int64 */
+              sequence: number;
+              turn_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  searchSessionTranscript: {
+    parameters: {
+      query: {
+        /** @description Literal case-insensitive text; 1 to 4096 bytes */
+        q: string;
+        /** @description Maximum matches; defaults to 200, capped at 1000; truncated reports omitted matches */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            matches: {
+              field?: string;
+              part_index?: number | null;
+              role: string;
+              /** Format: int64 */
+              sequence: number;
+              snippet: string;
+              turn_id: string;
+            }[];
+            truncated: boolean;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   unarchiveSession: {
     parameters: {
       query?: never;
@@ -142080,6 +143375,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -142236,6 +143535,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -142249,6 +143549,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */
@@ -142889,6 +144225,10 @@ export interface operations {
               profile_icon?: string;
               profile_id: string;
               profile_name: string;
+              queue?: {
+                cap: number;
+                entries: number;
+              } | null;
               resolved_network_participation?:
                 | (
                     | {
@@ -143045,6 +144385,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
+              stop_cause?: string;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -143058,6 +144399,42 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              supervision: {
+                quiet_warning: {
+                  /** Format: date-time */
+                  quiet_since: string;
+                  /** Format: date-time */
+                  stop_at: string | null;
+                  /** Format: date-time */
+                  warned_at: string;
+                } | null;
+                sources: {
+                  error?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  state: string;
+                }[];
+                work_signals: {
+                  /** @enum {string} */
+                  kind:
+                    | "agent_progress"
+                    | "tool_running"
+                    | "active_child"
+                    | "loop_run"
+                    | "task_lease"
+                    | "scheduled_wait";
+                  ref?: string;
+                  /** Format: date-time */
+                  since: string;
+                }[];
+              } | null;
               /** Format: int64 */
               transcript_epoch?: number;
               /** @enum {string} */

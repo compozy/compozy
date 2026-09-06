@@ -23,7 +23,6 @@ import {
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { closeTerminalWatchers, connectTerminalWatcher } from "../fixtures/terminal-watcher";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
@@ -137,38 +136,23 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
   await appPage.keyboard.press("Escape");
 }
 
-async function selectTerminalOutput(
-  page: Page,
-  window: Locator,
-  screenContent: string
-): Promise<void> {
-  const lines = screenContent.split(/\r?\n/u);
-  const firstRow = lines.findIndex(line => line.includes("quote-alpha"));
-  const secondRow = lines.findIndex(line => line.includes("quote-beta"));
-  if (firstRow < 0 || secondRow < 0) throw new Error("Terminal quote rows are absent from screen.");
-  const firstColumn = lines[firstRow]!.indexOf("quote-alpha");
-  const secondColumn = lines[secondRow]!.indexOf("quote-beta") + "quote-beta".length;
-  const grid = await window.getByTestId("terminal-size-vote").innerText();
-  const dimensions = /(\d+)×(\d+)\s*$/u.exec(grid.trim());
-  if (!dimensions) throw new Error(`Unexpected terminal grid dimensions: ${grid}`);
-  const columns = Number(dimensions[1]);
-  const rows = Number(dimensions[2]);
-  const screen = window.locator(".xterm-screen");
-  await expect(screen).toBeVisible({ timeout: 20_000 });
-  const box = await screen.boundingBox();
-  if (!box) throw new Error("Terminal screen has no layout box.");
-  const cellWidth = box.width / columns;
-  const cellHeight = box.height / rows;
-  await page.mouse.move(
-    box.x + (firstColumn + 0.5) * cellWidth,
-    box.y + (firstRow + 0.5) * cellHeight
-  );
+async function selectTerminalOutput(page: Page, window: Locator): Promise<void> {
+  const firstRow = window
+    .locator(".xterm-accessibility-tree > div", { hasText: "quote-alpha" })
+    .first();
+  const secondRow = window
+    .locator(".xterm-accessibility-tree > div", { hasText: "quote-beta" })
+    .first();
+  await expect(firstRow).toBeVisible();
+  await expect(secondRow).toBeVisible();
+  const firstBox = await firstRow.boundingBox();
+  const secondBox = await secondRow.boundingBox();
+  if (!firstBox || !secondBox) throw new Error("Terminal quote rows have no layout boxes.");
+  await page.mouse.move(firstBox.x + 1, firstBox.y + firstBox.height / 2);
   await page.mouse.down();
-  await page.mouse.move(
-    box.x + (secondColumn + 0.5) * cellWidth,
-    box.y + (secondRow + 0.5) * cellHeight,
-    { steps: 8 }
-  );
+  await page.mouse.move(secondBox.x + secondBox.width - 1, secondBox.y + secondBox.height / 2, {
+    steps: 8,
+  });
   await page.mouse.up();
 }
 
@@ -537,16 +521,10 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("quote-beta");
 
-    const quoteScreen = await terminalScreen(runtime, harness.workspace.id, terminalId);
-    await connectTerminalWatcher(appPage, runtime, harness.workspace.id, terminalId);
-    try {
-      await selectTerminalOutput(appPage, terminalWindow, quoteScreen.content);
-      const actions = terminalWindow.getByTestId("terminal-selection-actions");
-      await expect(actions).toBeVisible();
-      await actions.getByRole("button", { name: "Send to conversation" }).click();
-    } finally {
-      await closeTerminalWatchers(appPage);
-    }
+    await selectTerminalOutput(appPage, terminalWindow);
+    const actions = terminalWindow.getByTestId("terminal-selection-actions");
+    await expect(actions).toBeVisible();
+    await actions.getByRole("button", { name: "Send to conversation" }).click();
     await expect(harness.sessionWin).toBeVisible();
     const quoteBlock = harness.sessionWin.getByTestId("terminal-quote-block");
     await expect(quoteBlock).toBeVisible();

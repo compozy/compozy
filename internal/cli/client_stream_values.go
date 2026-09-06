@@ -26,7 +26,7 @@ func sessionEventValues(query SessionEventQuery) url.Values {
 	if query.Last > 0 {
 		values.Set("limit", strconv.Itoa(query.Last))
 	}
-	if query.AfterSequence > 0 {
+	if query.AfterSequence > 0 || query.Forward {
 		values.Set("after_sequence", strconv.FormatInt(query.AfterSequence, 10))
 	}
 	if archive := strings.TrimSpace(query.Archive); archive != "" {

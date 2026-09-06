@@ -9,7 +9,10 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const promptDeliveryCatchUpInterval = 25 * time.Millisecond
+const (
+	promptDeliveryCatchUpInterval = 25 * time.Millisecond
+	promptDeliveryPageSize        = 200
+)
 
 type durablePromptDelivery struct {
 	events          <-chan acp.AgentEvent
@@ -72,12 +75,11 @@ func (m *Manager) runDurablePromptDelivery(
 				live = nil
 				continue
 			}
-			terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, persisted, out)
+			terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, persisted, persistenceDone, out)
 			if persisted.Sequence > afterSequence {
 				afterSequence = persisted.Sequence
 			}
 			if delivered && terminal {
-				waitForPromptPersistence(ctx, persistenceDone)
 				return
 			}
 		}
@@ -115,20 +117,26 @@ func (m *Manager) catchUpDurablePromptDelivery(
 		persisted, err := recorder.Query(ctx, store.EventQuery{
 			TurnID:        turnID,
 			AfterSequence: afterSequence,
+			Limit:         promptDeliveryPageSize,
+			Forward:       true,
 		})
 		if err != nil {
 			m.sessionLogger(session).WarnContext(ctx, "session: query prompt delivery catch-up failed", "error", err)
 		} else {
 			for _, event := range persisted {
-				terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, event, out)
+				terminal, delivered := m.deliverPersistedPromptEvent(ctx, session, turnID, event, persistenceDone, out)
 				if event.Sequence > afterSequence {
 					afterSequence = event.Sequence
 				}
 				if delivered && terminal {
-					waitForPromptPersistence(ctx, persistenceDone)
 					return
 				}
 			}
+		}
+		// A completed pump can still have several unread pages. Drain them before
+		// diagnosing a missing terminal record or waiting for another live wake.
+		if err == nil && len(persisted) == promptDeliveryPageSize {
+			continue
 		}
 		if persistenceComplete {
 			m.deliverPromptProjectionFailure(ctx, turnID, out)
@@ -161,6 +169,7 @@ func (m *Manager) deliverPersistedPromptEvent(
 	session *Session,
 	turnID string,
 	persisted store.SessionEvent,
+	persistenceDone <-chan struct{},
 	out chan<- acp.AgentEvent,
 ) (terminal bool, delivered bool) {
 	if persisted.TurnID != turnID {
@@ -181,6 +190,11 @@ func (m *Manager) deliverPersistedPromptEvent(
 	// only runtime output. A catch-up delivery must preserve that public contract.
 	if !isPromptOutputEventType(event.Type) {
 		return false, false
+	}
+	// Consumers may close their transport immediately on a terminal event.
+	// Release prompt ownership before exposing that boundary to the next send.
+	if isPromptTerminalEvent(event.Type) {
+		waitForPromptPersistence(ctx, persistenceDone)
 	}
 	select {
 	case out <- event:

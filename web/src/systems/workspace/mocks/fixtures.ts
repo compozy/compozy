@@ -249,6 +249,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
   ],
   sessions: [
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.product,
       name: "Launch room command brief",
@@ -270,6 +271,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:14:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
@@ -291,6 +293,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:09:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.cto,
       name: "Executive launch review",
@@ -312,6 +315,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:11:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
@@ -333,6 +337,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:13:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.marketing,
       name: "CRM launch timing",
@@ -354,6 +359,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T17:58:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.copywriter,
       name: "Headline claim polish",
@@ -375,6 +381,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:06:00Z",
     },
     {
+      supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       id: storySessionIds.release,
       name: "Release control canary",

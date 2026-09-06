@@ -22,7 +22,22 @@ func CheckpointPassive(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return nil
 	}
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+	return passiveCheckpoint(ctx, db)
+}
+
+// CheckpointPassiveConnection runs a checkpoint on an already acquired connection.
+// Owners can coordinate physical file mutation without opening a connection under their lease.
+func CheckpointPassiveConnection(ctx context.Context, connection *sql.Conn) error {
+	if connection == nil {
+		return nil
+	}
+	return passiveCheckpoint(ctx, connection)
+}
+
+func passiveCheckpoint(ctx context.Context, executor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}) error {
+	if _, err := executor.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
 		return fmt.Errorf("store: passive checkpoint sqlite wal: %w", err)
 	}
 	return nil

@@ -475,3 +475,73 @@ func TestGlobalDBWorkspaceHelperUtilities(t *testing.T) {
 		}
 	})
 }
+
+// Invariant UT-115: observation cursors preserve old rowids and never reuse a
+// sequence after retention, VACUUM or reopen. Owner: global observation store.
+func TestGlobalDBEventSummarySequenceMigration(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00107_schema.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prefix.ExecContext(ctx, `INSERT INTO event_summaries(rowid,id,profile_id,type,summary,timestamp)
+ VALUES (7,'old-7',?,'settings.changed','retained seven','2026-07-01T12:00:00Z'),
+ (101,'old-101',?,'settings.changed','retained last','2026-06-01T12:00:00Z')`, store.DefaultProfileID, store.DefaultProfileID); err != nil {
+		t.Fatal(err)
+	}
+	if err := prefix.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := openGlobalMigrationUpgrade(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	rows, err := db.ListEventSummaries(
+		ctx,
+		EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, AfterSequence: 7, Limit: 1},
+	)
+	if err != nil || len(rows) != 1 || rows[0].Sequence != 101 || rows[0].Summary != "retained last" {
+		t.Fatalf("resumed migration rows = %+v, %v", rows, err)
+	}
+	if _, err := db.db.ExecContext(ctx, `DELETE FROM event_summaries`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.db.ExecContext(ctx, `VACUUM`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	db, err = OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.WriteEventSummaries(
+		ctx,
+		[]store.EventSummary{
+			{
+				ProfileID: store.DefaultProfileID,
+				ID:        "new",
+				Type:      "settings.changed",
+				Summary:   "new",
+				Timestamp: time.Now(),
+			},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = db.ListEventSummaries(
+		ctx,
+		EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, AfterSequence: 101, Limit: 1},
+	)
+	if err != nil || len(rows) != 1 || rows[0].Sequence <= 101 {
+		t.Fatalf("cursor reused after sweep/reopen: %+v, %v", rows, err)
+	}
+}

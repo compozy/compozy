@@ -435,6 +435,27 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 
 func TestErrorPayloadForError(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose queue capacity and preserve the edited draft on dispatch refusal", func(t *testing.T) {
+		t.Parallel()
+		full := &store.SessionInputQueueFullError{SessionID: "sess-1", Cap: 3, Count: 3}
+		payload := ErrorPayloadForError(full)
+		if StatusForSessionError(full) != http.StatusConflict || payload.Code != "queue_full" ||
+			payload.Diagnostic == nil {
+			t.Fatalf("queue full payload = %#v", payload)
+		}
+		if payload.Diagnostic.Evidence["queue_cap"] != 3 || payload.Diagnostic.Evidence["queue_count"] != 3 {
+			t.Fatalf("queue capacity evidence = %#v", payload.Diagnostic.Evidence)
+		}
+		// Once dispatch begins, both in-flight and completed sends preserve the refused edit.
+		for _, status := range []string{store.SessionInputQueueStatusDispatching, store.SessionInputQueueStatusSent} {
+			entry := &store.SessionInputNotQueuedError{EntryID: "entry-1", Status: status, Text: "edited draft"}
+			payload = ErrorPayloadForError(entry)
+			if StatusForSessionError(entry) != http.StatusConflict || payload.Code != "entry_dispatching" ||
+				payload.Details["text"] != "edited draft" || payload.Details["entry_id"] != "entry-1" {
+				t.Fatalf("dispatch refusal for %s = %#v", status, payload)
+			}
+		}
+	})
 	t.Run("Should expose actionable busy input refusals with their HTTP status", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -442,7 +463,7 @@ func TestErrorPayloadForError(t *testing.T) {
 			code   string
 			status int
 		}{
-			{store.ErrSessionInputQueueFull, "queue_full", http.StatusRequestEntityTooLarge},
+			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},
 			{store.ErrSessionInputMutationConflict, "send_conflict", http.StatusConflict},
 			{store.ErrSessionInputSteerTextOnly, "steer_attachments_unsupported", http.StatusConflict},
 		} {

@@ -1,4 +1,5 @@
 import { useAui } from "@assistant-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
@@ -7,6 +8,7 @@ import {
   deriveDecidedPermissionRequestIds,
   derivePendingPermissions,
 } from "../lib/pending-permissions";
+import { sessionDetailOptions } from "../lib/query-options";
 import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
 import { useSessionClarifications } from "./use-session-clarifications";
@@ -15,7 +17,13 @@ import { useSessionInputs } from "./use-session-inputs";
 import { useSessionResolvedInteractions } from "./use-session-resolved-interactions";
 import type { SessionStreamEventSourceFactory } from "./use-session-live-tail";
 
-const ACTIVE_PROMPT_CLARIFICATION_REFETCH_MS = 1_000;
+/**
+ * While a prompt POST streams, the transcript SSE stays closed (HTTP/1.1 pool)
+ * and the POST owns active-turn data; a bounded 1s control poll — session
+ * detail, queue, pending decisions — owns control-plane freshness until the
+ * live tail reopens at the durable cursor on settle (Part II topology).
+ */
+export const PROMPT_POST_CONTROL_POLL_MS = 1_000;
 
 export function useSessionRuntimeExtensions({
   eventSourceFactory,
@@ -55,11 +63,58 @@ export function useSessionRuntimeExtensions({
     sessionId,
     workspaceId,
   });
+  const controlPolling = liveTailEnabled && promptPending;
   const clarifications = useSessionClarifications(workspaceId, sessionId, {
     enabled: liveTailEnabled,
-    refetchInterval: promptPending ? ACTIVE_PROMPT_CLARIFICATION_REFETCH_MS : false,
+    refetchInterval: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
   });
-  const inputs = useSessionInputs(workspaceId, sessionId, { enabled: liveTailEnabled });
+  const inputs = useSessionInputs(workspaceId, sessionId, {
+    enabled: liveTailEnabled,
+    ...(controlPolling ? { refetchInterval: PROMPT_POST_CONTROL_POLL_MS } : {}),
+  });
+  // The session resource (state, activity, stop cause, queue summary) rides the
+  // same bounded cadence; this observer exists only for the POST's duration.
+  useQuery({
+    ...sessionDetailOptions(workspaceId, sessionId),
+    enabled: controlPolling,
+    refetchInterval: PROMPT_POST_CONTROL_POLL_MS,
+  });
+  const { expiredInteractions, resolvedInteractions, rewindBlocked } = useSessionDecisionState({
+    transcript,
+    workspaceId,
+    sessionId,
+    liveTailEnabled,
+    clarifications,
+    inputs,
+  });
+
+  return {
+    expiredInteractions,
+    resolvedInteractions,
+    resetRuntime: () => {
+      promptDispatch.trigger.conversationReset();
+      aui.thread.reset();
+    },
+    rewindBlocked,
+    transcript,
+  };
+}
+
+function useSessionDecisionState({
+  transcript,
+  workspaceId,
+  sessionId,
+  liveTailEnabled,
+  clarifications,
+  inputs,
+}: {
+  transcript: ReturnType<typeof useMergedSessionRuntimeTranscript>;
+  workspaceId: string;
+  sessionId: string;
+  liveTailEnabled: boolean;
+  clarifications: ReturnType<typeof useSessionClarifications>;
+  inputs: ReturnType<typeof useSessionInputs>;
+}) {
   const pendingPermissions = derivePendingPermissions(transcript.messages);
   // Only an undecided ask on screen can be a decision the daemon settled behind the
   // transcript's back; with none, the settled-interaction read never runs. The same
@@ -92,14 +147,5 @@ export function useSessionRuntimeExtensions({
     inputs.isError ||
     (inputs.data?.inputs.length ?? 0) > 0;
 
-  return {
-    expiredInteractions,
-    resolvedInteractions,
-    resetRuntime: () => {
-      promptDispatch.trigger.conversationReset();
-      aui.thread.reset();
-    },
-    rewindBlocked,
-    transcript,
-  };
+  return { expiredInteractions, resolvedInteractions, rewindBlocked };
 }

@@ -246,6 +246,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/search",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/outline",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/tools",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id/bytes",
@@ -468,6 +470,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
+			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/attachments",
@@ -2150,6 +2153,39 @@ func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
 	})
 }
 
+func TestSessionInputClearHandlerUsesSharedQueueContract(t *testing.T) {
+	t.Run("Should preserve per-entry clear outcomes over UDS", func(t *testing.T) {
+		t.Parallel()
+		manager := stubSessionManager{
+			ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
+				if id != "sess-123" || caller.Kind != "human" || caller.ID == "" || caller.Source == "" {
+					t.Fatalf("clear identity = %q, %#v", id, caller)
+				}
+				return session.ClearPendingInputsResult{
+					ClearedCount: 1, QueueGeneration: 2,
+					Inputs: []session.PendingInput{
+						{ID: "removed", Status: "canceled"}, {ID: "active", Status: "dispatching"},
+					},
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("clear status = %d, body=%s", recorder.Code, recorder.Body.String())
+		}
+		var result contract.SessionInputClearResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.ClearedCount != 1 || result.QueueGeneration != 2 || len(result.Inputs) != 2 ||
+			result.Inputs[0].Status != contract.SessionInputCanceled || result.Inputs[1].Status != contract.SessionInputDispatching {
+			t.Fatalf("clear response = %#v", result)
+		}
+	})
+}
+
 func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 	t.Run("ShouldForwardInterruptModeOnRawCLIPath", func(t *testing.T) {
 		t.Parallel()
@@ -2743,7 +2779,7 @@ func TestStreamSessionHandlerSyntheticStoppedEventIncludesWorkspaceContext(t *te
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
 	)
 	recorder := httptest.NewRecorder()

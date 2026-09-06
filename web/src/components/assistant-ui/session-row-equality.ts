@@ -6,6 +6,7 @@ import type {
   ChangedFileEntry,
   SessionChangedFilesRow,
   SessionDataRow,
+  SessionLiveToolRow,
   SessionReasoningRow,
   SessionRow,
   SessionTextRow,
@@ -14,7 +15,6 @@ import type {
   SessionTurnFoldRow,
   SessionWorkingRow,
   SessionWorkRow,
-  SessionWorkToggleRow,
 } from "./session-timeline.logic";
 
 /** Shallow, per-variant content comparison — avoids serialization cost. */
@@ -58,19 +58,18 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
       return (
         a.groupId === other.groupId &&
         a.active === other.active &&
-        a.grouped === other.grouped &&
         a.expanded === other.expanded &&
-        a.visibleCount === other.visibleCount &&
         (a.summary?.label ?? null) === (other.summary?.label ?? null) &&
+        (a.summary?.failedCount ?? 0) === (other.summary?.failedCount ?? 0) &&
         toolEntriesEqual(a.entries, other.entries)
       );
     }
-    case "work-toggle": {
-      const other = b as SessionWorkToggleRow;
+    case "live-tool": {
+      const other = b as SessionLiveToolRow;
       return (
-        a.groupId === other.groupId &&
-        a.hiddenCount === other.hiddenCount &&
-        a.expanded === other.expanded
+        a.agent === other.agent &&
+        a.expanded === other.expanded &&
+        toolEntriesEqual(a.entries, other.entries)
       );
     }
     case "turn-fold": {
@@ -79,7 +78,9 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
         a.turnId === other.turnId &&
         a.label === other.label &&
         a.durationMs === other.durationMs &&
-        a.interrupted === other.interrupted &&
+        a.cause === other.cause &&
+        a.counts === other.counts &&
+        a.open === other.open &&
         rowsEqual(a.rows, other.rows)
       );
     }

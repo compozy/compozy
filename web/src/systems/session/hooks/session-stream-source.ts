@@ -6,6 +6,8 @@ const GOAL_SNAPSHOT_CHANGED_EVENT = "goal_snapshot_changed";
 const SESSION_COMMANDS_CHANGED_EVENT = "session_commands_changed";
 const SESSION_STOPPED_EVENT = "session_stopped";
 const SESSION_DONE_EVENT = "done";
+/** A slow watcher was shed (task_04); the server replays the gap on this stream right after. */
+const STREAM_CONSUMER_DEGRADED_EVENT = "stream.consumer_degraded";
 
 export interface SessionStreamEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -19,6 +21,7 @@ export type SessionStreamEventSourceFactory = (url: string) => SessionStreamEven
 
 export interface SessionStreamListeners {
   commandsChanged: EventListener;
+  degraded: EventListener;
   delta: EventListener;
   goalSnapshot: EventListener;
   snapshot: EventListener;
@@ -42,6 +45,7 @@ export function attachSessionStreamSource(
   source.addEventListener(SESSION_COMMANDS_CHANGED_EVENT, listeners.commandsChanged);
   source.addEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
   source.addEventListener(SESSION_DONE_EVENT, listeners.terminal);
+  source.addEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);
   return () => {
     if (!source.removeEventListener) return;
     source.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
@@ -50,5 +54,6 @@ export function attachSessionStreamSource(
     source.removeEventListener(SESSION_COMMANDS_CHANGED_EVENT, listeners.commandsChanged);
     source.removeEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
     source.removeEventListener(SESSION_DONE_EVENT, listeners.terminal);
+    source.removeEventListener(STREAM_CONSUMER_DEGRADED_EVENT, listeners.degraded);
   };
 }
