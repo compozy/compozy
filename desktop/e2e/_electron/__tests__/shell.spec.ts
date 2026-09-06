@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { extract } from "tar";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import {
   availableLoopbackPort,
@@ -177,12 +177,14 @@ async function connectDesktopTerminalWatcher(
         socket.onmessage = event => {
           if (!(event.data instanceof ArrayBuffer)) return;
           const bytes = new Uint8Array(event.data);
-          if (bytes[0] !== 0x02) return;
-          window.clearTimeout(timeout);
+          if (bytes[0] !== 0x02 && bytes[0] !== 0x06) return;
           const frame = JSON.parse(new TextDecoder().decode(bytes.subarray(1))) as {
             cols: number;
             rows: number;
           };
+          Reflect.set(globalThis, "__compozyDesktopTerminalWatcherGrid", frame);
+          if (bytes[0] !== 0x02) return;
+          window.clearTimeout(timeout);
           resolve(frame);
         };
         socket.onerror = () => {
@@ -197,11 +199,35 @@ async function connectDesktopTerminalWatcher(
   );
 }
 
+async function expectDesktopTerminalGrid(
+  page: Page,
+  terminalWindow: Locator
+): Promise<{ cols: number; rows: number }> {
+  let settledGrid: { cols: number; rows: number } | undefined;
+  await expect
+    .poll(async () => {
+      const grid = await page.evaluate(
+        () =>
+          Reflect.get(globalThis, "__compozyDesktopTerminalWatcherGrid") as
+            | { cols: number; rows: number }
+            | undefined
+      );
+      if (!grid) return false;
+      settledGrid = grid;
+      const vote = await terminalWindow.getByTestId("terminal-size-vote").textContent();
+      return vote?.includes(`${grid.cols}×${grid.rows}`) ?? false;
+    })
+    .toBe(true);
+  if (!settledGrid) throw new Error("Terminal watcher has no settled grid.");
+  return settledGrid;
+}
+
 async function closeDesktopTerminalWatcher(page: Page): Promise<void> {
   await page.evaluate(() => {
     const socket = Reflect.get(globalThis, "__compozyDesktopTerminalWatcher");
     if (socket instanceof WebSocket) socket.close();
     Reflect.deleteProperty(globalThis, "__compozyDesktopTerminalWatcher");
+    Reflect.deleteProperty(globalThis, "__compozyDesktopTerminalWatcherGrid");
   });
 }
 
@@ -1204,11 +1230,9 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   if (typeof terminalID !== "string" || terminalID === "") {
     throw new Error("Desktop Terminal test terminal has no stable id.");
   }
-  const initialGrid = await connectDesktopTerminalWatcher(product, workspaceID, terminalID);
+  await connectDesktopTerminalWatcher(product, workspaceID, terminalID);
   try {
-    await expect(terminalWindow.getByTestId("terminal-size-vote")).toContainText(
-      `${initialGrid.cols}×${initialGrid.rows}`
-    );
+    const initialGrid = await expectDesktopTerminalGrid(product, terminalWindow);
 
     const productZoomFactor = async () =>
       await desktop.app.evaluate(({ BrowserWindow }) => {
@@ -1224,6 +1248,7 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
     await expect
       .poll(async () => await terminalWindow.getByTestId("terminal-size-vote").textContent())
       .not.toContain(`${initialGrid.cols}×${initialGrid.rows}`);
+    await expectDesktopTerminalGrid(product, terminalWindow);
     await pressProductAccelerator(desktop, "-");
   } finally {
     await closeDesktopTerminalWatcher(product);

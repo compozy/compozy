@@ -7,12 +7,12 @@ journey: J-15
 expected: compozy__session_stop stops one live same-workspace target through the canonical session stop path, returns the terminal winner once, applies destructive approval policy, denies self or foreign-workspace targets, and leaves repeated or raced callers with deterministic structured outcomes.
 entry_points: compozy__session_stop; compozy session stop; POST /api/workspaces/{workspace_id}/sessions/{session_id}/stop over HTTP and UDS; compozy session status <session-id>
 qa_status: blocked-verify
-bug_ids:
+bug_ids: BUG-20260906-stop-receipt-outcome-race
 fix_status:
 retest_status:
 fix_commits:
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/reports/2026-09-05-sessions-stability-task01-02.md;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkA2-stop-wait.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkA2-events.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkE-status-after-restart.json;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f2-02-stopping-4s.png;/Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f2-03-stopped-confirmed.png
-last_report: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md
+last_report: docs/qa/reports/2026-09-06-sessions-stability.md
 overlaps: RT-session-wait-state; RT-session-prompt-cancel
 ---
 
@@ -220,3 +220,5 @@ source-error unknown/attention, stale-source attention, and warning append retry
 Existing waits without expiry must use their original creation time for admission-horizon expiry.
 
 QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death and Daytona host constraints remain the previously documented external branches; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+
+QA re-walk 2026-09-06: Stop settlement preserves the same cause, phase, escalation and elapsed time through acknowledgement-write failure and manager restart. One-core canonical recovery, full session race and actual subprocess stop/crash/resume checks pass. Previously documented external branches retain their limits. See BUG-20260906-stop-receipt-outcome-race and the integrated report.

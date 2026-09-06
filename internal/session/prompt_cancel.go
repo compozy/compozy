@@ -43,8 +43,10 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) (PromptCancelResu
 		}
 		return PromptCancelResult{Outcome: PromptCancelOutcomeNothingInFlight}, nil
 	}
+	// Finalization can retire a known session between lookup and the stop claim.
 	run, err := m.requestTurnStop(ctx, targetSession.ID, "", CauseUserRequested)
-	if errors.Is(err, ErrPromptNotInProgress) {
+	if errors.Is(err, ErrPromptNotInProgress) || errors.Is(err, ErrSessionNotActive) ||
+		errors.Is(err, ErrSessionNotFound) {
 		return PromptCancelResult{Outcome: PromptCancelOutcomeNothingInFlight}, nil
 	}
 	if err != nil {

@@ -4,32 +4,50 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (s *Session) retainVerifiedStopOutcome(outcome StopOutcome) {
+func (s *Session) retainVerifiedStopOutcome(outcome StopOutcome) StopOutcome {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.stopVerifiedOutcome.Verified {
+		return s.stopVerifiedOutcome
+	}
 	if outcome.Verified {
 		s.stopVerifiedOutcome = outcome
 	}
+	return outcome
+}
+
+// A process watcher can verify exit before the stop driver's call returns.
+// Freeze that observation so the driver and recovery report the same result.
+func (s *Session) stopReceiptOutcome(at time.Time) StopOutcome {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	outcome := s.stopVerifiedOutcome
+	if !outcome.Verified {
+		outcome.Verified = true
+		if outcome.Phase == "" {
+			outcome.Phase = StopPhaseCooperative
+		}
+		outcome.Escalated = s.stopEscalated
+		if !s.stopStartedAt.IsZero() {
+			outcome.Elapsed = max(0, at.Sub(s.stopStartedAt))
+		}
+	}
+	outcome.FinalState, outcome.Cause = StateStopped, s.stopCause
+	s.stopVerifiedOutcome = outcome
+	return outcome
 }
 
 // persistActiveStopReceipt journals the exact terminal row before its append.
 // Classification has already committed, so recovery preserves that metadata.
 func (m *Manager) persistActiveStopReceipt(ctx context.Context, session *Session, event *store.SessionEvent) error {
 	meta := session.Meta()
-	session.mu.RLock()
-	outcome := session.stopVerifiedOutcome
-	session.mu.RUnlock()
-	if !outcome.Verified {
-		// Natural exit has no explicit termination ladder.
-		outcome = StopOutcome{Verified: true, Phase: StopPhaseCooperative}
-	}
-	outcome.FinalState = StateStopped
-	outcome.Cause, _ = session.stopCauseDetail()
+	outcome := session.stopReceiptOutcome(event.Timestamp)
 	event.SessionID = meta.ID
 	settlement := &recoveredStopSettlement{
 		turnID: event.TurnID, startedAt: event.Timestamp.Add(-outcome.Elapsed),

@@ -1060,20 +1060,49 @@ func TestCancelPrompt(t *testing.T) {
 	t.Run("Should ignore cancel errors once the process is already done", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		cleanupCtx := testutil.Context(t)
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			reportSessionStop(t, h, session.ID)
 		})
+		stopping := make(chan struct{})
+		release := make(chan struct{})
+		releaseFinalization := sync.OnceFunc(func() { close(release) })
+		defer releaseFinalization()
+		signalStopping := sync.OnceFunc(func() { close(stopping) })
+		catalog.mu.Lock()
+		catalog.updateHook = func(update store.SessionStateUpdate) error {
+			if update.State == string(StateStopping) {
+				signalStopping()
+				select {
+				case <-release:
+				case <-cleanupCtx.Done():
+					return cleanupCtx.Err()
+				}
+			}
+			return nil
+		}
+		catalog.mu.Unlock()
 
 		session.setCurrentTurnSource(TurnSourceUser)
 		h.driver.cancelHook = func(_ *fakeProcess) error {
 			return errors.New("test: cancel after process exit")
 		}
 		h.driver.lastProcess().exit()
+		select {
+		case <-stopping:
+		case <-t.Context().Done():
+			t.Fatal("process exit did not begin finalization")
+		}
 
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		result, err := h.manager.CancelPrompt(t.Context(), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeNothingInFlight {
+			t.Fatalf("CancelPrompt() = %#v, want nothing in flight", result)
 		}
 		if got := h.driver.cancelCalls; got != 0 {
 			t.Fatalf("driver cancel calls = %d, want 0", got)

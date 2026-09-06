@@ -178,7 +178,7 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 			run.err = errors.Join(run.err, waitErr)
 			return
 		}
-		session.retainVerifiedStopOutcome(run.outcome)
+		run.outcome = session.retainVerifiedStopOutcome(run.outcome)
 		var waitErr error
 		if proc != nil && isProcessDone(proc) {
 			waitErr = proc.Wait()

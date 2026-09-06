@@ -5100,6 +5100,8 @@ type integrationDriver struct {
 	blocked  map[string]chan struct{}
 }
 
+var _ session.AgentExitVerifier = (*integrationDriver)(nil)
+
 type integrationTaskExecutor struct {
 	mu   sync.Mutex
 	next int
@@ -6105,6 +6107,20 @@ func newIntegrationDriver() *integrationDriver {
 		nextSess: 1,
 		states:   make(map[*session.AgentProcess]chan struct{}),
 		blocked:  make(map[string]chan struct{}),
+	}
+}
+
+// Integration handles use synthetic PIDs; their owned completion channel is
+// the process identity, so host PID reuse cannot decide whether they exited.
+func (*integrationDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return false, errors.New("integration driver: process is required")
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
 	}
 }
 
