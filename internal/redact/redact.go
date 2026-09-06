@@ -24,7 +24,11 @@ func exactRedactString(value string) string {
 	redacted = gatewaySecretPattern.ReplaceAllString(redacted, "${1}"+Marker)
 	redacted = urlUserinfoPattern.ReplaceAllString(redacted, "${1}"+Marker+"@")
 	redacted = quotedAssignmentPattern.ReplaceAllStringFunc(redacted, redactQuotedAssignment)
-	redacted = assignmentPattern.ReplaceAllStringFunc(redacted, redactAssignment)
+	// Every assignment requires one of these separators. Avoid scanning long
+	// unstructured output for a key when the pattern cannot possibly match.
+	if strings.ContainsAny(redacted, ":=") {
+		redacted = assignmentPattern.ReplaceAllStringFunc(redacted, redactAssignment)
+	}
 	redacted = shellFlagPattern.ReplaceAllStringFunc(redacted, redactShellFlag)
 	redacted = secretReferencePattern.ReplaceAllString(redacted, Marker)
 	for _, secret := range dynamicSecrets.valuesSnapshot() {

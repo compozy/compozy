@@ -157,3 +157,32 @@ These entries are chronological. Earlier pending/failing observations are supers
 - The unchanged daemon-served `session-hardening.spec.ts` title/verifier journey passed in 19.3s against the rebuilt current source. It asserts the generated title, warning tone, marker kind and failure summary. The controller inspected `session-auto-title-verifier-marker.png`: the warning remains below the completed answer with work collapsed. Evidence is retained under `.cache/sessions-marker-passed-browser/`, with the run in `.cache/sessions-ci-browser-green.log`. The fixture disposed its daemon and the wrapper released the shared verification lock.
 - Real daemon transport-storm (50,000 events) and blocked-cancel regressions passed in 50.115s. Raw-stream callers now supply the API's required bounded limit. Sandbox cancellation now retains the terminal creation acknowledgement so cleanup can release the resource; the unchanged real cancellation journey and owning cleanup suite passed 20 repetitions. Native tool metadata includes session search, outline and inputs-clear, including the public `q` preview argument. The owning metadata/harness race suites and Windows mock-driver build passed.
 - These repairs do not change the separate external provider auth-loss/rate-limit/cache-recovery validation limit documented above. Required CI for the next commit remains pending until GitHub reports its result.
+
+
+### Follow-up: constrained transport storm
+
+The current-head runtime CI exposed a remaining timeout in the unchanged 50,000-event storm.
+A one-core local run reproduced the same 60s request deadline (76.24s including cleanup);
+the ordinary two-core run had passed. A three-second CPU sample attributed the active work to
+canonical redaction regex scans. The assignment expression requires `:` or `=`, but it scanned
+long unstructured text even when neither character existed. `exactRedactString` now checks that
+necessary condition before invoking the same expression; rule order and replacements are unchanged.
+
+The rebuilt daemon passed the same one-core storm in 54.72s, preserving all 50,000 chunks, terminal
+completion and the single slow-watcher degradation record. The request timeout and fixture were
+unchanged. Evidence: `.cache/sessions-storm-profile.log` (failure),
+`.cache/sessions-storm-daemon-sample.txt` (profile), `.cache/sessions-storm-fixed.log` (pass), and
+retained Go artifacts under `.cache/sessions-storm-profile-artifacts/`. The fixture disposed its
+processes and the wrapper released the machine verification lock.
+
+The canonical redaction race suite passes in 3.059s, including a secret assignment after 64KiB of
+streamed text. A before/after SHA256 comparison of 800 fixed combinations (canonical/heuristic
+shapes, registered literal secrets, prefixes, suffixes and both heuristic settings) is identical.
+The existing benchmark, measured sequentially with one core and 10 samples per case, improves
+64KiB plaintext median from 42.21ms to 29.46ms (30.2% less time). JSON envelopes retain their
+mandatory scan and remain approximately 52ms; short provider messages improve from 41.29µs to 29.97µs.
+Earlier concurrent exploratory timings are not the reported benchmark. See
+`.cache/sessions-redact-{golden-before,golden-after,benchmark-comparison}.json` and
+`.cache/sessions-redact-isolated-{before,after}.log`. Tracked defect:
+`BUG-20260906-stream-redaction-storm-timeout`. This repair needs its own final gate and CI head;
+the external provider validation limit remains unchanged.

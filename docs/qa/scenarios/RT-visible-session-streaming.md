@@ -40,3 +40,5 @@ QA 2026-09-06 integrated verdict: Both visible windows received real ACP checkpo
 - Final review regression (2026-09-06): Raw resumed-session replay regression: BUG-20260906-raw-stream-resumed-stop; owning real HTTP/SQLite reconnect case passes and preserves all durable cursors.
 
 - Final review log-stream regression (2026-09-06): BUG-20260906-empty-log-head-cursor is fixed. Real observer/SQLite/HTTP coverage proves a stream opened with no durable head delivers the first new event even when its timestamp predates the connection. Evidence: `.cache/sessions-final-gate-stream-integration-green.log`.
+
+- CI stress re-walk (2026-09-06): BUG-20260906-stream-redaction-storm-timeout is fixed. The unchanged real daemon storm preserves all 50,000 chunks and one degraded slow watcher under a one-core limit in 54.72s. Exact redaction skips only assignment scans whose required separator is absent. The integrated report retains the failure/profile/pass and 800-case output-equivalence proof; earlier two-window/browser evidence remains current.
