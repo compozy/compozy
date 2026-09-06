@@ -1,15 +1,23 @@
-import { apiErrorCode, apiErrorCurrentTurnId, defaultApiErrorMessage } from "@/lib/api-client";
+import {
+  apiErrorCode,
+  apiErrorCurrentTurnId,
+  apiErrorQueueCap,
+  defaultApiErrorMessage,
+} from "@/lib/api-client";
 
 export interface SessionApiErrorDetail {
   /** Deterministic daemon error code, e.g. `active_turn_mismatch`. */
   code?: string;
   /** The turn the daemon reports as active when a strict fence is refused. */
   currentTurnId?: string;
+  /** The queue cap named by a `queue_full` refusal. */
+  queueCap?: number;
 }
 
 export class SessionApiError extends Error {
   readonly code: string | null;
   readonly currentTurnId: string | null;
+  readonly queueCap: number | null;
 
   constructor(
     message: string,
@@ -21,6 +29,7 @@ export class SessionApiError extends Error {
     this.name = "SessionApiError";
     this.code = detail.code ?? null;
     this.currentTurnId = detail.currentTurnId ?? null;
+    this.queueCap = detail.queueCap ?? null;
   }
 }
 
@@ -44,6 +53,10 @@ export function throwSessionRequestError(
     defaultApiErrorMessage(fallback, response, error),
     response.status,
     sessionId,
-    { code: apiErrorCode(error), currentTurnId: apiErrorCurrentTurnId(error) }
+    {
+      code: apiErrorCode(error),
+      currentTurnId: apiErrorCurrentTurnId(error),
+      queueCap: apiErrorQueueCap(error),
+    }
   );
 }

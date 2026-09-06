@@ -828,8 +828,8 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 			WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 				ActivityHeartbeatInterval: -time.Second,
 				ProgressNotifyInterval:    time.Minute,
-				InactivityWarningAfter:    time.Minute,
-				InactivityTimeout:         2 * time.Minute,
+				QuietAfter:                time.Minute,
+				StopGrace:                 2 * time.Minute,
 				TimeoutCancelGrace:        time.Second,
 			}),
 		)

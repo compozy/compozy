@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+type TerminalCommandFinishedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	CommandID   string    `json:"command_id"`
+	ExitCode    *int      `json:"exit_code,omitempty"`
+	Signal      *string   `json:"signal,omitempty"`
+	ExitCause   string    `json:"exit_cause"`
+	DurationMS  int64     `json:"duration_ms"`
+	DetectedBy  string    `json:"detected_by"`
+	Approval    string    `json:"approval"`
+}
+
 type TerminalCommandStartedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -309,16 +330,3 @@ type ToolProgress struct {
 }
 
 type ToolProgressPhase string
-
-type ToolResult struct {
-	Content    []ToolContent              `json:"content,omitempty"`
-	Structured json.RawMessage            `json:"structured,omitempty"`
-	Preview    string                     `json:"preview,omitempty"`
-	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
-	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
-	Redactions []Redaction                `json:"redactions,omitempty"`
-	Truncated  bool                       `json:"truncated"`
-	Bytes      int64                      `json:"bytes"`
-	DurationMS int64                      `json:"duration_ms"`
-	Trust      ResultTrust                `json:"trust,omitempty"`
-}

@@ -268,6 +268,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/search",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript/outline",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/tools",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id/bytes",
@@ -485,6 +487,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/attachments",
@@ -2912,6 +2915,38 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 }
 
 func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
+	t.Run("Should clear with operator attribution and preserve per-entry outcomes", func(t *testing.T) {
+		t.Parallel()
+		manager := stubSessionManager{
+			ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
+				if id != "sess-123" || caller.Kind != "human" || caller.ID == "" || caller.Source == "" {
+					t.Fatalf("clear identity = %q, %#v", id, caller)
+				}
+				return session.ClearPendingInputsResult{
+					ClearedCount: 1, QueueGeneration: 2,
+					Inputs: []session.PendingInput{
+						{ID: "removed", Status: "canceled", OwnerKind: "goal", OwnerID: "goal-run"},
+						{ID: "active", Status: "dispatching"},
+					},
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("clear status = %d, body=%s", recorder.Code, recorder.Body.String())
+		}
+		var result contract.SessionInputClearResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.ClearedCount != 1 || result.QueueGeneration != 2 || len(result.Inputs) != 2 ||
+			result.Inputs[0].Status != contract.SessionInputCanceled || result.Inputs[0].OwnerID != "goal-run" ||
+			result.Inputs[1].Status != contract.SessionInputDispatching {
+			t.Fatalf("clear response = %#v", result)
+		}
+	})
 	t.Parallel()
 
 	now := time.Date(2026, 8, 3, 18, 0, 0, 0, time.UTC)
@@ -2924,6 +2959,9 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	var replaceOpts session.ReplacePendingInputOpts
 	var promoteOpts session.PromotePendingInputOpts
 	manager := stubSessionManager{
+		InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
+			return session.InputQueueSummary{PendingInputs: 1, Cap: 7}, nil
+		},
 		ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
 			if id != "sess-123" {
 				t.Fatalf("ListPendingInputs() id = %q, want sess-123", id)
@@ -2980,6 +3018,9 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 		var response contract.SessionInputListResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 			t.Fatalf("json.Unmarshal(list inputs) error = %v", err)
+		}
+		if response.Queue == nil || response.Queue.Cap != 7 || response.Queue.Entries != 1 {
+			t.Fatalf("queue summary = %#v, want daemon cap and current entry count", response.Queue)
 		}
 		if len(response.Inputs) != 1 || response.Inputs[0].ID != pending.ID ||
 			response.Inputs[0].Delivery != contract.PromptDeliveryAfterTurn {

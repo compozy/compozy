@@ -180,8 +180,8 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 		ActivityHeartbeatInterval: 30 * time.Second,
 		ProgressNotifyInterval:    10 * time.Minute,
 		PromptDeadline:            0,
-		InactivityWarningAfter:    15 * time.Minute,
-		InactivityTimeout:         30 * time.Minute,
+		QuietAfter:                30 * time.Minute,
+		StopGrace:                 10 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
 	}
 }
@@ -271,6 +271,9 @@ func (c SessionBusyInputConfig) Validate() error {
 
 // Validate ensures session supervision settings are internally consistent.
 func (c SessionSupervisionConfig) Validate() error {
+	if err := c.validateQuietCompatibility(); err != nil {
+		return err
+	}
 	switch {
 	case c.ActivityHeartbeatInterval <= 0:
 		return fmt.Errorf(
@@ -288,22 +291,14 @@ func (c SessionSupervisionConfig) Validate() error {
 			"session.supervision.prompt_deadline must be zero or positive: %s",
 			c.PromptDeadline,
 		)
-	case c.InactivityWarningAfter < 0:
+	case c.QuietAfter < 0:
 		return fmt.Errorf(
-			"session.supervision.inactivity_warning_after "+
+			"session.supervision.quiet_after "+
 				"must be zero or positive: %s",
-			c.InactivityWarningAfter,
+			c.QuietAfter,
 		)
-	case c.InactivityTimeout < 0:
-		return fmt.Errorf("session.supervision.inactivity_timeout must be zero or positive: %s", c.InactivityTimeout)
-	case c.InactivityWarningAfter > 0 &&
-		c.InactivityTimeout > 0 &&
-		c.InactivityWarningAfter > c.InactivityTimeout:
-		return fmt.Errorf(
-			"session.supervision.inactivity_warning_after must be <= session.supervision.inactivity_timeout: %s > %s",
-			c.InactivityWarningAfter,
-			c.InactivityTimeout,
-		)
+	case c.StopGrace < 0:
+		return fmt.Errorf("session.supervision.stop_grace must be zero or positive: %s", c.StopGrace)
 	case c.TimeoutCancelGrace <= 0:
 		return fmt.Errorf("session.supervision.timeout_cancel_grace must be positive: %s", c.TimeoutCancelGrace)
 	default:

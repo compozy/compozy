@@ -89,6 +89,7 @@ CREATE TABLE automation_runs (
 	  ), metadata_json TEXT NOT NULL DEFAULT '{}');
 
 CREATE TABLE "automation_scheduler_state" (
+			deferred_until               TEXT,
 			job_id                       TEXT PRIMARY KEY,
 			next_run_at                  TEXT,
 			last_run_at                  TEXT,

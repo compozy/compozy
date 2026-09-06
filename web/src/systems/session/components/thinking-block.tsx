@@ -7,6 +7,12 @@ import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 export interface ThinkingBlockProps {
   thinking: string;
   thinkingComplete?: boolean;
+  /** The projected part this row renders (`data-part-index`), so find can land on it. */
+  partIndex?: number;
+  /** A find jump needs the reasoning open; layered over the reader's own toggle. */
+  revealOpen?: boolean;
+  /** The reader closed a body a jump held open: the hold is theirs to drop. */
+  onRevealRelease?: () => void;
 }
 
 /** Collapsed-row preview: the first non-empty reasoning line, trimmed. */
@@ -25,23 +31,34 @@ function firstThinkingLine(thinking: string): string {
  * preview + chevron — expanding to the indented muted body. A user toggle pins
  * the state either way (auto-open while live, auto-collapse on settle).
  */
-export function ThinkingBlock({ thinking, thinkingComplete }: ThinkingBlockProps) {
+export function ThinkingBlock({
+  thinking,
+  thinkingComplete,
+  partIndex,
+  revealOpen = false,
+  onRevealRelease,
+}: ThinkingBlockProps) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const live = !thinkingComplete;
-  const open = userOpen ?? live;
+  const ownOpen = userOpen ?? live;
+  const open = ownOpen || revealOpen;
   const preview = firstThinkingLine(thinking);
 
   return (
     <div
       data-testid="thinking-block"
       data-live={live || undefined}
+      data-part-index={partIndex}
       className="flex min-w-0 flex-col"
     >
       <button
         type="button"
         data-testid="thinking-trigger"
         aria-expanded={open}
-        onClick={() => setUserOpen(!open)}
+        onClick={() => {
+          if (open && revealOpen) onRevealRelease?.();
+          setUserOpen(!open);
+        }}
         className={cn(
           live
             ? "w-fit rounded-sm px-1 py-0.5 text-left"

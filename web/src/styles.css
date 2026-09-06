@@ -283,3 +283,16 @@
     animation: none;
   }
 }
+
+/* Find in conversation (S8): match marks through the CSS Custom Highlight API,
+   registered by the session viewport — a neutral glaze on every hit, the active
+   hit in the accent tint. Highlight pseudo-elements take colour only. */
+::highlight(session-find-match) {
+  background-color: var(--color-bar-fill);
+  color: var(--color-fg-strong);
+}
+
+::highlight(session-find-active) {
+  background-color: var(--color-accent-tint-strong);
+  color: var(--color-fg-strong);
+}

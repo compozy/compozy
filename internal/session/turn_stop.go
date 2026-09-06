@@ -124,7 +124,7 @@ func (m *Manager) executeTurnStop(ctx context.Context, run *turnStopRun, cause S
 		promptDone: run.promptDone, turnOnly: true,
 		beforeAction: func(ctx context.Context, phase StopPhase, elapsed time.Duration) error {
 			return m.recordStopEvent(ctx, run.session, events.SessionStopEscalated, stopEventPayload{
-				Scope: "turn", TurnID: run.turnID, Phase: phase, ElapsedMS: elapsed.Milliseconds(), Cause: cause,
+				Scope: stopScopeTurn, TurnID: run.turnID, Phase: phase, ElapsedMS: elapsed.Milliseconds(), Cause: cause,
 			})
 		},
 		cooperative: func(ctx context.Context, proc *AgentProcess) error {
@@ -145,6 +145,9 @@ func (m *Manager) executeTurnStop(ctx context.Context, run *turnStopRun, cause S
 	if result.Verified && result.processExited {
 		err = errors.Join(err, m.rebindCanceledTurn(run))
 	}
+	if err == nil && result.Verified {
+		err = m.recordTurnQuiesced(ctx, run, cause)
+	}
 	if err != nil {
 		run.session.setStopCause(cause)
 		run.session.recordAutomaticRecoveryFailure(err, m.now())
@@ -152,7 +155,7 @@ func (m *Manager) executeTurnStop(ctx context.Context, run *turnStopRun, cause S
 	}
 	if !result.Verified {
 		err = errors.Join(err, m.recordStopVerificationFailure(ctx, run.session, stopEventPayload{
-			Scope:     "turn",
+			Scope:     stopScopeTurn,
 			TurnID:    run.turnID,
 			Phase:     result.Phase,
 			ElapsedMS: result.Elapsed.Milliseconds(),
@@ -168,7 +171,6 @@ func (m *Manager) executeTurnStop(ctx context.Context, run *turnStopRun, cause S
 	run.session.mu.Unlock()
 	if err == nil {
 		m.startNextQueuedInputPrompt(run.session.ID)
-		m.startNextQueuedSyntheticPrompt(run.session.ID)
 	}
 }
 

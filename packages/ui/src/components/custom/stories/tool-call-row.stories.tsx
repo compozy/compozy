@@ -38,7 +38,15 @@ func ListSessions(w http.ResponseWriter, r *http.Request) { /* … */ }`;
 
 const LONG_OUTPUT = Array.from({ length: 240 }, (_, index) => `line ${index + 1}`).join("\n");
 
-const STATUSES: ToolCallStatus[] = ["pending", "running", "failed", "success", "empty"];
+const STATUSES: ToolCallStatus[] = [
+  "pending",
+  "running",
+  "failed",
+  "absorbed",
+  "stopped",
+  "success",
+  "empty",
+];
 
 export const Running: Story = {
   args: {

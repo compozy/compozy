@@ -7891,6 +7891,14 @@ func (s promptSessionManagerStub) ListPendingInputs(ctx context.Context, id stri
 	return s.listPendingInputsFn(ctx, id)
 }
 
+func (s promptSessionManagerStub) ClearPendingInputs(
+	context.Context,
+	string,
+	session.PromptCaller,
+) (session.ClearPendingInputsResult, error) {
+	return session.ClearPendingInputsResult{}, errors.New("unexpected clear pending inputs call")
+}
+
 func (s promptSessionManagerStub) ReplacePendingInput(
 	ctx context.Context,
 	id string,

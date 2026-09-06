@@ -27,6 +27,7 @@ func newSessionInputCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionInputEditCommand(deps))
 	cmd.AddCommand(newSessionInputSteerCommand(deps))
 	cmd.AddCommand(newSessionInputCancelCommand(deps))
+	cmd.AddCommand(newSessionInputClearCommand(deps))
 	return cmd
 }
 
@@ -88,7 +89,7 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 		Short: "Promote queued input to fenced steering guidance",
 		Args:  exactSessionInputMutationArgs(),
 		Example: "  compozy session input steer sess_1234 queue_entry_1234 " +
-			"\"Prefer the smaller patch.\" --expected-turn-id turn_1234",
+			"\"Prefer the smaller patch.\" --expected-turn turn_1234",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := warnExpectedTurnAlias(cmd); err != nil {
 				return err

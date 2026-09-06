@@ -11,16 +11,6 @@ func (s *Session) setCurrentSkillInvocations(invocations []commandpkg.Invocation
 	s.mu.Unlock()
 }
 
-func (s *Session) clearCurrentSkillInvocations() {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	s.currentSkillInvocations = nil
-	s.mu.Unlock()
-}
-
-// CurrentSkillInvocations returns the explicit skills admitted for the active turn.
 func (s *Session) CurrentSkillInvocations() []commandpkg.Invocation {
 	if s == nil {
 		return nil

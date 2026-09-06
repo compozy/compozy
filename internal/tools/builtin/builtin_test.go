@@ -1761,12 +1761,18 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_input_replace", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_inputs_clear", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_inputs_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt_cancel", risk: toolspkg.RiskMutating,
@@ -2584,7 +2590,8 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "queue_generation",
+		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "owner_id", "owner_kind",
+		"queue_generation",
 		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
 	})
 	if !slices.Equal(input.Required, []string{

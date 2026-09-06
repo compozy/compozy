@@ -1,8 +1,12 @@
-import { ArrowUp, CornerDownRight, ListPlus, Scissors, TriangleAlert } from "lucide-react";
+import { ArrowUp, CornerDownRight, ListPlus, Scissors, TriangleAlert, WifiOff } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
-import { describeSessionBusyInputRefusal, type SessionSendOutcome } from "@/systems/session";
+import {
+  describeSessionBusyInputRefusal,
+  describeSessionBusyInputUnconfirmed,
+  type SessionSendOutcome,
+} from "@/systems/session";
 
 import type { SessionComposerFeedback } from "./hooks/session-busy-input-store";
 
@@ -11,10 +15,13 @@ interface FeedbackNoteView {
   lead: string;
   rest: string;
   suffix: string | null;
-  tone: "neutral" | "warning";
+  tone: "neutral" | "warning" | "info";
 }
 
 function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
+  if (outcome.replayed) {
+    return replayedView(outcome);
+  }
   switch (outcome.disposition) {
     case "steering":
       switch (outcome.steerDelivery) {
@@ -70,18 +77,64 @@ function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
   }
 }
 
+/**
+ * A replay of a retained identity: the daemon already had it, so the original
+ * outcome comes back and nothing was sent twice (US-007.AC-2).
+ */
+function replayedView(outcome: SessionSendOutcome): FeedbackNoteView {
+  const lead =
+    outcome.disposition === "queued"
+      ? outcome.queuePosition
+        ? `Queued #${outcome.queuePosition}`
+        : "Queued"
+      : outcome.disposition === "steering"
+        ? "Steering"
+        : outcome.disposition === "interrupting"
+          ? "Interrupting"
+          : "Sent";
+  return {
+    Glyph: outcome.disposition === "queued" ? ListPlus : CornerDownRight,
+    lead,
+    rest: " — it had arrived; nothing was sent twice",
+    suffix: "replayed",
+    tone: "neutral",
+  };
+}
+
+function splitSentence(sentence: string): Pick<FeedbackNoteView, "lead" | "rest"> {
+  const separator = sentence.indexOf(" — ");
+  return {
+    lead: separator > 0 ? sentence.slice(0, separator) : sentence,
+    rest: separator > 0 ? sentence.slice(separator) : "",
+  };
+}
+
 function feedbackView(feedback: SessionComposerFeedback): FeedbackNoteView {
   if (feedback.kind === "disposition") {
     return dispositionView(feedback.outcome);
   }
+  if (feedback.kind === "unconfirmed") {
+    // No proof either way: the daemon may have accepted the send before the
+    // answer was lost. The strip row keeps the identity and Retry; this line
+    // only says so — never "Not sent".
+    return {
+      Glyph: TriangleAlert,
+      ...splitSentence(describeSessionBusyInputUnconfirmed(feedback.message)),
+      suffix: null,
+      tone: "warning",
+    };
+  }
   const sentence = describeSessionBusyInputRefusal(feedback.refusal);
   const separator = sentence.indexOf(" — ");
+  // A disconnect is the client refusing before any request left: info, no code suffix.
+  const disconnected = feedback.refusal.code === "disconnected";
   return {
-    Glyph: TriangleAlert,
+    Glyph: disconnected ? WifiOff : TriangleAlert,
     lead: separator > 0 ? sentence.slice(0, separator) : sentence,
     rest: separator > 0 ? sentence.slice(separator) : "",
-    suffix: feedback.refusal.code === "not_delivered" ? null : feedback.refusal.code,
-    tone: "warning",
+    suffix:
+      feedback.refusal.code === "not_delivered" || disconnected ? null : feedback.refusal.code,
+    tone: disconnected ? "info" : "warning",
   };
 }
 
@@ -102,14 +155,27 @@ export function SessionComposerFeedbackNote({
   return (
     <p
       className={cn("flex min-w-0 items-center gap-1.5 text-micro text-muted", className)}
-      data-code={feedback.kind === "refusal" ? feedback.refusal.code : feedback.outcome.disposition}
+      data-code={
+        feedback.kind === "refusal"
+          ? feedback.refusal.code
+          : feedback.kind === "unconfirmed"
+            ? "unconfirmed"
+            : feedback.outcome.disposition
+      }
       data-kind={feedback.kind}
       data-testid="composer-feedback-note"
       role="status"
     >
       <view.Glyph
         aria-hidden="true"
-        className={cn("size-3 shrink-0", view.tone === "warning" ? "text-warning" : "text-subtle")}
+        className={cn(
+          "size-3 shrink-0",
+          view.tone === "warning"
+            ? "text-warning"
+            : view.tone === "info"
+              ? "text-info"
+              : "text-subtle"
+        )}
       />
       <span className="min-w-0 truncate">
         <span className="font-medium text-fg">{view.lead}</span>

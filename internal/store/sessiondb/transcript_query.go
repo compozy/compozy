@@ -209,6 +209,10 @@ func queryTranscriptChanges(
 	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query transcript changes max sequence: %w", err)
 	}
+	page.MinSequence, err = sqlcgen.New(tx).MinActiveEventSequence(ctx)
+	if err != nil {
+		return transcript.ChangePage{}, fmt.Errorf("store: query retained transcript boundary: %w", err)
+	}
 	// One event can update its assigned entry and close at most one active
 	// assistant. Rank paging keeps that bounded two-entry change atomic.
 	// dynamic-sql: sqlc's SQLite analyzer cannot resolve the DENSE_RANK alias through the derived-table boundary.

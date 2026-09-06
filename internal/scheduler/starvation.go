@@ -64,7 +64,7 @@ func (s *Scheduler) escalateCandidate(
 	var errs []error
 	errs = append(errs, s.escalateSpawn(ctx, now, work, &mutation, result)...)
 	errs = append(errs, s.escalateEvent(ctx, now, queuedAge, work, &mutation)...)
-	cleared, attnErrs := s.escalateNeedsAttention(ctx, runID, queuedAge, mutation, result)
+	cleared, attnErrs := s.escalateNeedsAttention(ctx, runID, queuedAge, mutation, work.CapacityReason, result)
 	errs = append(errs, attnErrs...)
 	if cleared {
 		return errors.Join(errs...)
@@ -147,12 +147,17 @@ func (s *Scheduler) escalateNeedsAttention(
 	runID string,
 	queuedAge time.Duration,
 	mutation taskpkg.RunStarvationMutation,
+	capacityReason string,
 	result *CycleResult,
 ) (bool, []error) {
 	if mutation.WakeCount < s.starveThresholds.NeedsAttentionAfter {
 		return false, nil
 	}
-	_, err := s.escalator.MarkRunNeedsAttention(ctx, runID, starvationDiagnostic(queuedAge, mutation))
+	_, err := s.escalator.MarkRunNeedsAttention(
+		ctx,
+		runID,
+		starvationDiagnostic(queuedAge, mutation)+capacityWaitDiagnostic(capacityReason),
+	)
 	if err != nil && !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 		return false, []error{fmt.Errorf("scheduler: mark run needs attention %q: %w", runID, err)}
 	}
@@ -262,4 +267,11 @@ func effectiveQueuedAge(now time.Time, queuedAt time.Time, starvationNotBefore t
 		effectiveQueuedAt = starvationNotBefore
 	}
 	return max(now.Sub(effectiveQueuedAt), 0), true
+}
+
+func capacityWaitDiagnostic(reason string) string {
+	if reason == "" {
+		return ""
+	}
+	return "; capacity waiting: " + reason
 }

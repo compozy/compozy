@@ -52,6 +52,7 @@ function createWrapper() {
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    supervision: null,
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "sess-001",
@@ -303,6 +304,7 @@ function createWrapperWithClient(queryClient: QueryClient) {
 describe("useSession", () => {
   it("loads a single session detail", async () => {
     vi.mocked(fetchSessionById).mockResolvedValue({
+      supervision: null,
       profile_id: "00000000000000000000000000",
       profile_name: "default",
       id: "sess-001",

@@ -187,9 +187,10 @@ export const StatusBadgeCycleInteraction: Story = {
     const wrapper = await canvas.findByTestId("tool-statuses");
     // `pending` is intentionally glyph-less (the row is muted while it prepares
     // input); every resolved/running state carries one signal-toned glyph.
-    const glyphLabels: Record<Exclude<ToolCallStatus, "pending">, string> = {
+    const glyphLabels: Record<Exclude<ToolCallStatus, "pending" | "stopped">, string> = {
       running: "Running",
       failed: "Error",
+      absorbed: "Failed",
       success: "Done",
       empty: "Empty",
     };
@@ -197,12 +198,12 @@ export const StatusBadgeCycleInteraction: Story = {
       const card = wrapper.querySelector<HTMLElement>(`[data-status-key="${status}"]`);
       await expect(card).not.toBeNull();
       const badge = card?.querySelector<HTMLElement>('[data-slot="tool-call-row-status"]');
-      if (status === "pending") {
+      if (status === "pending" || status === "stopped") {
         await expect(badge).toBeNull();
         continue;
       }
       await expect(badge?.getAttribute("aria-label")).toBe(
-        glyphLabels[status as Exclude<ToolCallStatus, "pending">]
+        glyphLabels[status as Exclude<ToolCallStatus, "pending" | "stopped">]
       );
       await expect(badge?.getAttribute("data-status")).toBe(status);
     }

@@ -98,10 +98,12 @@ type SendPromptResultPayload struct {
 type SessionInputPayload struct {
 	ID               string                          `json:"id"`
 	SessionID        string                          `json:"session_id"`
+	OwnerKind        string                          `json:"owner_kind,omitempty"`
+	OwnerID          string                          `json:"owner_id,omitempty"`
 	MessageID        string                          `json:"message_id,omitempty"`
 	IdempotencyKey   string                          `json:"idempotency_key,omitempty"`
 	TargetTurnID     string                          `json:"target_turn_id,omitempty"`
-	Status           string                          `json:"status"`
+	Status           SessionInputStatus              `json:"status"`
 	Mode             PromptMode                      `json:"mode"`
 	Delivery         PromptDelivery                  `json:"delivery"`
 	SteerDelivery    store.SteerDeliveryMode         `json:"steer_delivery,omitempty"`
@@ -115,7 +117,14 @@ type SessionInputPayload struct {
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.
 type SessionInputListResponse struct {
-	Inputs []SessionInputPayload `json:"inputs"`
+	Inputs []SessionInputPayload       `json:"inputs"`
+	Queue  *SessionQueueSummaryPayload `json:"queue,omitempty"`
+}
+
+// SessionQueueSummaryPayload exposes the daemon's current admission capacity.
+type SessionQueueSummaryPayload struct {
+	Entries int `json:"entries"`
+	Cap     int `json:"cap"`
 }
 
 // SessionInputResponse returns one durable pending input.

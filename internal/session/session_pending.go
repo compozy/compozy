@@ -120,7 +120,7 @@ func (m *Manager) recoverPendingInteractions(ctx context.Context, sessionID stri
 		}
 		if expire {
 			transition.Status = store.PendingInteractionStatusCanceled
-			transition.Resolution, transition.ResolvedBy = "failed-by-restart", "system"
+			transition.Resolution, transition.ResolvedBy = "failed-by-restart", sessionSystemActorKind
 		}
 		commit, err := m.transitionPendingInteraction(ctx, transition)
 		if err != nil {

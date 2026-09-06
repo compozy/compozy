@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"sync/atomic"
@@ -23,6 +24,53 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	t.Run(
+		"Should settle a queued Goal prompt when the operator explicitly clears the shared queue",
+		func(t *testing.T) {
+			driver := newHarnessIntegrationDriver()
+			release := make(chan struct{})
+			defer close(release)
+			driver.promptHook = func(ctx context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 1)
+				go func() {
+					defer close(events)
+					select {
+					case <-ctx.Done():
+					case <-release:
+					}
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+				}()
+				return events, nil
+			}
+			fixture := newLoopGoalManagedRuntimeFixture(t, "clear-queued", driver)
+			ctx := testutil.Context(t)
+			active, err := fixture.manager.Prompt(ctx, fixture.binding.SessionID, "hold active turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ticket, err := fixture.preparePrompt(t, "goal-clear-queued", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := fixture.manager.ClearPendingInputs(ctx, fixture.binding.SessionID,
+				session.PromptCaller{Kind: "human", ID: "queue-operator", Source: "test"})
+			if err != nil || result.ClearedCount != 1 {
+				t.Fatalf("clear Goal queue = %#v, %v", result, err)
+			}
+			awaitCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			terminal, err := fixture.runtime.AwaitActionPrompt(awaitCtx, ticket)
+			if err != nil || terminal.Outcome != looppkg.ActionPromptOutcomeControlFenced ||
+				terminal.FenceDisposition != looppkg.ActionDispositionPaused || terminal.PromptID != ticket.PromptID {
+				t.Fatalf("cleared Goal terminal = %#v, %v", terminal, err)
+			}
+			if err := fixture.manager.Stop(ctx, fixture.binding.SessionID); err != nil {
+				t.Fatal(err)
+			}
+			for range active {
+			}
+		},
+	)
 	t.Run("Should keep a quiet action alive without an inherited deadline", func(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})
@@ -1157,10 +1205,21 @@ func newLoopGoalManagedRuntimeFixture(
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
 
+	// The fixture starts at a live Goal cell after the coordinator advanced generation 1.
+	// Run creation reserves that generation with a zero cursor; seed its active cursor here.
+	connection, ok := daemonInstance.registry.(interface{ DB() *sql.DB })
+	if !ok {
+		t.Fatalf("registry = %T, want SQL fixture connection", daemonInstance.registry)
+	}
+	if _, err := connection.DB().ExecContext(testutil.Context(t),
+		"UPDATE loop_runs SET generation = 1 WHERE id = ?", string(run.ID)); err != nil {
+		t.Fatalf("seed active Goal generation: %v", err)
+	}
+
 	actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "goal-managed-test"}
 	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "goal-managed-test"}
 	taskRecord := taskpkg.Task{
-		ID: "task-goal-managed-" + suffix, Scope: taskpkg.ScopeWorkspace,
+		ID: "task-goal-managed-" + suffix, ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
 		WorkspaceID: resolvedWorkspace.ID, Title: "Run managed Goal prompt",
 		Status: taskpkg.TaskStatusInProgress, Priority: taskpkg.PriorityHigh,
 		CreatedBy: actor, Origin: origin, CreatedAt: now, UpdatedAt: now,
@@ -1226,7 +1285,7 @@ func newLoopGoalManagedRuntimeFixture(
 
 func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.ActionSessionBindRequest {
 	return looppkg.ActionSessionBindRequest{
-		WorkspaceID: f.run.WorkspaceID, LoopRunID: f.run.ID, Generation: 1,
+		WorkspaceID: f.run.WorkspaceID, ProfileID: store.DefaultProfileID, LoopRunID: f.run.ID, Generation: 1,
 		NodeID: "converge", ItemIndex: 0, Agent: f.agentName,
 		Environment: &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
 		Handle:      "goal:managed:" + suffix, Mode: "continuous",

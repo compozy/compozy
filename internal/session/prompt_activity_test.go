@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,40 +72,43 @@ func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.
 	}
 }
 
+// Invariant: waiting reports never renew work evidence. Owner: session; canonical activity/supervision suite.
 func TestPromptActivitySupervisorWaitingHeartbeatDoesNotPreventTimeout(t *testing.T) {
 	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, WithNow(func() time.Time { return now }))
-	session := createSession(t, h)
-	session.setCurrentTurnSource(TurnSourceUser)
-	session.setCurrentPromptMeta(acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
-
 	config := testSupervisionConfig()
-	config.InactivityTimeout = time.Second
-	config.TimeoutCancelGrace = 200 * time.Millisecond
-	supervisor := newPromptActivitySupervisor(
-		testutil.Context(t),
-		h.manager,
-		session,
-		newPromptTurnDispatchState(session, "turn-heartbeat-timeout", TurnSourceUser, "hello"),
-		config,
-	)
+	config.QuietAfter, config.StopGrace = time.Second, time.Second
+	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(config))
+	target := createSession(t, h)
+	installAbsentWorkSources(h.manager)
+	supervisor := newPromptActivitySupervisor(t.Context(), h.manager, target,
+		newPromptTurnDispatchState(target, "turn-heartbeat-timeout", TurnSourceUser, "hello"), config)
 	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
-	supervisor.report(acp.PromptActivityReport{
-		Timestamp: now.Add(500 * time.Millisecond),
-		Kind:      runtimeActivityKindAgentWaiting,
-		Detail:    "waiting for provider",
-	})
-	supervisor.evaluate(now.Add(2 * time.Second))
-
-	if got := h.driver.cancelCalls; got != 1 {
-		t.Fatalf("driver cancel calls = %d, want 1", got)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
 	}
-	if got := h.driver.stopCalls; got != 1 {
-		t.Fatalf("driver stop calls = %d, want 1", got)
+	for range 2 {
+		now = now.Add(time.Second)
+		supervisor.report(
+			acp.PromptActivityReport{
+				Timestamp: now,
+				Kind:      runtimeActivityKindAgentWaiting,
+				Detail:    "waiting for provider",
+			},
+		)
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
 	}
-	meta := readMeta(t, session.MetaPath())
-	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout {
-		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopTimeout)
+	outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
+	if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+		t.Fatalf("stop = %#v, %v", outcome, err)
+	}
+	meta := readMeta(t, target.MetaPath())
+	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout || meta.StopDetail != "inactivity" {
+		t.Fatalf("stop reason = %#v, %q", meta.StopReason, meta.StopDetail)
+	}
+	for _, kind := range []string{eventspkg.SessionSupervisionWarning, eventspkg.SessionSupervisionStopped} {
+		assertSupervisionEventCorrelation(t, h.manager, target, kind)
 	}
 }
 
@@ -112,8 +117,8 @@ func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing
 		WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 			ActivityHeartbeatInterval: time.Millisecond,
 			ProgressNotifyInterval:    time.Millisecond,
-			InactivityWarningAfter:    0,
-			InactivityTimeout:         0,
+			QuietAfter:                0,
+			StopGrace:                 0,
 			TimeoutCancelGrace:        time.Second,
 		}),
 	)
@@ -153,41 +158,56 @@ func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing
 	}
 }
 
+// Invariant: warning is emitted once per quiet episode and real progress clears it. Owner: session; canonical activity suite.
 func TestPromptActivitySupervisorWarningEmitsOnce(t *testing.T) {
-	t.Parallel()
-
 	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, WithNow(func() time.Time { return now }))
-	session := createSession(t, h)
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
-	})
-
-	config := testSupervisionConfig()
-	config.InactivityWarningAfter = time.Minute
-	supervisor := newPromptActivitySupervisor(
-		testutil.Context(t),
-		h.manager,
-		session,
-		newPromptTurnDispatchState(session, "turn-warning", TurnSourceUser, "hello"),
-		config,
-	)
-	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
-	supervisor.evaluate(now.Add(2 * time.Minute))
-
-	warning := readRuntimeEvent(t, supervisor.eventsChannel())
-	if got, want := warning.Type, acp.EventTypeRuntimeWarning; got != want {
-		t.Fatalf("warning event type = %q, want %q", got, want)
+	cfg := testSupervisionConfig()
+	cfg.QuietAfter = time.Minute
+	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+	target := createSession(t, h)
+	installAbsentWorkSources(h.manager)
+	for range 4 {
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Minute)
 	}
-	if warning.Runtime == nil || warning.Runtime.IdleSeconds < 60 {
-		t.Fatalf("warning runtime = %#v, want idle activity payload", warning.Runtime)
+	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 1 {
+		t.Fatal("quiet episode must warn exactly once")
 	}
+	warning := target.Info().Supervision.QuietWarning
+	if warning == nil || warning.StopAt != nil {
+		t.Fatalf("warning-only policy = %#v", warning)
+	}
+	h.manager.recordWorkProgress(target, now)
+	if target.Info().Supervision.QuietWarning != nil {
+		t.Fatal("progress did not clear quiet warning")
+	}
+	now = now.Add(2*cfg.ActivityHeartbeatInterval + time.Second)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Minute)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
+	}
+	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 2 {
+		t.Fatal("new quiet episode did not warn")
+	}
+	reportSessionStop(t, h, target.ID)
+}
 
-	supervisor.evaluate(now.Add(3 * time.Minute))
-	select {
-	case event := <-supervisor.eventsChannel():
-		t.Fatalf("unexpected second warning event: %#v", event)
-	default:
+func installAbsentWorkSources(manager *Manager) {
+	for _, name := range WorkSignalKindValues() {
+		if WorkSignalKind(name) == WorkSignalAgentProgress {
+			continue
+		}
+		manager.SetWorkSignalSources(
+			WorkSignalSource{
+				Kind:   WorkSignalKind(name),
+				Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) { return nil, nil }),
+			},
+		)
 	}
 }
 
@@ -407,42 +427,36 @@ func TestPromptActivitySupervisorIgnoresUnknownProcessHealthSnapshot(t *testing.
 	}
 }
 
+// Invariant: quiet grace settles through the shared verified stop ladder and emits a truthful terminal event.
+// Owner: session lifecycle; this existing activity suite owns the supervision trigger.
 func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, WithNow(func() time.Time { return now }))
-	session := createSession(t, h)
-	session.setCurrentTurnSource(TurnSourceUser)
-	session.setCurrentPromptMeta(acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
-
-	config := testSupervisionConfig()
-	config.InactivityTimeout = time.Second
-	config.TimeoutCancelGrace = 200 * time.Millisecond
-	supervisor := newPromptActivitySupervisor(
-		testutil.Context(t),
-		h.manager,
-		session,
-		newPromptTurnDispatchState(session, "turn-timeout", TurnSourceUser, "hello"),
-		config,
-	)
-	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
-	supervisor.evaluate(now.Add(2 * time.Second))
-
-	if got := h.driver.cancelCalls; got != 1 {
-		t.Fatalf("driver cancel calls = %d, want 1", got)
+	cfg := testSupervisionConfig()
+	cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+	target := createSession(t, h)
+	installAbsentWorkSources(h.manager)
+	for range 2 {
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Second)
 	}
-	if got := h.driver.stopCalls; got != 1 {
-		t.Fatalf("driver stop calls = %d, want 1", got)
+	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 0 {
+		t.Fatal("supervision stopped before settlement")
 	}
-	meta := readMeta(t, session.MetaPath())
-	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout {
-		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopTimeout)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
 	}
-	if meta.Liveness == nil || meta.Liveness.Activity != nil {
-		t.Fatalf("meta.Liveness = %#v, want cleared activity after forced stop", meta.Liveness)
+	outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
+	if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+		t.Fatalf("stop = %#v, %v", outcome, err)
 	}
-	marker := requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerPromptTimeout)
-	if got, want := marker.Evidence["stall_reason"], store.SessionStallReasonActivityTimeout; got != want {
-		t.Fatalf("timeout marker stall_reason = %#v, want %q", got, want)
+	if h.driver.cancelCalls != 1 || h.driver.stopCalls != 1 {
+		t.Fatalf("cancel/stop = %d/%d", h.driver.cancelCalls, h.driver.stopCalls)
+	}
+	if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionStopped) != 1 {
+		t.Fatal("missing unique supervision settlement")
 	}
 }
 
@@ -672,8 +686,8 @@ func testSupervisionConfig() compozyconfig.SessionSupervisionConfig {
 	return compozyconfig.SessionSupervisionConfig{
 		ActivityHeartbeatInterval: time.Hour,
 		ProgressNotifyInterval:    0,
-		InactivityWarningAfter:    0,
-		InactivityTimeout:         0,
+		QuietAfter:                0,
+		StopGrace:                 0,
 		TimeoutCancelGrace:        time.Second,
 	}
 }
@@ -781,4 +795,279 @@ func storedEventsContainType(events []store.SessionEvent, eventType string) bool
 		}
 	}
 	return false
+}
+
+// Invariant: only fresh authoritative evidence protects a session; source failures remain explicit.
+// Owner: session signal aggregation; canonical activity/supervision suite (UT-058..061, UT-123..126/130).
+func TestWorkSignalRegistryFreshnessAndUnknownSources(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	for _, name := range WorkSignalKindValues() {
+		t.Run(name, func(t *testing.T) {
+			kind := WorkSignalKind(name)
+			registry := NewWorkSignalRegistry()
+			for _, sourceKind := range WorkSignalKindValues() {
+				registry.Register(
+					WorkSignalSource{
+						Kind: WorkSignalKind(sourceKind),
+						Source: SignalSourceFunc(
+							func(context.Context, string) ([]WorkSignal, error) { return nil, nil },
+						),
+					},
+				)
+			}
+			registry.Register(
+				WorkSignalSource{
+					Kind: kind,
+					Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+						return []WorkSignal{
+							{
+								Kind:       kind,
+								Since:      now.Add(-time.Minute),
+								ValidUntil: now,
+								Ref:        "work",
+								StaleAttention: kind == WorkSignalToolRunning || kind == WorkSignalActiveChild ||
+									kind == WorkSignalLoopRun,
+							},
+						}, nil
+					}),
+				},
+			)
+			atBoundary := registry.Inspect(t.Context(), "session", now)
+			strict := kind == WorkSignalTaskLease || kind == WorkSignalScheduledWait
+			if (len(atBoundary.WorkSignals) == 0) != strict {
+				t.Fatalf("boundary evidence = %#v", atBoundary)
+			}
+			stale := registry.Inspect(t.Context(), "session", now.Add(time.Nanosecond))
+			if len(stale.WorkSignals) != 0 {
+				t.Fatal("stale evidence remains present")
+			}
+			wantAttention := kind == WorkSignalToolRunning || kind == WorkSignalActiveChild || kind == WorkSignalLoopRun
+			if supervisionNeedsAttention(stale) != wantAttention {
+				t.Fatalf("stale attention = %#v", stale)
+			}
+			registry.Register(
+				WorkSignalSource{
+					Kind: kind,
+					Source: SignalSourceFunc(
+						func(context.Context, string) ([]WorkSignal, error) { return nil, errors.New("inspection failed") },
+					),
+				},
+			)
+			unknown := registry.Inspect(t.Context(), "session", now)
+			if len(unknown.WorkSignals) != 0 || !supervisionNeedsAttention(unknown) {
+				t.Fatalf("unknown = %#v", unknown)
+			}
+		})
+	}
+}
+
+// Invariant: zero quiet disables both actions, and unknown inspection cannot trigger an automatic stop.
+// Owner: session; canonical activity/supervision suite (UT-064, IT-025 decision boundary).
+func TestSupervisionDisableAndSourceFailure(t *testing.T) {
+	for _, mode := range []string{"disabled", "unknown", "valid", "stale"} {
+		t.Run(mode, func(t *testing.T) {
+			now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+			cfg := testSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+			if mode == "disabled" {
+				cfg.QuietAfter = 0
+			}
+			h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+			target := createSession(t, h)
+			installAbsentWorkSources(h.manager)
+			fixed := now
+			if mode != "disabled" {
+				h.manager.SetWorkSignalSources(
+					WorkSignalSource{
+						Kind: WorkSignalToolRunning,
+						Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+							if mode == "unknown" {
+								return nil, errors.New("registry unavailable")
+							}
+							until := fixed.Add(time.Hour)
+							if mode == "stale" {
+								until = fixed.Add(-time.Second)
+							}
+							return []WorkSignal{
+								{
+									Kind:           WorkSignalToolRunning,
+									Since:          fixed.Add(-time.Minute),
+									ValidUntil:     until,
+									Ref:            "tool",
+									StaleAttention: true,
+								},
+							}, nil
+						}),
+					},
+				)
+			}
+			for range 3 {
+				if err := h.manager.Supervise(t.Context(), now); err != nil {
+					t.Fatal(err)
+				}
+				if mode != "stale" {
+					now = now.Add(time.Minute)
+				} else if target.Info().State == StateActive {
+					now = now.Add(time.Second)
+				}
+			}
+			if mode == "stale" {
+				outcome, err := h.manager.AwaitStopped(t.Context(), target.ID)
+				if err != nil || !outcome.Verified {
+					t.Fatalf("stale work did not stop: %#v, %v", outcome, err)
+				}
+				return
+			}
+			if target.Info().State != StateActive || target.Info().Supervision.QuietWarning != nil {
+				t.Fatalf("unexpected action: %#v", target.Info())
+			}
+			if mode == "unknown" {
+				assertSupervisionEventCorrelation(t, h.manager, target, eventspkg.SessionSupervisionSourceError)
+				if BadgeForInfo(target.Info()) != BadgeNeedsAttention {
+					t.Fatal("source error did not surface attention")
+				}
+				if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionSourceError) != 1 {
+					t.Fatal("source error must emit once while unchanged")
+				}
+			}
+			reportSessionStop(t, h, target.ID)
+		})
+	}
+}
+
+// Invariant: retrying a failed warning append keeps the same episode identity.
+// Owner: session supervision; canonical activity suite, recorder I/O boundary.
+func TestSupervisionWarningRetriesSameEpisode(t *testing.T) {
+	for _, afterCommit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retry once after commit %t", afterCommit), func(t *testing.T) {
+			now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+			cfg := testSupervisionConfig()
+			cfg.QuietAfter, cfg.StopGrace = time.Second, time.Hour
+			h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+			target := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			installAbsentWorkSources(h.manager)
+			recorder := &quietWarningFailingRecorder{EventRecorder: target.recorderHandle(), afterCommit: afterCommit}
+			recorder.fail.Store(true)
+			target.mu.Lock()
+			target.recorder = recorder
+			target.mu.Unlock()
+			if err := h.manager.Supervise(t.Context(), now); err != nil {
+				t.Fatal(err)
+			}
+			now = now.Add(time.Second)
+			if err := h.manager.Supervise(t.Context(), now); err == nil {
+				t.Fatal("warning persistence failure was hidden")
+			}
+			first := target.Info().Supervision.QuietWarning
+			if first == nil {
+				t.Fatal("warning episode was discarded")
+			}
+			recorder.fail.Store(false)
+			now = now.Add(time.Second)
+			for range 2 {
+				if err := h.manager.Supervise(t.Context(), now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			current := target.Info().Supervision.QuietWarning
+			if current == nil || !current.WarnedAt.Equal(first.WarnedAt) {
+				t.Fatalf("warning changed identity: %+v", current)
+			}
+			if countEventType(readStoredEvents(t, target), eventspkg.SessionSupervisionWarning) != 1 {
+				t.Fatal("warning was duplicated or lost")
+			}
+		})
+	}
+}
+
+type quietWarningFailingRecorder struct {
+	EventRecorder
+	fail        atomic.Bool
+	afterCommit bool
+}
+
+func (r *quietWarningFailingRecorder) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	failing := event.Type == eventspkg.SessionSupervisionWarning && r.fail.Load()
+	if failing && !r.afterCommit {
+		return store.SessionEvent{}, errors.New("warning persistence failed")
+	}
+	persisted, err := recordIdempotentSessionEvent(ctx, r.EventRecorder, event)
+	if failing {
+		return persisted, errors.Join(err, errors.New("warning acknowledgement lost"))
+	}
+	return persisted, err
+}
+
+// Canonical supervision event coverage: lifecycle and failure paths above own emissions.
+func assertSupervisionEventCorrelation(t *testing.T, manager *Manager, target *Session, kind string) {
+	t.Helper()
+	rows, err := manager.Events(t.Context(), target.ID, store.EventQuery{Type: kind})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("%s event count = %d", kind, len(rows))
+	}
+	event, err := transcript.UnmarshalAgentEvent(rows[0].Content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(event.Raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["workspace_id"] != target.WorkspaceID || payload["session_id"] != target.ID ||
+		payload["turn_id"] != rows[0].TurnID ||
+		rows[0].TurnID == "" ||
+		payload["actor_id"] != "daemon" ||
+		payload["actor_kind"] != "system" ||
+		event.ActorID != "daemon" ||
+		event.ActorKind != "system" {
+		t.Fatalf("%s correlation = %+v / %+v", kind, payload, event.EventCorrelation)
+	}
+}
+
+func TestPromptActivitySupervisorEventBatch(t *testing.T) {
+	t.Run("Should preserve tool transitions and latest activity across a batch", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+		h := newHarness(t, WithNow(func() time.Time { return now }))
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		supervisor := newPromptActivitySupervisor(
+			testutil.Context(t), h.manager, sess,
+			newPromptTurnDispatchState(sess, "turn-batch", TurnSourceUser, "batch"), testSupervisionConfig(),
+		)
+		supervisor.observeEvent(acp.AgentEvent{
+			Type: acp.EventTypeToolCall, Title: "Old tool", ToolCallID: "old", Timestamp: now,
+		})
+		supervisor.observeEventBatch([]acp.AgentEvent{
+			{Type: acp.EventTypeToolResult, ToolCallID: "old", Timestamp: now.Add(time.Second)},
+			{Type: acp.EventTypeToolCall, ToolCallID: "new", Timestamp: now.Add(2 * time.Second)},
+			{Type: acp.EventTypeAgentMessage, Text: "Still working", Timestamp: now.Add(3 * time.Second)},
+		})
+		meta := readMeta(t, sess.MetaPath())
+		if meta.Liveness == nil || meta.Liveness.Activity == nil {
+			t.Fatal("batch activity was not persisted")
+		}
+		activity := meta.Liveness.Activity
+		if activity.CurrentTool != "" || activity.ToolCallID != "new" ||
+			activity.LastActivityKind != acp.EventTypeAgentMessage || activity.LastActivityDetail != "Still working" ||
+			activity.LastActivityAt == nil || !activity.LastActivityAt.Equal(now.Add(3*time.Second)) {
+			t.Fatalf("batch activity = %#v, want newest tool identity without stale title and latest prose", activity)
+		}
+		supervisor.observeEventBatch([]acp.AgentEvent{
+			{Type: acp.EventTypeToolResult, ToolCallID: "new", Timestamp: now.Add(4 * time.Second)},
+			{Type: acp.EventTypeThought, Text: "Next step", Timestamp: now.Add(5 * time.Second)},
+		})
+		activity = readMeta(t, sess.MetaPath()).Liveness.Activity
+		if activity.CurrentTool != "" || activity.ToolCallID != "" ||
+			activity.LastActivityKind != acp.EventTypeThought {
+			t.Fatalf("completed batch activity = %#v, want tool cleared with latest thought", activity)
+		}
+	})
 }

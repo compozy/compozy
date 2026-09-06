@@ -16,12 +16,24 @@ type sessionWorkspaceClient interface {
 	agentSessionClient
 }
 
+const (
+	sessionSequenceLabel = "Seq"
+	sessionTurnLabel     = "Turn"
+)
+
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {
 	return listBundle(
 		events,
 		events,
 		"Session Events",
-		[]string{"Seq", sessionTypeValue, sessionAgentValue, "Turn", sessionTimestampValue, "Content"},
+		[]string{
+			sessionSequenceLabel,
+			sessionTypeValue,
+			sessionAgentValue,
+			sessionTurnLabel,
+			sessionTimestampValue,
+			"Content",
+		},
 		"events",
 		[]string{
 			sessionSequenceKey,
@@ -60,7 +72,14 @@ func sessionHistoryBundle(history []TurnHistoryRecord) outputBundle {
 		history,
 		flattened,
 		"Session History",
-		[]string{"Turn", "Seq", sessionTypeValue, sessionAgentValue, sessionTimestampValue, "Content"},
+		[]string{
+			sessionTurnLabel,
+			sessionSequenceLabel,
+			sessionTypeValue,
+			sessionAgentValue,
+			sessionTimestampValue,
+			"Content",
+		},
 		"history",
 		[]string{
 			sessionTurnIDKey,

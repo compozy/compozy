@@ -5,7 +5,22 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from "sonner";
 
-import { createSessionPageControlsLogic, isStopRetryPending } from "../session-page-controls-store";
+import { SessionApiError, type SessionSendEnvelope } from "@/systems/session";
+import {
+  createSessionPageControlsLogic,
+  isStopRetryPending,
+  STOP_COMPLETION_NOTE_MS,
+  stopVerdictFromResult,
+} from "../session-page-controls-store";
+
+const envelope: SessionSendEnvelope = {
+  action: "queue",
+  attachments: [],
+  expectedTurnId: "turn-1",
+  identity: { idempotencyKey: "idk-1", messageId: "msg-1" },
+  runtime: null,
+  text: "Also run the migration equivalence suite",
+};
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -208,6 +223,70 @@ describe("session page controls store", () => {
       expect(early.context.stop.phase).toBe("idle");
     });
 
+    // Invariant (US-009.EC-2): only the daemon's own `nothing-in-flight` verdict
+    // on the operator's turn stop reads "Completed · the stop arrived after the
+    // turn finished" — it settles the stop at once, never claims canceled, and
+    // the store clears the note after its window without any remount.
+    it("Should read a nothing-in-flight verdict as a completed turn with a transient note", async () => {
+      vi.useFakeTimers();
+      try {
+        const store = createSessionPageControlsLogic().createStore();
+        store.trigger.lifecycleObserved({ running: true, state: "active", turnId: "turn-1" });
+        store.trigger.stopRequested({
+          execute: () =>
+            Promise.resolve({ outcome: "nothing-in-flight", session_id: "sess-1", turn_id: "" }),
+          failureMessage: null,
+          scope: "turn",
+          turnId: "turn-1",
+        });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(store.getSnapshot().context.stop.phase).toBe("idle");
+        expect(store.getSnapshot().context.stopCompletion).toMatchObject({ requestId: 1 });
+
+        // A stale lifecycle that still reports the turn does not resurrect the stop.
+        store.trigger.lifecycleObserved({ running: true, state: "active", turnId: "turn-1" });
+        expect(store.getSnapshot().context.stop.phase).toBe("idle");
+
+        await vi.advanceTimersByTimeAsync(STOP_COMPLETION_NOTE_MS);
+        expect(store.getSnapshot().context.stopCompletion).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("Should keep a canceled verdict stopping until the daemon drops the turn and clear a note on a new stop", async () => {
+      const store = createSessionPageControlsLogic().createStore();
+      store.trigger.lifecycleObserved({ running: true, state: "active", turnId: "turn-1" });
+      store.trigger.stopRequested({
+        execute: () =>
+          Promise.resolve({ outcome: "canceled", session_id: "sess-1", turn_id: "turn-1" }),
+        failureMessage: null,
+        scope: "turn",
+        turnId: "turn-1",
+      });
+      await waitFor(() => expect(store.getSnapshot().context.stop.phase).toBe("stopping"));
+      expect(store.getSnapshot().context.stopCompletion).toBeNull();
+      store.trigger.lifecycleObserved({ running: false, state: "active", turnId: "" });
+      expect(store.getSnapshot().context.stop.phase).toBe("idle");
+
+      // A note from an earlier verdict is superseded by the next request.
+      let snapshot = store.getSnapshot();
+      [snapshot] = store.transition(
+        { ...snapshot, context: { ...snapshot.context, stopCompletion: { requestId: 1, at: 0 } } },
+        {
+          type: "stopRequested",
+          execute: () => new Promise<never>(() => undefined),
+          failureMessage: null,
+          scope: "turn",
+          turnId: "turn-2",
+        }
+      );
+      expect(snapshot.context.stopCompletion).toBeNull();
+      expect(stopVerdictFromResult({ outcome: "nothing-in-flight" })).toBe("nothing-in-flight");
+      expect(stopVerdictFromResult(undefined)).toBeNull();
+      expect(stopVerdictFromResult({ outcome: "elsewhere" })).toBeNull();
+    });
+
     it("Should settle a session stop once the daemon itself reads stopping or stopped", () => {
       const store = createSessionPageControlsLogic().createStore();
       let snapshot = store.getInitialSnapshot();
@@ -357,5 +436,143 @@ describe("session page controls store", () => {
       expect(execute).toHaveBeenCalledTimes(2);
       expect(isStopRetryPending(store.getSnapshot().context)).toBe(true);
     });
+  });
+
+  it("Should retain a send whose acknowledgment was lost and resolve it on a replayed outcome (UT-128)", () => {
+    const store = createSessionPageControlsLogic().createStore();
+    const pending = () => new Promise<never>(() => undefined);
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: envelope.text,
+      send: envelope,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputFailed",
+      requestId: snapshot.context.busyInput.requestId,
+      error: new TypeError("Failed to fetch"),
+    });
+    expect(snapshot.context.unconfirmedSends).toEqual([
+      { ...envelope, id: "msg-1", phase: "unconfirmed" },
+    ]);
+
+    // Retry replays the same identity; the row waits as "retrying" until the answer.
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: envelope.text,
+      retryOf: "msg-1",
+      send: envelope,
+    });
+    expect(snapshot.context.busyInput).toMatchObject({ phase: "pending", retryOf: "msg-1" });
+    expect(snapshot.context.unconfirmedSends[0]?.phase).toBe("retrying");
+    // A second Retry while the replay is in flight is dropped, as is a discard.
+    const inFlight = snapshot;
+    [snapshot] = store.transition(snapshot, { type: "unconfirmedSendDiscarded", id: "msg-1" });
+    expect(snapshot.context.unconfirmedSends).toEqual(inFlight.context.unconfirmedSends);
+
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputSucceeded",
+      requestId: snapshot.context.busyInput.requestId,
+      result: {
+        delivery: "after_turn",
+        disposition: "queued",
+        idempotency_key: "idk-1",
+        message_id: "msg-1",
+        queue_position: 2,
+        replayed: true,
+        status: "queued",
+      },
+    });
+    expect(snapshot.context.unconfirmedSends).toEqual([]);
+  });
+
+  it("Should treat a daemon refusal as an outcome and remember the queue cap it named", () => {
+    const store = createSessionPageControlsLogic().createStore();
+    const pending = () => new Promise<never>(() => undefined);
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: envelope.text,
+      send: envelope,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputFailed",
+      requestId: snapshot.context.busyInput.requestId,
+      error: new SessionApiError("queue full", 409, "sess-1", { code: "queue_full", queueCap: 10 }),
+    });
+    // The daemon answered: nothing is unconfirmed, and the cap is now known.
+    expect(snapshot.context.unconfirmedSends).toEqual([]);
+    expect(snapshot.context.queueCap).toBe(10);
+
+    // A lost replay returns to waiting; a refused replay resolves the row.
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: envelope.text,
+      send: envelope,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputFailed",
+      requestId: snapshot.context.busyInput.requestId,
+      error: new SessionApiError("gateway", 504),
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: envelope.text,
+      retryOf: "msg-1",
+      send: envelope,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputFailed",
+      requestId: snapshot.context.busyInput.requestId,
+      error: new SessionApiError("conflict", 409, "sess-1", { code: "send_conflict" }),
+    });
+    expect(snapshot.context.unconfirmedSends).toEqual([]);
+  });
+
+  it("Should drop a waiting unconfirmed row on discard without asking the daemon", () => {
+    const store = createSessionPageControlsLogic().createStore();
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: () => new Promise<never>(() => undefined),
+      kind: "steer",
+      message: envelope.text,
+      send: { ...envelope, action: "steer" },
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputFailed",
+      requestId: snapshot.context.busyInput.requestId,
+      error: new SessionApiError("gateway", 502),
+    });
+    expect(snapshot.context.unconfirmedSends).toHaveLength(1);
+    [snapshot] = store.transition(snapshot, { type: "unconfirmedSendDiscarded", id: "msg-1" });
+    expect(snapshot.context.unconfirmedSends).toEqual([]);
+  });
+
+  it("Should retain a streaming prompt that got no answer as unconfirmed with its own identity", () => {
+    const store = createSessionPageControlsLogic().createStore();
+    let snapshot = store.getInitialSnapshot();
+    const prompt: SessionSendEnvelope = {
+      ...envelope,
+      action: "prompt",
+      identity: { idempotencyKey: "idk-p", messageId: "msg-p" },
+    };
+    [snapshot] = store.transition(snapshot, { type: "sendUnconfirmedObserved", send: prompt });
+    expect(snapshot.context.unconfirmedSends).toEqual([
+      { ...prompt, id: "msg-p", phase: "unconfirmed" },
+    ]);
+    // The same identity observed twice is still one row.
+    [snapshot] = store.transition(snapshot, { type: "sendUnconfirmedObserved", send: prompt });
+    expect(snapshot.context.unconfirmedSends).toHaveLength(1);
   });
 });

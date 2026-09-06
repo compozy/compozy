@@ -250,6 +250,7 @@ type ActivationEnvelope struct {
 
 // SchedulerState stores the durable scheduling cursor for one automation job.
 type SchedulerState struct {
+	DeferredUntil             *time.Time             `json:"deferred_until,omitempty"`
 	JobID                     string                 `json:"job_id"`
 	NextRunAt                 *time.Time             `json:"next_run_at,omitempty"`
 	LastRunAt                 *time.Time             `json:"last_run_at,omitempty"`

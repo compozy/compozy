@@ -80,6 +80,7 @@ type OwnedSession = SessionPayload & { workspace_id: string };
 
 function makeSession(id: string, workspaceId: string, name: string): OwnedSession {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id,

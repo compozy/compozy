@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestSessionDBLifecyclePersistsAcrossReopen(t *testing.T) {
@@ -151,6 +152,64 @@ func TestSessionDBSupportsConcurrentReadersWithSingleWriter(t *testing.T) {
 
 func TestReadOnlyPoolLifecycle(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: stopped-session pooled readers expose search and outline over
+	// retained history. Owner: read-only pool; canonical suite: TestReadOnlyPoolLifecycle.
+	t.Run("Should preserve navigation reads through a real pooled lease", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		owner := testSessionDBOwner("sess-navigation-pool")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Record(
+			ctx,
+			store.SessionEvent{
+				ID:        "event-guide",
+				TurnID:    "turn-guide",
+				Type:      "user_message",
+				AgentName: "coder",
+				Content:   `{"type":"user_message","message_id":"msg-guide","text":"Retain the recovery guide"}`,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{})
+		t.Cleanup(func() {
+			if err := pool.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		lease, err := pool.Open(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lease.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, ok := lease.(transcript.NavigationReader)
+		if !ok {
+			t.Fatalf("pooled history cannot navigate: %T", lease)
+		}
+		matches, err := reader.TranscriptSearch(ctx, transcript.SearchQuery{Query: "recovery guide"})
+		if err != nil || len(matches.Matches) != 1 || matches.Matches[0].Sequence != 1 ||
+			matches.Matches[0].TurnID != "turn-guide" {
+			t.Fatalf("pooled search=%#v/%v", matches, err)
+		}
+		outline, err := reader.TranscriptOutline(ctx)
+		if err != nil || len(outline.Entries) != 1 || outline.Entries[0].Sequence != 1 ||
+			outline.Entries[0].TurnID != "turn-guide" ||
+			outline.Entries[0].Preview != "Retain the recovery guide" {
+			t.Fatalf("pooled outline=%#v/%v", outline, err)
+		}
+	})
 
 	t.Run("Should preserve conversation rewind reads through a pooled lease", func(t *testing.T) {
 		t.Parallel()

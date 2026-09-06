@@ -30,6 +30,7 @@ func (s *Session) infoLocked() *Info {
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 
 	return &Info{
+		Supervision:              CloneSupervisionState(s.supervisionState),
 		BusyInput:                s.busyInputStateLocked(acpCaps),
 		ID:                       s.ID,
 		ProfileID:                s.ProfileID,
@@ -60,6 +61,7 @@ func (s *Session) infoLocked() *Info {
 		State:                    s.State,
 		PendingPermission:        pendingPermission,
 		StopReason:               s.stopReason,
+		StopCause:                s.stopCause,
 		StopDetail:               s.stopDetail,
 		StopEscalated:            s.stopEscalated,
 		StopVerificationFailed:   s.stopVerificationFailed,

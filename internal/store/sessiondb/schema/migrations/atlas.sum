@@ -1,7 +1,9 @@
-h1:ZJXi/hgt1UsZ3y6SeUvbSDfMB1K7vBhz3KjwA26zy1k=
+h1:dVGlOogf/5uaQnQijBdNdCNhTc4M6rdeMTAKMGAcTJE=
 00001_baseline.sql h1:bXOy48LeBzy7PLWzCXQW/1CdBi+3LQtUySjgT8uUN0E=
 00002_schema.sql h1:ROugExdfsKSTgcLoFHvFdIALygvM7xEEUpS8llYFXpw=
 00003_schema.sql h1:pcqLU9sZ4pSnV0/pjOapcAUKqJuCHHc3AzdMv5ez6Ik=
 00004_owner_insert_guard.sql h1:gzCC3Q7PBfTRqYcSZeOQ/xccZFI5nJKhnIuFE9pJws8=
 00005_schema.sql h1:9qM0BcAasq3zY6D+jBQ9ivNQmbC9NOrvNmDlnK9Tyzc=
 00006_schema.sql h1:onfxiYDlXMxn7ApUGJVP35i2iiQz+i3vF+xI2hSRGcQ=
+00007_schema.sql h1:J4hMSgKWVuANDWjaFzZH2i8g/9LKk8rld4eJyn1Fvgc=
+00008_projection_display.sql h1:yHhnBDrxTE2p+PEX2Imh20ckpsBz/v2clUMB21pPYEA=

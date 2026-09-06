@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
 import type { UIMessage } from "../../types";
+import { DetailPayload } from "./detail-payload";
 import { DetailPre } from "./detail-pre";
 
 const VISIBLE_OUTPUT_LINES = 20;
@@ -50,6 +51,21 @@ export function BashContent({ message }: { message: UIMessage }) {
   const visibleStderr = clampLines(stderr, expanded, remainingLines);
   remainingLines = Math.max(0, remainingLines - stderrLines);
   const visibleError = clampLines(errorText, expanded, remainingLines);
+
+  // Plain stdout is the payload that grows without bound (a verbose test run):
+  // it renders through the bounded payload body with the truncation strip.
+  if (output && !stderr && !errorText) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-col gap-1" data-testid="bash-content">
+        {command ? (
+          <DetailPre className="shrink-0 text-subtle" data-testid="bash-command">
+            $ {String(command)}
+          </DetailPre>
+        ) : null}
+        <DetailPayload downloadName="command-output.txt" text={output} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="bash-content">

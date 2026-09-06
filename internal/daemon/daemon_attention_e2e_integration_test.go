@@ -541,8 +541,8 @@ func attentionOrchestrationRuntimeOptions(t testing.TB) e2etest.RuntimeHarnessOp
 	options.ConfigSeed.Mutate = func(cfg *compozyconfig.Config) {
 		cfg.Session.Supervision.ActivityHeartbeatInterval = 50 * time.Millisecond
 		cfg.Session.Supervision.ProgressNotifyInterval = 50 * time.Millisecond
-		cfg.Session.Supervision.InactivityWarningAfter = 2 * time.Second
-		cfg.Session.Supervision.InactivityTimeout = 5 * time.Second
+		cfg.Session.Supervision.QuietAfter = 2 * time.Second
+		cfg.Session.Supervision.StopGrace = 5 * time.Second
 	}
 	return options
 }

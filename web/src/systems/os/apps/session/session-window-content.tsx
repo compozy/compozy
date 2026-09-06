@@ -12,11 +12,14 @@ import {
   SessionEnvironmentControl,
   type SessionEnvironmentControlHandle,
   SessionPromptRuntimeSelector,
+  type SessionQuietWarning,
+  SessionQuietWarningNotice,
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
   SessionSidebar,
   SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
+  sessionQuietWarning,
   useCreateSession,
 } from "@/systems/session";
 
@@ -39,25 +42,22 @@ const SessionInspector = lazy(() =>
   }))
 );
 
-function workingStartedAt(value: string | null | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
 
 /**
  * The one session-level notice above the transcript, on the transcript's inset
  * rail so it aligns with the messages below instead of running edge to edge.
  * Precedence: a recovering runtime, then an unverified stop, then an attach
- * failure, then a runtime that can only be forked.
+ * failure, then a runtime that can only be forked, then the daemon's quiet
+ * warning (US-014.EC-2) — every actionable failure outranks a warning about
+ * work that merely paused.
  */
 function SessionWindowNotice({
   agentName,
   controls,
   isForking,
   onFork,
+  quietWarning,
   session,
   sessionId,
 }: {
@@ -65,6 +65,7 @@ function SessionWindowNotice({
   controls: SessionWindowControls;
   isForking: boolean;
   onFork: () => void;
+  quietWarning: SessionQuietWarning | null;
   session: SessionPayload;
   sessionId: string;
 }) {
@@ -105,6 +106,12 @@ function SessionWindowNotice({
           sessionId={sessionId}
           showDismiss={false}
           title="Runtime unavailable"
+        />
+      ) : quietWarning ? (
+        <SessionQuietWarningNotice
+          isStopping={controls.isStopping}
+          onStop={controls.canRetryStop ? controls.handleStop : undefined}
+          warning={quietWarning}
         />
       ) : null}
     </ThreadContentRail>
@@ -168,6 +175,8 @@ export function SessionWindowContent({
     promptRuntimeSnapshot
   );
 
+  const quietWarning = sessionQuietWarning(session);
+
   const handleForkDeadSession = () => {
     forkSession.mutate(
       {
@@ -204,6 +213,7 @@ export function SessionWindowContent({
           controls={controls}
           isForking={forkSession.isPending}
           onFork={handleForkDeadSession}
+          quietWarning={quietWarning}
           session={session}
           sessionId={sessionId}
         />
@@ -215,11 +225,9 @@ export function SessionWindowContent({
           acpSessionId={session.runtime.acp_session_id}
           sessionState={session.state}
           failure={session.failure}
-          workingStartedAt={
-            controls.isSessionRunning
-              ? workingStartedAt(session.activity?.turn_started_at)
-              : undefined
-          }
+          statusSession={session}
+          stopCompletionNote={controls.stopCompletionNote}
+          quietWarning={quietWarning}
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleCancelPrompt}
           onQueuePrompt={controls.handleQueuePrompt}
@@ -235,6 +243,11 @@ export function SessionWindowContent({
           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+          onClearQueue={controls.handleClearQueue}
+          queueCap={controls.queueCap}
+          unconfirmedSends={controls.unconfirmedSends}
+          onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
+          onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
           environmentControl={
             <SessionEnvironmentControl

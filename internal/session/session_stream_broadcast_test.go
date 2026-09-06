@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -108,16 +109,14 @@ func TestSessionEventBroadcaster(t *testing.T) {
 				TurnID:    "turn-wake",
 				Type:      "agent_message",
 			})
-		}
-
-		for _, wantSequence := range []int64{100, 1} {
+			// Consume each wake; unread wake coalescing is owned by TestLiveBroadcast.
 			select {
 			case event := <-events:
-				if event.Sequence != wantSequence {
-					t.Fatalf("event.Sequence = %d, want %d", event.Sequence, wantSequence)
+				if event.Sequence != sequence {
+					t.Fatalf("event.Sequence = %d, want %d", event.Sequence, sequence)
 				}
 			case <-testutil.Context(t).Done():
-				t.Fatalf("timed out waiting for wake sequence %d", wantSequence)
+				t.Fatalf("timed out waiting for wake sequence %d", sequence)
 			}
 		}
 	})
@@ -147,6 +146,10 @@ func TestSessionEventBroadcaster(t *testing.T) {
 
 		for range sessionEventSubscriberBuffer {
 			<-events
+		}
+		marker := <-events
+		if marker.Type != eventspkg.StreamConsumerDegraded || marker.Sequence != 0 {
+			t.Fatalf("overflow marker = %#v, want replay instruction without a durable cursor", marker)
 		}
 		if _, ok := <-events; ok {
 			t.Fatal("events channel remains open after overflow")

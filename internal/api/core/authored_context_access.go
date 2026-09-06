@@ -99,7 +99,10 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 	info *session.Info,
 	includeHealth bool,
 ) (contract.SessionPayload, error) {
-	payload := SessionPayloadFromInfo(info)
+	payload, err := SessionPayloadWithQueue(ctx, h.Sessions, info)
+	if err != nil {
+		return contract.SessionPayload{}, err
+	}
 	if includeHealth {
 		if h.SessionHealth == nil {
 			return contract.SessionPayload{}, errSessionHealthMissing
@@ -147,5 +150,18 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 		}
 		payload = append(payload, converted)
 	}
+	return payload, nil
+}
+
+// SessionPayloadWithQueue adds the durable admission summary to a session detail.
+func SessionPayloadWithQueue(ctx context.Context, reader interface {
+	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
+}, info *session.Info) (contract.SessionPayload, error) {
+	payload := SessionPayloadFromInfo(info)
+	queue, err := reader.InputQueueSummary(ctx, info.ID)
+	if err != nil {
+		return contract.SessionPayload{}, err
+	}
+	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
 	return payload, nil
 }

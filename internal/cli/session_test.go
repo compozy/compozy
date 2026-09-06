@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {
@@ -3009,6 +3010,33 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 
 func TestSessionInputCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should clear input and print complete per-entry JSON outcomes", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{
+			clearSessionInputsFn: func(_ context.Context, id string) (contract.SessionInputClearResponse, error) {
+				if id != "sess-1" {
+					t.Fatalf("clear target = %q", id)
+				}
+				return contract.SessionInputClearResponse{
+					ClearedCount: 1, QueueGeneration: 4,
+					Inputs: []contract.SessionInputPayload{{ID: "entry-1", Status: contract.SessionInputCanceled}},
+				}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client),
+			"session", "input", "clear", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionInputClearResponse
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.ClearedCount != 1 || result.QueueGeneration != 4 || len(result.Inputs) != 1 ||
+			result.Inputs[0].ID != "entry-1" {
+			t.Fatalf("clear JSON = %#v", result)
+		}
+	})
 
 	t.Run("Should list pending input with structured output", func(t *testing.T) {
 		t.Parallel()
@@ -3623,4 +3651,95 @@ func TestSessionBundleRendersProviderInHumanAndToon(t *testing.T) {
 		!strings.Contains(toon, "unsupported:capability_absent") {
 		t.Fatalf("sessionBundle().toon() = %q, want provider and speed output", toon)
 	}
+}
+
+// Invariant IT-040: CLI navigation preserves query bounds and shared JSON envelopes.
+// Owner: CLI session commands; canonical session_test.go suite.
+func TestSessionNavigationCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward literal search and preserve truncation in JSON", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				searchSessionTranscriptFn: func(_ context.Context, id string, q transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error) {
+					if id != "sess-1" || q.Query != "Café 100%" || q.Limit != 2 {
+						t.Fatalf("search = %q %#v", id, q)
+					}
+					return contract.SessionTranscriptSearchResponse{
+						Matches: []transcript.SearchMatch{
+							{Sequence: 7, TurnID: "turn-1", Role: "assistant", Snippet: "Café 100%"},
+						},
+						Truncated: true,
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"search",
+			"sess-1",
+			"Café 100%",
+			"--limit",
+			"2",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionTranscriptSearchResponse
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !result.Truncated || len(result.Matches) != 1 || result.Matches[0].Sequence != 7 {
+			t.Fatalf("search JSON = %s", stdout)
+		}
+	})
+	t.Run("Should return the complete outline envelope", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				getSessionOutlineFn: func(_ context.Context, id string) (contract.SessionTranscriptOutlineResponse, error) {
+					if id != "sess-1" {
+						t.Fatalf("outline id = %q", id)
+					}
+					return contract.SessionTranscriptOutlineResponse{
+						Entries: []transcript.OutlineEntry{
+							{
+								Sequence:     1,
+								TurnID:       "turn-1",
+								Preview:      "question",
+								ReplyPreview: "reply",
+								At:           fixedTestNow,
+							},
+						},
+					}, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "outline", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionTranscriptOutlineResponse
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Entries) != 1 || result.Entries[0].ReplyPreview != "reply" ||
+			!result.Entries[0].At.Equal(fixedTestNow) {
+			t.Fatalf("outline JSON = %s", stdout)
+		}
+	})
+	t.Run("Should refuse invalid search bounds before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{{"session", "search", "sess-1", " "}, {"session", "search", "sess-1", "x", "--limit", "1001"}, {"session", "search", "sess-1", "x", "--limit", "-1"}} {
+			if _, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...); err == nil {
+				t.Fatalf("invalid arguments accepted: %v", args)
+			}
+		}
+	})
 }

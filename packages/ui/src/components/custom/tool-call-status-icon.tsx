@@ -11,22 +11,27 @@ const LABEL: Record<ToolCallStatus, string> = {
   pending: "Pending",
   running: "Running",
   failed: "Error",
+  absorbed: "Failed",
+  stopped: "Stopped",
   success: "Done",
   empty: "Empty",
 };
 
-type GlyphStatus = Exclude<ToolCallStatus, "pending" | "running">;
+type GlyphStatus = Exclude<ToolCallStatus, "pending" | "running" | "stopped">;
 
-// Calm-transcript status budget: only the failure × carries a signal hue.
-// Success is a GREY check — completion is the resting state, not an event.
+// Calm-transcript status budget: only a failure that ended the turn (`failed`)
+// carries a signal hue. Success is a GREY check — completion is the resting
+// state, not an event — and an absorbed failure is a GREY × (ADR-009).
 const TONE_CLASS: Record<GlyphStatus, string> = {
   failed: "text-danger",
+  absorbed: "text-subtle",
   success: "text-subtle",
   empty: "text-subtle",
 };
 
 const ICON: Record<GlyphStatus, React.ElementType> = {
   failed: XIcon,
+  absorbed: XIcon,
   success: CheckIcon,
   empty: MinusIcon,
 };
@@ -38,14 +43,15 @@ export interface ToolCallStatusIconProps {
 
 /**
  * Trailing status glyph for `ToolCallRow`, one visual language across every tool
- * state: `pending` renders nothing (the row is muted while it prepares input),
- * `running` spins, and the resolved states map to a single signal-toned Lucide
- * glyph — X (danger) / Check (success) / Minus (faint empty-neutral). Neutral is
- * promoted to `success` upstream once the turn settles, so no premature green
- * appears mid-stream.
+ * state: `pending` and `stopped` render nothing (the row is muted while it
+ * prepares input; a stopped call carries its word instead), `running` spins,
+ * and the resolved states map to a single Lucide glyph — X danger (`failed`),
+ * X subtle (`absorbed`), Check (success), Minus (faint empty-neutral). Neutral
+ * is promoted to `success` upstream once the turn settles, so no premature
+ * green appears mid-stream.
  */
 export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProps) {
-  if (status === "pending") {
+  if (status === "pending" || status === "stopped") {
     return null;
   }
   const label = LABEL[status];

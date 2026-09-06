@@ -54,6 +54,10 @@ func (m *Manager) activateSteeringInput(
 			}
 		}
 	}
+	entry.SteerDelivery = delivery
+	if err := m.recordInjectedSteerInput(m.fallbackLifecycleContext(), session, entry); err != nil {
+		return err
+	}
 	resolved, err := m.inputQueue.ResolveSteer(m.fallbackLifecycleContext(), session.ID, entry.ID, delivery)
 	if err != nil {
 		return err
@@ -79,9 +83,15 @@ func (m *Manager) activateSteeringInput(
 
 func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *store.SessionInputQueueEntry) {
 	for _, id := range entry.SupersededIDs {
+		evidence := map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID}
+		older, err := m.inputQueue.Get(ctx, session.ID, id)
+		if err != nil {
+			m.sessionLogger(session).Warn("session: read superseded guidance failed", "entry_id", id, "error", err)
+		} else {
+			addSteerAuthoredEvidence(evidence, &older)
+		}
 		m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSuperseded,
-			"Undelivered steering replaced by newer guidance.",
-			map[string]any{"queue_entry_id": id, "replacement_entry_id": entry.ID},
+			"Undelivered steering replaced by newer guidance.", evidence,
 		)
 	}
 	message := "Steering interrupted and replaced the active turn."
@@ -92,6 +102,32 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 		message = "Steering is waiting for the active tool to finish."
 	}
 	evidence := queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0)
+	addSteerAuthoredEvidence(evidence, entry)
 	evidence["steer_delivery"] = entry.SteerDelivery
 	m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSteered, message, evidence)
+}
+
+// A pending injection is represented by its durable authored receipt until the
+// provider confirms delivery. Only confirmed injection becomes a sent user
+// message; fallback keeps the ordinary queue-dispatch identity and turn.
+func (m *Manager) recordInjectedSteerInput(
+	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
+) error {
+	if entry.SteerDelivery != store.SteerDeliveryInjected {
+		return nil
+	}
+	req := promptRequest{
+		target: session.ID, turnID: entry.TargetTurnID, turnSource: TurnSourceUser,
+		message: entry.Text, authoredMessage: entry.Text,
+		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
+		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,
+	}
+	return m.recordPromptInputEvent(ctx, session, &req)
+}
+
+func addSteerAuthoredEvidence(evidence map[string]any, entry *store.SessionInputQueueEntry) {
+	evidence["message_id"] = entry.MessageID
+	evidence["authored_text"] = entry.Text
+	evidence["input_event_id"] = entry.EventID
+	evidence["target_turn_id"] = entry.TargetTurnID
 }

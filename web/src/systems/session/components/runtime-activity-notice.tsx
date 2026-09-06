@@ -1,14 +1,17 @@
-import { Activity, AlertCircle, AlertTriangle, Info, ScrollText } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
 
 import { formatMessageTimestamp } from "../lib/format-timestamp";
+import { steerMarkerView } from "../lib/steer-marker";
+import { SteerMarkerRow } from "./steer-marker-notice";
 import { type ProviderErrorView, providerErrorView } from "../lib/provider-error";
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {
   hasText,
   isOperationalStatusEvent,
+  isQueueRemovalMarker,
   isRuntimeActivityEvent,
   isSessionErrorEvent,
   isTranscriptMarkerEvent,
@@ -210,8 +213,16 @@ function markerFromEvent(event: AgentEventPayload): TranscriptMarkerPayload | nu
 
 function markerTone(marker: TranscriptMarkerPayload | null) {
   const kind = marker?.kind ?? "";
-  if (kind.includes("failure") || kind.includes("timeout") || kind.includes("interrupted")) {
+  if (kind.includes("failure") || kind.includes("interrupted")) {
     return "danger" as const;
+  }
+  if (kind.includes("timeout")) {
+    // The daemon's timeout marker names its evidence: a failure kind earns
+    // danger; a supervisor stop (no failure kind, `stop_reason: timeout`) is
+    // a warning — the session stopped, nothing broke.
+    const failureKind = marker?.evidence?.failure_kind;
+    const supervised = marker?.evidence?.stop_reason === "timeout" && failureKind === "";
+    return supervised ? ("warning" as const) : ("danger" as const);
   }
   if (kind.includes("recovered")) {
     return "info" as const;
@@ -238,6 +249,46 @@ function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPa
 }
 
 const POST_STOP_MARKER = "transcript_marker.post_stop";
+const QUEUE_CLEARED_MARKER = "transcript_marker.queue_cleared";
+
+function evidenceString(marker: TranscriptMarkerPayload, key: string): string | null {
+  const value = marker.evidence?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/** Who cleared the queue, from the marker's actor evidence: the operator reads as "You". */
+function queueClearActor(marker: TranscriptMarkerPayload): string {
+  const kind = evidenceString(marker, "actor_kind");
+  const id = evidenceString(marker, "actor_id");
+  if (kind === null || kind === "user" || kind === "human") return "You";
+  return id ? `${kind} ${id}` : kind;
+}
+
+// One entry removed by an explicit clear (ADR-003): neutral — nothing failed,
+// the operator (or another actor) asked for it. One marker per entry, so the
+// cluster count says how many left together.
+function QueueClearedMarkerNotice({
+  marker,
+  count,
+}: {
+  marker: TranscriptMarkerPayload;
+  count: number;
+}) {
+  return (
+    <Marker
+      role="status"
+      data-testid="transcript-marker-notice"
+      data-marker-tone="neutral"
+      tone="neutral"
+      icon={<ListX strokeWidth={1.8} />}
+    >
+      <span data-testid="transcript-marker-summary">
+        <b>{queueClearActor(marker)} cleared the queue</b> — a queued follow-up was removed
+      </span>{" "}
+      <ClusterCount count={count} />
+    </Marker>
+  );
+}
 
 // Late provider output after a verified stop: the daemon discards the event's
 // content and keeps only this marker, one per turn. Neutral — nothing failed and
@@ -293,11 +344,36 @@ function SessionErrorNotice({ event, count }: { event: AgentEventPayload; count:
 /** A transcript marker: operational prompt kinds stay silent, post-stop discards read neutral, the rest by tone. */
 function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; count: number }) {
   const marker = markerFromEvent(event);
+  // A steer, a superseded steer, or a queued prompt reaching the turn is the
+  // one lifecycle line the transcript keeps (VC-07); other acknowledgements
+  // are already represented by the input state.
+  const steer = marker ? steerMarkerView(marker) : null;
+  if (steer) {
+    return <SteerMarkerRow event={event} view={steer} count={count} />;
+  }
+  if (isQueueRemovalMarker(marker)) {
+    return (
+      <Marker
+        role="status"
+        data-testid="transcript-marker-notice"
+        tone="neutral"
+        icon={<ListX strokeWidth={1.8} />}
+      >
+        <span data-testid="transcript-marker-summary">
+          <b>You removed a queued follow-up</b>
+        </span>
+        <ClusterCount count={count} />
+      </Marker>
+    );
+  }
   if (isOperationalPromptKind(marker?.kind)) {
     return null;
   }
   if (marker?.kind === POST_STOP_MARKER) {
     return <PostStopMarkerNotice label={markerLabel(marker, event)} count={count} />;
+  }
+  if (marker?.kind === QUEUE_CLEARED_MARKER) {
+    return <QueueClearedMarkerNotice marker={marker} count={count} />;
   }
   const tone = markerTone(marker);
   const Icon = tone === "info" ? Info : AlertTriangle;

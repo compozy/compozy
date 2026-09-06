@@ -109,6 +109,8 @@ func (e SessionEvent) Validate() error {
 
 // EventQuery filters per-session events while preserving follow-friendly ordering.
 type EventQuery struct {
+	// Forward selects the next bounded page even when AfterSequence is zero.
+	Forward        bool
 	Type           string
 	AgentName      string
 	TurnID         string
@@ -130,7 +132,7 @@ func (q EventQuery) Validate() error {
 	if q.BeforeSequence < 0 {
 		return fmt.Errorf("store: invalid event before sequence %d", q.BeforeSequence)
 	}
-	if q.AfterSequence > 0 && q.BeforeSequence > 0 {
+	if (q.AfterSequence > 0 || q.Forward) && q.BeforeSequence > 0 {
 		return fmt.Errorf(
 			"store: event after sequence %d cannot be combined with before sequence %d",
 			q.AfterSequence,

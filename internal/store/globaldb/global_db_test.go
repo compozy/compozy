@@ -442,7 +442,7 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
-	for _, migration := range []string{"00102_schema.sql", "00103_schema.sql"} {
+	for _, migration := range []string{"00102_schema.sql", "00103_schema.sql", "00104_schema.sql", "00105_schema.sql"} {
 		t.Run("Should preserve sessions and queued inputs through "+migration, func(t *testing.T) {
 			t.Parallel()
 			ctx := globalMigrationTestContext(t)
@@ -4216,8 +4216,8 @@ func TestGlobalDBWriteEventSummariesAtomic(t *testing.T) {
 			Timestamp: timestamp,
 		},
 	})
-	if !isSQLitePrimaryKeyConstraint(err) {
-		t.Fatalf("WriteEventSummaries(duplicate id) error = %v, want primary-key constraint", err)
+	if !isSQLiteUniqueConstraint(err) {
+		t.Fatalf("WriteEventSummaries(duplicate id) error = %v, want unique identity constraint", err)
 	}
 	summaries, listErr := globalDB.ListEventSummaries(
 		testutil.Context(t),

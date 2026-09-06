@@ -11,6 +11,7 @@ import type {
   SessionRepairQuery,
   RenameSessionRequest,
   SetSessionRuntimeRequest,
+  SessionPromptCancelResult,
   SessionStopResult,
 } from "../types";
 import {
@@ -25,6 +26,7 @@ export { fetchSessionCommands } from "./session-command-api";
 export { fetchSessionGoal, mutateSessionGoal } from "./session-goal-api";
 export {
   cancelQueuedSessionPrompt,
+  clearSessionInputs,
   fetchSessionInputs,
   promoteSessionInputToSteer,
   replaceSessionInput,
@@ -178,7 +180,7 @@ export async function cancelSessionPrompt(
   workspaceId: string,
   id: string,
   signal?: AbortSignal
-): Promise<void> {
+): Promise<SessionPromptCancelResult | null> {
   const request = new Request(
     new URL(
       `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/prompt/cancel`,
@@ -199,6 +201,13 @@ export async function cancelSessionPrompt(
       response.status,
       id
     );
+  }
+  // The verdict rides the 200 body; a daemon that sent none leaves it unknown.
+  try {
+    const body = (await response.json()) as SessionPromptCancelResult;
+    return typeof body?.outcome === "string" ? body : null;
+  } catch {
+    return null;
   }
 }
 

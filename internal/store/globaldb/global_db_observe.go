@@ -15,6 +15,8 @@ import (
 
 const eventSummaryContentPayloadKey = "payload"
 
+const queryLimitClause = " LIMIT ?"
+
 // WriteEventSummary stores a lightweight cross-session summary entry.
 func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
 	return g.WriteEventSummaries(ctx, []store.EventSummary{summary})
@@ -127,7 +129,7 @@ func (g *ObserveRepo) ListEventSummaries(
 	}
 
 	// dynamic-sql: optional event/memory filters, registry-derived IN lists, UNION inclusion, and limit shape the query.
-	eventQuery := `SELECT 0 AS source_rank, event_summaries.rowid AS source_rowid,
+	eventQuery := `SELECT 0 AS source_rank, event_summaries.seq AS source_sequence,
 		event_summaries.id, event_summaries.profile_id,
 		event_profile.name AS profile_name,
 		event_profile.color AS profile_color,
@@ -154,13 +156,18 @@ func (g *ObserveRepo) ListEventSummaries(
 		store.StringClause("actor_id", query.ActorID),
 		store.StringClause("provider", query.Provider),
 		store.StringClause("outcome", query.Outcome),
-		store.Int64Clause("event_summaries.rowid", ">", query.AfterSequence),
+		store.Int64Clause("event_summaries.seq", ">", query.AfterSequence),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
 	eventWhere, args = appendEventRegistryClauses(eventWhere, args, "type", query)
 	eventQuery = store.AppendWhere(eventQuery, eventWhere)
 
-	sqlQuery := eventSummaryListQuery(eventQuery, query.Limit)
+	sqlQuery := eventSummaryListQuery(
+		eventQuery,
+		query.Limit,
+		query.AfterSequence > 0 || query.Forward,
+		query.SequenceOrder,
+	)
 	if query.Limit > 0 {
 		args = append(args, query.Limit)
 	}
@@ -301,18 +308,32 @@ func confirmEventSummaryProjection(field, supplied, projected string) error {
 	return fmt.Errorf("store: event summary %s conflicts with session projection", field)
 }
 
-func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, profile_id, profile_name, profile_color, profile_icon, profile_emoji,
+func eventSummaryListQuery(combinedQuery string, limit int, forward bool, sequenceOrder bool) string {
+	baseSelect := `SELECT source_sequence, id, profile_id, profile_name, profile_color, profile_icon, profile_emoji,
 		profile_archived, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
 		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
 		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
 		spawn_depth, summary, timestamp`
-	if limit <= 0 {
-		return baseSelect + ` FROM (` + combinedQuery + `) ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
+	if forward {
+		query := baseSelect + ` FROM (` + combinedQuery + `) ORDER BY source_sequence ASC`
+		if limit > 0 {
+			query += queryLimitClause
+		}
+		return query
 	}
-	return baseSelect + ` FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_rowid DESC
-		LIMIT ?) AS recent_summaries ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
+	if sequenceOrder {
+		query := combinedQuery + ` ORDER BY source_sequence DESC`
+		if limit > 0 {
+			query += queryLimitClause
+		}
+		return baseSelect + ` FROM (` + query + `) ORDER BY source_sequence ASC`
+	}
+	if limit <= 0 {
+		return baseSelect + ` FROM (` + combinedQuery + `) ORDER BY timestamp ASC, source_rank ASC, source_sequence ASC`
+	}
+	return baseSelect + ` FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_sequence DESC
+		LIMIT ?) AS recent_summaries ORDER BY timestamp ASC, source_rank ASC, source_sequence ASC`
 }
 
 func (g *ObserveRepo) validateEventSummaryQuery(

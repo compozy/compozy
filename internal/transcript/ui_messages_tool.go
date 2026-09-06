@@ -2,7 +2,6 @@ package transcript
 
 import (
 	"encoding/json"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -25,6 +24,15 @@ func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {
 func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
 	b.closeActiveStreamPart()
 	part, existed := b.ensureToolPart(decoded)
+	// Providers may announce a provisional title before the tool identity is
+	// known. Its final result owns the persisted display identity.
+	if name := strings.TrimSpace(decoded.parsed.ToolName); name != "" {
+		part.Type = toolPartType(name)
+		part.ToolName = ""
+	}
+	if title := strings.TrimSpace(decoded.agent.Title); title != "" {
+		part.Title = title
+	}
 	input := acp.CloneRawMessage(part.Input)
 	if len(input) == 0 {
 		if next, ok := b.rememberedToolInput(decoded); ok {

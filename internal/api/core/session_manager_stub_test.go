@@ -36,6 +36,7 @@ type sessionManagerStub struct {
 	sendPrompt          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	steerPrompt         func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
 	listPendingInputs   func(context.Context, string) ([]session.PendingInput, error)
+	clearPendingInputs  func(context.Context, string, session.PromptCaller) (session.ClearPendingInputsResult, error)
 	replacePendingInput func(
 		context.Context, string, string, session.ReplacePendingInputOpts,
 	) (session.PendingInput, error)
@@ -304,6 +305,17 @@ func (s sessionManagerStub) ListPendingInputs(
 		return s.listPendingInputs(ctx, id)
 	}
 	return []session.PendingInput{}, nil
+}
+
+func (s sessionManagerStub) ClearPendingInputs(
+	ctx context.Context,
+	id string,
+	caller session.PromptCaller,
+) (session.ClearPendingInputsResult, error) {
+	if s.clearPendingInputs != nil {
+		return s.clearPendingInputs(ctx, id, caller)
+	}
+	return session.ClearPendingInputsResult{}, nil
 }
 
 func (s sessionManagerStub) ReplacePendingInput(

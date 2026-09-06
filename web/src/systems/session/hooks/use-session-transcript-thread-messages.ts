@@ -10,8 +10,13 @@ import {
   SessionTranscriptMessagesContext,
   SessionTranscriptRetryContext,
   SessionTranscriptStatusContext,
+  SessionTransportContext,
   type SessionTranscriptThreadState,
+  type SessionTransportState,
 } from "../lib/session-transcript-thread-context-value";
+import { SESSION_TRANSPORT_LIVE } from "../lib/session-transport";
+
+const LIVE_TRANSPORT: SessionTransportState = { ...SESSION_TRANSPORT_LIVE, retry: () => undefined };
 
 function requireContext<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
@@ -52,4 +57,13 @@ export function useSessionTranscriptThreadState(): SessionTranscriptThreadState 
     loadOlder,
     retry,
   };
+}
+
+/**
+ * The live-view transport as the screen reads it. Surfaces outside a live
+ * thread provider (read-only views, stories) read a healthy transport, so no
+ * chip, guard, or notice ever appears where no stream exists.
+ */
+export function useSessionTransportState(): SessionTransportState {
+  return use(SessionTransportContext) ?? LIVE_TRANSPORT;
 }

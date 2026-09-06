@@ -4,6 +4,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -560,10 +561,12 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 	})
 }
 
-func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testing.T) {
+// Invariant: known occupied capacity advances a bounded escalation, parks durably,
+// and resumes only through recovery. Owner: scheduler integration suite.
+func TestSchedulerEscalatesSerialBacklogBehindCompatibleCapacityIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should wait through repeated busy cycles and wake the queued run after release", func(t *testing.T) {
+	t.Run("Should escalate repeated busy cycles and wake recovered work after release", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -610,7 +613,15 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 			),
 		}}
 		waker := &fakeWaker{}
-		escalator := &fakeEscalationActor{}
+		daemonActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+		if err != nil {
+			t.Fatal(err)
+		}
+		escalator := &integrationEscalationActor{
+			fakeEscalationActor: &fakeEscalationActor{},
+			manager:             manager,
+			actor:               daemonActor,
+		}
 		scheduler := newTestScheduler(
 			t,
 			integrationTaskSource{manager: manager, store: db},
@@ -633,18 +644,64 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 			if err != nil {
 				t.Fatalf("RunOnce(busy cycle %d) error = %v", cycle, err)
 			}
-			if result.CapacityWaitingRuns != 1 || result.StarvedRuns != 0 || result.NoMatchRuns != 0 {
-				t.Fatalf("busy cycle %d result = %#v, want one capacity wait only", cycle, result)
+			wantWaiting := 0
+			if cycle <= 4 {
+				wantWaiting = 1
+			}
+			if result.CapacityWaitingRuns != wantWaiting || result.StarvedRuns != wantWaiting ||
+				result.NoMatchRuns != 0 {
+				t.Fatalf("busy cycle %d result = %#v", cycle, result)
 			}
 		}
-		if got := len(waker.targetsSnapshot()); got != 0 {
-			t.Fatalf("wake targets while capacity busy = %d, want 0", got)
+		if len(escalator.spawns()) != 1 || len(escalator.emitted()) != 1 || len(escalator.attention()) != 1 {
+			t.Fatalf(
+				"escalation = spawns:%v events:%v attention:%v",
+				escalator.spawns(),
+				escalator.emitted(),
+				escalator.attention(),
+			)
 		}
-		if len(escalator.spawns()) != 0 || len(escalator.emitted()) != 0 || len(escalator.attention()) != 0 {
-			t.Fatalf("busy serial backlog produced convergence side effects: %#v", escalator)
+		// Coverage matrix: real capacity waiting emits exactly one canonical scoped decision.
+		events, err := db.ListTaskEvents(
+			ctx,
+			taskpkg.EventQuery{RunID: queuedExecution.Run.ID, EventType: "scheduler.capacity_waiting_escalated"},
+		)
+		if err != nil {
+			t.Fatal(err)
 		}
+		if len(events) != 1 {
+			t.Fatalf("capacity events = %d", len(events))
+		}
+		var evidence map[string]any
+		if err := json.Unmarshal(events[0].Payload, &evidence); err != nil {
+			t.Fatal(err)
+		}
+		if evidence["workspace_id"] != workspaceID || evidence["reason"] == "" ||
+			evidence["queued_age_ms"] == float64(0) ||
+			evidence["actor_id"] != "scheduler" {
+			t.Fatalf("capacity evidence = %+v", evidence)
+		}
+		for _, key := range []string{"session_id", "turn_id", "actor_kind"} {
+			if _, ok := evidence[key]; !ok {
+				t.Fatalf("capacity evidence missing %s", key)
+			}
+		}
+
 		if _, ok, err := db.LoadRunStarvation(ctx, queuedExecution.Run.ID); err != nil || ok {
-			t.Fatalf("LoadRunStarvation(busy) = (ok %t, err %v), want (false, nil)", ok, err)
+			t.Fatalf("parked starvation = %t, %v", ok, err)
+		}
+		human, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task run recover")
+		if err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := manager.RecoverRun(
+			ctx,
+			queuedExecution.Run.ID,
+			taskpkg.RecoverRunRequest{Reason: "capacity available"},
+			human,
+		)
+		if err != nil {
+			t.Fatal(err)
 		}
 
 		if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
@@ -662,7 +719,7 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 			t.Fatalf("after-release result = %#v, want one wake and no capacity wait", released)
 		}
 		targets := waker.targetsSnapshot()
-		if got, want := targets[len(targets)-1].Work.Run.ID, queuedExecution.Run.ID; got != want {
+		if got, want := targets[len(targets)-1].Work.Run.ID, recovered.Run.ID; got != want {
 			t.Fatalf("after-release wake run = %q, want %q", got, want)
 		}
 		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
@@ -676,7 +733,7 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 		if err != nil {
 			t.Fatalf("ClaimNextRun(queued) error = %v", err)
 		}
-		if got, want := claim.Run.ID, queuedExecution.Run.ID; got != want {
+		if got, want := claim.Run.ID, recovered.Run.ID; got != want {
 			t.Fatalf("queued claim run = %q, want %q", got, want)
 		}
 	})
@@ -973,4 +1030,38 @@ func schedulerIntegrationEventTypes(events []taskpkg.Event) []string {
 	}
 	slices.Sort(types)
 	return types
+}
+
+// Only worker creation is stubbed; parking and its canonical event use the real service/store.
+type integrationEscalationActor struct {
+	*fakeEscalationActor
+	manager *taskpkg.Service
+	actor   taskpkg.ActorContext
+}
+
+func (a *integrationEscalationActor) EmitRunStarved(ctx context.Context, work *RunSnapshot, age time.Duration) error {
+	if err := a.manager.RecordCapacityWaitingEscalated(
+		ctx,
+		work.Run.ID,
+		age,
+		work.CapacityReason,
+		a.actor,
+	); err != nil {
+		return err
+	}
+	return a.fakeEscalationActor.EmitRunStarved(ctx, work, age)
+}
+
+func (a *integrationEscalationActor) MarkRunNeedsAttention(
+	ctx context.Context,
+	id, diagnostic string,
+) (taskpkg.Run, error) {
+	run, err := a.manager.MarkRunNeedsAttention(ctx, id, diagnostic, a.actor)
+	if err != nil {
+		return run, err
+	}
+	if _, err := a.fakeEscalationActor.MarkRunNeedsAttention(ctx, id, diagnostic); err != nil {
+		return run, err
+	}
+	return run, nil
 }

@@ -18,6 +18,89 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
+	t.Run("Should clear every parked owner atomically and preserve dispatching outcome", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"active", "human", "goal"} {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 3, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx,
+			`UPDATE session_input_queue SET owner_kind = 'goal', dispatchable = 0 WHERE id = 'goal'`); err != nil {
+			t.Fatal(err)
+		}
+		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now)
+		if err != nil || !ok || claimed.ID != "active" {
+			t.Fatalf("claim = %#v, %v, %v", claimed, ok, err)
+		}
+		result, err := db.ClearSessionInputs(ctx, store.SessionInputClearRequest{
+			SessionID: sessionID, TurnID: "active-turn", ActorKind: "human", ActorID: "operator", Now: now,
+		})
+		if err != nil || result.Cleared != 2 || result.Generation != 1 || len(result.Inputs) != 3 {
+			t.Fatalf("ClearSessionInputs() = %#v, %v", result, err)
+		}
+		for _, id := range []string{"human", "goal"} {
+			entry, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+			if err != nil || entry.Status != store.SessionInputQueueStatusCanceled {
+				t.Fatalf("cleared input = %#v, %v", entry, err)
+			}
+		}
+		traces, err := db.ListPendingSessionInputClearTraces(ctx, sessionID)
+		if err != nil || len(traces) != 2 {
+			t.Fatalf("clear traces = %#v, %v", traces, err)
+		}
+		for _, trace := range traces {
+			if trace.ActorID != "operator" || trace.ActorKind != "human" || trace.TurnID != "active-turn" {
+				t.Fatalf("trace attribution = %#v", trace)
+			}
+		}
+		if err := db.ReleaseSessionInput(ctx, sessionID, claimed.ID, now); err != nil {
+			t.Fatal(err)
+		}
+		next, found, err := db.ClaimNextSessionInput(ctx, sessionID, now)
+		if err != nil || !found || next.ID != claimed.ID || next.SessionGeneration != 1 {
+			t.Fatalf("released dispatch after clear = %#v, %v, %v", next, found, err)
+		}
+		if err := db.MarkSessionInputSent(ctx, sessionID, next.ID, now); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should roll back clear and generation when an attributed trace cannot be persisted", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "parked", SessionID: sessionID, Text: "keep me", QueueCap: 1, Now: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `CREATE TRIGGER reject_clear_trace
+			BEFORE INSERT ON session_input_clear_traces BEGIN SELECT RAISE(ABORT, 'trace unavailable'); END`); err != nil {
+			t.Fatal(err)
+		}
+		_, err := db.ClearSessionInputs(ctx, store.SessionInputClearRequest{
+			SessionID: sessionID, ActorKind: "human", ActorID: "operator", Now: now,
+		})
+		if err == nil || !strings.Contains(err.Error(), "trace unavailable") {
+			t.Fatalf("clear error = %v", err)
+		}
+		entry, err := db.GetSessionInputQueueEntry(ctx, sessionID, "parked")
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("entry after failed clear = %#v, %v", entry, err)
+		}
+		generation, err := db.CurrentSessionInputGeneration(ctx, sessionID)
+		if err != nil || generation != 0 {
+			t.Fatalf("generation after failed clear = %d, %v", generation, err)
+		}
+	})
 	t.Run("Should preserve the resolved steer delivery through queue leasing", func(t *testing.T) {
 		t.Parallel()
 		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
@@ -1291,6 +1374,66 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 }
 
 func TestGlobalDBSessionPromptAdmission(t *testing.T) {
+	t.Run(
+		"Should admit and replay interrupt at capacity without canceling parked or dispatching input",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			sessionID := registerInputQueueSession(t, db)
+			now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+			for _, id := range []string{"dispatching", "parked", "goal-parked"} {
+				_, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID: id, SessionID: sessionID, Text: id, QueueCap: 3, Now: now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE session_input_queue SET owner_kind = 'goal', dispatchable = 0 WHERE id = 'goal-parked'`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			claimed, found, err := db.ClaimNextSessionInput(ctx, sessionID, now)
+			if err != nil || !found || claimed.ID != "dispatching" {
+				t.Fatalf("ClaimNextSessionInput() = %#v, %v, %v", claimed, found, err)
+			}
+			request := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "interrupt", now)
+			request.Mode = store.SessionInputQueueModeInterrupt
+			input := store.SessionInputQueueInsert{
+				ID: "replacement", SessionID: sessionID, Text: "urgent replacement",
+				Mode: store.SessionInputQueueModeInterrupt, QueueCap: 3, Now: now.Add(time.Second),
+				Delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+				TargetTurnID: "active-turn",
+			}
+			for attempt := range 2 {
+				admission, entry, _, created, enqueueErr := db.EnqueueAdmittedSessionInput(ctx, request, input)
+				if enqueueErr != nil || created != (attempt == 0) {
+					t.Fatalf("EnqueueAdmittedSessionInput() = created %v, error %v", created, enqueueErr)
+				}
+				if entry.SessionGeneration != 0 || admission.Result.CanceledQueuedEntries != 0 {
+					t.Fatalf("interrupt mutated queue generation or canceled input: %#v, %#v", entry, admission.Result)
+				}
+			}
+			for id, want := range map[string]string{
+				"dispatching": store.SessionInputQueueStatusDispatching,
+				"parked":      store.SessionInputQueueStatusQueued,
+				"goal-parked": store.SessionInputQueueStatusQueued,
+				"replacement": store.SessionInputQueueStatusQueued,
+			} {
+				entry, getErr := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+				if getErr != nil || entry.Status != want {
+					t.Fatalf("GetSessionInputQueueEntry(%s) = %#v, %v, want %s", id, entry, getErr, want)
+				}
+			}
+			next, found, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+			if err != nil || !found || next.ID != "replacement" {
+				t.Fatalf("next dispatch = %#v, %v, %v, want replacement before parked input", next, found, err)
+			}
+		},
+	)
 	t.Run("Should settle pending steer once without changing its acceptance receipt", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {

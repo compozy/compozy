@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -52,12 +53,16 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	resume := !cursor.Timestamp.IsZero()
+	resume := !cursor.Timestamp.IsZero() || cursor.Sequence > 0
 	if streamContextDone(c, h.StreamDoneChannel(), replay || resume) {
 		return
 	}
 
-	if resume {
+	query.SequenceOrder = cursor.ID == ""
+	if resume && cursor.Sequence > 0 {
+		query.AfterSequence = cursor.Sequence
+		query.Forward = true
+	} else if resume {
 		query.Since = cursor.Timestamp
 	}
 	if replay || resume {
@@ -71,11 +76,28 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 			return
 		}
 		cursor = EmitLogs(writer, initial, cursor)
+	} else {
+		cursor, err = h.currentLogsCursor(c.Request.Context(), query)
+		if err != nil {
+			h.writeSSEBestEffort(writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(err)})
+			return
+		}
 	}
-	if cursor.Timestamp.IsZero() {
-		cursor.Timestamp = h.nowUTC()
-	}
+	// An empty durable head starts at sequence zero, independently of event timestamps.
 	h.pollLogs(c, writer, query, cursor)
+}
+
+func (h *BaseHandlers) currentLogsCursor(ctx context.Context, query store.EventSummaryQuery) (LogsCursor, error) {
+	query.Limit = 1
+	head, err := h.Observer.QueryEvents(ctx, query)
+	if err != nil {
+		return LogsCursor{}, err
+	}
+	if len(head) == 0 {
+		return LogsCursor{}, nil
+	}
+	latest := head[len(head)-1]
+	return LogsCursor{Timestamp: latest.Timestamp, Sequence: latest.Sequence, ID: latest.ID}, nil
 }
 
 func (h *BaseHandlers) pollLogs(
@@ -85,8 +107,7 @@ func (h *BaseHandlers) pollLogs(
 	cursor LogsCursor,
 ) {
 	pollQuery := query
-	pollQuery.Limit = 0
-	pollQuery.Since = cursor.Timestamp
+	pollQuery.Limit = logsStreamReplayDefaultLimit
 	ticker := time.NewTicker(logsStreamPollInterval(h.PollInterval))
 	defer ticker.Stop()
 
@@ -97,7 +118,13 @@ func (h *BaseHandlers) pollLogs(
 		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
-			pollQuery.Since = cursor.Timestamp
+			pollQuery.AfterSequence = cursor.Sequence
+			pollQuery.Forward = cursor.Sequence > 0 || cursor.ID == ""
+			if pollQuery.Forward {
+				pollQuery.Since = query.Since
+			} else {
+				pollQuery.Since = cursor.Timestamp
+			}
 			events, pollErr := h.Observer.QueryEvents(c.Request.Context(), pollQuery)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{

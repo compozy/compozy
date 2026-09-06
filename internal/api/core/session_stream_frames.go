@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -35,8 +34,8 @@ func (h *BaseHandlers) writeGoalSnapshotChangedEvents(
 		if !json.Valid(content) {
 			return fmt.Errorf("decode Goal snapshot event %d: invalid JSON", event.Sequence)
 		}
+		// This side signal precedes transcript catch-up and cannot advance its resume cursor.
 		if err := WriteSSE(writer, SSEMessage{
-			ID:   strconv.FormatInt(event.Sequence, 10),
 			Name: contract.SessionStreamEventGoalSnapshotChanged,
 			Data: json.RawMessage(append([]byte(nil), content...)),
 		}); err != nil {
@@ -76,4 +75,20 @@ func (h *BaseHandlers) writeSessionCommandsChanged(
 		return previousRevision, fmt.Errorf("write session command catalog change: %w", err)
 	}
 	return catalog.Revision, nil
+}
+
+func (h *BaseHandlers) writeConsumerDegraded(
+	writer FlushWriter,
+	sessionID string,
+	cursor int64,
+	event store.SessionEvent,
+) error {
+	payload := contract.SessionConsumerDegradedPayload{SessionID: sessionID, AfterSequence: cursor, Refresh: true}
+	var marker contract.SessionConsumerDegradedPayload
+	if err := json.Unmarshal([]byte(event.Content), &marker); err != nil {
+		return fmt.Errorf("decode consumer degradation: %w", err)
+	}
+	payload.ThroughSequence = marker.ThroughSequence
+	// No SSE id: a delivery diagnostic cannot advance the durable replay cursor.
+	return WriteSSE(writer, SSEMessage{Name: contract.SessionStreamEventConsumerDegraded, Data: payload})
 }

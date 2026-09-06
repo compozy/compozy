@@ -194,7 +194,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	if err != nil {
 		return nil, fmt.Errorf("session: open durable prompt delivery for %q: %w", req.target, err)
 	}
-	supervision := supervisionForSession(session, m.supervision)
+	supervision := m.supervision
 	activity := newPromptActivitySupervisor(ctx, m, session, turnState, supervision)
 	activity.start()
 	recoveryRequest := acp.PromptRequest{

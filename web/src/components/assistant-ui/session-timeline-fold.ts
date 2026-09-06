@@ -1,25 +1,35 @@
-// Turn-fold derivation: collapses each settled turn's intra-turn work behind a
-// single "Worked for {duration}" disclosure, keeping the terminal assistant
-// answer visible below it. The live turn always stays inline, and an interrupted
-// turn stays expanded with a "You stopped after {duration}" label. This is a pure
-// view over the `SessionRow` list produced by the base derivation.
+// Turn-fold derivation (ADR-006 rule 2): collapses each settled turn's
+// intra-turn work behind a single "Worked for {duration} · {counts}" disclosure,
+// keeping the terminal assistant answer visible below. The live turn always
+// stays inline. A turn the operator stopped stays open under "You stopped after
+// {duration}"; a turn a fallback steer interrupted folds normally but names its
+// cause; a turn that failed stays open under "Failed after {duration}" — the one
+// danger the fold ever earns (ADR-009). Rich rows (decision asks, permissions,
+// errors) never fold. This is a pure view over the `SessionRow` list produced by
+// the base derivation.
 
 import { formatDuration } from "@compozy/ui";
 
+import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
+import { isSessionErrorEvent } from "@/systems/session/components/runtime-activity-notice.logic";
+import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
+import { summarizeToolGroup } from "./session-timeline-summary";
 import {
   type DeriveSessionRowsOptions,
   isStreamingState,
   type SessionChangedFilesRow,
   type SessionRow,
   type SessionTimelineToolPart,
+  type SessionTurnFoldCause,
   type SessionTurnFoldRow,
 } from "./session-timeline.logic";
 
 export function foldSettledTurns(
   rows: readonly SessionRow[],
-  options: DeriveSessionRowsOptions
+  options: DeriveSessionRowsOptions,
+  recordedTimes: ReadonlyMap<string, readonly number[]> = new Map()
 ): SessionRow[] {
   const folded: SessionRow[] = [];
   for (let index = 0; index < rows.length;) {
@@ -35,7 +45,7 @@ export function foldSettledTurns(
       group.push(rows[index]!);
       index += 1;
     }
-    folded.push(...foldTurnGroup(turnId, group, options));
+    folded.push(...foldTurnGroup(turnId, group, options, recordedTimes.get(turnId) ?? []));
     const changedFiles = changedFilesRowForTurn(turnId, group, options);
     if (changedFiles) folded.push(changedFiles);
   }
@@ -72,7 +82,7 @@ function changedFilesRowForTurn(
 function collectTurnToolParts(group: readonly SessionRow[]): SessionTimelineToolPart[] {
   const tools: SessionTimelineToolPart[] = [];
   for (const row of group) {
-    if (row.kind === "work") tools.push(...row.entries);
+    if (row.kind === "work" || row.kind === "live-tool") tools.push(...row.entries);
   }
   return tools;
 }
@@ -80,10 +90,10 @@ function collectTurnToolParts(group: readonly SessionRow[]): SessionTimelineTool
 function foldTurnGroup(
   turnId: string,
   group: SessionRow[],
-  options: DeriveSessionRowsOptions
+  options: DeriveSessionRowsOptions,
+  recordedTimes: readonly number[]
 ): SessionRow[] {
-  // A lone row (or empty group) carries no intra-turn work to fold away.
-  if (group.length < 2) {
+  if (group.length === 0) {
     return group;
   }
   // The live turn always stays inline so streaming output is never hidden.
@@ -91,14 +101,19 @@ function foldTurnGroup(
     return group;
   }
 
-  const interrupted = turnGroupIsInterrupted(group, turnId, options.interruptedTurnIds);
+  const cause = turnFoldCause(group, turnId, options);
+  // A lone settled row carries no intra-turn work to fold away; a lone row of a
+  // stopped, superseded or failed turn still earns its label.
+  if (cause === "settled" && group.length < 2) {
+    return group;
+  }
   const terminal = group.at(-1)!;
   const hasTerminalText = terminal.kind === "text";
   // A completed turn folds only when it has a terminal assistant answer to anchor
   // below the disclosure; a turn that is pure tool work stays a grouped work
-  // cluster (task 26). An interrupted turn folds even without a terminal answer so
-  // the "You stopped" label always stands in for the missing summary.
-  if (!interrupted && !hasTerminalText) {
+  // cluster (task 26). A stopped, superseded or failed turn folds even without
+  // a terminal answer so its label always stands in for the missing summary.
+  if (cause === "settled" && !hasTerminalText) {
     return group;
   }
   const rowsBeforeTerminal = hasTerminalText ? group.slice(0, -1) : [...group];
@@ -110,15 +125,23 @@ function foldTurnGroup(
     return group;
   }
 
-  const duration = turnDurationMs(group);
+  const duration = turnDurationMs(group, recordedTimes);
+  const counts = summarizeToolGroup(collectTurnToolParts(rowsInsideFold))?.label ?? null;
   const foldRow: SessionTurnFoldRow = {
     kind: "turn-fold",
     id: `turn-fold:${turnId}`,
     turnId,
-    label: foldLabel(interrupted, duration),
+    label: foldLabel(cause, duration, counts),
     durationMs: duration ?? 0,
-    interrupted,
-    rows: rowsInsideFold,
+    cause,
+    counts,
+    open: cause === "stopped" || cause === "failed",
+    // The fold's own sentence already carries the counts: inside it the settled
+    // calls read as their ToolCallRows, never behind a second disclosure
+    // (task_07 VC-05 open body).
+    rows: rowsInsideFold.map(row =>
+      row.kind === "work" && row.summary ? { ...row, summary: null, expanded: false } : row
+    ),
   };
   const visibleRows: SessionRow[] = [];
   let foldInserted = false;
@@ -134,9 +157,9 @@ function foldTurnGroup(
   return visibleRows;
 }
 
-// Text, permission, and terminal evidence remain operator-visible after a turn
-// settles. Deliberate terminal tool rows are their own surface, not transient
-// work.
+// Text, decision asks, permissions, errors and terminal evidence remain
+// operator-visible after a turn settles (rich rows never fold, ADR-006).
+// Deliberate terminal tool rows are their own surface, not transient work.
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
   if (row.kind === "work") {
@@ -146,18 +169,52 @@ function isPersistentTurnRow(row: SessionRow): boolean {
       row.entries.every(entry => isDeliberateTerminalTool(entry.toolName))
     );
   }
-  return row.kind === "data" && row.part.name === "data-compozy-permission";
+  if (row.kind !== "data") return false;
+  if (row.part.name === "data-compozy-permission") return true;
+  if (row.part.name !== "data-compozy-event") return false;
+  return row.parts.some(part => {
+    const data = part.data;
+    if (!isAgentEventPayload(data)) return false;
+    return data.type === CLARIFY_EVENT_TYPE || isSessionErrorEvent(data);
+  });
 }
 
-// Label fallbacks: a settled turn folds even when its duration is unknown, and
-// an interrupted turn swaps the "Worked for" verb for the operator-facing
-// "You stopped" language.
-function foldLabel(interrupted: boolean, durationMs: number | null): string {
+// Label vocabulary (artboard §05/§06/§08): the settled sentence carries the
+// frozen duration and the work counts; the operator's stop swaps the verb for
+// "You stopped"; a fallback steer names its cause; a failure earns danger.
+function foldLabel(
+  cause: SessionTurnFoldCause,
+  durationMs: number | null,
+  counts: string | null
+): string {
   const duration = durationMs != null ? formatDuration(Math.max(1_000, durationMs)) : null;
-  if (interrupted) {
-    return duration ? `You stopped after ${duration}` : "You stopped this response";
+  switch (cause) {
+    case "stopped":
+      return duration ? `You stopped after ${duration}` : "You stopped this response";
+    case "failed":
+      return duration ? `Failed after ${duration}` : "Failed";
+    case "steer_fallback":
+      return [
+        duration ? `Interrupted after ${duration}` : "Interrupted",
+        "replaced by your steer",
+        ...(counts ? [counts] : []),
+      ].join(" · ");
+    case "settled":
+      return [duration ? `Worked for ${duration}` : "Worked", ...(counts ? [counts] : [])].join(
+        " · "
+      );
   }
-  return duration ? `Worked for ${duration}` : "Worked";
+}
+
+function turnFoldCause(
+  group: readonly SessionRow[],
+  turnId: string,
+  options: DeriveSessionRowsOptions
+): SessionTurnFoldCause {
+  if (options.failedTurnIds?.has(turnId)) return "failed";
+  if (options.supersededTurnIds?.has(turnId)) return "steer_fallback";
+  if (turnGroupIsInterrupted(group, turnId, options.interruptedTurnIds)) return "stopped";
+  return "settled";
 }
 
 function turnGroupIsActive(
@@ -170,6 +227,7 @@ function turnGroupIsActive(
   }
   return group.some(row => {
     if (row.kind === "work") return row.active;
+    if (row.kind === "live-tool") return true;
     if (row.kind === "working") return true;
     if (row.kind === "reasoning") return row.streaming;
     if (row.kind === "text") return isStreamingState(row.part.state);
@@ -205,8 +263,13 @@ function isInterruptedState(state: string | undefined): boolean {
   return state === "interrupted" || state === "cancelled" || state === "canceled";
 }
 
-function turnDurationMs(group: readonly SessionRow[]): number | null {
-  const values: number[] = [];
+// The turn's span: every instant the daemon recorded for it (rows here plus the
+// status events and later receipts the caller collected), first to last.
+function turnDurationMs(
+  group: readonly SessionRow[],
+  recordedTimes: readonly number[]
+): number | null {
+  const values: number[] = recordedTimes.filter(value => Number.isFinite(value));
   for (const row of group) {
     for (const value of rowTimestamps(row)) {
       if (Number.isFinite(value)) values.push(value);
@@ -219,7 +282,7 @@ function turnDurationMs(group: readonly SessionRow[]): number | null {
 }
 
 function rowTimestamps(row: SessionRow): number[] {
-  if (row.kind === "work") {
+  if (row.kind === "work" || row.kind === "live-tool") {
     return row.entries.map(tool => timestampMs(tool.timestamp));
   }
   if (row.kind === "turn-fold") {

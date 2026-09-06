@@ -4,10 +4,17 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // sessionClientAPI groups the daemon's session-scoped CLI transport surface.
 type sessionClientAPI interface {
+	SearchSessionTranscript(
+		context.Context,
+		string,
+		transcript.SearchQuery,
+	) (contract.SessionTranscriptSearchResponse, error)
+	GetSessionOutline(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
 	ListSessions(context.Context, SessionListQuery) (SessionListPage, error)
 	CreateSession(context.Context, CreateSessionRequest) (SessionRecord, error)
 	GetSession(context.Context, string) (SessionRecord, error)
@@ -46,6 +53,7 @@ type sessionClientAPI interface {
 	SendSessionPrompt(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	SteerSessionPrompt(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
 	ListSessionInputs(context.Context, string) (SessionInputListRecord, error)
+	ClearSessionInputs(context.Context, string) (contract.SessionInputClearResponse, error)
 	ReplaceSessionInput(context.Context, string, string, ReplaceSessionInputRequest) (SessionInputRecord, error)
 	PromoteSessionInput(context.Context, string, string, PromoteSessionInputRequest) (SessionPromptRecord, error)
 	CancelSessionInput(context.Context, string, string) (SessionPromptRecord, error)

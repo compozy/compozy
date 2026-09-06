@@ -26,8 +26,10 @@ func (a loopCoordinatorRunActivator) ActivateCoordinatorRun(ctx context.Context,
 		a.logFailure(run, "derive coordinator activation actor", err)
 		return
 	}
+	activationCtx, cancel := context.WithTimeout(ctx, taskpkg.DefaultRunLeaseDuration)
+	defer cancel()
 	if _, err := a.state.tasks.coordinatorBackstop.RunLoopCoordinatorBackstop(
-		ctx,
+		activationCtx,
 		time.Now().UTC(),
 		actor,
 	); err != nil {

@@ -31,6 +31,30 @@ func testEventSummaryWithContent(summary store.EventSummary, content json.RawMes
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should expose the live or persisted stop cause without classifying active work as stopped",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name string
+				info session.Info
+				want string
+			}{
+				{"active", session.Info{State: session.StateActive}, ""},
+				{"live request", session.Info{State: session.StateStopping, StopCause: session.CauseUserRequested}, "user_requested"},
+				{"persisted user stop", session.Info{State: session.StateStopped, StopReason: store.StopUserCanceled}, "user_requested"},
+				{"persisted inactivity", session.Info{State: session.StateStopped, StopReason: store.StopTimeout, StopDetail: "inactivity"}, "inactivity"},
+				{"persisted deadline", session.Info{State: session.StateStopped, StopReason: store.StopTimeout, StopDetail: "prompt deadline"}, "timeout"},
+				{"completed race", session.Info{State: session.StateStopped, StopReason: store.StopCompleted}, "completed"},
+			} {
+				payload := core.SessionPayloadFromInfo(&tc.info)
+				if payload.StopCause != tc.want {
+					t.Fatalf("%s cause = %q, want %q", tc.name, payload.StopCause, tc.want)
+				}
+			}
+		},
+	)
+
 	t.Run("Should expose durable escalation without claiming unverified stopping is terminal", func(t *testing.T) {
 		t.Parallel()
 		for _, state := range []session.State{session.StateActive, session.StateStopping, session.StateStopped} {

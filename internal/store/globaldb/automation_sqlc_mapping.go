@@ -342,8 +342,9 @@ func automationTriggerOverlayFromGenerated(
 
 func automationSchedulerParams(state automation.SchedulerState) sqlcgen.UpsertAutomationSchedulerStateParams {
 	return sqlcgen.UpsertAutomationSchedulerStateParams{
-		JobID:     state.JobID,
-		NextRunAt: nullableAutomationTime(state.NextRunAt),
+		DeferredUntil: nullableAutomationTime(state.DeferredUntil),
+		JobID:         state.JobID,
+		NextRunAt:     nullableAutomationTime(state.NextRunAt),
 		LastRunAt: nullableAutomationTime(
 			state.LastRunAt,
 		),
@@ -370,6 +371,9 @@ func automationSchedulerFromGenerated(row sqlcgen.AutomationSchedulerState) (aut
 		MisfireCount:              int(row.MisfireCount),
 	}
 	var err error
+	if state.DeferredUntil, err = parseNullableAutomationTime(row.DeferredUntil); err != nil {
+		return automation.SchedulerState{}, err
+	}
 	if state.NextRunAt, err = parseNullableAutomationTime(row.NextRunAt); err != nil {
 		return automation.SchedulerState{}, err
 	}

@@ -13,9 +13,12 @@ export {
   type SessionSteerDelivery,
 } from "./lib/session-busy-input";
 export {
+  classifySessionBusyInputFailure,
   describeSessionBusyInputRefusal,
+  describeSessionBusyInputUnconfirmed,
   SessionBusyInputRefusalError,
   sessionBusyInputRefusalFromError,
+  type SessionBusyInputFailure,
   type SessionBusyInputRefusal,
   type SessionBusyInputRefusalCode,
 } from "./lib/session-busy-input-refusal";

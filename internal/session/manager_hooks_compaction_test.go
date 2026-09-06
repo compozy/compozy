@@ -371,19 +371,61 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		}
 	})
 
-	t.Run("Should include standalone markers before later complete turns", func(t *testing.T) {
+	t.Run("Should include standalone hooks and markers before later complete turns", func(t *testing.T) {
 		t.Parallel()
 
 		events := []store.SessionEvent{
-			{Sequence: 1, TurnID: "turn-marker", Type: eventspkg.TranscriptMarkerCreated},
-			{Sequence: 2, TurnID: "clarify:req-1", Type: acp.EventTypeClarify},
-			{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
-			{Sequence: 4, TurnID: "turn-complete", Type: acp.EventTypeDone},
-			{Sequence: 5, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			{Sequence: 1, TurnID: "hook-start", Type: eventspkg.HookDispatchStart},
+			{Sequence: 2, TurnID: "hook-complete", Type: eventspkg.HookDispatchComplete},
+			{Sequence: 3, TurnID: "turn-marker", Type: eventspkg.TranscriptMarkerCreated},
+			{Sequence: 4, TurnID: "clarify:req-1", Type: acp.EventTypeClarify},
+			{Sequence: 5, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+			{Sequence: 6, TurnID: "turn-complete", Type: acp.EventTypeDone},
+			{Sequence: 7, TurnID: "turn-current", Type: acp.EventTypeUsage},
 		}
 		span := completePriorTurnPrefix(events, "turn-current")
-		if len(span) != 4 || span[0].Sequence != 1 || span[3].Sequence != 4 {
+		if len(span) != 6 || span[0].Sequence != 1 || span[5].Sequence != 6 {
 			t.Fatalf("completePriorTurnPrefix() = %#v, want standalone events plus complete turn", span)
+		}
+	})
+
+	t.Run("Should compact complete interleaved turns and verified stop suffixes", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name   string
+			events []store.SessionEvent
+			want   int
+		}{
+			{name: "Should include a stopped suffix from an earlier archived turn", events: []store.SessionEvent{
+				{Sequence: 1, TurnID: "turn-stopped", Type: eventspkg.SessionStopEscalated},
+				{Sequence: 2, TurnID: "turn-stopped", Type: EventTypeSessionStopped},
+				{Sequence: 3, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			}, want: 2},
+			{name: "Should retain clarifications inside their complete conversation span", events: []store.SessionEvent{
+				{Sequence: 1, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+				{Sequence: 2, TurnID: "clarify:req", Type: acp.EventTypeClarify},
+				{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeDone},
+				{Sequence: 4, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			}, want: 3},
+			{
+				name: "Should preserve a prior turn whose completion crosses the active turn",
+				events: []store.SessionEvent{
+					{Sequence: 1, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+					{Sequence: 2, TurnID: "turn-current", Type: acp.EventTypeUsage},
+					{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeDone},
+				},
+				want: 0,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				span := completePriorTurnPrefix(tc.events, "turn-current")
+				if len(span) != tc.want {
+					t.Fatalf("completePriorTurnPrefix() = %#v, want %d events", span, tc.want)
+				}
+			})
 		}
 	})
 

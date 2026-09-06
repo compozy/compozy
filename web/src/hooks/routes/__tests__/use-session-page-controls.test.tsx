@@ -23,10 +23,16 @@ const routeHookMocks = vi.hoisted(() => ({
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
-  sessionInputsQuery: { data: { inputs: [] as Array<Record<string, unknown>> } },
+  sessionInputsQuery: {
+    data: { inputs: [] } as {
+      inputs: Array<Record<string, unknown>>;
+      queue?: { cap: number; entries: number } | null;
+    },
+  },
   cancelInputMutation: { isPending: false, mutate: vi.fn() },
   replaceInputMutation: { isPending: false, mutateAsync: vi.fn() },
   promoteInputMutation: { isPending: false, mutate: vi.fn() },
+  clearInputsMutation: { isPending: false, mutateAsync: vi.fn() },
 }));
 
 vi.mock("@assistant-ui/react", () => ({
@@ -41,16 +47,21 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/systems/session", async () => {
   const { canPromptSession } = await import("@/systems/session/lib/session-running");
-  const { queuedPromptAttachmentSummary } = await import("@/systems/session/lib/queued-prompt");
+  const queuedPrompt = await import("@/systems/session/lib/queued-prompt");
+  const unconfirmed = await import("@/systems/session/lib/session-unconfirmed-send");
+  const apiErrors = await import("@/systems/session/adapters/session-api-errors");
   const busyInput = await import("@/systems/session/lib/session-busy-input");
   const refusal = await import("@/systems/session/lib/session-busy-input-refusal");
   const outcome = await import("@/systems/session/lib/session-send-outcome");
   const stopAttention = await import("@/systems/session/lib/session-stop-attention");
   return {
+    ...apiErrors,
     ...busyInput,
+    ...queuedPrompt,
     ...refusal,
     ...outcome,
     ...stopAttention,
+    ...unconfirmed,
     canPromptSession,
     cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
     invalidateSessionMutationQueries: routeHookMocks.invalidateSessionMutationQueries,
@@ -62,8 +73,8 @@ vi.mock("@/systems/session", async () => {
       session.state !== "stopped" &&
       (Boolean(session.activity?.turn_id) || session.badge === "running"),
     isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
-    queuedPromptAttachmentSummary,
     useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
+    useClearSessionInputs: () => routeHookMocks.clearInputsMutation,
     useClearSessionConversation: () => routeHookMocks.clearMutation,
     useDeleteSession: (options: { onDeleteSuccess?: () => void }) => {
       routeHookMocks.deleteOptions.current = options;
@@ -81,7 +92,7 @@ vi.mock("@/systems/session", async () => {
   };
 });
 
-import type { SessionPayload } from "@/systems/session";
+import { SessionApiError, type SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -92,6 +103,7 @@ function makeSession(
   sessionType: NonNullable<SessionPayload["type"]> = "user"
 ): SessionPayload {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id: "sess-1",
@@ -186,6 +198,8 @@ describe("useSessionPageControls", () => {
     routeHookMocks.sendPromptMutation.mutateAsync.mockReset();
     routeHookMocks.replaceInputMutation.isPending = false;
     routeHookMocks.replaceInputMutation.mutateAsync.mockReset();
+    routeHookMocks.clearInputsMutation.isPending = false;
+    routeHookMocks.clearInputsMutation.mutateAsync.mockReset();
     routeHookMocks.stopMutation.isPending = false;
     routeHookMocks.stopMutation.mutate.mockReset();
     routeHookMocks.stopMutation.mutateAsync.mockReset();
@@ -241,6 +255,26 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = false;
     rerender(makeSession("active"));
     await waitFor(() => expect(result.current.isStopping).toBe(false));
+  });
+
+  // Invariant (US-009.EC-2): the daemon's `nothing-in-flight` answer settles the
+  // stop at once and surfaces the completion note; nothing reads canceled.
+  it("Should settle a nothing-in-flight cancel at once and surface the completion note", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockResolvedValue({
+      outcome: "nothing-in-flight",
+      session_id: "sess-1",
+    });
+    const { result } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active", "turn-1"), wrapper: createWrapper() }
+    );
+
+    expect(result.current.stopCompletionNote).toBe(false);
+    act(() => result.current.handleCancelPrompt());
+    await waitFor(() => expect(result.current.stopCompletionNote).toBe(true));
+    expect(result.current.isStopping).toBe(false);
   });
 
   it("Should keep an accepted cancel stopping when the session reread fails", async () => {
@@ -544,12 +578,12 @@ describe("useSessionPageControls", () => {
     );
 
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep this" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
     session = makeSession("active", "turn-b");
     rerender();
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep this" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
   });
 
@@ -567,7 +601,9 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
       expectedTurnId: "turn-managed",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "queue me",
+      messageId: expect.any(String),
       mode: "queue",
     });
 
@@ -705,13 +741,17 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
       expectedTurnId: "turn-live",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "new constraint",
+      messageId: expect.any(String),
       mode: "steer",
     });
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
       expectedTurnId: "turn-live",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "replace the work",
+      messageId: expect.any(String),
       mode: "interrupt",
       attachments: [
         {
@@ -749,19 +789,30 @@ describe("useSessionPageControls", () => {
 
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(1, {
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "new constraint",
+      messageId: expect.any(String),
       mode: "steer",
     });
     expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(2, {
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "replace the work",
+      messageId: expect.any(String),
       mode: "interrupt",
     });
   });
 
   it("Should promote a durable queue entry with one atomic request", () => {
     const { result } = renderControls(makeSession("active", "turn-live"));
-    act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
+    act(() =>
+      result.current.handleSteerQueuedPrompt({
+        id: "inq-1",
+        owner: null,
+        position: 1,
+        text: "steer me",
+      })
+    );
 
     expect(routeHookMocks.promoteInputMutation.mutate).toHaveBeenCalledOnce();
     expect(routeHookMocks.promoteInputMutation.mutate).toHaveBeenCalledWith(
@@ -784,7 +835,7 @@ describe("useSessionPageControls", () => {
 
     await act(async () => {
       await result.current.handleReplaceQueuedPrompt(
-        { id: "inq-1", text: "old" },
+        { id: "inq-1", owner: null, position: 1, text: "old" },
         "new queued text"
       );
     });
@@ -810,10 +861,17 @@ describe("useSessionPageControls", () => {
     routeHookMocks.replaceInputMutation.mutateAsync.mockResolvedValue({ id: "inq-2" });
     const { result } = renderControls(makeSession("active", "turn-live"));
 
-    act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
+    act(() =>
+      result.current.handleSteerQueuedPrompt({
+        id: "inq-1",
+        owner: null,
+        position: 1,
+        text: "steer me",
+      })
+    );
     await act(async () => {
       await result.current.handleReplaceQueuedPrompt(
-        { id: "inq-1", text: "old" },
+        { id: "inq-1", owner: null, position: 1, text: "old" },
         "new queued text"
       );
     });
@@ -849,7 +907,7 @@ describe("useSessionPageControls", () => {
     act(() => options.onError(new Error("cancel failed")));
 
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep me" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep me" },
     ]);
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("Couldn't remove queued prompt.");
     expect(consoleError).toHaveBeenCalledWith("Failed to remove a queued prompt");
@@ -868,5 +926,140 @@ describe("useSessionPageControls", () => {
       ).rejects.toThrow("queue failed");
     });
     await waitFor(() => expect(result.current.isBusyInputPending).toBe(false));
+  });
+
+  it("Should keep a lost send's identity and replay exactly the same identity on Retry", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+    const { result } = renderControls(makeSession("active", "turn-live"));
+
+    await act(async () => {
+      await expect(
+        result.current.handleQueuePrompt({ message: "keep my identity", attachments: [] })
+      ).rejects.toThrow("Failed to fetch");
+    });
+    await waitFor(() => expect(result.current.unconfirmedSends).toHaveLength(1));
+    const [firstCall] = routeHookMocks.sendPromptMutation.mutateAsync.mock.calls;
+    const unconfirmed = result.current.unconfirmedSends[0]!;
+    expect(unconfirmed).toMatchObject({
+      action: "queue",
+      expectedTurnId: "turn-live",
+      phase: "unconfirmed",
+      text: "keep my identity",
+    });
+    expect(unconfirmed.identity).toEqual({
+      idempotencyKey: firstCall[0].idempotencyKey,
+      messageId: firstCall[0].messageId,
+    });
+
+    routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValueOnce({
+      delivery: "after_turn",
+      disposition: "queued",
+      entry_id: "inq-9",
+      idempotency_key: unconfirmed.identity.idempotencyKey,
+      message_id: unconfirmed.identity.messageId,
+      queue_position: 1,
+      replayed: true,
+      status: "queued",
+      turn_id: "turn-live",
+    });
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.handleRetryUnconfirmedSend(unconfirmed.id);
+    });
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenLastCalledWith({
+      expectedTurnId: "turn-live",
+      id: "sess-1",
+      idempotencyKey: unconfirmed.identity.idempotencyKey,
+      message: "keep my identity",
+      messageId: unconfirmed.identity.messageId,
+      mode: "queue",
+    });
+    expect(outcome).toMatchObject({ disposition: "queued", replayed: true });
+    await waitFor(() => expect(result.current.unconfirmedSends).toEqual([]));
+  });
+
+  it("Should discard a waiting unconfirmed send locally and clear the queue explicitly", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+    routeHookMocks.clearInputsMutation.mutateAsync.mockResolvedValue({
+      cleared_count: 2,
+      inputs: [],
+      queue_generation: 3,
+    });
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    await act(async () => {
+      await expect(
+        result.current.handleSteerPrompt({ message: "lost", attachments: [] })
+      ).rejects.toThrow("Failed to fetch");
+    });
+    await waitFor(() => expect(result.current.unconfirmedSends).toHaveLength(1));
+    act(() => result.current.handleDiscardUnconfirmedSend(result.current.unconfirmedSends[0]!.id));
+    await waitFor(() => expect(result.current.unconfirmedSends).toEqual([]));
+
+    await act(async () => {
+      await result.current.handleClearQueue();
+    });
+    expect(routeHookMocks.clearInputsMutation.mutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it("Should read the cap from the queue summary before any refusal and follow its updates", () => {
+    routeHookMocks.sessionInputsQuery.data = {
+      inputs: [
+        { id: "inq-1", mode: "queue", status: "queued", text: "one", delivery: "after_turn" },
+        { id: "inq-2", mode: "queue", status: "queued", text: "two", delivery: "after_turn" },
+      ],
+      queue: { cap: 2, entries: 2 },
+    };
+    const session = makeSession("active", "turn-live");
+    const { result, rerender } = renderHook(
+      () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { wrapper: createWrapper() }
+    );
+    // No send has been refused: the daemon list alone says the queue is at cap.
+    expect(result.current.queueCap).toBe(2);
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).not.toHaveBeenCalled();
+
+    // The daemon raised the cap: the next reread is the truth, nothing is remembered client-side.
+    routeHookMocks.sessionInputsQuery.data = {
+      ...routeHookMocks.sessionInputsQuery.data,
+      queue: { cap: 5, entries: 2 },
+    };
+    rerender();
+    expect(result.current.queueCap).toBe(5);
+  });
+
+  it("Should fall back to the cap a queue_full refusal named when the list carries no summary", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sessionInputsQuery.data = {
+      inputs: [
+        { id: "inq-1", mode: "queue", status: "queued", text: "one", delivery: "after_turn" },
+        { id: "inq-2", mode: "queue", status: "queued", text: "two", delivery: "after_turn" },
+      ],
+    };
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new SessionApiError("queue full", 409, "sess-1", { code: "queue_full", queueCap: 2 })
+    );
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    expect(result.current.queueCap).toBeNull();
+    await act(async () => {
+      await expect(
+        result.current.handleQueuePrompt({ message: "three", attachments: [] })
+      ).rejects.toMatchObject({ code: "queue_full" });
+    });
+    await waitFor(() => expect(result.current.queueCap).toBe(2));
+    expect(result.current.unconfirmedSends).toEqual([]);
+
+    // Once the list carries a summary it outranks the remembered refusal.
+    routeHookMocks.sessionInputsQuery.data = {
+      ...routeHookMocks.sessionInputsQuery.data,
+      queue: { cap: 4, entries: 2 },
+    };
+    const { result: withSummary } = renderControls(makeSession("active", "turn-live"));
+    expect(withSummary.current.queueCap).toBe(4);
   });
 });

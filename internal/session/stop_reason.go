@@ -38,6 +38,8 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 			return store.StopAgentCrashed, waitErr.Error()
 		}
 		return store.StopError, "process exited unexpectedly"
+	case CauseInactivity:
+		return store.StopTimeout, stopDetailInactivity
 	case CauseTimeout:
 		if trimmedDetail == "" {
 			trimmedDetail = store.SessionStallReasonActivityTimeout
@@ -147,7 +149,8 @@ func (m *Manager) prepareStopWithCauseMode(
 	}
 	process := session.processHandle()
 	stopWasAlreadyRequested := session.stopWasRequested()
-	observedProcessExit := isProcessDone(process)
+	// An unbound session has no process yet; absence is not a natural exit.
+	observedProcessExit := process != nil && isProcessDone(process)
 	fatalPromptFailure := mode == stopPreparationFatalPromptFailure
 
 	appliedCause := cause

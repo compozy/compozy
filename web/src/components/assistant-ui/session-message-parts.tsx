@@ -6,11 +6,14 @@ import { Marker, MarkerMeta } from "@compozy/ui";
 export function SessionMessageText({
   text,
   streaming = false,
+  reveal = false,
 }: {
   text: string;
   streaming?: boolean;
+  /** Assistant prose: smooth reveal while streaming (ADR-008). */
+  reveal?: boolean;
 }) {
-  return <MessageMarkdown content={text} streaming={streaming} />;
+  return <MessageMarkdown content={text} streaming={streaming} reveal={reveal} />;
 }
 
 /**

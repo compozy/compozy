@@ -12,6 +12,10 @@ import {
 } from "../session-timeline.logic";
 import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
 import { timelineRowLogic } from "./use-timeline-row-context";
+import { useSessionTurnOutcomes } from "@/systems/session/hooks/use-session-turn-outcomes";
+import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
+import type { SessionTurnOutcomes } from "@/systems/session/lib/session-turn-outcomes";
+import { isSessionErrorEvent } from "@/systems/session/components/runtime-activity-notice.logic";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
 // A turn is "working" while it streams: assistant-ui marks the message status
@@ -90,22 +94,70 @@ function isCompozyEventPart(part: Record<string, unknown>): boolean {
   return type === "data" && stringField(part, "name") === "compozy-event";
 }
 
-function interruptedTurnIds(
+const STEER_FALLBACK_MARKER = "transcript_marker.prompt_steered";
+
+interface TurnEndings {
+  interrupted: ReadonlySet<string> | undefined;
+  superseded: ReadonlySet<string> | undefined;
+  failed: ReadonlySet<string> | undefined;
+}
+
+function markerKind(data: Record<string, unknown>): string | undefined {
+  const marker = data.marker;
+  return isRecord(marker) ? stringField(marker, "kind") : undefined;
+}
+
+function markerEvidence(data: Record<string, unknown>, key: string): string | undefined {
+  const marker = data.marker;
+  if (!isRecord(marker) || !isRecord(marker.evidence)) return undefined;
+  return stringField(marker.evidence, key);
+}
+
+// How each turn of the message ended, from the daemon's own records: a stop
+// reason names an operator stop; a steer marker whose delivery fell back to
+// interrupt names a superseded turn (its true cause, US-022.EC-3); a session
+// error event or the message's own error status names a failed turn.
+function turnEndings(
   content: unknown,
-  fallbackTurnId: string | undefined
-): ReadonlySet<string> | undefined {
-  if (!Array.isArray(content)) return undefined;
-  const ids = new Set<string>();
-  for (const part of content) {
-    if (!isRecord(part) || !isCompozyEventPart(part)) continue;
-    const data = part.data;
-    if (!isRecord(data)) continue;
-    const stopReason = stringField(data, "stop_reason")?.toLowerCase();
-    if (!stopReason || !INTERRUPT_STOP_REASONS.has(stopReason)) continue;
-    const turnId = stringField(data, "turn_id") ?? stringField(part, "turnId") ?? fallbackTurnId;
-    if (turnId) ids.add(turnId);
+  fallbackTurnId: string | undefined,
+  messageFailed: boolean
+): TurnEndings {
+  const interrupted = new Set<string>();
+  const superseded = new Set<string>();
+  const failed = new Set<string>();
+  if (messageFailed && fallbackTurnId) failed.add(fallbackTurnId);
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      if (!isRecord(part) || !isCompozyEventPart(part)) continue;
+      const data = part.data;
+      if (!isRecord(data)) continue;
+      const turnId = stringField(data, "turn_id") ?? stringField(part, "turnId") ?? fallbackTurnId;
+      if (!turnId) continue;
+      const stopReason = stringField(data, "stop_reason")?.toLowerCase();
+      if (stopReason && INTERRUPT_STOP_REASONS.has(stopReason)) interrupted.add(turnId);
+      if (
+        markerKind(data) === STEER_FALLBACK_MARKER &&
+        markerEvidence(data, "steer_delivery") === "interrupt_fallback"
+      ) {
+        superseded.add(turnId);
+      }
+      if (isAgentEventPayload(data) && isSessionErrorEvent(data)) failed.add(turnId);
+    }
   }
-  return ids.size > 0 ? ids : undefined;
+  return {
+    interrupted: interrupted.size > 0 ? interrupted : undefined,
+    superseded: superseded.size > 0 ? superseded : undefined,
+    failed: failed.size > 0 ? failed : undefined,
+  };
+}
+
+function messageStatusFailed(message: { status?: unknown }): boolean {
+  const status = message.status;
+  return (
+    isRecord(status) &&
+    stringField(status, "type") === "incomplete" &&
+    stringField(status, "reason") === "error"
+  );
 }
 
 function goalPromptMeta(content: unknown): GoalPromptMeta | null {
@@ -174,17 +226,74 @@ function workGroupAnchorsFromRows(
   return [...anchors.values()];
 }
 
+// The daemon may record a turn's end (its quiesced receipt, the operator's
+// cancel) in a later projected message than the calls it cut short, or in this
+// message's own events (a `stop_reason`, the fallback steer that replaced it).
+// Once the loaded thread says the turn ended, a call still awaiting its result
+// here is stopped — never "running" — and the turn reads as interrupted. A
+// message still streaming is the live turn and keeps its running row.
+function settleEndedTurn(
+  message: { status?: unknown },
+  parts: readonly SessionTimelinePart[],
+  outcomes: SessionTurnOutcomes,
+  recordedEnded: ReadonlySet<string> | undefined
+): { parts: readonly SessionTimelinePart[]; interrupted: ReadonlySet<string> | undefined } {
+  if (messageStatusIsRunning(message) || (outcomes.size === 0 && !recordedEnded?.size)) {
+    return { parts, interrupted: undefined };
+  }
+  const interrupted = new Set<string>();
+  const settled = parts.map(part => {
+    if (part.kind !== "tool" || part.status !== "running" || !part.turnId) return part;
+    if (!outcomes.has(part.turnId) && !recordedEnded?.has(part.turnId)) return part;
+    interrupted.add(part.turnId);
+    return { ...part, status: "interrupted" as const };
+  });
+  return {
+    parts: interrupted.size > 0 ? settled : parts,
+    interrupted: interrupted.size > 0 ? interrupted : undefined,
+  };
+}
+
+function turnEndsFromOutcomes(outcomes: SessionTurnOutcomes): ReadonlyMap<string, number> {
+  const ends = new Map<string, number>();
+  for (const [turnId, outcome] of outcomes) {
+    if (outcome.endedAtMs !== null) ends.set(turnId, outcome.endedAtMs);
+  }
+  return ends;
+}
+
+function unionTurnIds(
+  left: ReadonlySet<string> | undefined,
+  right: ReadonlySet<string> | undefined
+): ReadonlySet<string> | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return new Set([...left, ...right]);
+}
+
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }
   );
-  const baseParts = toTimelineParts(message);
+  const outcomes = useSessionTurnOutcomes();
+  const recorded = turnEndings(
+    message.content,
+    typeof message.id === "string" && message.id.length > 0 ? message.id : undefined,
+    messageStatusFailed(message)
+  );
+  const ended = settleEndedTurn(
+    message,
+    toTimelineParts(message),
+    outcomes,
+    unionTurnIds(recorded.interrupted, recorded.superseded)
+  );
+  const baseParts = ended.parts;
   const workingPart = deriveWorkingPart(message, baseParts);
   const parts = workingPart ? [...baseParts, workingPart] : baseParts;
-  const interruptedTurns = interruptedTurnIds(
-    message.content,
-    typeof message.id === "string" && message.id.length > 0 ? message.id : undefined
-  );
+  const endings = {
+    ...recorded,
+    interrupted: unionTurnIds(recorded.interrupted, ended.interrupted),
+  };
   const goal = goalPromptMeta(message.content);
   const timelineStore = useStore(timelineRowLogic, undefined);
   const expandedWorkGroups = useSelector(timelineStore, state => state.context.expandedWorkGroups);
@@ -196,7 +305,10 @@ export function useAssistantMessageTimeline() {
   const rows = deriveSessionRows(parts, {
     activeTurnId: workingPart?.turnId,
     foldSettledTurns: true,
-    interruptedTurnIds: interruptedTurns,
+    interruptedTurnIds: endings.interrupted,
+    supersededTurnIds: endings.superseded,
+    failedTurnIds: endings.failed,
+    turnEndedAtMs: turnEndsFromOutcomes(outcomes),
     expandedWorkGroupIds: expandedWorkGroups,
     workGroupAnchors,
     expandedChangedFilesIds: expandedChangedFiles,

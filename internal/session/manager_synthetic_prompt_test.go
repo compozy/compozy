@@ -27,6 +27,7 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(system) error = %v", err)
 	}
+	enableSyntheticQueue(t, h, session)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})
@@ -117,6 +118,7 @@ func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {
 
 	h := newHarness(t)
 	session := createSession(t, h)
+	enableSyntheticQueue(t, h, session)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})
@@ -146,6 +148,7 @@ func TestPromptSyntheticHeartbeatWakeOptions(t *testing.T) {
 
 		h := newHarness(t)
 		session := createSession(t, h)
+		enableSyntheticQueue(t, h, session)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() error = %v", err)
@@ -206,6 +209,7 @@ func TestPromptSyntheticHeartbeatWakeOptions(t *testing.T) {
 
 		h := newHarness(t)
 		session := createSession(t, h)
+		enableSyntheticQueue(t, h, session)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Errorf("Stop() error = %v", err)
@@ -260,6 +264,7 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 
 	h := newHarness(t)
 	session := createSession(t, h)
+	enableSyntheticQueue(t, h, session)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})
@@ -337,6 +342,7 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 
 		h := newHarness(t)
 		session := createSession(t, h)
+		enableSyntheticQueue(t, h, session)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Fatalf("failed to stop session %s: %v", session.ID, err)
@@ -423,6 +429,7 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 		supervision.TimeoutCancelGrace = 20 * time.Millisecond
 		h := newHarness(t, WithSessionSupervision(supervision))
 		session := createSession(t, h)
+		enableSyntheticQueue(t, h, session)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 				t.Fatalf("failed to stop session %s: %v", session.ID, err)
@@ -501,4 +508,15 @@ func completedSyntheticPromptEvents(turnID string) <-chan acp.AgentEvent {
 	events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turnID}
 	close(events)
 	return events
+}
+
+func enableSyntheticQueue(t *testing.T, h *harness, session *Session) {
+	t.Helper()
+	database := openManagerInputQueueStore(t)
+	registerManagerInputQueueWorkspace(t, database, h)
+	registerManagerInputQueueSession(t, database, h, session)
+	WithSessionInputQueueStore(database)(h.manager)
+	if err := h.manager.applyInputQueueDefaults(); err != nil {
+		t.Fatal(err)
+	}
 }

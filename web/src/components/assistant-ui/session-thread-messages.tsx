@@ -15,6 +15,7 @@ import {
   type SessionFailurePayload,
   type SessionState,
   useSessionTranscriptThreadState,
+  useSessionTransportState,
 } from "@/systems/session";
 
 function SessionThreadMessage() {
@@ -84,7 +85,7 @@ function ThreadMessageRows({
             data-message-id={messageId}
             data-message-index={messageIndex}
             data-testid="thread-message-row"
-            className="w-full [content-visibility:auto] [contain-intrinsic-size:auto_120px]"
+            className="w-full"
           >
             <ThreadPrimitive.Unstable_MessageById
               messageId={messageId}
@@ -136,6 +137,11 @@ export function ThreadMessages({
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
 }) {
+  const transport = useSessionTransportState();
+  const syncFailure =
+    transport.phase === "failed" && transport.failure !== null
+      ? { attempts: transport.failure.attempts, retry: transport.retry }
+      : null;
   const emptyWhileActive = messageCount === 0 && transcriptStatus === "success" && isSessionRunning;
   useEffect(() => {
     if (!emptyWhileActive) {
@@ -164,6 +170,7 @@ export function ThreadMessages({
           failure={failure}
           startupFailed={startupFailed}
           isSessionRunning={isSessionRunning}
+          syncFailure={syncFailure}
         />
       </>
     );

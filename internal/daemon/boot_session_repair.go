@@ -46,6 +46,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		return fmt.Errorf("daemon: boot session inventory recovery failed: %w", err)
 	}
+	if err := upgradeBootSessionDatabases(ctx, state.sessions, infos); err != nil {
+		return err
+	}
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
 		return err
 	}
@@ -90,6 +93,26 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		)
 	}
 	return recoverBootSessionHealth(ctx, state)
+}
+
+type sessionDatabaseUpgrader interface {
+	UpgradeSessionDatabase(context.Context, string) error
+}
+
+func upgradeBootSessionDatabases(ctx context.Context, manager SessionManager, infos []*session.Info) error {
+	upgrader, ok := manager.(sessionDatabaseUpgrader)
+	if !ok {
+		return nil
+	}
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.ID) == "" {
+			continue
+		}
+		if err := upgrader.UpgradeSessionDatabase(ctx, info.ID); err != nil {
+			return fmt.Errorf("daemon: upgrade retained session database %q: %w", info.ID, err)
+		}
+	}
+	return nil
 }
 
 func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {

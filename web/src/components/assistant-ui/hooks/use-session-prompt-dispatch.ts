@@ -10,9 +10,11 @@ export function useSessionPromptDispatch() {
   }
   const canceled = useSelector(store, snapshot => snapshot.context.canceled);
   const pending = useSelector(store, snapshot => snapshot.context.pending);
+  const pendingSinceMs = useSelector(store, snapshot => snapshot.context.pendingSinceMs);
   return {
     cancelPending: () => store.trigger.pendingCanceled({}),
     canceled,
     pending,
+    pendingSinceMs,
   };
 }

@@ -7,11 +7,11 @@ journey: J-13
 expected: An unmarked send during a live turn resolves session.busy_input.default_mode (steer) and returns the full SendOutcome envelope; when the runtime announces steering or the provider capability allows it, the guidance is delivered into the live turn (steer_delivery injected, same turn id, prompt_steered marker, no cancel); when it cannot inject, the same send reports interrupt_fallback and the replacement runs after the old turn is cancelled; the opposite modifier queues with a position; session status answers busy_input.steer_capability before any send; every disposition is answered inline in the Web composer and the draft survives a refusal.
 entry_points: compozy session prompt (second send during a turn); POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt over HTTP and UDS; compozy__session_prompt; web session window composer (Enter / Cmd+Enter)
 qa_status: pass
-bug_ids:
-fix_status:
+bug_ids: BUG-20260906-injected-guidance-missing-history
+fix_status: pending
 retest_status:
 fix_commits:
-evidence: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkD-prompt-steer.jsonl; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkD-events.json; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkC-prompt-steer.jsonl; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/walkC-events.json; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f3-03-claude-steering-injected.png; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f1-03-steer-disposition.png; /Users/pedronauck/dev/qa-labs/compozy-sessions-stability-task01-02-20260905-154017-502928-lab/qa-artifacts/qa/evidence/screenshots/f4-01-queued-disposition.png
+evidence: docs/qa/reports/2026-09-06-sessions-stability.md
 last_report: docs/qa/reports/2026-09-05-sessions-stability-task01-02.md
 overlaps: RT-018; RT-019
 ---
@@ -33,3 +33,9 @@ durable after_turn entry. session status exposed busy_input.default_mode steer a
 before any send. Not walked: Codex and Cursor binaries (no steering announcement observed on their
 current ACP builds; they fall back truthfully) and the stale-fence refusal from the Web (covered by
 the canonical composer store tests and the RefusedTurnChanged story).
+
+QA plan 2026-09-06: the integrated sessions-stability task10 re-walk is scoped by
+`.compozy/tasks/sessions-stability/memory/qa.md`. Earlier evidence remains historical;
+the changed queue/transcript/connection behavior has no current integrated verdict yet.
+
+QA 2026-09-06 integrated verdict: Real Claude injected msg_handbook_guidance_02 in the same turn; authored text, identity and Steered provenance survive settlement, cold history and daemon restart. Task01 real capability/fallback evidence remains current. The missing-history and stopped-reader repairs were re-walked; see the integrated report.

@@ -209,3 +209,14 @@ credentials that the isolated lab does not hold, and the unverifiable-kill branc
 daemon is not permitted to signal, which the lab host does not provide. Each deferred branch has
 green owning coverage in `internal/session` (native/UDS stop parity, delete-after-stop replay,
 unverified-death attention) and `internal/sandbox/daytona` on PR #555 CI; no repair is pending.
+
+QA impact 2026-09-06 sessions-stability task_05 (walk owned by final task_10): configure short
+quiet/grace intervals in the isolated lab. Exercise fresh progress, verified tool, active child,
+recent Loop reconciliation, task lease, and scheduled wait independently; each must suppress the
+warning. Provider waiting and an open subscriber must not. Observe one quiet warning in the open
+session, matching CLI/HTTP/UDS/resource/native describe fields, then verified inactivity stop.
+Resume real work during grace and confirm warning cancellation. Check zero quiet, zero grace,
+source-error unknown/attention, stale-source attention, and warning append retry without duplication.
+Existing waits without expiry must use their original creation time for admission-horizon expiry.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for the selected local native/supervision branch: governed same-workspace Stop returned verified=true with forced escalation, replay returned already-stopped, self/foreign-workspace requests were denied, and quiet warning/progress cancellation/inactivity terminal facts agreed. Unverifiable-death and Daytona host constraints remain the previously documented external branches; exhaustive owning integration evidence is reused. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

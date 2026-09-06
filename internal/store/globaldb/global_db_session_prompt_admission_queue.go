@@ -79,7 +79,7 @@ func enqueueAdmittedSessionInputInTransaction(
 		return err
 	}
 	if queueReq.Mode == store.SessionInputQueueModeInterrupt {
-		queueReq, result.canceled, err = prepareInterruptSessionInput(ctx, exec, queueReq)
+		queueReq, err = prepareInterruptSessionInput(ctx, exec, queueReq)
 		if err != nil {
 			return err
 		}
@@ -88,13 +88,8 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil {
 		return err
 	}
-	if count >= queueReq.QueueCap {
-		return fmt.Errorf(
-			"%w: session %s cap %d",
-			store.ErrSessionInputQueueFull,
-			queueReq.SessionID,
-			queueReq.QueueCap,
-		)
+	if queueReq.Mode == store.SessionInputQueueModeQueue && count >= queueReq.QueueCap {
+		return &store.SessionInputQueueFullError{SessionID: queueReq.SessionID, Cap: queueReq.QueueCap, Count: count}
 	}
 	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
 	if err != nil {

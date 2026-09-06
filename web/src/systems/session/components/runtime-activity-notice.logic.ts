@@ -1,5 +1,5 @@
 import { isProviderErrorEvent } from "../lib/provider-error";
-import type { AgentEventPayload } from "../types";
+import type { AgentEventPayload, TranscriptMarkerPayload } from "../types";
 
 const RUNTIME_EVENT_TYPES = new Set(["runtime_progress", "runtime_warning"]);
 const OPERATIONAL_STATUS_EVENT_TYPES = new Set([
@@ -26,13 +26,38 @@ export function isOperationalStatusEvent(event: AgentEventPayload): boolean {
   return OPERATIONAL_STATUS_EVENT_TYPES.has(event.type);
 }
 
+// Stops the daemon attributes to supervision or to a request are not failures,
+// even when the live tail carries them as an `error` event with the stop detail
+// as its text (an inactivity stop reads "Stopped after … · no work for …", never
+// "Session failed"). A failure stop reason, a failure record, or a provider
+// diagnostic still is one.
+const NON_FAILURE_STOP_REASONS = new Set([
+  "timeout",
+  "cancelled",
+  "canceled",
+  "interrupted",
+  "aborted",
+  "stopped",
+  "user_canceled",
+  "shutdown",
+]);
+
 export function isSessionErrorEvent(event: AgentEventPayload): boolean {
-  return (
-    event.type === "error" &&
-    (hasText(event.error) || hasText(event.failure?.summary) || isProviderErrorEvent(event))
-  );
+  if (event.type !== "error") return false;
+  if (isProviderErrorEvent(event) || hasText(event.failure?.summary)) return true;
+  if (!hasText(event.error)) return false;
+  const stopReason = event.stop_reason?.trim().toLowerCase();
+  return !(stopReason && NON_FAILURE_STOP_REASONS.has(stopReason));
 }
 
 export function isTranscriptMarkerEvent(event: AgentEventPayload): boolean {
   return TRANSCRIPT_MARKER_EVENT_TYPES.has(event.type);
+}
+
+export function isQueueRemovalMarker(marker: TranscriptMarkerPayload | null | undefined): boolean {
+  return (
+    marker?.kind === "transcript_marker.prompt_dropped" &&
+    marker.evidence?.queue_status === "canceled" &&
+    marker.evidence?.mode === "queue"
+  );
 }

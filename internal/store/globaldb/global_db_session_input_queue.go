@@ -44,12 +44,11 @@ func (g *SessionRepo) EnqueueSessionInput(
 			return countErr
 		}
 		if count >= normalized.QueueCap {
-			return fmt.Errorf(
-				"%w: session %s cap %d",
-				store.ErrSessionInputQueueFull,
-				normalized.SessionID,
-				normalized.QueueCap,
-			)
+			return &store.SessionInputQueueFullError{
+				SessionID: normalized.SessionID,
+				Cap:       normalized.QueueCap,
+				Count:     count,
+			}
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)
 		if insertErr != nil {
@@ -109,7 +108,7 @@ func (g *SessionRepo) StageSessionSteer(
 
 func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
 	if req.PromptAdmissionID != "" || req.MessageID != "" || req.IdempotencyKey != "" ||
-		req.TurnID != "" || req.EventID != "" {
+		(req.TurnID != "" && req.OwnerKind != store.SessionInputOwnerSynthetic) || req.EventID != "" {
 		return errors.New("store: prompt admission identity is reserved for admitted session input")
 	}
 	return nil
@@ -352,6 +351,10 @@ func insertSessionInputQueueEntry(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
+	syntheticJSON, err := encodeSyntheticQueuePrompt(normalized.SyntheticPrompt)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
 		ID:        normalized.ID,
 		SessionID: normalized.SessionID,
@@ -372,6 +375,8 @@ func insertSessionInputQueueEntry(
 			Valid:  normalized.SteerDelivery != "",
 		},
 		Text:                   normalized.Text,
+		OwnerKind:              sql.NullString{String: normalized.OwnerKind, Valid: normalized.OwnerKind != ""},
+		SyntheticPromptJson:    syntheticJSON,
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		AttachmentsJson:        attachmentsJSON,
 		RuntimeProvider:        normalized.Runtime.Provider,

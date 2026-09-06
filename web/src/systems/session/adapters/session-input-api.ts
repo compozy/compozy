@@ -3,6 +3,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type {
   PromoteSessionInputRequest,
   ReplaceSessionInputRequest,
+  SessionInputClearResponse,
   SessionInputPayload,
   SessionInputsResponse,
   SessionPromptPayload,
@@ -41,6 +42,30 @@ export async function cancelQueuedSessionPrompt(
     response,
     `Failed to cancel queued prompt "${queueEntryId}" for session "${id}"`
   ).prompt;
+}
+
+/**
+ * Explicit clear-all (ADR-003): every removed entry is traced by the daemon.
+ * The answer carries each entry's resulting status — `canceled` for removed
+ * rows, `dispatching` for one already in flight, which is never canceled
+ * implicitly — so the cache can keep exactly what survived.
+ */
+export async function clearSessionInputs(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionInputClearResponse> {
+  const { data, error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to clear the queue for session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to clear the queue for session "${id}"`);
 }
 
 export async function fetchSessionInputs(

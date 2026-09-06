@@ -58,6 +58,7 @@ type StubSessionManager struct {
 	SendPromptFn          func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	SteerFn               func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
 	ListPendingInputsFn   func(context.Context, string) ([]session.PendingInput, error)
+	ClearPendingInputsFn  func(context.Context, string, session.PromptCaller) (session.ClearPendingInputsResult, error)
 	ReplacePendingInputFn func(
 		context.Context, string, string, session.ReplacePendingInputOpts,
 	) (session.PendingInput, error)

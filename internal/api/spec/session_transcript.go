@@ -5,6 +5,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const specTranscriptIncompatibleDescription = "Transcript projection is incompatible"
+
 func sessionTranscriptOperations() []OperationSpec {
 	return []OperationSpec{
 		{
@@ -30,7 +32,7 @@ func sessionTranscriptOperations() []OperationSpec {
 				{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Transcript projection is incompatible", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: specTranscriptIncompatibleDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 		{
@@ -69,7 +71,7 @@ func sessionTranscriptOperations() []OperationSpec {
 				{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-				{Status: 503, Description: "Transcript projection is incompatible", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: specTranscriptIncompatibleDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 	}

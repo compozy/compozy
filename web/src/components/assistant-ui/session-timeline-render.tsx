@@ -1,14 +1,21 @@
-import { CircleStop, Target } from "lucide-react";
-import { createElement, memo } from "react";
+import { Target } from "lucide-react";
+import { createContext, memo, use } from "react";
 import type { ReactNode } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { cn } from "@/lib/utils";
-
-import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import { Marker, MarkerMeta } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
+import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
+import {
+  notifyDisclosureToggled,
+  useOptionalThreadScrollStore,
+} from "./hooks/thread-scroll-context";
+import {
+  type SessionNavigationReveal,
+  useOptionalSessionNavigationTarget,
+  useRevealHold,
+} from "./hooks/session-navigation-target-context";
 import {
   TimelineRowContext,
   toggleTimelineExpansion,
@@ -16,21 +23,21 @@ import {
 } from "./hooks/use-timeline-row-context";
 import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
-import { SessionWorkingRowView } from "./session-working-row";
-import { TranscriptDisclosure } from "./transcript-disclosure";
+import { SessionLiveToolRowView } from "./session-live-tool-row";
+import { toolMessageFromPart } from "./session-timeline-tool-message";
+import { SessionToolGroupRow } from "./session-tool-group-row";
+import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
+import { SessionTurnFoldRowView } from "./session-turn-fold-row";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
+  type SessionLiveToolRow,
   type SessionReasoningRow,
   type SessionRow,
   type SessionTextRow,
-  type SessionTimelineToolPart,
-  type SessionToolGroupSummary,
   type SessionTurnFoldRow,
   type SessionWorkRow,
-  type SessionWorkToggleRow,
   sessionRowEqual,
-  visibleWorkEntries,
 } from "./session-timeline.logic";
 import {
   ClarificationDataPart,
@@ -39,23 +46,64 @@ import {
   isAgentEventPayload,
   isClarifyEventData,
   PermissionDataPart,
-  resolveToolResult,
   RuntimeActivityNotice,
   SessionToolCallRow,
   ThinkingBlock,
-  type UIMessage,
 } from "@/systems/session";
+
+// Rows inside a failed turn's open fold know their turn failed, so the failed
+// call earns the danger glyph (ADR-009); everywhere else a failure is absorbed.
+const TurnFailedContext = createContext(false);
 
 function isCompozyPermissionData(value: unknown): value is CompozyPermissionData {
   return isAgentEventPayload(value) && typeof value.request_id === "string";
 }
 
+// `data-part-index` names the projected part each row renders, so a find jump
+// can land on the matched content rather than the message's top edge.
 function SessionTextRowView({ row }: { row: SessionTextRow }) {
-  return <SessionMessageText text={row.part.text} streaming={row.part.state === "running"} />;
+  return (
+    <div className="contents" data-part-index={row.part.partIndex}>
+      <SessionMessageText text={row.part.text} streaming={row.part.state === "running"} reveal />
+    </div>
+  );
 }
 
 function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
-  return <ThinkingBlock thinking={row.text} thinkingComplete={!row.streaming} />;
+  const hold = useRevealHold(
+    row.id,
+    reveal => reveal.partIndex !== null && rowContainsPart(row, reveal.partIndex)
+  );
+  return (
+    <ThinkingBlock
+      thinking={row.text}
+      thinkingComplete={!row.streaming}
+      partIndex={row.parts[0]?.partIndex}
+      revealOpen={hold.held}
+      onRevealRelease={hold.release}
+    />
+  );
+}
+
+/** The tool row holding the revealed part opens its body when the matched field lives there. */
+function toolRevealProps(
+  reveal: SessionNavigationReveal | null,
+  released: ReadonlySet<string> | undefined,
+  release: ((id: string) => void) | undefined,
+  tool: { toolCallId: string; partIndex?: number }
+): { revealOpen: boolean; revealField?: string; onRevealRelease: () => void } {
+  const id = `tool:${tool.toolCallId}`;
+  const held =
+    reveal !== null &&
+    reveal.opensBody &&
+    reveal.partIndex !== null &&
+    tool.partIndex === reveal.partIndex &&
+    !(released?.has(id) ?? false);
+  return {
+    onRevealRelease: () => release?.(id),
+    revealOpen: held,
+    ...(held && reveal.field ? { revealField: reveal.field } : {}),
+  };
 }
 
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
@@ -72,193 +120,139 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   return <SessionDataEventMarker name={row.part.name} />;
 }
 
-function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
-  return {
-    id: part.toolCallId,
-    role: part.result !== undefined || part.isError ? "tool_result" : "tool_call",
-    content: "",
-    toolName: part.toolName,
-    toolInput: part.args,
-    toolResult: resolveToolResult(part.result),
-    toolError: part.isError,
-    isStreaming: part.status === "running",
-    timestamp: part.timestamp ? Date.parse(part.timestamp) : Date.now(),
-  };
-}
-
-function workToggleLabel(row: SessionWorkToggleRow): string {
-  if (row.expanded) {
-    return "Show fewer tool calls";
-  }
-  return `+${row.hiddenCount} previous tool call${row.hiddenCount === 1 ? "" : "s"}`;
-}
-
-// `.tmore` — bare-text overflow toggle above the visible live tail.
-function WorkToggleButton({
-  row,
-  onToggle,
-  controlsId,
-}: {
-  row: SessionWorkToggleRow;
-  onToggle: () => void;
-  controlsId: string;
-}) {
-  return (
-    <button
-      type="button"
-      data-testid="work-toggle-row"
-      aria-expanded={row.expanded}
-      aria-controls={controlsId}
-      onClick={onToggle}
-      className={cn(
-        "ml-transcript-detail-indent inline-flex min-h-transcript-row w-fit items-center gap-1.5 rounded-xs px-1",
-        "text-transcript-meta text-subtle transition-colors duration-base ease-out hover:text-fg",
-        "focus-visible:shadow-focus-ring focus-visible:outline-none"
-      )}
-    >
-      {workToggleLabel(row)}
-    </button>
-  );
-}
-
-// `.tgroup-sum` — a settled run resting as one semantic summary line; the
-// first entry's icon leads, the chevron discloses the folded rows.
-function SessionWorkSummaryRow({
-  row,
-  summary,
-  onToggle,
-}: {
-  row: SessionWorkRow;
-  summary: SessionToolGroupSummary;
-  onToggle: () => void;
-}) {
-  const first = row.entries[0];
-  const detailsId = `${row.groupId}:entries`;
-  const leadIcon = createElement(
-    getToolIcon(resolveRegisteredToolName(first?.toolName ?? "tool"), first?.args),
-    { "aria-hidden": true, className: "size-3 shrink-0 text-subtle", strokeWidth: 1.8 }
-  );
-  return (
-    <div data-testid="work-summary-row" data-open={row.expanded} className="flex min-w-0 flex-col">
-      <TranscriptDisclosure
-        expanded={row.expanded}
-        onToggle={onToggle}
-        aria-controls={detailsId}
-        icon={leadIcon}
-        label={<span data-testid="work-summary-label">{summary.label}</span>}
-      />
-      <div
-        id={detailsId}
-        data-testid="work-summary-entries"
-        hidden={!row.expanded}
-        aria-hidden={!row.expanded}
-        inert={!row.expanded}
-        className={row.expanded ? "flex min-w-0 flex-col gap-0.5 pt-0.5" : undefined}
-      >
-        {row.expanded
-          ? row.entries.map(tool => (
-              <SessionToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled />
-            ))
-          : null}
-      </div>
-    </div>
-  );
-}
-
 function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   const store = useTimelineRowContext();
+  const scrollStore = useOptionalThreadScrollStore();
+  const navigation = useOptionalSessionNavigationTarget();
+  const turnFailed = use(TurnFailedContext);
+  const hold = useRevealHold(
+    row.id,
+    reveal => reveal.partIndex !== null && rowContainsPart(row, reveal.partIndex)
+  );
   if (row.summary) {
     return (
-      <SessionWorkSummaryRow
-        row={row}
-        summary={row.summary}
-        onToggle={() => toggleTimelineExpansion(store, "work-group", row.groupId)}
+      <SessionToolGroupRow
+        row={hold.held && !row.expanded ? { ...row, expanded: true } : row}
+        turnFailed={turnFailed}
+        onToggle={() => {
+          notifyDisclosureToggled(scrollStore);
+          if (hold.held) {
+            hold.release();
+            if (row.expanded) toggleTimelineExpansion(store, "work-group", row.groupId);
+            return;
+          }
+          toggleTimelineExpansion(store, "work-group", row.groupId);
+        }}
       />
     );
   }
-  const tools = visibleWorkEntries(row);
-  const detailsId = row.grouped ? `${row.groupId}:entries` : undefined;
   return (
-    <div id={detailsId} data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
-      {tools.map(tool => (
+    <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
+      {row.entries.map(tool => (
         <SessionToolCallRow
           key={tool.id}
           message={toolMessageFromPart(tool)}
+          partIndex={tool.partIndex}
           turnSettled={!row.active}
+          interrupted={tool.status === "interrupted"}
+          turnFailed={turnFailed}
+          {...toolRevealProps(
+            navigation?.reveal ?? null,
+            navigation?.released,
+            navigation?.releaseDisclosure,
+            tool
+          )}
         />
       ))}
     </div>
   );
 }
 
-function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
+function SessionLiveToolRowContent({ row }: { row: SessionLiveToolRow }) {
   const store = useTimelineRowContext();
-  const detailsId = `${row.groupId}:entries`;
+  const scrollStore = useOptionalThreadScrollStore();
+  const reducedMotion = usePrefersReducedMotion();
+  const hold = useRevealHold(
+    row.id,
+    reveal => reveal.partIndex !== null && rowContainsPart(row, reveal.partIndex)
+  );
   return (
-    <WorkToggleButton
-      row={row}
-      controlsId={detailsId}
-      onToggle={() => toggleTimelineExpansion(store, "work-group", row.groupId)}
+    <SessionLiveToolRowView
+      row={hold.held && !row.expanded ? { ...row, expanded: true } : row}
+      reducedMotion={reducedMotion}
+      onToggle={() => {
+        notifyDisclosureToggled(scrollStore);
+        if (hold.held) {
+          hold.release();
+          if (row.expanded) toggleTimelineExpansion(store, "work-group", row.id);
+          return;
+        }
+        toggleTimelineExpansion(store, "work-group", row.id);
+      }}
     />
   );
 }
 
 function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
   const store = useTimelineRowContext();
+  const scrollStore = useOptionalThreadScrollStore();
   return (
     <SessionChangedFilesRowView
       row={row}
-      onToggle={() => toggleTimelineExpansion(store, "changed-files", row.id)}
+      onToggle={() => {
+        notifyDisclosureToggled(scrollStore);
+        toggleTimelineExpansion(store, "changed-files", row.id);
+      }}
     />
   );
 }
 
-// `.turnfold` — "Worked for Ns", the ONLY border in the transcript. The
-// interrupted variant never folds: a quiet danger text line above the
-// always-visible work.
-function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
+// A find jump opens the fold the matched part sits behind ("opened for a
+// match"): the exact part when the daemon located it, the whole turn when an
+// older daemon named only the turn. The reader closes it by hand with one
+// click, which also releases the jump's hold. While closed, the fold says how
+// many matches the daemon found inside it.
+function SessionTurnFoldRowContent({ row }: { row: SessionTurnFoldRow }) {
   const store = useTimelineRowContext();
+  const scrollStore = useOptionalThreadScrollStore();
+  const navigation = useOptionalSessionNavigationTarget();
   const turnId = row.turnId ?? row.id;
-  const detailsId = `turn-fold:${turnId}:entries`;
-  const expanded = useSelector(store, state => state.context.expandedTurns.has(turnId));
-  if (row.interrupted) {
-    return (
-      <div
-        data-testid="turn-fold-interrupted"
-        className="mb-2.5 flex min-w-0 flex-col gap-1 border-b border-line pb-1.5"
-      >
-        <div
-          data-testid="turn-fold-interrupt-label"
-          className="flex w-fit items-center gap-1.5 px-1 text-transcript-body text-danger"
-        >
-          <CircleStop className="size-3" aria-hidden="true" />
-          <span>{row.label}</span>
-        </div>
-        <div className="flex min-w-0 flex-col gap-0.5">{renderTimelineRows(row.rows)}</div>
-      </div>
-    );
-  }
+  const expandedByReader = useSelector(store, state => state.context.expandedTurns.has(turnId));
+  const hold = useRevealHold(
+    row.id,
+    reveal =>
+      reveal.turnId === turnId &&
+      (reveal.partIndex === null || rowsContainPart(row.rows, reveal.partIndex))
+  );
+  const openedForMatch = hold.held;
+  const expanded = expandedByReader || openedForMatch;
+  const matchesInside = navigation?.foldMatchCounts.get(turnId) ?? 0;
+  const note = openedForMatch
+    ? "opened for a match"
+    : !expanded && matchesInside > 0
+      ? `${matchesInside} ${matchesInside === 1 ? "match" : "matches"} inside`
+      : null;
   return (
-    <div data-open={expanded} className="mb-2.5 min-w-0 border-b border-line pb-1.5">
-      <TranscriptDisclosure
-        data-testid="turn-fold-row"
+    <TurnFailedContext.Provider value={row.cause === "failed"}>
+      <SessionTurnFoldRowView
+        row={row}
         expanded={expanded}
-        onToggle={() => toggleTimelineExpansion(store, "turn", turnId)}
-        aria-controls={detailsId}
-        icon={null}
-        label={row.label}
-        variant="turn"
-      />
-      <div
-        id={detailsId}
-        hidden={!expanded}
-        aria-hidden={!expanded}
-        inert={!expanded}
-        className={expanded ? "flex min-w-0 flex-col gap-0.5 pt-1" : undefined}
+        note={note}
+        onToggle={() => {
+          notifyDisclosureToggled(scrollStore);
+          if (openedForMatch) {
+            hold.release();
+            if (expandedByReader) toggleTimelineExpansion(store, "turn", turnId);
+            return;
+          }
+          toggleTimelineExpansion(store, "turn", turnId);
+        }}
       >
-        {expanded ? renderTimelineRows(row.rows) : null}
-      </div>
-    </div>
+        {renderTimelineRows(
+          row.rows.map(nested => (nested.kind === "work" ? { ...nested, summary: null } : nested))
+        )}
+      </SessionTurnFoldRowView>
+    </TurnFailedContext.Provider>
   );
 }
 
@@ -275,15 +269,17 @@ const TimelineRowContent = memo(
       case "data":
         return <SessionDataRowView row={row} />;
       case "working":
-        return <SessionWorkingRowView row={row} />;
+        // The one live status line lives under the scroller (SessionThinkingRow);
+        // the working part only keeps the live turn from folding.
+        return null;
       case "work":
         return <SessionWorkRowView row={row} />;
-      case "work-toggle":
-        return <SessionWorkToggleRowView row={row} />;
+      case "live-tool":
+        return <SessionLiveToolRowContent row={row} />;
       case "changed-files":
         return <SessionChangedFilesRowContent row={row} />;
       case "turn-fold":
-        return <SessionTurnFoldRowView row={row} />;
+        return <SessionTurnFoldRowContent row={row} />;
     }
   },
   (previous, next) => sessionRowEqual(previous.row, next.row)
@@ -323,13 +319,21 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
   );
 }
 
-export function AssistantMessageTimeline() {
+export function AssistantMessageTimeline({
+  queueTraceCount = null,
+}: {
+  queueTraceCount?: number | null;
+}) {
   const { goal, rows, timelineStore } = useAssistantMessageTimeline();
 
   return (
     <TimelineRowContext.Provider value={timelineStore}>
       {goal ? <GoalPromptNotice goal={goal} /> : null}
-      {renderTimelineRows(rows)}
+      {renderTimelineRows(
+        queueTraceCount === null
+          ? rows
+          : rows.map(row => (row.kind === "data" ? { ...row, count: queueTraceCount } : row))
+      )}
     </TimelineRowContext.Provider>
   );
 }

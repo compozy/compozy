@@ -24,12 +24,19 @@ import {
   scheduleQueryRecovery,
   scheduleSurfaceRefresh,
 } from "./session-live-tail-store-effects";
+import { sessionLiveTailRecoveryTransitions } from "./session-live-tail-store-recovery";
 
 export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, SessionLiveTailEvents>(
   {
     context: {
       applyPhase: "idle",
+      catchUpThrough: null,
+      catchingUp: false,
+      degradedAt: null,
+      failure: null,
       generation: 0,
+      historyReset: null,
+      lastLiveAt: null,
       lastTranscriptError: null,
       overflowed: false,
       pendingFrames: [],
@@ -55,7 +62,13 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         return {
           ...context,
           applyPhase: "idle",
+          catchUpThrough: null,
+          catchingUp: false,
+          // A fresh connect starts its grace now; a disabled window keeps the last live time.
+          degradedAt: event.enabled ? event.at : null,
+          failure: null,
           generation,
+          historyReset: null,
           overflowed: false,
           pendingFrames: [],
           pendingTerminal: null,
@@ -76,7 +89,12 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         return {
           ...context,
           applyPhase: "idle",
+          catchUpThrough: null,
+          catchingUp: false,
+          degradedAt: null,
+          failure: null,
           generation,
+          historyReset: null,
           overflowed: false,
           pendingFrames: [],
           pendingTerminal: null,
@@ -91,6 +109,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           event.generation !== context.generation ||
           context.transportPhase === "disabled" ||
           context.transportPhase === "terminal" ||
+          context.transportPhase === "failed" ||
           context.applyPhase.startsWith("repair")
         ) {
           return;
@@ -114,6 +133,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           if (context.applyPhase === "applying") {
             return {
               ...context,
+              lastLiveAt: event.at,
               overflowed: true,
               pendingFrames: [],
               reconnectAttempt: 0,
@@ -124,6 +144,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           return scheduleBlockingRepair(
             {
               ...context,
+              lastLiveAt: event.at,
               reconnectAttempt: 0,
               surfaceRefreshScheduled: event.frame.kind === "delta",
             },
@@ -131,24 +152,23 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           );
         }
         const pendingFrames = [...context.pendingFrames, event.frame];
-        if (context.applyPhase === "idle") {
-          enqueueApplyStart(enqueue, context.generation);
-          return {
-            ...context,
-            applyPhase: "scheduled",
-            pendingFrames,
-            reconnectAttempt: 0,
-            surfaceRefreshScheduled: event.frame.kind === "delta",
-            transportPhase: "live",
-          };
-        }
-        return {
+        // The first frame after a reopen ends the degraded phase; a reopen that
+        // followed a drop keeps reading "catching up" until its replay drains.
+        const liveContext: SessionLiveTailContext = {
           ...context,
+          degradedAt: null,
+          failure: null,
+          lastLiveAt: event.at,
           pendingFrames,
           reconnectAttempt: 0,
           surfaceRefreshScheduled: event.frame.kind === "delta",
           transportPhase: "live",
         };
+        if (context.applyPhase === "idle") {
+          enqueueApplyStart(enqueue, context.generation);
+          return { ...liveContext, applyPhase: "scheduled" };
+        }
+        return liveContext;
       },
       applyStarted: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "scheduled") return;
@@ -159,7 +179,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           if (!handles) return;
           try {
             const result = await handles.runtime.applyFrame(frame, handles.abortController.signal);
-            trigger.applyCompleted({ generation: event.generation, result });
+            trigger.applyCompleted({ at: Date.now(), frame, generation: event.generation, result });
           } catch (error) {
             trigger.applyFailed({ error, frame, generation: event.generation });
           }
@@ -171,25 +191,47 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         if (event.result === "mismatch") {
           return context.pendingTerminal
             ? refreshBeforePendingTerminal(context, enqueue)
-            : reconnectAfter(context, enqueue);
+            : reconnectAfter(context, enqueue, event.at);
         }
         if (event.result === "cancelled") {
           return context.pendingTerminal
             ? completePendingTerminal(context, enqueue)
             : { ...context, applyPhase: "idle" };
         }
-        if (context.overflowed) {
-          return context.pendingTerminal
-            ? refreshBeforePendingTerminal(context, enqueue)
-            : scheduleBlockingRepair(context, enqueue);
+        // A reset snapshot that replaced loaded history is stated, never silent (US-017.AC-3).
+        const stated: SessionLiveTailContext =
+          event.result === "reset"
+            ? {
+                ...context,
+                historyReset: {
+                  at: event.at,
+                  generation: event.frame.payload.generation,
+                  reason:
+                    event.frame.kind === "snapshot" ? (event.frame.payload.reason ?? null) : null,
+                },
+              }
+            : context;
+        // A shed replay ends only when an applied frame reaches its watermark
+        // (an empty delta carrying the cursor counts); an empty queue alone is not proof.
+        const applied: SessionLiveTailContext =
+          stated.catchUpThrough !== null && event.frame.cursor >= stated.catchUpThrough
+            ? { ...stated, catchUpThrough: null, catchingUp: false }
+            : stated;
+        if (applied.overflowed) {
+          return applied.pendingTerminal
+            ? refreshBeforePendingTerminal(applied, enqueue)
+            : scheduleBlockingRepair(applied, enqueue);
         }
-        if (context.pendingFrames.length === 0) {
-          return context.pendingTerminal
-            ? completePendingTerminal(context, enqueue)
-            : { ...context, applyPhase: "idle" };
+        if (applied.pendingFrames.length === 0) {
+          // A reopen replay drained: the view is at the live edge again.
+          const drained =
+            applied.catchUpThrough === null ? { ...applied, catchingUp: false } : applied;
+          return drained.pendingTerminal
+            ? completePendingTerminal(drained, enqueue)
+            : { ...drained, applyPhase: "idle" };
         }
-        enqueueApplyStart(enqueue, context.generation);
-        return { ...context, applyPhase: "scheduled" };
+        enqueueApplyStart(enqueue, applied.generation);
+        return { ...applied, applyPhase: "scheduled" };
       },
       applyFailed: (context, event, enqueue) => {
         if (event.generation !== context.generation || context.applyPhase !== "applying") return;
@@ -259,6 +301,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           event.generation !== context.generation ||
           context.transportPhase === "disabled" ||
           context.transportPhase === "terminal" ||
+          context.transportPhase === "failed" ||
           context.applyPhase.startsWith("repair")
         ) {
           return;
@@ -267,7 +310,12 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           const handles = handlesByTrigger.get(trigger);
           if (handles) scheduleSurfaceRefresh(handles, trigger, context.generation);
         });
-        return reconnectAfter({ ...context, surfaceRefreshScheduled: true }, enqueue, event.error);
+        return reconnectAfter(
+          { ...context, surfaceRefreshScheduled: true },
+          enqueue,
+          event.at,
+          event.error
+        );
       },
       reconnectElapsed: (context, event, enqueue) => {
         if (
@@ -280,7 +328,25 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
           const handles = handlesByTrigger.get(trigger);
           if (handles) openStream(handles, trigger, context.generation);
         });
-        return { ...context, transportPhase: "connecting" };
+        // Reopened after a drop: the gap replays by sequence before the live edge.
+        return { ...context, catchingUp: true, transportPhase: "connecting" };
+      },
+      degradedReceived: (context, event) => {
+        if (
+          event.generation !== context.generation ||
+          context.transportPhase === "disabled" ||
+          context.transportPhase === "terminal" ||
+          context.transportPhase === "failed"
+        ) {
+          return;
+        }
+        // The server shed this watcher and replays `after..through` on this
+        // stream: the view is catching up until the watermark is applied.
+        return {
+          ...context,
+          catchUpThrough: Math.max(context.catchUpThrough ?? 0, event.throughSequence),
+          catchingUp: true,
+        };
       },
       surfaceRefreshElapsed: (context, event, enqueue) => {
         if (event.generation !== context.generation || !context.surfaceRefreshScheduled) return;
@@ -340,135 +406,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
         }
         return completePendingTerminal(context, enqueue);
       },
-      transcriptObserved: (context, event, enqueue) => {
-        const recoveryActive = context.queryRecoveryPhase === "refreshing";
-        if (event.error === null) {
-          enqueue.effect(({ trigger }) => {
-            const handles = handlesByTrigger.get(trigger);
-            if (!handles) return;
-            clearTimer(handles.queryRecoveryTimer);
-            handles.queryRecoveryTimer = null;
-          });
-          return {
-            ...context,
-            lastTranscriptError: null,
-            queryRecoveryPhase: recoveryActive ? "refreshing" : "idle",
-          };
-        }
-        if (Object.is(event.error, context.lastTranscriptError)) return;
-        enqueue.effect(({ trigger }) => {
-          const handles = handlesByTrigger.get(trigger);
-          if (!handles) return;
-          handles.runtime.recordTranscriptFailure(event.error, {
-            recovery: false,
-            sessionState: event.sessionState,
-          });
-          if (
-            !recoveryActive &&
-            context.transportPhase !== "disabled" &&
-            context.transportPhase !== "terminal"
-          ) {
-            scheduleQueryRecovery(handles, trigger, context.generation);
-          }
-        });
-        return {
-          ...context,
-          lastTranscriptError: event.error,
-          queryRecoveryPhase: recoveryActive
-            ? "refreshing"
-            : context.transportPhase === "disabled" || context.transportPhase === "terminal"
-              ? "idle"
-              : "waiting",
-        };
-      },
-      queryRecoveryElapsed: (context, event, enqueue) => {
-        if (
-          event.generation !== context.generation ||
-          context.queryRecoveryPhase !== "waiting" ||
-          context.transportPhase === "disabled" ||
-          context.transportPhase === "terminal"
-        ) {
-          return;
-        }
-        enqueue.effect(async ({ trigger }) => {
-          const handles = handlesByTrigger.get(trigger);
-          if (!handles) return;
-          try {
-            await handles.runtime.refreshTranscript(handles.abortController.signal);
-            trigger.queryRecoverySucceeded({ generation: event.generation });
-          } catch (error) {
-            trigger.queryRecoveryFailed({ error, generation: event.generation });
-          }
-        });
-        return { ...context, queryRecoveryPhase: "refreshing" };
-      },
-      queryRecoverySucceeded: (context, event, enqueue) => {
-        if (
-          event.generation !== context.generation ||
-          context.queryRecoveryPhase !== "refreshing"
-        ) {
-          return;
-        }
-        const recoveredContext = {
-          ...context,
-          lastTranscriptError: null,
-          queryRecoveryPhase: "idle" as const,
-        };
-        if (
-          context.pendingTerminal &&
-          context.applyPhase === "idle" &&
-          context.pendingFrames.length === 0
-        ) {
-          return completePendingTerminal(recoveredContext, enqueue);
-        }
-        return recoveredContext;
-      },
-      queryRecoveryFailed: (context, event, enqueue) => {
-        if (
-          event.generation !== context.generation ||
-          context.queryRecoveryPhase !== "refreshing"
-        ) {
-          return;
-        }
-        enqueue.effect(({ trigger }) => {
-          const handles = handlesByTrigger.get(trigger);
-          if (!handles) return;
-          handles.runtime.recordTranscriptFailure(event.error, { recovery: true });
-          if (context.transportPhase !== "disabled" && context.transportPhase !== "terminal") {
-            scheduleQueryRecovery(handles, trigger, context.generation);
-          }
-        });
-        const recoveredContext = { ...context, queryRecoveryPhase: "idle" as const };
-        if (
-          context.pendingTerminal &&
-          context.applyPhase === "idle" &&
-          context.pendingFrames.length === 0
-        ) {
-          return completePendingTerminal(recoveredContext, enqueue);
-        }
-        return {
-          ...recoveredContext,
-          queryRecoveryPhase:
-            context.transportPhase === "disabled" || context.transportPhase === "terminal"
-              ? "idle"
-              : "waiting",
-        };
-      },
-      manualRecoveryRequested: (context, _event, enqueue) => {
-        if (context.queryRecoveryPhase === "refreshing") return;
-        enqueue.effect(async ({ trigger }) => {
-          const handles = handlesByTrigger.get(trigger);
-          if (!handles) return;
-          clearTimer(handles.queryRecoveryTimer);
-          try {
-            await handles.runtime.refreshTranscript(handles.abortController.signal);
-            trigger.queryRecoverySucceeded({ generation: context.generation });
-          } catch (error) {
-            trigger.queryRecoveryFailed({ error, generation: context.generation });
-          }
-        });
-        return { ...context, queryRecoveryPhase: "refreshing" };
-      },
+      ...sessionLiveTailRecoveryTransitions,
     },
   }
 );

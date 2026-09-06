@@ -66,6 +66,30 @@ describe("RuntimeActivityNotice", () => {
     expect(isSessionErrorEvent({ type: "runtime_warning", error: "failed" })).toBe(false);
   });
 
+  it("does not read a stop the daemon attributed as a session failure", () => {
+    // The live tail carries a supervisor stop as an `error` event whose text is the stop detail.
+    const inactivity: AgentEventPayload = {
+      type: "error",
+      stop_reason: "timeout",
+      error: "inactivity",
+      timestamp: "2026-09-06T13:55:28.539506Z",
+    };
+    expect(isSessionErrorEvent(inactivity)).toBe(false);
+    expect(
+      isSessionErrorEvent({ ...inactivity, stop_reason: "user_canceled", error: "stopped" })
+    ).toBe(false);
+    // A failure stop reason, a failure record, or a provider diagnostic still is one.
+    expect(isSessionErrorEvent({ ...inactivity, stop_reason: "agent_crashed" })).toBe(true);
+    expect(
+      isSessionErrorEvent({
+        ...inactivity,
+        failure: { kind: "provider_exit", summary: "exit 137" },
+      })
+    ).toBe(true);
+    const { container } = render(<RuntimeActivityNotice event={inactivity} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("recognizes an actionable provider error even without free-text detail", () => {
     const { error: _error, failure: _failure, ...bare } = providerErrorEvent();
     expect(isSessionErrorEvent(bare)).toBe(true);
@@ -141,28 +165,91 @@ describe("RuntimeActivityNotice", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it.each(["prompt_queued", "prompt_interrupted", "prompt_dropped", "prompt_cancel"])(
+    "suppresses %s acknowledgement markers represented by input state",
+    markerKind => {
+      const { container } = render(
+        <RuntimeActivityNotice
+          event={{
+            type: "transcript_marker.created",
+            marker: {
+              kind: `transcript_marker.${markerKind}`,
+              summary: "Prompt lifecycle acknowledgement.",
+              occurred_at: "2026-08-03T18:00:00Z",
+            },
+          }}
+        />
+      );
+
+      expect(container).toBeEmptyDOMElement();
+    }
+  );
+
+  // VC-07: how the operator's message reached the turn is the one lifecycle
+  // line the transcript keeps, from the daemon's own marker evidence.
   it.each([
-    "prompt_queued",
-    "prompt_steered",
-    "prompt_accepted",
-    "prompt_interrupted",
-    "prompt_dropped",
-    "prompt_cancel",
-  ])("suppresses %s acknowledgement markers represented by input state", markerKind => {
-    const { container } = render(
+    ["injected", "steer_ext-injected", "Steered — delivered into the live turn"],
+    [
+      "pending_injection",
+      "pending_injection",
+      "Steered — the agent sees it when the current tool finishes",
+    ],
+    ["interrupt_fallback", "interrupt_fallback", "Steered — interrupted and replaced"],
+  ] as const)("renders a steered prompt marker as its %s meta line", (kind, delivery, text) => {
+    render(
       <RuntimeActivityNotice
         event={{
           type: "transcript_marker.created",
           marker: {
-            kind: `transcript_marker.${markerKind}`,
-            summary: "Prompt lifecycle acknowledgement.",
+            kind: "transcript_marker.prompt_steered",
+            summary: "Steer delivered.",
+            occurred_at: "2026-08-03T18:00:00Z",
+            evidence: { steer_delivery: delivery === "steer_ext-injected" ? "injected" : delivery },
+          },
+        }}
+      />
+    );
+    const notice = screen.getByTestId("steer-marker-notice");
+    expect(notice).toHaveAttribute("data-steer", kind);
+    expect(notice).toHaveAttribute("role", "status");
+    expect(screen.getByTestId("steer-marker-text")).toHaveTextContent(text);
+  });
+
+  it("renders a superseded steer quieter and a queued prompt with its former position", () => {
+    const { unmount } = render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          marker: {
+            kind: "transcript_marker.prompt_superseded",
+            summary: "Superseded.",
             occurred_at: "2026-08-03T18:00:00Z",
           },
         }}
       />
     );
+    expect(screen.getByTestId("steer-marker-notice")).toHaveAttribute("data-steer", "superseded");
+    expect(screen.getByTestId("steer-marker-text")).toHaveTextContent(
+      "Superseded by your next steer"
+    );
+    unmount();
 
-    expect(container).toBeEmptyDOMElement();
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          marker: {
+            kind: "transcript_marker.prompt_accepted",
+            summary: "Prompt accepted.",
+            occurred_at: "2026-08-03T18:00:00Z",
+            evidence: { queue_position: 2 },
+          },
+        }}
+      />
+    );
+    expect(screen.getByTestId("steer-marker-notice")).toHaveAttribute("data-steer", "queued");
+    expect(screen.getByTestId("steer-marker-text")).toHaveTextContent("From the queue");
+    expect(screen.getByTestId("steer-marker-meta")).toHaveTextContent("was #2");
   });
 
   it("renders session errors with alert semantics and failure detail", () => {
@@ -340,6 +427,51 @@ describe("RuntimeActivityNotice", () => {
     );
     expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
       "transcript_marker.post_stop"
+    );
+  });
+
+  it("renders the queue-cleared marker as a neutral attributed trace", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          turn_id: "turn_9f2",
+          text: "Queued input removed by explicit clear.",
+          title: "transcript_marker.queue_cleared",
+          raw: {
+            kind: "transcript_marker.queue_cleared",
+            occurred_at: "2026-09-06T12:00:00Z",
+            summary: "Queued input removed by explicit clear.",
+            evidence: { actor_kind: "user", queue_entry_id: "inp_4d8", queue_status: "canceled" },
+          },
+        }}
+      />
+    );
+
+    const notice = screen.getByTestId("transcript-marker-notice");
+    expect(notice).toHaveAttribute("data-tone", "neutral");
+    expect(notice).toHaveAttribute("role", "status");
+    expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
+      "You cleared the queue — a queued follow-up was removed"
+    );
+  });
+
+  it("names another actor on the queue-cleared marker", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          marker: {
+            kind: "transcript_marker.queue_cleared",
+            occurred_at: "2026-09-06T12:00:00Z",
+            summary: "Queued input removed by explicit clear.",
+            evidence: { actor_id: "reviewer", actor_kind: "agent" },
+          },
+        }}
+      />
+    );
+    expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
+      "agent reviewer cleared the queue"
     );
   });
 

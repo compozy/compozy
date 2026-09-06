@@ -1,6 +1,8 @@
 import { createContext } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 
+import type { SessionTransportSnapshot } from "./session-transport";
+
 export type SessionTranscriptThreadStatus = "pending" | "error" | "success";
 
 export interface SessionTranscriptThreadState {
@@ -29,3 +31,10 @@ export const SessionTranscriptRetryContext = createContext<(() => void) | undefi
 export const SessionTranscriptHasOlderContext = createContext<boolean | undefined>(undefined);
 export const SessionTranscriptFetchingOlderContext = createContext<boolean | undefined>(undefined);
 export const SessionTranscriptLoadOlderContext = createContext<(() => void) | undefined>(undefined);
+
+/** The live-view transport facts plus the one recovery verb (Try again). */
+export interface SessionTransportState extends SessionTransportSnapshot {
+  retry: () => void;
+}
+
+export const SessionTransportContext = createContext<SessionTransportState | undefined>(undefined);

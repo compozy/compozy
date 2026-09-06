@@ -97,6 +97,7 @@ export const RefusedTurnChanged: Story = {
         code: "active_turn_mismatch",
         currentTurnId: "t_9f3",
         message: null,
+        queueCap: null,
       },
     },
   },
@@ -113,6 +114,7 @@ export const RefusedFilesOnSteer: Story = {
         code: "steer_attachments_unsupported",
         currentTurnId: null,
         message: null,
+        queueCap: null,
       },
     },
   },
@@ -124,7 +126,24 @@ export const RefusedNotDelivered: Story = {
       action: "queue",
       draftText: "ship it",
       kind: "refusal",
-      refusal: { attachmentCount: 0, code: "not_delivered", currentTurnId: null, message: null },
+      refusal: {
+        attachmentCount: 0,
+        code: "not_delivered",
+        currentTurnId: null,
+        message: null,
+        queueCap: null,
+      },
     },
+  },
+};
+
+/**
+ * The acknowledgment was lost (US-007): the daemon may have accepted the send,
+ * so the line says "Not confirmed" — never "Not sent" — while the queue strip
+ * keeps the identity with Retry.
+ */
+export const Unconfirmed: Story = {
+  args: {
+    feedback: { action: "queue", draftText: "", kind: "unconfirmed", message: "Failed to fetch" },
   },
 };

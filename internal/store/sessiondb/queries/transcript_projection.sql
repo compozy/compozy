@@ -78,6 +78,24 @@ WHERE message_json IS NOT NULL
 ORDER BY start_sequence DESC
 LIMIT sqlc.arg(row_limit);
 
+-- name: ListTranscriptSearchCandidates :many
+SELECT message_json, start_sequence, turn_id
+FROM transcript_entries
+WHERE message_json IS NOT NULL AND start_sequence > sqlc.arg(after_sequence)
+ORDER BY start_sequence ASC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ListTranscriptOutlineCandidates :many
+SELECT e.message_json, e.start_sequence, e.turn_id,
+       (SELECT r.message_json FROM transcript_entries AS r
+        WHERE r.kind = 'assistant' AND r.turn_id = e.turn_id AND r.message_json IS NOT NULL
+        ORDER BY r.start_sequence DESC LIMIT 1) AS reply_json,
+       CAST(COALESCE((SELECT v.timestamp FROM events AS v WHERE v.sequence = e.start_sequence), '') AS TEXT) AS at
+FROM transcript_entries AS e
+WHERE e.kind = 'user' AND e.message_json IS NOT NULL AND e.start_sequence > sqlc.arg(after_sequence)
+ORDER BY e.start_sequence ASC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListTranscriptEntriesBefore :many
 SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries

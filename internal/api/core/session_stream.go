@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -119,22 +120,74 @@ func (h *BaseHandlers) streamRawSessionEvents(
 ) {
 	defer subscription.cancelIfActive()
 
-	afterSequence := query.AfterSequence
-	nextSequence, err := h.writeSessionEventBatch(writer, initial, info)
+	afterSequence, terminal, err := h.writeRawCatchUp(c.Request.Context(), writer, sessionID, info, query, initial)
 	if err != nil {
+		h.writeTranscriptStreamError(writer, err)
 		return
 	}
-	if nextSequence > afterSequence {
-		afterSequence = nextSequence
+	// A retained stop belongs to a past runtime after resume. The current
+	// lifecycle also catches a stop that settled while replay was draining.
+	latest, err := h.Sessions.Status(c.Request.Context(), sessionID)
+	if err != nil {
+		h.writeTranscriptStreamError(writer, err)
+		return
+	}
+	if latest != nil {
+		info = latest
+	}
+	if info != nil && info.State == session.StateStopped {
+		if !terminal {
+			h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, info))
+		}
+		return
 	}
 
 	pollQuery := query
-	pollQuery.Limit = 0
+	pollQuery.Limit = defaultSessionReadLimit
+	pollQuery.Forward = true
 	if subscription.active() {
 		h.pushAndStreamSessionEvents(c, writer, sessionID, info, pollQuery, afterSequence, subscription)
 		return
 	}
 	h.pollAndStreamSessionEvents(c, writer, sessionID, info, pollQuery, afterSequence)
+}
+
+func (h *BaseHandlers) writeRawCatchUp(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	info *session.Info,
+	query store.EventQuery,
+	page []store.SessionEvent,
+) (int64, bool, error) {
+	cursor := query.AfterSequence
+	terminal := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return cursor, terminal, err
+		}
+		next, err := h.writeSessionEventBatch(writer, page, info)
+		if err != nil {
+			return cursor, terminal, err
+		}
+		for _, event := range page {
+			terminal = terminal || event.Type == session.EventTypeSessionStopped
+		}
+		if len(page) > 0 && next <= cursor {
+			return cursor, terminal, fmt.Errorf("raw catch-up cursor did not advance beyond %d", cursor)
+		}
+		if next > cursor {
+			cursor = next
+		}
+		if query.Limit <= 0 || len(page) < query.Limit || len(page) == 0 {
+			return cursor, terminal, nil
+		}
+		query.AfterSequence, query.Forward = cursor, true
+		page, err = h.Sessions.Events(ctx, sessionID, query)
+		if err != nil {
+			return cursor, terminal, err
+		}
+	}
 }
 
 func (h *BaseHandlers) writeSessionEventBatch(
@@ -254,6 +307,14 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 				h.logSessionStreamSubscriptionClosed(
 					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameRaw, afterSequence,
 				)
+				subscription.cancelIfActive()
+				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
+				return
+			}
+			if event.Type == contract.SessionStreamEventConsumerDegraded {
+				if err := h.writeConsumerDegraded(writer, sessionID, afterSequence, event); err != nil {
+					return
+				}
 				subscription.cancelIfActive()
 				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return

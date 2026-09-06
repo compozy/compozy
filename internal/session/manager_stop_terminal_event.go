@@ -45,6 +45,13 @@ func (m *Manager) recordSessionStoppedEvent(
 	if err := m.recordEventWithWriter(ctx, session, *normalizedStop, "", write); err != nil {
 		return errors.Join(err, recorderErr)
 	}
+	if session.stopCause == CauseInactivity {
+		if err := m.recordSupervisionEvent(
+			ctx, session, "session.supervision_stopped", session.Info().Supervision,
+		); err != nil {
+			return errors.Join(err, recorderErr)
+		}
+	}
 	session.stopTerminalRecorded = true
 	m.notifyAgentEvent(ctx, session, *normalizedStop)
 	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(*normalizedStop); ok &&

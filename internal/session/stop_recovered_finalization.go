@@ -17,7 +17,6 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 	snapshot := NotificationSessionFromInfo(m.sessionInfoFromMeta(cleanupCtx, meta))
 	sandboxErr := m.finalizeRecoveredSandbox(cleanupCtx, snapshot, &meta)
 	m.cancelSessionCompaction(id)
-	m.failQueuedSyntheticPrompts(id, ErrSessionNotActive)
 	m.clearResumeReplay(id)
 	if m.hostedMCP != nil {
 		m.hostedMCP.ReleaseSession(id)

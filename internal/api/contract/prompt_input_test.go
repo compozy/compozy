@@ -88,6 +88,16 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 		})
 		assertErrorContains(t, err, "message is required")
 	})
+	t.Run("Should accept an empty interrupt as a turn-only stop with its identity", func(t *testing.T) {
+		t.Parallel()
+		input, err := contract.ExtractPromptInput(contract.SendPromptRequest{
+			Mode: contract.PromptModeInterrupt, MessageID: "stop-message", IdempotencyKey: "stop-key",
+		})
+		if err != nil || input.Message != "" || input.MessageID != "stop-message" ||
+			input.IdempotencyKey != "stop-key" {
+			t.Fatalf("empty interrupt input = %#v, %v", input, err)
+		}
+	})
 
 	t.Run("Should reject a bad attachment id", func(t *testing.T) {
 		t.Parallel()

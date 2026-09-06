@@ -2589,7 +2589,20 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "3139f3765c8e09acdfbd7379892b7bebc517caa8383e77d6de4205acd3d84bd2",
-    "output_schema_digest": "b5250cb8063afc658dc886d0b1ceb8f36ffd5b4ea302c5e75c8eeaef9d25fe37"
+    "output_schema_digest": "726f0f492e1116c993b146d0a4a9640854c834dfaf8f0f9b7c3da5fd4631d8b4"
+  },
+  {
+    "tool_id": "compozy__session_inputs_clear",
+    "native_name": "session_inputs_clear",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "79f7e605d0aea25e2f576a225696c142a231688cd92d5b9eb33cf12aaaba4258"
   },
   {
     "tool_id": "compozy__session_inputs_list",
@@ -2602,7 +2615,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
-    "output_schema_digest": "97890d6bb87e78bb04ffed141ee941113a0c1dcb15a78af020fbc699c99133fe"
+    "output_schema_digest": "b7b4896e2bf393fd89e1de45e0b5b401f88e277d6cbf6ea8159ffa10671171dc"
   },
   {
     "tool_id": "compozy__session_list",
@@ -2616,6 +2629,19 @@
     "open_world": false,
     "input_schema_digest": "4d8ca5fd25b5e8faf7dccbddbf40361a5cb15ecb0348b806447ad0c28ff16e81",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
+  },
+  {
+    "tool_id": "compozy__session_outline",
+    "native_name": "session_outline",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d11b95a06235b3bd74486bcb6af083f20b2dc1bf261af21d0f1cc8f2562b32f",
+    "output_schema_digest": "b3ca0e20ca4da958e5278c1086f08bffb0af88a28f17f5c915285a146e86f39a"
   },
   {
     "tool_id": "compozy__session_prompt",
@@ -2694,6 +2720,19 @@
     "open_world": false,
     "input_schema_digest": "829d61468d2b0d0f3d8561153394678af9567dd291ed56257eca6cef53cf5273",
     "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
+  },
+  {
+    "tool_id": "compozy__session_search",
+    "native_name": "session_search",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "98a8e3517d5364da9e9ade934d58f0a183e55204519fd40860c375cd6e6f627c",
+    "output_schema_digest": "a263d7114b75e6d189dedea542363ced69e4855210a36c86308dab9b4ad9f63d"
   },
   {
     "tool_id": "compozy__session_spawn",

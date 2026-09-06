@@ -26,6 +26,8 @@ import (
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[session.WorkSignalKind]():                  session.WorkSignalKindValues(),
+		reflect.TypeFor[contract.SessionInputStatus]():             contract.SessionInputStatusValues(),
 		reflect.TypeFor[config.SteerCapability]():                  config.SteerCapabilityValues(),
 		reflect.TypeFor[session.Disposition]():                     session.DispositionValues(),
 		reflect.TypeFor[store.SteerDeliveryMode]():                 store.SteerDeliveryModeValues(),

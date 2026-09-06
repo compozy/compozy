@@ -113,7 +113,7 @@ func (m *Manager) validateInfrastructure(ctx context.Context, meta store.Session
 			err:   resolverErr,
 		})
 	} else {
-		resolvedWorkspace, err := resolver.Resolve(ctx, strings.TrimSpace(meta.WorkspaceID))
+		resolvedWorkspace, err := resolveStoredSessionWorkspace(ctx, meta, resolver, m.profileNames)
 		if err != nil {
 			errs = append(errs, resumeValidationError{
 				check: resumeValidationCheckWorkspace,

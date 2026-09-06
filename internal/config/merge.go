@@ -88,6 +88,9 @@ type sessionLimitsOverlay struct {
 }
 
 type sessionSupervisionOverlay struct {
+	QuietAfter *time.Duration `toml:"quiet_after"`
+	StopGrace  *time.Duration `toml:"stop_grace"`
+	// Released keys are translated only at load; remove in v0.5.0.
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
 	PromptDeadline            *time.Duration `toml:"prompt_deadline"`

@@ -88,7 +88,10 @@ DELETE FROM events;
 
 -- name: AdvanceTranscriptProjectionGeneration :exec
 UPDATE transcript_projection_state
-SET generation = generation + 1, active_entry_key = NULL
+SET generation = generation + 1,
+    active_entry_key = CASE WHEN EXISTS (
+        SELECT 1 FROM transcript_entries WHERE entry_key = active_entry_key
+    ) THEN active_entry_key ELSE NULL END
 WHERE singleton = 1;
 
 -- name: GetConversationRewindTarget :one
@@ -104,20 +107,8 @@ WHERE message_id = sqlc.arg(message_id)
 -- name: CountArchivedTranscriptEventsBeforeSequence :one
 SELECT COUNT(*)
 FROM events
-JOIN transcript_entries
-  ON transcript_entries.entry_key = events.transcript_entry_key
-WHERE events.archived = 1
-  AND transcript_entries.start_sequence < sqlc.arg(before_sequence);
-
--- name: DeleteTranscriptToolRoutesFromSequence :exec
-DELETE FROM transcript_tool_routes
-WHERE entry_key IN (
-    SELECT entry_key FROM transcript_entries WHERE start_sequence >= sqlc.arg(from_sequence)
-);
-
--- name: DeleteTranscriptEntriesFromSequence :exec
-DELETE FROM transcript_entries
-WHERE start_sequence >= sqlc.arg(from_sequence);
+WHERE archived = 1 AND transcript_entry_key <> ''
+  AND sequence < sqlc.arg(before_sequence);
 
 -- name: UpsertConversationRewindState :exec
 INSERT INTO conversation_rewind_state (
@@ -162,3 +153,25 @@ DELETE FROM conversation_rewind_state;
 
 -- name: ClearConversationRewindReceipts :exec
 DELETE FROM conversation_rewind_receipts;
+
+-- name: CountTranscriptEntriesCrossingCut :one
+WITH bounds AS (SELECT CAST(sqlc.arg(from_sequence) AS INTEGER) AS cut_from,
+                      CAST(sqlc.arg(to_sequence) AS INTEGER) AS cut_to)
+SELECT COUNT(*) FROM transcript_entries AS e, bounds
+WHERE EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
+              AND sequence BETWEEN bounds.cut_from AND bounds.cut_to)
+  AND EXISTS (SELECT 1 FROM events WHERE transcript_entry_key = e.entry_key AND archived = 0
+              AND (sequence < bounds.cut_from OR sequence > bounds.cut_to));
+
+-- name: DeleteTranscriptToolRoutesInRange :exec
+DELETE FROM transcript_tool_routes WHERE entry_key IN (
+ SELECT entry_key FROM transcript_entries
+ WHERE start_sequence BETWEEN sqlc.arg(from_sequence) AND sqlc.arg(to_sequence)
+);
+
+-- name: DeleteTranscriptEntriesInRange :exec
+DELETE FROM transcript_entries
+WHERE start_sequence BETWEEN sqlc.arg(from_sequence) AND sqlc.arg(to_sequence);
+
+-- name: MinActiveEventSequence :one
+SELECT CAST(COALESCE(MIN(sequence), 0) AS INTEGER) FROM events WHERE archived = 0;

@@ -168,6 +168,9 @@ CREATE UNIQUE INDEX idx_transcript_entries_message_id
 CREATE INDEX idx_transcript_entries_turn
 		ON transcript_entries(kind, turn_id, start_sequence);
 
+CREATE INDEX idx_transcript_entries_role_sequence
+		ON transcript_entries(kind, start_sequence);
+
 CREATE INDEX idx_transcript_entries_updated
 		ON transcript_entries(updated_sequence, start_sequence);
 

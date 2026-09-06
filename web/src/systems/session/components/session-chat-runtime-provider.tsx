@@ -123,6 +123,7 @@ function SessionRuntimeExtensions({
         isFetchingOlder={transcript.isFetchingOlder}
         loadOlder={transcript.loadOlder}
         retry={transcript.retry}
+        transport={{ ...transcript.transport, retry: transcript.retry }}
       >
         <CompozyPermissionDataUI />
         <CompozyEventDataUI />

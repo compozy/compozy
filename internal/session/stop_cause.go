@@ -18,7 +18,10 @@ const (
 	// holding the session lifecycle lock, so prompt admission cannot race the
 	// TTL decision.
 	CauseSpawnTTLExpired
+	CauseInactivity
 )
+
+const stopDetailInactivity = "inactivity"
 
 // String returns the stable cause token used by public stop diagnostics.
 func (cause StopCause) String() string {
@@ -35,6 +38,8 @@ func (cause StopCause) String() string {
 		return "hook_denied"
 	case CauseProcessExited:
 		return "process_exited"
+	case CauseInactivity:
+		return stopDetailInactivity
 	case CauseTimeout:
 		return "timeout"
 	case CauseClearConversation:

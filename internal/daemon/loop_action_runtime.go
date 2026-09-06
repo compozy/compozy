@@ -235,7 +235,9 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
 	}
-	completed, err := r.manager.CompleteRunLease(context.WithoutCancel(ctx), taskpkg.LeaseCompletion{
+	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
+	defer cancel()
+	completed, err := r.manager.CompleteRunLease(settleCtx, taskpkg.LeaseCompletion{
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
 		Result:     result,
@@ -263,7 +265,9 @@ func (r *loopActionRuntime) failClaimedRun(
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	_, failErr := r.manager.FailRunLease(context.WithoutCancel(ctx), taskpkg.LeaseFailure{
+	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTaskCancelGrace)
+	defer cancel()
+	_, failErr := r.manager.FailRunLease(settleCtx, taskpkg.LeaseFailure{
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
 		Failure: taskpkg.RunFailure{

@@ -107,7 +107,7 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 		}
 	})
 
-	t.Run("Should backpressure a diverse notification burst without disconnecting", func(t *testing.T) {
+	t.Run("Should preserve a diverse notification burst without disconnecting", func(t *testing.T) {
 		t.Parallel()
 
 		driver := New(WithPromptBufferSize(2))
@@ -122,7 +122,6 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 
-		waitForNotificationQueueFull(t, proc)
 		select {
 		case <-proc.conn.Done():
 			t.Fatalf("ACP connection closed under notification pressure: %v", proc.conn.Cause())
@@ -145,26 +144,6 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 			t.Fatalf("last event type = %q, want %q", got, EventTypeDone)
 		}
 	})
-}
-
-func waitForNotificationQueueFull(t *testing.T, process *AgentProcess) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-	for {
-		stats := process.conn.NotificationQueueStats()
-		if stats.Capacity > 0 && stats.HighWaterMark == stats.Capacity {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("notification queue did not fill: stats=%#v error=%v", stats, ctx.Err())
-		case <-ticker.C:
-		}
-	}
 }
 
 func TestPromptPrependsSystemPromptOnce(t *testing.T) {

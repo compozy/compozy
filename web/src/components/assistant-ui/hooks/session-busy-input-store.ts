@@ -2,9 +2,9 @@ import { createStoreLogic } from "@xstate/store";
 
 import type { SessionComposerSubmission } from "./use-session-composer-state";
 import {
-  sessionBusyInputRefusalFromError,
-  type SessionBusyInputAction,
+  classifySessionBusyInputFailure,
   type SessionBusyInputDraft,
+  type SessionSendAction,
   type SessionBusyInputHandler,
   type SessionBusyInputRefusal,
   type SessionSendOutcome,
@@ -20,37 +20,40 @@ import {
 export type SessionComposerFeedback =
   | {
       kind: "disposition";
-      action: SessionBusyInputAction;
+      action: SessionSendAction;
       outcome: SessionSendOutcome;
       draftText: string;
     }
   | {
       kind: "refusal";
-      action: SessionBusyInputAction;
+      action: SessionSendAction;
       refusal: SessionBusyInputRefusal;
+      draftText: string;
+    }
+  | {
+      /** The acknowledgment was lost: delivery is unknown, the identity is retained in the strip. */
+      kind: "unconfirmed";
+      action: SessionSendAction;
+      message: string | null;
       draftText: string;
     };
 
 interface SessionBusyInputState {
-  editingQueuedPromptId: string | null;
   feedback: SessionComposerFeedback | null;
   phase: "idle" | "submitting";
 }
 
 type SessionBusyInputEvents = {
-  editCompleted: Record<never, never>;
-  editStarted: { id: string };
   feedbackDismissed: Record<never, never>;
-  promptRemoved: { id: string };
   submissionRefused: {
-    action: SessionBusyInputAction;
+    action: SessionSendAction;
     /** Raw field text when the send was refused — it stays exactly as typed. */
     composerText: string;
     refusal: SessionBusyInputRefusal;
   };
   submissionFinished: Record<never, never>;
   submissionRequested: {
-    action: SessionBusyInputAction;
+    action: SessionSendAction;
     canSubmit: boolean;
     consumeSubmittedDraft: (submission: SessionComposerSubmission) => string;
     handler: SessionBusyInputHandler | undefined;
@@ -60,9 +63,15 @@ type SessionBusyInputEvents = {
     onSuccess?: () => void;
   };
   submissionSucceeded: {
-    action: SessionBusyInputAction;
+    action: SessionSendAction;
     outcome: SessionSendOutcome | null;
     /** Text left in the field after the accepted send was consumed. */
+    remainingText: string;
+  };
+  submissionUnconfirmed: {
+    action: SessionSendAction;
+    message: string | null;
+    /** Text left in the field: the send left with its identity, like an accepted one. */
     remainingText: string;
   };
 };
@@ -71,16 +80,10 @@ export const sessionBusyInputLogic = createStoreLogic<
   SessionBusyInputState,
   SessionBusyInputEvents
 >({
-  context: { editingQueuedPromptId: null, feedback: null, phase: "idle" },
+  context: { feedback: null, phase: "idle" },
   on: {
-    editStarted: (context, event) => ({ ...context, editingQueuedPromptId: event.id }),
-    editCompleted: context => ({ ...context, editingQueuedPromptId: null }),
     feedbackDismissed: context =>
       context.feedback === null ? undefined : { ...context, feedback: null },
-    promptRemoved: (context, event) =>
-      context.editingQueuedPromptId === event.id
-        ? { ...context, editingQueuedPromptId: null }
-        : undefined,
     submissionRefused: (context, event) => ({
       ...context,
       feedback: {
@@ -106,6 +109,7 @@ export const sessionBusyInputLogic = createStoreLogic<
               code: "send_in_flight",
               currentTurnId: null,
               message: null,
+              queueCap: null,
             },
           },
         };
@@ -125,14 +129,22 @@ export const sessionBusyInputLogic = createStoreLogic<
             remainingText,
           });
         } catch (error) {
-          const refusal = sessionBusyInputRefusalFromError(error, {
+          const failure = classifySessionBusyInputFailure(error, {
             attachmentCount: event.draft.attachments.length,
           });
-          if (refusal) {
+          if (failure?.kind === "refusal") {
             trigger.submissionRefused({
               action: event.action,
               composerText: event.submission.composerText,
-              refusal,
+              refusal: failure.refusal,
+            });
+          } else if (failure?.kind === "unconfirmed") {
+            // No proof of non-delivery: the send left with its identity (the strip
+            // keeps it with Retry), so the field is consumed as for an accepted send.
+            trigger.submissionUnconfirmed({
+              action: event.action,
+              message: failure.message,
+              remainingText: event.consumeSubmittedDraft(event.submission),
             });
           }
           event.onFailure?.(error);
@@ -152,6 +164,15 @@ export const sessionBusyInputLogic = createStoreLogic<
             outcome: event.outcome,
           }
         : null,
+    }),
+    submissionUnconfirmed: (context, event) => ({
+      ...context,
+      feedback: {
+        action: event.action,
+        draftText: event.remainingText,
+        kind: "unconfirmed",
+        message: event.message,
+      },
     }),
     submissionFinished: context =>
       context.phase === "idle" ? undefined : { ...context, phase: "idle" },

@@ -7698,8 +7698,48 @@ func TestFakeSessionManagerClearConversationTreatsMissingSessionAsFreshConversat
 	})
 }
 
+type databaseUpgradeManager struct {
+	*fakeSessionManager
+	upgraded   []string
+	upgradeErr error
+}
+
+func (m *databaseUpgradeManager) UpgradeSessionDatabase(_ context.Context, id string) error {
+	if len(m.pendingRecoveryCalls) != 0 {
+		return errors.New("database upgrade ran after read-only interaction recovery")
+	}
+	m.upgraded = append(m.upgraded, id)
+	return m.upgradeErr
+}
+
 func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: retained databases upgrade before boot reads their histories;
+	// migration refusal prevents publication. Owner: daemon boot; canonical suite: TestBootSessionRepair.
+	t.Run("Should upgrade completed histories before interaction recovery and preserve refusal", func(t *testing.T) {
+		t.Parallel()
+		manager := &databaseUpgradeManager{fakeSessionManager: &fakeSessionManager{
+			infos: []*session.Info{{ID: "sess-complete", State: session.StateStopped, StopReason: store.StopCompleted}},
+		}}
+		d := &Daemon{}
+		state := &bootState{logger: discardLogger(), sessions: manager}
+		if err := d.bootSessionRepair(testutil.Context(t), state); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(manager.upgraded, []string{"sess-complete"}) || len(manager.pendingRecoveryCalls) != 1 {
+			t.Fatalf("upgrade/recovery=%v/%v", manager.upgraded, manager.pendingRecoveryCalls)
+		}
+		manager.pendingRecoveryCalls = nil
+		manager.upgradeErr = store.ErrSchemaAhead
+		if err := d.bootSessionRepair(
+			testutil.Context(t),
+			state,
+		); !errors.Is(err, store.ErrSchemaAhead) ||
+			len(manager.pendingRecoveryCalls) != 0 {
+			t.Fatalf("migration refusal=%v, recovery=%v", err, manager.pendingRecoveryCalls)
+		}
+	})
 
 	t.Run("Should settle pending stops before crash inventory and stop boot on settlement failure", func(t *testing.T) {
 		t.Parallel()
@@ -7910,6 +7950,14 @@ func (f *fakeSessionManager) CancelQueuedPrompt(
 
 func (f *fakeSessionManager) ListPendingInputs(context.Context, string) ([]session.PendingInput, error) {
 	return []session.PendingInput{}, nil
+}
+
+func (f *fakeSessionManager) ClearPendingInputs(
+	context.Context,
+	string,
+	session.PromptCaller,
+) (session.ClearPendingInputsResult, error) {
+	return session.ClearPendingInputsResult{}, nil
 }
 
 func (f *fakeSessionManager) ReplacePendingInput(

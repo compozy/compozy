@@ -33,7 +33,9 @@ func (m *Manager) pruneJobResourceOverlays(ctx context.Context, next map[string]
 }
 
 func (m *Manager) restoreJobResourceOverlays(ctx context.Context, overlays []JobEnabledOverlay) error {
-	ctx = persistenceContext(ctx)
+	persistCtx1, cancelPersist1 := persistenceContext(ctx)
+	defer cancelPersist1()
+	ctx = persistCtx1
 	var restoreErr error
 	for _, overlay := range slices.Backward(overlays) {
 		if _, err := m.store.SetJobEnabledOverlay(ctx, overlay); err != nil {
@@ -71,7 +73,9 @@ func (m *Manager) pruneTriggerResourceOverlays(ctx context.Context, next map[str
 }
 
 func (m *Manager) restoreTriggerResourceOverlays(ctx context.Context, overlays []TriggerEnabledOverlay) error {
-	ctx = persistenceContext(ctx)
+	persistCtx2, cancelPersist2 := persistenceContext(ctx)
+	defer cancelPersist2()
+	ctx = persistCtx2
 	var restoreErr error
 	for _, overlay := range slices.Backward(overlays) {
 		if _, err := m.store.SetTriggerEnabledOverlay(ctx, overlay); err != nil {

@@ -480,6 +480,7 @@ func TestCreateSessionWorktreeBinding(t *testing.T) {
 	removedWorktrees := 0
 	handlers := &BaseHandlers{
 		TransportName:     "api-worktree-test",
+		Sessions:          sessionManagerStub{},
 		SessionAcceptance: manager,
 		Workspaces: workspaceServiceStub{get: func(
 			_ context.Context,

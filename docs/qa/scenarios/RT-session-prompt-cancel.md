@@ -43,3 +43,5 @@ QA 2026-09-05: `compozy session prompt-cancel` on a held acpmock turn returned o
 exact turn id, the session stayed active/idle/attachable, the next prompt answered STUBBORN_ACK, and an
 idle repeat returned nothing-in-flight with CLI exit 66. A cancel-ignoring turn escalated after the 10 s
 cooperative grace (session.stop_escalated scope turn, phase forced) and the session returned to idle.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for the selected turn-cancel/rebind branch. Public cancel settled the exact turn, idle repeat retained exit66, and subsequent prompts completed on the same durable session. Task01/02 exhaustive ladder proof is reused; current native and browser integration is recorded in the integrated report. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

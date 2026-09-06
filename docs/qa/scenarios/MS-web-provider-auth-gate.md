@@ -33,3 +33,7 @@ src: web/src/systems/settings/components/provider-edit-form-auth-fields.tsx; web
 4. Repeat through the UDS provider probe. A failed or canceled probe must not be treated as successful authentication. Other workspaces and profiles must still verify their own credentials.
 
 2026-09-05 sessions-stability task02: shared HTTP/UDS success invalidates the daemon-owned pre-start cache. Focused API/cache tests cover the transition; this real-provider walk remains pending for final QA.
+
+QA 2026-09-06 — sessions-stability selected scope: The real reauthentication/cache branch remains blocked-verify. The native Claude account reports loggedIn=true and successful prompts; Compozy classifies its auth probe unknown because no auth_status_command is configured. A separate real account/session with controllable expiry or provider rate limiting is required; no operator logout or credential changes were made. Existing owning cache/API evidence is reused, not substituted for that live branch. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.
+
+The adjacent editor canary passed: Native CLI exposes no credential slot; switching only the unsaved draft to Bound secret reveals the declared slot fields, and switching back removes them. Cancel discarded changes. Root inspected provider-canary-{native-editor,bound-editor,restored-editor}.png and their DOM records. This does not close the real reauthentication branch.

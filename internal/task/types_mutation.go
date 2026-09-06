@@ -212,16 +212,17 @@ type SchedulerPauseState struct {
 
 // SchedulerStatus reports scheduler-wide pause state and live backlog counts.
 type SchedulerStatus struct {
-	Paused                 bool      `json:"paused"`
-	PausedBy               string    `json:"paused_by,omitempty"`
-	PausedAt               time.Time `json:"paused_at,omitzero"`
-	PausedReason           string    `json:"paused_reason,omitempty"`
-	ActiveClaimCount       int       `json:"active_claim_count"`
-	QueuedRunCount         int       `json:"queued_run_count"`
-	PausedTaskCount        int       `json:"paused_task_count"`
-	StarvedRunCount        int       `json:"starved_run_count"`
-	NeedsAttentionRunCount int       `json:"needs_attention_run_count"`
-	AsOf                   time.Time `json:"as_of"`
+	Counters               *SchedulerCounters `json:"counters,omitempty"`
+	Paused                 bool               `json:"paused"`
+	PausedBy               string             `json:"paused_by,omitempty"`
+	PausedAt               time.Time          `json:"paused_at,omitzero"`
+	PausedReason           string             `json:"paused_reason,omitempty"`
+	ActiveClaimCount       int                `json:"active_claim_count"`
+	QueuedRunCount         int                `json:"queued_run_count"`
+	PausedTaskCount        int                `json:"paused_task_count"`
+	StarvedRunCount        int                `json:"starved_run_count"`
+	NeedsAttentionRunCount int                `json:"needs_attention_run_count"`
+	AsOf                   time.Time          `json:"as_of"`
 }
 
 // SchedulerPauseRequest captures one scheduler-wide pause request.

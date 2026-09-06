@@ -8,7 +8,7 @@ import (
 
 const (
 	promptChunkCoalesceInterval = 25 * time.Millisecond
-	promptChunkCoalesceMaxBytes = 4096
+	promptChunkCoalesceMaxBytes = 256 * 1024
 	promptEventBatchMaxEvents   = 64
 )
 

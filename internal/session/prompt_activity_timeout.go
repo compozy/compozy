@@ -2,24 +2,15 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/transcript"
 )
-
-func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
-	if s == nil || s.session == nil || s.manager == nil {
-		return
-	}
-	s.handleTimeoutWithDetail(now, store.SessionStallReasonActivityTimeout, s.timeoutText(now), nil)
-}
 
 func (s *promptActivitySupervisor) handlePromptDeadline(now time.Time) {
 	if s == nil || s.session == nil || s.manager == nil {
@@ -39,21 +30,6 @@ func (s *promptActivitySupervisor) handlePromptDeadline(now time.Time) {
 	s.waitForPromptDeadlineWarningAck(ack)
 	s.cancelPromptAfterRuntimeTimeout()
 	s.stopSessionAfterRuntimeTimeout(store.SessionStallReasonPromptDeadlineExceeded)
-}
-
-func (s *promptActivitySupervisor) handleTimeoutWithDetail(
-	now time.Time,
-	stopDetail string,
-	text string,
-	raw json.RawMessage,
-) {
-	if s == nil || s.session == nil || s.manager == nil {
-		return
-	}
-	s.recordRuntimeTimeout(now, stopDetail)
-	s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, text, now, raw)
-	s.cancelPromptAfterRuntimeTimeout()
-	s.stopSessionAfterRuntimeTimeout(stopDetail)
 }
 
 func (s *promptActivitySupervisor) recordRuntimeTimeout(now time.Time, stopDetail string) {

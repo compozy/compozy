@@ -55,6 +55,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	Supervision              *SupervisionState
 	BusyInput                *BusyInputState
 	ID                       string
 	ProfileID                string
@@ -85,6 +86,7 @@ type Info struct {
 	State                    State
 	PendingPermission        bool
 	StopReason               store.StopReason
+	StopCause                StopCause
 	StopEscalated            bool
 	StopVerificationFailed   bool
 	StopDetail               string
@@ -116,6 +118,15 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	supervisionState             *SupervisionState
+	supervisionWarningEvent      *acp.AgentEvent
+	supervisionStoppedEvent      *acp.AgentEvent
+	stopStartedAt                time.Time
+	supervisionStopAt            time.Time
+	supervisionQuietSince        time.Time
+	supervisionProgressAt        time.Time
+	supervisionWarningRecordedAt time.Time
+	supervisionReportedSources   []SignalSourceState
 	// Claimed finalization owns these fields across persistence retries.
 	stopFinalizationErr        error
 	stopVerifiedOutcome        StopOutcome // Protected by mu.

@@ -210,8 +210,8 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
 				cfg.Session.Supervision.ProgressNotifyInterval = 30 * time.Millisecond
-				cfg.Session.Supervision.InactivityWarningAfter = 40 * time.Millisecond
-				cfg.Session.Supervision.InactivityTimeout = 50 * time.Millisecond
+				cfg.Session.Supervision.QuietAfter = 40 * time.Millisecond
+				cfg.Session.Supervision.StopGrace = 50 * time.Millisecond
 				cfg.Session.Supervision.TimeoutCancelGrace = 60 * time.Millisecond
 			},
 		})
@@ -226,11 +226,11 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 		if got, want := loaded.Session.Supervision.ProgressNotifyInterval, 30*time.Millisecond; got != want {
 			t.Fatalf("ProgressNotifyInterval = %s, want %s", got, want)
 		}
-		if got, want := loaded.Session.Supervision.InactivityWarningAfter, 40*time.Millisecond; got != want {
-			t.Fatalf("InactivityWarningAfter = %s, want %s", got, want)
+		if got, want := loaded.Session.Supervision.QuietAfter, 40*time.Millisecond; got != want {
+			t.Fatalf("QuietAfter = %s, want %s", got, want)
 		}
-		if got, want := loaded.Session.Supervision.InactivityTimeout, 50*time.Millisecond; got != want {
-			t.Fatalf("InactivityTimeout = %s, want %s", got, want)
+		if got, want := loaded.Session.Supervision.StopGrace, 50*time.Millisecond; got != want {
+			t.Fatalf("StopGrace = %s, want %s", got, want)
 		}
 		if got, want := loaded.Session.Supervision.TimeoutCancelGrace, 60*time.Millisecond; got != want {
 			t.Fatalf("TimeoutCancelGrace = %s, want %s", got, want)

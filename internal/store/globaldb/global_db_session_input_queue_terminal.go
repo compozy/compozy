@@ -161,7 +161,7 @@ func (g *SessionRepo) CancelSessionInput(
 		if existing.Status == store.SessionInputQueueStatusSent ||
 			existing.Status == store.SessionInputQueueStatusFailed ||
 			existing.Status == store.SessionInputQueueStatusDispatching {
-			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotQueued, entryID)
+			return &store.SessionInputNotQueuedError{EntryID: entryID, Status: existing.Status, Text: existing.Text}
 		}
 		if existing.Status == store.SessionInputQueueStatusCanceled {
 			entry = existing

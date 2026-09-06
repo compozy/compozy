@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
 	redactpkg "github.com/compozy/compozy/internal/redact"
 )
@@ -56,6 +57,29 @@ func (m *Service) RecordRunStarved(
 		QueuedAgeMS:                  age.Milliseconds(),
 		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	})
+}
+
+// RecordCapacityWaitingEscalated records the scheduler's durable capacity-wait escalation decision.
+func (m *Service) RecordCapacityWaitingEscalated(
+	ctx context.Context,
+	runID string,
+	age time.Duration,
+	reason string,
+	actor ActorContext,
+) error {
+	run, _, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
+	if err != nil {
+		return err
+	}
+	return m.recordTaskEvent(ctx, run.TaskID, run.ID, events.SchedulerCapacityWaitingEscalated, actor, struct {
+		WorkspaceID string `json:"workspace_id"`
+		SessionID   string `json:"session_id"`
+		TurnID      string `json:"turn_id"`
+		ActorID     string `json:"actor_id"`
+		ActorKind   string `json:"actor_kind"`
+		QueuedAgeMS int64  `json:"queued_age_ms"`
+		Reason      string `json:"reason"`
+	}{run.WorkspaceID, run.SessionID, "", actor.Actor.Ref, string(actor.Actor.Kind), age.Milliseconds(), reason})
 }
 
 // MarkRunNeedsAttention transitions a nonterminal run to needs_attention via a CAS store mutation

@@ -97,6 +97,7 @@ type SessionInputQueueEntry struct {
 	RunGeneration            *int64
 	LoopRunID                string
 	OwnerKind                string
+	SyntheticPrompt          *SessionInputSyntheticPrompt
 	OwnerEpoch               *int64
 	BindingEpoch             *int64
 	PromptID                 string
@@ -141,6 +142,8 @@ type SessionInputQueueSummary struct {
 
 // SessionInputQueueInsert captures the atomic insert request for busy input.
 type SessionInputQueueInsert struct {
+	OwnerKind         string
+	SyntheticPrompt   *SessionInputSyntheticPrompt
 	ID                string
 	SessionID         string
 	PromptAdmissionID string
@@ -184,6 +187,8 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
+	normalized.OwnerKind = strings.TrimSpace(normalized.OwnerKind)
+	normalized.SyntheticPrompt = normalized.SyntheticPrompt.Clone()
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()
 	} else {
@@ -195,6 +200,9 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 // Validate ensures the insert request can be persisted.
 func (r SessionInputQueueInsert) Validate() error {
 	normalized := r.Normalize()
+	if err := normalized.validateSyntheticPrompt(); err != nil {
+		return err
+	}
 	if err := normalized.SteerDelivery.Validate(); err != nil {
 		return err
 	}

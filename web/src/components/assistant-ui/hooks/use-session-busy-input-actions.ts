@@ -1,17 +1,23 @@
 import { useSelector, useStore } from "@xstate/store-react";
+import { useAui } from "@assistant-ui/react";
 import { toast } from "sonner";
 
 import { sessionBusyInputLogic } from "./session-busy-input-store";
 import type { SessionComposerSubmission } from "./use-session-composer-state";
 import {
+  composeQuotedPrompt,
+  findUnconfirmedSend,
   oppositeSessionBusyInputMode,
+  sessionBusyInputRefusalFromError,
   splitQuotedPrompt,
-  stageChosenSessionTerminalQuote,
   type QueuedPrompt,
+  type QueuedPromptEditOutcome,
   type SessionBusyInputAction,
   type SessionBusyInputDraft,
   type SessionBusyInputHandler,
   type SessionBusyInputMode,
+  type SessionSendOutcome,
+  type UnconfirmedSend,
 } from "@/systems/session";
 
 export type { SessionBusyInputHandler } from "@/systems/session";
@@ -26,10 +32,12 @@ interface UseSessionBusyInputActionsOptions {
   onQueuePrompt?: SessionBusyInputHandler;
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
+  onRetryUnconfirmedSend?: (id: string) => Promise<SessionSendOutcome | void>;
   onSteerPrompt?: SessionBusyInputHandler;
-  queuedPrompts: QueuedPrompt[];
-  sessionId: string;
   setComposerText: (text: string) => void;
+  /** The live stream is down: a send fails at once and keeps the draft (US-018.AC-3). */
+  transportDisconnected: boolean;
+  unconfirmedSends: UnconfirmedSend[];
   draft: SessionBusyInputDraft;
   /** Fires after a queued, steered, or interrupt draft is accepted. */
   onDraftConsumed?: () => void;
@@ -57,18 +65,16 @@ export function useSessionBusyInputActions({
   onQueuePrompt,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
+  onRetryUnconfirmedSend,
   onSteerPrompt,
-  queuedPrompts,
-  sessionId,
   setComposerText,
+  transportDisconnected,
+  unconfirmedSends,
   draft,
   onDraftConsumed,
 }: UseSessionBusyInputActionsOptions) {
+  const aui = useAui();
   const store = useStore(sessionBusyInputLogic);
-  const editingQueuedPromptId = useSelector(
-    store,
-    snapshot => snapshot.context.editingQueuedPromptId
-  );
   const feedback = useSelector(store, snapshot => snapshot.context.feedback);
 
   const handlerFor = (action: SessionBusyInputAction): SessionBusyInputHandler | undefined => {
@@ -82,11 +88,34 @@ export function useSessionBusyInputActions({
     }
   };
 
+  /**
+   * Sending while disconnected fails now and keeps the draft (US-018.AC-3):
+   * one note, nothing consumed, no request leaves. A second press repeats the
+   * note — never a silent no-op.
+   */
+  const refuseDisconnectedSend = (action: SessionBusyInputAction) => {
+    store.trigger.submissionRefused({
+      action,
+      composerText: submission.composerText,
+      refusal: {
+        attachmentCount: draft.attachments.length,
+        code: "disconnected",
+        currentTurnId: null,
+        message: null,
+        queueCap: null,
+      },
+    });
+  };
+
   const handleBusyInputAction = (
     action: SessionBusyInputAction,
     handler: SessionBusyInputHandler | undefined,
     options: { onFailure?: (error: unknown) => void; onSuccess?: () => void } = {}
   ) => {
+    if (transportDisconnected) {
+      refuseDisconnectedSend(action);
+      return;
+    }
     store.trigger.submissionRequested({
       action,
       canSubmit: canSubmitBusyInput,
@@ -112,33 +141,65 @@ export function useSessionBusyInputActions({
     handleBusyInputAction(action, handlerFor(action));
   };
 
-  const handleQueueAction = () => {
-    const editingQueuedPrompt =
-      queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId) ?? null;
-    if (editingQueuedPrompt) {
-      if (!onReplaceQueuedPrompt) {
-        toast.error("Couldn't update queued prompt.");
-        return;
-      }
-      handleBusyInputAction(
-        "queue",
-        async nextDraft => {
-          await onReplaceQueuedPrompt(editingQueuedPrompt, nextDraft.message);
-        },
-        {
-          onFailure: error => {
-            if (!isAbortError(error)) {
-              toast.error(describeComposerActionError(error, "Couldn't update queued prompt."));
-            }
-          },
-          onSuccess: () => {
-            store.trigger.editCompleted();
-          },
-        }
-      );
-      return;
+  const handleQueueAction = () => submitVerb("queue");
+
+  /**
+   * Saves an in-row edit as one atomic replacement (US-005.AC-3). The editor
+   * held the annotation only; the terminal-context envelope, when any, rides
+   * back unchanged. When the entry had already started dispatching the daemon
+   * refuses with `entry_dispatching`: its word lands in the composer note and
+   * the edited text becomes a fresh draft there, after anything the operator
+   * was already typing — nothing typed is lost (US-005.EC-2).
+   */
+  const handleSaveQueuedPromptEdit = async (
+    prompt: QueuedPrompt,
+    annotation: string
+  ): Promise<QueuedPromptEditOutcome> => {
+    if (!onReplaceQueuedPrompt) {
+      toast.error("Couldn't update queued prompt.");
+      return "failed";
     }
-    submitVerb("queue");
+    const { quote } = splitQuotedPrompt(prompt.text);
+    const text = annotation.trim();
+    try {
+      await onReplaceQueuedPrompt(prompt, composeQuotedPrompt(text, quote));
+      return "replaced";
+    } catch (error) {
+      const refusal = sessionBusyInputRefusalFromError(error);
+      if (refusal?.code === "entry_dispatching") {
+        const current = aui.composer.getState().text;
+        const handedOff = current.trim().length > 0 ? `${current}\n\n${text}` : text;
+        setComposerText(handedOff);
+        store.trigger.submissionRefused({ action: "queue", composerText: handedOff, refusal });
+        return "handed_off";
+      }
+      if (!isAbortError(error)) {
+        toast.error(describeComposerActionError(error, "Couldn't update queued prompt."));
+      }
+      return "failed";
+    }
+  };
+
+  /**
+   * Retry replays a retained identity through the same submission gate, so the
+   * daemon's answer lands in the composer note like any other busy send —
+   * `replayed` when it had arrived, a fresh disposition when it had not. The
+   * field is untouched: nothing was taken from it and nothing is consumed.
+   */
+  const handleRetryUnconfirmedSend = (id: string) => {
+    const send = findUnconfirmedSend(unconfirmedSends, id);
+    if (!send || !onRetryUnconfirmedSend) return;
+    store.trigger.submissionRequested({
+      action: send.action,
+      canSubmit: true,
+      consumeSubmittedDraft: submitted => submitted.composerText,
+      handler: () => onRetryUnconfirmedSend(id),
+      draft: {
+        attachments: send.attachments.map(attachment => ({ ...attachment })),
+        message: send.text,
+      },
+      submission: { attachmentIds: [], composerText: submission.composerText },
+    });
   };
 
   const handleSteerAction = () => submitVerb("steer");
@@ -146,39 +207,21 @@ export function useSessionBusyInputActions({
 
   /**
    * Enter follows the daemon default; the modifier performs the opposite for
-   * exactly one send (US-003.AC-3). An in-progress queued-prompt edit keeps
-   * Enter on the edit path.
+   * exactly one send (US-003.AC-3).
    */
   const handleEnterAction = (variant: "default" | "opposite") => {
     const mode =
       variant === "default"
         ? busyInputDefaultMode
         : oppositeSessionBusyInputMode(busyInputDefaultMode);
-    if (mode === "queue" || editingQueuedPromptId !== null) {
+    if (mode === "queue") {
       handleQueueAction();
       return;
     }
     handleSteerAction();
   };
 
-  const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
-    if (
-      draft.attachments.length > 0 ||
-      (draft.message.length > 0 && draft.message !== prompt.text.trim())
-    ) {
-      toast.warning("Send or clear the current draft before editing a queued prompt.");
-      return;
-    }
-    const { annotation, quote } = splitQuotedPrompt(prompt.text);
-    if (quote) {
-      stageChosenSessionTerminalQuote(sessionId, quote);
-    }
-    setComposerText(annotation);
-    store.trigger.editStarted({ id: prompt.id });
-  };
-
   const handleRemoveQueuedPrompt = (id: string) => {
-    store.trigger.promptRemoved({ id });
     onRemoveQueuedPrompt?.(id);
   };
 
@@ -190,11 +233,14 @@ export function useSessionBusyInputActions({
     dismissFeedback,
     feedback,
     handleBusyInputAction,
-    handleEditQueuedPrompt,
+    /** The idle Send control's answer while disconnected: the same note, the draft untouched. */
+    handleDisconnectedSend: () => refuseDisconnectedSend("steer"),
     handleEnterAction,
     handleInterruptAction,
     handleQueueAction,
     handleRemoveQueuedPrompt,
+    handleRetryUnconfirmedSend,
+    handleSaveQueuedPromptEdit,
     handleSteerAction,
   };
 }

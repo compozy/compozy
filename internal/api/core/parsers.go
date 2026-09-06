@@ -30,7 +30,9 @@ func ParseSessionEventQuery(c *gin.Context) (store.EventQuery, error) {
 		return store.EventQuery{}, err
 	}
 
+	_, forward := c.GetQuery("after_sequence")
 	return store.EventQuery{
+		Forward:       forward,
 		Type:          strings.TrimSpace(c.Query("type")),
 		AgentName:     strings.TrimSpace(c.Query("agent_name")),
 		TurnID:        strings.TrimSpace(c.Query("turn_id")),

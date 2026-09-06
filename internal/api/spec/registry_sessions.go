@@ -24,6 +24,7 @@ func registrySessionOperations() []OperationSpec {
 		sendSessionPromptOperationSpec(),
 		steerSessionPromptOperationSpec(),
 		listSessionInputsOperationSpec(),
+		clearSessionInputsOperationSpec(),
 		replaceSessionInputOperationSpec(),
 		promoteSessionInputOperationSpec(),
 		cancelQueuedSessionPromptOperationSpec(),

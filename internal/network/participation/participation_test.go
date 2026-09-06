@@ -305,7 +305,7 @@ func TestNormalizeIntentShouldValidatePartialPersistedIntent(t *testing.T) {
 		{name: "Should reject nonpositive output tokens", bounds: participation.BoundsRequest{MaxOutputTokens: new(int64(-1))}},
 		{name: "Should reject nonpositive wake depth", bounds: participation.BoundsRequest{MaxWakeDepth: new(0)}},
 		{name: "Should reject invalid wake wall time", bounds: participation.BoundsRequest{MaxWakeWallTime: new("bad")}},
-		{name: "Should reject invalid total wall time", bounds: participation.BoundsRequest{MaxTotalWallTime: new("0s")}},
+		{name: "Should reject negative total wall time", bounds: participation.BoundsRequest{MaxTotalWallTime: new("-1s")}},
 		{name: "Should reject invalid coalesce window", bounds: participation.BoundsRequest{CoalesceWindow: new("-1s")}},
 		{
 			name: "Should reject input tokens above the JavaScript safe integer ceiling",
@@ -1152,5 +1152,42 @@ func completeBounds() participation.Bounds {
 		MaxOutputTokens:  50_000,
 		MaxWakeDepth:     3,
 		CoalesceWindow:   "500ms",
+	}
+}
+
+// Invariant: the total wall budget can be disabled, while explicit budgets still obey ceilings.
+// Owner: participation contract; canonical participation suite (IT-049 boundary).
+func TestLiveTotalWallBudgetCanBeDisabled(t *testing.T) {
+	defaults := participation.Bounds{
+		MaxWakes:         10,
+		MaxWakeWallTime:  "1m",
+		MaxTotalWallTime: "0",
+		MaxInputTokens:   100,
+		MaxOutputTokens:  100,
+		MaxWakeDepth:     2,
+		CoalesceWindow:   "1s",
+	}
+	limits := participation.Limits{MaxTotalWallTime: "2h"}
+	for _, value := range []string{"0", "0s", "1h"} {
+		resolved, err := participation.ResolveBounds(
+			&participation.BoundsRequest{MaxTotalWallTime: &value},
+			defaults,
+			limits,
+		)
+		if err != nil || resolved.MaxTotalWallTime != value {
+			t.Fatalf("total wall %s: %#v, %v", value, resolved, err)
+		}
+	}
+	for _, value := range []string{"-1s", "3h"} {
+		if _, err := participation.ResolveBounds(
+			&participation.BoundsRequest{MaxTotalWallTime: &value},
+			defaults,
+			limits,
+		); !errors.Is(
+			err,
+			participation.ErrBoundsExceedCeiling,
+		) {
+			t.Fatalf("total wall %s: %v", value, err)
+		}
 	}
 }

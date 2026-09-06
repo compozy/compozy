@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -12,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-// EnqueueInterruptSessionInput atomically fences stale pending input and persists its replacement.
+// EnqueueInterruptSessionInput persists replacement input without removing parked work.
 func (g *SessionRepo) EnqueueInterruptSessionInput(
 	ctx context.Context,
 	req store.SessionInputQueueInsert,
@@ -27,7 +28,7 @@ func (g *SessionRepo) EnqueueInterruptSessionInput(
 		return store.SessionInputQueueEntry{}, 0, err
 	}
 	err = g.withImmediateTransaction(ctx, "enqueue interrupt session input", func(exec globalSQLExecutor) error {
-		prepared, canceledCount, prepareErr := prepareInterruptSessionInput(ctx, exec, req)
+		prepared, prepareErr := prepareInterruptSessionInput(ctx, exec, req)
 		if prepareErr != nil {
 			return prepareErr
 		}
@@ -36,7 +37,6 @@ func (g *SessionRepo) EnqueueInterruptSessionInput(
 			return insertErr
 		}
 		entry = inserted
-		canceled = canceledCount
 		return nil
 	})
 	if err != nil {
@@ -49,37 +49,16 @@ func prepareInterruptSessionInput(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	req store.SessionInputQueueInsert,
-) (store.SessionInputQueueInsert, int, error) {
-	queries := sqlcgen.New(exec)
-	nowRaw := store.FormatTimestamp(req.Now)
-	affected, err := queries.AdvanceSessionInputGeneration(ctx, sqlcgen.AdvanceSessionInputGenerationParams{
-		UpdatedAt: nowRaw,
-		ID:        req.SessionID,
-	})
-	if err != nil {
-		return store.SessionInputQueueInsert{}, 0, fmt.Errorf("store: advance interrupt generation: %w", err)
+) (store.SessionInputQueueInsert, error) {
+	generation, err := sqlcgen.New(exec).GetSessionInputGeneration(ctx, req.SessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.SessionInputQueueInsert{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, req.SessionID)
 	}
-	if affected == 0 {
-		return store.SessionInputQueueInsert{}, 0, fmt.Errorf("%w: %s", store.ErrSessionNotFound, req.SessionID)
-	}
-	generation, err := queries.GetSessionInputGeneration(ctx, req.SessionID)
 	if err != nil {
-		return store.SessionInputQueueInsert{}, 0, fmt.Errorf("store: read interrupt generation: %w", err)
-	}
-	canceled, err := queries.CancelPendingSessionInputs(ctx, sqlcgen.CancelPendingSessionInputsParams{
-		CanceledStatus:    store.SessionInputQueueStatusCanceled,
-		Now:               nullableSessionTime(req.Now),
-		UpdatedAt:         nowRaw,
-		SessionID:         req.SessionID,
-		SessionGeneration: generation,
-		QueuedStatus:      store.SessionInputQueueStatusQueued,
-		DispatchingStatus: store.SessionInputQueueStatusDispatching,
-	})
-	if err != nil {
-		return store.SessionInputQueueInsert{}, 0, fmt.Errorf("store: fence interrupt queue: %w", err)
+		return store.SessionInputQueueInsert{}, fmt.Errorf("store: read interrupt generation: %w", err)
 	}
 	req.SessionGeneration = generation
-	return req, int(canceled), nil
+	return req, nil
 }
 
 // ListPendingSessionInputs returns current-generation operator inputs in dispatch order.
@@ -182,7 +161,7 @@ func (g *SessionRepo) replacePendingSessionInput(
 			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 		}
 		if existing.Status != store.SessionInputQueueStatusQueued {
-			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotQueued, entryID)
+			return &store.SessionInputNotQueuedError{EntryID: entryID, Status: existing.Status, Text: replacement.Text}
 		}
 		replacement.SessionGeneration = existing.SessionGeneration
 		var superseded []string

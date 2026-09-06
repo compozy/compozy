@@ -65,14 +65,13 @@ func (s *Scheduler) Update(ctx context.Context, job Job) (ScheduledJobState, err
 	if err != nil {
 		return ScheduledJobState{}, err
 	}
-	if !plan.register {
-		s.unregisterLocked(normalized.ID, current)
-		return unregisteredJobState(normalized.ID), nil
-	}
-
 	state, err := s.reconcileSchedulerState(ctx, normalized, plan)
 	if err != nil {
 		return ScheduledJobState{}, err
+	}
+	if schedulerDueAt(state) == nil {
+		s.unregisterLocked(normalized.ID, current)
+		return stateFromDurableState(state, false), nil
 	}
 
 	registeredAt := s.now()
@@ -173,21 +172,12 @@ func (s *Scheduler) registerLocked(ctx context.Context, job Job) (ScheduledJobSt
 	if err != nil {
 		return ScheduledJobState{}, err
 	}
-	if !plan.register {
-		s.logger.Info("automation.scheduler.skipped_past_one_time_job", "job_id", job.ID, "job_name", job.Name)
-		state, err := s.reconcileSchedulerState(ctx, job, plan)
-		if err != nil {
-			return ScheduledJobState{}, err
-		}
-		if s.store != nil {
-			return stateFromDurableState(state, false), nil
-		}
-		return unregisteredJobState(job.ID), nil
-	}
-
 	state, err := s.reconcileSchedulerState(ctx, job, plan)
 	if err != nil {
 		return ScheduledJobState{}, err
+	}
+	if schedulerDueAt(state) == nil {
+		return stateFromDurableState(state, false), nil
 	}
 	registeredAt := s.now()
 	registration := scheduledRegistration{
@@ -237,7 +227,7 @@ func stateFromDurableState(durable SchedulerState, registered bool) ScheduledJob
 	state := ScheduledJobState{
 		JobID:               durable.JobID,
 		Registered:          registered,
-		NextRun:             durable.NextRunAt,
+		NextRun:             schedulerDueAt(durable),
 		LastRun:             durable.LastRunAt,
 		LastScheduledAt:     durable.LastScheduledAt,
 		LastFireID:          durable.LastFireID,

@@ -10,14 +10,15 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
-func persistenceContext(ctx context.Context) context.Context {
+// persistenceContext gives cancellation-independent finalization a bounded lifetime.
+func persistenceContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return nil
+		return nil, func() {}
 	}
 	if ctx.Err() == nil {
-		return ctx
+		return context.WithCancel(ctx)
 	}
-	return context.WithoutCancel(ctx)
+	return context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 }
 
 func timePointer(value time.Time) *time.Time {

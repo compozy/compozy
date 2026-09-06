@@ -19,13 +19,58 @@ import (
 )
 
 func TestPromptCallerCancellationContract(t *testing.T) {
+	t.Run("Should release execution before delivering terminal output", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		finishing := make(chan struct{})
+		release := make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		t.Cleanup(unblock)
+		h.manager.SetTurnEndNotifier(func(ctx context.Context, _ PromptRunIdentity) {
+			close(finishing)
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		})
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "finish before terminal"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-finishing:
+		case <-time.After(5 * time.Second):
+			t.Fatal("execution did not reach finalization")
+		}
+		deadline := time.NewTimer(25 * time.Millisecond)
+		defer deadline.Stop()
+	wait:
+		for {
+			select {
+			case event := <-result.Events:
+				if isPromptTerminalEvent(event.Type) {
+					t.Fatalf("terminal %q escaped before finalization", event.Type)
+				}
+			case <-deadline.C:
+				break wait
+			}
+		}
+		unblock()
+		events := collectEvents(t, result.Events)
+		if len(events) == 0 || events[len(events)-1].Type != acp.EventTypeDone {
+			t.Fatalf("terminal delivery after finalization = %#v", events)
+		}
+	})
+
 	t.Run("Should persist a provider burst while the delivery consumer is stalled", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
 		h.manager = newManagerWithHarness(t, h, WithPromptBufferSize(1))
 		notifierDrainCtx, cancelNotifierDrain := context.WithCancel(testutil.Context(t))
-		defer cancelNotifierDrain()
+		t.Cleanup(cancelNotifierDrain)
 		go func() {
 			for {
 				select {
@@ -43,7 +88,7 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			}
 		})
 
-		const eventCount = sessionEventSubscriberBuffer + 32
+		const eventCount = promptDeliveryPageSize*3 + sessionEventSubscriberBuffer + 32
 		source := make(chan acp.AgentEvent, eventCount+1)
 		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			for index := range eventCount {

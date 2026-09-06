@@ -178,6 +178,7 @@ type AutomationRun struct {
 }
 
 type AutomationSchedulerState struct {
+	DeferredUntil             sql.NullString `json:"deferred_until"`
 	JobID                     string         `json:"job_id"`
 	NextRunAt                 sql.NullString `json:"next_run_at"`
 	LastRunAt                 sql.NullString `json:"last_run_at"`
@@ -446,6 +447,7 @@ type DeadEntity struct {
 }
 
 type EventSummary struct {
+	Seq                  int64          `json:"seq"`
 	ID                   string         `json:"id"`
 	ProfileID            string         `json:"profile_id"`
 	SessionID            string         `json:"session_id"`
@@ -1797,6 +1799,17 @@ type SessionHealth struct {
 	UpdatedAt           string         `json:"updated_at"`
 }
 
+type SessionInputClearTrace struct {
+	EntryID         string         `json:"entry_id"`
+	SessionID       string         `json:"session_id"`
+	TurnID          string         `json:"turn_id"`
+	ActorKind       string         `json:"actor_kind"`
+	ActorID         string         `json:"actor_id"`
+	QueueGeneration int64          `json:"queue_generation"`
+	CreatedAt       string         `json:"created_at"`
+	ProjectedAt     sql.NullString `json:"projected_at"`
+}
+
 type SessionInputQueue struct {
 	ID                       string         `json:"id"`
 	SessionID                string         `json:"session_id"`
@@ -1811,6 +1824,7 @@ type SessionInputQueue struct {
 	Delivery                 string         `json:"delivery"`
 	SteerDelivery            sql.NullString `json:"steer_delivery"`
 	Text                     string         `json:"text"`
+	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`

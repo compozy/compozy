@@ -42,13 +42,15 @@ type Registry struct {
 	daemonPID   int
 	logger      *slog.Logger
 
-	mu     sync.RWMutex
-	active map[string]activeProcess
+	mu         sync.RWMutex
+	mutationMu sync.Mutex
+	active     map[string]activeProcess
 }
 
 type activeProcess struct {
-	record    ProcessRecord
-	interrupt InterruptFunc
+	verifiedAt time.Time
+	record     ProcessRecord
+	interrupt  InterruptFunc
 }
 
 // RegisterConfig describes one process registration.
@@ -210,12 +212,18 @@ func (r *Registry) Register(ctx context.Context, cfg RegisterConfig) (*Handle, e
 	if err := validateRecord(record); err != nil {
 		return nil, err
 	}
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
 	if err := r.upsert(ctx, record); err != nil {
 		return nil, err
 	}
 
+	var verifiedAt time.Time
+	if r.validateRecovered(record) {
+		verifiedAt = now
+	}
 	r.mu.Lock()
-	r.active[record.ID] = activeProcess{record: record, interrupt: cfg.Interrupt}
+	r.active[record.ID] = activeProcess{record: record, interrupt: cfg.Interrupt, verifiedAt: verifiedAt}
 	r.mu.Unlock()
 
 	return &Handle{registry: r, id: record.ID}, nil

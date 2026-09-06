@@ -20,6 +20,8 @@ import { isSessionRunning, isUserControllableSession } from "../lib/session-runn
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
 import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
+import { SessionTransportContext } from "../lib/session-transcript-thread-context-value";
+import { useSessionTransportState } from "./use-session-transcript-thread-messages";
 
 interface SessionTopbarWorktreeBinding {
   worktreeId: string;
@@ -43,6 +45,8 @@ interface UseSessionTopbarSlotInput {
   sidebarOpen: boolean;
   /** The one state-gated goal action (Pause/Resume/Approve/Clear) riding the head. */
   goalAction?: React.ReactNode;
+  /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
+  transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
   onSidebarToggle: () => void;
   onDelete: () => void;
@@ -66,6 +70,7 @@ export function useSessionTopbarSlot({
   inspectorOpen,
   sidebarOpen,
   goalAction,
+  transportChip,
   onInspectorToggle,
   onSidebarToggle,
   onDelete,
@@ -170,6 +175,13 @@ export function useSessionTopbarSlot({
     </Button>
   );
 
+  // The slot consumer (the OS head) renders outside this window's session
+  // runtime provider, so a node that reads the transport — the chip — would
+  // see the default live snapshot there. The publisher runs inside the
+  // provider: it carries the window's own snapshot with the node, per window,
+  // no second stream (task_06 VC-01..05).
+  const transport = useSessionTransportState();
+
   useTopbarSlot({
     glyph: (
       <span
@@ -193,6 +205,11 @@ export function useSessionTopbarSlot({
             worktree={worktreeBinding.worktree}
             worktreeId={worktreeBinding.worktreeId}
           />
+        ) : null}
+        {transportChip ? (
+          <SessionTransportContext.Provider value={transport}>
+            {transportChip}
+          </SessionTransportContext.Provider>
         ) : null}
       </span>
     ),

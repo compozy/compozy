@@ -18,7 +18,10 @@ import {
   SESSION_ATTACHMENT_PART_NAME,
 } from "@/systems/session/lib/attachment-kinds";
 
+import { useSteerProvenance } from "@/systems/session/hooks/use-steer-provenance";
+
 import { sessionSkillInvocationDirectives } from "./session-directive-registry";
+import { SessionUserSteerMeta } from "./session-user-steer-meta";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
 import { SessionDataEventMarker } from "./session-message-parts";
@@ -51,7 +54,14 @@ function SessionDataPart(part: DataMessagePartProps<unknown>) {
  * on the 4.5% ink wash. No avatar, no role label, no shadow. Long messages
  * clamp behind a fade mask with a quiet "Show more" toggle.
  */
-function UserMessageBubble({ children }: { children: ReactNode }) {
+export function UserMessageBubble({
+  children,
+  subdued = false,
+}: {
+  children: ReactNode;
+  /** Guidance superseded by a later steer: one ink step quieter, never removed (US-001.EC-3). */
+  subdued?: boolean;
+}) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [clampable, setClampable] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -76,9 +86,11 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
         ref={contentRef}
         data-testid="user-message-bubble"
         data-clamped={clamped || undefined}
+        data-subdued={subdued || undefined}
         className={cn(
           "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-transcript-message-y",
-          "text-transcript-message leading-relaxed text-fg [overflow-wrap:anywhere]",
+          "text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
+          subdued ? "text-subtle" : "text-fg",
           clamped
             ? "max-h-44 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]"
             : null
@@ -112,12 +124,20 @@ export function UserMessage() {
   );
   const hasText = userMessageHasText(message.content);
   const directives = sessionSkillInvocationDirectives(message.metadata);
+  // How this message reached the turn, bound by the daemon's explicit
+  // message_id on its steer markers (VC-07) through this message's authored
+  // identity — never by position, text, or the rendered (possibly uniquified) id.
+  const steer = useSteerProvenance().forMessage(message);
+  const superseded = steer?.kind === "superseded";
   return (
-    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap">
+    <MessagePrimitive.Root
+      className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap"
+      data-steer={steer?.kind}
+    >
       <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-transcript-meta-gap">
         {attachments.length > 0 ? <SessionAttachmentGallery items={attachments} /> : null}
         {hasText ? (
-          <UserMessageBubble>
+          <UserMessageBubble subdued={superseded}>
             <MessagePrimitive.Parts>
               {({ part }) => {
                 if (part.type === "text") {
@@ -136,6 +156,12 @@ export function UserMessage() {
               }}
             </MessagePrimitive.Parts>
           </UserMessageBubble>
+        ) : null}
+        {steer ? (
+          <SessionUserSteerMeta
+            kind={steer.kind}
+            meta={steer.queuePosition === null ? null : `was #${steer.queuePosition}`}
+          />
         ) : null}
         <MessageActions align="end" copyLabel="Copy message" testId="user-message-actions" />
       </div>

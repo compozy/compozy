@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -1293,7 +1294,7 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		sessionAPIPath(created.WorkspaceID, sessionID, "/stream?frames=raw"),
+		sessionAPIPath(created.WorkspaceID, sessionID, "/stream?frames=raw&limit=200"),
 		nil,
 		nil,
 	)
@@ -1314,7 +1315,7 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		sessionAPIPath(created.WorkspaceID, sessionID, "/stream?frames=raw"),
+		sessionAPIPath(created.WorkspaceID, sessionID, "/stream?frames=raw&limit=200"),
 		nil,
 		headers,
 	)
@@ -3219,6 +3220,14 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
+	// Profile-aware resolution reads the fixture's actual home configuration.
+	if err := os.WriteFile(
+		homePaths.ConfigFile,
+		[]byte("[providers.fake]\ncommand = \"fake-agent\"\n[network]\nenabled = false\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write integration provider config: %v", err)
+	}
 
 	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
 	if err != nil {
@@ -3292,6 +3301,13 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+		workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				homePaths,
+				compozyconfig.WithWorkspaceRoot(root),
+				compozyconfig.WithProfile(profile),
+			)
+		}),
 	)
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -3352,6 +3368,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
 		session.WithSessionPromptAdmissionStore(registry),
+		session.WithSessionInputQueueStore(registry),
 		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {

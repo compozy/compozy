@@ -352,7 +352,7 @@ data: {"session_id":"sess-1234","workspace_id":"ws_alpha","epoch":3,"generation"
 Open the raw stored-event stream when you need event rows:
 
 ```bash
-curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?frames=raw'
+curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?frames=raw&limit=200'
 ```
 
 Raw frames write:
@@ -384,7 +384,9 @@ curl -N \
 `Last-Event-ID` must be a non-negative numeric transcript cursor. With matching fences, CompozyOS emits
 bounded `transcript_delta` batches. A missing or stale fence, or a cursor beyond the current
 projection, produces a `transcript_snapshot` with `reset: true` and one of these reasons:
-`fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`. Replace only that
+`fence_missing`, `epoch_mismatch`, `generation_mismatch`, `sequence_reset`, or `cursor_expired`.
+`cursor_expired` means retention has removed the resume position; the snapshot replaces the
+retired window with the current retained history. Replace only that
 session's cached transcript when an explicit reset arrives. A new stream without a cursor receives
 a bounded snapshot with `reset: false`.
 
@@ -392,9 +394,47 @@ The old `replay` query is rejected. Raw mode remains a separate stored-event con
 `frames=raw`, CompozyOS resumes persisted rows after `Last-Event-ID` and then follows new rows. Raw cursors
 do not carry transcript projection fences.
 
+A raw initial request must specify a bounded `limit`; an unbounded request is rejected.
+The CLI supplies a 200-event initial window. An explicit `after_sequence` (including zero)
+plus `limit` reads the **next** matching events in ascending sequence order, rather than
+selecting the most recent events. Cursor replay drains the retained gap in bounded pages.
+
+Transcript wakes coalesce at a durable sequence watermark, with a short flush window during
+bursts. `stream.consumer_degraded` is a delivery-only SSE frame with `after_sequence`,
+`through_sequence`, and `refresh: true`; it has no `id` and cannot advance the replay cursor.
+Catch up through that watermark before considering the view live. Goal and command side
+signals also leave the transcript cursor unchanged. A reconnect already at the current
+watermark receives an empty `transcript_delta` with `has_more: false`, confirming catch-up
+without advancing the cursor or adding a message.
+
+During a prompt POST, the Web closes its parallel transcript stream and polls session detail,
+queue and decisions every second. When the POST settles or disconnects, the tail reopens with
+the retained cursor and projection fences. A missing acknowledgment retains the send identity
+for reconciliation. Brief reconnects stay quiet for two seconds; longer interruptions show
+connection state, and exhausted retries offer **Try again** without discarding the draft.
+
+Compaction archives only prior completed turns and cuts their transcript projection in the
+same transaction. The generation changes while a surviving active assistant keeps its message
+identity. Archived events remain available with `archive=all`.
+
+Log streaming uses a monotonic `event_summaries.seq` cursor. Upgrades preserve existing numeric
+log cursors, and retention, VACUUM and reopen never reuse a retired sequence.
+
 If the session is already stopped and no new stored rows arrive, CompozyOS emits a terminal synthetic
 `session_stopped` SSE event and closes the stream. When the stopped session has failure
 diagnostics, that terminal payload includes the same `failure` object stored in session metadata.
+
+### Queue clear markers
+
+Explicit queue clear persists `transcript_marker.queue_cleared` for every removed entry. Evidence
+includes `queue_entry_id`, `queue_generation`, `queue_status`, `actor_kind`, and `actor_id`.
+The queue change and its trace commit together; pending transcript projection survives daemon
+restart. Entries already dispatching retain their dispatch outcome and do not receive a removal
+marker. Interrupt preserves queued input and never emits queue-clear markers.
+
+If a queued prompt reaches dispatch but its sent receipt cannot be persisted, a
+`transcript_marker.prompt_dropped` records the failure and the queue entry becomes `failed`.
+The marker distinguishes receipt failure after dispatch from rejection before dispatch.
 
 ### File mutation verification marker
 
@@ -483,3 +523,10 @@ mean the later archive transition succeeded.
 
 - Use [Session Lifecycle](/docs/sessions/lifecycle) to understand how stop, attach, and repair interact with the state machine.
 - Use [Permissions](/docs/sessions/permissions) to understand the approval events you will see in this stream.
+
+The canonical `session.queue_cleared` event accompanies each removed entry. Its payload identifies
+`workspace_id`, `session_id`, `turn_id`, `queue_entry_id`, `count`, `actor_kind`, and `actor_id`.
+An empty clear emits one event with `count: 0`. `session.queue_clear_failed` carries the same
+correlation fields plus `cause` (and the entry ID when the failure identifies one). Durable clear
+traces repair missing transcript and canonical projections when the session resumes or its queue
+is read, using stable event IDs to prevent duplicate stored records.

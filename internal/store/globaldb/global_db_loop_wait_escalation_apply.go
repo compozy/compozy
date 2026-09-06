@@ -126,6 +126,10 @@ func waitEscalationExpiry(node dsl.Node, kind string, requestExpireAfter string)
 		if err := node.Params.Decode(&params); err != nil {
 			return nil, fmt.Errorf("%w: decode wait node %q expiry: %v", looppkg.ErrValidation, node.ID, err)
 		}
+		if params.Expires == nil {
+			// Admission-horizon expiry has no authored route or effects.
+			return &dsl.WaitExpiry{}, nil
+		}
 		return params.Expires, nil
 	case looppkg.NodeWaitKindRequest:
 		if node.Class != dsl.NodeClassControl || dsl.ControlKind(node.Kind) != dsl.ControlAsk {

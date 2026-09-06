@@ -162,7 +162,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 
 func sessionPromptFields() []string {
 	return []string{
-		"disposition", "steer_delivery", "turn_id", entryIDField, "message_id", "idempotency_key", "replayed",
+		"disposition", "steer_delivery", sessionTurnIDKey, entryIDField, "message_id", "idempotency_key", "replayed",
 		sessionStatusKey,
 		bridgeModeKey,
 		cliDeliveryKey,

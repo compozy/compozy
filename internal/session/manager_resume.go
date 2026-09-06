@@ -26,7 +26,12 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err != nil {
 		return nil, err
 	}
-	defer unlockConversation()
+	defer func() {
+		unlockConversation()
+		if err == nil && resumed != nil {
+			m.startNextQueuedInputPrompt(target)
+		}
+	}()
 	if m.hasPendingStopSettlement(target) {
 		return nil, fmt.Errorf("%w: recovered stop for %s has pending persistence", ErrRecoveryPersistence, target)
 	}

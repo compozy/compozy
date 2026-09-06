@@ -20611,6 +20611,22 @@
                             "profile_name": {
                               "type": "string"
                             },
+                            "queue": {
+                              "nullable": true,
+                              "properties": {
+                                "cap": {
+                                  "type": "integer"
+                                },
+                                "entries": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "cap",
+                                "entries"
+                              ],
+                              "type": "object"
+                            },
                             "resolved_network_participation": {
                               "nullable": true,
                               "oneOf": [
@@ -21087,6 +21103,9 @@
                               ],
                               "type": "string"
                             },
+                            "stop_cause": {
+                              "type": "string"
+                            },
                             "stop_detail": {
                               "type": "string"
                             },
@@ -21104,6 +21123,103 @@
                                 "shutdown"
                               ],
                               "type": "string"
+                            },
+                            "supervision": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_warning": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "quiet_since": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "stop_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "warned_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "quiet_since",
+                                    "stop_at",
+                                    "warned_at"
+                                  ],
+                                  "type": "object"
+                                },
+                                "sources": {
+                                  "items": {
+                                    "properties": {
+                                      "error": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "agent_progress",
+                                          "tool_running",
+                                          "active_child",
+                                          "loop_run",
+                                          "task_lease",
+                                          "scheduled_wait"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "type": "string"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "state"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "work_signals": {
+                                  "items": {
+                                    "properties": {
+                                      "kind": {
+                                        "enum": [
+                                          "agent_progress",
+                                          "tool_running",
+                                          "active_child",
+                                          "loop_run",
+                                          "task_lease",
+                                          "scheduled_wait"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "type": "string"
+                                      },
+                                      "since": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "since"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "quiet_warning",
+                                "sources",
+                                "work_signals"
+                              ],
+                              "type": "object"
                             },
                             "transcript_epoch": {
                               "format": "int64",
@@ -21150,6 +21266,7 @@
                             "profile_name",
                             "runtime",
                             "state",
+                            "supervision",
                             "updated_at"
                           ],
                           "type": "object"
@@ -135831,6 +135948,51 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "counters": {
+                          "nullable": true,
+                          "properties": {
+                            "capacity_waiting_runs": {
+                              "type": "integer"
+                            },
+                            "cycles": {
+                              "type": "integer"
+                            },
+                            "last_cycle_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "needs_attention": {
+                              "type": "integer"
+                            },
+                            "spawn_requested": {
+                              "type": "integer"
+                            },
+                            "wake_attempts": {
+                              "type": "integer"
+                            },
+                            "wake_failed": {
+                              "type": "integer"
+                            },
+                            "wake_skipped": {
+                              "type": "integer"
+                            },
+                            "wake_succeeded": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "capacity_waiting_runs",
+                            "cycles",
+                            "needs_attention",
+                            "spawn_requested",
+                            "wake_attempts",
+                            "wake_failed",
+                            "wake_skipped",
+                            "wake_succeeded"
+                          ],
+                          "type": "object"
+                        },
                         "needs_attention_run_count": {
                           "type": "integer"
                         },
@@ -137850,6 +138012,51 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "counters": {
+                          "nullable": true,
+                          "properties": {
+                            "capacity_waiting_runs": {
+                              "type": "integer"
+                            },
+                            "cycles": {
+                              "type": "integer"
+                            },
+                            "last_cycle_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "needs_attention": {
+                              "type": "integer"
+                            },
+                            "spawn_requested": {
+                              "type": "integer"
+                            },
+                            "wake_attempts": {
+                              "type": "integer"
+                            },
+                            "wake_failed": {
+                              "type": "integer"
+                            },
+                            "wake_skipped": {
+                              "type": "integer"
+                            },
+                            "wake_succeeded": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "capacity_waiting_runs",
+                            "cycles",
+                            "needs_attention",
+                            "spawn_requested",
+                            "wake_attempts",
+                            "wake_failed",
+                            "wake_skipped",
+                            "wake_succeeded"
+                          ],
+                          "type": "object"
+                        },
                         "needs_attention_run_count": {
                           "type": "integer"
                         },
@@ -138333,6 +138540,51 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "counters": {
+                          "nullable": true,
+                          "properties": {
+                            "capacity_waiting_runs": {
+                              "type": "integer"
+                            },
+                            "cycles": {
+                              "type": "integer"
+                            },
+                            "last_cycle_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "needs_attention": {
+                              "type": "integer"
+                            },
+                            "spawn_requested": {
+                              "type": "integer"
+                            },
+                            "wake_attempts": {
+                              "type": "integer"
+                            },
+                            "wake_failed": {
+                              "type": "integer"
+                            },
+                            "wake_skipped": {
+                              "type": "integer"
+                            },
+                            "wake_succeeded": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "capacity_waiting_runs",
+                            "cycles",
+                            "needs_attention",
+                            "spawn_requested",
+                            "wake_attempts",
+                            "wake_failed",
+                            "wake_skipped",
+                            "wake_succeeded"
+                          ],
+                          "type": "object"
+                        },
                         "needs_attention_run_count": {
                           "type": "integer"
                         },
@@ -138728,6 +138980,51 @@
                         "as_of": {
                           "format": "date-time",
                           "type": "string"
+                        },
+                        "counters": {
+                          "nullable": true,
+                          "properties": {
+                            "capacity_waiting_runs": {
+                              "type": "integer"
+                            },
+                            "cycles": {
+                              "type": "integer"
+                            },
+                            "last_cycle_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "needs_attention": {
+                              "type": "integer"
+                            },
+                            "spawn_requested": {
+                              "type": "integer"
+                            },
+                            "wake_attempts": {
+                              "type": "integer"
+                            },
+                            "wake_failed": {
+                              "type": "integer"
+                            },
+                            "wake_skipped": {
+                              "type": "integer"
+                            },
+                            "wake_succeeded": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "capacity_waiting_runs",
+                            "cycles",
+                            "needs_attention",
+                            "spawn_requested",
+                            "wake_attempts",
+                            "wake_failed",
+                            "wake_skipped",
+                            "wake_succeeded"
+                          ],
+                          "type": "object"
                         },
                         "needs_attention_run_count": {
                           "type": "integer"
@@ -139788,6 +140085,22 @@
                           "profile_name": {
                             "type": "string"
                           },
+                          "queue": {
+                            "nullable": true,
+                            "properties": {
+                              "cap": {
+                                "type": "integer"
+                              },
+                              "entries": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "cap",
+                              "entries"
+                            ],
+                            "type": "object"
+                          },
                           "resolved_network_participation": {
                             "nullable": true,
                             "oneOf": [
@@ -140264,6 +140577,9 @@
                             ],
                             "type": "string"
                           },
+                          "stop_cause": {
+                            "type": "string"
+                          },
                           "stop_detail": {
                             "type": "string"
                           },
@@ -140281,6 +140597,103 @@
                               "shutdown"
                             ],
                             "type": "string"
+                          },
+                          "supervision": {
+                            "nullable": true,
+                            "properties": {
+                              "quiet_warning": {
+                                "nullable": true,
+                                "properties": {
+                                  "quiet_since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "stop_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "warned_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "quiet_since",
+                                  "stop_at",
+                                  "warned_at"
+                                ],
+                                "type": "object"
+                              },
+                              "sources": {
+                                "items": {
+                                  "properties": {
+                                    "error": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "agent_progress",
+                                        "tool_running",
+                                        "active_child",
+                                        "loop_run",
+                                        "task_lease",
+                                        "scheduled_wait"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "ref": {
+                                      "type": "string"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "state"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "work_signals": {
+                                "items": {
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "agent_progress",
+                                        "tool_running",
+                                        "active_child",
+                                        "loop_run",
+                                        "task_lease",
+                                        "scheduled_wait"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "ref": {
+                                      "type": "string"
+                                    },
+                                    "since": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "since"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "quiet_warning",
+                              "sources",
+                              "work_signals"
+                            ],
+                            "type": "object"
                           },
                           "transcript_epoch": {
                             "format": "int64",
@@ -140327,6 +140740,7 @@
                           "profile_name",
                           "runtime",
                           "state",
+                          "supervision",
                           "updated_at"
                         ],
                         "type": "object"
@@ -141484,6 +141898,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -141960,6 +142390,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -141977,6 +142410,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -142023,6 +142553,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -143574,6 +144105,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -144050,6 +144597,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -144067,6 +144617,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -144113,6 +144760,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -252881,6 +253529,22 @@
                           "profile_name": {
                             "type": "string"
                           },
+                          "queue": {
+                            "nullable": true,
+                            "properties": {
+                              "cap": {
+                                "type": "integer"
+                              },
+                              "entries": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "cap",
+                              "entries"
+                            ],
+                            "type": "object"
+                          },
                           "resolved_network_participation": {
                             "nullable": true,
                             "oneOf": [
@@ -253357,6 +254021,9 @@
                             ],
                             "type": "string"
                           },
+                          "stop_cause": {
+                            "type": "string"
+                          },
                           "stop_detail": {
                             "type": "string"
                           },
@@ -253374,6 +254041,103 @@
                               "shutdown"
                             ],
                             "type": "string"
+                          },
+                          "supervision": {
+                            "nullable": true,
+                            "properties": {
+                              "quiet_warning": {
+                                "nullable": true,
+                                "properties": {
+                                  "quiet_since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "stop_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "warned_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "quiet_since",
+                                  "stop_at",
+                                  "warned_at"
+                                ],
+                                "type": "object"
+                              },
+                              "sources": {
+                                "items": {
+                                  "properties": {
+                                    "error": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "agent_progress",
+                                        "tool_running",
+                                        "active_child",
+                                        "loop_run",
+                                        "task_lease",
+                                        "scheduled_wait"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "ref": {
+                                      "type": "string"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "state"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "work_signals": {
+                                "items": {
+                                  "properties": {
+                                    "kind": {
+                                      "enum": [
+                                        "agent_progress",
+                                        "tool_running",
+                                        "active_child",
+                                        "loop_run",
+                                        "task_lease",
+                                        "scheduled_wait"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "ref": {
+                                      "type": "string"
+                                    },
+                                    "since": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "since"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "quiet_warning",
+                              "sources",
+                              "work_signals"
+                            ],
+                            "type": "object"
                           },
                           "transcript_epoch": {
                             "format": "int64",
@@ -253420,6 +254184,7 @@
                           "profile_name",
                           "runtime",
                           "state",
+                          "supervision",
                           "updated_at"
                         ],
                         "type": "object"
@@ -308807,6 +309572,22 @@
                               "profile_name": {
                                 "type": "string"
                               },
+                              "queue": {
+                                "nullable": true,
+                                "properties": {
+                                  "cap": {
+                                    "type": "integer"
+                                  },
+                                  "entries": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "cap",
+                                  "entries"
+                                ],
+                                "type": "object"
+                              },
                               "resolved_network_participation": {
                                 "nullable": true,
                                 "oneOf": [
@@ -309283,6 +310064,9 @@
                                 ],
                                 "type": "string"
                               },
+                              "stop_cause": {
+                                "type": "string"
+                              },
                               "stop_detail": {
                                 "type": "string"
                               },
@@ -309300,6 +310084,103 @@
                                   "shutdown"
                                 ],
                                 "type": "string"
+                              },
+                              "supervision": {
+                                "nullable": true,
+                                "properties": {
+                                  "quiet_warning": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "quiet_since": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "stop_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "warned_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "quiet_since",
+                                      "stop_at",
+                                      "warned_at"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "sources": {
+                                    "items": {
+                                      "properties": {
+                                        "error": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "state"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "work_signals": {
+                                    "items": {
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "since": {
+                                          "format": "date-time",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "since"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "quiet_warning",
+                                  "sources",
+                                  "work_signals"
+                                ],
+                                "type": "object"
                               },
                               "transcript_epoch": {
                                 "format": "int64",
@@ -309346,6 +310227,7 @@
                               "profile_name",
                               "runtime",
                               "state",
+                              "supervision",
                               "updated_at"
                             ],
                             "type": "object"
@@ -310412,6 +311294,22 @@
                               "profile_name": {
                                 "type": "string"
                               },
+                              "queue": {
+                                "nullable": true,
+                                "properties": {
+                                  "cap": {
+                                    "type": "integer"
+                                  },
+                                  "entries": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "cap",
+                                  "entries"
+                                ],
+                                "type": "object"
+                              },
                               "resolved_network_participation": {
                                 "nullable": true,
                                 "oneOf": [
@@ -310888,6 +311786,9 @@
                                 ],
                                 "type": "string"
                               },
+                              "stop_cause": {
+                                "type": "string"
+                              },
                               "stop_detail": {
                                 "type": "string"
                               },
@@ -310905,6 +311806,103 @@
                                   "shutdown"
                                 ],
                                 "type": "string"
+                              },
+                              "supervision": {
+                                "nullable": true,
+                                "properties": {
+                                  "quiet_warning": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "quiet_since": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "stop_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "warned_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "quiet_since",
+                                      "stop_at",
+                                      "warned_at"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "sources": {
+                                    "items": {
+                                      "properties": {
+                                        "error": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "state"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "work_signals": {
+                                    "items": {
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "since": {
+                                          "format": "date-time",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "since"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "quiet_warning",
+                                  "sources",
+                                  "work_signals"
+                                ],
+                                "type": "object"
                               },
                               "transcript_epoch": {
                                 "format": "int64",
@@ -310951,6 +311949,7 @@
                               "profile_name",
                               "runtime",
                               "state",
+                              "supervision",
                               "updated_at"
                             ],
                             "type": "object"
@@ -312032,6 +313031,22 @@
                               "profile_name": {
                                 "type": "string"
                               },
+                              "queue": {
+                                "nullable": true,
+                                "properties": {
+                                  "cap": {
+                                    "type": "integer"
+                                  },
+                                  "entries": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "cap",
+                                  "entries"
+                                ],
+                                "type": "object"
+                              },
                               "resolved_network_participation": {
                                 "nullable": true,
                                 "oneOf": [
@@ -312508,6 +313523,9 @@
                                 ],
                                 "type": "string"
                               },
+                              "stop_cause": {
+                                "type": "string"
+                              },
                               "stop_detail": {
                                 "type": "string"
                               },
@@ -312525,6 +313543,103 @@
                                   "shutdown"
                                 ],
                                 "type": "string"
+                              },
+                              "supervision": {
+                                "nullable": true,
+                                "properties": {
+                                  "quiet_warning": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "quiet_since": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "stop_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "warned_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "quiet_since",
+                                      "stop_at",
+                                      "warned_at"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "sources": {
+                                    "items": {
+                                      "properties": {
+                                        "error": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "state"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "work_signals": {
+                                    "items": {
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "agent_progress",
+                                            "tool_running",
+                                            "active_child",
+                                            "loop_run",
+                                            "task_lease",
+                                            "scheduled_wait"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "ref": {
+                                          "type": "string"
+                                        },
+                                        "since": {
+                                          "format": "date-time",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "since"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "quiet_warning",
+                                  "sources",
+                                  "work_signals"
+                                ],
+                                "type": "object"
                               },
                               "transcript_epoch": {
                                 "format": "int64",
@@ -312571,6 +313686,7 @@
                               "profile_name",
                               "runtime",
                               "state",
+                              "supervision",
                               "updated_at"
                             ],
                             "type": "object"
@@ -322044,6 +323160,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -322520,6 +323652,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -322537,6 +323672,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -322583,6 +323815,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -323293,6 +324526,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -323769,6 +325018,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -323786,6 +325038,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -323832,6 +325181,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -324999,6 +326349,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -325475,6 +326841,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -325492,6 +326861,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -325538,6 +327004,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -326427,6 +327894,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -326903,6 +328386,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -326920,6 +328406,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -326966,6 +328549,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -329809,6 +331393,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -330285,6 +331885,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -330302,6 +331905,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -330348,6 +332048,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -339635,8 +341336,8 @@
       }
     },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue": {
-      "get": {
-        "operationId": "listSessionInputs",
+      "delete": {
+        "operationId": "clearSessionInputs",
         "parameters": [
           {
             "description": "Workspace id",
@@ -339663,6 +341364,9 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "cleared_count": {
+                      "type": "integer"
+                    },
                     "inputs": {
                       "items": {
                         "properties": {
@@ -339726,6 +341430,12 @@
                             "type": "string"
                           },
                           "mode": {
+                            "type": "string"
+                          },
+                          "owner_id": {
+                            "type": "string"
+                          },
+                          "owner_kind": {
                             "type": "string"
                           },
                           "queue_generation": {
@@ -339846,6 +341556,13 @@
                             "type": "array"
                           },
                           "status": {
+                            "enum": [
+                              "queued",
+                              "dispatching",
+                              "sent",
+                              "failed",
+                              "canceled"
+                            ],
                             "type": "string"
                           },
                           "steer_delivery": {
@@ -339876,6 +341593,531 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "queue_generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "cleared_count",
+                    "inputs",
+                    "queue_generation"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Per-entry clear outcomes"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Clear queued input with attributed per-entry traces",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "get": {
+        "operationId": "listSessionInputs",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "inputs": {
+                      "items": {
+                        "properties": {
+                          "attachments": {
+                            "items": {
+                              "properties": {
+                                "bytes": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "mime_type": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "sha256": {
+                                  "type": "string"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "bytes",
+                                "height",
+                                "id",
+                                "kind",
+                                "mime_type",
+                                "name",
+                                "sha256",
+                                "width"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "delivery": {
+                            "type": "string"
+                          },
+                          "enqueued_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "idempotency_key": {
+                            "type": "string"
+                          },
+                          "message_id": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "owner_id": {
+                            "type": "string"
+                          },
+                          "owner_kind": {
+                            "type": "string"
+                          },
+                          "queue_generation": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "runtime": {
+                            "nullable": true,
+                            "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "provider": {
+                                "type": "string"
+                              },
+                              "reasoning_effort": {
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max"
+                                ],
+                                "type": "string"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "provider"
+                            ],
+                            "type": "object"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          },
+                          "skill_invocations": {
+                            "items": {
+                              "properties": {
+                                "command_id": {
+                                  "type": "string"
+                                },
+                                "end": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "origin": {
+                                      "type": "string"
+                                    },
+                                    "scope": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "scope"
+                                  ],
+                                  "type": "object"
+                                },
+                                "start": {
+                                  "type": "integer"
+                                },
+                                "token": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "command_id",
+                                "end",
+                                "name",
+                                "source",
+                                "start",
+                                "token"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "status": {
+                            "enum": [
+                              "queued",
+                              "dispatching",
+                              "sent",
+                              "failed",
+                              "canceled"
+                            ],
+                            "type": "string"
+                          },
+                          "steer_delivery": {
+                            "enum": [
+                              "injected",
+                              "pending_injection",
+                              "interrupt_fallback"
+                            ],
+                            "type": "string"
+                          },
+                          "target_turn_id": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "delivery",
+                          "enqueued_at",
+                          "id",
+                          "mode",
+                          "queue_generation",
+                          "session_id",
+                          "status",
+                          "text"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "queue": {
+                      "nullable": true,
+                      "properties": {
+                        "cap": {
+                          "type": "integer"
+                        },
+                        "entries": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "cap",
+                        "entries"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -340746,6 +342988,12 @@
                         "mode": {
                           "type": "string"
                         },
+                        "owner_id": {
+                          "type": "string"
+                        },
+                        "owner_kind": {
+                          "type": "string"
+                        },
                         "queue_generation": {
                           "format": "int64",
                           "type": "integer"
@@ -340864,6 +343112,13 @@
                           "type": "array"
                         },
                         "status": {
+                          "enum": [
+                            "queued",
+                            "dispatching",
+                            "sent",
+                            "failed",
+                            "canceled"
+                          ],
                           "type": "string"
                         },
                         "steer_delivery": {
@@ -342908,6 +345163,22 @@
                             "profile_name": {
                               "type": "string"
                             },
+                            "queue": {
+                              "nullable": true,
+                              "properties": {
+                                "cap": {
+                                  "type": "integer"
+                                },
+                                "entries": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "cap",
+                                "entries"
+                              ],
+                              "type": "object"
+                            },
                             "resolved_network_participation": {
                               "nullable": true,
                               "oneOf": [
@@ -343384,6 +345655,9 @@
                               ],
                               "type": "string"
                             },
+                            "stop_cause": {
+                              "type": "string"
+                            },
                             "stop_detail": {
                               "type": "string"
                             },
@@ -343401,6 +345675,103 @@
                                 "shutdown"
                               ],
                               "type": "string"
+                            },
+                            "supervision": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_warning": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "quiet_since": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "stop_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "warned_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "quiet_since",
+                                    "stop_at",
+                                    "warned_at"
+                                  ],
+                                  "type": "object"
+                                },
+                                "sources": {
+                                  "items": {
+                                    "properties": {
+                                      "error": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "agent_progress",
+                                          "tool_running",
+                                          "active_child",
+                                          "loop_run",
+                                          "task_lease",
+                                          "scheduled_wait"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "type": "string"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "state"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "work_signals": {
+                                  "items": {
+                                    "properties": {
+                                      "kind": {
+                                        "enum": [
+                                          "agent_progress",
+                                          "tool_running",
+                                          "active_child",
+                                          "loop_run",
+                                          "task_lease",
+                                          "scheduled_wait"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "ref": {
+                                        "type": "string"
+                                      },
+                                      "since": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "since"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "quiet_warning",
+                                "sources",
+                                "work_signals"
+                              ],
+                              "type": "object"
                             },
                             "transcript_epoch": {
                               "format": "int64",
@@ -343447,6 +345818,7 @@
                             "profile_name",
                             "runtime",
                             "state",
+                            "supervision",
                             "updated_at"
                           ],
                           "type": "object"
@@ -344717,6 +347089,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -345193,6 +347581,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -345210,6 +347601,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -345256,6 +347744,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -346188,6 +348677,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -346664,6 +349169,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -346681,6 +349189,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -346727,6 +349332,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -347646,6 +350252,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -348122,6 +350744,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -348139,6 +350764,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -348185,6 +350907,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -349437,6 +352160,22 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "queue": {
+                      "nullable": true,
+                      "properties": {
+                        "cap": {
+                          "type": "integer"
+                        },
+                        "entries": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "cap",
+                        "entries"
+                      ],
+                      "type": "object"
                     },
                     "session_id": {
                       "type": "string"
@@ -351080,6 +353819,32 @@
               "text/event-stream": {
                 "schema": {
                   "properties": {
+                    "consumer_degraded": {
+                      "nullable": true,
+                      "properties": {
+                        "after_sequence": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "refresh": {
+                          "type": "boolean"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "through_sequence": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "after_sequence",
+                        "refresh",
+                        "session_id",
+                        "through_sequence"
+                      ],
+                      "type": "object"
+                    },
                     "goal_snapshot_changed": {
                       "nullable": true,
                       "properties": {
@@ -354919,6 +357684,802 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline": {
+      "get": {
+        "operationId": "getSessionTranscriptOutline",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "entries": {
+                      "items": {
+                        "properties": {
+                          "at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "preview": {
+                            "type": "string"
+                          },
+                          "reply_preview": {
+                            "type": "string"
+                          },
+                          "sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "preview",
+                          "reply_preview",
+                          "sequence",
+                          "turn_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Transcript projection is incompatible"
+          }
+        },
+        "summary": "Get the full retained operator-message trail with reply previews",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search": {
+      "get": {
+        "operationId": "searchSessionTranscript",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Literal case-insensitive text; 1 to 4096 bytes",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum matches; defaults to 200, capped at 1000; truncated reports omitted matches",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "matches": {
+                      "items": {
+                        "properties": {
+                          "field": {
+                            "type": "string"
+                          },
+                          "part_index": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "sequence",
+                          "snippet",
+                          "turn_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "matches",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Transcript projection is incompatible"
+          }
+        },
+        "summary": "Search retained transcript messages with bounded literal matches",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive": {
       "post": {
         "operationId": "unarchiveSession",
@@ -355435,6 +358996,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -355911,6 +359488,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -355928,6 +359508,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -355974,6 +359651,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"
@@ -357676,6 +361354,22 @@
                         "profile_name": {
                           "type": "string"
                         },
+                        "queue": {
+                          "nullable": true,
+                          "properties": {
+                            "cap": {
+                              "type": "integer"
+                            },
+                            "entries": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cap",
+                            "entries"
+                          ],
+                          "type": "object"
+                        },
                         "resolved_network_participation": {
                           "nullable": true,
                           "oneOf": [
@@ -358152,6 +361846,9 @@
                           ],
                           "type": "string"
                         },
+                        "stop_cause": {
+                          "type": "string"
+                        },
                         "stop_detail": {
                           "type": "string"
                         },
@@ -358169,6 +361866,103 @@
                             "shutdown"
                           ],
                           "type": "string"
+                        },
+                        "supervision": {
+                          "nullable": true,
+                          "properties": {
+                            "quiet_warning": {
+                              "nullable": true,
+                              "properties": {
+                                "quiet_since": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "stop_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "warned_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "quiet_since",
+                                "stop_at",
+                                "warned_at"
+                              ],
+                              "type": "object"
+                            },
+                            "sources": {
+                              "items": {
+                                "properties": {
+                                  "error": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "state"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "work_signals": {
+                              "items": {
+                                "properties": {
+                                  "kind": {
+                                    "enum": [
+                                      "agent_progress",
+                                      "tool_running",
+                                      "active_child",
+                                      "loop_run",
+                                      "task_lease",
+                                      "scheduled_wait"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "ref": {
+                                    "type": "string"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "quiet_warning",
+                            "sources",
+                            "work_signals"
+                          ],
+                          "type": "object"
                         },
                         "transcript_epoch": {
                           "format": "int64",
@@ -358215,6 +362009,7 @@
                         "profile_name",
                         "runtime",
                         "state",
+                        "supervision",
                         "updated_at"
                       ],
                       "type": "object"

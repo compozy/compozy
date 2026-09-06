@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -51,6 +52,13 @@ func (h *HostAPIHandler) handleSessionsStatusGet(ctx context.Context, raw json.R
 		IneligibilityReason: health.IneligibilityReason,
 		UpdatedAt:           health.UpdatedAt,
 	}
+	if queues, ok := h.sessions.(hostAPIInputQueueSummaryManager); ok {
+		summary, err := queues.InputQueueSummary(ctx, health.SessionID)
+		if err != nil {
+			return nil, err
+		}
+		response.Queue = &apicontract.SessionQueueSummaryPayload{Entries: summary.PendingInputs, Cap: summary.Cap}
+	}
 	if h.heartbeatStatus == nil {
 		return response, nil
 	}
@@ -71,6 +79,10 @@ func (h *HostAPIHandler) handleSessionsStatusGet(ctx context.Context, raw json.R
 	}
 	response.WakeState = converted.WakeState
 	return response, nil
+}
+
+type hostAPIInputQueueSummaryManager interface {
+	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }
 
 func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(

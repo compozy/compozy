@@ -135,6 +135,7 @@ func TestPromptSyntheticUsesSyntheticInputClass(t *testing.T) {
 
 	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 	session := createSession(t, h)
+	enableSyntheticQueue(t, h, session)
 	t.Cleanup(func() {
 		reportSessionStop(t, h, session.ID)
 	})

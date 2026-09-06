@@ -10,6 +10,23 @@ import (
 	"database/sql"
 )
 
+const cancelSupersededAutomationReservation = `-- name: CancelSupersededAutomationReservation :exec
+UPDATE automation_runs SET status = 'canceled', ended_at = ?1,
+ delivery_error = 'Scheduled fire superseded before dispatch', delivery_error_at = ?1
+WHERE automation_runs.job_id = ?2 AND status = 'scheduled'
+AND fire_id = (SELECT last_fire_id FROM automation_scheduler_state WHERE automation_scheduler_state.job_id = ?2)
+`
+
+type CancelSupersededAutomationReservationParams struct {
+	EndedAt sql.NullString `json:"ended_at"`
+	JobID   sql.NullString `json:"job_id"`
+}
+
+func (q *Queries) CancelSupersededAutomationReservation(ctx context.Context, arg CancelSupersededAutomationReservationParams) error {
+	_, err := q.db.ExecContext(ctx, cancelSupersededAutomationReservation, arg.EndedAt, arg.JobID)
+	return err
+}
+
 const deleteAutomationSchedulerState = `-- name: DeleteAutomationSchedulerState :exec
 DELETE FROM automation_scheduler_state WHERE job_id = ?1
 `
@@ -29,7 +46,7 @@ func (q *Queries) DeleteAutomationTriggerCatalogTerms(ctx context.Context, trigg
 }
 
 const getAutomationSchedulerState = `-- name: GetAutomationSchedulerState :one
-SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
        consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 FROM automation_scheduler_state WHERE job_id = ?1
@@ -39,6 +56,7 @@ func (q *Queries) GetAutomationSchedulerState(ctx context.Context, jobID string)
 	row := q.db.QueryRowContext(ctx, getAutomationSchedulerState, jobID)
 	var i AutomationSchedulerState
 	err := row.Scan(
+		&i.DeferredUntil,
 		&i.JobID,
 		&i.NextRunAt,
 		&i.LastRunAt,
@@ -243,7 +261,7 @@ func (q *Queries) InsertAutomationTriggerCatalogTerms(ctx context.Context, arg I
 }
 
 const listAutomationSchedulerStates = `-- name: ListAutomationSchedulerStates :many
-SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+SELECT deferred_until, job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
        consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 FROM automation_scheduler_state ORDER BY job_id ASC
@@ -259,6 +277,7 @@ func (q *Queries) ListAutomationSchedulerStates(ctx context.Context) ([]Automati
 	for rows.Next() {
 		var i AutomationSchedulerState
 		if err := rows.Scan(
+			&i.DeferredUntil,
 			&i.JobID,
 			&i.NextRunAt,
 			&i.LastRunAt,
@@ -299,6 +318,56 @@ type RecordAutomationRunDeliveryErrorParams struct {
 
 func (q *Queries) RecordAutomationRunDeliveryError(ctx context.Context, arg RecordAutomationRunDeliveryErrorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, recordAutomationRunDeliveryError, arg.DeliveryError, arg.DeliveryErrorAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const restoreUnstartedAutomationReservation = `-- name: RestoreUnstartedAutomationReservation :execrows
+UPDATE automation_runs SET status = 'scheduled'
+WHERE id = ?1 AND job_id = ?2 AND fire_id = ?3
+AND status IN ('scheduled', 'running') AND ended_at IS NULL
+AND session_id IS NULL AND task_id IS NULL AND task_run_id IS NULL AND loop_run_id IS NULL
+`
+
+type RestoreUnstartedAutomationReservationParams struct {
+	RunID  string         `json:"run_id"`
+	JobID  sql.NullString `json:"job_id"`
+	FireID sql.NullString `json:"fire_id"`
+}
+
+func (q *Queries) RestoreUnstartedAutomationReservation(ctx context.Context, arg RestoreUnstartedAutomationReservationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, restoreUnstartedAutomationReservation, arg.RunID, arg.JobID, arg.FireID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setAutomationScheduledDeferral = `-- name: SetAutomationScheduledDeferral :execrows
+UPDATE automation_scheduler_state
+SET deferred_until = ?1, updated_at = ?2
+WHERE job_id = ?3 AND last_fire_id = ?4
+AND schedule_hash = ?5
+`
+
+type SetAutomationScheduledDeferralParams struct {
+	RetryAt      sql.NullString `json:"retry_at"`
+	UpdatedAt    string         `json:"updated_at"`
+	JobID        string         `json:"job_id"`
+	FireID       string         `json:"fire_id"`
+	ScheduleHash string         `json:"schedule_hash"`
+}
+
+func (q *Queries) SetAutomationScheduledDeferral(ctx context.Context, arg SetAutomationScheduledDeferralParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setAutomationScheduledDeferral,
+		arg.RetryAt,
+		arg.UpdatedAt,
+		arg.JobID,
+		arg.FireID,
+		arg.ScheduleHash,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -374,18 +443,18 @@ func (q *Queries) UpsertAutomationJobCatalog(ctx context.Context, arg UpsertAuto
 
 const upsertAutomationSchedulerState = `-- name: UpsertAutomationSchedulerState :exec
 INSERT INTO automation_scheduler_state (
-  job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
+  job_id, deferred_until, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
   schedule_hash, catch_up_policy, misfire_grace_seconds,
   consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
 ) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6,
-  ?7, ?8,
-  ?9, ?10,
-  ?11, ?12
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7,
+  ?8, ?9,
+  ?10, ?11,
+  ?12, ?13
 )
 ON CONFLICT(job_id) DO UPDATE SET
-  next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
+  deferred_until = excluded.deferred_until, next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
   last_scheduled_at = excluded.last_scheduled_at, last_fire_id = excluded.last_fire_id,
   schedule_hash = excluded.schedule_hash, catch_up_policy = excluded.catch_up_policy,
   misfire_grace_seconds = excluded.misfire_grace_seconds,
@@ -396,6 +465,7 @@ ON CONFLICT(job_id) DO UPDATE SET
 
 type UpsertAutomationSchedulerStateParams struct {
 	JobID                     string         `json:"job_id"`
+	DeferredUntil             sql.NullString `json:"deferred_until"`
 	NextRunAt                 sql.NullString `json:"next_run_at"`
 	LastRunAt                 sql.NullString `json:"last_run_at"`
 	LastScheduledAt           sql.NullString `json:"last_scheduled_at"`
@@ -412,6 +482,7 @@ type UpsertAutomationSchedulerStateParams struct {
 func (q *Queries) UpsertAutomationSchedulerState(ctx context.Context, arg UpsertAutomationSchedulerStateParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAutomationSchedulerState,
 		arg.JobID,
+		arg.DeferredUntil,
 		arg.NextRunAt,
 		arg.LastRunAt,
 		arg.LastScheduledAt,

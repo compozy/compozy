@@ -21,7 +21,10 @@ func (s *Scheduler) claimScheduledJob(
 	registration scheduledRegistration,
 ) (scheduledJobClaimResult, error) {
 	job := registration.definition
-	scheduledAt := *registration.state.NextRunAt
+	scheduledAt := *schedulerDueAt(registration.state)
+	if registration.state.DeferredUntil != nil {
+		scheduledAt = *registration.state.LastScheduledAt
+	}
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
@@ -39,11 +42,12 @@ func (s *Scheduler) claimScheduledJob(
 		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
 	}
 	if s.store != nil {
-		result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), claim)
+		persistCtx1, cancelPersist1 := persistenceContext(ctx)
+		defer cancelPersist1()
+		result, err := s.store.ClaimScheduledRun(persistCtx1, claim)
 		if err != nil {
 			return scheduledJobClaimResult{}, fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
 		}
-		s.updateRegistrationState(job.ID, result.State)
 		return scheduledJobClaimResult{
 			claim:       claim,
 			state:       result.State,
@@ -53,7 +57,7 @@ func (s *Scheduler) claimScheduledJob(
 		}, nil
 	}
 	state := schedulerStateAfterInMemoryClaim(registration.state, claim, nextRun)
-	s.updateRegistrationState(job.ID, state)
+	// Keep one-shot registrations until dispatch has a durable disposition.
 	return scheduledJobClaimResult{claim: claim, state: state}, nil
 }
 
@@ -103,6 +107,7 @@ func (s *Scheduler) deferAfterFireLimit(
 		return nil
 	}
 
+	state.DeferredUntil = nil
 	target := fireLimitErr.RetryAt.In(s.location)
 	if state.NextRunAt != nil && state.NextRunAt.After(target) {
 		target = *state.NextRunAt
@@ -111,7 +116,9 @@ func (s *Scheduler) deferAfterFireLimit(
 	state.UpdatedAt = s.now()
 
 	if s.store != nil {
-		saved, err := s.store.SaveSchedulerState(persistenceContext(ctx), state)
+		persistCtx2, cancelPersist2 := persistenceContext(ctx)
+		defer cancelPersist2()
+		saved, err := s.store.SaveSchedulerState(persistCtx2, state)
 		if err != nil {
 			return fmt.Errorf("automation: defer scheduler after fire limit for job %q: %w", jobID, err)
 		}
@@ -136,9 +143,12 @@ func (s *Scheduler) updateRegistrationState(jobID string, state SchedulerState) 
 	if !exists {
 		return
 	}
+	if registration.state.ScheduleHash != state.ScheduleHash {
+		return
+	}
 	registration.state = state
 	s.registrations[jobID] = registration
-	if state.NextRunAt == nil || state.NextRunAt.IsZero() {
+	if state.DeferredUntil == nil && (state.NextRunAt == nil || state.NextRunAt.IsZero()) {
 		delete(s.registrations, jobID)
 	}
 }

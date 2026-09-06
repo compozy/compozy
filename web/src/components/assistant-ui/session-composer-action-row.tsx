@@ -18,6 +18,8 @@ interface SessionComposerActionRowProps {
   composerAttachmentCount: number;
   hasStagedQuote?: boolean;
   sessionId: string;
+  /** Present while the live stream is down: Send answers with the guard note instead of a request. */
+  handleDisconnectedSend?: () => void;
   handleInterruptAction: () => void;
   handleQueueAction: () => void;
   handleSteerAction: () => void;
@@ -230,6 +232,7 @@ export function SessionComposerActionRow({
   composerAttachmentCount,
   hasStagedQuote = false,
   sessionId,
+  handleDisconnectedSend,
   handleInterruptAction,
   handleQueueAction,
   handleSteerAction,
@@ -274,6 +277,7 @@ export function SessionComposerActionRow({
         <SessionComposerSendButton
           canPrompt={canPrompt}
           hasStagedQuote={hasStagedQuote}
+          onDisconnectedSend={handleDisconnectedSend}
           sessionId={sessionId}
           promptEmbeddedContextCapability={promptEmbeddedContextCapability}
           promptImageCapability={promptImageCapability}

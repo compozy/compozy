@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func (r *Registry) checkpoint(ctx context.Context, id string, checkpoint ProcessCheckpoint) error {
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
 	if ctx == nil {
 		return errors.New("toolruntime: checkpoint context is required")
 	}
@@ -53,6 +56,9 @@ func (r *Registry) checkpoint(ctx context.Context, id string, checkpoint Process
 
 	r.mu.Lock()
 	if current, ok := r.active[id]; ok {
+		if current.record.PID != record.PID || !current.record.StartedAt.Equal(record.StartedAt) {
+			current.verifiedAt = time.Time{}
+		}
 		current.record = record
 		r.active[id] = current
 	}
@@ -61,6 +67,8 @@ func (r *Registry) checkpoint(ctx context.Context, id string, checkpoint Process
 }
 
 func (r *Registry) complete(ctx context.Context, id string, completion ProcessCompletion) error {
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
 	if ctx == nil {
 		return errors.New("toolruntime: complete context is required")
 	}
@@ -78,7 +86,7 @@ func (r *Registry) complete(ctx context.Context, id string, completion ProcessCo
 		state = ProcessStateFailed
 	}
 	completedAt := r.now().UTC()
-	if err := r.updateState(ctx, id, state, completion.ExitCode, errText, &completedAt); err != nil {
+	if err := r.updateStateLocked(ctx, id, state, completion.ExitCode, errText, &completedAt); err != nil {
 		return err
 	}
 	r.mu.Lock()

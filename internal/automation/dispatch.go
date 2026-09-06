@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"strings"
+	"sync"
 
 	"time"
 
@@ -254,7 +255,9 @@ type Dispatcher struct {
 	hooks               HookDispatcher
 	taskActors          SessionTaskActorRecorder
 
-	gate chan struct{}
+	gate            chan struct{}
+	capacityMu      sync.Mutex
+	capacityChanged chan struct{}
 }
 
 // NewDispatcher constructs a shared automation dispatcher.
@@ -389,6 +392,9 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 			if reservedDispatch {
 				req.ReservedRun = cloneRun(run)
 			}
+		}
+		if errors.Is(err, errScheduledAdmissionDeferred) {
+			return lastRun, err
 		}
 		if run != nil && d.hooks != nil {
 			willRetry := err != nil && shouldRetry(req.retryConfig(), run, attempt, err)

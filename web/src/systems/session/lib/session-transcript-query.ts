@@ -236,6 +236,34 @@ export function applyTranscriptDelta(
   return withBoundedTranscriptHead(data, head);
 }
 
+/**
+ * A refetched head page (a mutation's reread, a focus refetch) over a head the
+ * live stream already advanced: same fences → the two merge by start sequence
+ * and the cursor keeps the stream's position, so an entry the stream applied
+ * between the daemon's read and the answer landing is never dropped (the
+ * stream will not carry it again); other fences → the reread is a history
+ * rewrite and replaces the load, as the live tail states it.
+ */
+export function reconcileRefetchedTranscriptHead(
+  data: SessionTranscriptData | undefined,
+  page: SessionTranscriptPage
+): SessionTranscriptPage {
+  const existingHead = data?.pages[0];
+  if (
+    !existingHead ||
+    existingHead.epoch !== page.epoch ||
+    existingHead.generation !== page.generation
+  ) {
+    return page;
+  }
+  return {
+    ...page,
+    cursor: Math.max(existingHead.cursor, page.cursor),
+    entries: mergeTranscriptEntries(existingHead.entries, page.entries),
+    max_sequence: Math.max(existingHead.max_sequence, page.max_sequence),
+  };
+}
+
 export function reconcileTranscriptTail(
   data: SessionTranscriptData | undefined,
   tail: SessionTranscriptPage

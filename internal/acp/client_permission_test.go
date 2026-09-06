@@ -95,9 +95,12 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 	}
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
-	requestID, pending := proc.registerPendingPermission("turn-1", acpsdk.RequestPermissionRequest{
+	requestID, pending, registerErr := proc.registerPendingPermission("turn-1", acpsdk.RequestPermissionRequest{
 		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
 	})
+	if registerErr != nil {
+		t.Fatal(registerErr)
+	}
 
 	if err := driver.ApprovePermission(context.Background(), proc, ApproveRequest{
 		RequestID: requestID,

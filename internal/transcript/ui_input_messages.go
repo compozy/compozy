@@ -3,6 +3,7 @@ package transcript
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -49,14 +50,19 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 && len(attachments) == 0 {
 		return nil
 	}
+	timestamp := ""
+	if !event.Timestamp.IsZero() {
+		timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
+	}
 	encoded, err := json.Marshal(struct {
 		TurnID           string                   `json:"turn_id,omitempty"`
+		Timestamp        string                   `json:"timestamp,omitempty"`
 		MessageID        string                   `json:"message_id,omitempty"`
 		Goal             *acp.GoalPromptMeta      `json:"goal,omitempty"`
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
 		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
 	}{
-		TurnID: turnID, MessageID: messageID, Goal: goal,
+		TurnID: turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal,
 		SkillInvocations: invocations, Attachments: attachments,
 	})
 	if err != nil {

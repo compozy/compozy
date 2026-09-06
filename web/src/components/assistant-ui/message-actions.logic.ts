@@ -4,7 +4,7 @@ interface MessageActionsState {
   /** Latest real event time across the message's parts, or null when none is recorded. */
   timestampMs: number | null;
   streaming: boolean;
-  /** Copy stays in the row while streaming, including before the first text token arrives. */
+  /** The actions row exists only once the message has text to act on (ADR-006: no shell before content). */
   visible: boolean;
 }
 
@@ -77,9 +77,8 @@ export function deriveMessageActions(message: {
   }
 
   const source = textSegments.join("\n\n").trim();
-  // Streaming messages copy the text settled so far. Keeping the action in the
-  // row prevents it from appearing only after generation finishes and shifting
-  // the transcript layout.
-  const visible = source.length > 0 || streaming;
+  // Streaming messages copy the text settled so far; before the first token
+  // there is nothing to copy and no bubble to hang the row on (ADR-006).
+  const visible = source.length > 0;
   return { source, timestampMs, streaming, visible };
 }

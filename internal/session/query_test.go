@@ -1826,6 +1826,41 @@ func TestManagerEventsRejectTraversalSessionID(t *testing.T) {
 func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: startup upgrades only older owned databases through the writer,
+	// while query callers and incompatible databases remain read-only.
+	// Owner: Manager recorder boundary; canonical suite: query_test.go.
+	for _, tc := range []struct {
+		name       string
+		readErr    error
+		wantWriter bool
+	}{
+		{"older schema", store.ErrSchemaBehind, true},
+		{"ahead schema", store.ErrSchemaAhead, false},
+		{"unreadable schema", errors.New("unreadable history"), false},
+	} {
+		t.Run("Should upgrade only "+tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			sess := createSession(t, h)
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			writerOpens := 0
+			original := h.manager.openStore
+			h.manager.openQueryStore = func(context.Context, store.SessionDBOwner, string) (EventReadCloser, error) { return nil, tc.readErr }
+			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+				writerOpens++
+				return original(ctx, owner, path)
+			}
+			err := h.manager.UpgradeSessionDatabase(testutil.Context(t), sess.ID)
+			if tc.wantWriter && (err != nil || writerOpens != 1) {
+				t.Fatalf("upgrade=%v, writers=%d", err, writerOpens)
+			}
+			if !tc.wantWriter && (!errors.Is(err, tc.readErr) || writerOpens != 0) {
+				t.Fatalf("refusal=%v, writers=%d", err, writerOpens)
+			}
+		})
+	}
+
 	t.Run("Should requires context and session id", func(t *testing.T) {
 		h := newHarness(t)
 		var nilCtx context.Context

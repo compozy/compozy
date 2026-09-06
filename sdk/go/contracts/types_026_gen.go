@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskDependencyPayload struct {
+	TaskID          string         `json:"task_id"`
+	DependsOnTaskID string         `json:"depends_on_task_id"`
+	Kind            DependencyKind `json:"kind"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
 type TaskDependencyReferencePayload struct {
 	TaskID          string               `json:"task_id"`
 	DependsOnTaskID string               `json:"depends_on_task_id"`
@@ -256,9 +263,4 @@ type TaskRun struct {
 	Result                       json.RawMessage             `json:"result,omitempty"`
 	ResultRef                    string                      `json:"result_ref,omitempty"`
 	ResultBytes                  int64                       `json:"result_bytes,omitempty"`
-}
-
-type TaskRunAttachSessionParams struct {
-	ID        string `json:"id"`
-	SessionID string `json:"session_id"`
 }

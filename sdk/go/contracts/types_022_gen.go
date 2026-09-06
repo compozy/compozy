@@ -330,8 +330,7 @@ type SessionPromptResult struct {
 	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitempty"`
 }
 
-type SessionRuntimeClearParams struct {
-	WorkspaceID      string `json:"workspace_id"`
-	SessionID        string `json:"session_id"`
-	ExpectedRevision *int64 `json:"expected_revision"`
+type SessionQueueSummaryPayload struct {
+	Entries int `json:"entries"`
+	Cap     int `json:"cap"`
 }

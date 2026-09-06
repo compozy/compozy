@@ -13,20 +13,26 @@ const sessionPassiveCheckpointEvery = 128
 
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
+	var pending *sessionWriteRequest
 	for {
 		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
-			if err := store.CheckpointPassive(s.writerCtx, s.db); err != nil {
+			if err := s.passiveCheckpoint(s.writerCtx); err != nil {
 				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
 			}
 			writesSinceCheckpoint = 0
 		}
+		if pending != nil {
+			request := *pending
+			var weight int
+			pending, weight = s.writePendingChunks(request)
+			writesSinceCheckpoint += weight
+			continue
+		}
 		select {
 		case req := <-s.writeCh:
-			result := s.executeWrite(req)
-			if result.err == nil {
-				writesSinceCheckpoint += sessionWriteCheckpointWeight(req, result)
-			}
-			req.result <- result
+			var weight int
+			pending, weight = s.writePendingChunks(req)
+			writesSinceCheckpoint += weight
 		case shutdown := <-s.shutdownCh:
 			shutdown.result <- s.drainWrites(shutdown.ctx)
 			return
@@ -102,4 +108,24 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 	default:
 		return 0
 	}
+}
+
+func (s *SessionDB) passiveCheckpoint(ctx context.Context) (err error) {
+	// Acquire the connection before the family lease: opening a pool connection
+	// itself takes that lease to verify the immutable database identity.
+	connection, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: acquire session checkpoint connection: %w", err)
+	}
+	defer func() {
+		if closeErr := connection.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: release session checkpoint connection: %w", closeErr))
+		}
+	}()
+	lease, err := AcquireFamilyLease(ctx, s.path)
+	if err != nil {
+		return err
+	}
+	defer lease.Release()
+	return store.CheckpointPassiveConnection(ctx, connection)
 }

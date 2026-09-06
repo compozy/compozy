@@ -7447,3 +7447,70 @@ func countCoordinatorTaskRunsForLoop(
 	}
 	return count
 }
+
+// Invariant: upgrading an expiryless wait uses its pinned horizon and original
+// creation time, then converges to attention. Owner: durable Loop lifecycle suite.
+func TestGlobalDBShouldBackfillEventWaitAdmissionDeadline(t *testing.T) {
+	t.Parallel()
+	for _, horizon := range []time.Duration{168 * time.Hour, 2 * time.Hour} {
+		t.Run("Should retain original clock for "+horizon.String(), func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openLoopTestGlobalDB(t)
+			at := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+			run := waitEscalationTestLoopRun("expiryless-event", at, false, 3)
+			pinned, err := looppkg.LoadExecutedDefinitionSnapshot(run.DefinitionSnapshot, run.DefinitionDigest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pinned.Definition.Graph.Nodes[0].Params = dsl.NodeParams{
+				"event": map[string]any{"kind": "task.run.completed"},
+			}
+			resolved, err := looppkg.NewCompiler().Compile(pinned.Definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			effective := pinned.EffectiveConfig
+			effective.Lifecycle.AdmissionHorizon = new(horizon)
+			run.DefinitionSnapshot, run.DefinitionDigest, err = looppkg.BuildExecutedDefinitionSnapshot(
+				resolved,
+				effective,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			created, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+			if err != nil {
+				t.Fatal(err)
+			}
+			completeInitialCoordinatorForParkedFixture(t, db, created, at)
+			seedLoopWaitCellForTest(t, db, created, "wait_for_ack", 0, "event", 1, nil, nil, nil, at)
+			count, err := db.BackfillLoopWaitAdmissionDeadlines(ctx, 100)
+			if err != nil || count != 1 {
+				t.Fatalf("backfill = %d, %v", count, err)
+			}
+			waits, err := db.ListNodeWaits(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			deadline := at.Add(horizon)
+			if len(waits) != 1 || waits[0].NextEscalationAt == nil || !waits[0].NextEscalationAt.Equal(deadline) {
+				t.Fatalf("backfilled wait = %+v, want original deadline %s", waits, deadline)
+			}
+			count, err = db.BackfillLoopWaitAdmissionDeadlines(ctx, 100)
+			if err != nil || count != 0 {
+				t.Fatalf("second backfill = %d, %v", count, err)
+			}
+			if _, err := db.EscalateDueLoopWaitsPage(ctx, deadline, looppkg.WaitEscalationCursor{}, 100); err != nil {
+				t.Fatal(err)
+			}
+			waits, err = db.ListNodeWaits(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if waits[0].ClaimState != looppkg.WaitClaimInterventionRequired {
+				t.Fatalf("expired state = %s", waits[0].ClaimState)
+			}
+		})
+	}
+}

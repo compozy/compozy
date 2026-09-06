@@ -216,7 +216,14 @@ func (m *Manager) submitAdmittedBusyPrompt(
 	case BusyInputModeQueue:
 		return m.enqueueAdmittedBusyPrompt(ctx, session, admissionReq)
 	case BusyInputModeSteer:
-		return m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
+		result, err := m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
+		// The completed turn can disappear between the busy snapshot and staging.
+		// No admission was claimed by this failure; ordinary unfenced sends are now direct.
+		if errors.Is(err, ErrPromptNotInProgress) && req.expectedTurnID == "" &&
+			admissionReq.Operation == store.SessionPromptOperationPrompt && !session.IsPrompting() {
+			return m.submitAdmittedDirectPrompt(ctx, session, req, mode, admissionReq)
+		}
+		return result, err
 	case BusyInputModeInterrupt:
 		return m.interruptAdmittedPrompt(ctx, session, req, admissionReq)
 	default:
@@ -450,9 +457,11 @@ func (m *Manager) promptDispatchIndeterminate(
 	admission store.SessionPromptAdmission,
 	cause error,
 ) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	reason := "dispatch failed after the at-most-once boundary: " + cause.Error()
 	markErr := m.promptAdmissionStore.MarkSessionPromptAdmissionIndeterminate(
-		context.WithoutCancel(ctx),
+		cleanupCtx,
 		admission.WorkspaceID,
 		admission.SessionID,
 		admission.IdempotencyKey,

@@ -18,6 +18,7 @@ import {
 import { useSessionRewind } from "../use-session-rewind";
 import {
   useCancelSessionInput,
+  useClearSessionInputs,
   usePromoteSessionInput,
   useReplaceSessionInput,
 } from "../use-session-inputs";
@@ -37,6 +38,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionConversation: vi.fn(),
   archiveSession: vi.fn(),
   cancelQueuedSessionPrompt: vi.fn(),
+  clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   repairSession: vi.fn(),
@@ -61,6 +63,7 @@ import {
   cancelQueuedSessionPrompt,
   archiveSession,
   clearSessionConversation,
+  clearSessionInputs,
   createSession,
   deleteSession,
   repairSession,
@@ -94,6 +97,7 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   id: "sess-created",
@@ -1007,7 +1011,10 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const owningQueue: SessionInputsResponse = { inputs: [queuedInput] };
+    const owningQueue: SessionInputsResponse = {
+      inputs: [queuedInput],
+      queue: { cap: 10, entries: 1 },
+    };
     const otherSessionQueue: SessionInputsResponse = {
       inputs: [{ ...queuedInput, id: "other-session-input", session_id: "sess-other" }],
     };
@@ -1045,9 +1052,10 @@ describe("session actions", () => {
         text: replacement.text,
       }
     );
+    // The daemon's queue summary survives a list-only write; the reread refreshes it.
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [replacement] });
+    ).toEqual({ inputs: [replacement], queue: { cap: 10, entries: 1 } });
     expect(queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, "sess-other"))).toEqual(
       otherSessionQueue
     );
@@ -1077,7 +1085,7 @@ describe("session actions", () => {
     const retained = { ...queuedInput, id: "input-retained" };
     queryClient.setQueryData<SessionInputsResponse>(
       sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id),
-      { inputs: [queuedInput, retained] }
+      { inputs: [queuedInput, retained], queue: { cap: 10, entries: 2 } }
     );
 
     const promote = renderHook(() => usePromoteSessionInput(WORKSPACE_ID, createdSession.id), {
@@ -1096,7 +1104,7 @@ describe("session actions", () => {
     });
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [retained] });
+    ).toEqual({ inputs: [retained], queue: { cap: 10, entries: 2 } });
 
     const cancel = renderHook(() => useCancelSessionInput(WORKSPACE_ID, createdSession.id), {
       wrapper: createWrapper(queryClient),
@@ -1106,6 +1114,39 @@ describe("session actions", () => {
     });
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [] });
+    ).toEqual({ inputs: [], queue: { cap: 10, entries: 2 } });
+  });
+
+  it("useClearSessionInputs keeps what the daemon did not cancel and its queue summary", async () => {
+    const dispatching: SessionInputPayload = {
+      ...queuedInput,
+      id: "input-dispatching",
+      status: "dispatching",
+    };
+    vi.mocked(clearSessionInputs).mockResolvedValue({
+      cleared_count: 1,
+      inputs: [{ ...queuedInput, status: "canceled" }, dispatching],
+      queue_generation: 2,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<SessionInputsResponse>(
+      sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id),
+      { inputs: [queuedInput, dispatching], queue: { cap: 10, entries: 2 } }
+    );
+
+    const { result } = renderHook(() => useClearSessionInputs(WORKSPACE_ID, createdSession.id), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(clearSessionInputs).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    // A dispatching entry is never canceled implicitly: it stays visible until it leaves on its own.
+    expect(
+      queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
+    ).toEqual({ inputs: [dispatching], queue: { cap: 10, entries: 2 } });
   });
 });
