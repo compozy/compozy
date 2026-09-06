@@ -1,73 +1,78 @@
-# Per-iteration self-audit checklist
+# Transition audit
 
-Walk this checklist before printing the iteration summary block. Failing any
-item means the iteration is **not** complete: do the missing work, then
-re-check. Do not print the done-signature until every item passes on the
-final iteration.
+Use the relevant section on resume or suspected state/evidence drift. The phase
+procedure owns normal completion checks; this audit neither adds another test/QA
+run nor requires a second printed report.
 
-## Every iteration
+## Shared invariants
 
-- [ ] `.agents/skills/cy-loop-tasks/scripts/detect-phase.py` was run as the first action and its printed line was followed.
-- [ ] The dispatched `cy-*` skills — or the herdr worker dispatch for delegated iterations — were activated **before** any code edits or reviews.
-- [ ] Any iteration that flips state updated memory first via `cy-workflow-memory` (sequence: memory → checkboxes → status → master → commit); Phase E and bootstrap blockers before `state.yaml` exists are read-only exceptions.
-- [ ] Every non-E iteration with an existing `state.yaml` called `.agents/skills/cy-loop-tasks/scripts/update-state.py` with the right flags; Phase E and bootstrap blockers before state creation are exceptions.
-- [ ] `cy-final-verify` ran for any iteration that produced code or fixes; delegated PASS/FAIL evidence was captured and cited in the summary's `verify_evidence`.
-- [ ] Every command/gate/worker/artifact failure ran the self-healing procedure in `references/recovery-loop.md`; no intermediate failure wrote final iteration state or ended the session.
-- [ ] Any `outcome=blocked` satisfies all three external-blocker criteria with evidence of exhausted safe alternatives; a repairable failure never appears as a blocker.
-- [ ] For any herdr dispatch: the worker launched as a TUI (banner + input box, status left `unknown`), and HEAD is unchanged (no worker commit).
-- [ ] The iteration summary block (from `assets/iteration-summary.template.md`) was printed after the phase work. On completed non-E outcomes, Step 1 was re-entered immediately (**continue**); on blocked or Phase E, the session stopped (Phase E adds the done-signature as the final line).
-- [ ] `goal_signature` still matches its bootstrap value verbatim (write-once; scope changes → memory).
-- [ ] Zero mid-loop questions to the user — decisions defaulted via the Authority ladder into `## Open Questions`.
+- The detector's action matches current task frontmatter and writer-owned state.
+- Meaningful task evidence/decisions are in memory before completion is recorded.
+- Required checks cover their claimed inputs. Worker evidence is inspected and
+  reused where valid; a phase transition or timestamp alone does not invalidate it.
+- Pending integration checks have an owner and are not reported as executed.
+- Real failures are repaired before closing the action; external blockers have
+  evidence. Search misses and normal wait expiry do not start recovery.
+- Workers use TUIs, preserve unrelated edits, and do not commit. Reuse them for
+  planned integration follow-ups; retire when the assignment is settled.
+- The iteration summary cites evidence and the checkpoint result; completed
+  non-E actions continue at detect without waiting for a new invocation.
+- `goal_signature` remains unchanged. Scope decisions and overrides live in memory.
 
-## Phase 0 (bootstrap) only
+## Phase 0
 
-- [ ] `_spec.md` existence was confirmed before writing `state.yaml`.
-- [ ] `mode` was decided by filesystem, not by guess (`tasks` if `_tasks.md` AND a `task_*.md` exist, else `free`).
-- [ ] `goal_signature` was copied verbatim from the user's prompt (CODEX_LOOP `goal=` value or manual reason).
-- [ ] `--frontend` was passed to `init-state.py` if and only if the invocation text carried it, and `state.frontend_agent` matches.
-- [ ] `--stacked` was passed to `init-state.py` if and only if the invocation text carried it; when set, `references/stacked-prs.md` was read in full and its prerequisites verified.
+- `_spec.md` exists; mode follows filesystem truth; memory and state are initialized.
+- `--frontend` and `--stacked` reflect the invocation. Stacked prerequisites are
+  checked when applicable.
+- Existing spec/preflight evidence is reused; missing or changed facts are checked.
 
-## Phase B mode=tasks only
+## Phase B
 
-- [ ] `task_NN.md` frontmatter `status:` was checked and trusted as source of truth (state.yaml reconciled if it disagreed).
-- [ ] The task was marked active at pick time: frontmatter flipped to `in_progress` and `update-state.py --task-current <stem>` ran before dispatch.
-- [ ] The lane matched detect-phase: `lane=frontend agent=<x>` printed → herdr dispatch; no suffix → local `cy-execute-task`.
-- [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
-- [ ] No peer-review round (`deep-review`) ran in this iteration — per-task review instructions were deferred to Phase D.
-- [ ] The task's `## Shippable Outcome` verification tier ran with evidence in the task memory (`gate` covered by focused validation; `probe` command output cited; `smoke` entry-path pass + touched Visual Contract captures); user-visible diffs added/reset `docs/qa/scenarios/` files; the full walk was deferred to Phase C.
-- [ ] Exactly ONE task was attempted in this iteration.
-- [ ] `commit-checkpoint.py <slug> --task <stem>` ran after `update-state.py` and printed a commit SHA or the literal `SKIP: no changes` (plus a `stack: submitted` line when `state.stacked=true`), captured in the summary's checkpoint field.
+- One task or coherent free slice owns the action. It was marked active before work.
+- The selected lane matches the task type/free-slice owned surfaces.
+- Its outcome has focused owning-suite/probe evidence and the diff was reviewed.
+  Explicit task-owned live/visual acceptance is complete.
+- Remaining changed/integration journeys and visual rows are named for Phase C;
+  affected scenario files are added/reset. No full QA cycle is imposed per task.
+- Required local commit checks passed under repository policy using valid cached
+  evidence; a focused PASS alone does not waive the commit gate.
+- Memory, task status/progress, and state reflect the same completed scope.
+- A free-mode `deliverables_complete` records implementation completion and the
+  remaining integration obligations; it does not assert Phase C already ran.
+- The checkpoint result is recorded. Only owned files are staged; the add-all
+  helper is used only when every dirty path belongs to this checkpoint.
+- Peer-review rounds remain in Phase D.
 
-## Phase B mode=free only
+## Phase C
 
-- [ ] The slice picked was small enough to finish in one iteration (≤ ~4 hours).
-- [ ] The slice was added to `progress.checklist[]` BEFORE implementation started.
-- [ ] If the slice was delegated, its owned paths were exclusively frontend surfaces per `references/herdr-delegation.md`.
-- [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
-- [ ] If `deliverables_complete` was set true: every spec acceptance criterion has at least one matching `progress.checklist[]` entry with `status=completed`. Self-quote each criterion → its checklist entry in the iteration summary.
-- [ ] `commit-checkpoint.py <slug> --slice "<slice text>"` ran after `update-state.py` and printed a commit SHA or `SKIP: no changes`, captured in the summary's checkpoint field.
+- QA scope is reconciled before execution. Unchanged plans and valid prior walks
+  are reused; remaining scope follows the diff, contracts, and integration risks.
+- Planning was local or delegated as useful; delegation is not a completion gate.
+- Runtime bootstrap occurred only when the selected execution needed a lab.
+  Every created lab is torn down with `teardown.json` reporting `clean: true`.
+- Remaining walks/visual rows passed, or no-work/reuse disposition is documented
+  with concrete coverage. Unexecuted checks are not labeled as passing runs.
+- Found bugs are fixed and affected journeys re-walked in the existing report;
+  unaffected charters are not restarted.
+- Both QA flags represent resolved scoped obligations. In tasks mode, corresponding
+  QA task completion is recorded so the pending queue drains.
 
-## Phase C only
+## Phase D
 
-- [ ] On the `qa_report` iteration, the B→C boundary gate (`make gate`) ran green before any QA action.
-- [ ] `qa_report` completed before `qa_execution` (never skip ahead).
-- [ ] `qa_report` was produced by the configured herdr worker — the orchestrator only verified artifacts; `qa_execution` ran locally.
-- [ ] If `bootstrap-manifest.json` was missing, a QA bootstrap skill (e.g. `eng-qa-bootstrap`) ran first — or its absence in this project was noted before falling through.
-- [ ] In mode=tasks, the corresponding QA task frontmatter was flipped and `--task-completed <stem>` accompanied the QA flag so `tasks.pending` drains.
-- [ ] A "not ready" report or Blocks-Completion/Data-Loss bug was repaired and retested before `--qa-execution-done`; no intermediate QA failure advanced state.
+- Phase B is complete and QA obligations are resolved before review.
+- One `deep-review` round ran with the full loop diff/spec; subsequent rounds reuse
+  incremental review state. The verdict and resolved findings are recorded.
+- Confirmed findings are fixed; skipped nits have a reason. Only invalidated
+  checks/journeys/visual rows are repeated after remediation.
+- The local commit gate is satisfied, the round records `--verify-pass`, and the
+  owned checkpoint result is recorded. A clean review adds no QA cycle.
 
-## Phase D only
+## Phase E
 
-- [ ] Every Phase B task or slice is complete and both QA flags are true before this round.
-- [ ] Exactly ONE `deep-review` round ran, scoped to the loop's full diff with `--spec .compozy/tasks/<slug>` and `--subagent codex`.
-- [ ] Every blocker and every nit from the round's findings was remediated in this same iteration (or the verdict was SHIP).
-- [ ] The verification gate re-ran after remediation; any failure entered the repair loop, and every closed review round was recorded with `--verify-pass`.
-- [ ] `commit-checkpoint.py <slug> --review-round <N>` ran after `update-state.py` and its result is captured in the summary's checkpoint field.
-
-## Phase E only
-
-- [ ] `qa.report_done=true`, `qa.execution_done=true`, AND `review.ship=true` confirmed via `state.yaml`, not memory.
-- [ ] `verify.last_status` is `PASS` and the timestamp is recent (same iteration as Phase E entry).
-- [ ] Every draft PR URL and exact head SHA is recorded; all reported required checks are green at that head.
-- [ ] No check is pending/red and no repair commit remains unpushed.
-- [ ] The done-signature from `assets/done-signature.txt` is the LAST line of the message.
+- State has `qa.report_done=true`, `qa.execution_done=true`, `review.ship=true`,
+  and `verify.last_status=PASS`; underlying evidence still covers the final inputs.
+- No delivery-owned integration or visual requirement remains pending.
+- Local commit/push policy is satisfied; all required PR checks are green at the
+  current recorded heads. No repair commit remains unpushed.
+- The done-signature is emitted only after those conditions pass and is the final
+  output line. Pending/red CI keeps delivery in progress.

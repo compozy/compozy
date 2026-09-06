@@ -45,7 +45,7 @@ herdr sees it ready for input. herdr's agent-state integrations hook those
 TUIs, so `agent wait`, `agent list`, and blocked/done detection exist only
 while a real TUI is on screen.
 
-Headless runners — `compozy exec`, `claude -p`, `codex exec`, anything that
+Headless runners — `claude -p`, `codex exec`, anything that
 streams JSON events into a pane — never report state, so waits never fire and
 the delegation dies silently. A worker tab filling with raw JSON event lines is
 a broken delegation: interrupt it (`rtk herdr pane send-keys <pane_id> ctrl+c`)
@@ -62,8 +62,8 @@ and relaunch through `agent start`.
   verbs, `w2:t3` / `w2:p4` for tab and pane verbs — never by guessed position.
 - Pass `--no-focus` on every creating verb (`tab create`, `workspace create`,
   `worktree create`, `pane split`); use focus verbs only when the user asks.
-- Retire every worker you launch: once its report is verified and its
-  disposition recorded, close its tab (see Retire workers).
+- Retire every worker you launch when its assignment and planned integration
+  follow-ups are finished (see Retire workers).
 
 ## Preflight
 
@@ -71,15 +71,14 @@ Inspect the daemon, integrations, and caller context:
 
 ```bash
 rtk herdr status                 # server running + socket path
-rtk herdr integration status     # claude and codex must show `current`
+rtk herdr integration status     # selected worker runtime must show `current`
 rtk herdr pane current --current # caller pane / tab / workspace ids
 rtk herdr agent list             # agents already running
 ```
 
-`integration status` must show `claude` and `codex` installed — that is what
-makes agent status authoritative instead of screen-scraped. If either is
-missing, run `rtk herdr integration install claude` / `… install codex` before
-launching workers.
+Check/install only the integration for each selected runtime. Reuse this
+preflight in the same workspace while the daemon and integrations are unchanged;
+a new packet alone does not require repeating it.
 
 ## Launch workers
 
@@ -140,10 +139,8 @@ state — read the screen and resend.
 
 Plan-first runs only when the user activates it — an explicit ask ("plan
 first", "plan mode") or a `--plan-mode` flag on the invocation. The default
-delegation is direct: launch and run hands-off. For investigation-heavy
-slices (root-cause fixes, multi-file or cross-package changes, unfamiliar
-code), offer plan-first and let the user decide — never switch a worker into
-plan mode without that signal.
+delegation is direct: launch and run hands-off. Investigation complexity alone
+does not add a planning approval step.
 
 Once activated, the worker plans, the controller reviews and accepts, then it
 runs hands-off. The launch flags, shift+tab sequences, status checks, and
@@ -161,14 +158,21 @@ Send each worker prompt as a standalone contract. Include:
 - files, packages, or surfaces in scope
 - files and behaviors explicitly out of scope
 - claimed files or work slice, to avoid conflicts
-- expected evidence: files, line refs, commands, diffs, failures, screenshots,
-  and stated uncertainty
-- verification commands or browser flows to run
+- dependencies and the current interface/contract the worker can rely on
+- expected evidence needed for this claim: changed files, commands with results
+  and checked inputs, relevant artifacts, and remaining uncertainty
+- verification ownership: worker checks, controller integration checks, and
+  any final delivery checks owned by the enclosing workflow
 - stop conditions: unexpected code shape, repeated command failure, auth/model
   blocker, or need for out-of-scope edits
 
-Prefer small, independent slices. Assign overlapping file claims only when the
-controller will integrate and resolve conflicts immediately.
+Assign coherent outcomes that can proceed independently. If a consumer depends
+on an unsettled interface, resolve that interface first or keep producer and
+consumer under one owner. File count alone is not a reason to split work.
+Tell workers they share the codebase, must preserve others' changes, and must
+report interface changes before dependent work proceeds. Reuse the same worker
+for related integration fixes; send the changed contract and remaining work
+instead of a fresh discovery assignment.
 
 ## Worktree isolation
 
@@ -204,7 +208,7 @@ re-enter the wait — loop until the worker reaches a terminal state, asks a
 question, or a stop condition fires. When a reported status looks wrong, debug
 detection with `rtk herdr agent explain <pane_id> --json`.
 
-Maintain a compact registry in the task ledger or handoff: controller
+Maintain a compact registry in the existing task notes or handoff: controller
 identity; worker agent name, tab label, role, model; workspace/tab/pane ids;
 objective sent and start time; status (starting, planning, plan-review,
 plan-accepted, running, blocked, reported, verified, retired); claimed files or
@@ -231,8 +235,11 @@ changing focus:
   open the delivered images and their named visual references side by side;
   file counts, dimensions, and a worker's verdict do not establish visual fit.
   Check one representative image before expanding an expensive generation batch.
-- Re-run claimed test results with fresh controller commands when the result
-  gates completion.
+- Inspect command results, exit status, checked inputs, and evidence paths.
+  Reuse trustworthy worker evidence for unchanged inputs; rerun missing, stale,
+  contradictory, or unverifiable checks. The controller runs integration checks
+  the worker did not cover, plus any checks required by project policy. A worker
+  handoff alone does not invalidate evidence or require a second full suite.
 - Review the final diff before accepting any worker patch.
 - If a worker edits outside its claim, pause integration and decide: accept,
   request user-approved cleanup, or supersede with controller edits.
@@ -244,10 +251,9 @@ read the file.
 
 ## Retire workers
 
-A delegation ends with the worker retired — tab closed — not just its report
-read. Retire each worker the moment its disposition is recorded and no
-follow-up prompt is planned, as part of handling that worker's completion,
-never deferred to an end-of-run sweep:
+A delegation ends with the worker retired — tab closed. Keep a reported worker
+available while reviewing or integrating its outcome when related follow-ups
+are expected. Retire it once the disposition is recorded and that work is done:
 
 ```bash
 rtk herdr tab close <tab_id>
@@ -257,8 +263,8 @@ Closing the tab ends the TUI session and its scrollback, so record what the
 registry needs first — report text, cited line refs, command output. Files,
 diffs, and worktrees survive on disk.
 
-A worker stays open only while mid-run or blocked, while its screen is
-evidence for an unresolved failure, or when the user asks to inspect it —
+A worker stays open while mid-run, blocked, awaiting planned integration
+follow-ups, while its screen is evidence for an unresolved failure, or when the user asks to inspect it —
 record the reason in the registry. The orchestration is complete only when
 `rtk herdr agent list` shows none of this controller's workers still running:
 every worker retired, or its open tab justified in the registry.

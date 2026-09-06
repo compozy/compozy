@@ -132,8 +132,9 @@ Fill the fields and send this as the prompt body:
 >   `.compozy/tasks/<slug>/memory`, shared memory `.compozy/tasks/<slug>/memory/MEMORY.md`, task
 >   memory `.compozy/tasks/<slug>/memory/<task_id>.md`.
 > - `cy-execute-task`: the end-to-end execution workflow for this task.
-> - `cy-final-verify`: use before any completion claim, to identify and run the repository's real
->   verification commands.
+> - `cy-final-verify`: assess task-scope evidence within the existing validation step; run only
+>   missing or invalidated checks. Name remaining workflow-owned integration/QA obligations
+>   without starting another verification cycle for the same evidence.
 >
 > Read the repository `AGENTS.md`/`CLAUDE.md` and surface-specific instructions, then
 > the task file, `_tasks.md` dependencies, and relevant `_spec.md` sections; reuse grounding

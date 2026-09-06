@@ -1,6 +1,8 @@
 # Task File Template
 
-Use this structure for every individual task file. The file must start with YAML frontmatter containing the parseable metadata.
+Use the applicable sections below. YAML frontmatter follows `task-context-schema.md`;
+body headings are a writing aid, not extra acceptance gates. Keep each outcome,
+constraint, and evidence obligation in one place; omit sections that would repeat it.
 
 ```markdown
 ---
@@ -19,33 +21,30 @@ complexity: [low, medium, high, critical]
 ## Shippable Outcome
 
 - Outcome: [the observable behavior after merge, reached through its real entry path]
-- Verify: [`gate` — the slice's tests/lints prove it | `probe` — exact CLI/HTTP/UDS command | `smoke` — surface entry path + touched Visual Contract sections]
+- Verify in this task: [owning suite/probe and the behavior it proves; a live entry-path check when required by the outcome]
+- Integration verification: [named QA task + remaining journeys/visual rows, or `none`; this does not defer an explicit task acceptance requirement]
 
-<critical>
-- Read the task's cited contracts and relevant repository instructions; use `_spec.md` File References to expand context when needed. Full-loop phase artifacts apply only inside an explicitly requested `cy-loop-tasks` run.
-- REFERENCE `_spec.md` Part II for implementation details — do not duplicate here
-- FOCUS ON "WHAT" — describe what needs to be accomplished, not how
-- MINIMIZE CODE — show code only to illustrate current structure or problem areas
-- Verify every invariant assigned in ## Tests through its owning suite or existing gate; add a test only for a coverage gap.
-</critical>
+## Requirements
 
-<requirements>
-- [Requirement 1 — specific technical requirement using MUST/SHOULD language]
-- [Requirement 2 — e.g., "MUST authenticate users via JWT tokens"]
-- [Requirement 3]
-</requirements>
+[Task-specific constraints; link the accepted contract for shared requirements.
+Do not copy generic coding, reading, or testing reminders into every task.]
 
 ## Visual Contract
 
 [Include this section only when the task names a visual reference.
 Derive rows from that reference — one row per touched artboard
-section, state, and viewport; do not use an “all states” catch-all row.]
+section, state, and viewport; do not use an “all states” catch-all row.
+Name the evidence owner: this task for standalone delivery or explicit
+task-owned proof; the integration QA task for final loop delivery. Inspect a
+representative implementation state early to catch structural errors.]
 
 | ID    | Reference artifact + state           | Implementation target + state | Viewport | Fidelity  | Authorized differences + authority |
 | ----- | ------------------------------------ | ----------------------------- | -------- | --------- | ---------------------------------- |
 | VC-01 | `path/to/reference.html` — populated | `/route` — populated fixture  | 1440×900 | normative | None                               |
 
-Evidence for each row: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<contract-id>/{reference.png,implementation.png,side-by-side.png,diff.png,comparison.json,review.md}` (or `<QA_OUTPUT_PATH>/qa/visual-contract/<task-id>/...` for isolated QA).
+Evidence owner: [this task or the named QA task; list exceptions by row ID].
+
+Evidence for each row at its owning boundary: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<contract-id>/{reference.png,implementation.png,side-by-side.png,diff.png,comparison.json,review.md}` (or `<QA_OUTPUT_PATH>/qa/visual-contract/<task-id>/...` for isolated QA). Reuse valid bundles; capture only missing or invalidated rows.
 
 ## Subtasks
 
@@ -80,9 +79,6 @@ Reference the `_spec.md` Part II Implementation Design for code patterns and int
 
 - [Concrete output 1]
 - [Concrete output 2]
-- Every assigned invariant verified in its owning suite or existing gate
-- The `## Shippable Outcome` verification tier executed with its evidence recorded **(REQUIRED)**
-- [Named visual references only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
 
 ## Tests
 
@@ -96,11 +92,9 @@ Cases assigned from `_tests.md` — read each assigned definition before editing
 
 ## Success Criteria
 
-- Every assigned invariant verified; required new tests implemented and passing
-- The Shippable Outcome is reachable through its real entry path and its verification tier passed
-- [Measurable outcome 1]
-- [Measurable outcome 2]
-- [Named visual references only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
+[Observable acceptance not already stated in Shippable Outcome or Requirements.
+The task completes after its assigned checks and evidence pass; integration-owned
+checks remain explicit for the final delivery owner.]
 ```
 
 ## Guidelines

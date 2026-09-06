@@ -1,124 +1,75 @@
 # Herdr delegation lanes
 
-Read this file in full before dispatching any worker. It builds on the
-`herdr-orchestration` skill — activate that skill for pane/socket mechanics
-(preflight, `agent start`, waits, screen reads, plan-mode details this loop
-never uses). This file fixes what THIS loop dispatches, with which argv, and
-what evidence gates completion.
+Use `herdr-orchestration` for generic transport, configured models, named tabs,
+preflight, prompts, waits, evidence verification, and retirement. Read the common
+contract and active lane once; this reference supplies only Compozy loop policy.
+Do not duplicate transport commands or re-run preflight for each packet.
 
-## Common dispatch contract (both lanes)
+## Common dispatch contract
 
-1. Preflight: `rtk herdr status`, `rtk herdr integration status` (the
-   integration for the worker's TUI — `claude` or `cursor` — must show
-   `current`), and `rtk herdr pane current` for caller ids.
-2. Compose the delegation packet (below) and launch the worker as an
-   interactive TUI with the packet as the initial prompt:
-
-   ```bash
-   rtk herdr agent start <worker-name> --workspace "$HERDR_WORKSPACE_ID" \
-     --cwd "$PWD" --split right --no-focus -- <worker argv> "<packet>"
-   ```
-
-   Workers are TUIs. Headless runners (`compozy exec`, `claude -p`,
-   `codex exec`, `cursor-agent -p`) never report agent status and kill the
-   delegation silently. A pane filling with raw JSON event lines is that
-   failure on sight: interrupt (`rtk herdr pane send-keys <pane_id> ctrl+c`)
-   and relaunch with `rtk herdr agent start`.
-3. Confirm launch: `rtk herdr pane read <pane_id> --source visible` shows the
-   TUI banner and input box, and `rtk herdr agent list` shows the worker
-   leaving `unknown`.
-4. Track with native status waits, answering questions via
-   `rtk herdr pane run <pane_id> "<answer>"` when the worker blocks:
-
-   ```bash
-   rtk herdr wait agent-status <pane_id> --status done --timeout 900000
-   rtk herdr wait agent-status <pane_id> --status blocked --timeout 900000
-   ```
-
-5. Verify: worker output is untrusted until verified. Read the report
-   (`rtk herdr pane read <pane_id> --source recent --lines 200`), re-open
-   cited files, and check that command evidence covers the current inputs. Re-run only missing, stale, or untrustworthy checks.
-6. Commit gate: capture `git rev-parse HEAD` before the dispatch and compare
-   after — identical, or the worker breached contract. The orchestrator owns
-   the checkpoint commit.
-7. Keep the worker open while running, blocked, or under inspection. After recording its disposition, close its tab per `herdr-orchestration`.
+- Give each worker a named tab using the generic skill. Reuse a suitable live
+  worker for related implementation and integration follow-ups.
+- The orchestrator owns task/state completion and commits. Workers update their
+  assigned files and task memory, report evidence, and never commit or push.
+- Capture HEAD before dispatch and verify it is unchanged afterward. The diff
+  and reported checks must cover the current working-tree inputs as well.
+- Inspect worker evidence; rerun only missing, invalidated, or unreliable checks
+  plus integration checks the worker did not cover. A handoff does not require
+  a second `cy-final-verify` cycle or a new QA lab.
+- A normal wait timeout is not a worker failure. Read status, continue useful
+  independent work, and observe again. Recover missing evidence through the
+  existing worker before considering a relaunch.
 
 ## Delegation packet
 
-Every packet is a standalone contract naming: repo root; slug; the action
-(`task_NN`, `free-iter-NNN`, or `qa-report`); exact task file path or slice
-text in scope; out-of-scope surfaces; shared and current memory paths (per
-`memory-protocol.md`); skills to activate; validation commands for the
-touched surface; expected evidence (changed files, explicit PASS/FAIL verify
-output, artifact paths); stop conditions; and the hard rule: **do not commit
-— leave the worktree dirty for the orchestrator's checkpoint.**
+Include repo root, slug, task/slice path, owned files, out-of-scope surfaces,
+dependencies/current interfaces, shared/current memory paths from
+`memory-protocol.md`, and any caller overrides. Tell the worker it shares the
+codebase, must preserve others' edits, and must report interface changes that
+could invalidate dependent work.
+
+Assign the task's focused checks and explicit task-owned visual/probe acceptance.
+Name the Phase C integration checks and Phase E delivery gates retained by the
+orchestrator; do not ask the worker to perform them as extra task gates. Include
+available evidence with checked inputs, required artifact paths, stop conditions,
+and **do not commit or push; leave the owned diff for the orchestrator**.
 
 ## Frontend lane (Phase B)
 
-Active only when `state.frontend_agent` is set (bootstrap `--frontend`).
+Active when `state.frontend_agent` was selected with `--frontend`.
 
-Classification — what counts as frontend:
+- In tasks mode, trust `lane=frontend agent=<x>` from `detect-phase.py` for
+  frontmatter `type: frontend`.
+- In free mode, delegate slices whose owned paths are exclusively `web/**`,
+  `packages/ui/**`, or `packages/site/**`; mixed slices run locally.
+- Use the configured `claude` or `cursor` runtime/model. Launch through the
+  generic skill's TUI procedure, not a headless command or a split pane.
 
-- mode=tasks: detect-phase prints `lane=frontend agent=<x>` when the task
-  frontmatter `type:` is `frontend`. Trust the printed line.
-- mode=free: the slice qualifies only when its owned paths are exclusively
-  frontend surfaces — `web/**`, `packages/ui/**`, `packages/site/**`. Mixed
-  backend/frontend slices run locally.
+The packet names the relevant task/contracts, scoped `AGENTS.md`/`CLAUDE.md`,
+`cy-execute-task`, and supplied `cy-workflow-memory` paths. Reuse grounded
+preflight facts. Frontend checks run through root Turborepo with affected-package
+filters. Apply `cy-final-verify` to the resulting focused evidence within that
+validation step. Inspect a representative visual state early when a reference
+exists; complete task-owned rows and flag integration-owned rows for Phase C.
 
-Worker argv by `frontend_agent` value:
+Complete the Phase B action after the worker reports done, its owned outcome and
+memory have been inspected, task-scope PASS evidence is valid, and HEAD is
+unchanged. The orchestrator satisfies the repository commit gate, marks the task
+complete, and checkpoints. Missing evidence keeps the action open; ask the same
+worker for the missing item rather than redispatching the entire task.
 
-```bash
-# claude — Claude Code with its configured model/effort
-claude --dangerously-skip-permissions  "<packet>"
+## QA-report lane (Phase C, optional)
 
-# cursor — Cursor agent with its configured model
-cursor-agent --yolo  "<packet>"
-```
+Use a configured Claude worker in direct mode for substantial independent QA
+planning or explicit delegation. Small plan updates and evidence reconciliation
+run locally; no worker is needed to record that all applicable evidence is current.
 
-Packet additions for this lane: read the task file / `_spec.md` / design
-docs plus the scoped `AGENTS.md`/`CLAUDE.md` for the touched surfaces; apply
-`cy-spec-preflight` (task-body) and `cy-execute-task` discipline; use
-`cy-workflow-memory` with the provided memory paths; run the frontend
-validation lane for the touched packages; run `cy-final-verify`; print
-changed files plus explicit PASS/FAIL evidence.
+The packet names `qa-report`, `qa-docs-path=docs/qa`, affected scenarios, existing
+plans/evidence, and only the remaining changed/integration journeys and visual
+rows. Update journey maps/charters only where missing or changed. Do not start a
+lab, walk journeys, or run full suites to produce the plan.
 
-Completion gate — mark the Phase B action complete only when ALL hold:
-
-- the worker reached `done` (or reported completion verified on screen)
-- the required memory files were updated
-- task/status artifacts reflect completion
-- the worker report contains explicit `cy-final-verify` PASS evidence
-- HEAD is unchanged (no worker commit)
-
-Missing any item → keep the phase action open and follow
-`references/recovery-loop.md`: recover the evidence or rerun the lane before
-advancing `state.yaml`. Record a blocker only when its external-blocker test
-passes.
-
-## QA-report lane (Phase C)
-
-Always active — the orchestrator never authors `qa_report` output itself.
-
-Worker argv — configured Claude model, direct execution (never plan-first: no plan
-permission mode, no plan-mode key sequences):
-
-```bash
-claude --permission-mode auto  "<packet>"
-```
-
-Packet additions for this lane: activate the `qa-report` skill with
-`qa-docs-path=docs/qa`; update journey flows (`docs/qa/journeys/`), scenario
-files (`docs/qa/scenarios/`), and cycle charters (`docs/qa/charters/`);
-register any found bugs in the content-addressed registry; update the
-provided memory paths; print the exact artifact paths written.
-
-Completion gate — record `--qa-report-done` only when:
-
-- every artifact path the worker reported exists on disk
-- the affected `docs/qa/scenarios/` files reflect the cycle plan
-- the memory paths were updated
-- HEAD is unchanged (no worker commit)
-
-Missing any item keeps the Phase C action open. Follow
-`references/recovery-loop.md`, repair or rerun the lane, and recheck every
-item before updating state.
+Before recording `--qa-report-done`, verify the scoped plan or no-work disposition,
+any changed artifact paths, current memory, and unchanged HEAD. Retain the worker
+for planned follow-ups; retire it when its assignment is settled. The orchestrator
+runs the selected QA execution and final delivery.

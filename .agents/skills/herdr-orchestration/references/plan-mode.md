@@ -61,7 +61,7 @@ rtk herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$PWD" \
   --label "opus: fix loops (plan)" --no-focus
 
 rtk herdr agent start fix-loops --kind claude --pane <root_pane_id> -- \
-  --dangerously-skip-permissions --permission-mode plan --model opus \
+  --dangerously-skip-permissions --permission-mode plan \
   "<packet, single block>"
 ```
 
@@ -182,6 +182,7 @@ On expiry, read the screen and re-enter the wait. On `blocked`, read the
 screen and answer only a direct blocking question; on a stop condition (errors
 it cannot resolve, out-of-scope request), stop and report. When the worker
 reports done, verify its claims per the parent skill: re-open cited files,
-re-run the key commands yourself, and review the diff before accepting the
-patch. Record the disposition, then retire the worker — close its tab per the
-parent skill's Retire workers section.
+inspect current command evidence, and review the diff before accepting the
+patch. Rerun only checks whose evidence is missing, stale, or unreliable, plus
+uncovered integration checks. Keep the worker for planned integration follow-ups;
+record the final disposition and retire it per the parent skill.
