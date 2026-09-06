@@ -261,10 +261,12 @@ test("operator can create a provider/model override session and attach without l
     .locator(`[data-provider="${overrideProvider}"][data-model="qa-browser-model"]`)
     .click();
   await appPage.keyboard.press("Escape");
+  await sessionUi.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeHidden();
+  await expect(sessionUi.composerTextarea).toBeFocused();
   const promptRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/prompt")
   );
-  await sessionUi.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
   await sessionUi.composerTextarea.press("Enter");
   expect((await promptRequestPromise).postDataJSON()).toMatchObject({
     message: SESSION_CREATE_FIRST_MESSAGE,

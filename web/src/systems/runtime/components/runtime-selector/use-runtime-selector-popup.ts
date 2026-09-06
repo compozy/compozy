@@ -91,9 +91,6 @@ export function useRuntimeSelectorPopup({
 
   const anchor = () => triggerRef.current;
 
-  // Escape/close restores focus to the single trigger button.
-  const finalFocus = () => triggerRef.current;
-
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -125,7 +122,6 @@ export function useRuntimeSelectorPopup({
     providerName,
     providerKind,
     anchor,
-    finalFocus,
     handleOpenChange,
     handleTriggerPress,
     handleTriggerKeyDown,

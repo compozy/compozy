@@ -195,6 +195,7 @@ func runTerminalClientStreamWithInput(
 	var writes sync.Mutex
 	inputDone := make(chan error, 1)
 	inputFinished := false
+	serverReadFailed := false
 	if inputReads != nil {
 		go func() {
 			inputDone <- copyTerminalInput(streamCtx, conn, &writes, inputReads, forwardInput)
@@ -205,10 +206,15 @@ func runTerminalClientStreamWithInput(
 	defer func() {
 		cancel()
 		if inputDone != nil && !inputFinished {
-			if closeErr := conn.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			closeErr := conn.Close()
+			inputErr := <-inputDone
+			// The peer can close after accepting DETACH before its writer reports completion.
+			if serverReadFailed && errors.Is(inputErr, errTerminalDetached) && ctx.Err() == nil {
+				returnErr = nil
+			}
+			if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
 				returnErr = errors.Join(returnErr, fmt.Errorf("cli: close terminal input stream: %w", closeErr))
 			}
-			<-inputDone
 		}
 	}()
 	serverReads := make(chan terminalServerRead, 1)
@@ -225,6 +231,7 @@ func runTerminalClientStreamWithInput(
 			return afterSeq, inputErr
 		case read := <-serverReads:
 			if read.err != nil {
+				serverReadFailed = true
 				return afterSeq, fmt.Errorf("cli: read terminal stream: %w", read.err)
 			}
 			done, err := handleTerminalServerFrame(

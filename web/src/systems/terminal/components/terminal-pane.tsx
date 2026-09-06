@@ -102,7 +102,7 @@ export function TerminalPane({
       data-compact={compact ? "true" : undefined}
       data-testid={`terminal-pane-${terminal.id}`}
     >
-      <div className="relative min-h-0 min-w-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
         <TerminalView
           aria-label={terminal.title}

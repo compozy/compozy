@@ -24,7 +24,11 @@ import {
   type BrowserRuntime,
   type RuntimePaths,
 } from "../fixtures/runtime";
-import { closeTerminalWatchers, connectTerminalWatcher } from "../fixtures/terminal-watcher";
+import {
+  closeTerminalWatchers,
+  connectTerminalWatcher,
+  watcherGrid,
+} from "../fixtures/terminal-watcher";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace } from "../fixtures/workspace";
 import { TERMINAL_SUBPROTOCOL } from "../../src/generated/terminal-wire";
@@ -245,6 +249,31 @@ async function visibleTerminalPaneID(window: Locator): Promise<string> {
     throw new Error(`Unexpected terminal pane id: ${testId}`);
   }
   return testId.slice(prefix.length);
+}
+
+/**
+ * The size-vote bar reports the daemon's settled size, and every viewer holds
+ * that same size. The bar's own appearance reflows the writer's grid by a row,
+ * so the comparison reads the size the watcher holds now rather than the one
+ * its ATTACHED frame carried.
+ */
+async function expectSizeVoteToMatchWatcher(
+  page: Page,
+  window: Locator,
+  terminalId: string
+): Promise<void> {
+  const bar = window.getByTestId("terminal-size-vote");
+  await expect(bar).toBeVisible();
+  await expect
+    .poll(async () => {
+      const grid = await watcherGrid(page, terminalId);
+      if (grid === null) return "watcher has no grid yet";
+      const text = (await bar.textContent()) ?? "";
+      return text.includes(`${grid.cols}×${grid.rows}`)
+        ? "match"
+        : `${text} vs ${grid.cols}×${grid.rows}`;
+    })
+    .toBe("match");
 }
 
 async function terminalScreen(runtime: BrowserRuntime, workspaceId: string, terminalId: string) {
@@ -846,9 +875,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   );
   try {
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
-    await expect(firstWindow.getByTestId("terminal-size-vote")).toContainText(
-      `${originalGrid.cols}×${originalGrid.rows}`
-    );
+    await expectSizeVoteToMatchWatcher(appPage, firstWindow, opened.terminal.id);
   } finally {
     await closeTerminalWatchers(appPage);
   }
@@ -864,18 +891,16 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   await appPage.mouse.down();
   await appPage.mouse.move(resizeX - 160, resizeY - 80, { steps: 12 });
   await appPage.mouse.up();
-  const watcherGrid = await connectTerminalWatcher(
+  const resizedGrid = await connectTerminalWatcher(
     appPage,
     runtime,
     workspace.id,
     opened.terminal.id
   );
   try {
-    expect(watcherGrid).not.toEqual(originalGrid);
+    expect(resizedGrid).not.toEqual(originalGrid);
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
-    await expect(firstWindow.getByTestId("terminal-size-vote")).toContainText(
-      `${watcherGrid.cols}×${watcherGrid.rows}`
-    );
+    await expectSizeVoteToMatchWatcher(appPage, firstWindow, opened.terminal.id);
   } finally {
     await closeTerminalWatchers(appPage);
   }

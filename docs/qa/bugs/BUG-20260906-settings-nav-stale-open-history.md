@@ -1,6 +1,6 @@
 # BUG-20260906-settings-nav-stale-open-history: A Settings section click is lost while the launcher's open is still pending
 
-- **Status:** fixed locally — unchanged real daemon E2E-014 journey passes 5/5 against the patched web dist; new-head CI pending
+- **Status:** fixed locally — unchanged real daemon E2E-014 journey passes 5/5 locally (served `web/dist`; the fixture ignores a dist override) and CI on d897e90f5 is green for Profiles E2E-014 and all 47 shard-3 tests
 - **Impact:** Navigation
 - **Severity:** Major · **Priority:** P1
 - **Scenarios:** ET-profile-web-settings-lifecycle-dialogs
