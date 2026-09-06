@@ -999,7 +999,31 @@ it("Should fold a superseded turn with its true cause and keep a failed turn ope
 
 // UT-090: decision asks and errors are rich rows — they split tool groups and
 // never disappear into a settled turn's fold.
-it("Should keep rich rows out of tool groups and outside the fold", () => {
+it.each([
+  { label: "session errors", event: { type: "error", error: "provider exploded" } },
+  {
+    label: "file mutation verification warnings",
+    event: {
+      type: "transcript_marker.created",
+      marker: {
+        kind: "transcript_marker.file_mutation_unverified",
+        summary: "File mutation failed and was not recovered.",
+        occurred_at: "2026-07-07T12:00:02Z",
+      },
+    },
+  },
+  {
+    label: "raw file mutation verification warnings",
+    event: {
+      type: "transcript_marker.created",
+      raw: {
+        kind: "transcript_marker.file_mutation_unverified",
+        summary: "File mutation failed and was not recovered.",
+        occurred_at: "2026-07-07T12:00:02Z",
+      },
+    },
+  },
+])("Should keep $label out of tool groups and outside the fold", ({ event }) => {
   const rows = deriveSessionRows(
     [
       tool(1, { turnId: "turn-r", timestamp: "2026-07-07T12:00:00Z" }),
@@ -1008,7 +1032,7 @@ it("Should keep rich rows out of tool groups and outside the fold", () => {
         kind: "data",
         id: "error-r",
         name: "data-compozy-event",
-        data: { type: "error", error: "provider exploded" },
+        data: event,
         turnId: "turn-r",
         timestamp: "2026-07-07T12:00:02Z",
       },

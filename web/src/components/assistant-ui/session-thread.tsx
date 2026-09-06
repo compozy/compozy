@@ -81,6 +81,15 @@ interface SessionThreadProps extends Omit<
   readOnly?: boolean;
 }
 
+function inactivePlaceholder(
+  sessionState: SessionState | undefined,
+  startupFailed: boolean
+): string | undefined {
+  if (sessionState === "starting") return "Session is starting…";
+  if (startupFailed) return "Session failed to start";
+  return undefined;
+}
+
 /**
  * The session surface composition root: pinned goal zone above the transcript
  * scroller, the viewport itself, and the composer zone (goal-command notice,
@@ -196,9 +205,7 @@ export function SessionThread({
                   {readOnly ? null : (
                     <SessionComposer
                       sessionId={sessionId}
-                      quoteSlot={
-                        readOnly ? null : <SessionTerminalQuoteSlot sessionId={sessionId} />
-                      }
+                      quoteSlot={<SessionTerminalQuoteSlot sessionId={sessionId} />}
                       composerState={thread.renderedComposer}
                       contentInset={contentInset}
                       decisionDock={
@@ -230,13 +237,7 @@ export function SessionThread({
                       unconfirmedSends={unconfirmedSends}
                       onRetryUnconfirmedSend={onRetryUnconfirmedSend}
                       onDiscardUnconfirmedSend={onDiscardUnconfirmedSend}
-                      inactivePlaceholder={
-                        sessionState === "starting"
-                          ? "Session is starting…"
-                          : thread.startupFailed
-                            ? "Session failed to start"
-                            : undefined
-                      }
+                      inactivePlaceholder={inactivePlaceholder(sessionState, thread.startupFailed)}
                       runtimeControl={runtimeControl}
                       environmentControl={environmentControl}
                       commandCatalog={commandCatalog}

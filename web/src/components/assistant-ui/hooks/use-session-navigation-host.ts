@@ -1,5 +1,12 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   type SessionFindModel,
@@ -123,6 +130,103 @@ function useStreamTick(active: boolean): number {
   return tick;
 }
 
+interface NavigationLiveState {
+  matches: readonly SessionTranscriptSearchMatch[];
+  query: string;
+  readVisibleMessageIds: SessionNavigationHostOptions["readVisibleMessageIds"];
+  scrollToMessage: SessionNavigationHostOptions["scrollToMessage"];
+}
+
+interface NavigationHistoryLoader {
+  readIndex: () => SessionSequenceIndex;
+  readData: () => SessionTranscriptData | undefined;
+  fetchNextPage: () => Promise<{ isError: boolean; error: unknown }>;
+  setJumpActive: Dispatch<SetStateAction<boolean>>;
+}
+
+interface NavigationLanding {
+  readIndex: () => SessionSequenceIndex;
+  latest: RefObject<NavigationLiveState>;
+  setJumpActive: Dispatch<SetStateAction<boolean>>;
+  setReveal: Dispatch<SetStateAction<SessionNavigationReveal | null>>;
+  setReleased: Dispatch<SetStateAction<ReadonlySet<string>>>;
+}
+
+async function loadNavigationHistory(
+  sequence: number,
+  { readIndex, readData, fetchNextPage, setJumpActive }: NavigationHistoryLoader
+): Promise<boolean> {
+  setJumpActive(true);
+  let reached = false;
+  try {
+    for (let pages = 0; pages < NAVIGATION_LOAD_OLDER_MAX_PAGES; pages += 1) {
+      const current = readIndex();
+      if (isSequenceLoaded(current.range, sequence)) {
+        reached = true;
+        return true;
+      }
+      const data = readData();
+      const lastPage = data?.pages[data.pages.length - 1];
+      if (!lastPage || nextTranscriptPageParam(lastPage) === undefined) return false;
+      const result = await fetchNextPage();
+      if (result.isError) throw result.error;
+      const after = readIndex();
+      const progressed =
+        after.range !== null && (current.range === null || after.range.from < current.range.from);
+      if (!progressed) return false;
+    }
+    return false;
+  } finally {
+    // The landing keeps the pin; a failed load releases it here.
+    if (!reached) setJumpActive(false);
+  }
+}
+
+// The reveal names the exact part the daemon matched (`part_index`/`field`)
+// when the match carries one; a match without a source (older daemon) names
+// the turn only, which opens its fold and claims nothing about a part.
+async function landNavigationSequence(
+  sequence: number,
+  { readIndex, latest, setJumpActive, setReveal, setReleased }: NavigationLanding
+): Promise<void> {
+  setJumpActive(true);
+  try {
+    const current = readIndex();
+    const entry = current.bySequence.get(sequence);
+    const match = latest.current.matches.find(candidate => candidate.sequence === sequence);
+    const source = match ? findMatchSource(match, entry) : null;
+    let partIndex: number | null = null;
+    if (entry) {
+      partIndex = source?.partIndex ?? null;
+      setReveal(previous => ({
+        field: source?.field ?? null,
+        key: (previous?.key ?? 0) + 1,
+        messageId: entry.messageId,
+        opensBody: source?.opensBody ?? false,
+        partIndex,
+        toolCallId: source?.toolCallId ?? null,
+        turnId: match?.turn_id ?? entry.turnId,
+      }));
+      setReleased(EMPTY_RELEASED);
+    }
+    const landing = landingMessageId(current, sequence);
+    if (landing === null) throw new Error("That part of the history is not loaded.");
+    // Rows for a page that just landed, and the disclosures the reveal opens,
+    // commit on the next frames; the landing loop keeps waiting for them too.
+    await nextFrame();
+    await nextFrame();
+    const needle = latest.current.query;
+    const landed = await latest.current.scrollToMessage(
+      landing,
+      partIndex === null ? NAVIGATION_LANDING_OFFSET_PX : NAVIGATION_CONTENT_OFFSET_PX,
+      row => locateFindTarget(row, partIndex, needle)
+    );
+    if (!landed) throw new Error("That message did not come into view.");
+  } finally {
+    setJumpActive(false);
+  }
+}
+
 /**
  * The viewport's navigation host (task_08): find and the trail over the
  * daemon's full-history reads, landed through the one scroll owner. Jumps to
@@ -183,74 +287,15 @@ export function useSessionNavigationHost({
       flattenTranscriptEntries(queryClient.getQueryData<SessionTranscriptData>(transcriptKey))
     );
 
-  const loadOlderUntil = async (sequence: number): Promise<boolean> => {
-    setJumpActive(true);
-    let reached = false;
-    try {
-      for (let pages = 0; pages < NAVIGATION_LOAD_OLDER_MAX_PAGES; pages += 1) {
-        const current = readIndex();
-        if (isSequenceLoaded(current.range, sequence)) {
-          reached = true;
-          return true;
-        }
-        const data = queryClient.getQueryData<SessionTranscriptData>(transcriptKey);
-        const lastPage = data?.pages[data.pages.length - 1];
-        if (!lastPage || nextTranscriptPageParam(lastPage) === undefined) return false;
-        const result = await transcript.fetchNextPage();
-        if (result.isError) throw result.error;
-        const after = readIndex();
-        const progressed =
-          after.range !== null && (current.range === null || after.range.from < current.range.from);
-        if (!progressed) return false;
-      }
-      return false;
-    } finally {
-      // The landing keeps the pin; a failed load releases it here.
-      if (!reached) setJumpActive(false);
-    }
-  };
-
-  // The reveal names the exact part the daemon matched (`part_index`/`field`)
-  // when the match carries one; a match without a source (older daemon) names
-  // the turn only, which opens its fold and claims nothing about a part.
-  const jumpToSequence = async (sequence: number): Promise<void> => {
-    setJumpActive(true);
-    try {
-      const current = readIndex();
-      const entry = current.bySequence.get(sequence);
-      const match = latest.current.matches.find(candidate => candidate.sequence === sequence);
-      const source = match ? findMatchSource(match, entry) : null;
-      let partIndex: number | null = null;
-      if (entry) {
-        partIndex = source?.partIndex ?? null;
-        setReveal(previous => ({
-          field: source?.field ?? null,
-          key: (previous?.key ?? 0) + 1,
-          messageId: entry.messageId,
-          opensBody: source?.opensBody ?? false,
-          partIndex,
-          toolCallId: source?.toolCallId ?? null,
-          turnId: match?.turn_id ?? entry.turnId,
-        }));
-        setReleased(EMPTY_RELEASED);
-      }
-      const landing = landingMessageId(current, sequence);
-      if (landing === null) throw new Error("That part of the history is not loaded.");
-      // Rows for a page that just landed, and the disclosures the reveal opens,
-      // commit on the next frames; the landing loop keeps waiting for them too.
-      await nextFrame();
-      await nextFrame();
-      const needle = latest.current.query;
-      const landed = await latest.current.scrollToMessage(
-        landing,
-        partIndex === null ? NAVIGATION_LANDING_OFFSET_PX : NAVIGATION_CONTENT_OFFSET_PX,
-        row => locateFindTarget(row, partIndex, needle)
-      );
-      if (!landed) throw new Error("That message did not come into view.");
-    } finally {
-      setJumpActive(false);
-    }
-  };
+  const loadOlderUntil = (sequence: number) =>
+    loadNavigationHistory(sequence, {
+      readIndex,
+      readData: () => queryClient.getQueryData<SessionTranscriptData>(transcriptKey),
+      fetchNextPage: () => transcript.fetchNextPage(),
+      setJumpActive,
+    });
+  const jumpToSequence = (sequence: number) =>
+    landNavigationSequence(sequence, { readIndex, latest, setJumpActive, setReveal, setReleased });
 
   const handlers: SessionFindJumpHandlers = {
     isSequenceLoaded: sequence => isSequenceLoaded(index.range, sequence),

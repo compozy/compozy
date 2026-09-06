@@ -130,34 +130,20 @@ function diffStatLabel(additions: number, deletions: number): string {
   return `${additions} ${additions === 1 ? "addition" : "additions"}, ${deletions} ${deletions === 1 ? "deletion" : "deletions"}`;
 }
 
-/**
- * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
- * calm 24px line whose status lives in the trailing glyph. Failed rows stay
- * collapsed — failure reads from the × glyph and the error-first-line preview;
- * successful Edit/Write rows carry their per-file `+a −d` stat.
- */
-export function SessionToolCallRow({
+function toolCallPresentation({
   message,
-  defaultExpanded = false,
-  partIndex,
-  revealOpen = false,
+  turnSettled,
+  interrupted,
+  turnFailed,
+  revealOpen,
   revealField,
-  onRevealRelease,
-  turnSettled = false,
-  interrupted = false,
-  turnFailed = false,
-}: SessionToolCallRowProps) {
-  const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
-  if (
-    isDeliberateTerminalTool(message.toolName) &&
-    readSupervisedTerminalId(message.toolResult?.rawOutput)
-  ) {
-    return (
-      <Suspense fallback={null}>
-        <TerminalContent message={message} />
-      </Suspense>
-    );
-  }
+}: Required<
+  Pick<
+    SessionToolCallRowProps,
+    "message" | "turnSettled" | "interrupted" | "turnFailed" | "revealOpen"
+  >
+> &
+  Pick<SessionToolCallRowProps, "revealField">) {
   const derived = deriveToolRowStatus({
     toolError: message.toolError,
     toolResult: message.toolResult,
@@ -196,6 +182,70 @@ export function SessionToolCallRow({
     hasOutput ||
     hasToolInput(message.toolInput) ||
     matchedField !== null;
+
+  return {
+    progressLabel,
+    preview,
+    toolIcon,
+    copyPayload,
+    status,
+    errorMessage,
+    stateWord,
+    diffStat,
+    matchedField,
+    showArtifactResult,
+    showExpandedBody,
+  };
+}
+
+/**
+ * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
+ * calm 24px line whose status lives in the trailing glyph. Failed rows stay
+ * collapsed — failure reads from the × glyph and the error-first-line preview;
+ * successful Edit/Write rows carry their per-file `+a −d` stat.
+ */
+export function SessionToolCallRow({
+  message,
+  defaultExpanded = false,
+  partIndex,
+  revealOpen = false,
+  revealField,
+  onRevealRelease,
+  turnSettled = false,
+  interrupted = false,
+  turnFailed = false,
+}: SessionToolCallRowProps) {
+  const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
+  if (
+    isDeliberateTerminalTool(message.toolName) &&
+    readSupervisedTerminalId(message.toolResult?.rawOutput)
+  ) {
+    return (
+      <Suspense fallback={null}>
+        <TerminalContent message={message} />
+      </Suspense>
+    );
+  }
+  const {
+    progressLabel,
+    preview,
+    toolIcon,
+    copyPayload,
+    status,
+    errorMessage,
+    stateWord,
+    diffStat,
+    matchedField,
+    showArtifactResult,
+    showExpandedBody,
+  } = toolCallPresentation({
+    message,
+    turnSettled,
+    interrupted,
+    turnFailed,
+    revealOpen,
+    revealField,
+  });
   const copyAction = (
     <CopyIconButton
       value={copyPayload}

@@ -52,15 +52,7 @@ type SessionWindowControls = ReturnType<typeof useSessionWindowController>["cont
  * warning (US-014.EC-2) — every actionable failure outranks a warning about
  * work that merely paused.
  */
-function SessionWindowNotice({
-  agentName,
-  controls,
-  isForking,
-  onFork,
-  quietWarning,
-  session,
-  sessionId,
-}: {
+type SessionWindowNoticeProps = {
   agentName: string;
   controls: SessionWindowControls;
   isForking: boolean;
@@ -68,54 +60,83 @@ function SessionWindowNotice({
   quietWarning: SessionQuietWarning | null;
   session: SessionPayload;
   sessionId: string;
-}) {
+};
+
+function SessionWindowNotice(props: SessionWindowNoticeProps) {
   return (
     <ThreadContentRail
       data-testid="session-window-notice-rail"
       inset={SESSION_THREAD_CONTENT_INSET_DEFAULT}
     >
-      {session.runtime.status === "recovering" ? (
-        <SessionRuntimeRecoveryNotice
-          attempt={session.runtime.recovery?.attempt}
-          maxAttempts={session.runtime.recovery?.max_attempts}
-        />
-      ) : controls.stopAttention !== null ? (
-        <SessionStopAttentionNotice
-          isRetrying={controls.isStopRetrying}
-          onRetry={controls.canRetryStop ? controls.handleStop : undefined}
-        />
-      ) : controls.resumeFailure ? (
-        <SessionResumeFailure
-          agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
-          isRetrying={controls.isResuming}
-          message={controls.resumeFailure.message}
-          missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
-          onDismiss={controls.handleDismissResumeFailure}
-          onRetry={controls.handleResume}
-          sessionId={sessionId}
-        />
-      ) : hasUnrecoverableRuntime(session) ? (
-        <SessionResumeFailure
-          agentName={agentName}
-          isRetrying={isForking}
-          message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
-          missingProvider={null}
-          onDismiss={() => undefined}
-          onRetry={onFork}
-          retryLabel="Fork into a new session"
-          sessionId={sessionId}
-          showDismiss={false}
-          title="Runtime unavailable"
-        />
-      ) : quietWarning ? (
-        <SessionQuietWarningNotice
-          isStopping={controls.isStopping}
-          onStop={controls.canRetryStop ? controls.handleStop : undefined}
-          warning={quietWarning}
-        />
-      ) : null}
+      <SessionWindowNoticeContent {...props} />
     </ThreadContentRail>
   );
+}
+
+function SessionWindowNoticeContent({
+  agentName,
+  controls,
+  isForking,
+  onFork,
+  quietWarning,
+  session,
+  sessionId,
+}: SessionWindowNoticeProps) {
+  if (session.runtime.status === "recovering") {
+    return (
+      <SessionRuntimeRecoveryNotice
+        attempt={session.runtime.recovery?.attempt}
+        maxAttempts={session.runtime.recovery?.max_attempts}
+      />
+    );
+  }
+  if (controls.stopAttention !== null) {
+    return (
+      <SessionStopAttentionNotice
+        isRetrying={controls.isStopRetrying}
+        onRetry={controls.canRetryStop ? controls.handleStop : undefined}
+      />
+    );
+  }
+  if (controls.resumeFailure) {
+    return (
+      <SessionResumeFailure
+        agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
+        isRetrying={controls.isResuming}
+        message={controls.resumeFailure.message}
+        missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
+        onDismiss={controls.handleDismissResumeFailure}
+        onRetry={controls.handleResume}
+        sessionId={sessionId}
+      />
+    );
+  }
+  if (hasUnrecoverableRuntime(session)) {
+    return (
+      <SessionResumeFailure
+        agentName={agentName}
+        isRetrying={isForking}
+        message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+        missingProvider={null}
+        onDismiss={() => undefined}
+        onRetry={onFork}
+        retryLabel="Fork into a new session"
+        sessionId={sessionId}
+        showDismiss={false}
+        title="Runtime unavailable"
+      />
+    );
+  }
+  if (quietWarning) {
+    return (
+      <SessionQuietWarningNotice
+        isStopping={controls.isStopping}
+        onStop={controls.canRetryStop ? controls.handleStop : undefined}
+        warning={quietWarning}
+      />
+    );
+  }
+  return null;
 }
 
 export function SessionWindowContent({

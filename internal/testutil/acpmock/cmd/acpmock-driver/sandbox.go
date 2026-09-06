@@ -201,7 +201,15 @@ func (a *mockAgent) runSandboxCommand(
 		req.Cwd = new(cwd)
 	}
 
-	createResp, err := a.conn.CreateTerminal(ctx, req)
+	if err := ctx.Err(); err != nil {
+		return sandboxRunResult{ObservedError: err.Error()}
+	}
+	// Once create is sent, wait for its bounded acknowledgement even if the
+	// prompt is canceled. Losing that ID would leave an acquired terminal
+	// without an owner able to release it.
+	createCtx, cancelCreate := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelCreate()
+	createResp, err := a.conn.CreateTerminal(createCtx, req)
 	if err != nil {
 		return sandboxRunResult{ObservedError: err.Error()}
 	}

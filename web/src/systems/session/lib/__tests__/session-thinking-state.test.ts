@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assistantMessageHasContent,
+  assistantMessageHasRenderableContent,
   deriveThinkingState,
   THINKING_FLICKER_GUARD_MS,
   thinkingGuardRemainingMs,
@@ -14,6 +15,24 @@ import {
 // the pending reply into its error state.
 describe("thinking state", () => {
   const sentAt = 1_000;
+
+  it("Should render a standalone file mutation warning without treating it as the reply", () => {
+    const content = [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "transcript_marker.created",
+          marker: {
+            kind: "transcript_marker.file_mutation_unverified",
+            summary: "1 file mutation failed and was not recovered in this turn.",
+            occurred_at: "2026-09-06T17:48:28Z",
+          },
+        },
+      },
+    ];
+    expect(assistantMessageHasContent(content)).toBe(false);
+    expect(assistantMessageHasRenderableContent(content)).toBe(true);
+  });
 
   it("Should hold the thinking frame back inside the flicker guard, then show it", () => {
     const base = { running: true, hasContent: false, failed: false, sentAtMs: sentAt };

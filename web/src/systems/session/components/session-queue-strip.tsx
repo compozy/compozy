@@ -179,6 +179,32 @@ function SessionQueueRowExit({
   );
 }
 
+function queueStripState({
+  mode,
+  prompts,
+  queueCap,
+  onClear,
+  disabled,
+}: {
+  mode: StripMode;
+  prompts: QueuedPrompt[];
+  queueCap: number | null;
+  onClear: SessionQueueStripProps["onClear"];
+  disabled: boolean;
+}) {
+  // An edit whose row left the list (dispatched, removed elsewhere) is over.
+  const editing =
+    mode.kind === "editing" && prompts.some(prompt => prompt.id === mode.id) ? mode : null;
+  const clearPhase =
+    mode.kind === "confirming-clear" || mode.kind === "clearing" ? mode.kind : null;
+  const idle = editing === null && clearPhase === null;
+  const clearable = idle && prompts.length > 0 && onClear !== undefined;
+  const full = queueCap !== null && prompts.length >= queueCap;
+  const rowsSuspended = disabled || !idle;
+
+  return { editing, clearPhase, idle, clearable, full, rowsSuspended };
+}
+
 /**
  * The queue as a place the operator manages (S2): a strip fused to the top of
  * the composer, one row per parked follow-up with position, owner attribution,
@@ -205,15 +231,13 @@ export function SessionQueueStrip({
   if (prompts.length === 0 && unconfirmedSends.length === 0) {
     return null;
   }
-  // An edit whose row left the list (dispatched, removed elsewhere) is over.
-  const editing =
-    mode.kind === "editing" && prompts.some(prompt => prompt.id === mode.id) ? mode : null;
-  const clearPhase =
-    mode.kind === "confirming-clear" || mode.kind === "clearing" ? mode.kind : null;
-  const idle = editing === null && clearPhase === null;
-  const clearable = idle && prompts.length > 0 && onClear !== undefined;
-  const full = queueCap !== null && prompts.length >= queueCap;
-  const rowsSuspended = disabled || !idle;
+  const { editing, clearPhase, idle, clearable, full, rowsSuspended } = queueStripState({
+    mode,
+    prompts,
+    queueCap,
+    onClear,
+    disabled,
+  });
 
   const handleEditRequested = (prompt: QueuedPrompt) => {
     if (!idle) return;

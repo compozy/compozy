@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
-import {
-  createSmoothRevealState,
-  isAppendOnlyUpdate,
-  type SmoothRevealState,
-  stepSmoothReveal,
-} from "../lib/session-smooth-reveal";
+import { isAppendOnlyUpdate } from "../lib/session-smooth-reveal";
+import { smoothStreamedTextLogic } from "./smooth-streamed-text-store";
 
 /**
  * Smooth reveal of streamed prose (ADR-008). While `animate` holds, the
@@ -16,58 +13,17 @@ import {
  * returned as-is — presentation only, never a delay of finished content.
  */
 export function useSmoothStreamedText(text: string, animate: boolean): string {
-  const frames = typeof requestAnimationFrame === "function";
-  const active = animate && frames;
-  const [revealed, setRevealed] = useState(text);
-  const targetRef = useRef(text);
-  const stateRef = useRef<SmoothRevealState>(createSmoothRevealState(text.length));
-  const emittedRef = useRef(text.length);
-  const frameRef = useRef<number | null>(null);
-  const tickRef = useRef<() => void>(() => undefined);
+  const active = animate && typeof requestAnimationFrame === "function";
+  const store = useStore(smoothStreamedTextLogic, { text });
+  const emittedCount = useSelector(store, snapshot => snapshot.context.emittedCount);
+  const target = useSelector(store, snapshot => snapshot.context.target);
 
   useEffect(() => {
-    tickRef.current = () => {
-      frameRef.current = null;
-      const target = targetRef.current;
-      const step = stepSmoothReveal(
-        stateRef.current,
-        performance.now(),
-        target.length,
-        emittedRef.current
-      );
-      if (step.emitCount !== null) {
-        emittedRef.current = step.emitCount;
-        setRevealed(step.emitCount >= target.length ? target : target.slice(0, step.emitCount));
-      }
-      if (!step.done) {
-        frameRef.current = requestAnimationFrame(() => tickRef.current());
-      }
-    };
-  });
+    store.trigger.textObserved({ text, active });
+  }, [active, store, text]);
 
-  useEffect(() => {
-    const previous = targetRef.current;
-    targetRef.current = text;
-    if (!active || !isAppendOnlyUpdate(previous, text)) {
-      // Snap: stream end, reduced motion, toggle off, or a rewrite.
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-      stateRef.current = createSmoothRevealState(text.length);
-      emittedRef.current = text.length;
-      setRevealed(text);
-      return;
-    }
-    if (text.length > stateRef.current.shown && frameRef.current === null) {
-      frameRef.current = requestAnimationFrame(() => tickRef.current());
-    }
-  }, [active, text]);
+  useEffect(() => () => store.trigger.disposed(), [store]);
 
-  useEffect(() => {
-    return () => {
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-    };
-  }, []);
-
-  return active ? revealed : text;
+  // A rewrite or settled stream is visible in the same render, before the clock observes it.
+  return active && isAppendOnlyUpdate(target, text) ? text.slice(0, emittedCount) : text;
 }

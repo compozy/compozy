@@ -54,6 +54,17 @@ export function isTranscriptMarkerEvent(event: AgentEventPayload): boolean {
   return TRANSCRIPT_MARKER_EVENT_TYPES.has(event.type);
 }
 
+export function isFileMutationUnverifiedEvent(event: AgentEventPayload): boolean {
+  if (!isTranscriptMarkerEvent(event)) return false;
+  const rawKind =
+    typeof event.raw === "object" && event.raw !== null && "kind" in event.raw
+      ? event.raw.kind
+      : undefined;
+  return (
+    (event.marker?.kind ?? rawKind ?? event.title) === "transcript_marker.file_mutation_unverified"
+  );
+}
+
 export function isQueueRemovalMarker(marker: TranscriptMarkerPayload | null | undefined): boolean {
   return (
     marker?.kind === "transcript_marker.prompt_dropped" &&

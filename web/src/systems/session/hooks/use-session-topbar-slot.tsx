@@ -1,9 +1,8 @@
-import { Eraser, List, PanelRight, Pencil, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Eraser, Pencil, Square, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
 import {
   Button,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,6 +11,9 @@ import {
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
+
+import { SessionPrimaryAction } from "../components/session-primary-action";
+import { SessionPanelToggle } from "../components/session-panel-toggle";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -57,33 +59,14 @@ interface UseSessionTopbarSlotInput {
   onClear: () => void;
 }
 
-/** Publishes lifecycle actions into the owning session window's topbar. */
-export function useSessionTopbarSlot({
+function sessionTopbarActions({
   session,
-  isDeleting,
-  isRenaming,
   isStopping,
   isResuming,
   isUnarchiving,
-  isClearing,
-  canClear,
-  inspectorOpen,
-  sidebarOpen,
-  goalAction,
-  transportChip,
-  onInspectorToggle,
-  onSidebarToggle,
-  onDelete,
-  onRename,
-  onStop,
-  onResume,
-  onUnarchive,
-  onClear,
-  worktreeBinding,
-}: UseSessionTopbarSlotInput): void {
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const renameRequested = useRef(false);
-
+  isDeleting,
+  isRenaming,
+}: UseSessionTopbarSlotInput) {
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
   const lifecycleControllable = isUserControllableSession(session);
@@ -96,85 +79,107 @@ export function useSessionTopbarSlot({
   const showStopAction = lifecycleControllable && isActive && !canResume;
   const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting || isRenaming;
 
-  const primaryAction = showUnarchiveAction ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-11 focus-visible:shadow-focus-inset"
-      onClick={onUnarchive}
-      disabled={controlsBusy}
-      data-testid="unarchive-button"
-      aria-label="Unarchive session"
+  return {
+    isActive,
+    lifecycleControllable,
+    canResume,
+    showUnarchiveAction,
+    showStopAction,
+    controlsBusy,
+  };
+}
+
+type SessionTopbarActions = ReturnType<typeof sessionTopbarActions>;
+
+function useSessionTopbarOverflow(input: UseSessionTopbarSlotInput, actions: SessionTopbarActions) {
+  const {
+    onRename,
+    isRenaming,
+    isStopping,
+    onStop,
+    canClear,
+    isClearing,
+    onClear,
+    isDeleting,
+    onDelete,
+  } = input;
+  const { lifecycleControllable, controlsBusy, isActive, canResume } = actions;
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const renameRequested = useRef(false);
+  return lifecycleControllable ? (
+    <DropdownMenu
+      open={overflowOpen}
+      onOpenChange={setOverflowOpen}
+      onOpenChangeComplete={open => {
+        if (open || !renameRequested.current) return;
+        renameRequested.current = false;
+        onRename();
+      }}
     >
-      {isUnarchiving ? <Spinner className="size-3" /> : <RotateCcw className="size-3" />}
-    </Button>
-  ) : showStopAction ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-11 focus-visible:shadow-focus-inset"
-      onClick={onStop}
-      disabled={controlsBusy && !isStopping}
-      data-testid="stop-button"
-      aria-label="Stop session"
-    >
-      {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
-    </Button>
-  ) : canResume ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-11 focus-visible:shadow-focus-inset"
-      onClick={onResume}
-      disabled={controlsBusy && !isResuming}
-      data-testid="resume-button"
-      aria-label="Attach session"
-    >
-      {isResuming ? <Spinner className="size-3" /> : <Play className="size-3" />}
-    </Button>
+      <DropdownMenuTrigger
+        aria-label="More actions"
+        data-testid="session-topbar-overflow"
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-11 focus-visible:shadow-focus-inset"
+          />
+        }
+      >
+        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
+        <DropdownMenuItem
+          data-testid="rename-button"
+          disabled={controlsBusy}
+          onClick={() => {
+            renameRequested.current = true;
+            setOverflowOpen(false);
+          }}
+        >
+          {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
+          Rename session
+        </DropdownMenuItem>
+        {isActive && canResume ? (
+          <DropdownMenuItem
+            data-testid="stop-menu-item"
+            disabled={controlsBusy && !isStopping}
+            onClick={onStop}
+          >
+            {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
+            Stop session
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem
+          data-testid="composer-clear-button"
+          disabled={!canClear || isClearing}
+          onClick={onClear}
+        >
+          {isClearing ? <Spinner className="size-3" /> : <Eraser className="size-3" />}
+          Clear conversation
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="delete-button"
+          disabled={controlsBusy}
+          onClick={onDelete}
+          variant="destructive"
+        >
+          {isDeleting ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
+          Delete session
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   ) : null;
+}
 
-  const sidebarToggle = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={sidebarOpen ? "Close sessions sidebar" : "Open sessions sidebar"}
-      aria-pressed={sidebarOpen}
-      className={cn(
-        "size-11 focus-visible:shadow-focus-inset",
-        sidebarOpen ? "bg-elevated text-fg" : null
-      )}
-      data-state={sidebarOpen ? "open" : "closed"}
-      data-testid="session-sidebar-toggle"
-      onClick={onSidebarToggle}
-    >
-      <List aria-hidden="true" className="size-3" />
-    </Button>
-  );
-
-  const inspectorToggle = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={inspectorOpen ? "Close session inspector" : "Open session inspector"}
-      aria-pressed={inspectorOpen}
-      className={cn(
-        "size-11 focus-visible:shadow-focus-inset",
-        inspectorOpen ? "bg-elevated text-fg" : null
-      )}
-      data-state={inspectorOpen ? "open" : "closed"}
-      data-testid="session-inspector-toggle"
-      onClick={onInspectorToggle}
-    >
-      <PanelRight aria-hidden="true" className="size-3" />
-    </Button>
-  );
-
+/** Publishes lifecycle actions into the owning session window's topbar. */
+export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
+  const { session, worktreeBinding, transportChip } = input;
+  const actions = sessionTopbarActions(input);
+  const { isActive } = actions;
+  const overflow = useSessionTopbarOverflow(input, actions);
   // The slot consumer (the OS head) renders outside this window's session
   // runtime provider, so a node that reads the transport — the chip — would
   // see the default live snapshot there. The publisher runs inside the
@@ -215,77 +220,20 @@ export function useSessionTopbarSlot({
     ),
     actions: (
       <>
-        {sidebarToggle}
-        {goalAction}
-        {primaryAction}
-        {inspectorToggle}
+        <SessionPanelToggle
+          panel="sidebar"
+          open={input.sidebarOpen}
+          onToggle={input.onSidebarToggle}
+        />
+        {input.goalAction}
+        <SessionPrimaryAction {...input} {...actions} />
+        <SessionPanelToggle
+          panel="inspector"
+          open={input.inspectorOpen}
+          onToggle={input.onInspectorToggle}
+        />
       </>
     ),
-    overflow: lifecycleControllable ? (
-      <DropdownMenu
-        open={overflowOpen}
-        onOpenChange={setOverflowOpen}
-        onOpenChangeComplete={open => {
-          if (open || !renameRequested.current) return;
-          renameRequested.current = false;
-          onRename();
-        }}
-      >
-        <DropdownMenuTrigger
-          aria-label="More actions"
-          data-testid="session-topbar-overflow"
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-11 focus-visible:shadow-focus-inset"
-            />
-          }
-        >
-          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
-          <DropdownMenuItem
-            data-testid="rename-button"
-            disabled={controlsBusy}
-            onClick={() => {
-              renameRequested.current = true;
-              setOverflowOpen(false);
-            }}
-          >
-            {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
-            Rename session
-          </DropdownMenuItem>
-          {isActive && canResume ? (
-            <DropdownMenuItem
-              data-testid="stop-menu-item"
-              disabled={controlsBusy && !isStopping}
-              onClick={onStop}
-            >
-              {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
-              Stop session
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem
-            data-testid="composer-clear-button"
-            disabled={!canClear || isClearing}
-            onClick={onClear}
-          >
-            {isClearing ? <Spinner className="size-3" /> : <Eraser className="size-3" />}
-            Clear conversation
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid="delete-button"
-            disabled={controlsBusy}
-            onClick={onDelete}
-            variant="destructive"
-          >
-            {isDeleting ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
-            Delete session
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) : null,
+    overflow,
   });
 }

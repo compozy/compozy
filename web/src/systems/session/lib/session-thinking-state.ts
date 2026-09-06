@@ -8,6 +8,7 @@ import { isAgentEventPayload } from "./message-parts";
 import {
   isSessionErrorEvent,
   isQueueRemovalMarker,
+  isFileMutationUnverifiedEvent,
 } from "../components/runtime-activity-notice.logic";
 import { CLARIFY_EVENT_TYPE } from "./clarify-event";
 import { PROMPT_STEERED_MARKER, PROMPT_SUPERSEDED_MARKER } from "./steer-marker";
@@ -101,7 +102,8 @@ export function assistantMessageHasRenderableContent(content: unknown): boolean 
         return false;
       return (
         part.data.marker?.kind === "transcript_marker.queue_cleared" ||
-        isQueueRemovalMarker(part.data.marker)
+        isQueueRemovalMarker(part.data.marker) ||
+        isFileMutationUnverifiedEvent(part.data)
       );
     })
   );

@@ -71,6 +71,64 @@ function Dots({ reducedMotion }: { reducedMotion: boolean }) {
   return <TypingDots className="session-working-dots gap-transcript-meta-gap [&>span]:bg-faint" />;
 }
 
+function WorkingStatusLine({
+  status,
+  liveDataEnabled,
+  pausedAtMs,
+  reducedMotion,
+}: {
+  status: Extract<SessionWorkingStatus, { kind: "working" }>;
+  liveDataEnabled: boolean;
+  pausedAtMs: number | null;
+  reducedMotion: boolean;
+}) {
+  const asOf = !liveDataEnabled && pausedAtMs !== null ? formatMessageTimestamp(pausedAtMs) : null;
+  return (
+    <div
+      role="status"
+      aria-label="Working"
+      data-testid="session-working-row"
+      data-status="working"
+      data-agents={status.agentCount || undefined}
+      className={ROW_CLASS}
+    >
+      <Dots reducedMotion={reducedMotion || !liveDataEnabled} />
+      <span>
+        {status.startedAtMs !== null ? (
+          <>
+            Working for{" "}
+            <WorkingTimer
+              startedAtMs={status.startedAtMs}
+              enabled={liveDataEnabled}
+              fallback={status.elapsed}
+            />
+          </>
+        ) : (
+          "Working…"
+        )}
+        {status.activity ? (
+          <>
+            <SessionStatusSeparator />
+            <span data-testid="session-working-activity">{status.activity}</span>
+          </>
+        ) : null}
+        {status.agentCount > 0 ? (
+          <>
+            <SessionStatusSeparator />
+            <span data-testid="session-working-agents">{agentCountLabel(status.agentCount)}</span>
+          </>
+        ) : null}
+        {asOf ? (
+          <>
+            <SessionStatusSeparator />
+            <span data-testid="session-working-as-of">as of {asOf}</span>
+          </>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 function SessionStatusLine({
   status,
   liveDataEnabled,
@@ -101,56 +159,15 @@ function SessionStatusLine({
         </div>
       );
     }
-    case "working": {
-      const asOf =
-        !liveDataEnabled && pausedAtMs !== null ? formatMessageTimestamp(pausedAtMs) : null;
+    case "working":
       return (
-        <div
-          role="status"
-          aria-label="Working"
-          data-testid="session-working-row"
-          data-status="working"
-          data-agents={status.agentCount || undefined}
-          className={ROW_CLASS}
-        >
-          <Dots reducedMotion={reducedMotion || !liveDataEnabled} />
-          <span>
-            {status.startedAtMs !== null ? (
-              <>
-                Working for{" "}
-                <WorkingTimer
-                  startedAtMs={status.startedAtMs}
-                  enabled={liveDataEnabled}
-                  fallback={status.elapsed}
-                />
-              </>
-            ) : (
-              "Working…"
-            )}
-            {status.activity ? (
-              <>
-                <SessionStatusSeparator />
-                <span data-testid="session-working-activity">{status.activity}</span>
-              </>
-            ) : null}
-            {status.agentCount > 0 ? (
-              <>
-                <SessionStatusSeparator />
-                <span data-testid="session-working-agents">
-                  {agentCountLabel(status.agentCount)}
-                </span>
-              </>
-            ) : null}
-            {asOf ? (
-              <>
-                <SessionStatusSeparator />
-                <span data-testid="session-working-as-of">as of {asOf}</span>
-              </>
-            ) : null}
-          </span>
-        </div>
+        <WorkingStatusLine
+          status={status}
+          liveDataEnabled={liveDataEnabled}
+          pausedAtMs={pausedAtMs}
+          reducedMotion={reducedMotion}
+        />
       );
-    }
     case "stopped":
       return (
         <div

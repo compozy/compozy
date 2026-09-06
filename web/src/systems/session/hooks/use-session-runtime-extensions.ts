@@ -79,6 +79,42 @@ export function useSessionRuntimeExtensions({
     enabled: controlPolling,
     refetchInterval: PROMPT_POST_CONTROL_POLL_MS,
   });
+  const { expiredInteractions, resolvedInteractions, rewindBlocked } = useSessionDecisionState({
+    transcript,
+    workspaceId,
+    sessionId,
+    liveTailEnabled,
+    clarifications,
+    inputs,
+  });
+
+  return {
+    expiredInteractions,
+    resolvedInteractions,
+    resetRuntime: () => {
+      promptDispatch.trigger.conversationReset();
+      aui.thread.reset();
+    },
+    rewindBlocked,
+    transcript,
+  };
+}
+
+function useSessionDecisionState({
+  transcript,
+  workspaceId,
+  sessionId,
+  liveTailEnabled,
+  clarifications,
+  inputs,
+}: {
+  transcript: ReturnType<typeof useMergedSessionRuntimeTranscript>;
+  workspaceId: string;
+  sessionId: string;
+  liveTailEnabled: boolean;
+  clarifications: ReturnType<typeof useSessionClarifications>;
+  inputs: ReturnType<typeof useSessionInputs>;
+}) {
   const pendingPermissions = derivePendingPermissions(transcript.messages);
   // Only an undecided ask on screen can be a decision the daemon settled behind the
   // transcript's back; with none, the settled-interaction read never runs. The same
@@ -111,14 +147,5 @@ export function useSessionRuntimeExtensions({
     inputs.isError ||
     (inputs.data?.inputs.length ?? 0) > 0;
 
-  return {
-    expiredInteractions,
-    resolvedInteractions,
-    resetRuntime: () => {
-      promptDispatch.trigger.conversationReset();
-      aui.thread.reset();
-    },
-    rewindBlocked,
-    transcript,
-  };
+  return { expiredInteractions, resolvedInteractions, rewindBlocked };
 }

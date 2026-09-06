@@ -4,7 +4,7 @@ area: RT
 title: Preserve session identity and unresolved file-mutation evidence
 persona: Théo
 journey: J-11
-expected: An unnamed user session receives one durable generated title after its first persisted assistant response; explicit names remain unchanged. A failed edit with no later successful edit for the same path adds one verifier marker to the durable timeline; a later successful edit suppresses it. Durable interrupt and steer replacement behavior is owned by RT-019.
+expected: An unnamed user session receives one durable generated title after its first persisted assistant response; explicit names remain unchanged. A failed edit with no later successful edit for the same path adds one verifier marker to the durable timeline that remains visible beside the answer while settled work is collapsed; a later successful edit suppresses it. Durable interrupt and steer replacement behavior is owned by RT-019.
 entry_points: Web session list and timeline; config CLI/native tools; session metadata and event history
 qa_status: blocked-verify
 bug_ids:
@@ -33,3 +33,8 @@ QA impact 2026-08-03: removed obsolete interrupt-salvage expectations. RT-019 no
 fenced interrupt and steer replacements; this scenario retains only title and file-verifier behavior.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-004-compaction-under-pressure-crash-safe
+
+QA repair 2026-09-06 (sessions-stability / PR #557): the settled-turn fold must keep unresolved
+file-mutation verification warnings visible without opening the work disclosure. The canonical
+`session-hardening.spec.ts` browser journey retains its existing warning, summary, and marker-kind
+assertions. Its current-source re-walk is recorded in the sessions-stability delivery report.

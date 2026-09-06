@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { createElement, StrictMode, type PropsWithChildren } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useSmoothStreamedText } from "../../hooks/use-smooth-streamed-text";
 
 import {
   composeStreamingDisplay,
@@ -111,5 +115,96 @@ describe("highlight throttle", () => {
   it("Should equal the full text once the stream settles", () => {
     const full = "Intro\n```ts\nconst a = 1;\n```\nOutro";
     expect(composeStreamingDisplay(full, full)).toBe(full);
+  });
+});
+
+// Owning layer: streamed-text presentation lifecycle, in the existing ADR-008 suite.
+// Invariant: appends reveal incrementally, settle/rewrite bypass the backlog,
+// and each mounted reader owns and releases its animation clock.
+describe("smooth reveal lifecycle", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let nextFrame: number;
+
+  beforeEach(() => {
+    frames = new Map();
+    nextFrame = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.set(++nextFrame, callback);
+      return nextFrame;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function advanceFrame(at: number) {
+    const pending = [...frames.values()];
+    frames.clear();
+    act(() => pending.forEach(callback => callback(at)));
+  }
+
+  it("Should reveal appended text through the clock under StrictMode and drain the final characters", () => {
+    const full = `Hello ${"world ".repeat(40)}`;
+    const { result, rerender, unmount } = renderHook(
+      ({ text, animate }) => useSmoothStreamedText(text, animate),
+      {
+        initialProps: { text: "Hello ", animate: true },
+        wrapper: ({ children }: PropsWithChildren) => createElement(StrictMode, null, children),
+      }
+    );
+    rerender({ text: full, animate: true });
+    expect(result.current).toBe("Hello ");
+    advanceFrame(1_000);
+    advanceFrame(1_016);
+    expect(result.current.length).toBeGreaterThan("Hello ".length);
+    expect(result.current.length).toBeLessThan(full.length);
+    for (let at = 1_032; at < 10_000 && result.current !== full; at += 16) advanceFrame(at);
+    expect(result.current).toBe(full);
+    expect(frames.size).toBe(0);
+    unmount();
+  });
+
+  it("Should immediately show settled or rewritten text and ignore canceled frames when animation resumes", () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ text, animate }) => useSmoothStreamedText(text, animate),
+      { initialProps: { text: "", animate: true } }
+    );
+    const full = "backlog ".repeat(100);
+    rerender({ text: full, animate: true });
+    const stale = [...frames.values()];
+    rerender({ text: full, animate: false });
+    expect(result.current).toBe(full);
+    expect(frames.size).toBe(0);
+    rerender({ text: "replacement", animate: true });
+    expect(result.current).toBe("replacement");
+    rerender({ text: "replacement with more text", animate: true });
+    act(() => stale.forEach(callback => callback(1_000)));
+    expect(result.current).toBe("replacement");
+    for (let at = 1_016; at < 10_000 && result.current !== "replacement with more text"; at += 16) {
+      advanceFrame(at);
+    }
+    expect(result.current).toBe("replacement with more text");
+    rerender({ text: "replacement with more text and another burst", animate: true });
+    // A canceled callback must not take ownership of a newer clock away from cleanup.
+    act(() => stale.forEach(callback => callback(10_016)));
+    unmount();
+    expect(frames.size).toBe(0);
+  });
+
+  it("Should release only its own clock when another reader unmounts", () => {
+    const first = renderHook(({ text }) => useSmoothStreamedText(text, true), {
+      initialProps: { text: "" },
+    });
+    const second = renderHook(({ text }) => useSmoothStreamedText(text, true), {
+      initialProps: { text: "" },
+    });
+    first.rerender({ text: "first ".repeat(100) });
+    second.rerender({ text: "second ".repeat(100) });
+    first.unmount();
+    advanceFrame(1_000);
+    advanceFrame(1_016);
+    expect(second.result.current.length).toBeGreaterThan(0);
+    second.unmount();
+    expect(frames.size).toBe(0);
   });
 });

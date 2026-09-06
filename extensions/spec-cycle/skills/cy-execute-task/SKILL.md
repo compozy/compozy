@@ -1,6 +1,6 @@
 ---
 name: cy-execute-task
-description: "Implement and verify an existing Compozy spec task, then update its tracking. Excludes review remediation."
+description: "Implement and verify an existing CompozyOS spec task, then update its tracking. Excludes review remediation."
 ---
 
 # Execute Spec Task

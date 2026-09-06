@@ -431,8 +431,9 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 	t.Run("Should release terminal with detached context after wait cancellation", func(t *testing.T) {
 		conn := &recordingSandboxConnection{}
 		agent := &mockAgent{conn: conn}
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		conn.cancelOnCreate = cancel
 
 		result := agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-1"), acpmock.Step{
 			Command: "/bin/sh",
@@ -456,8 +457,9 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 
 		conn := &recordingSandboxConnection{}
 		agent := &mockAgent{conn: conn}
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		conn.cancelOnCreate = cancel
 
 		agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-agent"), acpmock.Step{
 			Command: "/bin/sh",
@@ -487,6 +489,7 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 }
 
 type recordingSandboxConnection struct {
+	cancelOnCreate    context.CancelFunc
 	releaseCalled     bool
 	releaseContextErr error
 	createRequest     acpsdk.CreateTerminalRequest
@@ -509,10 +512,16 @@ func (c *recordingSandboxConnection) RequestPermission(
 }
 
 func (c *recordingSandboxConnection) CreateTerminal(
-	_ context.Context,
+	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
 	c.createRequest = request
+	if c.cancelOnCreate != nil {
+		c.cancelOnCreate()
+	}
+	if err := ctx.Err(); err != nil {
+		return acpsdk.CreateTerminalResponse{}, err
+	}
 	return acpsdk.CreateTerminalResponse{TerminalId: "term-cancel"}, nil
 }
 

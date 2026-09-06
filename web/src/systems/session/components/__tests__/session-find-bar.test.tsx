@@ -157,6 +157,10 @@ describe("SessionFindBar", () => {
       "No matches for “sqlite” in this conversation."
     );
     expect(screen.queryByTestId("session-find-next")).not.toBeInTheDocument();
+    // An empty search is a status announcement, never a selectable result.
+    expect(screen.getByRole("status")).toBe(screen.getByTestId("session-find-empty"));
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
   it("Should step with Enter and Shift+Enter, jump through the host, and load older history first when the target is unloaded", async () => {

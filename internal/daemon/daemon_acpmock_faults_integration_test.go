@@ -217,8 +217,14 @@ func openGatedSessionStream(
 		return connection, nil
 	}}
 	t.Cleanup(transport.CloseIdleConnections)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		harness.HTTPURL("/api/workspaces/"+harness.WorkspaceID+"/sessions/"+sessionID+"/stream?frames=raw"), nil)
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		harness.HTTPURL(
+			"/api/workspaces/"+harness.WorkspaceID+"/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+		),
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

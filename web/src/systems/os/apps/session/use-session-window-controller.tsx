@@ -27,6 +27,23 @@ import {
 import { useSessionVaultSecrets } from "@/systems/vault";
 import type { WorktreePayload } from "@/systems/workspace";
 
+function toInspectorUsage(
+  usage: ReturnType<typeof useSessionUsage>["data"]
+): InspectorUsage | null {
+  return usage
+    ? {
+        tokensIn: usage.input_tokens ?? undefined,
+        tokensOut: usage.output_tokens ?? undefined,
+        totalTokens: usage.total_tokens ?? undefined,
+        costUsd: usage.total_cost ?? undefined,
+        costCurrency: usage.cost_currency || undefined,
+        costStatus: usage.cost_status ?? undefined,
+        costSource: usage.cost_source ?? undefined,
+        turnCount: usage.turn_count,
+      }
+    : null;
+}
+
 export function useSessionWindowController(input: {
   windowId: string;
   sessionId: string;
@@ -73,19 +90,7 @@ export function useSessionWindowController(input: {
     enabled: inspectorEnabled,
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
-  const usage = sessionUsage.data;
-  const inspectorUsage: InspectorUsage | null = usage
-    ? {
-        tokensIn: usage.input_tokens ?? undefined,
-        tokensOut: usage.output_tokens ?? undefined,
-        totalTokens: usage.total_tokens ?? undefined,
-        costUsd: usage.total_cost ?? undefined,
-        costCurrency: usage.cost_currency || undefined,
-        costStatus: usage.cost_status ?? undefined,
-        costSource: usage.cost_source ?? undefined,
-        turnCount: usage.turn_count,
-      }
-    : null;
+  const inspectorUsage = toInspectorUsage(sessionUsage.data);
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const renameDialog = useSessionRenameDialog(controls.handleRename);
   const clearDialog = useSessionClearDialog(controls.handleClear);

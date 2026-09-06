@@ -113,19 +113,7 @@ export function SessionFindBar({
       role="search"
       aria-label="Find in conversation"
       data-testid="session-find-bar"
-      data-state={
-        find.isError
-          ? "error"
-          : loadingOlder
-            ? "loading-older"
-            : find.isPending
-              ? "searching"
-              : !hasQuery
-                ? "empty"
-                : hasMatches
-                  ? "matches"
-                  : "no-matches"
-      }
+      data-state={findBarState(find, hasQuery)}
       onKeyDown={handleKeyDown}
       onSubmit={event => event.preventDefault()}
       className={cn(
@@ -138,7 +126,7 @@ export function SessionFindBar({
         <SearchInput
           ref={inputRef}
           aria-activedescendant={activeId}
-          aria-controls="session-find-matches"
+          aria-controls={hasMatches ? "session-find-matches" : undefined}
           aria-label="Find in conversation"
           containerClassName="min-w-0 flex-1 max-w-md"
           data-testid="session-find-input"
@@ -151,39 +139,7 @@ export function SessionFindBar({
           className="inline-flex shrink-0 items-center gap-1.5 font-mono text-micro text-muted tabular-nums"
           data-testid="session-find-count"
         >
-          {!hasQuery ? (
-            <FindKeys />
-          ) : find.isError ? (
-            <span className="text-danger">Couldn&apos;t search</span>
-          ) : find.jumpError !== null ? (
-            <span className="text-danger" data-testid="session-find-jump-error">
-              {jumpErrorText(find.jumpError)}
-            </span>
-          ) : loadingOlder ? (
-            <>
-              <Spinner className="size-3" />
-              Loading older…
-              <span aria-hidden="true">·</span>
-              {findCountLabel(activeIndex, find.matches.length, find.truncated)}
-            </>
-          ) : find.isPending ? (
-            <>
-              <Spinner className="size-3" />
-              Searching…
-            </>
-          ) : (
-            <>
-              {findCountLabel(activeIndex, find.matches.length, find.truncated)}
-              {find.appended > 0 ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="text-faint" data-testid="session-find-appended">
-                    +{find.appended} new
-                  </span>
-                </>
-              ) : null}
-            </>
-          )}
+          <FindStatus find={find} hasQuery={hasQuery} activeIndex={activeIndex} />
         </span>
         {hasMatches ? (
           <div className="flex shrink-0 items-center">
@@ -237,48 +193,125 @@ export function SessionFindBar({
           <X aria-hidden="true" className="size-3" />
         </Button>
       </div>
-      {hasQuery && !find.isError && (hasMatches || !find.isPending) ? (
+      <FindResults
+        find={find}
+        agentName={agentName}
+        isSequenceFolded={isSequenceFolded}
+        resolveMatchTime={resolveMatchTime}
+        hasQuery={hasQuery}
+      />
+    </form>
+  );
+}
+
+function findBarState(find: SessionFindModel, hasQuery: boolean): string {
+  if (find.isError) return "error";
+  if (find.jump?.phase === "loading") return "loading-older";
+  if (find.isPending) return "searching";
+  if (!hasQuery) return "empty";
+  return find.matches.length > 0 ? "matches" : "no-matches";
+}
+
+function FindStatus({
+  find,
+  hasQuery,
+  activeIndex,
+}: {
+  find: SessionFindModel;
+  hasQuery: boolean;
+  activeIndex: number;
+}) {
+  if (!hasQuery) return <FindKeys />;
+  if (find.isError) return <span className="text-danger">Couldn&apos;t search</span>;
+  if (find.jumpError !== null)
+    return (
+      <span className="text-danger" data-testid="session-find-jump-error">
+        {jumpErrorText(find.jumpError)}
+      </span>
+    );
+  if (find.jump?.phase === "loading")
+    return (
+      <>
+        <Spinner className="size-3" />
+        Loading older…<span aria-hidden="true">·</span>
+        {findCountLabel(activeIndex, find.matches.length, find.truncated)}
+      </>
+    );
+  if (find.isPending)
+    return (
+      <>
+        <Spinner className="size-3" />
+        Searching…
+      </>
+    );
+  return (
+    <>
+      {findCountLabel(activeIndex, find.matches.length, find.truncated)}
+      {find.appended > 0 ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span className="text-faint" data-testid="session-find-appended">
+            +{find.appended} new
+          </span>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function FindResults({
+  find,
+  agentName,
+  isSequenceFolded,
+  resolveMatchTime,
+  hasQuery,
+}: Pick<SessionFindBarProps, "find" | "agentName" | "isSequenceFolded" | "resolveMatchTime"> & {
+  hasQuery: boolean;
+}) {
+  if (!hasQuery || find.isError || (find.matches.length === 0 && find.isPending)) return null;
+  return (
+    <div
+      data-testid="session-find-list"
+      className="flex max-h-56 flex-col overflow-y-auto border-t border-line-soft py-1"
+    >
+      {find.matches.length > 0 ? (
         <div
           id="session-find-matches"
           role="listbox"
           aria-label="Matches"
-          data-testid="session-find-list"
-          className="flex max-h-56 flex-col overflow-y-auto border-t border-line-soft py-1"
+          className="flex flex-col"
         >
-          {hasMatches ? (
-            find.matches.map(match => (
-              <SessionFindMatchRow
-                key={match.sequence}
-                match={match}
-                active={match.sequence === find.activeSequence}
-                agentName={agentName}
-                folded={isSequenceFolded?.(match.sequence) ?? false}
-                query={find.committedQuery}
-                timeMs={resolveMatchTime?.(match) ?? null}
-                onJump={() => find.jumpTo(match.sequence)}
-              />
-            ))
-          ) : (
-            <p
-              className="px-3 py-2 text-eyebrow text-muted"
-              data-testid="session-find-empty"
-              role="option"
-              aria-selected={false}
-            >
-              No matches for &ldquo;{find.committedQuery}&rdquo; in this conversation.
-            </p>
-          )}
-          {find.truncated ? (
-            <p
-              className="px-3 py-1.5 font-mono text-micro text-faint"
-              data-testid="session-find-truncated"
-            >
-              Showing the first {find.matches.length} matches · refine the search to see the rest
-            </p>
-          ) : null}
+          {find.matches.map(match => (
+            <SessionFindMatchRow
+              key={match.sequence}
+              match={match}
+              active={match.sequence === find.activeSequence}
+              agentName={agentName}
+              folded={isSequenceFolded?.(match.sequence) ?? false}
+              query={find.committedQuery}
+              timeMs={resolveMatchTime?.(match) ?? null}
+              onJump={() => find.jumpTo(match.sequence)}
+            />
+          ))}
         </div>
+      ) : (
+        <p
+          className="px-3 py-2 text-eyebrow text-muted"
+          data-testid="session-find-empty"
+          role="status"
+        >
+          No matches for &ldquo;{find.committedQuery}&rdquo; in this conversation.
+        </p>
+      )}
+      {find.truncated ? (
+        <p
+          className="px-3 py-1.5 font-mono text-micro text-faint"
+          data-testid="session-find-truncated"
+        >
+          Showing the first {find.matches.length} matches · refine the search to see the rest
+        </p>
       ) : null}
-    </form>
+    </div>
   );
 }
 

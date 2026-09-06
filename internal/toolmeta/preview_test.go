@@ -79,6 +79,12 @@ func TestRenderBuildsSafeToolPreviews(t *testing.T) {
 			wantPreview: "delivery progress",
 		},
 		{
+			name:        "Should render the native session search query from its public argument",
+			toolID:      "compozy__session_search",
+			input:       json.RawMessage(`{"session_id":"sess-search","q":"delivery progress"}`),
+			wantPreview: "delivery progress",
+		},
+		{
 			name:        "Should honor descriptor presentation hints",
 			toolID:      "mcp__issues_lookup",
 			input:       json.RawMessage(`{"needle":"BUG-123"}`),

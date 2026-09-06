@@ -11,7 +11,10 @@
 import { formatDuration } from "@compozy/ui";
 
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
-import { isSessionErrorEvent } from "@/systems/session/components/runtime-activity-notice.logic";
+import {
+  isSessionErrorEvent,
+  isFileMutationUnverifiedEvent,
+} from "@/systems/session/components/runtime-activity-notice.logic";
 import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
@@ -175,7 +178,10 @@ function isPersistentTurnRow(row: SessionRow): boolean {
   return row.parts.some(part => {
     const data = part.data;
     if (!isAgentEventPayload(data)) return false;
-    return data.type === CLARIFY_EVENT_TYPE || isSessionErrorEvent(data);
+    if (data.type === CLARIFY_EVENT_TYPE || isSessionErrorEvent(data)) return true;
+    // The verifier contradicts a completion claim: keep that unresolved failure
+    // visible beside the answer even when ordinary work is folded away.
+    return isFileMutationUnverifiedEvent(data);
   });
 }
 

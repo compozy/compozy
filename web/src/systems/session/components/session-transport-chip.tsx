@@ -43,6 +43,20 @@ function chipTooltip(model: SessionTransportChipModel, snapshot: SessionTranspor
   }
 }
 
+const CHIP_PRESENTATION = {
+  connecting: { tone: "info", label: "Connecting", Glyph: Spinner },
+  reconnecting: { tone: "info", label: "Reconnecting", Glyph: Spinner },
+  "catching-up": { tone: "info", label: "Catching up", Glyph: Spinner },
+  paused: { tone: "neutral", label: "Paused", Glyph: Pause },
+  disconnected: { tone: "danger", label: "Disconnected", Glyph: WifiOff },
+} as const;
+
+function chipCount(model: SessionTransportChipModel, nowMs: number): string | null {
+  if (model.kind === "reconnecting") return String(model.attempt);
+  if (model.kind === "paused") return pausedSince(model.sinceMs, nowMs);
+  return null;
+}
+
 export interface SessionTransportChipProps {
   /** Whether this window is allowed to apply live frames; a background window reads paused. */
   windowLive: boolean;
@@ -60,25 +74,8 @@ export function SessionTransportChip({ windowLive }: SessionTransportChipProps) 
   const nowMs = useSecondClock(model?.kind === "paused");
   if (model === null) return null;
 
-  const tone =
-    model.kind === "disconnected" ? "danger" : model.kind === "paused" ? "neutral" : "info";
-  const count =
-    model.kind === "reconnecting"
-      ? String(model.attempt)
-      : model.kind === "paused"
-        ? pausedSince(model.sinceMs, nowMs)
-        : null;
-  const label =
-    model.kind === "connecting"
-      ? "Connecting"
-      : model.kind === "reconnecting"
-        ? "Reconnecting"
-        : model.kind === "catching-up"
-          ? "Catching up"
-          : model.kind === "paused"
-            ? "Paused"
-            : "Disconnected";
-  const Glyph = model.kind === "disconnected" ? WifiOff : model.kind === "paused" ? Pause : null;
+  const { tone, label, Glyph } = CHIP_PRESENTATION[model.kind];
+  const count = chipCount(model, nowMs);
 
   return (
     <Tooltip>
@@ -92,11 +89,7 @@ export function SessionTransportChip({ windowLive }: SessionTransportChipProps) 
             size="sm"
             tone={tone}
           >
-            {Glyph ? (
-              <Glyph aria-hidden="true" className="size-3" />
-            ) : (
-              <Spinner aria-hidden="true" className="size-3" />
-            )}
+            <Glyph aria-hidden="true" className="size-3" />
             {label}
             {count ? (
               <span
