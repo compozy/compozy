@@ -45,6 +45,14 @@ export class RoutingCoordinator {
   private routeReconciliation: RouteReconciliation | null = null;
   private nextReconciliationToken = 0;
   private nextUserRetargetToken = 0;
+  /**
+   * Bumped by every navigation the coordinator did not write itself and by
+   * every explicit user navigation. A user command that is still waiting on
+   * the daemon compares its token before writing history: a newer intent
+   * already owns the URL, and a late push would drag the window back to a
+   * destination the operator has since left (rule 3 coalescing).
+   */
+  private nextUserIntentToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
@@ -60,6 +68,9 @@ export class RoutingCoordinator {
    */
   reportRouteMatch(route: OsWindowRoute): void {
     if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
+    // The coordinator sets `currentRoute` before its own pushes and replaces, so
+    // a report that differs is external intent: a link, back/forward, a deep link.
+    if (!sameOsWindowRoute(route, this.currentRoute)) this.nextUserIntentToken += 1;
     this.currentRoute = route;
     if (this.phase === "hydrating") {
       this.initialIntent = route;
@@ -171,16 +182,27 @@ export class RoutingCoordinator {
    * User controls whose destination is safe without a live window-manager
    * client can write URL intent immediately. Route reconciliation keeps that
    * intent pending until the command fence becomes available.
+   *
+   * The reconciliation is queued here as well as by the sync-controller: the
+   * router treats a navigation to the current location as a no-op, so a window
+   * whose projection has drifted from the URL (an optimistic navigate still
+   * waiting on the daemon) would otherwise never hear about this gesture.
    */
   userNavigate(route: OsWindowRoute): void {
+    this.nextUserIntentToken += 1;
     this.pushRoute(route);
+    if (this.phase === "ready") this.queueRouteReconciliation(route);
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
+    const intentToken = ++this.nextUserIntentToken;
     const outcome = this.manager.openOrFocus(target);
     if (!(await outcome.completion)) return null;
     const id = outcome.windowId;
+    // A newer navigation arrived while the daemon held this open; it owns the
+    // URL now and the window already follows it.
+    if (intentToken !== this.nextUserIntentToken) return id;
     const route =
       target.route ??
       this.manager.getState().windows[id]?.route ??
