@@ -50,3 +50,11 @@ replaced singleton window lookup. Reset for tabbed routing and reload continuity
 qa-impact: 2026-08-20 rehosted Settings sections now read route intent from their owning window,
 and Knowledge subscriptions preserve stable external-store snapshots. Reset for focused-route and
 background-window rendering verification.
+
+2026-09-07 targeted performance re-walk: the unchanged E2E-023 scenario passed ten repetitions
+with twelve restored windows, continuous dragging, and two peers converging on a CLI move. No drag
+or peer task exceeded 50 ms; restore from the snapshot response ranged from 51.4 to 61.1 ms against
+the 500 ms ceiling. Three additional diagnostic repetitions at 4x Chromium CPU throttling passed
+after unchanged projection branches retained their identities. The canonical runtime suite proves
+that a moved window updates without rendering an unchanged window subscriber. Values, ordering,
+and root publication behavior are preserved. See `docs/qa/reports/2026-09-07-ci-recovery.md`.

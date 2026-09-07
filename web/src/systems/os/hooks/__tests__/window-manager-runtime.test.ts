@@ -1,8 +1,11 @@
 // Suite: window-manager runtime projection and command admission
 // Invariant: cache data changes drive projections while observer lifecycle stays render-pure;
-// accepted presentation intents persist until the serialized daemon command settles.
+// unchanged window subscribers skip renders, and accepted presentation intents persist until
+// the serialized daemon command settles.
 // Owning layer: the Query cache → runtime projection and runtime → command boundaries.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
+import { useAtom } from "@xstate/store-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -196,6 +199,72 @@ afterEach(() => {
 });
 
 describe("WindowManagerRuntime", () => {
+  it("Should update a moved window without rendering an unchanged window subscriber", () => {
+    const queryClient = new QueryClient();
+    const queryKey = windowManagerKeys.snapshot("workspace:test", "marketing");
+    const initial = snapshotWithAgentsRoute({ pathname: "/agents", search: {} });
+    const snapshot: WindowManagerSnapshot = {
+      ...initial,
+      desktops: initial.desktops.map(desktop =>
+        desktop.id === "desktop:one"
+          ? { ...desktop, floating: [...desktop.floating, "app:tasks"] }
+          : desktop
+      ),
+      windows: {
+        ...initial.windows,
+        "app:tasks": {
+          ...initial.windows["app:agents"],
+          id: "app:tasks",
+          app: "tasks",
+          route: { pathname: "/tasks", search: {} },
+        },
+      },
+    };
+    queryClient.setQueryData(queryKey, snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.start();
+    const renderAgents = vi.fn();
+    const renderTasks = vi.fn();
+    const agents = renderHook(() => {
+      const window = useAtom(runtime.projectionAtom, state => state.windows["app:agents"]);
+      renderAgents();
+      return window;
+    });
+    const tasks = renderHook(() => {
+      const window = useAtom(runtime.projectionAtom, state => state.windows["app:tasks"]);
+      renderTasks();
+      return window;
+    });
+    renderAgents.mockClear();
+    renderTasks.mockClear();
+    try {
+      act(() => {
+        queryClient.setQueryData(queryKey, {
+          ...snapshot,
+          revision: snapshot.revision + 1,
+          windows: {
+            ...snapshot.windows,
+            "app:agents": {
+              ...snapshot.windows["app:agents"],
+              floatingRect: { x: 0.25, y: 0.1, w: 0.5, h: 0.5 },
+            },
+          },
+        });
+      });
+
+      expect(agents.result.current.rect.x).toBe(360);
+      expect(tasks.result.current.rect.x).toBe(144);
+      expect(renderAgents).toHaveBeenCalled();
+      expect(renderTasks).not.toHaveBeenCalled();
+    } finally {
+      agents.unmount();
+      tasks.unmount();
+      runtime.stop();
+    }
+  });
+
   it("Should resume authoritative projections after the runtime lifecycle restarts", () => {
     const runtime = new WindowManagerRuntime(new QueryClient());
     runtime.start();
