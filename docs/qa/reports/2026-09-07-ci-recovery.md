@@ -46,4 +46,10 @@ documentation changes are needed.
   catalog race above. The E2E assertions remain unchanged.
 - Full-checkptr run 34141223686 passed all eight shards, including all 392
   global database top-level tests.
-- Delivery gate and current-head remote CI are required before completion.
+- `make gate` passed on the terminal fix: 771 Web test files and 7,104 tests,
+  plus lint, typecheck, and generated-artifact checks. React Doctor scored 100.
+- [CI run 34144138424](https://github.com/compozy/compozy/actions/runs/34144138424)
+  passed every lane on `52d2c4a63`, including all eight Go race shards, Windows,
+  Darwin, Frontend, Desktop, runtime E2E, and all four Web E2E shards. Terminal
+  E2E-003 passed unchanged; its shard finished with 66 passing tests. React Doctor
+  and Release also passed on that commit.

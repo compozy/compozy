@@ -61,3 +61,9 @@ CLI viewers received the same live output while writing independently. Detaching
 writable, and a newly opened browser session replayed the terminal and wrote immediately. The unchanged
 bounded-flow, stale-cursor, and attach-ticket guarantees retain the focused 2026-09-02 flood evidence
 and canonical transport-suite coverage cited by the report.
+
+2026-09-07 targeted regression: the canonical catalog suite reproduces a late REST response
+overwriting a live exit and now passes for concrete and aggregate profiles with workspace isolation.
+The unchanged terminal-agent E2E-003 journey passed against the real daemon in
+[CI run 34144138424](https://github.com/compozy/compozy/actions/runs/34144138424), including retained
+output, the exit bar, and journal discovery. See `docs/qa/reports/2026-09-07-ci-recovery.md`.
