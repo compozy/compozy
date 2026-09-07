@@ -17,19 +17,33 @@ its package timeout.
 - The full-checkptr audit installs the same Bun dependencies as the regular
   race lane and uses its existing eight-way partitioner, including the global
   database test split. Race/checkptr instrumentation and timeouts are retained.
+- The follow-up CI exposed a terminal catalog race: an overlapping REST read
+  could overwrite a live exit event with an older running row. Cancel the exact
+  catalog query before each authoritative stream write. The existing catalog
+  suite reproduces the race for concrete and aggregate profiles while proving
+  that another workspace's read completes normally.
 
 ## Change impact
 
 Following `docs/_memory/change-impact.md`: Web changes are confined to the
-pending-reply timer and navigation-test synchronization. Native tools,
+pending-reply timer, terminal catalog cache fencing, and navigation-test synchronization. Native tools,
 CLI/HTTP/UDS contracts, extensions, hooks, config, persisted workspace data,
 and `skills/compozy/` are unaffected: no identifiers, payloads, permissions,
 data ownership, or command semantics change. RT-054 owns the visible indicator
-regression; no site documentation changes are needed.
+regression; ET-terminal-stream-resilience owns the terminal exit race. No site
+documentation changes are needed.
 
 ## Validation
 
 - Existing runtime-provider suite: 58 tests passed through root Turborepo.
 - Existing SessionThread suite: 130 tests passed through root Turborepo,
   including the delayed-effect regression.
+- The delayed-effect test fails with the original timer branch and passes with
+  the fix. The two catalog race cases likewise fail before the production fix;
+  all 25 catalog stream tests pass afterward through root Turborepo.
+- CI run 34141218757 confirms the original failures are repaired. Every lane
+  except Web E2E shard 4 passed; its terminal-agent E2E-003 failure exposed the
+  catalog race above. The E2E assertions remain unchanged.
+- Full-checkptr run 34141223686 passed all eight shards, including all 392
+  global database top-level tests.
 - Delivery gate and current-head remote CI are required before completion.

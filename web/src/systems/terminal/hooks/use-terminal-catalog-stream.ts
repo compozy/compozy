@@ -168,6 +168,10 @@ function openTerminalCatalogStream(
         return;
       }
       if (!parsed) return;
+      // A REST read started before this frame may still contain a running
+      // terminal. Cancel it before applying the live write so its late response
+      // cannot replace the newer catalog (including other aggregate owners).
+      void queryClient.cancelQueries({ queryKey, exact: true });
       if (parsed.name === "terminal.snapshot") {
         dropRecordingsForStream();
       } else if (parsed.name === "terminal.closed") {

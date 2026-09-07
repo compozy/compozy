@@ -51,6 +51,10 @@ Walk:
    window; confirm the first replays and the second restarts from a full snapshot of the current list.
 7. Reuse an attach ticket, use an expired one, and use one minted for a different terminal or mode;
    confirm each is refused before the connection is established.
+8. Open a short-lived approved agent terminal while its catalog refresh is in flight. Let the process
+   exit before the attachment completes; confirm the retained output and exit bar appear, and a late
+   catalog response cannot restore the running state. Repeat in the all-profiles catalog without
+   changing another profile's rows or another workspace's cache.
 
 2026-09-04 targeted re-walk: passed for the changed shared-control surface. Two browser viewers and two
 CLI viewers received the same live output while writing independently. Detaching one CLI left the peer
