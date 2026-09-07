@@ -16,8 +16,8 @@
     "scripts": {
         "build": "turbo run build",
         "codegen": "make codegen",
-        "codegen-dev": "make codegen-dev",
         "codegen-check": "bash scripts/codegen-check.sh",
+        "codegen-dev": "make codegen-dev",
         "dev": "turbo run dev --filter=./web",
         "doctor": "react-doctor",
         "format": "oxfmt",
