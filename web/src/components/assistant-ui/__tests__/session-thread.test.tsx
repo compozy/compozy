@@ -1,10 +1,20 @@
-import { StrictMode, useEffect, type ComponentProps } from "react";
+import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+
+import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import {
@@ -5576,3 +5586,26 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
     rerender: (props: Partial<ComponentProps<typeof SessionThread>>) => view.rerender(tree(props)),
   };
 }
+
+// Invariant: a pending reply leaves the flicker guard even when commit work
+// delays its effect. Owner: thread status timer; canonical suite: SessionThread.
+describe("SessionThread thinking guard", () => {
+  it("Should reveal pending activity when the effect starts after the guard elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const view = renderHook(() => {
+      const elapsed = useThinkingGuardElapsed(0);
+      useLayoutEffect(() => {
+        vi.setSystemTime(500);
+      }, []);
+      return elapsed;
+    });
+    try {
+      await act(() => vi.runOnlyPendingTimersAsync());
+      expect(view.result.current).toBe(true);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+});

@@ -16,10 +16,12 @@ import type { OperationResponse } from "@/lib/api-contract";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import {
+  appWindow,
   ensureAppWindow,
   openAppWindow,
   setGlobalScope,
   switchWorkspace,
+  windowFrame,
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
@@ -458,6 +460,9 @@ async function assertHomeNavigation(page: Page, home: Locator): Promise<void> {
   await home.getByRole("link", { name: /Needs you/i }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/tasks");
   await expect.poll(() => new URL(page.url()).searchParams.get("mode")).toBe("inbox");
+  // URL intent precedes the window manager's acknowledgement. Prove the
+  // destination owns focus before clicking a Dock control that can minimize.
+  await expect(windowFrame(appWindow(page, "tasks"))).toHaveAttribute("data-focused", "");
 
   const focusedHome = await openAppWindow(page, "Home", "dashboard");
   await focusedHome
@@ -465,6 +470,7 @@ async function assertHomeNavigation(page: Page, home: Locator): Promise<void> {
     .getByRole("link", { name: new RegExp(homeAgentAlpha) })
     .click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/agents/${homeAgentAlpha}`);
+  await expect(windowFrame(appWindow(page, "agents"))).toHaveAttribute("data-focused", "");
 
   const returnedHome = await openAppWindow(page, "Home", "dashboard");
   await expect(returnedHome.getByTestId("home-body")).toBeVisible();

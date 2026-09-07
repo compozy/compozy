@@ -12,7 +12,8 @@ export function useThinkingGuardElapsed(sentAtMs: number | null): boolean {
   useEffect(() => {
     if (sentAtMs === null) return;
     const remaining = thinkingGuardRemainingMs(sentAtMs, Date.now());
-    if (remaining === 0) return;
+    // A delayed effect still has to publish the elapsed clock to the render.
+    // A zero-delay timer also keeps that update cancellable during replay.
     const timer = window.setTimeout(() => setNow(Date.now()), remaining);
     return () => window.clearTimeout(timer);
   }, [sentAtMs]);
