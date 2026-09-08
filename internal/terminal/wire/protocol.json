@@ -1,6 +1,6 @@
 {
-    "subprotocol": "compozy.terminal.v2",
-    "compatibility_digest": "db5bc0f26113f515237dc1eed6d4b2b974e7c4b2c4ac0e13be1417712e6937a2",
+    "subprotocol": "compozy.terminal.v3",
+    "compatibility_digest": "a2a0bc2049718faa7dc87ffb757852434937c9ea1cc6750f10423bf3b2b5b889",
     "limits": {
         "max_input_bytes": 65536,
         "min_cols": 20,
@@ -16,17 +16,14 @@
         { "go_name": "ServerOpTitle", "ts_name": "title", "value": 5 },
         { "go_name": "ServerOpResized", "ts_name": "resized", "value": 6 },
         { "go_name": "ServerOpGap", "ts_name": "gap", "value": 7 },
-        { "go_name": "ServerOpOwner", "ts_name": "owner", "value": 8 },
-        { "go_name": "ServerOpPresence", "ts_name": "presence", "value": 9 },
-        { "go_name": "ServerOpRedactedInput", "ts_name": "redactedInput", "value": 10 }
+        { "go_name": "ServerOpPresence", "ts_name": "presence", "value": 8 },
+        { "go_name": "ServerOpRedactedInput", "ts_name": "redactedInput", "value": 9 }
     ],
     "client": [
         { "go_name": "ClientOpInput", "ts_name": "input", "value": 1 },
         { "go_name": "ClientOpAck", "ts_name": "ack", "value": 2 },
         { "go_name": "ClientOpResize", "ts_name": "resize", "value": 3 },
         { "go_name": "ClientOpSignal", "ts_name": "signal", "value": 4 },
-        { "go_name": "ClientOpTakeover", "ts_name": "takeover", "value": 5 },
-        { "go_name": "ClientOpDetach", "ts_name": "detach", "value": 6 },
-        { "go_name": "ClientOpRelease", "ts_name": "release", "value": 7 }
+        { "go_name": "ClientOpDetach", "ts_name": "detach", "value": 5 }
     ]
 }

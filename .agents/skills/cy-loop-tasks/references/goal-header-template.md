@@ -11,16 +11,16 @@ For a feature with slug `<slug>` whose spec lives at
 `.compozy/tasks/<slug>/_spec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint runs its focused task validation then cy-final-verify before commit; continue until qa-report and qa-execution are complete, consecutive deep-review rounds reach SHIP, and required PR CI is green at the exact head"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: task outcomes verified, scoped QA and visual obligations resolved with current evidence, review verdict SHIP, and required PR CI green at the current head"]]
 
 Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
 The skill is a self-healing continue loop — repair command and gate failures inside the current phase action, then continue until Phase E or a proven external blocker. Slug: <slug>.
 ```
 
 The `goal=` text becomes `state.yaml.goal_signature` and is shown to the
-goal-check confirmation prompt as the success criterion. Keep it specific
-(mentions slug, the QA gate, and the peer-review SHIP gate) so the verdict
-is grounded.
+goal-check confirmation prompt as the success criterion. Keep it focused on
+the outcome and delivery evidence; the skill owns phase procedures and evidence
+reuse. Existing running loops retain their original write-once signature.
 
 ## Frontend lane (`--frontend <claude|cursor>`)
 
@@ -33,9 +33,8 @@ The skill is a self-healing continue loop — repair command and gate failures i
 ```
 
 - `--frontend claude` → Claude Code workers (`claude
-  --dangerously-skip-permissions --model opus --effort xhigh`)
-- `--frontend cursor` → Cursor workers (`cursor-agent --yolo --model
-  grok-4.5`)
+  --dangerously-skip-permissions `)
+- `--frontend cursor` → Cursor workers (`cursor-agent --yolo`)
 
 Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter

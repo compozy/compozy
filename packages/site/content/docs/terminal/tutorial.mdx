@@ -32,14 +32,15 @@ Expected shape:
 Keep the returned terminal ID for every later step. The selected profile is the active profile; it
 is not assumed to have a particular name.
 
-## 2. Attach with control
+## 2. Attach with shared input
 
 ```bash
-compozy terminal attach term-4aa01f22e6c3 --workspace my-project --control
+compozy terminal attach term-4aa01f22e6c3 --workspace my-project
 ```
 
-`--control` requests the write lease. Omit it for a read-only attachment. Detach from the local client
-when you are done; the terminal process keeps running until it exits or is closed.
+Every interactive CLI attachment can write immediately. Other authorized operators and agents in the
+same profile can stay attached and write at the same time. Detach from the local client when you are
+done; the terminal process keeps running until it exits or is closed.
 
 ## 3. Inspect the running command
 
@@ -69,10 +70,11 @@ the OS shell or attach through the CLI to keep watching it. See
 
 ## 4. Answer a requested input
 
-From the agent session that controls this terminal, call `compozy__terminal_request_input` with the
-returned terminal ID, a reason, and the visible `Continue?` prompt excerpt. That operation creates
-the pending request and blocks until the request is answered, rejected, superseded, or expires. It
-does not yield the terminal lease. Then list requests in the selected profile:
+From an authorized agent session in the terminal's profile, call `compozy__terminal_request_input`
+with the returned terminal ID, a reason, and the visible `Continue?` prompt excerpt. That operation
+creates the pending request and blocks until the request is answered, rejected, superseded, or
+expires. It does not reserve the terminal or block other input. Then list requests in the selected
+profile:
 
 ```bash
 compozy terminal input-requests --workspace my-project -o json

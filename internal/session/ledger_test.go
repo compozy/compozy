@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,40 @@ import (
 
 func TestManagerSessionLedger(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should preserve a verified stop and durable redacted diagnostic when ledger cleanup times out",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			cleanupErr := fmt.Errorf("ledger token=super-secret: %w", context.DeadlineExceeded)
+			h.manager.ledgerMaterializer = &testLedgerMaterializer{
+				materialize: func(ctx context.Context, _ store.SessionLedgerRecord) error {
+					if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > defaultLifecycleTimeout {
+						t.Error("ledger cleanup has no bounded lifecycle deadline")
+					}
+					return cleanupErr
+				},
+			}
+			ctx := testutil.Context(t)
+			if err := h.manager.Stop(ctx, session.ID); !errors.Is(err, cleanupErr) {
+				t.Fatalf("Stop() error = %v, want original cleanup error", err)
+			}
+			outcome, err := h.manager.AwaitStopped(ctx, session.ID)
+			if !errors.Is(err, cleanupErr) || !outcome.Verified || outcome.FinalState != StateStopped {
+				t.Fatalf("cleanup outcome = %#v, %v", outcome, err)
+			}
+			meta := readMeta(t, session.MetaPath())
+			if meta.State != string(StateStopped) || h.notifier.stoppedCount() != 1 {
+				t.Fatal("ledger timeout prevented the terminal state or notification")
+			}
+			warning := storedEventByType(t, readStoredEvents(t, session), acp.EventTypeRuntimeWarning)
+			if !strings.Contains(warning.Content, "ledger cleanup") ||
+				strings.Contains(warning.Content, "super-secret") {
+				t.Fatalf("cleanup warning lost its operation or exposed secret: %s", warning.Content)
+			}
+		},
+	)
 
 	t.Run("Should materialize forensic ledger on session end", func(t *testing.T) {
 		t.Parallel()

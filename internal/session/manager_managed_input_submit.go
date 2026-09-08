@@ -288,14 +288,7 @@ func setManagedInputPromptState(session *Session, request promptRequest) {
 }
 
 func clearManagedInputPromptState(session *Session, turnID string) {
-	session.clearPromptCancellation(turnID)
-	session.clearCurrentTurnID()
-	session.clearCurrentTurnSource()
-	session.clearCurrentPromptMessage()
-	session.clearCurrentPromptMeta()
-	session.clearCurrentSkillInvocations()
-	session.clearCurrentPromptCancel()
-	session.finishCurrentPromptCompletion()
+	clearPromptState(session, turnID)
 }
 
 func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {

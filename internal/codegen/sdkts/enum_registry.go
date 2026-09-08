@@ -18,6 +18,8 @@ import (
 )
 
 var enumValuesRegistry = map[reflect.Type][]string{
+	reflect.TypeFor[session.Disposition]():                          session.DispositionValues(),
+	reflect.TypeFor[store.SteerDeliveryMode]():                      store.SteerDeliveryModeValues(),
 	reflect.TypeFor[extensioncontract.CommandFlagType]():            extensioncontract.CommandFlagTypeValues(),
 	reflect.TypeFor[apicontract.IssueSeverity]():                    apicontract.IssueSeverityValues(),
 	reflect.TypeFor[apicontract.AuthoredValidationStatus]():         apicontract.AuthoredValidationStatusValues(),

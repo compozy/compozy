@@ -4,6 +4,25 @@ package contracts
 
 import "time"
 
+type SessionRuntimeClearParams struct {
+	WorkspaceID      string `json:"workspace_id"`
+	SessionID        string `json:"session_id"`
+	ExpectedRevision *int64 `json:"expected_revision"`
+}
+
+type SessionRuntimePayload struct {
+	Status            SessionRuntimeStatus           `json:"status"`
+	Transition        SessionRuntimeTransition       `json:"transition,omitempty"`
+	Failure           string                         `json:"failure,omitempty"`
+	Generation        int64                          `json:"generation,omitempty"`
+	Recovery          *SessionRuntimeRecoveryPayload `json:"recovery,omitempty"`
+	Selected          *PromptRuntimeSelectionPayload `json:"selected,omitempty"`
+	SelectionRevision int64                          `json:"selection_revision"`
+	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
+	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
+	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
+}
+
 type SessionRuntimeRecoveryExhaustedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -144,6 +163,11 @@ type SessionStatusGetParams struct {
 }
 
 type SessionStatusResponse struct {
+	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
+	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
 	SessionID           string                           `json:"session_id"`
 	WorkspaceID         string                           `json:"workspace_id"`
 	AgentName           string                           `json:"agent_name"`
@@ -212,19 +236,3 @@ type SkillActivationPayload struct {
 }
 
 type SkillActivationReasonCode string
-
-type SkillActivationReasonPayload struct {
-	Gate    string                    `json:"gate"`
-	Code    SkillActivationReasonCode `json:"code"`
-	Missing []string                  `json:"missing,omitempty"`
-	Message string                    `json:"message"`
-}
-
-type SkillSummary struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Source      string                 `json:"source"`
-	Origin      string                 `json:"origin"`
-	Enabled     bool                   `json:"enabled"`
-	Activation  SkillActivationPayload `json:"activation"`
-}

@@ -170,6 +170,52 @@ func TestBuildToolResultDecodesRawJSONObjectPayload(t *testing.T) {
 }
 
 func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *testing.T) {
+	t.Run("Should preserve actionable provider occurrences in stored and streamed errors", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+		original := acp.AgentEvent{
+			Type: acp.EventTypeError, SessionID: "session", TurnID: "turn", Timestamp: at,
+			Failure: &store.SessionFailure{Kind: store.FailurePrompt, Summary: "rate limited"},
+			ProviderError: &acp.ProviderErrorDiagnostic{
+				Code:            acp.ProviderErrorRateLimited,
+				Provider:        "provider-a",
+				NextAction:      acp.ProviderFailureActionRetry,
+				Guidance:        "retry later token=provider-secret",
+				OccurrenceCount: 2,
+				FirstSeenAt:     at,
+				LastSeenAt:      at.Add(time.Minute),
+			},
+		}
+		payload, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatalf("marshal provider error: %v", err)
+		}
+		if strings.Contains(payload, "provider-secret") {
+			t.Fatalf("stored payload leaked provider secret: %s", payload)
+		}
+		replayed, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("replay provider error: %v", err)
+		}
+		live := UIAgentEventPayloadFromEvent(original)
+		restored := UIAgentEventPayloadFromEvent(replayed)
+		if live.ProviderError == nil || restored.ProviderError == nil ||
+			!reflect.DeepEqual(live.ProviderError, restored.ProviderError) {
+			t.Fatalf("live/replayed provider diagnostics = %#v / %#v", live.ProviderError, restored.ProviderError)
+		}
+		if got := restored.ProviderError; got.Code != acp.ProviderErrorRateLimited ||
+			got.NextAction != acp.ProviderFailureActionRetry ||
+			got.OccurrenceCount != 2 ||
+			!got.FirstSeenAt.Equal(at) ||
+			!got.LastSeenAt.Equal(at.Add(time.Minute)) {
+			t.Fatalf("replayed provider diagnostic = %#v", got)
+		}
+		live.ProviderError.OccurrenceCount = 99
+		if original.ProviderError.OccurrenceCount != 2 || restored.ProviderError.OccurrenceCount != 2 {
+			t.Fatal("provider diagnostic aliases a published event")
+		}
+	})
+
 	t.Run("Should round-trip structured fields without restoring canonical raw payloads", func(t *testing.T) {
 		t.Parallel()
 

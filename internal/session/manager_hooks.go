@@ -192,7 +192,12 @@ func (m *Manager) dispatchSessionPreStop(ctx context.Context, session *Session) 
 }
 
 func (m *Manager) dispatchSessionPostStop(ctx context.Context, session *Session) {
-	m.dispatchSessionLifecycleObservation(ctx, session, hookspkg.HookSessionPostStop)
+	if session == nil {
+		return
+	}
+	session.postStopOnce.Do(func() {
+		m.dispatchSessionLifecycleObservation(ctx, session, hookspkg.HookSessionPostStop)
+	})
 }
 
 func (m *Manager) dispatchSessionLifecycleObservation(ctx context.Context, session *Session, event hookspkg.HookEvent) {

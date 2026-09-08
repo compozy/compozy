@@ -1,5 +1,8 @@
 # CH-terminal-approval-ladder: Try to make an agent run or type without being asked
 
+> Superseded on 2026-09-04 by `CH-terminal-v3-public-contract`. Preserve this file as historical QA
+> memory; do not schedule its removed terminal-scoped typing-grant mission.
+
 ```yaml
 charter:
   id: CH-terminal-approval-ladder

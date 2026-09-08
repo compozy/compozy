@@ -30,6 +30,7 @@ function session(
   owner: SessionOwner = DEFAULT_OWNER
 ): SessionPayload {
   return {
+    supervision: null,
     ...owner,
     id,
     name: title,

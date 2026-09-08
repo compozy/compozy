@@ -1,14 +1,35 @@
-import { StrictMode, useEffect, type ComponentProps } from "react";
+import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
+
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import {
+  SessionApiError,
+  SessionBusyInputRefusalError,
+  type SessionBusyInputDraft,
+  type SessionSendOutcome,
+} from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
+import {
+  primarySessionFixture,
+  quietWarningSessionFixture,
+  sessionTranscriptFixture,
+} from "@/systems/session/mocks/fixtures";
+import { sessionQuietWarning } from "@/systems/session/lib/session-quiet-warning";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
   getSessionDebugCounters,
@@ -18,13 +39,15 @@ import {
 } from "@/systems/session/lib/session-observability";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
+import { SESSION_TRANSPORT_LIVE } from "@/systems/session/lib/session-transport";
+import type { SessionTransportState } from "@/systems/session/lib/session-transcript-thread-context-value";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
-import { WorkingIndicator } from "../session-working-row";
+import { SessionThinkingRow } from "@/systems/session/components/session-thinking-row";
 import {
   clearSessionTerminalQuote,
   composeQuotedPrompt,
@@ -306,6 +329,13 @@ function createFetchMock(options?: {
 
     if (
       pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+    ) {
+      return jsonResponse({ interactions: [] });
+    }
+
+    if (
+      pathname ===
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
     ) {
       return jsonResponse({ inputs: [] });
@@ -349,32 +379,67 @@ function createFetchMock(options?: {
   });
 }
 
-function renderThreadState({
-  messages = [],
-  status,
-  error = null,
-  retry = vi.fn(),
-  isSessionRunning = false,
-  workingStartedAt,
-  acpSessionId,
-  sessionState,
-  failure = null,
-  durableMessageIds = [],
-  readOnly = false,
-}: {
+// The session resource the status row reads while a turn runs: a durable turn
+// start five seconds ago and the current tool (S3, US-027).
+function runningStatusSession(
+  startedAtIso = new Date(Date.now() - 5000).toISOString(),
+  currentTool = "Bash"
+): NonNullable<ComponentProps<typeof SessionThread>["statusSession"]> {
+  return {
+    ...primarySessionFixture,
+    activity: {
+      current_tool: currentTool,
+      elapsed_ms: 5000,
+      elapsed_seconds: 5,
+      idle_seconds: 0,
+      iteration_current: 1,
+      iteration_max: 1,
+      turn_id: "turn-live",
+      turn_started_at: startedAtIso,
+    },
+  };
+}
+
+interface ThreadStateOptions {
   messages?: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
   error?: Error | null;
   retry?: () => void;
   isSessionRunning?: boolean;
-  workingStartedAt?: number;
+  statusSession?: ComponentProps<typeof SessionThread>["statusSession"];
+  stopCompletionNote?: boolean;
+  stopPhase?: ComponentProps<typeof SessionThread>["stopPhase"];
+  quietWarning?: ComponentProps<typeof SessionThread>["quietWarning"];
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   durableMessageIds?: string[];
   readOnly?: boolean;
-}) {
-  const queryClient = createQueryClient();
+  transport?: SessionTransportState;
+  liveDataEnabled?: boolean;
+}
+
+function threadStateElement(
+  queryClient: QueryClient,
+  {
+    messages = [],
+    status,
+    error = null,
+    retry = vi.fn(),
+    isSessionRunning = false,
+    statusSession = isSessionRunning ? runningStatusSession() : primarySessionFixture,
+    stopCompletionNote = false,
+    stopPhase = "idle",
+    quietWarning,
+    acpSessionId,
+    sessionState,
+    failure = null,
+    durableMessageIds = [],
+    readOnly = false,
+    transport,
+    liveDataEnabled = true,
+  }: ThreadStateOptions
+) {
   if (durableMessageIds.length > 0) {
     const entries: SessionTranscriptData["pages"][number]["entries"] = durableMessageIds.map(
       (id, index) => ({
@@ -403,7 +468,7 @@ function renderThreadState({
     );
   }
 
-  render(
+  return (
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
@@ -414,6 +479,7 @@ function renderThreadState({
           status={status}
           error={error}
           retry={retry}
+          transport={transport}
         >
           <SessionThread
             sessionId={primarySessionFixture.id}
@@ -421,16 +487,31 @@ function renderThreadState({
             canPrompt
             onCancelPrompt={() => {}}
             isSessionRunning={isSessionRunning}
-            workingStartedAt={workingStartedAt}
+            statusSession={statusSession}
+            stopCompletionNote={stopCompletionNote}
+            stopPhase={stopPhase}
+            quietWarning={quietWarning}
             acpSessionId={acpSessionId}
             sessionState={sessionState}
             failure={failure}
             readOnly={readOnly}
+            liveDataEnabled={liveDataEnabled}
           />
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
+}
+
+function renderThreadState(options: ThreadStateOptions) {
+  const queryClient = createQueryClient();
+  const result = render(threadStateElement(queryClient, options));
+  return {
+    ...result,
+    /** Re-renders the same host with changed options (a transcript transition). */
+    rerenderWith: (next: Partial<ThreadStateOptions>) =>
+      result.rerender(threadStateElement(queryClient, { ...options, ...next })),
+  };
 }
 
 describe("SessionThread transcript states", () => {
@@ -463,6 +544,71 @@ describe("SessionThread transcript states", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("thread-transcript-skeleton")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+  });
+
+  // Invariant: standalone durable clear records are one visible trace across
+  // their operational siblings; removals, history identity and reply survive.
+  // Owner: thread rendering, canonical SessionThread transcript-state suite.
+  it("Should render standalone queue clears as one trace without losing the reply", async () => {
+    const cleared = (id: string, marker: boolean): SessionMessage =>
+      ({
+        id,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: marker
+              ? {
+                  type: "transcript_marker.created",
+                  raw: {
+                    kind: "transcript_marker.queue_cleared",
+                    summary: "Queued input removed by explicit clear.",
+                    occurred_at: "2026-09-06T14:00:00Z",
+                    evidence: { queue_entry_id: id, actor_kind: "user" },
+                  },
+                }
+              : { type: "session.queue_cleared", raw: { queue_entry_id: id } },
+          },
+        ],
+      }) as SessionMessage;
+    const transcript = [
+      cleared("clear-1", true),
+      cleared("event-1", false),
+      cleared("clear-2", true),
+      cleared("event-2", false),
+      {
+        id: "removed-1",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              raw: {
+                kind: "transcript_marker.prompt_dropped",
+                summary: "Queued input canceled by operator.",
+                occurred_at: "2026-09-06T14:00:01Z",
+                evidence: { queue_status: "canceled", mode: "queue" },
+              },
+            },
+          },
+        ],
+      } as SessionMessage,
+      {
+        id: "continued",
+        role: "assistant",
+        parts: [{ type: "text", text: "The reply continues." }],
+      } as SessionMessage,
+    ];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    const traces = await screen.findAllByTestId("transcript-marker-notice");
+    expect(traces).toHaveLength(2);
+    expect(traces[0]).toHaveTextContent("×2");
+    expect(traces[1]).toHaveTextContent("You removed a queued follow-up");
+    expect(screen.getByText("The reply continues.")).toBeInTheDocument();
+    for (const message of transcript) {
+      expect(document.querySelector(`[data-message-id="${message.id}"]`)).toBeInTheDocument();
+    }
   });
 
   it("Should render a retryable transcript error pane and call retry", async () => {
@@ -577,6 +723,53 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
   });
 
+  // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).
+  // Owning layer: thread state pane + transport notices. Canonical suite: this file.
+  it("Should render the sync-failed pane instead of ThreadEmpty when the stream gave up", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderThreadState({
+      status: "success",
+      transport: {
+        ...SESSION_TRANSPORT_LIVE,
+        failure: { at: 9_000, attempts: 6 },
+        lastLiveAt: 1_000,
+        phase: "failed",
+        retry,
+      },
+    });
+
+    const pane = await screen.findByTestId("thread-transcript-sync-failed");
+    expect(pane).toHaveAttribute("role", "alert");
+    expect(pane).toHaveTextContent("This conversation didn't sync");
+    expect(pane).toHaveTextContent("after 6 tries");
+    expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(1);
+    expect(screen.queryByText(/Start the conversation/i)).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("thread-transcript-sync-failed-retry"));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep a loaded conversation and add the stopped-updates marker when the stream gave up", async () => {
+    renderThreadState({
+      messages: toReadonlyThreadMessages([
+        { id: "m-1", role: "assistant", parts: [{ type: "text", text: "Saved reply" }] },
+      ] as SessionMessage[]),
+      status: "success",
+      transport: {
+        ...SESSION_TRANSPORT_LIVE,
+        failure: { at: 9_000, attempts: 6 },
+        lastLiveAt: Date.parse("2026-09-06T14:02:00Z"),
+        phase: "failed",
+        retry: vi.fn(),
+      },
+    });
+
+    expect(await screen.findByText("Saved reply")).toBeInTheDocument();
+    const marker = screen.getByTestId("session-transport-failure");
+    expect(marker).toHaveTextContent("couldn't reconnect after 6 tries");
+    expect(screen.queryByTestId("thread-transcript-sync-failed")).not.toBeInTheDocument();
+  });
+
   it("Should prioritize durable starting state and keep the composer disabled", async () => {
     renderThreadState({ status: "pending", sessionState: "starting" });
 
@@ -645,10 +838,817 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  it("Should render truthful working state when the successful transcript is empty and active", async () => {
+  // Invariant (US-014.EC-2): while the daemon reports a quiet episode the
+  // status row reads the quiet clock, not a working timer the daemon's own
+  // signals contradict; both figures derive from the daemon instants.
+  it("Should read the quiet clock instead of the working timer while the daemon reports a quiet episode", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-04-17T18:31:00Z"));
+    try {
+      renderThreadState({
+        status: "success",
+        isSessionRunning: true,
+        quietWarning: sessionQuietWarning(quietWarningSessionFixture),
+      });
+
+      const row = await screen.findByRole("status", { name: "Quiet" });
+      expect(row).toHaveAttribute("data-quiet-stop", "scheduled");
+      expect(within(row).getByTestId("session-quiet-elapsed")).toHaveTextContent("31m");
+      expect(within(row).getByTestId("session-quiet-remaining")).toHaveTextContent("9m");
+      expect(screen.queryByRole("status", { name: "Working" })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Invariant (S3 / US-027.EC-2, US-014): the frozen sentence after a daemon
+  // stop names the daemon's cause from its own records — an inactivity stop
+  // reads the supervision episode's actual span and never "by you"; a verified
+  // escalated session stop says it was closed for the operator.
+  it("Should read a daemon inactivity stop with its actual quiet span, and an escalated close, never as by you", async () => {
+    const quietSince = "2026-07-07T11:20:00Z";
+    const stoppedAt = "2026-07-07T12:01:40Z";
+    const transcript = [
+      {
+        id: "assistant-inactivity",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Waiting on the reviewer.",
+            state: "done",
+            timestamp: "2026-07-07T12:00:00Z",
+          },
+          {
+            type: "data-compozy-event",
+            timestamp: stoppedAt,
+            data: {
+              type: "session.supervision_stopped",
+              timestamp: stoppedAt,
+              raw: {
+                cause: "inactivity",
+                supervision: {
+                  quiet_warning: {
+                    quiet_since: quietSince,
+                    warned_at: "2026-07-07T11:50:00Z",
+                    stop_at: stoppedAt,
+                  },
+                  work_signals: [],
+                  sources: [],
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      statusSession: {
+        ...primarySessionFixture,
+        state: "stopped",
+        stop_cause: "inactivity",
+        stop_reason: "timeout",
+      },
+    });
+
+    const row = await screen.findByTestId("session-stopped-row");
+    expect(row).toHaveAttribute("data-stopped-by", "daemon");
+    expect(row).toHaveTextContent("Stopped after 1m 40s");
+    expect(row).toHaveTextContent("no work for 41 minutes");
+    expect(row).not.toHaveTextContent("by you");
+  });
+
+  // Invariant (US-027.EC-2, turn scope): the durable turn receipt with
+  // `verified && escalated` reads "closed for you" while the session stays
+  // active; the stopped turn itself stays open in the transcript.
+  it("Should read a verified escalated turn stop as closed for you from the turn receipt", async () => {
+    const transcript = [
+      {
+        id: "turn-forced",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Running the suite.",
+            state: "done",
+            timestamp: "2026-07-07T12:00:00Z",
+          },
+          {
+            type: "data-compozy-event",
+            timestamp: "2026-07-07T12:00:14Z",
+            data: {
+              type: "session.turn_quiesced",
+              turn_id: "turn-forced",
+              timestamp: "2026-07-07T12:00:14Z",
+              raw: {
+                scope: "turn",
+                turn_id: "turn-forced",
+                verified: true,
+                escalated: true,
+                phase: "forced",
+                elapsed_ms: 14_000,
+                stop_cause: "user_requested",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    const row = await screen.findByTestId("session-stopped-row");
+    expect(row).toHaveAttribute("data-stopped-by", "daemon");
+    expect(row).toHaveTextContent("Stopped after 14s");
+    expect(row).toHaveTextContent("the agent didn't answer the stop, so it was closed for you");
+  });
+
+  it("Should read a verified escalated session stop as closed for you", async () => {
+    const transcript = [
+      {
+        id: "assistant-escalated",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Still running the suite.",
+            state: "done",
+            timestamp: "2026-07-07T12:00:00Z",
+          },
+          {
+            type: "data-compozy-event",
+            timestamp: "2026-07-07T12:00:14Z",
+            data: {
+              type: "session_stopped",
+              stop_reason: "user_canceled",
+              timestamp: "2026-07-07T12:00:14Z",
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      statusSession: {
+        ...primarySessionFixture,
+        state: "stopped",
+        stop_cause: "user_requested",
+        escalated: true,
+        verified: true,
+      },
+    });
+    const row = await screen.findByTestId("session-stopped-row");
+    expect(row).toHaveAttribute("data-stopped-by", "daemon");
+    expect(row).toHaveTextContent("Stopped after 14s");
+    expect(row).toHaveTextContent("the agent didn't answer the stop, so it was closed for you");
+    expect(row).not.toHaveTextContent("by you");
+  });
+
+  // Invariant (VC-07, BUG-20260906-injected-guidance-missing-history): steer
+  // provenance binds to the daemon's explicit message_id — a loaded message gets
+  // its meta line, several same-turn steers keep their own, guidance never
+  // dispatched renders exactly one receipt bubble from the marker's authored
+  // text (subdued when superseded), and a legacy marker stays a neutral row.
+  // Owning layer: thread rendering over the real provenance provider.
+  it("Should bind steer provenance to message identities: meta lines, one receipt per undispatched identity, legacy rows", async () => {
+    const steered = (id: string, evidence: Record<string, unknown>, timestamp: string) =>
+      ({
+        id,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            timestamp,
+            data: {
+              type: "transcript_marker.created",
+              marker: {
+                kind: "transcript_marker.prompt_steered",
+                summary: "Steer.",
+                occurred_at: timestamp,
+                evidence,
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      }) as SessionMessage;
+    const transcript: SessionMessage[] = [
+      {
+        id: "msg_a",
+        role: "user",
+        parts: [{ type: "text", text: "Only touch the lifecycle tests" }],
+      } as SessionMessage,
+      {
+        id: "msg_b",
+        role: "user",
+        parts: [{ type: "text", text: "Skip the store package entirely" }],
+      } as SessionMessage,
+      // Two same-turn steers, recorded in one assistant turn, each naming its own message.
+      {
+        id: "assistant-two-steers",
+        role: "assistant",
+        parts: [
+          ...steered(
+            "x",
+            {
+              steer_delivery: "interrupt_fallback",
+              message_id: "msg_b",
+              authored_text: "Skip the store package entirely",
+            },
+            "2026-07-07T12:00:02Z"
+          ).parts!,
+          ...steered(
+            "y",
+            {
+              steer_delivery: "injected",
+              message_id: "msg_a",
+              authored_text: "Only touch the lifecycle tests",
+            },
+            "2026-07-07T12:00:01Z"
+          ).parts!,
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      // Pending guidance never dispatched, then superseded: one subdued receipt with the latest truth.
+      steered(
+        "pending",
+        {
+          steer_delivery: "pending_injection",
+          message_id: "msg_c",
+          authored_text: "Use the lifecycle channel",
+        },
+        "2026-07-07T12:00:11Z"
+      ),
+      {
+        id: "superseded",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            timestamp: "2026-07-07T12:00:21Z",
+            data: {
+              type: "transcript_marker.created",
+              marker: {
+                kind: "transcript_marker.prompt_superseded",
+                summary: "Superseded.",
+                occurred_at: "2026-07-07T12:00:21Z",
+                evidence: {
+                  message_id: "msg_c",
+                  authored_text: "Use the lifecycle channel",
+                  replacement_entry_id: "inq_9",
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      // A legacy marker without identity: a neutral row, attached to nothing.
+      steered(
+        "legacy",
+        { steer_delivery: "injected", queue_entry_id: "inq_1" },
+        "2026-07-07T12:00:31Z"
+      ),
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const metas = await screen.findAllByTestId("user-message-steer-meta");
+    const metaByText = (text: string) =>
+      screen.getByText(text).closest<HTMLElement>('[data-testid="thread-message-row"]')!;
+    expect(
+      within(metaByText("Only touch the lifecycle tests")).getByTestId("user-message-steer-meta")
+    ).toHaveAttribute("data-steer", "injected");
+    expect(
+      within(metaByText("Skip the store package entirely")).getByTestId("user-message-steer-meta")
+    ).toHaveAttribute("data-steer", "interrupt_fallback");
+    // Exactly one receipt for msg_c, subdued, with the latest (superseded) truth and the authored text.
+    const receipts = screen.getAllByTestId("user-message-receipt");
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toHaveAttribute("data-steer", "superseded");
+    expect(receipts[0]).toHaveAttribute("data-message-id-receipt", "msg_c");
+    expect(within(receipts[0]!).getByTestId("user-message-bubble")).toHaveAttribute(
+      "data-subdued",
+      "true"
+    );
+    expect(receipts[0]).toHaveTextContent("Use the lifecycle channel");
+    expect(receipts[0]).toHaveTextContent("Superseded by your next steer");
+    // The bound identities render no marker rows; the legacy marker keeps its neutral line.
+    const legacyRows = screen.getAllByTestId("steer-marker-notice");
+    expect(legacyRows).toHaveLength(1);
+    expect(legacyRows[0]).toHaveAttribute("data-steer", "injected");
+    // Meta lines exist only under the two real messages plus the receipt.
+    expect(metas).toHaveLength(3);
+  });
+
+  it("Should hide the pending receipt once the real message is loaded and carry the newer marker's truth", async () => {
+    const pendingMarker = {
+      id: "pending",
+      role: "assistant",
+      parts: [
+        {
+          type: "data-compozy-event",
+          timestamp: "2026-07-07T12:00:11Z",
+          data: {
+            type: "transcript_marker.created",
+            marker: {
+              kind: "transcript_marker.prompt_steered",
+              summary: "Waiting.",
+              occurred_at: "2026-07-07T12:00:11Z",
+              evidence: {
+                steer_delivery: "pending_injection",
+                message_id: "msg_p",
+                authored_text: "Use the channel",
+              },
+            },
+          },
+        },
+      ] as unknown as SessionMessage["parts"],
+    } as SessionMessage;
+    const confirmed: SessionMessage[] = [
+      pendingMarker,
+      {
+        id: "msg_p",
+        role: "user",
+        parts: [{ type: "text", text: "Use the channel" }],
+      } as SessionMessage,
+      {
+        id: "injected",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            timestamp: "2026-07-07T12:00:12Z",
+            data: {
+              type: "transcript_marker.created",
+              marker: {
+                kind: "transcript_marker.prompt_steered",
+                summary: "Delivered.",
+                occurred_at: "2026-07-07T12:00:12Z",
+                evidence: {
+                  steer_delivery: "injected",
+                  message_id: "msg_p",
+                  authored_text: "Use the channel",
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(confirmed) });
+
+    await screen.findByText("Use the channel");
+    expect(screen.queryByTestId("user-message-receipt")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("steer-marker-notice")).not.toBeInTheDocument();
+    const meta = screen.getByTestId("user-message-steer-meta");
+    expect(meta).toHaveAttribute("data-steer", "injected");
+    expect(screen.getAllByTestId("user-message-bubble")).toHaveLength(1);
+  });
+
+  // Invariant (BUG-20260906-promoted-turn-missing-live, renderer side): a promoted
+  // queued input's turn as the public transcript projects it — the replaced turn's
+  // fallback/cancel markers and receipt, the authored user message, the accepted
+  // marker, then the assistant answer as a lone text part with no metadata and no
+  // turn id of its own — renders the answer as its own row, both cold and when the
+  // same message id gains its text on settle. Owning layer: transcript repository +
+  // thread rows + assistant message; canonical suite: this file. Fixture: the tail
+  // of the lab's `navigation-promote-live-final-transcript.json` (sequences 4588–4595).
+  it("Should render a promoted turn's settled answer cold and when its message settles in place", async () => {
+    const marker = (
+      id: string,
+      turnId: string,
+      kind: string,
+      timestamp: string,
+      evidence: Record<string, unknown>
+    ) =>
+      ({
+        id,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              session_id: "history-operator-session-1",
+              turn_id: turnId,
+              timestamp,
+              title: kind,
+              raw: { kind, occurred_at: timestamp, summary: kind, evidence },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      }) as SessionMessage;
+    const replaced = "turn-2a47a312263fa523";
+    const promoted = "turn-a8c57a3749295c38";
+    const answerText = "Queued recovery processed once.";
+    const transcript: SessionMessage[] = [
+      marker(
+        "ev-2d10240621c21737",
+        replaced,
+        "transcript_marker.prompt_steered",
+        "2026-09-06T12:30:42.184457Z",
+        {
+          steer_delivery: "interrupt_fallback",
+          mode: "steer",
+        }
+      ),
+      marker(
+        "ev-ac4f79d957d200f8",
+        replaced,
+        "transcript_marker.prompt_cancel",
+        "2026-09-06T12:30:42.192997Z",
+        {
+          source: "cancel_prompt",
+        }
+      ),
+      {
+        id: `${replaced}-2`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "session.turn_quiesced",
+              turn_id: replaced,
+              timestamp: "2026-09-06T12:30:42.288312Z",
+              raw: {
+                scope: "turn",
+                turn_id: replaced,
+                verified: true,
+                escalated: false,
+                phase: "cooperative",
+                elapsed_ms: 91,
+                stop_cause: "user_requested",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "2cd6cf11-0f30-4278-9e90-a7215a0d73ca",
+        role: "user",
+        metadata: {
+          turn_id: promoted,
+          timestamp: "2026-09-06T12:30:42.312938Z",
+          message_id: "2cd6cf11-0f30-4278-9e90-a7215a0d73ca",
+        },
+        parts: [
+          {
+            type: "text",
+            text: "Queued recovery: verify live promotion after cache reconciliation.",
+            state: "done",
+          },
+        ],
+      } as SessionMessage,
+      marker(
+        "ev-17ad14dfea105a15",
+        promoted,
+        "transcript_marker.prompt_accepted",
+        "2026-09-06T12:30:42.328137Z",
+        {
+          message_id: "2cd6cf11-0f30-4278-9e90-a7215a0d73ca",
+          queue_entry_id: "inq-promoted",
+          mode: "queue",
+        }
+      ),
+    ];
+    const answer = {
+      id: promoted,
+      role: "assistant",
+      parts: [
+        { type: "text", id: `${promoted}-text-1`, text: answerText, state: "done" },
+      ] as unknown as SessionMessage["parts"],
+    } as SessionMessage;
+    const streaming = {
+      ...answer,
+      status: { type: "running" },
+      parts: [
+        { type: "text", id: `${promoted}-text-1`, text: "", state: "streaming" },
+      ] as unknown as SessionMessage["parts"],
+    } as SessionMessage;
+    const answerRow = () => document.querySelector(`[data-message-id="${promoted}"]`);
+
+    const cold = renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([...transcript, answer]),
+    });
+    await screen.findByText("Queued recovery: verify live promotion after cache reconciliation.");
+    expect(answerRow()).toHaveTextContent(answerText);
+    cold.unmount();
+
+    const live = renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([...transcript, streaming]),
+    });
+    await screen.findByText("Queued recovery: verify live promotion after cache reconciliation.");
+    // ADR-006: no shell before content — the streaming answer draws nothing yet.
+    expect(answerRow()?.textContent ?? "").not.toContain(answerText);
+    live.rerenderWith({ messages: toReadonlyThreadMessages([...transcript, answer]) });
+    await waitFor(() => {
+      expect(answerRow()).toHaveTextContent(answerText);
+    });
+  });
+
+  // Invariant (public API wire shape, task_10 re-walk): the daemon's persisted
+  // marker events carry the marker under `raw`; the repository normalizes that
+  // boundary once, so a reloaded injected steer binds to its bubble's meta line
+  // and a queued prompt shows only the position the daemon recorded.
+  // Owning layer: transcript repository + thread host. Canonical suite: this file.
+  it("Should bind a reloaded raw-marker steer and a queued prompt through the repository boundary", async () => {
+    const wireMarker = (
+      id: string,
+      kind: string,
+      evidence: Record<string, unknown>,
+      timestamp: string
+    ) =>
+      ({
+        id,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              session_id: "sess-1",
+              turn_id: "turn-f3d48e7247b52982",
+              timestamp,
+              text: "Steering delivered into the live turn.",
+              title: kind,
+              raw: {
+                kind,
+                occurred_at: timestamp,
+                summary: "Steering delivered into the live turn.",
+                evidence,
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      }) as SessionMessage;
+    const transcript: SessionMessage[] = [
+      wireMarker(
+        "ev-queued",
+        "transcript_marker.prompt_queued",
+        { queue_entry_id: "inq-d4b7", queue_position: 2, mode: "queue" },
+        "2026-09-06T10:25:09.578Z"
+      ),
+      {
+        id: "msg_handbook_guidance_02",
+        role: "user",
+        metadata: { turn_id: "turn-f3d48e7247b52982", message_id: "msg_handbook_guidance_02" },
+        parts: [
+          { type: "text", text: "Use the heading Recovery checklist in every handbook chapter." },
+        ],
+      } as SessionMessage,
+      wireMarker(
+        "ev-4acc274ce3953dcc",
+        "transcript_marker.prompt_steered",
+        {
+          authored_text: "Use the heading Recovery checklist in every handbook chapter.",
+          input_event_id: "ev-76843bf85ba7f174",
+          message_id: "msg_handbook_guidance_02",
+          mode: "steer",
+          queue_entry_id: "inq-bc06",
+          queue_status: "sent",
+          steer_delivery: "injected",
+          target_turn_id: "turn-f3d48e7247b52982",
+        },
+        "2026-09-06T10:45:41.210Z"
+      ),
+      {
+        id: "msg_release_index_01",
+        role: "user",
+        metadata: { turn_id: "turn-6bf0", message_id: "msg_release_index_01" },
+        parts: [{ type: "text", text: "Now write the index." }],
+      } as SessionMessage,
+      wireMarker(
+        "ev-accepted",
+        "transcript_marker.prompt_accepted",
+        {
+          queue_entry_id: "inq-d4b7",
+          message_id: "msg_release_index_01",
+          authored_text: "Now write the index.",
+          mode: "queue",
+        },
+        "2026-09-06T10:26:02.105Z"
+      ),
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const guidance = (
+      await screen.findByText("Use the heading Recovery checklist in every handbook chapter.")
+    ).closest<HTMLElement>('[data-testid="thread-message-row"]')!;
+    const meta = within(guidance).getByTestId("user-message-steer-meta");
+    expect(meta).toHaveAttribute("data-steer", "injected");
+    expect(meta).toHaveTextContent("Steered — delivered into the live turn");
+    const queued = screen
+      .getByText("Now write the index.")
+      .closest<HTMLElement>('[data-testid="thread-message-row"]')!;
+    const queuedMeta = within(queued).getByTestId("user-message-steer-meta");
+    expect(queuedMeta).toHaveAttribute("data-steer", "queued");
+    expect(queuedMeta).toHaveTextContent("From the queue");
+    expect(queuedMeta).toHaveTextContent("was #2");
+    // Bound markers render no rows of their own; the original queued marker is not a steer row.
+    expect(screen.queryByTestId("steer-marker-notice")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-receipt")).not.toBeInTheDocument();
+  });
+
+  // Invariant (task_07 US-022 on the public wire): a settled turn whose tool
+  // parts carry no time or turn id of their own — only its `tool_call`/`usage`
+  // events do — still folds as one turn behind "Worked for · counts", status
+  // events never become rows, and the final reply stays visible.
+  it("Should fold a real settled turn whose tools and text carry no time of their own", async () => {
+    const turnId = "turn-f3d48e7247b52982";
+    const statusEvent = (type: string, timestamp: string, extra: Record<string, unknown> = {}) => ({
+      type: "data-compozy-event",
+      data: { type, session_id: "sess-1", turn_id: turnId, timestamp, ...extra },
+    });
+    const writeParts = (index: number, at: string) => [
+      statusEvent("tool_call", at, { title: "Preparing file…", tool_call_id: `toolu_${index}` }),
+      statusEvent("usage", at, { usage: { turn_id: turnId, context_used: 1000 + index } }),
+      {
+        type: "tool-Preparing file…",
+        state: "output-available",
+        toolCallId: `toolu_${index}`,
+        title: "Preparing file…",
+        input: { content: `# Chapter ${index}`, file_path: `./handbook/chapter-${index}.md` },
+        output: { type: "tool_result", title: "Write", raw: { content: "ok" } },
+      },
+    ];
+    const transcript: SessionMessage[] = [
+      {
+        id: `${turnId}-3`,
+        role: "assistant",
+        parts: [
+          ...writeParts(1, "2026-09-06T10:46:17.140Z"),
+          ...writeParts(2, "2026-09-06T10:46:22.567Z"),
+          ...writeParts(3, "2026-09-06T10:46:26.931Z"),
+          statusEvent("usage", "2026-09-06T10:50:29.140Z", {
+            usage: { turn_id: turnId, context_used: 9 },
+          }),
+          {
+            type: "text",
+            text: "All chapters carry the Recovery checklist heading.",
+            state: "done",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const fold = await screen.findByTestId("turn-fold-row");
+    // Duration spans the turn's own recorded event times (first tool_call tick to
+    // the closing usage event); the daemon's stale "Preparing file…" title is not
+    // re-read as an edit here — the count stays truthful to the name on the wire.
+    expect(fold).toHaveTextContent(/^Worked for 4m 12s · Used 3 tools/);
+    // Opened, the fold lists the calls as rows — no second disclosure (VC-05).
+    await userEvent.click(fold);
+    await waitFor(() => {
+      expect(screen.getAllByTestId("tool-call-row")).toHaveLength(3);
+    });
+    expect(screen.queryByTestId("work-summary-row")).not.toBeInTheDocument();
+    await userEvent.click(fold);
+    expect(
+      screen.getByText("All chapters carry the Recovery checklist heading.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
+  });
+
+  // Invariant (task_07 US-022 / ADR-009 on the public wire): a turn the operator
+  // canceled records its end in later projected messages; the call left without
+  // a result reads "stopped", never "Running", the turn stays open under
+  // "You stopped after", and the status row reads the stop with the whole turn's span.
+  it("Should settle an interrupted turn's pending call from the daemon's later receipt", async () => {
+    const turnId = "turn-4f009525b74d74a6";
+    const at = (offset: number) =>
+      new Date(Date.parse("2026-09-06T10:25:12.931Z") + offset).toISOString();
+    const transcript: SessionMessage[] = [
+      {
+        id: `${turnId}-2`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "tool_call",
+              turn_id: turnId,
+              timestamp: at(0),
+              title: "Preparing file…",
+              tool_call_id: "toolu_done",
+            },
+          },
+          {
+            type: "tool-Preparing file…",
+            state: "output-available",
+            toolCallId: "toolu_done",
+            title: "Preparing file…",
+            input: { content: "# Sessions", file_path: "drafts/sessions.md" },
+            output: { type: "tool_result", title: "Write", raw: { content: "ok" } },
+          },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "tool_call",
+              turn_id: turnId,
+              timestamp: at(30_000),
+              title: "Preparing file…",
+              tool_call_id: "toolu_cut",
+            },
+          },
+          {
+            type: "tool-Preparing file…",
+            state: "input-streaming",
+            toolCallId: "toolu_cut",
+            title: "Preparing file…",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "ev-cancel",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              turn_id: turnId,
+              timestamp: at(46_000),
+              title: "transcript_marker.prompt_cancel",
+              raw: {
+                kind: "transcript_marker.prompt_cancel",
+                occurred_at: at(46_000),
+                summary: "Prompt canceled by operator.",
+                evidence: { source: "cancel_prompt" },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: `${turnId}-4`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "session.turn_quiesced",
+              turn_id: turnId,
+              timestamp: at(46_126),
+              raw: {
+                scope: "turn",
+                turn_id: turnId,
+                verified: true,
+                escalated: false,
+                phase: "cooperative",
+                elapsed_ms: 98,
+                stop_cause: "user_requested",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    // The span reaches the receipt the daemon projected into a later message.
+    expect(
+      within(await screen.findByTestId("turn-fold-interrupted")).getByTestId("turn-fold-open-label")
+    ).toHaveTextContent(/^You stopped after 46s/);
+    expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
+    const rows = screen.getAllByTestId("tool-call-row");
+    const cut = rows.find(row => row.querySelector('[data-status="stopped"]'));
+    expect(cut).toBeDefined();
+    expect(within(cut!).getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
+    expect(screen.queryByText(/Running Preparing/)).not.toBeInTheDocument();
+    const status = screen.getByTestId("session-stopped-row");
+    expect(status).toHaveAttribute("data-stopped-by", "you");
+    expect(status).toHaveTextContent("Stopped by you after 46s");
+  });
+
+  // Invariant (US-009.EC-2): a stop the daemon answered nothing-in-flight reads
+  // completed, faintly, and never canceled.
+  it("Should read the completion note when the stop arrived after the turn finished", async () => {
+    renderThreadState({ status: "success", stopCompletionNote: true });
+    const row = await screen.findByTestId("session-stop-completion-row");
+    expect(row).toHaveTextContent(/^Completed/);
+    expect(row).toHaveTextContent("the stop arrived after the turn finished");
+    expect(screen.queryByTestId("session-stopped-row")).not.toBeInTheDocument();
+  });
+
+  // ADR-006 rule 3: before any content the status row reads "Thinking…" and no
+  // assistant shell exists; the empty-state copy never shows for a live turn.
+  it("Should read Thinking with no assistant shell when the successful transcript is empty and active", async () => {
     renderThreadState({ status: "success", isSessionRunning: true });
 
-    expect(await screen.findByRole("status", { name: "Working" })).toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Agent is responding" })).toHaveTextContent(
+      "Thinking…"
+    );
+    expect(screen.queryByTestId("assistant-message")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assistant-message-actions")).not.toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     await waitFor(() => {
       expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.threadEmptyWhileActive]).toBe(1);
@@ -1048,7 +2048,9 @@ describe("SessionThread transcript states", () => {
     }
   });
 
-  it("Should reserve a disabled copy row before a streaming answer has text", async () => {
+  // ADR-006 rule 3: the actions row (copy, timestamp) exists only once the
+  // reply has text; a streaming turn with reasoning alone reserves nothing.
+  it("Should mount no copy row before a streaming answer has text", async () => {
     const transcript = [
       {
         id: "assistant-streaming-reasoning",
@@ -1078,10 +2080,8 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    const toolbar = await screen.findByTestId("assistant-message-actions");
-    const copy = within(toolbar).getByTestId("assistant-message-actions-copy");
-    expect(copy).toBeDisabled();
-    expect(screen.getAllByTestId("assistant-message-actions")).toHaveLength(1);
+    expect(await screen.findByTestId("thinking-block")).toBeInTheDocument();
+    expect(screen.queryByTestId("assistant-message-actions")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -1292,13 +2292,63 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    const row = await screen.findByTestId("tool-call-row");
-    expect(row.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")).toBe(
-      "pending"
-    );
-    // Pending is glyph-less and never the legacy bordered "preparing input" box.
+    // ADR-006: a call still in flight is the turn's one live row — the verb
+    // shimmers, nothing on the right; never the legacy bordered "preparing
+    // input" box and never a stacked card.
+    const row = await screen.findByTestId("live-tool");
+    expect(within(row).getByTestId("live-tool-label")).toHaveTextContent("Reading");
     expect(row.querySelector('[data-slot="tool-call-row-status"]')).toBeNull();
+    expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();
+  });
+
+  // Invariant (US-018.EC-2, task_06 VC-05): a paused background window keeps its
+  // last frame — the live row and the status row show no motion, the words carry
+  // the state, and the status row says when the frame is from. Owning layer:
+  // thread motion (live-tool row + status row); canonical suite: this file.
+  it("Should still the live row and the status row while the window is paused", async () => {
+    const pausedAt = Date.parse("2026-07-07T12:02:00Z");
+    const transcript = [
+      { id: "user-paused", role: "user", parts: [{ type: "text", text: "Run the retry tests" }] },
+      {
+        id: "assistant-paused",
+        role: "assistant",
+        status: { type: "running" },
+        parts: [
+          {
+            type: "tool-Bash",
+            toolCallId: "tool-bash-paused",
+            state: "input-streaming",
+            turnId: "turn-paused",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { command: "go test ./internal/store/... -run Retry" },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript as SessionMessage[]),
+      isSessionRunning: true,
+      liveDataEnabled: false,
+      transport: {
+        ...SESSION_TRANSPORT_LIVE,
+        lastLiveAt: pausedAt,
+        phase: "disabled",
+        retry: () => undefined,
+      },
+    });
+
+    const row = await screen.findByTestId("live-tool");
+    expect(row).toHaveAttribute("data-still", "true");
+    const label = within(row).getByTestId("live-tool-label");
+    expect(label).toHaveTextContent("Running shell");
+    expect(label).not.toHaveClass("session-shimmer");
+    expect(label).toHaveClass("text-subtle");
+    const working = screen.getByTestId("session-working-row");
+    expect(working.querySelector(".session-working-dots")).toBeNull();
+    expect(within(working).getByTestId("session-working-as-of")).toHaveTextContent(/as of/);
   });
 
   it("Should preserve output-error text through the repository and render it on the failed row", async () => {
@@ -1327,13 +2377,16 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
+    // A tool error the turn absorbed reads as information (ADR-009): subtle ×,
+    // the word "failed", and the error text preserved on the row.
     const row = await screen.findByTestId("tool-call-row");
     expect(row.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")).toBe(
-      "failed"
+      "absorbed"
     );
     expect(
       row.querySelector('[data-slot="tool-call-row-status"]')?.getAttribute("aria-label")
-    ).toBe("Error");
+    ).toBe("Failed");
+    expect(within(row).getByTestId("tool-call-state-word")).toHaveTextContent("failed");
     expect(row.querySelector('[data-slot="tool-call-row-preview"]')).toHaveTextContent(
       "terminal/create denied before writing workspace marker"
     );
@@ -1582,6 +2635,90 @@ describe("SessionThread transcript states", () => {
     expect(within(fileRows[1]!).getByText("notes.md")).toBeInTheDocument();
   });
 
+  // Invariant (ADR-009, task_07 VC-06 both cells): a turn whose end this message
+  // itself records — the operator's `stop_reason`, or the fallback steer that
+  // replaced it — settles the call still awaiting its result: it reads
+  // "stopped", never a live row, and the turn folds under its own label.
+  // Owning layer: message timeline derivation; canonical suite: this file.
+  it("Should settle a pending call when the message's own event ends its turn", async () => {
+    const stoppedTurn = [
+      {
+        id: "assistant-stop-recorded",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Bash",
+            toolCallId: "tool-bash-cut",
+            state: "input-available",
+            turnId: "turn-cut",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { command: "go test ./internal/store/... -count=3" },
+          },
+          {
+            type: "data-compozy-event",
+            turnId: "turn-cut",
+            timestamp: "2026-07-07T12:01:40Z",
+            data: {
+              type: "prompt_interrupted",
+              turn_id: "turn-cut",
+              stop_reason: "cancelled",
+              timestamp: "2026-07-07T12:01:40Z",
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(stoppedTurn) });
+    const interrupted = await screen.findByTestId("turn-fold-interrupted");
+    expect(interrupted).toHaveTextContent(/You stopped after 1m 40s$/);
+    expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
+    // The rows keep their place; the label is the line at the end of the turn (VC-06).
+    const label = within(interrupted).getByTestId("turn-fold-open-label");
+    const row = within(interrupted).getByTestId("tool-call-row");
+    expect(row.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("Should fold a turn a fallback steer replaced even with a call still pending", async () => {
+    const replacedTurn = [
+      {
+        id: "assistant-replaced",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Bash",
+            toolCallId: "tool-bash-replaced",
+            state: "input-available",
+            turnId: "turn-replaced",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { command: "go build ./..." },
+          },
+          {
+            type: "data-compozy-event",
+            turnId: "turn-replaced",
+            timestamp: "2026-07-07T12:00:48Z",
+            data: {
+              type: "transcript_marker.created",
+              turn_id: "turn-replaced",
+              timestamp: "2026-07-07T12:00:48Z",
+              marker: {
+                kind: "transcript_marker.prompt_steered",
+                summary: "Steer fell back to interrupt.",
+                occurred_at: "2026-07-07T12:00:48Z",
+                evidence: { steer_delivery: "interrupt_fallback", mode: "steer" },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(replacedTurn) });
+    expect(await screen.findByTestId("turn-fold-row")).toHaveTextContent(
+      /^Interrupted after 48s · replaced by your steer/
+    );
+    expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
+  });
+
   it("Should keep an interrupted turn expanded and label the interruption", async () => {
     // A `stop_reason` data event is the runtime's operator-stop signal; the turn
     // must fold behind a "You stopped after Xs" label yet stay expanded (work
@@ -1635,6 +2772,85 @@ describe("SessionThread transcript states", () => {
     // Work stays expanded without a click, and the terminal message is visible.
     expect(screen.getByText(/\/tmp\/interrupted\.md/)).toBeInTheDocument();
     expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
+  });
+
+  it("Should let the provider diagnostic own a live prompt failure instead of rendering it twice", async () => {
+    // The live stream's errorText and the persisted diagnostic event carry the same daemon summary.
+    const summary = "provider authentication required";
+    const transcript = [
+      {
+        id: "assistant-provider-auth",
+        role: "assistant",
+        status: { type: "incomplete", reason: "error", error: summary },
+        parts: [
+          { type: "text", text: "Partial answer before the auth lapse.", state: "done" },
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "error",
+              turn_id: "assistant-provider-auth",
+              error: summary,
+              failure: { kind: "prompt_failure", summary },
+              provider_error: {
+                code: "provider_auth_required",
+                provider: "claude-code",
+                next_action: "login",
+                guidance: "run provider auth login for this provider",
+                occurrence_count: 1,
+                first_seen_at: "2026-09-05T14:02:00Z",
+                last_seen_at: "2026-09-05T14:02:00Z",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as unknown as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByText("Partial answer before the auth lapse.")).toBeInTheDocument();
+    const notice = screen.getByTestId("session-error-notice");
+    expect(notice).toHaveAttribute("data-provider-error", "provider_auth_required");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
+  });
+
+  it("Should keep an unrelated message error beside an earlier provider diagnostic", async () => {
+    const transcript = [
+      {
+        id: "assistant-provider-then-transport",
+        role: "assistant",
+        status: { type: "incomplete", reason: "error", error: "connection stalled" },
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "error",
+              turn_id: "assistant-provider-then-transport",
+              error: "provider rate limited",
+              failure: { kind: "prompt_failure", summary: "provider rate limited" },
+              provider_error: {
+                code: "provider_rate_limited",
+                provider: "claude-code",
+                next_action: "retry",
+                guidance: "retry after the provider recovers",
+                occurrence_count: 1,
+                first_seen_at: "2026-09-05T14:02:00Z",
+                last_seen_at: "2026-09-05T14:02:00Z",
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as unknown as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("session-error-notice")).toHaveAttribute(
+      "data-provider-error",
+      "provider_rate_limited"
+    );
+    expect(screen.getByTestId("session-message-error")).toHaveTextContent("connection stalled");
   });
 
   it("Should expose Goal only on settled successful assistant text while preserving copy", async () => {
@@ -1844,7 +3060,7 @@ describe("SessionThread transcript states", () => {
       status: "success",
       messages: toReadonlyThreadMessages(transcript),
       isSessionRunning: true,
-      workingStartedAt: Date.parse(startedAtIso),
+      statusSession: runningStatusSession(startedAtIso, "Bash"),
     });
 
     const workingRow = await screen.findByTestId("session-working-row");
@@ -1853,11 +3069,27 @@ describe("SessionThread transcript states", () => {
     // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
     expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
-    // Live "Working for Xs" tabular-nums timer, counting from the turn start.
+    // Live "Working for Xs · Running shell": the timer counts from the daemon's
+    // durable turn start, the activity from the session's current tool (US-027).
     expect(workingRow).toHaveTextContent(/Working for/);
     const timer = screen.getByTestId("session-working-timer");
-    expect(timer.className).toContain("tabular-nums");
     expect(timer.textContent).toMatch(/^\d+s$/);
+    expect(screen.getByTestId("session-working-activity")).toHaveTextContent("Running shell");
+  });
+
+  // Invariant: a pending stop states intent without presenting continued work or
+  // confirmed death. Owner: composed thread status; canonical suite: this file.
+  it("Should show stopping until the pending stop resolves", async () => {
+    renderThreadState({
+      status: "success",
+      messages: [],
+      isSessionRunning: true,
+      stopPhase: "stopping",
+      statusSession: runningStatusSession("2026-09-06T15:00:00Z", "Bash"),
+    });
+    expect(await screen.findByTestId("session-stopping-row")).toHaveTextContent("Stopping…");
+    expect(screen.queryByTestId("session-working-row")).toBeNull();
+    expect(screen.queryByTestId("session-stopped-row")).toBeNull();
   });
 
   it("Should keep a settled tool tail live when the message id differs from its part turn id", async () => {
@@ -1895,10 +3127,12 @@ describe("SessionThread transcript states", () => {
       isSessionRunning: true,
     });
 
-    const workRow = await screen.findByTestId("work-row");
-    expect(workRow).toBeInTheDocument();
-    expect(workRow.querySelectorAll('[data-testid="tool-call-row"]')).toHaveLength(2);
-    expect(screen.queryByTestId("work-summary-label")).not.toBeInTheDocument();
+    // The live turn's completed tools rest as one group sentence (ADR-006),
+    // still marked live so the turn never folds while it streams.
+    const group = await screen.findByTestId("work-summary-row");
+    expect(group).toHaveAttribute("data-live", "true");
+    expect(within(group).getByTestId("work-summary-label")).toHaveTextContent("Read 2 files");
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
     expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
   });
 
@@ -1936,7 +3170,7 @@ describe("SessionThread transcript states", () => {
         status: "success",
         messages: toReadonlyThreadMessages(transcript),
         isSessionRunning: true,
-        workingStartedAt: Date.parse("2026-07-07T12:00:00Z"),
+        statusSession: runningStatusSession("2026-07-07T12:00:00Z"),
       });
 
       const workingRow = await screen.findByTestId("session-working-row");
@@ -1960,7 +3194,14 @@ describe("SessionThread transcript states", () => {
       const renderSpy = vi.fn();
       function Probe() {
         renderSpy();
-        return <WorkingIndicator startedAt={startedAt} reducedMotion={false} />;
+        return (
+          <SessionThinkingRow
+            session={runningStatusSession(new Date(startedAt).toISOString())}
+            running
+            thinking={false}
+            lastTurn={null}
+          />
+        );
       }
 
       render(<Probe />);
@@ -2313,7 +3554,10 @@ async function placeComposerCursor(offset: number) {
   });
 }
 
-function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>) {
+function renderComposer(
+  overrides: Partial<ComponentProps<typeof SessionThread>>,
+  transport?: SessionTransportState
+) {
   const queryClient = createQueryClient();
   return render(
     <StrictMode>
@@ -2328,6 +3572,7 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
             status="success"
             error={null}
             retry={vi.fn()}
+            transport={transport}
           >
             <SessionThread
               sessionId={primarySessionFixture.id}
@@ -2355,13 +3600,17 @@ describe("SessionThread composer running semantics", () => {
     clearSessionTerminalQuote(primarySessionFixture.id);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     takePendingTerminalQuote();
-    clearSessionTerminalQuote(primarySessionFixture.id);
     vi.unstubAllGlobals();
     // The listener tier latches in module scope once a stream authorizes.
     resetGatewayStreamAuth();
-    act(() => {
+    // The tree is still mounted here (RTL's own cleanup runs after this hook),
+    // so every store reset the quote slot or composer subscribes to is a React
+    // update. Discarding a non-empty draft also re-hydrates the Lexical editor,
+    // which commits on a microtask — the async act drains it before the hook ends.
+    await act(async () => {
+      clearSessionTerminalQuote(primarySessionFixture.id);
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
@@ -2382,8 +3631,12 @@ describe("SessionThread composer running semantics", () => {
     firstView.unmount();
     renderComposer({ isSessionRunning: false });
 
-    expect(await screen.findByTestId("composer-input")).toHaveTextContent("keep this draft");
-    await waitFor(() => expect(composerText()).toBe("keep this draft"));
+    // Hydration lands in the editor on Lexical's own commit; wait for that
+    // commit (the rendered text), not merely for the input to exist.
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-input")).toHaveTextContent("keep this draft")
+    );
+    expect(composerText()).toBe("keep this draft");
   });
 
   it("Should insert a standalone command token without submitting the prompt", async () => {
@@ -2737,30 +3990,135 @@ describe("SessionThread composer running semantics", () => {
     expect(composerText()).toBe("Live draft");
   });
 
-  it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
+  it("Should steer the draft on Enter while running (daemon default) and suppress the runtime send", async () => {
     const onQueuePrompt = vi.fn(() => Promise.resolve());
-    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
 
     const editable = await findComposerEditable();
-    await setComposerText("queue this follow-up");
+    await setComposerText("steer this follow-up");
     // While running, assistant-ui's own thread is idle, so a plain Enter would submit
-    // to the runtime; our interception must queue instead and clear the draft.
+    // to the runtime; our interception must perform the follow-up default instead.
     await act(async () => {
       fireEvent.keyDown(editable, { key: "Enter" });
     });
 
     await waitFor(() => {
-      expect(onQueuePrompt).toHaveBeenCalledWith({
-        message: "queue this follow-up",
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer this follow-up",
         attachments: [],
       });
     });
-    expect(onQueuePrompt).toHaveBeenCalledTimes(1);
+    expect(onSteerPrompt).toHaveBeenCalledTimes(1);
+    expect(onQueuePrompt).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(composerText()).toBe("");
     });
     // The runtime send never fired, so no user message entered the thread.
-    expect(screen.queryByText("queue this follow-up")).not.toBeInTheDocument();
+    expect(screen.queryByText("steer this follow-up")).not.toBeInTheDocument();
+  });
+
+  it("Should queue on Enter when the daemon default is queue and steer with the modifier (E2E-012 unit shadow)", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({
+      busyInputDefaultMode: "queue",
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+    });
+
+    const editable = await findComposerEditable();
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "queue");
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-modifier", "steer");
+    await setComposerText("park this one");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+
+    await setComposerText("redirect this one");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+    await waitFor(() =>
+      expect(onSteerPrompt).toHaveBeenCalledWith({ message: "redirect this one", attachments: [] })
+    );
+    // The modifier is one-shot: the hint still reads the configured default.
+    expect(screen.getByTestId("composer-enter-hint")).toHaveAttribute("data-enter", "queue");
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("UT-086: Should do nothing on Enter with an empty draft during a turn", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
+
+    const editable = await findComposerEditable();
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should answer an accepted busy send inline with its disposition", async () => {
+    const user = userEvent.setup();
+    const onSteerPrompt = vi.fn(() =>
+      Promise.resolve({
+        disposition: "steering" as const,
+        entryId: "inp_4d9",
+        idempotencyKey: "idk_1f77",
+        messageId: "msg_01k4",
+        queuePosition: null,
+        replayed: false,
+        steerDelivery: "pending_injection" as const,
+        turnId: "t_9f2",
+      })
+    );
+    const onQueuePrompt = vi.fn(() =>
+      Promise.resolve({
+        disposition: "queued" as const,
+        entryId: "inp_4d8",
+        idempotencyKey: "idk_9b02",
+        messageId: "msg_01k3",
+        queuePosition: 2,
+        replayed: false,
+        steerDelivery: null,
+        turnId: "t_9f2",
+      })
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("only the lifecycle tests");
+    await user.click(screen.getByTestId("composer-steer-button"));
+
+    const steerNote = await screen.findByTestId("composer-feedback-note");
+    expect(steerNote).toHaveAttribute("data-kind", "disposition");
+    expect(steerNote).toHaveTextContent(
+      "Steering — the agent sees it when the current tool finishes"
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("pending_injection");
+    await waitFor(() => expect(composerText()).toBe(""));
+
+    await setComposerText("ship it with tests");
+    // Typing again retires the previous note before the next send answers.
+    expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Queued #2 — runs after the current turn"
+      )
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("inp_4d8");
   });
 
   it("Should admit only one busy-input submission while a queue request is pending", async () => {
@@ -2783,6 +4141,143 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
     resolveQueue?.();
     await waitFor(() => expect(composerText()).toBe(""));
+  });
+
+  it("Should consume only the submitted text and files when the operator keeps working during a busy send", async () => {
+    const user = userEvent.setup();
+    let resolveQueue: ((outcome: SessionSendOutcome) => void) | undefined;
+    const onQueuePrompt = vi.fn(
+      (_draft: SessionBusyInputDraft) =>
+        new Promise<SessionSendOutcome>(resolve => {
+          resolveQueue = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "sent.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("ship it with tests");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("sent.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    const sentAttachmentId = onQueuePrompt.mock.calls[0]?.[0].attachments[0]?.id;
+    expect(sentAttachmentId).toMatch(/^att_/);
+
+    // The editor stays writable while the daemon answers: keep typing and add a file.
+    await setComposerText("ship it with tests and update the changelog");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("later.png"));
+    });
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+
+    await act(async () => {
+      resolveQueue?.({
+        disposition: "queued",
+        entryId: "inp_4d8",
+        idempotencyKey: "idk_9b02",
+        messageId: "msg_01k3",
+        queuePosition: 1,
+        replayed: false,
+        steerDelivery: null,
+        turnId: "t_9f2",
+      });
+    });
+
+    // Only what was sent leaves the field; the newer text and file stay, and the
+    // remainder is exact — the separator the operator typed is theirs too.
+    await waitFor(() => expect(composerText()).toBe(" and update the changelog"));
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1));
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("later.png");
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      " and update the changelog"
+    );
+    // The disposition still answers the send that just landed.
+    expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent("Queued #1");
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep newly typed indented text exactly after an attachment-only busy send is accepted", async () => {
+    const user = userEvent.setup();
+    let resolveQueue: (() => void) | undefined;
+    const onQueuePrompt = vi.fn(
+      (_draft: SessionBusyInputDraft) =>
+        new Promise<void>(resolve => {
+          resolveQueue = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "only-file.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("only-file.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(composerText()).toBe("");
+    await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onQueuePrompt.mock.calls[0]?.[0]).toMatchObject({ message: "" });
+
+    // An empty sent prefix means everything typed meanwhile is the operator's,
+    // including the indentation they started with.
+    const indented = "    - keep the leading indent";
+    await setComposerText(indented);
+    await act(async () => {
+      resolveQueue?.();
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument()
+    );
+    expect(composerText()).toBe(indented);
+    await waitFor(() =>
+      expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(indented)
+    );
+    expect(onQueuePrompt).toHaveBeenCalledOnce();
+  });
+
+  it("Should leave a rewritten draft untouched when the busy send it replaced is accepted", async () => {
+    const user = userEvent.setup();
+    let resolveSteer: (() => void) | undefined;
+    const onSteerPrompt = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveSteer = resolve;
+        })
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("only the lifecycle tests");
+    await user.click(screen.getByTestId("composer-steer-button"));
+    await waitFor(() => expect(onSteerPrompt).toHaveBeenCalledOnce());
+
+    await setComposerText("actually, the store package too");
+    await act(async () => {
+      resolveSteer?.();
+    });
+
+    await waitFor(() => expect(composerText()).toBe("actually, the store package too"));
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      "actually, the store package too"
+    );
   });
 
   it("Should queue ready attachment refs and keep steer text-only", async () => {
@@ -2832,22 +4327,34 @@ describe("SessionThread composer running semantics", () => {
     ).toBe(false);
   });
 
-  it("Should show an error toast and preserve the draft when queue fails", async () => {
+  // Invariant (task_03/06 truth, US-007): a send that failed without the daemon's answer
+  // is not "Not sent" — the daemon may have accepted it before the answer was lost. The
+  // composer says "Not confirmed" (the strip row keeps the identity with Retry) and the
+  // field is consumed like an accepted send, so nothing is typed twice; a proven refusal
+  // (client gate, daemon 4xx) still reads "Not sent" and restores the draft.
+  // Owner: composer busy-input submission/feedback. Canonical suite: this file.
+  it("Should state an unacknowledged queue send as not confirmed and hand its text to the strip", async () => {
     const user = userEvent.setup();
-    const onQueuePrompt = vi.fn(() => Promise.reject(new Error("queue failed")));
+    const onQueuePrompt = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
     renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
 
     await screen.findByTestId("composer-input");
     await setComposerText("queue this follow-up");
     await user.click(screen.getByTestId("composer-queue-button"));
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("queue failed");
-    });
-    expect(composerText()).toBe("queue this follow-up");
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-kind", "unconfirmed");
+    expect(note).toHaveAttribute("data-code", "unconfirmed");
+    expect(note).toHaveTextContent(
+      "Not confirmed — Failed to fetch. Retry replays the same message; nothing is sent twice."
+    );
+    expect(note).not.toHaveTextContent("Not sent");
+    expect(screen.queryByTestId("composer-feedback-suffix")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(composerText()).toBe("");
   });
 
-  it("Should catch a synchronous queue failure and preserve the draft", async () => {
+  it("Should read a synchronous handler failure as unconfirmed too, never as proof of non-delivery", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => {
       throw new Error("queue failed synchronously");
@@ -2859,9 +4366,116 @@ describe("SessionThread composer running semantics", () => {
     await user.click(screen.getByTestId("composer-queue-button"));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("queue failed synchronously");
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Not confirmed — queue failed synchronously."
+      );
     });
+    expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute(
+      "data-kind",
+      "unconfirmed"
+    );
+  });
+
+  it("Should keep a daemon 4xx answer as a proven refusal that restores the draft", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.reject(new SessionApiError("no such session", 404, primarySessionFixture.id))
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("queue this follow-up");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-kind", "refusal");
+    expect(note).toHaveTextContent("Not sent — no such session");
     expect(composerText()).toBe("queue this follow-up");
+  });
+
+  it("UT-100: Should state the reason and keep text and attachments when a busy send is refused", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.reject(
+        new SessionBusyInputRefusalError({ code: "active_turn_mismatch", currentTurnId: "t_9f3" })
+      )
+    );
+    const fetch = createFetchMock({ attachmentUpload: { name: "restored.png" } });
+    vi.stubGlobal("fetch", fetch);
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Only touch the lifecycle tests");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("restored.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-kind", "refusal");
+    expect(note).toHaveAttribute("data-code", "active_turn_mismatch");
+    expect(note).toHaveTextContent(
+      "Not sent — the turn changed before this went out. Your draft is back."
+    );
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent(
+      "active_turn_mismatch"
+    );
+    expect(composerText()).toBe("Only touch the lifecycle tests");
+    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should refuse a steer-on-Enter that carries files inline, without a toast", async () => {
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "files.png" } }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+      promptImageCapability: "supported",
+    });
+
+    const editable = await findComposerEditable();
+    await setComposerText("review this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("files.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    // The steer gate lives in the route hook; here the handler stands in for it.
+    onSteerPrompt.mockImplementationOnce(() =>
+      Promise.reject(
+        new SessionBusyInputRefusalError({
+          attachmentCount: 1,
+          code: "steer_attachments_unsupported",
+        })
+      )
+    );
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+        "Not sent — steer can't carry files on this agent. Queue it, or remove the file."
+      )
+    );
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+    expect(composerText()).toBe("review this image");
+    expect(screen.getByTestId("composer-attachment-tile")).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("Should steer the current draft while running and clear it after success", async () => {
@@ -2882,9 +4496,10 @@ describe("SessionThread composer running semantics", () => {
     });
   });
 
-  it("Should steer the active turn with Cmd/Ctrl+Shift+Enter while running", async () => {
+  it("Should queue with Cmd/Ctrl+Enter as the one-shot opposite of the steer default", async () => {
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onSteerPrompt = vi.fn(() => Promise.resolve());
-    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt, onSteerPrompt });
 
     const editable = await findComposerEditable();
     // The contenteditable itself carries the accessible name (screen readers
@@ -2892,23 +4507,25 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => {
       expect(editable).toHaveAttribute("aria-label", "Session prompt");
     });
-    await setComposerText("steer to the new direction");
+    await setComposerText("park this for later");
     await act(async () => {
-      fireEvent.keyDown(editable, { key: "Enter", shiftKey: true, metaKey: true });
+      fireEvent.keyDown(editable, { key: "Enter", ctrlKey: true });
     });
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith({
-        message: "steer to the new direction",
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "park this for later",
         attachments: [],
       });
       expect(composerText()).toBe("");
     });
+    expect(onSteerPrompt).not.toHaveBeenCalled();
   });
 
-  it("Should keep queue available but fence steer and interrupt until the active turn id arrives", async () => {
+  it("Should keep steer and interrupt available before the active turn id arrives", async () => {
+    // The daemon resolves the live turn at admission when no fence is sent
+    // (invariant 6); the composer no longer holds the verbs hostage to the poll.
     renderComposer({
-      busyInputFenceAvailable: false,
       isSessionRunning: true,
       onInterruptPrompt: vi.fn(),
       onQueuePrompt: vi.fn(),
@@ -2916,11 +4533,11 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await screen.findByTestId("composer-input");
-    await setComposerText("wait for the turn fence");
+    await setComposerText("the daemon resolves the fence");
 
     expect(screen.getByTestId("composer-queue-button")).toBeEnabled();
-    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
-    expect(screen.getByTestId("composer-interrupt-button")).toBeDisabled();
+    expect(screen.getByTestId("composer-steer-button")).toBeEnabled();
+    expect(screen.getByTestId("composer-interrupt-button")).toBeEnabled();
   });
 
   it("Should silently preserve the draft when the queue owner is replaced", async () => {
@@ -2939,6 +4556,74 @@ describe("SessionThread composer running semantics", () => {
     expect(composerText()).toBe("queue this follow-up");
   });
 
+  // Invariant (US-009.AC-1/EC-1, ADR-004): while a stop is landing the primary
+  // control is a guarded "Stopping…" pill that takes no activation; Steer and
+  // Interrupt are absent, Queue stays, and Enter queues. Owning layer: composer
+  // action row + controller. Canonical suite: this file.
+  it("Should render the guarded Stopping… pill, keep only Queue, and queue on Enter while a stop lands", async () => {
+    const user = userEvent.setup();
+    const onCancelPrompt = vi.fn();
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const onInterruptPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onCancelPrompt,
+      onInterruptPrompt,
+      onQueuePrompt,
+      onSteerPrompt,
+      stopPhase: "stopping",
+    });
+
+    const editable = await findComposerEditable();
+    const pill = screen.getByTestId("composer-stop-button");
+    expect(pill).toHaveAttribute("data-state", "stopping");
+    expect(pill).toHaveAttribute("aria-disabled", "true");
+    expect(pill).toHaveTextContent("Stopping…");
+    await user.click(pill);
+    await user.dblClick(pill);
+    expect(onCancelPrompt).not.toHaveBeenCalled();
+
+    expect(screen.queryByTestId("composer-steer-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("composer-interrupt-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-queue-button")).toBeInTheDocument();
+    const hint = screen.getByTestId("composer-enter-hint");
+    expect(hint).toHaveAttribute("data-enter", "queue");
+    expect(hint).not.toHaveAttribute("data-modifier");
+
+    // The field stays editable: the draft is not at risk, and both Enter variants queue it.
+    expect(editable).not.toHaveAttribute("inert");
+    await setComposerText("after the stop, do this");
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter", metaKey: true });
+    });
+    await waitFor(() =>
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "after the stop, do this",
+        attachments: [],
+      })
+    );
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    expect(onInterruptPrompt).not.toHaveBeenCalled();
+  });
+
+  it("Should issue one cancel for a double-click on Stop", async () => {
+    const user = userEvent.setup();
+    const onCancelPrompt = vi.fn();
+    renderComposer({
+      allowBusyInput: true,
+      isSessionRunning: true,
+      onCancelPrompt,
+      onQueuePrompt: vi.fn(),
+    });
+
+    const stop = await screen.findByTestId("composer-stop-button");
+    expect(stop).toHaveAttribute("data-state", "stop");
+    await user.dblClick(stop);
+    expect(onCancelPrompt).toHaveBeenCalledOnce();
+  });
+
   it("Should show the accent Send disc while idle and the danger Stop disc while running", async () => {
     const { rerender } = renderComposerRerenderable({ isSessionRunning: false });
 
@@ -2952,9 +4637,59 @@ describe("SessionThread composer running semantics", () => {
     const stop = await screen.findByTestId("composer-stop-button");
     expect(stop).toHaveAttribute("aria-label", "Stop generation");
     expect(screen.queryByTestId("composer-send-button")).not.toBeInTheDocument();
-    // Busy: Enter has one meaning — queue the draft — and the hint says so.
-    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/queue/);
-    expect(screen.getByTestId("composer-enter-hint")).not.toHaveTextContent(/send/);
+    // Busy: Enter performs the daemon default (steer) and the modifier the opposite.
+    const hint = screen.getByTestId("composer-enter-hint");
+    expect(hint).toHaveAttribute("data-enter", "steer");
+    expect(hint).toHaveAttribute("data-modifier", "queue");
+    expect(hint).toHaveTextContent(/steer/);
+    expect(hint).toHaveTextContent(/queue/);
+    expect(hint).not.toHaveTextContent(/send/);
+  });
+
+  // Invariant: sending while disconnected fails now and keeps the draft (US-018.AC-3):
+  // the press answers with one info note, nothing is consumed, no request leaves.
+  // Owning layer: composer busy actions + send button. Canonical suite: this file.
+  it("Should refuse a send while disconnected, keep the draft, and say so (US-018.AC-3)", async () => {
+    const user = userEvent.setup();
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const disconnected: SessionTransportState = {
+      ...SESSION_TRANSPORT_LIVE,
+      degradedAt: 1_000,
+      lastLiveAt: 500,
+      phase: "waiting-reconnect",
+      reconnectAttempt: 4,
+      retry: vi.fn(),
+    };
+    renderComposer({ isSessionRunning: false, onQueuePrompt, onSteerPrompt }, disconnected);
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Only touch the lifecycle tests");
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toHaveAttribute("data-transport", "disconnected");
+    expect(send).toBeEnabled();
+    await user.click(send);
+
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-code", "disconnected");
+    expect(note).toHaveTextContent("Not sent");
+    expect(note).toHaveTextContent("you're disconnected right now");
+    expect(screen.queryByTestId("composer-feedback-suffix")).not.toBeInTheDocument();
+    expect(composerText()).toBe("Only touch the lifecycle tests");
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    expect(onQueuePrompt).not.toHaveBeenCalled();
+
+    // Enter answers the same way; a second press repeats the note, never a silent no-op.
+    const editable = await findComposerEditable();
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+    expect(await screen.findByTestId("composer-feedback-note")).toHaveAttribute(
+      "data-code",
+      "disconnected"
+    );
+    expect(composerText()).toBe("Only touch the lifecycle tests");
+    expect(onSteerPrompt).not.toHaveBeenCalled();
   });
 
   it("Should render queued rows with steer, edit, and remove wired to real entries", async () => {
@@ -2970,8 +4705,8 @@ describe("SessionThread composer running semantics", () => {
       onRemoveQueuedPrompt,
       onReplaceQueuedPrompt,
       queuedPrompts: [
-        { id: "inq-1", text: "Add a regression test." },
-        { id: "inq-2", text: "Then update the docs." },
+        { id: "inq-1", owner: null, position: 1, text: "Add a regression test." },
+        { id: "inq-2", owner: null, position: 2, text: "Then update the docs." },
       ],
     });
 
@@ -2982,28 +4717,196 @@ describe("SessionThread composer running semantics", () => {
     await user.click(within(rows[0]).getByTestId("composer-queued-steer"));
     expect(onSteerQueuedPrompt).toHaveBeenCalledWith({
       id: "inq-1",
+      owner: null,
+      position: 1,
       text: "Add a regression test.",
     });
 
     await user.click(within(rows[1]).getByTestId("composer-queued-remove"));
     expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("inq-2");
 
-    // Edit keeps the durable row until one atomic replacement acknowledgement succeeds.
+    // Edit happens in the row: the preview becomes a field, the durable entry
+    // stays until one atomic replacement is acknowledged, the composer is untouched.
     await user.click(within(rows[0]).getByTestId("composer-queued-edit"));
-    await waitFor(() => {
-      expect(composerText()).toBe("Add a regression test.");
-    });
-    expect(onRemoveQueuedPrompt).not.toHaveBeenCalledWith("inq-1");
-    await user.click(screen.getByTestId("composer-queue-button"));
+    const editor = await screen.findByTestId("composer-queued-editor");
+    expect(editor).toHaveValue("Add a regression test.");
+    expect(screen.getByTestId("composer-queued-state")).toHaveTextContent("Editing");
+    // While one row is being edited the other rows offer no verbs.
+    expect(screen.queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    expect(composerText()).toBe("");
+    await user.clear(editor);
+    await user.type(editor, "Add a regression test — and run the e2e lane too");
+    await user.click(screen.getByTestId("composer-queued-edit-save"));
     await waitFor(() =>
       expect(onReplaceQueuedPrompt).toHaveBeenCalledWith(
-        { id: "inq-1", text: "Add a regression test." },
-        "Add a regression test."
+        { id: "inq-1", owner: null, position: 1, text: "Add a regression test." },
+        "Add a regression test — and run the e2e lane too"
       )
+    );
+    expect(onRemoveQueuedPrompt).not.toHaveBeenCalledWith("inq-1");
+    expect(composerText()).toBe("");
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-queued-editor")).not.toBeInTheDocument()
     );
   });
 
-  it("Should restage a queued envelope as a chip and keep the annotation in the composer", async () => {
+  it("Should render positions, owner attribution, and no verbs on another actor's row", async () => {
+    const onClearQueue = vi
+      .fn()
+      .mockResolvedValue({ cleared_count: 2, inputs: [], queue_generation: 2 });
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
+      onClearQueue,
+      queuedPrompts: [
+        { id: "inq-1", owner: null, position: 1, status: "queued", text: "# Ship it\nwith tests" },
+        {
+          id: "inq-2",
+          owner: { id: "reviewer", kind: "goal" },
+          position: 2,
+          status: "queued",
+          text: "Also update the changelog",
+        },
+      ],
+    });
+
+    const header = await screen.findByTestId("composer-queue-header");
+    expect(within(header).getByTestId("composer-queue-count")).toHaveTextContent("2");
+    expect(header).toHaveTextContent(/queued/);
+    expect(within(header).queryByTestId("composer-queue-full")).not.toBeInTheDocument();
+    const rows = screen.getAllByTestId("composer-queued-prompt-row");
+    expect(within(rows[0]!).getByTestId("composer-queued-position")).toHaveTextContent("#1");
+    // The preview is one flattened line; the full text stays on the title.
+    expect(within(rows[0]!).getByTestId("composer-queued-preview")).toHaveTextContent("Ship it");
+    expect(within(rows[0]!).queryByTestId("composer-queued-owner")).not.toBeInTheDocument();
+    expect(within(rows[0]!).getByTestId("composer-queued-steer")).toBeEnabled();
+    // Another actor's entry is attributed and read-only: verbs absent, never disabled.
+    expect(within(rows[1]!).getByTestId("composer-queued-position")).toHaveTextContent("#2");
+    expect(within(rows[1]!).getByTestId("composer-queued-owner")).toHaveTextContent("reviewer");
+    expect(within(rows[1]!).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    expect(within(rows[1]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
+    expect(within(rows[1]!).queryByTestId("composer-queued-remove")).not.toBeInTheDocument();
+  });
+
+  it("Should confirm an explicit clear in place before calling the clear handler once", async () => {
+    const user = userEvent.setup();
+    const onClearQueue = vi
+      .fn()
+      .mockResolvedValue({ cleared_count: 1, inputs: [], queue_generation: 2 });
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onClearQueue,
+      queuedPrompts: [{ id: "inq-1", owner: null, position: 1, status: "queued", text: "Ship it" }],
+    });
+
+    await user.click(await screen.findByTestId("composer-queue-clear"));
+    const confirm = screen.getByTestId("composer-queue-clear-confirm");
+    expect(confirm).toHaveTextContent("Remove all 1 queued follow-up?");
+    // While confirming, the row verbs are gone: the only question is the whole queue.
+    expect(screen.queryByTestId("composer-queued-remove")).not.toBeInTheDocument();
+    await user.click(within(confirm).getByTestId("composer-queue-clear-keep"));
+    expect(onClearQueue).not.toHaveBeenCalled();
+    expect(screen.getByTestId("composer-queue-header")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("composer-queue-clear"));
+    await user.keyboard("{Escape}");
+    expect(onClearQueue).not.toHaveBeenCalled();
+    expect(screen.getByTestId("composer-queue-header")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("composer-queue-clear"));
+    await user.click(screen.getByTestId("composer-queue-clear-confirm-button"));
+    await waitFor(() => expect(onClearQueue).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByTestId("composer-queue-header")).toBeInTheDocument());
+  });
+
+  it("Should show an unconfirmed send with Retry replaying its identity and Discard dropping it", async () => {
+    const user = userEvent.setup();
+    const onRetryUnconfirmedSend = vi.fn().mockResolvedValue({
+      disposition: "queued",
+      entryId: "inq-9",
+      idempotencyKey: "idk-1",
+      messageId: "msg-1",
+      queuePosition: 2,
+      replayed: true,
+      steerDelivery: null,
+      turnId: "turn-1",
+    });
+    const onDiscardUnconfirmedSend = vi.fn();
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onRetryUnconfirmedSend,
+      onDiscardUnconfirmedSend,
+      queuedPrompts: [],
+      unconfirmedSends: [
+        {
+          action: "queue",
+          attachments: [],
+          expectedTurnId: "turn-1",
+          id: "msg-1",
+          identity: { idempotencyKey: "idk-1", messageId: "msg-1" },
+          phase: "unconfirmed",
+          runtime: null,
+          text: "Also run the migration equivalence suite",
+        },
+      ],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    expect(row).toHaveAttribute("data-local", "unconfirmed");
+    expect(within(row).getByTestId("composer-queued-position")).toHaveTextContent("—");
+    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("Not confirmed");
+    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("msg-1");
+
+    await user.click(within(row).getByTestId("composer-queued-retry"));
+    expect(onRetryUnconfirmedSend).toHaveBeenCalledWith("msg-1");
+    // The replay's answer lands in the composer note: it had arrived, nothing was sent twice.
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-code", "queued");
+    expect(note).toHaveTextContent("Queued #2");
+    expect(note).toHaveTextContent("nothing was sent twice");
+    expect(screen.getByTestId("composer-feedback-suffix")).toHaveTextContent("replayed");
+
+    await user.click(within(row).getByTestId("composer-queued-discard"));
+    expect(onDiscardUnconfirmedSend).toHaveBeenCalledWith("msg-1");
+  });
+
+  it("Should drop the queue affordances while the daemon reports the queue at cap", async () => {
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onSteerPrompt: vi.fn(() => Promise.resolve()),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queueCap: 2,
+      queuedPrompts: [
+        { id: "inq-1", owner: null, position: 1, status: "queued", text: "one" },
+        { id: "inq-2", owner: null, position: 2, status: "queued", text: "two" },
+      ],
+    });
+
+    const header = await screen.findByTestId("composer-queue-header");
+    expect(within(header).getByTestId("composer-queue-full")).toHaveTextContent("full");
+    expect(screen.queryByTestId("composer-queue-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-steer-button")).toBeInTheDocument();
+    const hint = screen.getByTestId("composer-enter-hint");
+    expect(hint).toHaveAttribute("data-enter", "steer");
+    expect(hint).not.toHaveAttribute("data-modifier");
+  });
+
+  it("Should edit only the annotation in the row and keep the envelope on save", async () => {
     const user = userEvent.setup();
     const quote = buildTerminalQuote({
       terminalId: "term-4f21c9a03b7e",
@@ -3011,98 +4914,130 @@ describe("SessionThread composer running semantics", () => {
       lines: ["FAIL"],
     });
     const wire = composeQuotedPrompt("What failed?", quote);
-    renderComposer({
-      isSessionRunning: true,
-      allowBusyInput: true,
-      onQueuePrompt: vi.fn(() => Promise.resolve()),
-      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
-      onSteerQueuedPrompt: vi.fn(),
-      onRemoveQueuedPrompt: vi.fn(),
-      queuedPrompts: [{ id: "inq-quote", text: wire }],
-    });
-
-    const row = await screen.findByTestId("composer-queued-prompt-row");
-    await user.click(within(row).getByTestId("composer-queued-edit"));
-
-    await waitFor(() => expect(composerText()).toBe("What failed?"));
-    expect(composerText()).not.toContain("<terminal_context");
-    expect(screen.getByTestId("terminal-quote-block")).toBeInTheDocument();
-    expect(peekSessionTerminalQuote(primarySessionFixture.id)?.text).toBe(quote.text);
-  });
-
-  it("Should not queue a second entry when the queued-edit handler disappears", async () => {
-    const user = userEvent.setup();
-    const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onReplaceQueuedPrompt = vi.fn().mockResolvedValue(undefined);
-    const queuedPrompts = [{ id: "inq-1", text: "Edit this queued prompt." }];
-    const { rerender } = renderComposerRerenderable({
-      allowBusyInput: true,
-      isSessionRunning: true,
-      onQueuePrompt,
-      onReplaceQueuedPrompt,
-      onRemoveQueuedPrompt: vi.fn(),
-      onSteerQueuedPrompt: vi.fn(),
-      queuedPrompts,
-    });
-
-    const row = await screen.findByTestId("composer-queued-prompt-row");
-    await user.click(within(row).getByTestId("composer-queued-edit"));
-    rerender({
-      allowBusyInput: true,
-      isSessionRunning: true,
-      onQueuePrompt,
-      onRemoveQueuedPrompt: vi.fn(),
-      onSteerQueuedPrompt: vi.fn(),
-      queuedPrompts,
-    });
-    await user.click(screen.getByTestId("composer-queue-button"));
-
-    expect(onQueuePrompt).not.toHaveBeenCalled();
-    expect(onReplaceQueuedPrompt).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("Couldn't update queued prompt.");
-  });
-
-  it("Should disable queued steer when the active-turn fence is unavailable", async () => {
-    renderComposer({
-      allowBusyInput: true,
-      busyInputFenceAvailable: false,
-      isSessionRunning: true,
-      onQueuePrompt: vi.fn(),
-      onRemoveQueuedPrompt: vi.fn(),
-      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
-      onSteerQueuedPrompt: vi.fn(),
-      queuedPrompts: [{ id: "inq-1", text: "Wait for a turn fence." }],
-    });
-
-    const row = await screen.findByTestId("composer-queued-prompt-row");
-    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
-    expect(within(row).getByTestId("composer-queued-edit")).toBeEnabled();
-    expect(within(row).getByTestId("composer-queued-remove")).toBeEnabled();
-  });
-
-  it("Should not overwrite an existing draft when editing a queued prompt", async () => {
-    const user = userEvent.setup();
-    const onRemoveQueuedPrompt = vi.fn();
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
       onQueuePrompt: vi.fn(() => Promise.resolve()),
-      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
+      onReplaceQueuedPrompt,
       onSteerQueuedPrompt: vi.fn(),
-      onRemoveQueuedPrompt,
-      queuedPrompts: [{ id: "inq-1", text: "Queued prompt text." }],
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-quote", owner: null, position: 1, text: wire }],
     });
 
-    await screen.findByTestId("composer-input");
-    await setComposerText("Existing draft");
     const row = await screen.findByTestId("composer-queued-prompt-row");
     await user.click(within(row).getByTestId("composer-queued-edit"));
-
-    expect(composerText()).toBe("Existing draft");
-    expect(onRemoveQueuedPrompt).not.toHaveBeenCalled();
-    expect(toast.warning).toHaveBeenCalledWith(
-      "Send or clear the current draft before editing a queued prompt."
+    const editor = await screen.findByTestId("composer-queued-editor");
+    // The editor never receives `<terminal_context>`; the envelope rides back on save.
+    expect(editor).toHaveValue("What failed?");
+    await user.clear(editor);
+    await user.type(editor, "Why did it fail?");
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    await waitFor(() =>
+      expect(onReplaceQueuedPrompt).toHaveBeenCalledWith(
+        { id: "inq-quote", owner: null, position: 1, text: wire },
+        composeQuotedPrompt("Why did it fail?", quote)
+      )
     );
+    expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
+  });
+
+  it("Should cancel an in-row edit with Escape and keep the entry untouched", async () => {
+    const user = userEvent.setup();
+    const onReplaceQueuedPrompt = vi.fn().mockResolvedValue(undefined);
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onReplaceQueuedPrompt,
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-1", owner: null, position: 1, text: "Edit this queued prompt." }],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+    const editor = await screen.findByTestId("composer-queued-editor");
+    await user.type(editor, " changed");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("composer-queued-editor")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-queued-preview")).toHaveTextContent(
+      "Edit this queued prompt."
+    );
+    expect(onReplaceQueuedPrompt).not.toHaveBeenCalled();
+    // Without a replace handler the edit verb is absent, never disabled.
+    expect(screen.getByTestId("composer-queued-edit")).toBeInTheDocument();
+  });
+
+  it("Should hand an edit refused as entry_dispatching to the composer as a fresh draft", async () => {
+    const user = userEvent.setup();
+    // Invariant: a refused queued edit preserves text authored while Save was
+    // pending. Owner: composer interaction; canonical session-thread suite.
+    let rejectReplacement: ((error: Error) => void) | undefined;
+    const onReplaceQueuedPrompt = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectReplacement = reject;
+        })
+    );
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onReplaceQueuedPrompt,
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-1", owner: null, position: 1, text: "Ship it with tests" }],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+    const editor = await screen.findByTestId("composer-queued-editor");
+    await user.type(editor, " — and run the e2e lane too");
+    await user.click(screen.getByTestId("composer-queued-edit-save"));
+
+    await setComposerText("Keep my concurrent draft");
+    expect(composerText()).toBe("Keep my concurrent draft");
+    await act(async () => {
+      rejectReplacement?.(
+        new SessionApiError("already sending", 409, primarySessionFixture.id, {
+          code: "entry_dispatching",
+        })
+      );
+    });
+
+    // The current draft survives ahead of the refused edit.
+    await waitFor(() =>
+      expect(composerText()).toBe(
+        "Keep my concurrent draft\n\nShip it with tests — and run the e2e lane too"
+      )
+    );
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-code", "entry_dispatching");
+    expect(note).toHaveTextContent("That one is already sending");
+    expect(screen.queryByTestId("composer-queued-editor")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the editor open when the replacement never landed", async () => {
+    const user = userEvent.setup();
+    const onReplaceQueuedPrompt = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onReplaceQueuedPrompt,
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-1", owner: null, position: 1, text: "Queued prompt text." }],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+    await user.click(screen.getByTestId("composer-queued-edit-save"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to fetch"));
+    expect(screen.getByTestId("composer-queued-editor")).toHaveValue("Queued prompt text.");
+    expect(composerText()).toBe("");
   });
 
   it("Should render dispatching input as immutable while the daemon owns delivery", async () => {
@@ -3112,14 +5047,24 @@ describe("SessionThread composer running semantics", () => {
       onSteerQueuedPrompt: vi.fn(),
       onRemoveQueuedPrompt: vi.fn(),
       queuedPrompts: [
-        { id: "inq-dispatching", status: "dispatching", text: "Already leaving the queue." },
+        {
+          id: "inq-dispatching",
+          owner: null,
+          position: 1,
+          status: "dispatching",
+          text: "Already leaving the queue.",
+        },
       ],
     });
 
+    // Dispatching is a state, not a disappearance: the row says so and offers no
+    // verb the runtime would refuse (absent, never disabled).
     const row = await screen.findByTestId("composer-queued-prompt-row");
-    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
-    expect(within(row).getByTestId("composer-queued-edit")).toBeDisabled();
-    expect(within(row).getByTestId("composer-queued-remove")).toBeDisabled();
+    expect(row).toHaveAttribute("data-status", "dispatching");
+    expect(within(row).getByTestId("composer-queued-state")).toHaveTextContent("Sending…");
+    expect(within(row).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
+    expect(within(row).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
+    expect(within(row).queryByTestId("composer-queued-remove")).not.toBeInTheDocument();
   });
 
   // US-004 AC-2: the message typed in session-create is sent by the session
@@ -3589,6 +5534,8 @@ describe("SessionThread composer attachments", () => {
       queuedPrompts: [
         {
           id: "inq-att",
+          owner: null,
+          position: 1,
           text: "Review the screenshots.",
           attachments: {
             fileCount: 1,
@@ -3639,3 +5586,26 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
     rerender: (props: Partial<ComponentProps<typeof SessionThread>>) => view.rerender(tree(props)),
   };
 }
+
+// Invariant: a pending reply leaves the flicker guard even when commit work
+// delays its effect. Owner: thread status timer; canonical suite: SessionThread.
+describe("SessionThread thinking guard", () => {
+  it("Should reveal pending activity when the effect starts after the guard elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const view = renderHook(() => {
+      const elapsed = useThinkingGuardElapsed(0);
+      useLayoutEffect(() => {
+        vi.setSystemTime(500);
+      }, []);
+      return elapsed;
+    });
+    try {
+      await act(() => vi.runOnlyPendingTimersAsync());
+      expect(view.result.current).toBe(true);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+});

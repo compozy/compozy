@@ -244,7 +244,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 func statusForSessionAvailabilityError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, store.ErrSessionInputQueueFull):
-		return http.StatusRequestEntityTooLarge, true
+		return http.StatusConflict, true
 	case errors.Is(err, transcript.ErrProjectionIncompatible):
 		return http.StatusServiceUnavailable, true
 	case errors.Is(err, transcript.ErrProjectionCorrupt):

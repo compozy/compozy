@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -470,12 +471,18 @@ func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
 		t.Parallel()
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
-		requestID, pending := proc.registerPendingPermission("turn-unsupported", acpsdk.RequestPermissionRequest{
-			Options: []acpsdk.PermissionOption{
-				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		requestID, pending, registerErr := proc.registerPendingPermission(
+			"turn-unsupported",
+			acpsdk.RequestPermissionRequest{
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+				ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-unsupported"},
 			},
-			ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-unsupported"},
-		})
+		)
+		if registerErr != nil {
+			t.Fatal(registerErr)
+		}
 		t.Cleanup(func() {
 			proc.clearPendingPermission(requestID)
 		})
@@ -498,54 +505,134 @@ func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
 	})
 }
 
+func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
+	t.Parallel()
+	request := acpsdk.RequestPermissionRequest{
+		SessionId: "sess-direct",
+		Meta:      map[string]any{PermissionToolIDMetaKey: "compozy__terminal_exec"},
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "reject", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		},
+		ToolCall: acpsdk.ToolCallUpdate{
+			ToolCallId: "write",
+			Kind:       new(acpsdk.ToolKindEdit),
+			RawInput:   map[string]any{"command": "write file"},
+		},
+	}
+	t.Run("Should refuse another inbound request when the pending map is full", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		for range maxPendingPermissions {
+			if _, _, err := proc.registerPendingPermission("turn", request); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := proc.handleRequestPermission(t.Context(), request); !errors.Is(err, ErrPermissionQueueFull) {
+			t.Fatalf("permission at cap = %v", err)
+		}
+		if len(proc.pendingPermissions) != maxPendingPermissions {
+			t.Fatalf("pending permissions = %d", len(proc.pendingPermissions))
+		}
+	})
+	t.Run("Should cancel every pending permission when the connection closes", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		reader, writer := io.Pipe()
+		defer func() {
+			if err := reader.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		proc.conn = acpsdk.NewConnection(proc.handleInbound, io.Discard, reader)
+		active, err := proc.beginPrompt("turn-permissions", 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		results := make(chan error, 8)
+		for range 8 {
+			go func() {
+				response, err := proc.handleRequestPermission(t.Context(), request)
+				if err == nil &&
+					response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+					err = errors.New("permission did not resolve canceled after connection death")
+				}
+				results <- err
+			}()
+		}
+		for range 8 {
+			if event := <-active.events; event.Type != EventTypePermission {
+				t.Fatalf("pending event = %#v", event)
+			}
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 8 {
+			if err := <-results; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if proc.HasPendingPermission() {
+			t.Fatal("connection death left pending permissions")
+		}
+	})
+}
+
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
+	t.Run("Should attribute automatic rejection to timeout", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-	proc.permissionTimeout = 25 * time.Millisecond
-	active, err := proc.beginPrompt("turn-timeout", 8)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissionTimeout = 25 * time.Millisecond
+		active, err := proc.beginPrompt("turn-timeout", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	title := "permission request"
-	kind := acpsdk.ToolKindEdit
-	response, reqErr := proc.handleInbound(
-		context.Background(),
-		acpsdk.ClientMethodSessionRequestPermission,
-		mustMarshalJSON(acpsdk.RequestPermissionRequest{
-			SessionId: "sess-direct",
-			Options: []acpsdk.PermissionOption{
-				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
-				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
-			},
-			ToolCall: acpsdk.ToolCallUpdate{
-				ToolCallId: "tool-timeout",
-				Title:      &title,
-				Kind:       &kind,
-			},
-		}),
-	)
-	if reqErr != nil {
-		t.Fatalf("handleInbound(permission timeout) error = %v", reqErr)
-	}
+		title := "permission request"
+		kind := acpsdk.ToolKindEdit
+		response, reqErr := proc.handleInbound(
+			t.Context(),
+			acpsdk.ClientMethodSessionRequestPermission,
+			mustMarshalJSON(acpsdk.RequestPermissionRequest{
+				SessionId: "sess-direct",
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+				ToolCall: acpsdk.ToolCallUpdate{
+					ToolCallId: "tool-timeout",
+					Title:      &title,
+					Kind:       &kind,
+				},
+			}),
+		)
+		if reqErr != nil {
+			t.Fatalf("handleInbound(permission timeout) error = %v", reqErr)
+		}
 
-	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
-	if !ok {
-		t.Fatalf("handleInbound(permission timeout) type = %T, want RequestPermissionResponse", response)
-	}
-	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
-		t.Fatalf("permission timeout outcome = %#v, want reject-once option", permissionResponse.Outcome)
-	}
+		permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+		if !ok {
+			t.Fatalf("handleInbound(permission timeout) type = %T, want RequestPermissionResponse", response)
+		}
+		if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
+			t.Fatalf("permission timeout outcome = %#v, want reject-once option", permissionResponse.Outcome)
+		}
 
-	events := collectEventsUntilCount(t, active.events, 2)
-	if events[0].Decision != "" {
-		t.Fatalf("initial timeout decision = %q, want empty", events[0].Decision)
-	}
-	if events[1].Decision != string(decisionRejectOnce) {
-		t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
-	}
+		events := collectEventsUntilCount(t, active.events, 2)
+		if events[0].Decision != "" {
+			t.Fatalf("initial timeout decision = %q, want empty", events[0].Decision)
+		}
+		if events[1].Decision != string(decisionRejectOnce) {
+			t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
+		}
+		if got := events[1].ResolvedByValue(); got != "timeout" {
+			t.Fatalf("final timeout resolved_by = %q, want timeout", got)
+		}
+	})
 }
 
 func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T) {
@@ -732,12 +819,18 @@ func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testin
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	turnID := "turn-conflict"
-	_, first := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
+	_, first, registerErr := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
 		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
 	})
-	_, second := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
+	if registerErr != nil {
+		t.Fatal(registerErr)
+	}
+	_, second, registerErr := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
 		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-2"},
 	})
+	if registerErr != nil {
+		t.Fatal(registerErr)
+	}
 	t.Cleanup(func() {
 		proc.clearPendingPermission(first.requestID)
 		proc.clearPendingPermission(second.requestID)
@@ -765,12 +858,15 @@ func TestResolvePermissionConcurrentSafety(t *testing.T) {
 
 	registeredPending := make([]registered, 0, total)
 	for i := range total {
-		requestID, pending := proc.registerPendingPermission(
+		requestID, pending, registerErr := proc.registerPendingPermission(
 			fmt.Sprintf("turn-%d", i),
 			acpsdk.RequestPermissionRequest{
 				ToolCall: acpsdk.ToolCallUpdate{ToolCallId: acpsdk.ToolCallId(fmt.Sprintf("tool-%d", i))},
 			},
 		)
+		if registerErr != nil {
+			t.Fatal(registerErr)
+		}
 		registeredPending = append(registeredPending, registered{
 			requestID: requestID,
 			response:  pending.response,

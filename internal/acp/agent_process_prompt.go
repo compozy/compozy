@@ -6,16 +6,23 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 type activePromptState struct {
-	turnID     string
-	runID      string
-	generation int64
-	events     chan AgentEvent
-	activity   chan struct{}
-	detached   chan struct{}
-	cancel     context.CancelFunc
+	steerMu               sync.Mutex
+	steerContext          context.Context
+	steerWG               sync.WaitGroup
+	finishing             bool
+	turnID                string
+	runID                 string
+	generation            int64
+	events                chan AgentEvent
+	ingest                *IngestGate
+	activity              chan struct{}
+	detached              chan struct{}
+	cancel                context.CancelFunc
+	cooperativeCancelSent atomic.Bool
 
 	sendMu sync.Mutex
 	closed bool
@@ -85,6 +92,7 @@ func (p *AgentProcess) beginPromptState(
 		runID:                runID,
 		generation:           generation,
 		events:               make(chan AgentEvent, bufferSize),
+		ingest:               NewIngestGate(defaultIngestCapacity, defaultIngestMaxBytes),
 		activity:             make(chan struct{}, 1),
 		detached:             make(chan struct{}),
 		cancel:               cancel,
@@ -92,6 +100,7 @@ func (p *AgentProcess) beginPromptState(
 		pendingToolResultIDs: make(map[string]struct{}),
 	}
 	p.activePrompt = active
+	go p.forwardIngestEvents(active)
 	return active, nil
 }
 
@@ -115,7 +124,7 @@ func (p *AgentProcess) endPrompt(active *activePromptState) {
 	defer active.sendMu.Unlock()
 	if !active.closed {
 		active.closed = true
-		close(active.events)
+		active.ingest.Close(nil)
 	}
 }
 
@@ -240,7 +249,9 @@ func (a *activePromptState) deferToolResultLocked(event AgentEvent) bool {
 		return true
 	}
 	if len(a.pendingToolResults) >= maxPendingToolResults {
-		a.dropOldestPendingToolResultLocked()
+		a.flushDeferredToolResultsLocked()
+		a.failIngest(ErrIngestSaturated)
+		return true
 	}
 	a.pendingToolResults = append(a.pendingToolResults, event)
 	a.pendingToolResultIDs[toolCallID] = struct{}{}
@@ -347,20 +358,14 @@ func (a *activePromptState) flushDeferredToolResultsLocked() {
 	}
 }
 
-func (a *activePromptState) dropOldestPendingToolResultLocked() {
-	if a == nil || len(a.pendingToolResults) == 0 {
-		return
-	}
-	oldest := a.pendingToolResults[0]
-	delete(a.pendingToolResultIDs, strings.TrimSpace(oldest.ToolCallID))
-	a.pendingToolResults = append(a.pendingToolResults[:0], a.pendingToolResults[1:]...)
-}
-
 func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	if a == nil {
 		return
 	}
-	a.events <- event
+	if err := a.ingest.Admit(event); err != nil {
+		a.failIngest(err)
+		return
+	}
 	select {
 	case a.activity <- struct{}{}:
 	default:

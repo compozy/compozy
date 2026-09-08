@@ -12,7 +12,7 @@ CodeRabbit flagged it as Critical. The historical fix was migration v6 in the re
 
 ## Root cause
 
-`EnsureSchema`-style boot reconciliation has a fundamental gap: it creates tables that don't exist but does not mutate tables that do. Any column/index/constraint addition needs a real migration; a migration is required _even when fresh installs already work_, because upgrade is a first-class scenario in alpha.
+`EnsureSchema`-style boot reconciliation has a fundamental gap: it creates tables that don't exist but does not mutate tables that do. Any column/index/constraint addition needs a real migration; a migration is required _even when fresh installs already work_, because existing user data is an upgrade contract.
 
 A second contributor was two competing schema paths. The current architecture removes that ambiguity: each stream owns one declarative source (a cohesive `schema.sql` or ordered domain fragments), one gap-free Goose directory, and one `atlas.sum`.
 
@@ -26,15 +26,11 @@ A second contributor was two competing schema paths. The current architecture re
 - Run `make codegen` after editing the declarative source; inspect the appended SQL, Atlas sqlcheck output, refreshed `atlas.sum`, and regenerated sqlc code.
 - Keep existing migration bytes and checksums immutable; append the next gap-free five-digit version.
 - Extend the canonical fresh/reopen/ahead/integrity/equivalence suites and run `make codegen-check`.
-- Move `.db`, `-wal`, `-shm`, and sibling databases together on recovery or hard-cut refusal.
+- Move `.db`, `-wal`, `-shm`, and sibling databases together during recovery, preserving user data under SD-013.
 
 ## Allowed exception
 
-In greenfield alpha, a hard-cut rename + table rewrite without compat migration is allowed when:
-
-1. The change is documented in the techspec's "Delete Targets" section.
-2. All callers of the old shape are deleted in the same change.
-3. Per-developer wipe of local SQLite is acceptable cost.
+The former greenfield wipe exception is retired by SD-013/L-040. Released user state must migrate losslessly in the same change; local data is not disposable because a schema is old. Data loss requires recorded user ADR sign-off and a release-note migration block. Never replace an upgrade test with a fresh-database-only test.
 
 ## Anti-pattern
 

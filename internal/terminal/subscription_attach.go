@@ -33,11 +33,6 @@ func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscripti
 	if err != nil {
 		return nil, err
 	}
-	if mode == terminalAccessWrite {
-		if err := s.lease.authorize(options.Actor); err != nil {
-			return nil, err
-		}
-	}
 	settings := s.settings(ctx)
 	if err := requestContextError(ctx, "attach"); err != nil {
 		return nil, err
@@ -70,9 +65,6 @@ func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscripti
 		Demoted: subscriber.demoted, Evicted: subscriber.evict,
 	})
 	s.flow.Add(subscriber.queue)
-	if mode == terminalAccessWrite {
-		subscriber.leaseToken = s.lease.attachWriter(options.Actor)
-	}
 	s.subscribers[subscriber.id] = subscriber
 	s.info.Viewers = len(s.subscribers)
 	s.lastActivity = s.manager.now()
@@ -134,7 +126,7 @@ func (s *subscription) enqueueInitialFrames(options AttachOptions, info Info, co
 	replay := s.session.ring.ReplayFrom(options.AfterSeq)
 	attached, err := json.Marshal(attachedFramePayload{
 		Seq: terminalSequenceString(replay.Seq), Truncated: replay.Truncated, Cols: cols,
-		Rows: rows, Lease: info.Lease, Mode: info.Mode, Preamble: string(replay.Preamble),
+		Rows: rows, Mode: info.Mode, Preamble: string(replay.Preamble),
 	})
 	if err != nil {
 		return fmt.Errorf("terminal: encode ATTACHED frame: %w", err)

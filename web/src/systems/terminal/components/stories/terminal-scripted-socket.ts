@@ -4,7 +4,7 @@ import {
   encodeTerminalServerOutputFrame,
   TERMINAL_SERVER_OP,
 } from "../../lib/terminal-wire";
-import type { TerminalLeaseState, TerminalMode } from "../../types";
+import type { TerminalMode } from "../../types";
 
 /**
  * A socket that plays a fixed script.
@@ -16,7 +16,6 @@ import type { TerminalLeaseState, TerminalMode } from "../../types";
 export interface ScriptedTerminalScreen {
   cols: number;
   rows: number;
-  lease: TerminalLeaseState;
   mode: TerminalMode;
   /** Written as one OUTPUT frame from sequence zero. */
   output: string;
@@ -44,7 +43,6 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
           truncated: false,
           cols: screen.cols,
           rows: screen.rows,
-          lease: screen.lease,
           mode: screen.mode,
         }),
       } as MessageEvent<unknown>);

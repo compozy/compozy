@@ -1,19 +1,30 @@
+import { use, useEffect } from "react";
+import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import { SessionPromptDispatchContext } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";
 import {
-  queuedPromptAttachmentSummary,
+  findUnconfirmedSend,
+  queueCapFromInputs,
+  queuedPromptsFromInputs,
+  SessionBusyInputRefusalError,
+  sessionSendOutcomeFromResult,
   useCancelSessionInput,
-  useInterruptSessionPrompt,
+  useClearSessionInputs,
   usePromoteSessionInput,
-  useQueueSessionPrompt,
   useReplaceSessionInput,
+  useSendSessionPrompt,
   useSessionInputs,
-  useSteerSessionPrompt,
   type QueuedPrompt,
+  type SessionBusyInputAction,
+  type SessionBusyInputDraft,
   type SessionBusyInputHandler,
   type SessionPromptRuntimeSnapshot,
+  type SessionSendEnvelope,
+  type SessionSendOutcome,
+  type UnconfirmedSend,
 } from "@/systems/session";
 
 import {
@@ -39,108 +50,142 @@ export function useSessionBusyInputControls({
   store,
   workspaceId,
 }: UseSessionBusyInputControlsOptions) {
-  const queueMutation = useQueueSessionPrompt({ workspaceId });
-  const interruptMutation = useInterruptSessionPrompt({ workspaceId });
-  const steerMutation = useSteerSessionPrompt({ workspaceId });
+  const sendMutation = useSendSessionPrompt({ workspaceId });
   const inputs = useSessionInputs(workspaceId, sessionId);
   const cancelInput = useCancelSessionInput(workspaceId, sessionId);
   const replaceInput = useReplaceSessionInput(workspaceId, sessionId);
   const promoteInput = usePromoteSessionInput(workspaceId, sessionId);
-  const queuedPrompts: QueuedPrompt[] =
-    inputs.data?.inputs.map(input => {
-      const attachments = queuedPromptAttachmentSummary(input.attachments, workspaceId, sessionId);
-      return {
-        id: input.id,
-        mode: input.mode,
-        status: input.status,
-        text: input.text,
-        ...(attachments ? { attachments } : {}),
-      };
-    }) ?? [];
+  const clearInputs = useClearSessionInputs(workspaceId, sessionId);
+  // A streaming prompt POST that lost its acknowledgment mid-turn is retained
+  // here too: one unconfirmed model for every send this window made.
+  const promptDispatch = use(SessionPromptDispatchContext);
+  useEffect(() => {
+    if (promptDispatch === null) return;
+    const subscription = promptDispatch.on("sendUnconfirmed", event => {
+      store.trigger.sendUnconfirmedObserved({ send: event.envelope });
+    });
+    return () => subscription.unsubscribe();
+  }, [promptDispatch, store]);
+  const unconfirmedSends = useSelector(store, snapshot => snapshot.context.unconfirmedSends);
+  const refusalQueueCap = useSelector(store, snapshot => snapshot.context.queueCap);
+  // The queue list owns the cap, so "full" reads before any refusal; the cap a
+  // `queue_full` refusal named is only the fallback for a daemon without the summary.
+  const queueCap = queueCapFromInputs(inputs.data) ?? refusalQueueCap;
+  const queuedPrompts: QueuedPrompt[] = queuedPromptsFromInputs(
+    inputs.data?.inputs,
+    workspaceId,
+    sessionId
+  );
   const pending =
     isBusyInputPending(store.getSnapshot().context) ||
     cancelInput.isPending ||
     replaceInput.isPending ||
-    promoteInput.isPending;
+    promoteInput.isPending ||
+    clearInputs.isPending;
 
-  const handleQueuePrompt: SessionBusyInputHandler = draft => {
-    const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      (text.length === 0 && draft.attachments.length === 0)
-    ) {
-      return;
-    }
-    const runtime = getRuntimeSnapshot?.() ?? null;
-    return requestBusyInput(store, () =>
+  /**
+   * One send on the wire, identity minted here so the client can retain it: a
+   * lost acknowledgment keeps the whole envelope, and Retry replays it byte for
+   * byte (invariant 8). `retryOf` names the unconfirmed row being replayed.
+   */
+  const dispatchEnvelope = (
+    envelope: SessionSendEnvelope,
+    retryOf?: string
+  ): Promise<SessionSendOutcome | void> =>
+    requestBusyInput(store, () =>
       store.trigger.busyInputRequested({
         execute: () =>
-          queueMutation.mutateAsync({
+          sendMutation.mutateAsync({
             id: sessionId,
-            message: text,
-            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
-            ...(runtime ? { runtime } : {}),
+            idempotencyKey: envelope.identity.idempotencyKey,
+            message: envelope.text,
+            messageId: envelope.identity.messageId,
+            // The idle prompt carries no verb: the daemon resolves it (or replays it) as sent.
+            ...(envelope.action === "prompt" ? {} : { mode: envelope.action }),
+            ...(envelope.expectedTurnId ? { expectedTurnId: envelope.expectedTurnId } : {}),
+            ...(envelope.attachments.length > 0 ? { attachments: envelope.attachments } : {}),
+            ...(envelope.runtime ? { runtime: envelope.runtime } : {}),
           }),
-        kind: "queue",
-        message: text,
+        kind: envelope.action,
+        message: envelope.text,
+        send: envelope,
+        ...(retryOf !== undefined ? { retryOf } : {}),
       })
     );
+
+  /**
+   * Every busy verb goes through one gate. A gate that cannot honor the send
+   * rejects with its reason (US-004.AC-3) — never a silent no-op — and the
+   * daemon's answer resolves as the disposition envelope. The known active turn
+   * rides along as a strict fence; when the poll has not reported one yet the
+   * daemon resolves the live turn itself (invariant 6).
+   */
+  const submitBusyInput = (
+    action: SessionBusyInputAction,
+    draft: SessionBusyInputDraft
+  ): Promise<SessionSendOutcome | void> => {
+    const text = draft.message.trim();
+    const attachmentCount = draft.attachments.length;
+    if (!promptControlsAvailable) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "session_not_promptable" })
+      );
+    }
+    if (isBusyInputPending(store.getSnapshot().context)) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "send_in_flight" })
+      );
+    }
+    if (text.length === 0 && attachmentCount === 0) {
+      return Promise.resolve();
+    }
+    if (action === "steer" && attachmentCount > 0) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({ attachmentCount, code: "steer_attachments_unsupported" })
+      );
+    }
+    return dispatchEnvelope({
+      action,
+      attachments: draft.attachments,
+      expectedTurnId: activeTurnId.length > 0 ? activeTurnId : null,
+      identity: { idempotencyKey: createClientId(), messageId: createClientId() },
+      runtime: getRuntimeSnapshot?.() ?? null,
+      text,
+    });
   };
 
-  const handleInterruptPrompt: SessionBusyInputHandler = draft => {
-    const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      (text.length === 0 && draft.attachments.length === 0) ||
-      activeTurnId.length === 0
-    ) {
-      return;
+  /**
+   * Retry replays the retained identity exactly as it left: same content,
+   * same fence, same runtime. The daemon answers with the recorded outcome
+   * (`replayed`) or dispatches it once; either way the row resolves.
+   */
+  const handleRetryUnconfirmedSend = (id: string): Promise<SessionSendOutcome | void> => {
+    const send: UnconfirmedSend | null = findUnconfirmedSend(unconfirmedSends, id);
+    if (send === null) {
+      return Promise.reject(new Error("There is no unconfirmed send to retry."));
     }
-    const runtime = getRuntimeSnapshot?.() ?? null;
-    return requestBusyInput(store, () =>
-      store.trigger.busyInputRequested({
-        execute: () =>
-          interruptMutation.mutateAsync({
-            expectedTurnId: activeTurnId,
-            id: sessionId,
-            message: text,
-            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
-            ...(runtime ? { runtime } : {}),
-          }),
-        kind: "interrupt",
-        message: text,
-      })
-    );
+    if (isBusyInputPending(store.getSnapshot().context)) {
+      return Promise.reject(
+        new SessionBusyInputRefusalError({
+          attachmentCount: send.attachments.length,
+          code: "send_in_flight",
+        })
+      );
+    }
+    return dispatchEnvelope(send, id);
   };
 
-  const handleSteerPrompt: SessionBusyInputHandler = draft => {
-    const text = draft.message.trim();
-    if (
-      !promptControlsAvailable ||
-      isBusyInputPending(store.getSnapshot().context) ||
-      draft.attachments.length > 0 ||
-      text.length === 0 ||
-      activeTurnId.length === 0
-    ) {
-      return;
-    }
-    return requestBusyInput(store, () =>
-      store.trigger.busyInputRequested({
-        execute: () =>
-          steerMutation.mutateAsync({
-            expectedTurnId: activeTurnId,
-            id: sessionId,
-            message: text,
-          }),
-        kind: "steer",
-        message: text,
-      })
-    );
-  };
+  const handleQueuePrompt: SessionBusyInputHandler = draft => submitBusyInput("queue", draft);
+  const handleSteerPrompt: SessionBusyInputHandler = draft => submitBusyInput("steer", draft);
+  const handleInterruptPrompt: SessionBusyInputHandler = draft =>
+    submitBusyInput("interrupt", draft);
 
   return {
+    /** Explicit clear-all; the strip confirms first and reports failure itself. */
+    handleClearQueue: () => clearInputs.mutateAsync(),
+    handleDiscardUnconfirmedSend: (id: string) => {
+      store.trigger.unconfirmedSendDiscarded({ id });
+    },
     handleInterruptPrompt,
     handleQueuePrompt,
     handleRemoveQueuedPrompt: (queueEntryId: string) => {
@@ -161,16 +206,17 @@ export function useSessionBusyInputControls({
         request: { idempotency_key: createClientId(), message_id: createClientId(), text },
       });
     },
+    handleRetryUnconfirmedSend,
     handleSteerPrompt,
     handleSteerQueuedPrompt: (prompt: QueuedPrompt) => {
-      if (!promptControlsAvailable || pending || activeTurnId.length === 0 || prompt.attachments) {
+      if (!promptControlsAvailable || pending || prompt.attachments) {
         return;
       }
       promoteInput.mutate(
         {
           queueEntryId: prompt.id,
           request: {
-            expected_turn_id: activeTurnId,
+            ...(activeTurnId.length > 0 ? { expected_turn_id: activeTurnId } : {}),
             idempotency_key: createClientId(),
             message_id: createClientId(),
             text: prompt.text,
@@ -185,16 +231,26 @@ export function useSessionBusyInputControls({
       );
     },
     pending,
+    queueCap,
     queuedPrompts,
+    unconfirmedSends,
   };
 }
 
-function requestBusyInput(store: SessionPageControlsStore, request: () => void): Promise<void> {
-  return awaitStoreRequest<{ requestId: number }, SessionBusyInputSettlement, void>({
+function requestBusyInput(
+  store: SessionPageControlsStore,
+  request: () => void
+): Promise<SessionSendOutcome | void> {
+  return awaitStoreRequest<
+    { requestId: number },
+    SessionBusyInputSettlement,
+    SessionSendOutcome | void
+  >({
     notAcceptedMessage: "Busy input request was not accepted",
     request,
     resolveSettlement: settlement => {
       if (settlement.outcome === "failed") throw settlement.error;
+      return sessionSendOutcomeFromResult(settlement.result) ?? undefined;
     },
     subscribeAccepted: listener => store.on("busyInputAccepted", listener),
     subscribeSettled: listener => store.on("busyInputSettled", listener),

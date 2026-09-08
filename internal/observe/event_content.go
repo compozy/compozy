@@ -13,7 +13,11 @@ func observedEventContent(event acp.AgentEvent) []byte {
 		events.TranscriptMarkerRedacted,
 		events.SessionStreamSnapshotServed,
 		events.SessionStreamSubscribed,
-		events.SessionStreamOverflowFallback:
+		events.SessionStreamOverflowFallback,
+		events.StreamConsumerDegraded,
+		events.SessionSupervisionWarning,
+		events.SessionSupervisionStopped,
+		events.SessionSupervisionSourceError:
 		return acp.CloneRawMessage(event.Raw)
 	default:
 		return nil

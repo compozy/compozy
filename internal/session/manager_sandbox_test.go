@@ -792,6 +792,104 @@ func TestSessionSandboxRejectsSymlinkCWDOutsideWorkspace(t *testing.T) {
 
 func TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct{ destroy, syncFailure bool }{{false, false}, {true, false}, {false, true}} {
+		destroy := tc.destroy
+		t.Run(
+			fmt.Sprintf(
+				"Should finalize a recovered sandbox with destroy %t and sync failure %t without losing metadata",
+				destroy, tc.syncFailure,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				provider := &recordingSandboxProvider{}
+				catalog := newRecordingSessionCatalog()
+				h := newHarness(
+					t,
+					WithSandboxRegistry(newRegistryForProvider(t, provider)),
+					WithSessionCatalog(catalog),
+				)
+				setHarnessSandbox(t, h, destroy)
+				active := seedRecoveredLocalStop(t, h)
+				meta := readMeta(t, active.MetaPath())
+				meta.Sandbox = cloneSessionSandboxMeta(active.Info().Sandbox)
+				meta.Sandbox.State = sandboxStatePrepared
+				meta.Name = "recovered sandbox identity"
+				if err := store.WriteSessionMeta(active.MetaPath(), meta); err != nil {
+					t.Fatal(err)
+				}
+				provider.mu.Lock()
+				beforeSync, beforeDestroy := len(provider.syncFromReasons), len(provider.destroyStates)
+				provider.mu.Unlock()
+				cleanupErr := errors.New("recovered sandbox sync failed")
+				if tc.syncFailure {
+					provider.syncFromContextHook = func(ctx context.Context, _ sandbox.SessionState, _ sandbox.SyncOptions) (sandbox.SyncResult, error) {
+						if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > defaultLifecycleTimeout {
+							t.Error("recovered sandbox cleanup has no bounded deadline")
+						}
+						return sandbox.SyncResult{}, cleanupErr
+					}
+				}
+				ctx := testutil.Context(t)
+				err := h.manager.Stop(ctx, active.ID)
+				if (tc.syncFailure && !errors.Is(err, cleanupErr)) || (!tc.syncFailure && err != nil) {
+					t.Fatalf("recovered sandbox stop error = %v", err)
+				}
+				provider.mu.Lock()
+				synced, destroyed := len(provider.syncFromReasons)-beforeSync, len(provider.destroyStates)-beforeDestroy
+				provider.mu.Unlock()
+				wantDestroy, wantState := 0, sandboxStateStopped
+				if destroy {
+					wantDestroy, wantState = 1, sandboxStateDestroyed
+				}
+				after := readMeta(t, active.MetaPath())
+				if after.State != string(StateStopped) || (tc.syncFailure && after.Sandbox.LastSyncError == "") {
+					t.Fatal("sandbox cleanup lost terminal truth or its failure diagnostic")
+				}
+				if synced != 1 || destroyed != wantDestroy || after.Sandbox.State != wantState {
+					t.Fatalf("recovered sandbox sync=%d destroy=%d state=%s", synced, destroyed, after.Sandbox.State)
+				}
+				catalog.mu.Lock()
+				projected := cloneSessionSandboxMeta(catalog.sessions[active.ID].Sandbox)
+				catalog.mu.Unlock()
+				if !reflect.DeepEqual(projected, after.Sandbox) {
+					t.Fatal("catalog lost the recovered sandbox finalization state")
+				}
+				if after.Name != meta.Name || after.CreationDigest != meta.CreationDigest ||
+					!reflect.DeepEqual(
+						after.CreationProfile,
+						meta.CreationProfile,
+					) || !reflect.DeepEqual(after.CreationOptions, meta.CreationOptions) {
+					t.Fatal("sandbox cleanup replaced unrelated session metadata")
+				}
+			},
+		)
+	}
+
+	t.Run("Should bound sandbox cleanup and persist verified stop despite its failure", func(t *testing.T) {
+		t.Parallel()
+		cleanupErr := errors.New("sandbox cleanup failed")
+		provider := &recordingSandboxProvider{
+			syncFromContextHook: func(ctx context.Context, _ sandbox.SessionState, _ sandbox.SyncOptions) (sandbox.SyncResult, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok || time.Until(deadline) > defaultLifecycleTimeout {
+					t.Error("sandbox cleanup has no bounded lifecycle deadline")
+				}
+				return sandbox.SyncResult{}, cleanupErr
+			},
+		}
+		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+		setHarnessSandbox(t, h, false)
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); !errors.Is(err, cleanupErr) {
+			t.Fatalf("Stop() = %v, want cleanup diagnostic", err)
+		}
+		if active.Info().State != StateStopped || readMeta(t, active.MetaPath()).State != string(StateStopped) {
+			t.Fatal("sandbox cleanup failure prevented verified terminal persistence")
+		}
+		if got := h.notifier.stoppedCount(); got != 1 {
+			t.Fatalf("stopped notifications = %d, want 1", got)
+		}
+	})
 
 	for _, tt := range []struct {
 		name          string
@@ -1477,26 +1575,27 @@ func TestManagerExecSandboxValidationErrors(t *testing.T) {
 }
 
 type recordingSandboxProvider struct {
-	mu                sync.Mutex
-	prepareRequests   []sandbox.PrepareRequest
-	syncToReasons     []sandbox.SyncReason
-	syncFromReasons   []sandbox.SyncReason
-	syncToOptions     []sandbox.SyncOptions
-	syncFromOptions   []sandbox.SyncOptions
-	destroyStates     []sandbox.SessionState
-	runtimeRoot       string
-	runtimeAdditional []string
-	instanceID        string
-	providerState     json.RawMessage
-	launchEnv         []string
-	syncToResult      sandbox.SyncResult
-	syncFromResult    sandbox.SyncResult
-	toolHost          sandbox.ToolHost
-	launcher          sandbox.Launcher
-	prepareHook       func(sandbox.PrepareRequest) error
-	syncToHook        func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
-	syncFromHook      func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
-	destroyHook       func(sandbox.SessionState) error
+	mu                  sync.Mutex
+	prepareRequests     []sandbox.PrepareRequest
+	syncToReasons       []sandbox.SyncReason
+	syncFromReasons     []sandbox.SyncReason
+	syncToOptions       []sandbox.SyncOptions
+	syncFromOptions     []sandbox.SyncOptions
+	destroyStates       []sandbox.SessionState
+	runtimeRoot         string
+	runtimeAdditional   []string
+	instanceID          string
+	providerState       json.RawMessage
+	launchEnv           []string
+	syncToResult        sandbox.SyncResult
+	syncFromResult      sandbox.SyncResult
+	toolHost            sandbox.ToolHost
+	launcher            sandbox.Launcher
+	prepareHook         func(sandbox.PrepareRequest) error
+	syncToHook          func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
+	syncFromHook        func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
+	syncFromContextHook func(context.Context, sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
+	destroyHook         func(sandbox.SessionState) error
 }
 
 func (p *recordingSandboxProvider) Backend() sandbox.Backend {
@@ -1633,7 +1732,7 @@ func (p *recordingSandboxProvider) SyncToRuntime(
 }
 
 func (p *recordingSandboxProvider) SyncFromRuntime(
-	_ context.Context,
+	ctx context.Context,
 	state sandbox.SessionState,
 	opts sandbox.SyncOptions,
 ) (sandbox.SyncResult, error) {
@@ -1641,6 +1740,9 @@ func (p *recordingSandboxProvider) SyncFromRuntime(
 	p.syncFromReasons = append(p.syncFromReasons, opts.Reason)
 	p.syncFromOptions = append(p.syncFromOptions, cloneSyncOptions(opts))
 	p.mu.Unlock()
+	if p.syncFromContextHook != nil {
+		return p.syncFromContextHook(ctx, state, opts)
+	}
 	if p.syncFromHook != nil {
 		return p.syncFromHook(state, opts)
 	}

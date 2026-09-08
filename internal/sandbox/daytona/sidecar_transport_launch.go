@@ -20,17 +20,22 @@ func (t *sidecarTransport) launch(
 	ctx context.Context,
 	endpoint sidecarEndpoint,
 	command string,
+	processID string,
 ) (_ string, err error) {
-	body, err := json.Marshal(sidecarLaunchRequest{Command: command})
+	body, err := json.Marshal(sidecarLaunchRequest{Command: command, ID: processID})
 	if err != nil {
 		return "", fmt.Errorf("sandbox/daytona: marshal sidecar launch request: %w", err)
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, sidecarRequestTimeout)
 	defer cancel()
+	launchPath := sidecarLaunchPath
+	if processID != "" {
+		launchPath += "/identified"
+	}
 	req, err := http.NewRequestWithContext(
 		requestCtx,
 		http.MethodPost,
-		endpoint.url(sidecarLaunchPath),
+		endpoint.url(launchPath),
 		bytes.NewReader(body),
 	)
 	if err != nil {
@@ -60,6 +65,9 @@ func (t *sidecarTransport) launch(
 	}
 	if strings.TrimSpace(launched.ID) == "" {
 		return "", errors.New("sandbox/daytona: sidecar launch response missing session id")
+	}
+	if processID != "" && launched.ID != processID {
+		return "", errors.New("sandbox/daytona: sidecar did not preserve the reserved process identity")
 	}
 	return strings.TrimSpace(launched.ID), nil
 }

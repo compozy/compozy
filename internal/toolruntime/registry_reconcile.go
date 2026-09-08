@@ -44,7 +44,6 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 			ctx,
 			record.ID,
 			ProcessStateInterrupting,
-			nil,
 			bootReconcileReason,
 			nil,
 		); updateErr != nil {
@@ -74,7 +73,6 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 			ctx,
 			record.ID,
 			ProcessStateInterrupted,
-			nil,
 			bootReconcileReason,
 			&completedAt,
 		); updateErr != nil {

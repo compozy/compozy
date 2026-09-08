@@ -1,13 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { terminalLeaseView } from "../../lib/terminal-lease";
-import {
-  DEV_SERVER_TERMINAL,
-  MAKE_GATE_TERMINAL,
-  PSQL_TERMINAL,
-  TERMINAL_FIXTURE_VIEWER,
-} from "../../mocks/terminal-fixtures";
+import { DEV_SERVER_TERMINAL, MAKE_GATE_TERMINAL } from "../../mocks/terminal-fixtures";
 import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalVisualStage } from "./terminal-visual-stage";
 
@@ -52,9 +46,9 @@ const HANDOFF_PREVIEW = [
 /**
  * VC-15 — deliberate terminal use, inside the conversation.
  *
- * The lease chip, Open action, and start clock appear when the catalog already
- * has them. The tool envelope itself does not carry those fields, so production
- * omits them when the catalog row is missing rather than inventing them.
+ * The Open action and start clock appear when the catalog already has them.
+ * The tool envelope itself does not carry those fields, so production omits
+ * them when the catalog row is missing rather than inventing them.
  */
 export const SessionBlock: Story = {
   name: "VC-15 · Session terminal block",
@@ -64,13 +58,6 @@ export const SessionBlock: Story = {
       <div className="p-4">
         <SessionTerminalBlock
           blockId="tool-call-7f21"
-          lease={terminalLeaseView({
-            lease: PSQL_TERMINAL.lease,
-            controller: PSQL_TERMINAL.controller,
-            viewerId: TERMINAL_FIXTURE_VIEWER,
-            mode: PSQL_TERMINAL.mode,
-            capabilities: PSQL_TERMINAL.capabilities,
-          })}
           onOpenTerminal={NOOP}
           preview={DEV_SERVER_PREVIEW}
           startedLabel="12:40"

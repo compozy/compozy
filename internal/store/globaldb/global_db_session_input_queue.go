@@ -44,12 +44,11 @@ func (g *SessionRepo) EnqueueSessionInput(
 			return countErr
 		}
 		if count >= normalized.QueueCap {
-			return fmt.Errorf(
-				"%w: session %s cap %d",
-				store.ErrSessionInputQueueFull,
-				normalized.SessionID,
-				normalized.QueueCap,
-			)
+			return &store.SessionInputQueueFullError{
+				SessionID: normalized.SessionID,
+				Cap:       normalized.QueueCap,
+				Count:     count,
+			}
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)
 		if insertErr != nil {
@@ -85,17 +84,19 @@ func (g *SessionRepo) StageSessionSteer(
 
 	err = g.withImmediateTransaction(ctx, "stage session steer", func(exec globalSQLExecutor) error {
 		nowRaw := store.FormatTimestamp(normalized.Now)
-		if cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
+		superseded, cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
 			CanceledStatus: store.SessionInputQueueStatusCanceled, CanceledAt: nullableSessionTime(normalized.Now),
 			UpdatedAt: nowRaw, SessionID: normalized.SessionID, SteerMode: store.SessionInputQueueModeSteer,
 			QueuedStatus: store.SessionInputQueueStatusQueued,
-		}); cancelErr != nil {
+		})
+		if cancelErr != nil {
 			return fmt.Errorf("store: cancel prior session steer input: %w", cancelErr)
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)
 		if insertErr != nil {
 			return insertErr
 		}
+		inserted.SupersededIDs = superseded
 		entry = inserted
 		return nil
 	})
@@ -107,7 +108,7 @@ func (g *SessionRepo) StageSessionSteer(
 
 func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
 	if req.PromptAdmissionID != "" || req.MessageID != "" || req.IdempotencyKey != "" ||
-		req.TurnID != "" || req.EventID != "" {
+		(req.TurnID != "" && req.OwnerKind != store.SessionInputOwnerSynthetic) || req.EventID != "" {
 		return errors.New("store: prompt admission identity is reserved for admitted session input")
 	}
 	return nil
@@ -350,6 +351,10 @@ func insertSessionInputQueueEntry(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
+	syntheticJSON, err := encodeSyntheticQueuePrompt(normalized.SyntheticPrompt)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
 		ID:        normalized.ID,
 		SessionID: normalized.SessionID,
@@ -357,15 +362,21 @@ func insertSessionInputQueueEntry(
 			String: normalized.PromptAdmissionID,
 			Valid:  normalized.PromptAdmissionID != "",
 		},
-		MessageID:              normalized.MessageID,
-		IdempotencyKey:         normalized.IdempotencyKey,
-		TurnID:                 normalized.TurnID,
-		TargetTurnID:           normalized.TargetTurnID,
-		EventID:                normalized.EventID,
-		Status:                 store.SessionInputQueueStatusQueued,
-		Mode:                   normalized.Mode,
-		Delivery:               normalized.Delivery,
+		MessageID:      normalized.MessageID,
+		IdempotencyKey: normalized.IdempotencyKey,
+		TurnID:         normalized.TurnID,
+		TargetTurnID:   normalized.TargetTurnID,
+		EventID:        normalized.EventID,
+		Status:         store.SessionInputQueueStatusQueued,
+		Mode:           normalized.Mode,
+		Delivery:       normalized.Delivery,
+		SteerDelivery: sql.NullString{
+			String: string(normalized.SteerDelivery),
+			Valid:  normalized.SteerDelivery != "",
+		},
 		Text:                   normalized.Text,
+		OwnerKind:              sql.NullString{String: normalized.OwnerKind, Valid: normalized.OwnerKind != ""},
+		SyntheticPromptJson:    syntheticJSON,
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		AttachmentsJson:        attachmentsJSON,
 		RuntimeProvider:        normalized.Runtime.Provider,

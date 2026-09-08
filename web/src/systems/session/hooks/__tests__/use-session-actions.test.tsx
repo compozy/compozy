@@ -9,17 +9,16 @@ import {
   useArchiveSession,
   useCreateSession,
   useDeleteSession,
-  useInterruptSessionPrompt,
-  useQueueSessionPrompt,
   useRepairSession,
   useRenameSession,
   useResumeSession,
-  useSteerSessionPrompt,
+  useSendSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
 import { useSessionRewind } from "../use-session-rewind";
 import {
   useCancelSessionInput,
+  useClearSessionInputs,
   usePromoteSessionInput,
   useReplaceSessionInput,
 } from "../use-session-inputs";
@@ -39,6 +38,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionConversation: vi.fn(),
   archiveSession: vi.fn(),
   cancelQueuedSessionPrompt: vi.fn(),
+  clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   repairSession: vi.fn(),
@@ -49,7 +49,6 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
-  steerSessionPrompt: vi.fn(),
   unarchiveSession: vi.fn(),
 }));
 
@@ -64,6 +63,7 @@ import {
   cancelQueuedSessionPrompt,
   archiveSession,
   clearSessionConversation,
+  clearSessionInputs,
   createSession,
   deleteSession,
   repairSession,
@@ -73,7 +73,6 @@ import {
   replaceSessionInput,
   rewindSession,
   sendSessionPrompt,
-  steerSessionPrompt,
   unarchiveSession,
 } from "../../adapters/session-api";
 import { toast } from "sonner";
@@ -98,6 +97,7 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   id: "sess-created",
@@ -877,18 +877,21 @@ describe("session actions", () => {
     });
   });
 
-  it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {
+  it("useSendSessionPrompt builds the canonical durable request with the resolved busy verb", async () => {
     vi.mocked(sendSessionPrompt).mockResolvedValue({
       delivery: "after_turn",
+      disposition: "queued",
+      entry_id: "inp_4d8",
       idempotency_key: "idempotency-001",
       message_id: "message-001",
+      queue_position: 1,
       replayed: false,
       status: "queued",
     });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const { result } = renderHook(() => useQueueSessionPrompt(), {
+    const { result } = renderHook(() => useSendSessionPrompt(), {
       wrapper: createWrapper(queryClient),
     });
 
@@ -898,6 +901,7 @@ describe("session actions", () => {
         idempotencyKey: "idempotency-001",
         message: "Queue this durable input.",
         messageId: "message-001",
+        mode: "queue",
       });
     });
 
@@ -920,11 +924,11 @@ describe("session actions", () => {
     ["only an idempotency key", { idempotencyKey: "idempotency-001" }],
     ["a blank message id", { idempotencyKey: "idempotency-001", messageId: "   " }],
     ["a blank idempotency key", { idempotencyKey: "   ", messageId: "message-001" }],
-  ])("useQueueSessionPrompt rejects %s in an explicit action identity", async (_case, identity) => {
+  ])("useSendSessionPrompt rejects %s in an explicit action identity", async (_case, identity) => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const { result } = renderHook(() => useQueueSessionPrompt(), {
+    const { result } = renderHook(() => useSendSessionPrompt(), {
       wrapper: createWrapper(queryClient),
     });
 
@@ -933,6 +937,7 @@ describe("session actions", () => {
         result.current.mutateAsync({
           id: createdSession.id,
           message: "Queue this durable input.",
+          mode: "queue",
           ...identity,
         })
       ).rejects.toThrow(
@@ -943,30 +948,56 @@ describe("session actions", () => {
     expect(sendSessionPrompt).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["interrupt", useInterruptSessionPrompt, sendSessionPrompt],
-    ["steer", useSteerSessionPrompt, steerSessionPrompt],
-  ] as const)(
-    "use%sSessionPrompt rejects a missing active-turn fence",
-    async (_mode, useAction, request) => {
+  it.each(["steer", "interrupt"] as const)(
+    "useSendSessionPrompt sends %s with a strict fence when the active turn is known and without one otherwise",
+    async mode => {
+      vi.mocked(sendSessionPrompt).mockResolvedValue({
+        delivery: "direct",
+        disposition: mode === "steer" ? "steering" : "interrupting",
+        idempotency_key: "idempotency-001",
+        message_id: "message-001",
+        queue_position: 0,
+        replayed: false,
+        status: mode === "steer" ? "steering" : "interrupting",
+        turn_id: "turn-001",
+      });
       const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       });
-      const { result } = renderHook(() => useAction(), {
+      const { result } = renderHook(() => useSendSessionPrompt(), {
         wrapper: createWrapper(queryClient),
       });
 
       await act(async () => {
-        await expect(
-          result.current.mutateAsync({
-            expectedTurnId: "   ",
-            id: createdSession.id,
-            message: "Replace the active work.",
-          })
-        ).rejects.toThrow("requires a non-empty expected_turn_id");
+        await result.current.mutateAsync({
+          expectedTurnId: "turn-001",
+          id: createdSession.id,
+          idempotencyKey: "idempotency-001",
+          message: "Replace the active work.",
+          messageId: "message-001",
+          mode,
+        });
+        await result.current.mutateAsync({
+          id: createdSession.id,
+          idempotencyKey: "idempotency-002",
+          message: "Let the daemon pick the turn.",
+          messageId: "message-002",
+          mode,
+        });
       });
 
-      expect(request).not.toHaveBeenCalled();
+      expect(sendSessionPrompt).toHaveBeenNthCalledWith(
+        1,
+        WORKSPACE_ID,
+        createdSession.id,
+        expect.objectContaining({ expected_turn_id: "turn-001", mode })
+      );
+      expect(sendSessionPrompt).toHaveBeenNthCalledWith(
+        2,
+        WORKSPACE_ID,
+        createdSession.id,
+        expect.not.objectContaining({ expected_turn_id: expect.anything() })
+      );
     }
   );
 
@@ -980,7 +1011,10 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const owningQueue: SessionInputsResponse = { inputs: [queuedInput] };
+    const owningQueue: SessionInputsResponse = {
+      inputs: [queuedInput],
+      queue: { cap: 10, entries: 1 },
+    };
     const otherSessionQueue: SessionInputsResponse = {
       inputs: [{ ...queuedInput, id: "other-session-input", session_id: "sess-other" }],
     };
@@ -1018,9 +1052,10 @@ describe("session actions", () => {
         text: replacement.text,
       }
     );
+    // The daemon's queue summary survives a list-only write; the reread refreshes it.
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [replacement] });
+    ).toEqual({ inputs: [replacement], queue: { cap: 10, entries: 1 } });
     expect(queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, "sess-other"))).toEqual(
       otherSessionQueue
     );
@@ -1034,6 +1069,7 @@ describe("session actions", () => {
       delivery: "interrupt_then_prompt" as const,
       idempotency_key: "idem-mutation",
       message_id: "message-mutation",
+      queue_position: 0,
       replayed: false,
       status: "steering",
     };
@@ -1049,7 +1085,7 @@ describe("session actions", () => {
     const retained = { ...queuedInput, id: "input-retained" };
     queryClient.setQueryData<SessionInputsResponse>(
       sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id),
-      { inputs: [queuedInput, retained] }
+      { inputs: [queuedInput, retained], queue: { cap: 10, entries: 2 } }
     );
 
     const promote = renderHook(() => usePromoteSessionInput(WORKSPACE_ID, createdSession.id), {
@@ -1068,7 +1104,7 @@ describe("session actions", () => {
     });
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [retained] });
+    ).toEqual({ inputs: [retained], queue: { cap: 10, entries: 2 } });
 
     const cancel = renderHook(() => useCancelSessionInput(WORKSPACE_ID, createdSession.id), {
       wrapper: createWrapper(queryClient),
@@ -1078,6 +1114,39 @@ describe("session actions", () => {
     });
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
-    ).toEqual({ inputs: [] });
+    ).toEqual({ inputs: [], queue: { cap: 10, entries: 2 } });
+  });
+
+  it("useClearSessionInputs keeps what the daemon did not cancel and its queue summary", async () => {
+    const dispatching: SessionInputPayload = {
+      ...queuedInput,
+      id: "input-dispatching",
+      status: "dispatching",
+    };
+    vi.mocked(clearSessionInputs).mockResolvedValue({
+      cleared_count: 1,
+      inputs: [{ ...queuedInput, status: "canceled" }, dispatching],
+      queue_generation: 2,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<SessionInputsResponse>(
+      sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id),
+      { inputs: [queuedInput, dispatching], queue: { cap: 10, entries: 2 } }
+    );
+
+    const { result } = renderHook(() => useClearSessionInputs(WORKSPACE_ID, createdSession.id), {
+      wrapper: createWrapper(queryClient),
+    });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(clearSessionInputs).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    // A dispatching entry is never canceled implicitly: it stays visible until it leaves on its own.
+    expect(
+      queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
+    ).toEqual({ inputs: [dispatching], queue: { cap: 10, entries: 2 } });
   });
 });

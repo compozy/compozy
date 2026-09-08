@@ -1,5 +1,8 @@
 # CH-terminal-docs-first-success: Follow the published terminal pages literally and see where they stop being true
 
+> Superseded on 2026-09-04 by `CH-terminal-shared-control-docs`. Preserve this file as historical QA
+> memory; do not schedule its removed terminal-scoped typing-grant checks.
+
 ```yaml
 charter:
   id: CH-terminal-docs-first-success

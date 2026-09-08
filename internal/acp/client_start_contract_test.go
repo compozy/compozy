@@ -13,6 +13,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providers"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -216,7 +217,7 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 	binDir := filepath.Dir(executable)
 
-	env := daemonMatchedEnv([]string{
+	env := DaemonMatchedEnv([]string{
 		"PATH=/should-be-ignored",
 		"FOO=bar",
 		"COMPOZY_BIN=/should-be-replaced",
@@ -226,16 +227,16 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 
 	gotCompozyBin, ok := envValue(env, "COMPOZY_BIN")
 	if !ok || gotCompozyBin != executable {
-		t.Fatalf("daemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotCompozyBin, ok, executable)
+		t.Fatalf("DaemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotCompozyBin, ok, executable)
 	}
 
 	gotPath, ok := envValue(env, "PATH")
 	if !ok {
-		t.Fatal("daemonMatchedEnv() PATH missing")
+		t.Fatal("DaemonMatchedEnv() PATH missing")
 	}
 	wantPath := binDir + string(os.PathListSeparator) + "/usr/local/bin" + string(os.PathListSeparator) + "/usr/bin"
 	if gotPath != wantPath {
-		t.Fatalf("daemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
+		t.Fatalf("DaemonMatchedEnv() PATH = %q, want %q", gotPath, wantPath)
 	}
 
 	pathCount := 0
@@ -250,7 +251,7 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 	}
 	if pathCount != 1 || compozyBinCount != 1 {
 		t.Fatalf(
-			"daemonMatchedEnv() duplicate entries remain: PATH=%d COMPOZY_BIN=%d env=%#v",
+			"DaemonMatchedEnv() duplicate entries remain: PATH=%d COMPOZY_BIN=%d env=%#v",
 			pathCount,
 			compozyBinCount,
 			env,
@@ -1501,9 +1502,15 @@ func TestCleanupFailedStartIncludesRedactedBoundedStderr(t *testing.T) {
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("cleanupFailedStart() leaked secret: %v", err)
 		}
+		// The cleanup stop may join its own verification error after the start error;
+		// only the attached stderr segment (which carries no newline here) is bounded.
 		stderrIndex := strings.Index(err.Error(), "stderr=")
-		if got := len(err.Error()[stderrIndex+len("stderr="):]); got > maxFailureSummaryBytes {
+		attached, _, _ := strings.Cut(err.Error()[stderrIndex+len("stderr="):], "\n")
+		if got := len(attached); got > maxFailureSummaryBytes {
 			t.Fatalf("attached stderr length = %d, want <= %d", got, maxFailureSummaryBytes)
+		}
+		if !strings.Contains(err.Error(), "startup context") {
+			t.Fatalf("cleanupFailedStart() dropped startup stderr: %v", err)
 		}
 	})
 }
@@ -1672,5 +1679,93 @@ func assertACPErrorContains(t *testing.T, err error, fragment string) {
 	}
 	if !strings.Contains(err.Error(), fragment) {
 		t.Fatalf("error = %v, want fragment %q", err, fragment)
+	}
+}
+
+func TestSteerCapabilityResolution(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		provider  string
+		announced []string
+		override  compozyconfig.SteerCapability
+		want      compozyconfig.SteerCapability
+	}{
+		{
+			name:     "Should fall back for an unproven provider binary",
+			provider: "codex",
+			want:     compozyconfig.SteerCapabilityNone,
+		},
+		{name: "Should fall back for an unknown provider", provider: "custom", want: compozyconfig.SteerCapabilityNone},
+		{
+			name:      "Should prefer the announced extension over an explicit none override",
+			provider:  "codex",
+			announced: []string{steerExtensionMethod},
+			override:  compozyconfig.SteerCapabilityNone,
+			want:      compozyconfig.SteerCapabilityExtension,
+		},
+		{
+			name:     "Should use an explicit concurrent prompt override without an announcement",
+			provider: "custom",
+			override: compozyconfig.SteerCapabilityConcurrentPrompt,
+			want:     compozyconfig.SteerCapabilityConcurrentPrompt,
+		},
+		{
+			name:      "Should ignore unrelated extension announcements",
+			provider:  "custom",
+			announced: []string{"_session/other"},
+			want:      compozyconfig.SteerCapabilityNone,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ResolveSteerCapability(tc.provider, tc.announced, tc.override); got != tc.want {
+				t.Fatalf("ResolveSteerCapability() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStartCapturesSteerCapability(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		scenario string
+		override compozyconfig.SteerCapability
+		want     compozyconfig.SteerCapability
+	}{
+		{
+			"Should capture the top-level steering announcement",
+			"steering_capability",
+			compozyconfig.SteerCapabilityNone,
+			compozyconfig.SteerCapabilityExtension,
+		},
+		{
+			"Should preserve an explicit override without an announcement",
+			"initialize_contract",
+			compozyconfig.SteerCapabilityConcurrentPrompt,
+			compozyconfig.SteerCapabilityConcurrentPrompt,
+		},
+		{
+			"Should not infer steering from ordinary prompt support",
+			"initialize_contract",
+			"",
+			compozyconfig.SteerCapabilityNone,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
+				ProviderName:   "custom",
+				ProviderConfig: &compozyconfig.ProviderConfig{SteerCapability: tc.override},
+			})
+			defer stopProcess(t, driver, proc)
+			if got := proc.CapsSnapshot().SteerCapability; got != tc.want {
+				t.Fatalf("negotiated steering = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -86,7 +86,7 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 	case RepairActionAppendTerminalError:
 		event.Type = acp.EventTypeError
 		event.Error = repairTerminalErrorMessage
-		event.StopReason = string(sessionMetaStopReason(meta))
+		event.StopReason = string(sessionMetaStopReason(&meta))
 		event.Failure = store.CloneSessionFailure(meta.Failure)
 	default:
 		return acp.AgentEvent{}, fmt.Errorf("session: unknown repair action %q", action.Code)

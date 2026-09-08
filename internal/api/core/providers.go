@@ -103,6 +103,10 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		},
 		&env,
 	)
+	if classification.State == authproviders.ProviderAuthStateAuthenticated &&
+		c.Request.Context().Err() == nil && h.OnProviderAuthSuccess != nil {
+		h.OnProviderAuthSuccess()
+	}
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, classification, &env, h.nowUTC(),
 	)

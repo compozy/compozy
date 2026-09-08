@@ -54,7 +54,6 @@ function buildClient(
   const sink = createFakeSink({ autoParse: options.autoParse });
   const statuses: string[] = [];
   const inputEnabled: boolean[] = [];
-  const leases: unknown[] = [];
   const presence: number[] = [];
   const redactedInputs: unknown[] = [];
   const gapsCleared: number[] = [];
@@ -76,7 +75,6 @@ function buildClient(
     handlers: {
       onStatus: status => statuses.push(status),
       onInputEnabledChange: enabled => inputEnabled.push(enabled),
-      onLease: frame => leases.push(frame),
       onPresence: frame => presence.push(frame.viewers),
       onRedactedInput: frame => redactedInputs.push(frame),
       onGapCleared: () => gapsCleared.push(1),
@@ -92,7 +90,6 @@ function buildClient(
     sink,
     statuses,
     inputEnabled,
-    leases,
     presence,
     redactedInputs,
     gapsCleared,
@@ -403,37 +400,12 @@ describe("TerminalProtocolClient", () => {
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
     const socket = sockets.last();
     socket.open();
-    socket.deliver(attachedFrame({ lease: "agent_owned" }));
+    socket.deliver(attachedFrame());
     socket.deliver(serverOutputFrame("0", "y".repeat(ACK_GRAIN_BYTES * 2)));
     await vi.waitFor(() => expect(sink.parsed).toHaveLength(1));
 
     expect(socket.path).toContain("flow=drop");
     expect(ackCredits(socket)).toEqual([]);
-    client.stop();
-  });
-
-  it("Should report the daemon's lease frames without inferring one", async () => {
-    const { client, sockets, leases } = buildClient({ mode: "read" });
-    client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
-    const socket = sockets.last();
-    socket.open();
-    socket.deliver(attachedFrame({ lease: "agent_owned" }));
-
-    expect(leases).toEqual([]);
-
-    socket.deliver(
-      serverControlFrame(TERMINAL_SERVER_OP.owner, {
-        lease: "human_owned",
-        actor_kind: "human",
-        actor_id: "pedro",
-        reason: "takeover",
-      })
-    );
-
-    expect(leases).toEqual([
-      { lease: "human_owned", actor_kind: "human", actor_id: "pedro", reason: "takeover" },
-    ]);
     client.stop();
   });
 
@@ -476,36 +448,6 @@ describe("TerminalProtocolClient", () => {
     expect(sockets.sockets[1].path).toContain(`after_seq=${BigInt(markerBytes) + 1n}`);
     client.stop();
   });
-
-  it.each([
-    {
-      action: "takeover",
-      opcode: TERMINAL_CLIENT_OP.takeover,
-      request: (client: TerminalProtocolClient) => client.requestTakeover(false),
-    },
-    {
-      action: "release",
-      opcode: TERMINAL_CLIENT_OP.release,
-      request: (client: TerminalProtocolClient) => client.releaseControl(),
-    },
-  ])(
-    "Should preserve a $action request until the connection opens",
-    async ({ opcode, request }) => {
-      const { client, sockets } = buildClient({ mode: "read" });
-      client.start();
-      await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
-      const socket = sockets.last();
-
-      request(client);
-      expect(sentOpcodes(socket)).not.toContain(opcode);
-
-      socket.open();
-      await vi.waitFor(() =>
-        expect(sentOpcodes(socket).filter(sent => sent === opcode)).toHaveLength(1)
-      );
-      client.stop();
-    }
-  );
 
   it("Should apply only the authoritative size, never its own proposal", async () => {
     const { client, sockets, sink } = buildClient({});
@@ -570,7 +512,7 @@ describe("TerminalProtocolClient", () => {
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
     const socket = sockets.last();
     socket.open();
-    socket.deliver(attachedFrame({ lease: "available" }));
+    socket.deliver(attachedFrame());
 
     client.proposeDimensions(220, 50);
 
@@ -738,19 +680,6 @@ describe("TerminalProtocolClient", () => {
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
 
     sockets.last().deliver(rawServerControlFrame(TERMINAL_SERVER_OP.attached, payload));
-
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
-    expect(sockets.sockets[0].closed).toBe(true);
-  });
-
-  it("Should reconnect after an owned lease omits its actor", async () => {
-    const { client, sockets } = buildClient({ mode: "read" });
-    client.start();
-    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
-
-    sockets
-      .last()
-      .deliver(rawServerControlFrame(TERMINAL_SERVER_OP.owner, { lease: "human_owned" }));
 
     await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
     expect(sockets.sockets[0].closed).toBe(true);
@@ -968,7 +897,6 @@ function rawAttachedPayload(overrides: Record<string, unknown> = {}) {
     truncated: false,
     cols: 96,
     rows: 28,
-    lease: "human_owned",
     mode: "pty",
     ...overrides,
   };

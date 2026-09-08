@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -370,28 +371,71 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		}
 	})
 
-	t.Run("Should include standalone markers before later complete turns", func(t *testing.T) {
+	t.Run("Should include standalone hooks and markers before later complete turns", func(t *testing.T) {
 		t.Parallel()
 
 		events := []store.SessionEvent{
-			{Sequence: 1, TurnID: "turn-marker", Type: eventspkg.TranscriptMarkerCreated},
-			{Sequence: 2, TurnID: "clarify:req-1", Type: acp.EventTypeClarify},
-			{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
-			{Sequence: 4, TurnID: "turn-complete", Type: acp.EventTypeDone},
-			{Sequence: 5, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			{Sequence: 1, TurnID: "hook-start", Type: eventspkg.HookDispatchStart},
+			{Sequence: 2, TurnID: "hook-complete", Type: eventspkg.HookDispatchComplete},
+			{Sequence: 3, TurnID: "turn-marker", Type: eventspkg.TranscriptMarkerCreated},
+			{Sequence: 4, TurnID: "clarify:req-1", Type: acp.EventTypeClarify},
+			{Sequence: 5, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+			{Sequence: 6, TurnID: "turn-complete", Type: acp.EventTypeDone},
+			{Sequence: 7, TurnID: "turn-current", Type: acp.EventTypeUsage},
 		}
 		span := completePriorTurnPrefix(events, "turn-current")
-		if len(span) != 4 || span[0].Sequence != 1 || span[3].Sequence != 4 {
+		if len(span) != 6 || span[0].Sequence != 1 || span[5].Sequence != 6 {
 			t.Fatalf("completePriorTurnPrefix() = %#v, want standalone events plus complete turn", span)
 		}
 	})
 
-	t.Run("Should join a canceled compaction before closing the recorder", func(t *testing.T) {
+	t.Run("Should compact complete interleaved turns and verified stop suffixes", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name   string
+			events []store.SessionEvent
+			want   int
+		}{
+			{name: "Should include a stopped suffix from an earlier archived turn", events: []store.SessionEvent{
+				{Sequence: 1, TurnID: "turn-stopped", Type: eventspkg.SessionStopEscalated},
+				{Sequence: 2, TurnID: "turn-stopped", Type: EventTypeSessionStopped},
+				{Sequence: 3, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			}, want: 2},
+			{name: "Should retain clarifications inside their complete conversation span", events: []store.SessionEvent{
+				{Sequence: 1, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+				{Sequence: 2, TurnID: "clarify:req", Type: acp.EventTypeClarify},
+				{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeDone},
+				{Sequence: 4, TurnID: "turn-current", Type: acp.EventTypeUsage},
+			}, want: 3},
+			{
+				name: "Should preserve a prior turn whose completion crosses the active turn",
+				events: []store.SessionEvent{
+					{Sequence: 1, TurnID: "turn-complete", Type: acp.EventTypeUserMessage},
+					{Sequence: 2, TurnID: "turn-current", Type: acp.EventTypeUsage},
+					{Sequence: 3, TurnID: "turn-complete", Type: acp.EventTypeDone},
+				},
+				want: 0,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				span := completePriorTurnPrefix(tc.events, "turn-current")
+				if len(span) != tc.want {
+					t.Fatalf("completePriorTurnPrefix() = %#v, want %d events", span, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should finalize without waiting for canceled compaction and join it at shutdown", func(t *testing.T) {
 		t.Parallel()
 
 		started := make(chan struct{})
 		canceled := make(chan struct{})
 		release := make(chan struct{})
+		releaseCompaction := sync.OnceFunc(func() { close(release) })
 		handler := &compactionHandlerStub{compact: func(
 			ctx context.Context,
 			_ CompactionRequest,
@@ -400,7 +444,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			<-ctx.Done()
 			close(canceled)
 			<-release
-			return CompactionResult{}, ctx.Err()
+			return CompactionResult{Summary: "late result"}, nil
 		}}
 		h := newHarness(
 			t,
@@ -408,6 +452,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			WithCompactionHandler(handler),
 		)
 		active := createSession(t, h)
+		t.Cleanup(releaseCompaction)
 		recordCompactionTurn(t, h.manager, active, "turn-old", "durable context", true)
 		used, size := int64(90), int64(100)
 		if err := h.manager.maybeCompact(active, acp.TokenUsage{
@@ -422,20 +467,37 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 			stopDone <- h.manager.Stop(testutil.Context(t), active.ID)
 		}()
 		<-canceled
+		waitCtx, cancelWait := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelWait()
 		select {
 		case err := <-stopDone:
-			t.Fatalf("Stop() returned before compaction joined: %v", err)
-		default:
+			if err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		case <-waitCtx.Done():
+			t.Fatal("Stop() blocked on canceled compaction")
 		}
-		if _, err := active.recorderHandle().Query(testutil.Context(t), store.EventQuery{}); err != nil {
-			t.Fatalf("Query() while stop waits for compaction error = %v", err)
+		if info := active.Info(); info.State != StateStopped {
+			t.Fatalf("State = %s, want stopped", info.State)
 		}
-		close(release)
-		if err := <-stopDone; err != nil {
-			t.Fatalf("Stop() error = %v", err)
+		meta := readMeta(t, active.MetaPath())
+		if meta.State != string(StateStopped) {
+			t.Fatalf("persisted state = %s, want stopped", meta.State)
+		}
+		if _, found := h.manager.Get(active.ID); found {
+			t.Fatal("stopped session remains active")
 		}
 		if active.recorderHandle() != nil {
-			t.Fatal("recorderHandle() != nil after joined stop")
+			t.Fatal("recorderHandle() != nil after stop")
+		}
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := h.manager.waitForCompactions(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("waitForCompactions() = %v, want retained pending run", err)
+		}
+		releaseCompaction()
+		if err := h.manager.waitForCompactions(waitCtx); err != nil {
+			t.Fatalf("waitForCompactions() after release = %v", err)
 		}
 	})
 }

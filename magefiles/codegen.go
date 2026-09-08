@@ -106,7 +106,10 @@ func CodegenCheck() error {
 	if err := SyncEmojibaseCheck(); err != nil {
 		return err
 	}
-	return SyncDesignMDCheck()
+	if err := SyncDesignMDCheck(); err != nil {
+		return err
+	}
+	return markCodegenChecked()
 }
 
 // MigrationGuideCheck verifies parity between the root and site migration guides.

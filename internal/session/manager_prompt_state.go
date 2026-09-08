@@ -38,12 +38,27 @@ type promptMessageDispatchState struct {
 }
 
 func clearPromptState(session *Session, turnID string) {
-	session.clearPromptCancellation(turnID)
-	session.clearCurrentTurnID()
-	session.clearCurrentTurnSource()
-	session.clearCurrentPromptMessage()
-	session.clearCurrentPromptMeta()
-	session.clearCurrentSkillInvocations()
-	session.clearCurrentPromptCancel()
-	session.finishCurrentPromptCompletion()
+	if session == nil {
+		return
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	// A late completion must not clear a newer prompt's ownership or draft metadata.
+	if turnID != "" && session.currentTurnID != turnID {
+		return
+	}
+	if session.currentPromptCancelTurn == turnID {
+		session.currentPromptCancelTurn = ""
+	}
+	session.currentTurnID = ""
+	session.currentTurnSource = ""
+	session.currentPromptMessage = ""
+	session.currentPromptMeta = acp.PromptMeta{}
+	session.currentSkillInvocations = nil
+	session.currentPromptCancel = nil
+	session.promptCancelRequested = false
+	if session.currentPromptDone != nil {
+		close(session.currentPromptDone)
+		session.currentPromptDone = nil
+	}
 }

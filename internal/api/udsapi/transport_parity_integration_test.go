@@ -1535,6 +1535,9 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 	t.Parallel()
 
 	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.ActivityHeartbeatInterval = 100 * time.Millisecond
+		}},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
 			FixtureAgent: "automation-runner",
@@ -1597,6 +1600,39 @@ func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 			"HTTP detail runtime = %#v, want unbound without effective selection",
 			httpDetail.Session.Runtime,
 		)
+	}
+
+	// Invariant IT-039: both transports expose the wired supervision registry,
+	// future steer delivery and durable queue capacity on the session resource.
+	// Owner: public transport parity; canonical real-daemon suite.
+	for httpDetail.Session.Supervision == nil || len(httpDetail.Session.Supervision.Sources) != 6 {
+		select {
+		case <-ctx.Done():
+			t.Fatal("supervision was not rebuilt", ctx.Err())
+		case <-time.After(20 * time.Millisecond):
+		}
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet,
+			transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""), nil, &httpDetail); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet,
+		transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""), nil, &udsDetail); err != nil {
+		t.Fatal(err)
+	}
+	for _, detail := range []compozycontract.SessionPayload{httpDetail.Session, udsDetail.Session} {
+		if detail.BusyInput == nil || detail.BusyInput.SteerDelivery == "" ||
+			detail.Queue == nil || detail.Queue.Entries != 0 || detail.Queue.Cap != 10 {
+			t.Fatalf("incomplete admission projection: busy=%+v queue=%+v", detail.BusyInput, detail.Queue)
+		}
+		if detail.Supervision == nil || detail.Supervision.WorkSignals == nil || len(detail.Supervision.Sources) != 6 {
+			t.Fatalf("incomplete supervision projection: %+v", detail.Supervision)
+		}
+		for _, source := range detail.Supervision.Sources {
+			if source.State == "unknown" {
+				t.Fatalf("unwired source: %+v", source)
+			}
+		}
 	}
 
 	assertTransportSessionProvenanceParity(t, ctx, runtimeHarness, created.Session)
@@ -1798,6 +1834,39 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 			http.StatusNoContent,
 			string(body),
 		)
+	}
+
+	// The same durable stop cause is available to the Web resource and native readers.
+	for _, read := range []func(context.Context, string, string, any, any) error{
+		runtimeHarness.HTTPJSON, runtimeHarness.UDSJSON,
+	} {
+		var detail compozycontract.SessionResponse
+		if err := read(ctx, http.MethodGet,
+			transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""), nil, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if detail.Session.State != session.StateStopped || detail.Session.StopCause != "user_requested" ||
+			detail.Session.Verified == nil || !*detail.Session.Verified {
+			t.Fatalf("stopped resource lost cause or verification: %#v", detail.Session)
+		}
+	}
+	nativeInput, err := json.Marshal(map[string]any{
+		"workspace": created.Session.WorkspaceID, "session_id": created.Session.ID, "limit": 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var native compozycontract.ToolInvokeResponse
+	if err := runtimeHarness.CLI.RunJSON(ctx, &native,
+		"tool", "invoke", "compozy__session_describe", "--input", string(nativeInput), "-o", "json"); err != nil {
+		t.Fatal(err)
+	}
+	var nativeDetail compozycontract.SessionResponse
+	if err := json.Unmarshal(native.Result.Structured, &nativeDetail); err != nil {
+		t.Fatal(err)
+	}
+	if nativeDetail.Session.StopCause != "user_requested" || nativeDetail.Session.State != session.StateStopped {
+		t.Fatalf("native stopped resource = %#v", nativeDetail.Session)
 	}
 
 	resumeResp := mustUnixRequest(
@@ -3367,4 +3436,200 @@ func transportDoctorItem(
 func transportPositiveNumber(value any) bool {
 	number, ok := value.(float64)
 	return ok && number > 0
+}
+
+// Invariant IT-040: navigation has identical structured results on HTTP, UDS,
+// CLI and native tools, with bounded search and a canonical workspace binder.
+func TestUDSTransportSessionNavigationMatchesAllPublicSurfaces(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run("Should navigate older history with four-surface parity and workspace denial", func(t *testing.T) {
+		t.Parallel()
+		fixture := writeTransportNavigationFixture(t)
+		h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath: fixture, FixtureAgent: "navigation-runner", AgentName: "navigation-runner",
+		}}})
+		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+		defer cancel()
+		created, err := h.CreateSession(
+			ctx,
+			compozycontract.CreateSessionRequest{AgentName: "navigation-runner", WorkspacePath: h.WorkspaceRoot},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range 105 {
+			if _, err := h.PromptSession(ctx, created.ID, fmt.Sprintf("question %03d", i)); err != nil {
+				t.Fatalf("prompt %d: %v", i, err)
+			}
+		}
+		for _, suffix := range []string{"search?q=question&limit=2", "outline"} {
+			path := transportHarnessSessionPath(t, h, created.ID, "/transcript/"+suffix)
+			var httpValue, udsValue any
+			if err := h.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(httpValue, udsValue) {
+				t.Fatalf("HTTP/UDS navigation mismatch: %#v / %#v", httpValue, udsValue)
+			}
+			var cliValue any
+			args := []string{"session", "outline", created.ID, "-o", "json"}
+			nativeID := "compozy__session_outline"
+			input := map[string]any{"workspace": created.WorkspaceID, "session_id": created.ID}
+			if strings.HasPrefix(suffix, "search") {
+				args = []string{"session", "search", created.ID, "question", "--limit", "2", "-o", "json"}
+				nativeID = "compozy__session_search"
+				input["q"], input["limit"] = "question", 2
+			}
+			if err := h.CLI.RunJSON(ctx, &cliValue, args...); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(httpValue, cliValue) {
+				t.Fatalf("CLI navigation mismatch: %#v / %#v", httpValue, cliValue)
+			}
+			raw, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var native compozycontract.ToolInvokeResponse
+			if err := h.CLI.RunJSON(
+				ctx,
+				&native,
+				"tool",
+				"invoke",
+				nativeID,
+				"--input",
+				string(raw),
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			var nativeValue any
+			if err := json.Unmarshal(native.Result.Structured, &nativeValue); err != nil {
+				t.Fatalf("native decode: %v result=%+v", err, native)
+			}
+			if !reflect.DeepEqual(httpValue, nativeValue) {
+				t.Fatalf("native navigation mismatch: %#v / %#v", httpValue, nativeValue)
+			}
+		}
+		var search compozycontract.SessionTranscriptSearchResponse
+		if err := h.CLI.RunJSON(
+			ctx,
+			&search,
+			"session",
+			"search",
+			created.ID,
+			"question 000",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if len(search.Matches) != 1 || search.Truncated || search.Matches[0].Snippet != "question 000" {
+			t.Fatalf("older history search = %#v", search)
+		}
+		if search.Matches[0].PartIndex == nil || *search.Matches[0].PartIndex != 0 ||
+			search.Matches[0].Field != "text" {
+			t.Fatalf("older history match source = %#v", search.Matches[0])
+		}
+		var outline compozycontract.SessionTranscriptOutlineResponse
+		if err := h.CLI.RunJSON(ctx, &outline, "session", "outline", created.ID, "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if len(outline.Entries) != 105 || outline.Entries[0].Preview != "question 000" ||
+			outline.Entries[104].ReplyPreview != "reply 104" {
+			t.Fatalf("full outline = %#v", outline)
+		}
+		assertTransportNavigationBoundaries(t, ctx, h, created)
+	})
+}
+
+func writeTransportNavigationFixture(t *testing.T) string {
+	t.Helper()
+	turns := make([]map[string]any, 0, 105)
+	for i := range 105 {
+		turns = append(turns, map[string]any{
+			"name":  fmt.Sprintf("navigation-%03d", i),
+			"match": map[string]any{"turn_source": "user", "user_text": fmt.Sprintf("question %03d", i)},
+			"steps": []map[string]any{{"kind": "assistant", "text": fmt.Sprintf("reply %03d", i)}},
+		})
+	}
+	fixture := map[string]any{"version": 2, "agents": []map[string]any{
+		{
+			"name":        "navigation-runner",
+			"provider":    "claude",
+			"permissions": "approve-all",
+			"prompt":      "Answer navigation fixtures.",
+			"turns":       turns,
+		},
+	}}
+	raw, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "navigation.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func assertTransportNavigationBoundaries(
+	t *testing.T,
+	ctx context.Context,
+	h *e2etest.RuntimeHarness,
+	created compozycontract.SessionPayload,
+) {
+	t.Helper()
+	var other compozycontract.WorkspaceResponse
+	if err := h.UDSJSON(
+		ctx,
+		http.MethodPost,
+		"/api/workspaces",
+		compozycontract.CreateWorkspaceRequest{RootDir: t.TempDir(), Name: "navigation-other"},
+		&other,
+	); err != nil {
+		t.Fatal(err)
+	}
+	for _, transport := range []struct {
+		client *http.Client
+		url    func(string) string
+	}{{h.HTTPClient, h.HTTPURL}, {h.UDSClient, h.UDSURL}} {
+		for _, tc := range []struct {
+			path   string
+			status int
+		}{
+			{transportHarnessSessionPath(t, h, created.ID, "/transcript/search?q=x&limit=1001"), http.StatusBadRequest},
+			{transportHarnessSessionPath(t, h, created.ID, "/transcript/search?q="), http.StatusBadRequest},
+			{"/api/workspaces/" + other.Workspace.ID + "/sessions/" + created.ID + "/transcript/search?q=question", http.StatusNotFound},
+			{"/api/workspaces/" + other.Workspace.ID + "/sessions/" + created.ID + "/transcript/outline", http.StatusNotFound},
+		} {
+			resp := mustUnixRequest(t, transport.client, http.MethodGet, transport.url(tc.path), nil, nil)
+			body := readAndCloseHTTPBody(t, resp)
+			if resp.StatusCode != tc.status || !strings.Contains(string(body), "error") {
+				t.Fatalf("boundary %s = %d %s", tc.path, resp.StatusCode, body)
+			}
+		}
+	}
+	for _, nativeID := range []string{"compozy__session_search", "compozy__session_outline"} {
+		input := map[string]any{"workspace": other.Workspace.ID, "session_id": created.ID}
+		if strings.HasSuffix(nativeID, "search") {
+			input["q"] = "question"
+		}
+		raw, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stdout, stderr, err := h.CLI.Run(ctx, "tool", "invoke", nativeID, "--input", string(raw), "-o", "json")
+		if err == nil {
+			t.Fatalf("foreign workspace tool succeeded: %s %s", stdout, stderr)
+		}
+		if strings.Contains(stdout, "question 000") || strings.Contains(stdout, "reply 000") {
+			t.Fatalf("foreign workspace leaked history: %s", stdout)
+		}
+	}
 }

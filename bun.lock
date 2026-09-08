@@ -61,6 +61,9 @@
         "typescript": "^5.9.3",
       },
     },
+    "lint-plugins": {
+      "name": "@compozy/lint-plugins",
+    },
     "packages/site": {
       "name": "@compozy/site",
       "version": "0.0.0",
@@ -420,6 +423,8 @@
     "@compozy/extension-react": ["@compozy/extension-react@workspace:sdk/react"],
 
     "@compozy/extension-sdk": ["@compozy/extension-sdk@workspace:sdk/typescript"],
+
+    "@compozy/lint-plugins": ["@compozy/lint-plugins@workspace:lint-plugins"],
 
     "@compozy/site": ["@compozy/site@workspace:packages/site"],
 

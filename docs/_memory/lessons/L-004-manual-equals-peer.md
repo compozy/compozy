@@ -18,13 +18,9 @@ Splitting manual and autonomous into "user mode" and "agent mode" creates two im
 
 ## Operationalization
 
-- **Task creation alone NEVER enqueues claimable work or starts the coordinator.** Publish/start/approval is the run-enqueue boundary that triggers coordinator bootstrap.
-- **Operator commands are identity-explicit; agent commands are identity-implicit.** Operator endpoints MUST NOT infer agent identity from environment variables.
-- **No separate manual/autonomous/coordinator queues.** All converge on `task_runs` with `actor_kind` differentiating origin.
-- **E2E coverage MUST include both manual-first bookends:**
-  1. `user create → publish → coordinated execution`
-  2. `user-start session → direct prompt without coordinator`
-- **Operator UI must visually distinguish creation vs. publish/approval vs. run enqueue vs. coordinator spawn.**
+- Task creation does not enqueue work; publish/start/approval is the boundary that triggers execution. Persist explicit `actor_kind`; operator identity is explicit and agent identity follows its authenticated context, never environment-variable inference. Both use the same execution queue.
+- Manual and autonomous paths share `task_runs` and the same ownership primitives.
+- When those boundaries change, verify the affected manual-first and direct-prompt paths in the existing E2E suite. UI changes distinguish creation, approval, enqueue, and coordinator state; unrelated tasks do not repeat both journeys.
 
 ## Source
 

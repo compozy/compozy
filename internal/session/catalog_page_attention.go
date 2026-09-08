@@ -28,8 +28,8 @@ func (m *Manager) listAttentionPage(
 	candidates = append(candidates, activeMatches...)
 	sort.Slice(candidates, func(i, j int) bool {
 		return compareSessionCatalogPosition(
-			sessionCatalogPosition(candidates[i], query.Sort),
-			sessionCatalogPosition(candidates[j], query.Sort),
+			sessionCatalogPosition(&candidates[i], query.Sort),
+			sessionCatalogPosition(&candidates[j], query.Sort),
 		) < 0
 	})
 	page := ListPage{Total: len(candidates), Limit: query.Limit}
@@ -44,7 +44,7 @@ func (m *Manager) listAttentionPage(
 	if page.HasMore && len(candidates) > 0 {
 		page.NextCursor, err = encodeSessionListCursor(
 			fingerprint,
-			sessionCatalogPosition(candidates[len(candidates)-1], query.Sort),
+			sessionCatalogPosition(&candidates[len(candidates)-1], query.Sort),
 		)
 		if err != nil {
 			return ListPage{}, err
@@ -68,14 +68,14 @@ func (m *Manager) scanAttentionCatalog(
 			return nil, fmt.Errorf("session: scan durable attention catalog: %w", err)
 		}
 		for index := range page.Sessions {
-			if sessionMatchesListQuery(sessionInfoFromCatalog(page.Sessions[index]), query, now) {
+			if sessionMatchesListQuery(sessionInfoFromCatalog(&page.Sessions[index]), query, now) {
 				matches = append(matches, page.Sessions[index])
 			}
 		}
 		if len(page.Sessions) < sessionAttentionScanBatch {
 			return matches, nil
 		}
-		last := page.Sessions[len(page.Sessions)-1]
+		last := &page.Sessions[len(page.Sessions)-1]
 		position := sessionCatalogPosition(last, query.Sort)
 		cursor = &position
 	}
@@ -113,7 +113,7 @@ func sessionsAfterCatalogPosition(
 	after store.SessionCatalogPosition,
 ) []store.SessionInfo {
 	for index := range values {
-		if compareSessionCatalogPosition(sessionCatalogPosition(values[index], sortKey), after) > 0 {
+		if compareSessionCatalogPosition(sessionCatalogPosition(&values[index], sortKey), after) > 0 {
 			return values[index:]
 		}
 	}

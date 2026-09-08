@@ -157,6 +157,7 @@ const agents: AgentPayload[] = [
 ];
 
 const createdSession: SessionPayload = {
+  supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   id: "sess-new",

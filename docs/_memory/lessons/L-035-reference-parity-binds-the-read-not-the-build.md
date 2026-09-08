@@ -14,7 +14,7 @@ Authority scope was completed for content and marks but not for build: nothing d
 
 ## Rule
 
-> A visual reference binds what the in-scope piece reads like — layout, hierarchy, spacing, tokens, on-screen anatomy — never what it is built from or what surrounds it. Component identity is owned by the `@compozy/ui` inventory and existing domain composites: map every in-scope region to a shipped component before code and express the reference's read through its variants, props, and tokens. Host chrome a prototype redraws to situate the piece is placement context owned by the live surface: integrate the piece into it; divergence from the redraw is authorized by default. The blocking divergence is the hand-rolled replica where a shipped component exists — not the substitution of one.
+> When the task names a visual reference, it binds the in-scope visual language: layout, hierarchy, spacing, tokens, and states. Shipped primitives/domain composites own component identity and the live surface owns host chrome. Express the reference through those owners and record authorized differences; a hand-rolled replica is not required for parity. Without a named reference, use ordinary design-system and changed-behavior validation.
 
 ## Anti-pattern
 

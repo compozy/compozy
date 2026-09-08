@@ -38,6 +38,7 @@ func (m *Service) schedulerStatus(
 		return SchedulerStatus{}, err
 	}
 	return SchedulerStatus{
+		Counters:               m.schedulerCounters(),
 		Paused:                 state.Paused,
 		PausedBy:               state.PausedBy,
 		PausedAt:               state.PausedAt,

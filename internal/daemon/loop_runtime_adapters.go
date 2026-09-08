@@ -223,6 +223,7 @@ func (r loopGateCommandRunner) RunCommand(
 	// this boundary only through command templates whose emitted actions end in shellQuote.
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = rootDir
+	cmd.Env = acp.DaemonMatchedEnv(cmd.Environ())
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

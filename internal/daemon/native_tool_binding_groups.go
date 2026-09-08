@@ -90,22 +90,6 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionRuntimeClear,
 			availability: runtimeAvailability,
 		},
-		toolspkg.ToolIDSessionInputsList: {
-			call:         n.sessionInputsList,
-			availability: availability,
-		},
-		toolspkg.ToolIDSessionInputReplace: {
-			call:         n.sessionInputReplace,
-			availability: availability,
-		},
-		toolspkg.ToolIDSessionInputCancel: {
-			call:         n.sessionInputCancel,
-			availability: availability,
-		},
-		toolspkg.ToolIDSessionInputPromote: {
-			call:         n.sessionInputPromote,
-			availability: availability,
-		},
 		toolspkg.ToolIDSessionStatus: {
 			call:         n.sessionStatus,
 			availability: availability,

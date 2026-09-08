@@ -45,7 +45,7 @@ Edge cases:
 
 ## Edge-Case Sweep
 
-Probe every story against every class below and record each finding as an `EC` entry with its expected behavior. Skip a class for a story only after actually probing it — most "cannot apply" verdicts turn out wrong, and an unswept class is how unhandled behavior reaches production.
+Probe each class below against the changed behavior before dismissing it; "cannot apply" verdicts are often wrong on inspection. Record material findings as `EC` entries with expected behavior. A dismissed class needs no entry and there is no per-story quota, but the dismissal follows an actual probe, not the story's apparent simplicity.
 
 | Class             | Probe                                                                         |
 | ----------------- | ----------------------------------------------------------------------------- |

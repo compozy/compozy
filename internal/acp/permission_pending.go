@@ -12,13 +12,25 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
+const maxPendingPermissions = 128
+
+var ErrPermissionQueueFull = errors.New("acp: pending permission queue is full (cap 128)")
+
 func (p *AgentProcess) registerPendingPermission(
 	turnID string,
 	request acpsdk.RequestPermissionRequest,
-) (string, *pendingPermission) {
+) (string, *pendingPermission, error) {
 	p.pendingPermissionMu.Lock()
 	defer p.pendingPermissionMu.Unlock()
 
+	select {
+	case <-p.permissionConnectionDone():
+		return "", nil, errors.New("acp: permission connection is closed")
+	default:
+	}
+	if len(p.pendingPermissions) >= maxPendingPermissions {
+		return "", nil, ErrPermissionQueueFull
+	}
 	if p.pendingPermissions == nil {
 		p.pendingPermissions = make(map[string]*pendingPermission)
 	}
@@ -30,7 +42,7 @@ func (p *AgentProcess) registerPendingPermission(
 		supportedDecisions: supportedPermissionDecisions(request.Options),
 	}
 	p.pendingPermissions[requestID] = pending
-	return requestID, pending
+	return requestID, pending, nil
 }
 
 func (p *AgentProcess) nextPermissionRequestID(turnID string, request acpsdk.RequestPermissionRequest) string {
@@ -194,4 +206,11 @@ func (p *AgentProcess) lookupPendingPermissionLocked(req ApproveRequest) (string
 		return "", nil, fmt.Errorf("%w: %s", ErrPendingPermissionNotFound, turnID)
 	}
 	return matchedID, matched, nil
+}
+
+func (p *AgentProcess) permissionConnectionDone() <-chan struct{} {
+	if p.conn != nil {
+		return p.conn.Done()
+	}
+	return p.Done()
 }

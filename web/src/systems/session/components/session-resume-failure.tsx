@@ -55,7 +55,7 @@ export function SessionResumeFailure({
   return (
     <SessionDangerBanner
       data-testid="session-resume-failure"
-      className="mt-3 mb-1 w-full"
+      className="my-3 w-full"
       title={<span data-testid="session-resume-failure-title">{resolvedTitle}</span>}
     >
       <p data-testid="session-resume-failure-message" className="text-transcript-body text-muted">

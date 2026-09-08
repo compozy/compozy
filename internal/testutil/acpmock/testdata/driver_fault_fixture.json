@@ -123,6 +123,22 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "hold-ignoring-cancel",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "hold ignoring cancel"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "hold_ignoring_cancel",
+                                "delay_ms": 30000
+                            }
+                        }
+                    ]
                 }
             ]
         },

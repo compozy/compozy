@@ -32,14 +32,14 @@ func TestToolArtifactSweeperLifecycle(t *testing.T) {
 			})
 
 			synctest.Wait()
-			if got := store.sweepCount(); got != 0 {
-				t.Fatalf("Sweep calls before the interval = %d, want 0", got)
+			if got := store.sweepCount(); got != 1 {
+				t.Fatalf("Sweep calls before the interval = %d, want immediate first sweep", got)
 			}
 
 			time.Sleep(interval)
 			synctest.Wait()
-			if got := store.sweepCount(); got != 1 {
-				t.Fatalf("Sweep calls after one interval = %d, want 1", got)
+			if got := store.sweepCount(); got != 2 {
+				t.Fatalf("Sweep calls after one interval = %d, want 2", got)
 			}
 
 			if err := worker.Shutdown(t.Context()); err != nil {

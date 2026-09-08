@@ -71,6 +71,7 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
+	Stop        sessionStopOverlay        `toml:"stop"`
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
@@ -78,11 +79,18 @@ type sessionOverlay struct {
 	Attachments sessionAttachmentsOverlay `toml:"attachments"`
 }
 
+type sessionStopOverlay struct {
+	CooperativeGrace *time.Duration `toml:"cooperative_grace"`
+}
+
 type sessionLimitsOverlay struct {
 	Timeout *time.Duration `toml:"timeout"`
 }
 
 type sessionSupervisionOverlay struct {
+	QuietAfter *time.Duration `toml:"quiet_after"`
+	StopGrace  *time.Duration `toml:"stop_grace"`
+	// Released keys are translated only at load; remove in v0.5.0.
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
 	PromptDeadline            *time.Duration `toml:"prompt_deadline"`
@@ -110,6 +118,7 @@ type permissionsOverlay struct {
 
 type providerOverlay struct {
 	Command         *string                     `toml:"command"`
+	SteerCapability *SteerCapability            `toml:"steer_capability"`
 	DisplayName     *string                     `toml:"display_name"`
 	Models          *providerModelsOverlay      `toml:"models"`
 	Harness         *ProviderHarness            `toml:"harness"`

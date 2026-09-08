@@ -1,5 +1,5 @@
 import { CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
-import { Suspense, lazy } from "react";
+import { Suspense, useState, lazy } from "react";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
@@ -11,7 +11,9 @@ import {
   resolveRegisteredToolName,
 } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
+import { isToolBodyField } from "../lib/tool-matched-field";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
+import { MatchedToolFieldContent } from "./tool-renderers/matched-field-content";
 import { ToolResultArtifact } from "./tool-result-artifact";
 
 const TerminalContent = lazy(async () => {
@@ -22,12 +24,28 @@ const TerminalContent = lazy(async () => {
 export interface SessionToolCallRowProps {
   message: UIMessage;
   defaultExpanded?: boolean;
+  /** The projected part this row renders (`data-part-index`), so find can land on it. */
+  partIndex?: number;
+  /** A find jump needs this body open; layered over the reader's own toggle. */
+  revealOpen?: boolean;
+  /** The field the daemon matched (`input | output | error | …`): its full payload is shown in the body. */
+  revealField?: string;
+  /** The reader closed a body a jump held open: the hold is theirs to drop. */
+  onRevealRelease?: () => void;
   /**
    * True once the owning turn has settled. Neutral (empty-output) tools show
    * `empty` (Minus) while the turn streams and promote to `success` (Check) only
    * after it settles. Defaults to `false` (assume mid-stream unless told).
    */
   turnSettled?: boolean;
+  /** The call was still running when the operator stopped the turn: reads "stopped", no glyph. */
+  interrupted?: boolean;
+  /**
+   * The owning turn ended in a turn-level failure. Only then does a failed call
+   * earn the danger glyph; otherwise a failure the turn absorbed reads as a
+   * subtle × plus the word "failed" (ADR-009).
+   */
+  turnFailed?: boolean;
 }
 
 /** Tools with specialized expanded renderers own input+output — no card-level JSON. */
@@ -112,6 +130,74 @@ function diffStatLabel(additions: number, deletions: number): string {
   return `${additions} ${additions === 1 ? "addition" : "additions"}, ${deletions} ${deletions === 1 ? "deletion" : "deletions"}`;
 }
 
+function toolCallPresentation({
+  message,
+  turnSettled,
+  interrupted,
+  turnFailed,
+  revealOpen,
+  revealField,
+}: Required<
+  Pick<
+    SessionToolCallRowProps,
+    "message" | "turnSettled" | "interrupted" | "turnFailed" | "revealOpen"
+  >
+> &
+  Pick<SessionToolCallRowProps, "revealField">) {
+  const derived = deriveToolRowStatus({
+    toolError: message.toolError,
+    toolResult: message.toolResult,
+    hasInput: hasToolInput(message.toolInput),
+    turnSettled,
+  });
+  const status: ToolCallStatus = interrupted
+    ? "stopped"
+    : derived.status === "failed" && !turnFailed
+      ? "absorbed"
+      : derived.status;
+  const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
+  const progressLabel = progressLabelFor(registryTool, status);
+  const preview = previewFor(message, registryTool, status === "absorbed" ? "failed" : status);
+  const toolIcon = getToolIcon(registryTool, message.toolInput);
+  const copyPayload = formatToolPayload(message);
+  const hasOutput = !toolResultIsEmpty(message.toolResult);
+  const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
+  const errorMessage =
+    status === "failed" || status === "absorbed" ? failureText(message) : undefined;
+  // The word that carries a state the glyph does not: "failed" beside the
+  // subtle × of an absorbed failure, "stopped" on the call the operator cut.
+  const stateWord = status === "absorbed" ? "failed" : status === "stopped" ? "stopped" : null;
+  const diffStat =
+    status === "success" && message.toolInput
+      ? fileDiffStatForTool(registryTool, message.toolInput)
+      : null;
+  const showArtifactResult = message.toolResult?.truncated === true;
+  // A find jump names the field it matched: that payload renders in full beside
+  // the tool's own display, so the searched text is on screen (not only the
+  // specialized summary of it). Header fields (title, tool name, file) already show.
+  const matchedField = revealOpen && isToolBodyField(revealField) ? revealField : null;
+  const showExpandedBody =
+    showArtifactResult ||
+    isSpecialized ||
+    hasOutput ||
+    hasToolInput(message.toolInput) ||
+    matchedField !== null;
+
+  return {
+    progressLabel,
+    preview,
+    toolIcon,
+    copyPayload,
+    status,
+    errorMessage,
+    stateWord,
+    diffStat,
+    matchedField,
+    showArtifactResult,
+    showExpandedBody,
+  };
+}
+
 /**
  * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
  * calm 24px line whose status lives in the trailing glyph. Failed rows stay
@@ -121,8 +207,15 @@ function diffStatLabel(additions: number, deletions: number): string {
 export function SessionToolCallRow({
   message,
   defaultExpanded = false,
+  partIndex,
+  revealOpen = false,
+  revealField,
+  onRevealRelease,
   turnSettled = false,
+  interrupted = false,
+  turnFailed = false,
 }: SessionToolCallRowProps) {
+  const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
   if (
     isDeliberateTerminalTool(message.toolName) &&
     readSupervisedTerminalId(message.toolResult?.rawOutput)
@@ -133,27 +226,26 @@ export function SessionToolCallRow({
       </Suspense>
     );
   }
-  const { status } = deriveToolRowStatus({
-    toolError: message.toolError,
-    toolResult: message.toolResult,
-    hasInput: hasToolInput(message.toolInput),
+  const {
+    progressLabel,
+    preview,
+    toolIcon,
+    copyPayload,
+    status,
+    errorMessage,
+    stateWord,
+    diffStat,
+    matchedField,
+    showArtifactResult,
+    showExpandedBody,
+  } = toolCallPresentation({
+    message,
     turnSettled,
+    interrupted,
+    turnFailed,
+    revealOpen,
+    revealField,
   });
-  const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
-  const progressLabel = progressLabelFor(registryTool, status);
-  const preview = previewFor(message, registryTool, status);
-  const toolIcon = getToolIcon(registryTool, message.toolInput);
-  const copyPayload = formatToolPayload(message);
-  const hasOutput = !toolResultIsEmpty(message.toolResult);
-  const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
-  const errorMessage = status === "failed" ? failureText(message) : undefined;
-  const diffStat =
-    status === "success" && message.toolInput
-      ? fileDiffStatForTool(registryTool, message.toolInput)
-      : null;
-  const showArtifactResult = message.toolResult?.truncated === true;
-  const showExpandedBody =
-    showArtifactResult || isSpecialized || hasOutput || hasToolInput(message.toolInput);
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
@@ -165,7 +257,7 @@ export function SessionToolCallRow({
   );
 
   return (
-    <div data-testid="tool-call-row">
+    <div data-testid="tool-call-row" data-part-index={partIndex}>
       <ToolCallRow
         toolName={progressLabel}
         icon={toolIcon}
@@ -173,10 +265,21 @@ export function SessionToolCallRow({
         status={status}
         errorMessage={errorMessage}
         actions={copyAction}
-        defaultExpanded={defaultExpanded}
-        statLabel={diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined}
+        expanded={ownExpanded || revealOpen}
+        onExpandedChange={next => {
+          if (!next && revealOpen) onRevealRelease?.();
+          setOwnExpanded(next);
+        }}
+        statLabel={
+          stateWord ??
+          (diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined)
+        }
         stat={
-          diffStat ? (
+          stateWord ? (
+            <span className="text-subtle" data-testid="tool-call-state-word">
+              {stateWord}
+            </span>
+          ) : diffStat ? (
             <>
               <span className="font-medium text-success">+{diffStat.additions}</span>
               <span className="font-medium text-danger">−{diffStat.deletions}</span>
@@ -186,6 +289,9 @@ export function SessionToolCallRow({
       >
         {showExpandedBody ? (
           <ToolCallRow.Output>
+            {matchedField ? (
+              <MatchedToolFieldContent message={message} field={matchedField} />
+            ) : null}
             {showArtifactResult && message.toolResult ? (
               <ToolResultArtifact result={message.toolResult} />
             ) : (

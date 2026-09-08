@@ -1,5 +1,7 @@
 # Architecture Migrations
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The migration archetype's contract: legacy-charity opening, seven-panel canonical structure, phase-completion dates + tracking metrics, named cutover safety mechanisms, "what we'd do differently" honesty, and the seven sub-variants the corpus surfaces.
 
 ## Contents

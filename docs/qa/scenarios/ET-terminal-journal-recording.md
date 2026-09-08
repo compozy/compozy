@@ -7,7 +7,7 @@ journey: J-audit-terminal-work
 expected: Journal filters change the server query, approximate boundaries are labeled, filtered misses are distinct from an empty history, and a recording replays from its owning profile with its retention stated.
 entry_points: Terminal window head Journal toggle; terminal journal CLI; terminal recording download; terminal selection to active session composer
 qa_status: pass
-bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-config-set-unsupported
+bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-config-set-unsupported; BUG-20260906-terminal-selection-resize-loop
 fix_status: fixed
 retest_status:
 fix_commits: b745ebcbcfe6
@@ -37,3 +37,5 @@ Walk:
 2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 and E2E-020 proved that Bash prompt
 integration persists the operator's real command rather than its own prompt hook, both through the CLI
 journal and the profile-scoped Web journal. The PTY marker regression passed under `-race`.
+
+QA re-walk 2026-09-06: real mouse selection of two rendered terminal rows keeps the floating actions stable, sends both lines with their source terminal ID, receives the conversation reply and retains Choose/Copy when the conversation closes. The canonical E2E-008 fails on the old build and passes on the corrected one (18.2s total); packaged desktop clipboard/zoom/IME passes12.8s. See BUG-20260906-terminal-selection-resize-loop and the integrated report.

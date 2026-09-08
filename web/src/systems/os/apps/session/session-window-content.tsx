@@ -1,6 +1,8 @@
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
+import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
+import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
@@ -10,10 +12,14 @@ import {
   SessionEnvironmentControl,
   type SessionEnvironmentControlHandle,
   SessionPromptRuntimeSelector,
+  type SessionQuietWarning,
+  SessionQuietWarningNotice,
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
   SessionSidebar,
+  SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
+  sessionQuietWarning,
   useCreateSession,
 } from "@/systems/session";
 
@@ -36,10 +42,101 @@ const SessionInspector = lazy(() =>
   }))
 );
 
-function workingStartedAt(value: string | null | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
+
+/**
+ * The one session-level notice above the transcript, on the transcript's inset
+ * rail so it aligns with the messages below instead of running edge to edge.
+ * Precedence: a recovering runtime, then an unverified stop, then an attach
+ * failure, then a runtime that can only be forked, then the daemon's quiet
+ * warning (US-014.EC-2) — every actionable failure outranks a warning about
+ * work that merely paused.
+ */
+type SessionWindowNoticeProps = {
+  agentName: string;
+  controls: SessionWindowControls;
+  isForking: boolean;
+  onFork: () => void;
+  quietWarning: SessionQuietWarning | null;
+  session: SessionPayload;
+  sessionId: string;
+};
+
+function SessionWindowNotice(props: SessionWindowNoticeProps) {
+  return (
+    <ThreadContentRail
+      data-testid="session-window-notice-rail"
+      inset={SESSION_THREAD_CONTENT_INSET_DEFAULT}
+    >
+      <SessionWindowNoticeContent {...props} />
+    </ThreadContentRail>
+  );
+}
+
+function SessionWindowNoticeContent({
+  agentName,
+  controls,
+  isForking,
+  onFork,
+  quietWarning,
+  session,
+  sessionId,
+}: SessionWindowNoticeProps) {
+  if (session.runtime.status === "recovering") {
+    return (
+      <SessionRuntimeRecoveryNotice
+        attempt={session.runtime.recovery?.attempt}
+        maxAttempts={session.runtime.recovery?.max_attempts}
+      />
+    );
+  }
+  if (controls.stopAttention !== null) {
+    return (
+      <SessionStopAttentionNotice
+        isRetrying={controls.isStopRetrying}
+        onRetry={controls.canRetryStop ? controls.handleStop : undefined}
+      />
+    );
+  }
+  if (controls.resumeFailure) {
+    return (
+      <SessionResumeFailure
+        agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
+        isRetrying={controls.isResuming}
+        message={controls.resumeFailure.message}
+        missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
+        onDismiss={controls.handleDismissResumeFailure}
+        onRetry={controls.handleResume}
+        sessionId={sessionId}
+      />
+    );
+  }
+  if (hasUnrecoverableRuntime(session)) {
+    return (
+      <SessionResumeFailure
+        agentName={agentName}
+        isRetrying={isForking}
+        message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+        missingProvider={null}
+        onDismiss={() => undefined}
+        onRetry={onFork}
+        retryLabel="Fork into a new session"
+        sessionId={sessionId}
+        showDismiss={false}
+        title="Runtime unavailable"
+      />
+    );
+  }
+  if (quietWarning) {
+    return (
+      <SessionQuietWarningNotice
+        isStopping={controls.isStopping}
+        onStop={controls.canRetryStop ? controls.handleStop : undefined}
+        warning={quietWarning}
+      />
+    );
+  }
+  return null;
 }
 
 export function SessionWindowContent({
@@ -99,6 +196,8 @@ export function SessionWindowContent({
     promptRuntimeSnapshot
   );
 
+  const quietWarning = sessionQuietWarning(session);
+
   const handleForkDeadSession = () => {
     forkSession.mutate(
       {
@@ -130,35 +229,15 @@ export function SessionWindowContent({
         sessionActions={sidebar.sessionActions}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {session.runtime.status === "recovering" ? (
-          <SessionRuntimeRecoveryNotice
-            attempt={session.runtime.recovery?.attempt}
-            maxAttempts={session.runtime.recovery?.max_attempts}
-          />
-        ) : controls.resumeFailure ? (
-          <SessionResumeFailure
-            agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
-            isRetrying={controls.isResuming}
-            message={controls.resumeFailure.message}
-            missingProvider={controls.resumeFailure.providerUnavailable?.missingProvider ?? null}
-            onDismiss={controls.handleDismissResumeFailure}
-            onRetry={controls.handleResume}
-            sessionId={sessionId}
-          />
-        ) : hasUnrecoverableRuntime(session) ? (
-          <SessionResumeFailure
-            agentName={agentName}
-            isRetrying={forkSession.isPending}
-            message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
-            missingProvider={null}
-            onDismiss={() => undefined}
-            onRetry={handleForkDeadSession}
-            retryLabel="Fork into a new session"
-            sessionId={sessionId}
-            showDismiss={false}
-            title="Runtime unavailable"
-          />
-        ) : null}
+        <SessionWindowNotice
+          agentName={agentName}
+          controls={controls}
+          isForking={forkSession.isPending}
+          onFork={handleForkDeadSession}
+          quietWarning={quietWarning}
+          session={session}
+          sessionId={sessionId}
+        />
         <SessionThread
           liveDataEnabled={liveDataEnabled}
           sessionId={sessionId}
@@ -167,11 +246,9 @@ export function SessionWindowContent({
           acpSessionId={session.runtime.acp_session_id}
           sessionState={session.state}
           failure={session.failure}
-          workingStartedAt={
-            controls.isSessionRunning
-              ? workingStartedAt(session.activity?.turn_started_at)
-              : undefined
-          }
+          statusSession={session}
+          stopCompletionNote={controls.stopCompletionNote}
+          quietWarning={quietWarning}
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleCancelPrompt}
           onQueuePrompt={controls.handleQueuePrompt}
@@ -179,12 +256,19 @@ export function SessionWindowContent({
           onSteerPrompt={controls.handleSteerPrompt}
           isBusyInputPending={controls.isBusyInputPending}
           isSessionRunning={controls.isSessionRunning}
+          stopPhase={controls.stopPhase}
           allowBusyInput={controls.allowBusyInput}
-          busyInputFenceAvailable={Boolean(session.activity?.turn_id?.trim())}
+          busyInputDefaultMode={controls.busyInputDefaultMode}
+          busyInputSteerDelivery={controls.busyInputSteerDelivery}
           queuedPrompts={controls.queuedPrompts}
           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+          onClearQueue={controls.handleClearQueue}
+          queueCap={controls.queueCap}
+          unconfirmedSends={controls.unconfirmedSends}
+          onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
+          onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
           environmentControl={
             <SessionEnvironmentControl

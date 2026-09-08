@@ -132,11 +132,15 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	supervisionMu              sync.Mutex
+	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex
 	lifecycleMu                sync.Mutex
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization
+	stopRuns                   map[string]*sessionStopRun
+	turnStopRuns               map[string]*turnStopRun
 	conversationFinalizing     map[string]chan struct{}
 	conversationOperationMu    sync.Mutex
 	conversationOperationLocks map[string]*conversationOperationLock
@@ -155,9 +159,6 @@ type Manager struct {
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
 
-	syntheticMu             sync.Mutex
-	syntheticQueues         map[string][]queuedSyntheticPrompt
-	syntheticDispatching    map[string]bool
 	soulLocksMu             sync.Mutex
 	soulLocks               map[string]chan struct{}
 	sessionHealthHookMu     sync.Mutex
@@ -231,7 +232,9 @@ type Manager struct {
 	queryStoreRuntime            *queryStoreRuntime
 	assembler                    PromptAssembler
 	supervision                  compozyconfig.SessionSupervisionConfig
+	stopConfig                   compozyconfig.SessionStopConfig
 	busyInput                    compozyconfig.SessionBusyInputConfig
+	busyInputMu                  sync.RWMutex
 	compaction                   compozyconfig.SessionCompactionConfig
 	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration

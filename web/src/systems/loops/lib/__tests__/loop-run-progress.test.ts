@@ -227,6 +227,152 @@ describe("buildStepsProgress", () => {
     expect(model.segments).toHaveLength(4);
   });
 
+  // A finished review round: one action step ran, the gate passed, and the whole
+  // fix branch was provably declined. Seven rows, of which the reader needs one.
+  function reviewRoundWithoutIssues() {
+    return buildStepsProgress({
+      progress: progress({ round: 2, steps_done: 1, steps_total: 1 }),
+      nodes: [
+        node("review", "succeeded", { generation: 2 }),
+        node("has_issues", "succeeded", { generation: 2 }),
+        node("write_artifacts", "not_taken", { generation: 2 }),
+        node("fix_batches", "not_taken", { generation: 2 }),
+        node("fix_batch", "not_taken", { generation: 2 }),
+        node("collect_fixes", "not_taken", { generation: 2 }),
+        node("finalize_round", "not_taken", { generation: 2 }),
+      ],
+      rollups: [],
+      rosterIsComplete: true,
+      graph: graph([
+        ["review", "action"],
+        ["has_issues", "control"],
+        ["write_artifacts", "action"],
+        ["fix_batches", "control"],
+        ["fix_batch", "action"],
+        ["collect_fixes", "control"],
+        ["finalize_round", "action"],
+      ]),
+    });
+  }
+
+  it("Should fold settled control steps and declined branches behind one summary", () => {
+    const model = reviewRoundWithoutIssues();
+
+    // Every row is still there, in graph order — the fold hides, it never drops.
+    expect(model.steps.map(step => step.nodeId)).toEqual([
+      "review",
+      "has_issues",
+      "write_artifacts",
+      "fix_batches",
+      "fix_batch",
+      "collect_fixes",
+      "finalize_round",
+    ]);
+    expect(model.steps.filter(step => !step.quiet).map(step => step.nodeId)).toEqual(["review"]);
+    // The summary keeps the hidden rows' fates in the chips' own words.
+    expect(model.fold).toEqual({
+      hiddenCount: 6,
+      summary: "1 succeeded · 5 not taken",
+    });
+  });
+
+  it("Should keep parked, failed and pending control steps in the default read", () => {
+    const model = buildStepsProgress({
+      progress: progress({ round: 1, steps_done: 2, steps_total: 3 }),
+      nodes: [
+        node("review", "succeeded"),
+        node("has_issues", "succeeded"),
+        node("approve", "control_pending"),
+        node("route", "failed"),
+        node("collect_fixes", "pending"),
+        node("write_artifacts", "not_taken"),
+      ],
+      rollups: [],
+      rosterIsComplete: true,
+      graph: graph([
+        ["review", "action"],
+        ["has_issues", "control"],
+        ["approve", "control"],
+        ["route", "control"],
+        ["collect_fixes", "control"],
+        ["write_artifacts", "action"],
+      ]),
+    });
+
+    // A gate waiting on a person, a control step that broke, and a control step
+    // still ahead of the run are where the run is going; only the clean gate and
+    // the declined branch fold.
+    expect(model.steps.filter(step => step.quiet).map(step => step.nodeId)).toEqual([
+      "has_issues",
+      "write_artifacts",
+    ]);
+    expect(model.fold).toEqual({
+      hiddenCount: 2,
+      summary: "1 succeeded · 1 not taken",
+    });
+  });
+
+  it("Should not fold a single quiet row or a round that would fold away entirely", () => {
+    const oneQuiet = buildStepsProgress({
+      progress: progress({ round: 1, steps_done: 1, steps_total: 2 }),
+      nodes: [
+        node("review", "succeeded"),
+        node("has_issues", "succeeded"),
+        node("fix_batch", "running"),
+      ],
+      rollups: [],
+      rosterIsComplete: true,
+      graph: graph([
+        ["review", "action"],
+        ["has_issues", "control"],
+        ["fix_batch", "action"],
+      ]),
+    });
+    // Folding one row behind a line of the same height would save nothing.
+    expect(oneQuiet.fold).toBeNull();
+
+    const onlyQuiet = buildStepsProgress({
+      progress: progress({ round: 1, steps_done: 0, steps_total: 0 }),
+      nodes: [node("has_issues", "succeeded"), node("collect_fixes", "succeeded")],
+      rollups: [],
+      rosterIsComplete: true,
+      graph: graph([
+        ["has_issues", "control"],
+        ["collect_fixes", "control"],
+      ]),
+    });
+    // A list that is all summary and no rows would hide the very thing it was
+    // asked to show; nothing folds when nothing would remain.
+    expect(onlyQuiet.fold).toBeNull();
+    expect(onlyQuiet.steps.every(step => step.quiet)).toBe(true);
+  });
+
+  it("Should give a source node no segment, so the bar matches the served count", () => {
+    const model = buildStepsProgress({
+      progress: progress({ round: 2, steps_done: 2, steps_total: 2 }),
+      nodes: [
+        node("slug_input", "succeeded", { generation: 2 }),
+        node("select_mode", "succeeded", { generation: 2 }),
+        node("load_tasks", "succeeded", { generation: 2 }),
+        node("orchestrate", "succeeded", { generation: 2 }),
+      ],
+      rollups: [],
+      rosterIsComplete: true,
+      graph: graph([
+        ["slug_input", "source"],
+        ["select_mode", "control"],
+        ["load_tasks", "action"],
+        ["orchestrate", "action"],
+      ]),
+    });
+
+    // The daemon counts two steps; the bar draws two, not four. The source and
+    // the route fold together, and the summary names neither class.
+    expect(model.segments).toEqual(["clean", "clean"]);
+    expect(model.ariaLabel).toBe("Step 2 of 2 · round 2: 2 settled");
+    expect(model.fold).toEqual({ hiddenCount: 2, summary: "2 succeeded" });
+  });
+
   it("Should say so plainly when a round has no steps rather than count to zero", () => {
     const model = buildStepsProgress({
       progress: progress({ round: 1, steps_done: 0, steps_total: 0 }),

@@ -55,6 +55,13 @@ func ValidStopReason(r StopReason) bool {
 }
 
 // SessionInfo is the canonical session index row stored in the global database.
+// SessionAttachState keeps the optional attach binding compact inside SessionInfo.
+// Embedding preserves the flat field access the catalog projections rely on.
+type SessionAttachState struct {
+	AttachedTo      string
+	AttachExpiresAt *time.Time
+}
+
 type SessionInfo struct {
 	ID              string
 	ProfileID       string
@@ -75,25 +82,26 @@ type SessionInfo struct {
 	WorkspaceID              string
 	WorktreeID               string
 	*SessionNetworkState
-	SessionType      string
-	Lineage          *SessionLineage
-	State            string
-	ACPSessionID     *string
-	StopReason       StopReason
-	StopDetail       string
-	Failure          *SessionFailure
-	Liveness         *SessionLivenessMeta
-	Sandbox          *SessionSandboxMeta
-	SoulSnapshotID   string
-	SoulDigest       string
-	ParentSoulDigest string
-	AttachedTo       string
-	AttachExpiresAt  *time.Time
-	TranscriptEpoch  int64
-	Attention        *SessionAttention
-	ArchivedAt       *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	SessionType            string
+	Lineage                *SessionLineage
+	State                  string
+	ACPSessionID           *string
+	StopReason             StopReason
+	StopEscalated          bool
+	StopVerificationFailed bool
+	StopDetail             string
+	Failure                *SessionFailure
+	Liveness               *SessionLivenessMeta
+	Sandbox                *SessionSandboxMeta
+	SoulSnapshotID         string
+	SoulDigest             string
+	ParentSoulDigest       string
+	*SessionAttachState
+	TranscriptEpoch int64
+	Attention       *SessionAttention
+	ArchivedAt      *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // SessionArchiveFilter controls whether archived rows participate in a catalog read.
@@ -282,6 +290,8 @@ type SessionStateUpdate struct {
 	RuntimeSelectionRevision int64
 	StopReasonSet            bool
 	StopReason               *string
+	StopEscalated            bool
+	StopVerificationFailed   bool
 	StopDetail               string
 	FailureSet               bool
 	Failure                  *SessionFailure
@@ -371,3 +381,28 @@ func validateSessionStopReason(reason StopReason) error {
 }
 
 // EventSummary is the global, cross-session observability record for one event.
+
+// AttachedToValue returns the optional attach owner without exposing nil embedding details.
+func (s SessionInfo) AttachedToValue() string {
+	if s.SessionAttachState == nil {
+		return ""
+	}
+	return s.AttachedTo
+}
+
+// AttachExpiresAtValue returns the optional attach expiry without exposing nil embedding details.
+func (s SessionInfo) AttachExpiresAtValue() *time.Time {
+	if s.SessionAttachState == nil {
+		return nil
+	}
+	return s.AttachExpiresAt
+}
+
+// SetAttach updates the optional attach binding with value semantics.
+func (s *SessionInfo) SetAttach(attachedTo string, expiresAt *time.Time) {
+	if attachedTo == "" && expiresAt == nil {
+		s.SessionAttachState = nil
+		return
+	}
+	s.SessionAttachState = &SessionAttachState{AttachedTo: attachedTo, AttachExpiresAt: expiresAt}
+}

@@ -33,6 +33,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		Status:            row.Status,
 		Mode:              row.Mode,
 		Delivery:          row.Delivery,
+		SteerDelivery:     store.SteerDeliveryMode(row.SteerDelivery.String),
 		Text:              row.Text,
 		Runtime: store.SessionInputRuntime{
 			Provider:        row.RuntimeProvider,
@@ -78,6 +79,9 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		return store.SessionInputQueueEntry{}, err
 	}
 	entry.Attachments = attachments
+	if err := decodeSyntheticQueuePrompt(row.SyntheticPromptJson, &entry); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	if err := parseSessionInputQueueTimes(
 		&entry, row.EnqueuedAt, row.UpdatedAt, row.DispatchStartedAt, row.SentAt,
 		row.FailedAt, row.CanceledAt, sqlNullStringFromTime(row.ActivatedAt),

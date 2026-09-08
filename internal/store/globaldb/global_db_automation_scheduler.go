@@ -69,14 +69,7 @@ func (g *AutomationRepo) SaveSchedulerState(
 	if err != nil {
 		return automation.SchedulerState{}, err
 	}
-	if err := g.queries.UpsertAutomationSchedulerState(ctx, automationSchedulerParams(normalized)); err != nil {
-		return automation.SchedulerState{}, fmt.Errorf(
-			"store: save automation scheduler state %q: %w",
-			normalized.JobID,
-			err,
-		)
-	}
-	return g.GetSchedulerState(ctx, normalized.JobID)
+	return g.saveSchedulerState(ctx, normalized)
 }
 
 // DeleteSchedulerState removes a durable scheduler cursor if it exists.
@@ -89,10 +82,7 @@ func (g *AutomationRepo) DeleteSchedulerState(ctx context.Context, jobID string)
 	if err != nil {
 		return err
 	}
-	if err := g.queries.DeleteAutomationSchedulerState(ctx, trimmedID); err != nil {
-		return fmt.Errorf("store: delete automation scheduler state %q: %w", trimmedID, err)
-	}
-	return nil
+	return g.deleteSchedulerState(ctx, trimmedID)
 }
 
 // ClaimScheduledRun advances one durable cursor and creates a run reservation
@@ -122,7 +112,13 @@ func (g *AutomationRepo) ClaimScheduledRun(
 	if err != nil && !errors.Is(err, automation.ErrSchedulerStateNotFound) {
 		return automation.SchedulerClaimResult{}, err
 	}
+	if existing.ScheduleHash != "" && existing.ScheduleHash != normalized.ScheduleHash {
+		return automation.SchedulerClaimResult{}, automation.ErrScheduledFireAlreadyClaimed
+	}
 	if strings.TrimSpace(existing.LastFireID) == normalized.FireID {
+		if existing.DeferredUntil != nil {
+			return resumeDeferredScheduledRun(ctx, tx, existing, normalized)
+		}
 		return automation.SchedulerClaimResult{}, fmt.Errorf(
 			"store: automation scheduled fire %q: %w",
 			normalized.FireID,
@@ -225,7 +221,7 @@ func (g *AutomationRepo) normalizeSchedulerClaim(claim automation.SchedulerClaim
 
 func getSchedulerStateTx(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx sqlcgen.DBTX,
 	jobID string,
 ) (automation.SchedulerState, error) {
 	row, err := sqlcgen.New(tx).GetAutomationSchedulerState(ctx, jobID)
@@ -238,7 +234,7 @@ func getSchedulerStateTx(
 	return automationSchedulerFromGenerated(row)
 }
 
-func upsertSchedulerStateTx(ctx context.Context, tx *sql.Tx, state automation.SchedulerState) error {
+func upsertSchedulerStateTx(ctx context.Context, tx sqlcgen.DBTX, state automation.SchedulerState) error {
 	if err := state.Validate("scheduler_state"); err != nil {
 		return err
 	}

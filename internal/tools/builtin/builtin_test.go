@@ -1041,8 +1041,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			{id: toolspkg.ToolIDTerminalClose, capability: terminalExecCapability},
 			{id: toolspkg.ToolIDTerminalList, capability: terminalObserveCapability},
 			{id: toolspkg.ToolIDTerminalRequestInput, capability: terminalExecCapability},
-			{id: toolspkg.ToolIDTerminalYield, capability: terminalExecCapability},
-			{id: toolspkg.ToolIDTerminalClaim, capability: terminalExecCapability},
 		}
 		for _, tc := range cases {
 			descriptor, ok := descriptors[tc.id]
@@ -1763,12 +1761,18 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_input_replace", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_inputs_clear", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_inputs_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_search", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt_cancel", risk: toolspkg.RiskMutating,
@@ -1857,8 +1861,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__terminal_claim", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__terminal_close", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: true},
 		{id: "compozy__terminal_exec", risk: toolspkg.RiskDestructive,
@@ -1877,8 +1879,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__terminal_write", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: true},
-		{id: "compozy__terminal_yield", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_revoke", risk: toolspkg.RiskDestructive,
@@ -2182,6 +2182,7 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		"mode",
 		"runtime",
 		"session_id",
+		"wait",
 		"workspace",
 	})
 	if !slices.Equal(input.Required, []string{
@@ -2412,9 +2413,24 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		t.Fatalf("%s prompt schema = %#v, want object", owner, prompt)
 	}
 	assertClosedObjectSchema(t, owner+" prompt", prompt, []string{
-		"canceled_queued_entries", "delivery", "estimated_send_at", "goal", "idempotency_key", "message_id",
-		"mode", "new_turn_id", "previous_turn_id", "queue_entry_id", "queue_generation", "queue_position",
-		"replayed", "status",
+		"canceled_queued_entries",
+		"delivery",
+		"disposition",
+		"entry_id",
+		"estimated_send_at",
+		"goal",
+		"idempotency_key",
+		"message_id",
+		"mode",
+		"new_turn_id",
+		"previous_turn_id",
+		"queue_entry_id",
+		"queue_generation",
+		"queue_position",
+		"replayed",
+		"status",
+		"steer_delivery",
+		"turn_id",
 	})
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
 		t.Fatalf(
@@ -2516,7 +2532,7 @@ func assertSessionInputPromoteSchema(t *testing.T, descriptor toolspkg.Descripto
 	assertSessionInputMutationSchema(t, descriptor, []string{
 		"expected_turn_id", "idempotency_key", "message_id", "queue_entry_id", "session_id", "text", "workspace",
 	}, []string{
-		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key", "expected_turn_id",
+		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key",
 	}, true)
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }
@@ -2574,8 +2590,9 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "queue_generation",
-		"runtime", "session_id", "status", "target_turn_id", "text",
+		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "owner_id", "owner_kind",
+		"queue_generation",
+		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
 	})
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",
@@ -3584,7 +3601,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(terminal) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
-			toolspkg.ToolIDTerminalClaim,
 			toolspkg.ToolIDTerminalClose,
 			toolspkg.ToolIDTerminalExec,
 			toolspkg.ToolIDTerminalList,
@@ -3594,7 +3610,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDTerminalSignal,
 			toolspkg.ToolIDTerminalWait,
 			toolspkg.ToolIDTerminalWrite,
-			toolspkg.ToolIDTerminalYield,
 		}; !slices.Equal(terminalTools, want) {
 			t.Fatalf("terminal expansion = %#v, want %#v", terminalTools, want)
 		}

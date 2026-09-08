@@ -339,6 +339,7 @@ func hostAPISessionInputFromPending(input session.PendingInput) hostAPISessionIn
 		Status:          input.Status,
 		Mode:            apicontract.PromptMode(input.Mode),
 		Delivery:        apicontract.PromptDelivery(input.Delivery),
+		SteerDelivery:   input.SteerDelivery,
 		Text:            input.Text,
 		QueueGeneration: input.QueueGeneration,
 		EnqueuedAt:      input.EnqueuedAt,
@@ -359,10 +360,13 @@ func hostAPISessionPromptResultFromSubmission(
 	admission := submission.Admission
 	turnID := strings.TrimSpace(submission.TurnID)
 	if turnID == "" {
-		turnID = strings.TrimSpace(admission.NewTurnID)
+		turnID = admission.Outcome().TurnID
 	}
 
 	result := hostAPISessionPromptResult{
+		Disposition:           admission.Outcome().Disposition,
+		SteerDelivery:         admission.SteerDelivery,
+		EntryID:               admission.QueueEntryID,
 		Status:                strings.TrimSpace(admission.Status),
 		Mode:                  apicontract.PromptMode(admission.Mode),
 		Delivery:              apicontract.PromptDelivery(admission.Delivery),

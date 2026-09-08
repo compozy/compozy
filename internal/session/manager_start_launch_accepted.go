@@ -36,7 +36,11 @@ func (m *Manager) runAcceptedSessionStartAndDispatch(accepted *acceptedSessionSt
 	if err := m.runAcceptedSessionStart(accepted); err != nil {
 		return err
 	}
-	m.startNextQueuedInputPrompt(accepted.session.ID)
+	// Resume owns the dispatch kick after releasing its conversation lock and
+	// publishing the completed transition, including logical-only resumes.
+	if accepted.spec.startAction != sessionStartActionResume {
+		m.startNextQueuedInputPrompt(accepted.session.ID)
+	}
 	return nil
 }
 
@@ -54,6 +58,9 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	accepted.storage = storage
 	session.setRecorder(storage.recorder)
 	accepted.run.signalRecorderReady()
+	if err := m.projectInputClearTraces(ctx, session); err != nil {
+		return startupFailure("session queue clear projection failed", err)
+	}
 
 	runtime := accepted.runtime
 	if err := m.prepareAcceptedSessionRuntime(ctx, spec, &runtime, m.now()); err != nil {
@@ -128,12 +135,7 @@ func (m *Manager) settleAcceptedSessionStartFailure(
 	session := accepted.session
 
 	if session.stopWasRequested() {
-		var stopErr error
-		if accepted.proc != nil && !isProcessDone(accepted.proc) {
-			stopErr = m.driver.Stop(cleanupCtx, accepted.proc)
-		}
-		finalizeErr := m.finalizeStopped(cleanupCtx, session, context.Cause(accepted.run.ctx))
-		return errors.Join(stopErr, finalizeErr)
+		return m.settleCanceledSessionStart(cleanupCtx, accepted)
 	}
 	if !accepted.persistFailure {
 		return m.discardAcceptedSessionStart(cleanupCtx, accepted, startErr)

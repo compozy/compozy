@@ -23,30 +23,16 @@ const (
 )
 
 type sessionEventBroadcaster struct {
-	mu          sync.Mutex
-	subscribers map[string]map[*sessionEventSubscriber]struct{}
-}
-
-type sessionEventSubscriber struct {
-	sessionID string
-	after     int64
-	mode      sessionEventSubscriptionMode
-	ch        chan store.SessionEvent
-	cancel    context.CancelFunc
-	closeOnce sync.Once
+	mu      sync.Mutex
+	streams map[string]*acp.LiveBroadcast
 }
 
 func newSessionEventBroadcaster() *sessionEventBroadcaster {
-	return &sessionEventBroadcaster{
-		subscribers: make(map[string]map[*sessionEventSubscriber]struct{}),
-	}
+	return &sessionEventBroadcaster{streams: make(map[string]*acp.LiveBroadcast)}
 }
 
 func (b *sessionEventBroadcaster) subscribe(
-	ctx context.Context,
-	sessionID string,
-	afterSequence int64,
-	mode sessionEventSubscriptionMode,
+	ctx context.Context, sessionID string, afterSequence int64, mode sessionEventSubscriptionMode,
 ) (<-chan store.SessionEvent, func(), error) {
 	if ctx == nil {
 		return nil, nil, errors.New("session: stream subscription context is required")
@@ -58,105 +44,71 @@ func (b *sessionEventBroadcaster) subscribe(
 	if afterSequence < 0 {
 		return nil, nil, fmt.Errorf("session: stream subscription cursor must be non-negative: %d", afterSequence)
 	}
-
-	subCtx, cancel := context.WithCancel(ctx)
-	sub := &sessionEventSubscriber{
-		sessionID: target,
-		after:     afterSequence,
-		mode:      mode,
-		ch:        make(chan store.SessionEvent, sessionEventSubscriberBuffer),
-		cancel:    cancel,
-	}
-
 	b.mu.Lock()
-	if b.subscribers == nil {
-		b.subscribers = make(map[string]map[*sessionEventSubscriber]struct{})
+	stream := b.streams[target]
+	if stream == nil {
+		stream = acp.NewLiveBroadcast(sessionEventSubscriberBuffer)
+		b.streams[target] = stream
 	}
-	subs := b.subscribers[target]
-	if subs == nil {
-		subs = make(map[*sessionEventSubscriber]struct{})
-		b.subscribers[target] = subs
-	}
-	subs[sub] = struct{}{}
+	ch, remove := stream.Subscribe(uint64(afterSequence), mode == sessionEventSubscriptionWakeOnly)
 	b.mu.Unlock()
-
 	unsubscribe := sync.OnceFunc(func() {
-		cancel()
-		b.remove(sub, true)
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		remove()
+		if stream.Stats().Subscribers == 0 && b.streams[target] == stream {
+			delete(b.streams, target)
+		}
 	})
-
-	go func() {
-		<-subCtx.Done()
-		unsubscribe()
-	}()
-
-	return sub.ch, unsubscribe, nil
+	stop := context.AfterFunc(ctx, unsubscribe)
+	return ch, func() { stop(); unsubscribe() }, nil
 }
 
 func (b *sessionEventBroadcaster) publish(event store.SessionEvent) bool {
-	target := strings.TrimSpace(event.SessionID)
-	if target == "" {
+	if event.Sequence < 0 {
 		return false
 	}
-
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	subs := b.subscribers[target]
-	if len(subs) == 0 {
-		return false
-	}
-
-	overflow := false
-	for sub := range subs {
-		if sub.mode == sessionEventSubscriptionAfterSequence && event.Sequence <= sub.after {
-			continue
-		}
-		select {
-		case sub.ch <- event:
-			if sub.mode == sessionEventSubscriptionAfterSequence {
-				sub.after = event.Sequence
-			}
-		default:
-			overflow = true
-			delete(subs, sub)
-			sub.cancel()
-			sub.close()
-		}
-	}
-	if len(subs) == 0 {
-		delete(b.subscribers, target)
-	}
-	return overflow
-}
-
-func (b *sessionEventBroadcaster) remove(sub *sessionEventSubscriber, closeChannel bool) {
-	if sub == nil {
-		return
-	}
-
-	b.mu.Lock()
-	subs := b.subscribers[sub.sessionID]
-	if subs != nil {
-		delete(subs, sub)
-		if len(subs) == 0 {
-			delete(b.subscribers, sub.sessionID)
-		}
-	}
+	stream := b.streams[strings.TrimSpace(event.SessionID)]
 	b.mu.Unlock()
-
-	if closeChannel {
-		sub.close()
-	}
+	return stream != nil && stream.Publish(uint64(event.Sequence), event)
 }
 
-func (sub *sessionEventSubscriber) close() {
-	if sub == nil {
-		return
+func (b *sessionEventBroadcaster) stats(sessionID string) acp.BroadcastStats {
+	b.mu.Lock()
+	stream := b.streams[sessionID]
+	b.mu.Unlock()
+	if stream == nil {
+		return acp.BroadcastStats{}
 	}
-	sub.closeOnce.Do(func() {
-		close(sub.ch)
-	})
+	return stream.Stats()
+}
+
+// TransportDeliveryStats separates durable ingestion from watcher delivery.
+type TransportDeliveryStats struct {
+	Ingest    acp.IngestStats
+	Broadcast acp.BroadcastStats
+}
+
+// TransportStats reports the ephemeral queues used by the active session.
+func (m *Manager) TransportStats(sessionID string) (TransportDeliveryStats, error) {
+	session, ok := m.Get(sessionID)
+	if !ok {
+		return TransportDeliveryStats{}, ErrSessionNotFound
+	}
+	var stats TransportDeliveryStats
+	if proc := session.processHandle(); proc != nil {
+		if source, ok := proc.native.(interface{ IngestStats() acp.IngestStats }); ok {
+			stats.Ingest = source.IngestStats()
+		}
+	}
+	m.streamEventsMu.Lock()
+	broadcaster := m.streamEvents
+	m.streamEventsMu.Unlock()
+	if broadcaster != nil {
+		stats.Broadcast = broadcaster.stats(sessionID)
+	}
+	return stats, nil
 }
 
 // SubscribeSessionEvents registers an in-process stream subscriber for
@@ -175,7 +127,7 @@ func (m *Manager) SubscribeSessionEvents(
 	if err != nil {
 		return nil, nil, err
 	}
-	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, afterSequence)
+	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, afterSequence, "")
 	return ch, cancel, nil
 }
 
@@ -221,7 +173,7 @@ func (m *Manager) SubscribeSessionEventWakes(
 	if err != nil {
 		return nil, nil, err
 	}
-	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, 0)
+	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, 0, "")
 	return ch, cancel, nil
 }
 
@@ -247,10 +199,13 @@ func (m *Manager) publishSessionEventByID(ctx context.Context, sessionID string,
 	if broadcaster == nil || !broadcaster.publish(event) {
 		return
 	}
-	m.emitStreamDiagnostic(ctx, target, eventspkg.SessionStreamOverflowFallback, event.Sequence)
+	m.emitStreamDiagnostic(ctx, target, eventspkg.SessionStreamOverflowFallback, event.Sequence, event.TurnID)
+	m.emitStreamDiagnostic(ctx, target, eventspkg.StreamConsumerDegraded, event.Sequence, event.TurnID)
 }
 
-func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, eventType string, sequence int64) {
+func (m *Manager) emitStreamDiagnostic(
+	ctx context.Context, sessionID string, eventType string, sequence int64, turnID string,
+) {
 	target := strings.TrimSpace(sessionID)
 	if target == "" || strings.TrimSpace(eventType) == "" {
 		return
@@ -258,6 +213,9 @@ func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, ev
 	payload := map[string]any{
 		sessionIDFieldKey: target,
 		"sequence":        sequence,
+		"turn_id":         turnID,
+		"actor_kind":      sessionSystemActorKind,
+		"actor_id":        sessionDaemonActorID,
 	}
 	info, err := m.Status(ctx, target)
 	if err != nil || info == nil {
@@ -285,7 +243,8 @@ func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, ev
 		return
 	}
 	m.notifyAgentEventFromInfo(ctx, info, acp.AgentEvent{
-		Type: eventType,
-		Raw:  raw,
+		Type: eventType, TurnID: turnID,
+		EventCorrelation: store.EventCorrelation{ActorKind: sessionSystemActorKind, ActorID: sessionDaemonActorID},
+		Raw:              raw,
 	})
 }

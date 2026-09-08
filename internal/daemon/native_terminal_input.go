@@ -61,9 +61,4 @@ type terminalInputRequestInput struct {
 	Redact        bool   `json:"redact,omitempty"`
 }
 
-type terminalYieldInput struct {
-	TerminalID string `json:"terminal_id"`
-	Reason     string `json:"reason"`
-}
-
 type terminalToolInfo = contract.TerminalInfoPayload

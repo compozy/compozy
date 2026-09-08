@@ -2,12 +2,12 @@
 
 ## Adoption sequence
 
-Lint first, compiler second. The lint rules run without the compiler installed, so this order is zero-risk and surfaces every violation before any output changes.
+Use this sequence only when adopting or changing compiler configuration. Existing React work reuses the installed compiler and lint policy. Lint first can expose problems before enabling optimization; it does not guarantee every issue is detected.
 
 1. **Survey** — `npx react-compiler-healthcheck@latest` for the compiled-component ratio, StrictMode usage, and incompatible libraries.
 2. **Lint** — remove `eslint-plugin-react-compiler` (a dead end, last published as `19.1.0-rc.2`) and install `eslint-plugin-react-hooks@latest`.
 3. **Fix violations**, prioritizing `preserve-manual-memoization` and `immutability`.
-4. **Pin exactly** — `npm i -D --save-exact babel-plugin-react-compiler@1.0.0`. Official advice when test coverage is thin, because compiler versions change output.
+4. **Choose a compatible version** using the repository package manager and version policy. Exact pins can reduce compiler-output drift when coverage is thin; do not force the example version into an existing setup.
 5. **Enable on a subset** via Babel `overrides` or `compilationMode: 'annotation'`.
 6. **Verify** with the DevTools ✨ badge and Performance Tracks.
 7. **Only then** consider removing legacy memos, and only after confirming no effect dependencies rely on reference stability.

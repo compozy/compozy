@@ -15,6 +15,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
@@ -55,6 +56,8 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	searchSessionTranscriptFn          func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
+	getSessionOutlineFn                func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
 	statusFn                           func(context.Context) (StatusRecord, error)
 	observeOverviewFn                  func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
 	doctorFn                           func(context.Context, DoctorQuery) (DoctorRecord, error)
@@ -189,7 +192,7 @@ type stubClient struct {
 	getSessionUsageFn            func(context.Context, string) (SessionUsageRecord, error)
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn                func(context.Context, string) error
+	stopSessionFn                func(context.Context, string, bool) (SessionStopRecord, error)
 	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
@@ -218,6 +221,7 @@ type stubClient struct {
 	sendSessionPromptFn   func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	steerSessionPromptFn  func(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
 	listSessionInputsFn   func(context.Context, string) (SessionInputListRecord, error)
+	clearSessionInputsFn  func(context.Context, string) (contract.SessionInputClearResponse, error)
 	replaceSessionInputFn func(context.Context, string, string, ReplaceSessionInputRequest) (SessionInputRecord, error)
 	promoteSessionInputFn func(context.Context, string, string, PromoteSessionInputRequest) (SessionPromptRecord, error)
 	cancelSessionInputFn  func(context.Context, string, string) (SessionPromptRecord, error)
@@ -1872,11 +1876,11 @@ func (s *stubClient) RefreshSessionSoul(
 	return AgentSoulRecord{}, errors.New("unexpected RefreshSessionSoul call")
 }
 
-func (s *stubClient) StopSession(ctx context.Context, id string) error {
+func (s *stubClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
 	if s.stopSessionFn != nil {
-		return s.stopSessionFn(ctx, id)
+		return s.stopSessionFn(ctx, id, wait)
 	}
-	return errors.New("unexpected StopSession call")
+	return SessionStopRecord{}, errors.New("unexpected StopSession call")
 }
 
 func (s *stubClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
@@ -2054,6 +2058,16 @@ func (s *stubClient) ListSessionInputs(ctx context.Context, sessionID string) (S
 		return s.listSessionInputsFn(ctx, sessionID)
 	}
 	return SessionInputListRecord{}, errors.New("unexpected ListSessionInputs call")
+}
+
+func (s *stubClient) ClearSessionInputs(
+	ctx context.Context,
+	sessionID string,
+) (contract.SessionInputClearResponse, error) {
+	if s.clearSessionInputsFn != nil {
+		return s.clearSessionInputsFn(ctx, sessionID)
+	}
+	return contract.SessionInputClearResponse{}, errors.New("unexpected ClearSessionInputs call")
 }
 
 func (s *stubClient) ReplaceSessionInput(
@@ -4569,4 +4583,25 @@ func mustJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 	return payload
+}
+
+func (s *stubClient) SearchSessionTranscript(
+	ctx context.Context,
+	id string,
+	query transcript.SearchQuery,
+) (contract.SessionTranscriptSearchResponse, error) {
+	if s.searchSessionTranscriptFn != nil {
+		return s.searchSessionTranscriptFn(ctx, id, query)
+	}
+	return contract.SessionTranscriptSearchResponse{}, errors.New("unexpected SearchSessionTranscript call")
+}
+
+func (s *stubClient) GetSessionOutline(
+	ctx context.Context,
+	id string,
+) (contract.SessionTranscriptOutlineResponse, error) {
+	if s.getSessionOutlineFn != nil {
+		return s.getSessionOutlineFn(ctx, id)
+	}
+	return contract.SessionTranscriptOutlineResponse{}, errors.New("unexpected GetSessionOutline call")
 }

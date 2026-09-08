@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	launcherSidecarPort               = 40241
-	launcherSidecarVersion            = "compozy-daytona-launcher-sidecar-v1"
-	launcherSidecarPath               = "/tmp/compozy-daytona-launcher-sidecar-v1"
-	launcherSidecarLogPath            = "/tmp/compozy-daytona-launcher-sidecar-v1.log"
+	launcherSidecarPort               = 40242
+	launcherSidecarVersion            = "compozy-daytona-launcher-sidecar-v2"
+	launcherSidecarPath               = "/tmp/compozy-daytona-launcher-sidecar-v2"
+	launcherSidecarLogPath            = "/tmp/compozy-daytona-launcher-sidecar-v2.log"
 	sidecarHealthPath                 = "healthz"
 	sidecarLaunchPath                 = "v1/launch"
 	sidecarSessionStreamBasePath      = "v1/sessions"
@@ -65,6 +65,7 @@ type sidecarHealthResponse struct {
 
 type sidecarLaunchRequest struct {
 	Command string `json:"command"`
+	ID      string `json:"id,omitempty"`
 }
 
 type sidecarLaunchResponse struct {
@@ -131,13 +132,14 @@ func (t *sidecarTransport) Dial(
 	if err != nil {
 		return nil, err
 	}
-	return t.dialEndpoint(ctx, endpoint, command)
+	return t.dialEndpoint(ctx, endpoint, command, sandbox.LauncherProcessID)
 }
 
 func (t *sidecarTransport) dialEndpoint(
 	ctx context.Context,
 	endpoint sidecarEndpoint,
 	command string,
+	processID string,
 ) (_ transportSession, err error) {
 	endpointOwned := false
 	defer func() {
@@ -145,7 +147,7 @@ func (t *sidecarTransport) dialEndpoint(
 			err = errors.Join(err, endpoint.Close())
 		}
 	}()
-	sessionID, err := t.launch(ctx, endpoint, command)
+	sessionID, err := t.launch(ctx, endpoint, command, processID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,17 +163,6 @@ func (t *sidecarTransport) ensureSidecar(
 	ctx context.Context,
 	info sandboxInfo,
 ) (_ sidecarEndpoint, err error) {
-	sandbox, err := t.loadSandbox(ctx, info)
-	if err != nil {
-		return sidecarEndpoint{}, err
-	}
-	binary, err := t.sidecarBinary(ctx, info)
-	if err != nil {
-		return sidecarEndpoint{}, err
-	}
-	if err := sandbox.WriteFile(ctx, launcherSidecarPath, binary); err != nil {
-		return sidecarEndpoint{}, fmt.Errorf("sandbox/daytona: upload launcher sidecar: %w", err)
-	}
 	endpoint, err := t.openTunnel(ctx, info)
 	if err != nil {
 		return sidecarEndpoint{}, err
@@ -187,6 +178,17 @@ func (t *sidecarTransport) ensureSidecar(
 		endpointOwned = true
 		return endpoint, nil
 	}
+	sandbox, err := t.loadSandbox(ctx, info)
+	if err != nil {
+		return sidecarEndpoint{}, err
+	}
+	binary, err := t.sidecarBinary(ctx, info)
+	if err != nil {
+		return sidecarEndpoint{}, err
+	}
+	if err := sandbox.WriteFile(ctx, launcherSidecarPath, binary); err != nil {
+		return sidecarEndpoint{}, fmt.Errorf("sandbox/daytona: upload launcher sidecar: %w", err)
+	}
 	if err := t.startSidecar(ctx, info); err != nil {
 		return sidecarEndpoint{}, err
 	}
@@ -198,6 +200,10 @@ func (t *sidecarTransport) ensureSidecar(
 }
 
 func (t *sidecarTransport) openTunnel(ctx context.Context, sandbox sandboxInfo) (sidecarEndpoint, error) {
+	port, err := launcherPortForVersion(sandbox.LauncherSidecarVersion)
+	if err != nil {
+		return sidecarEndpoint{}, err
+	}
 	if t.clientDialer == nil {
 		return sidecarEndpoint{}, errors.New("sandbox/daytona: launcher sidecar SSH tunnel is not configured")
 	}
@@ -212,10 +218,10 @@ func (t *sidecarTransport) openTunnel(ctx context.Context, sandbox sandboxInfo) 
 			errors.Join(err, client.Close()),
 		)
 	}
-	targetAddr := fmt.Sprintf("127.0.0.1:%d", launcherSidecarPort)
+	targetAddr := fmt.Sprintf("127.0.0.1:%d", port)
 	httpTransport := &http.Transport{
-		DialContext: func(context.Context, string, string) (net.Conn, error) {
-			conn, err := client.Dial("tcp", targetAddr)
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			conn, err := client.DialContext(ctx, "tcp", targetAddr)
 			if err != nil {
 				return nil, err
 			}
@@ -227,8 +233,8 @@ func (t *sidecarTransport) openTunnel(ctx context.Context, sandbox sandboxInfo) 
 		Timeout:   sidecarRequestTimeout,
 	}
 	wsDialer := &websocket.Dialer{
-		NetDialContext: func(context.Context, string, string) (net.Conn, error) {
-			conn, err := client.Dial("tcp", targetAddr)
+		NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			conn, err := client.DialContext(ctx, "tcp", targetAddr)
 			if err != nil {
 				return nil, err
 			}
@@ -244,4 +250,15 @@ func (t *sidecarTransport) openTunnel(ctx context.Context, sandbox sandboxInfo) 
 			return client.Close()
 		},
 	}, nil
+}
+
+func launcherPortForVersion(version string) (int, error) {
+	switch version {
+	case "", launcherSidecarVersion:
+		return launcherSidecarPort, nil
+	case "compozy-daytona-launcher-sidecar-v1":
+		return 40241, nil
+	default:
+		return 0, fmt.Errorf("sandbox/daytona: unsupported persisted launcher sidecar version %q", version)
+	}
 }

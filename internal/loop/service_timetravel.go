@@ -26,6 +26,10 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	if err != nil {
 		return RerunResult{}, err
 	}
+	historyRun, err := rerunHistoryRun(ctx, store, run)
+	if err != nil {
+		return RerunResult{}, err
+	}
 	digest, err := rerunRequestDigest(run, input)
 	if err != nil {
 		return RerunResult{}, err
@@ -36,7 +40,7 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 		return RerunResult{}, replayErr
 	} else if found {
 		outputs, _, rerunNodes, planErr := s.planRerunGeneration(
-			ctx, run, int(replay.ParentGeneration), input.FromNode, input.ItemIndex, int(replay.Generation),
+			ctx, historyRun, int(replay.ParentGeneration), input.FromNode, input.ItemIndex, int(replay.Generation),
 		)
 		if planErr != nil {
 			return RerunResult{}, planErr
@@ -54,9 +58,9 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 			"run_id": string(run.ID), namespaceStatusKey: string(run.Status),
 		})
 	}
-	nextGeneration := run.Generation + 1
+	nextGeneration := historyRun.Generation + 1
 	outputs, next, rerunNodes, err := s.planRerunGeneration(
-		ctx, run, run.Generation, input.FromNode, input.ItemIndex, nextGeneration,
+		ctx, historyRun, historyRun.Generation, input.FromNode, input.ItemIndex, nextGeneration,
 	)
 	if err != nil {
 		return RerunResult{}, err
@@ -65,7 +69,7 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 		timeTravelKindRerun,
 		input.RequestID,
 		digest,
-		run,
+		historyRun,
 		input.Actor,
 		input.Reason,
 		input.FromNode,
@@ -79,7 +83,7 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	}
 	result, replayed, err := store.CreateRerun(ctx, RerunStoreRequest{
 		WorkspaceID: input.WorkspaceID, Source: &run, NextOutputs: next,
-		Intent: GenerationIntent{Generation: int64(nextGeneration), ParentGeneration: int64(run.Generation),
+		Intent: GenerationIntent{Generation: int64(nextGeneration), ParentGeneration: int64(historyRun.Generation),
 			Origin: OriginOperatorRerun},
 		Operation: op, RequestDigest: digest, IdempotencyKey: strings.TrimSpace(input.RequestID), At: s.now(),
 	})
@@ -90,6 +94,19 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	result.Carried = len(outputs) - len(rerunNodes)
 	result.Replayed = replayed
 	return result, nil
+}
+
+// Reruns use immutable generation history: a successor can be persisted before
+// its first coordinator boundary updates the run's generation projection.
+func rerunHistoryRun(ctx context.Context, reader GenerationLineageReader, run Run) (Run, error) {
+	generations, err := reader.ListGenerations(ctx, string(run.WorkspaceID), string(run.ID))
+	if err != nil {
+		return Run{}, err
+	}
+	for _, generation := range generations {
+		run.Generation = max(run.Generation, int(generation.Generation))
+	}
+	return run, nil
 }
 
 func rerunRequestDigest(run Run, input RerunInput) (string, error) {

@@ -38,6 +38,7 @@ type sessionPromptInput struct {
 	IdempotencyKey string                                  `json:"idempotency_key"`
 	Mode           string                                  `json:"mode,omitempty"`
 	ExpectedTurnID string                                  `json:"expected_turn_id,omitempty"`
+	Wait           bool                                    `json:"wait,omitempty"`
 	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
@@ -189,13 +190,6 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	mode := session.BusyInputMode(strings.TrimSpace(input.Mode))
 	expectedTurnID := strings.TrimSpace(input.ExpectedTurnID)
-	if (mode == session.BusyInputModeSteer || mode == session.BusyInputModeInterrupt) &&
-		expectedTurnID == "" {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(
-			req.ToolID,
-			errors.New("expected_turn_id is required for steer and interrupt mode"),
-		)
-	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -218,15 +212,18 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	deliveryCtx, cancelDelivery := context.WithCancel(ctx)
+	defer cancelDelivery()
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Mode: mode, ExpectedTurnID: expectedTurnID,
-		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
+		DeliveryContext: deliveryCtx,
+		Runtime:         core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if result.Events != nil {
+	if input.Wait && result.Events != nil {
 		if err := drainNativeSessionPromptEvents(result.Events); err != nil {
 			return toolspkg.ToolResult{}, err
 		}

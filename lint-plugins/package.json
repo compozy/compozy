@@ -1,0 +1,8 @@
+{
+    "name": "@compozy/lint-plugins",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "vitest run"
+    }
+}

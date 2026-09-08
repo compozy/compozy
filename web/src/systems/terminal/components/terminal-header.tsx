@@ -1,11 +1,9 @@
-import { FileText, TerminalSquare } from "lucide-react";
+import { Eye, FileText, TerminalSquare } from "lucide-react";
 
 import { MonoId, Pill, useTopbarSlot } from "@compozy/ui";
 
-import type { TerminalLeaseView } from "../lib/terminal-lease";
 import type { TerminalInfo } from "../types";
 import { TerminalHeaderActions, TerminalWindowVerbs } from "./terminal-header-actions";
-import { TerminalLeaseBadge } from "./terminal-lease-badge";
 
 export interface TerminalRecordingState {
   /** Elapsed capture time, already formatted as `m:ss`. */
@@ -14,20 +12,17 @@ export interface TerminalRecordingState {
 
 export interface TerminalHeaderProps {
   terminal: TerminalInfo;
-  lease: TerminalLeaseView;
   recording?: TerminalRecordingState | null;
   /** How many terminals this project has, for the cap trail. */
   terminalCount?: number;
   /** The per-project cap, from `[terminal].max_per_workspace`. */
   limit?: number;
-  onTakeControl?: () => void;
-  onReleaseControl?: () => void;
   onStop?: () => void;
   onClose?: () => void;
   onSignal?: () => void;
   onWait?: () => void;
   onStopRecording?: () => void;
-  /** Opens another terminal. A window-level verb, not a lease action. */
+  /** Opens another terminal. */
   onNewTerminal?: () => void;
   /** Reveals the journal overlay. */
   onViewJournal?: () => void;
@@ -54,18 +49,14 @@ function terminalCapCount(terminalCount: number | undefined, limit: number | und
 /**
  * The terminal's identity row.
  *
- * The name is stated once, the chip says who is in control, and at most two
- * actions trail it — the head is where a person orients, not where every verb
- * lives. Take control is the single accent affordance in terminal chrome.
+ * The name is stated once and at most two actions trail it — the head is where
+ * a person orients, not where every verb lives.
  */
 export function TerminalHeader({
   terminal,
-  lease,
   recording,
   terminalCount,
   limit,
-  onTakeControl,
-  onReleaseControl,
   onStop,
   onClose,
   onSignal,
@@ -84,15 +75,12 @@ export function TerminalHeader({
       <TerminalHeaderActions
         closePending={closePending}
         isPipe={isPipe}
-        lease={lease}
         onClose={onClose}
-        onReleaseControl={onReleaseControl}
         onSignal={onSignal}
         onStop={onStop}
         onStopRecording={onStopRecording}
         onWait={onWait}
         recording={recording}
-        onTakeControl={onTakeControl}
       />
       <TerminalWindowVerbs onNewTerminal={onNewTerminal} onViewJournal={onViewJournal} />
     </>
@@ -110,7 +98,18 @@ export function TerminalHeader({
           read-only log
         </Pill>
       ) : null}
-      <TerminalLeaseBadge view={lease} viewers={isPipe ? undefined : terminal.viewers} />
+      {isPipe ? null : (
+        <Pill
+          aria-label={`${terminal.viewers} ${terminal.viewers === 1 ? "viewer" : "viewers"}`}
+          data-testid="terminal-viewers"
+          mono
+          size="sm"
+          tone="info"
+        >
+          <Eye aria-hidden="true" className="size-3" />
+          {terminal.viewers}
+        </Pill>
+      )}
     </>
   );
   useTopbarSlot(

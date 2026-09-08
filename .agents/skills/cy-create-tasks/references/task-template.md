@@ -1,6 +1,8 @@
 # Task File Template
 
-Use this structure for every individual task file. The file must start with YAML frontmatter containing the parseable metadata.
+Use the applicable sections below. YAML frontmatter follows `task-context-schema.md`;
+body headings are a writing aid, not extra acceptance gates. Keep each outcome,
+constraint, and evidence obligation in one place; omit sections that would repeat it.
 
 ```markdown
 ---
@@ -19,33 +21,30 @@ complexity: [low, medium, high, critical]
 ## Shippable Outcome
 
 - Outcome: [the observable behavior after merge, reached through its real entry path]
-- Verify: [`gate` — the slice's tests/lints prove it | `probe` — exact CLI/HTTP/UDS command | `smoke` — surface entry path + touched Visual Contract sections]
+- Verify in this task: [owning suite/probe and the behavior it proves; a live entry-path check when required by the outcome]
+- Integration verification: [named QA task + remaining journeys/visual rows, or `none`; this does not defer an explicit task acceptance requirement]
 
-<critical>
-- ALWAYS READ `_spec.md` and its catalogs (`_user_stories.md`, `_dx.md`, `_uiux.md` when present, `_tests.md`) before starting
-- REFERENCE `_spec.md` Part II for implementation details — do not duplicate here
-- FOCUS ON "WHAT" — describe what needs to be accomplished, not how
-- MINIMIZE CODE — show code only to illustrate current structure or problem areas
-- TESTS REQUIRED — implement every test case assigned in ## Tests
-</critical>
+## Requirements
 
-<requirements>
-- [Requirement 1 — specific technical requirement using MUST/SHOULD language]
-- [Requirement 2 — e.g., "MUST authenticate users via JWT tokens"]
-- [Requirement 3]
-</requirements>
+[Task-specific constraints; link the accepted contract for shared requirements.
+Do not copy generic coding, reading, or testing reminders into every task.]
 
 ## Visual Contract
 
-[Include this section when the task's slice touches a surface mapped in
-`_uiux.md`. Derive rows from that inventory — one row per touched artboard
-section, state, and viewport; do not use an “all states” catch-all row.]
+[Include this section only when the task names a visual reference.
+Derive rows from that reference — one row per touched artboard
+section, state, and viewport; do not use an “all states” catch-all row.
+Name the evidence owner: this task for standalone delivery or explicit
+task-owned proof; the integration QA task for final loop delivery. Inspect a
+representative implementation state early to catch structural errors.]
 
 | ID    | Reference artifact + state           | Implementation target + state | Viewport | Fidelity  | Authorized differences + authority |
 | ----- | ------------------------------------ | ----------------------------- | -------- | --------- | ---------------------------------- |
 | VC-01 | `path/to/reference.html` — populated | `/route` — populated fixture  | 1440×900 | normative | None                               |
 
-Evidence for each row: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<contract-id>/{reference.png,implementation.png,side-by-side.png,diff.png,comparison.json,review.md}` (or `<QA_OUTPUT_PATH>/qa/visual-contract/<task-id>/...` for isolated QA).
+Evidence owner: [this task or the named QA task; list exceptions by row ID].
+
+Evidence for each row at its owning boundary: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<contract-id>/{reference.png,implementation.png,side-by-side.png,diff.png,comparison.json,review.md}` (or `<QA_OUTPUT_PATH>/qa/visual-contract/<task-id>/...` for isolated QA). Reuse valid bundles; capture only missing or invalidated rows.
 
 ## Subtasks
 
@@ -74,19 +73,16 @@ Reference the `_spec.md` Part II Implementation Design for code patterns and int
 
 ### Related ADRs
 
-- [ADR-NNN: Title](../adrs/adr-NNN.md) — Relevance to this task
+- [ADR-NNN: Title](adrs/adr-NNN.md) — Relevance to this task
 
 ## Deliverables
 
 - [Concrete output 1]
 - [Concrete output 2]
-- Every test case assigned in `## Tests` implemented and passing **(REQUIRED)**
-- The `## Shippable Outcome` verification tier executed with its evidence recorded **(REQUIRED)**
-- [UI-bearing slices only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
 
 ## Tests
 
-Cases assigned from `_tests.md`, the test contract — read each ID's full definition there before writing tests.
+Cases assigned from `_tests.md` — read each assigned definition before editing. Include only the owning levels below; reuse existing coverage by path and invariant, without duplicating it across layers.
 
 - [ ] UT-NNN, UT-NNN, UT-NNN — [component/behavior these cover]
 - [ ] IT-NNN — [flow these cover]
@@ -96,14 +92,12 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 
 ## Success Criteria
 
-- Every assigned test case implemented and passing
-- The Shippable Outcome is reachable through its real entry path and its verification tier passed
-- [Measurable outcome 1]
-- [Measurable outcome 2]
-- [UI-bearing slices only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
+[Observable acceptance not already stated in Shippable Outcome or Requirements.
+The task completes after its assigned checks and evidence pass; integration-owned
+checks remain explicit for the final delivery owner.]
 ```
 
 ## Guidelines
 
-- Write one subtask per coherent unit of work — WHAT to accomplish, not HOW; robust tasks typically carry 5-12.
-- Sizing, independence, and test-assignment rules live in SKILL.md; the `<critical>` block above ships verbatim in every generated task file.
+- Write one subtask per coherent unit of work — no fixed count.
+- Sizing, independence, and test-assignment rules live in SKILL.md; adapt the guidance above to the task without adding unrelated stages.

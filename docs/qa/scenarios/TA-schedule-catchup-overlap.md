@@ -32,3 +32,15 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The claim-CAS at-most-once check (no double-fire) across restart.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-005-schedules-recover-once-never-overlap-never-target-the-daemon
+
+QA impact 2026-09-06 sessions-stability task_05 (walk owned by final task_10): occupy the shared
+automation concurrency gate when both a one-shot and recurring job become due. Inspect the durable
+deferral and original fire/run IDs. Release capacity and repeat across daemon restart: each original
+fire runs once, then later missed times follow the configured catch-up policy. Change or disable
+a deferred schedule and confirm the old reservation is canceled and cannot be revived by a stale retry.
+Also inspect scheduler counters: skipped/coalesced/rate-limited heartbeat attempts do not increment
+successful sends or arm cooldown. Sustained known capacity waiting advances bounded escalation to
+one canonical capacity event and needs_attention; recover through the existing task-run surface
+and confirm claimability after capacity returns.
+
+QA 2026-09-06 — sessions-stability selected scope: PASS for selected capacity/restart branches: the original deferred one-shot and recurring run IDs completed attempt1 after restart, then the recurring schedule was disabled. Known task capacity advanced one canonical event and needs_attention at four configured cycles; public recovery produced linked attempt2 and task next claimed it. Exhaustive edit/disable/counter cases reuse current task05 integration evidence; prior unrelated catch-up branches retain their historical scope. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

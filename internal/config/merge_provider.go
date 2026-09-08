@@ -1,6 +1,9 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	if o.SteerCapability != nil {
+		dst.SteerCapability = *o.SteerCapability
+	}
 	if o.Command != nil {
 		dst.Command = *o.Command
 	}

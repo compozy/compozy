@@ -10,7 +10,9 @@ import {
   SessionTranscriptMessagesContext,
   SessionTranscriptRetryContext,
   SessionTranscriptStatusContext,
+  SessionTransportContext,
   type SessionTranscriptThreadStatus,
+  type SessionTransportState,
 } from "./session-transcript-thread-context-value";
 
 const noop = () => {};
@@ -25,6 +27,7 @@ export function SessionTranscriptThreadProvider({
   isFetchingOlder = false,
   loadOlder = noop,
   retry,
+  transport,
 }: {
   children: ReactNode;
   liveMessages?: readonly ThreadMessage[];
@@ -35,26 +38,30 @@ export function SessionTranscriptThreadProvider({
   isFetchingOlder?: boolean;
   loadOlder?: () => void;
   retry: () => void;
+  /** Absent for surfaces with no live stream (read-only, stories): the transport reads live. */
+  transport?: SessionTransportState;
 }) {
   const decisionMessages = liveMessages ? [...liveMessages, ...messages] : messages;
 
   return (
-    <SessionDecisionMessagesContext.Provider value={decisionMessages}>
-      <SessionTranscriptMessagesContext.Provider value={messages}>
-        <SessionTranscriptStatusContext.Provider value={status}>
-          <SessionTranscriptErrorContext.Provider value={error}>
-            <SessionTranscriptRetryContext.Provider value={retry}>
-              <SessionTranscriptHasOlderContext.Provider value={hasOlder}>
-                <SessionTranscriptFetchingOlderContext.Provider value={isFetchingOlder}>
-                  <SessionTranscriptLoadOlderContext.Provider value={loadOlder}>
-                    {children}
-                  </SessionTranscriptLoadOlderContext.Provider>
-                </SessionTranscriptFetchingOlderContext.Provider>
-              </SessionTranscriptHasOlderContext.Provider>
-            </SessionTranscriptRetryContext.Provider>
-          </SessionTranscriptErrorContext.Provider>
-        </SessionTranscriptStatusContext.Provider>
-      </SessionTranscriptMessagesContext.Provider>
-    </SessionDecisionMessagesContext.Provider>
+    <SessionTransportContext.Provider value={transport}>
+      <SessionDecisionMessagesContext.Provider value={decisionMessages}>
+        <SessionTranscriptMessagesContext.Provider value={messages}>
+          <SessionTranscriptStatusContext.Provider value={status}>
+            <SessionTranscriptErrorContext.Provider value={error}>
+              <SessionTranscriptRetryContext.Provider value={retry}>
+                <SessionTranscriptHasOlderContext.Provider value={hasOlder}>
+                  <SessionTranscriptFetchingOlderContext.Provider value={isFetchingOlder}>
+                    <SessionTranscriptLoadOlderContext.Provider value={loadOlder}>
+                      {children}
+                    </SessionTranscriptLoadOlderContext.Provider>
+                  </SessionTranscriptFetchingOlderContext.Provider>
+                </SessionTranscriptHasOlderContext.Provider>
+              </SessionTranscriptRetryContext.Provider>
+            </SessionTranscriptErrorContext.Provider>
+          </SessionTranscriptStatusContext.Provider>
+        </SessionTranscriptMessagesContext.Provider>
+      </SessionDecisionMessagesContext.Provider>
+    </SessionTransportContext.Provider>
   );
 }

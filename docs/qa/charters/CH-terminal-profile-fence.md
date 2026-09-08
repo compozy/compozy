@@ -1,5 +1,8 @@
 # CH-terminal-profile-fence: Seed two profiles with terminals and try to make one see the other
 
+> Superseded on 2026-09-04 for future scheduling because its typing-grant probes no longer exist.
+> Preserve this file as historical QA memory; profile isolation remains covered by its scenarios.
+
 ```yaml
 charter:
   id: CH-terminal-profile-fence

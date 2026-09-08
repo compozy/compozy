@@ -92,5 +92,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		pollInterval:        s.pollInterval,
 		agentLoader:         s.agentLoader,
 		extensions:          s.extensions,
+
+		onProviderAuthSuccess: s.onProviderAuthSuccess,
 	}
 }

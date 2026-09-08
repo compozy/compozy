@@ -23,6 +23,8 @@ type Bounds struct {
 	CoalesceWindow   string `json:"coalesce_window"     yaml:"coalesce_window"     toml:"coalesce_window"`
 }
 
+const maxTotalWallTimeField = "bounds.max_total_wall_time"
+
 func (b Bounds) IsZero() bool {
 	return b == Bounds{}
 }
@@ -116,15 +118,15 @@ func validateBounds(bounds Bounds) error {
 	if err != nil {
 		return err
 	}
-	totalWall, err := parsePositiveDuration("bounds.max_total_wall_time", bounds.MaxTotalWallTime)
+	totalWall, err := parseBoundDuration(maxTotalWallTimeField, bounds.MaxTotalWallTime)
 	if err != nil {
 		return err
 	}
-	if wakeWall > totalWall {
+	if totalWall > 0 && wakeWall > totalWall {
 		return exceedsLimit(
 			"bounds.max_wake_wall_time",
 			bounds.MaxWakeWallTime,
-			"bounds.max_total_wall_time",
+			maxTotalWallTimeField,
 			bounds.MaxTotalWallTime,
 		)
 	}
@@ -172,7 +174,7 @@ func validateBoundsLimits(bounds Bounds, limits Limits) error {
 		return err
 	}
 	if err := validateDurationCeiling(
-		"bounds.max_total_wall_time",
+		maxTotalWallTimeField,
 		bounds.MaxTotalWallTime,
 		"network.live.limits.max_total_wall_time",
 		limits.MaxTotalWallTime,
@@ -193,7 +195,7 @@ func validateDurationCeiling(field, value, limitField, limitValue string) error 
 	if strings.TrimSpace(limitValue) == "" {
 		return nil
 	}
-	duration, err := parsePositiveDuration(field, value)
+	duration, err := parseBoundDuration(field, value)
 	if err != nil {
 		return err
 	}
@@ -208,7 +210,7 @@ func validateDurationCeiling(field, value, limitField, limitValue string) error 
 }
 
 func validateDurationRange(field, value, minField, minValue, maxField, maxValue string) error {
-	duration, err := parsePositiveDuration(field, value)
+	duration, err := parseBoundDuration(field, value)
 	if err != nil {
 		return err
 	}
@@ -231,6 +233,16 @@ func validateDurationRange(field, value, minField, minValue, maxField, maxValue 
 		}
 	}
 	return nil
+}
+
+// Only the aggregate wall budget is optional; per-wake and coalescing bounds remain positive.
+func parseBoundDuration(field, value string) (time.Duration, error) {
+	if field == maxTotalWallTimeField {
+		if duration, err := time.ParseDuration(strings.TrimSpace(value)); err == nil && duration == 0 {
+			return 0, nil
+		}
+	}
+	return parsePositiveDuration(field, value)
 }
 
 func parsePositiveDuration(field, value string) (time.Duration, error) {

@@ -19,6 +19,7 @@ type nativeToolPolicyResolverDeps struct {
 	Config            *compozyconfig.Config
 	Sessions          nativeToolPolicySessionReader
 	WorkspaceResolver workspacepkg.RuntimeResolver
+	ProfileNames      session.ProfileNameResolver
 	AgentResolver     nativeToolPolicyAgentResolver
 	ExtensionRegistry *extensionpkg.Registry
 	ApprovalAvailable bool
@@ -36,6 +37,7 @@ type nativeToolPolicyResolver struct {
 	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
 	workspaceResolver workspacepkg.RuntimeResolver
+	profileNames      session.ProfileNameResolver
 	agentResolver     nativeToolPolicyAgentResolver
 	extensionRegistry *extensionpkg.Registry
 	approvalAvailable bool
@@ -51,6 +53,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		cfg:               deps.Config,
 		sessions:          deps.Sessions,
 		workspaceResolver: deps.WorkspaceResolver,
+		profileNames:      deps.ProfileNames,
 		agentResolver:     deps.AgentResolver,
 		extensionRegistry: deps.ExtensionRegistry,
 		approvalAvailable: deps.ApprovalAvailable,
@@ -62,6 +65,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		Config:            &state.cfg,
 		Sessions:          state.sessions,
 		WorkspaceResolver: state.workspaceResolver,
+		ProfileNames:      state.profiles,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
@@ -83,7 +87,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if info != nil {
 		resolvedScope = fillToolPolicyScopeFromSession(resolvedScope, info)
 	}
-	resolvedWorkspace, cfg, err := r.resolveWorkspaceConfig(ctx, resolvedScope.WorkspaceID)
+	resolvedWorkspace, cfg, err := r.resolveWorkspaceConfig(ctx, resolvedScope)
 	if err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -224,16 +228,32 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 
 func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	ctx context.Context,
-	workspaceID string,
+	scope toolspkg.Scope,
 ) (*workspacepkg.ResolvedWorkspace, *compozyconfig.Config, error) {
 	cfg := r.cfg
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
 	if strings.TrimSpace(workspaceID) == "" {
 		return nil, cfg, nil
 	}
 	if r.workspaceResolver == nil {
 		return nil, cfg, nil
 	}
-	resolved, err := r.workspaceResolver.Resolve(ctx, workspaceID)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if scope.ProfileID == "" {
+		resolved, err = r.workspaceResolver.Resolve(ctx, workspaceID)
+	} else {
+		profileName, profileErr := resolvePromptSkillsProfileName(ctx, r.profileNames, scope.ProfileID)
+		if profileErr != nil {
+			return nil, nil, fmt.Errorf("daemon: resolve tool policy profile %q: %w", scope.ProfileID, profileErr)
+		}
+		profileResolver, ok := r.workspaceResolver.(workspacepkg.ProfileRuntimeResolver)
+		if !ok {
+			return nil, nil, errors.New("daemon: tool policy workspace resolver does not support profile layers")
+		}
+		resolved, err = profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
+		resolved.ProfileID = scope.ProfileID
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve workspace tool policy %q: %w", workspaceID, err)
 	}

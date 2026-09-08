@@ -1,5 +1,8 @@
 # CH-terminal-redaction-osc-boundary: Feed the terminal secrets and hostile escapes, then hunt for what it kept
 
+> Superseded on 2026-09-04 for future scheduling because its answer-ownership handoff no longer exists.
+> Preserve this file as historical QA memory; `CH-terminal-shared-input-race` owns shared input answers.
+
 ```yaml
 charter:
   id: CH-terminal-redaction-osc-boundary

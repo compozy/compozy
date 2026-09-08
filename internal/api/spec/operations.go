@@ -11,6 +11,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, agentCatalogOperations()...)
 	ops = append(ops, bridgeOperations()...)
 	ops = append(ops, sessionTranscriptOperations()...)
+	ops = append(ops, sessionNavigationOperations()...)
 	ops = append(ops, notificationPresetOperations()...)
 	ops = append(ops, authoredContextOperations()...)
 	ops = append(ops, append(loopsOperations(), goalOperations()...)...)

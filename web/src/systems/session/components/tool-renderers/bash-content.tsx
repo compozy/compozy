@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
 import type { UIMessage } from "../../types";
+import { DetailPayload } from "./detail-payload";
 import { DetailPre } from "./detail-pre";
 
 const VISIBLE_OUTPUT_LINES = 20;
@@ -39,6 +40,48 @@ export function BashContent({ message }: { message: UIMessage }) {
   const output = result ? formatBashOutput(result) : "";
   const stderr = result?.stderr ?? "";
   const errorText = result?.error ?? "";
+  // Plain stdout is the payload that grows without bound (a verbose test run):
+  // it renders through the bounded payload body with the truncation strip.
+  if (output && !stderr && !errorText) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-col gap-1" data-testid="bash-content">
+        {command ? (
+          <DetailPre className="shrink-0 text-subtle" data-testid="bash-command">
+            $ {String(command)}
+          </DetailPre>
+        ) : null}
+        <DetailPayload downloadName="command-output.txt" text={output} />
+      </div>
+    );
+  }
+
+  return (
+    <MixedBashOutput
+      command={command}
+      output={output}
+      stderr={stderr}
+      errorText={errorText}
+      expanded={expanded}
+      onToggle={() => setExpanded(value => !value)}
+    />
+  );
+}
+
+function MixedBashOutput({
+  command,
+  output,
+  stderr,
+  errorText,
+  expanded,
+  onToggle,
+}: {
+  command: unknown;
+  output: string;
+  stderr: string;
+  errorText: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const outputLines = lineCount(output);
   const stderrLines = lineCount(stderr);
   const errorLines = lineCount(errorText);
@@ -58,23 +101,11 @@ export function BashContent({ message }: { message: UIMessage }) {
           $ {String(command)}
         </DetailPre>
       ) : null}
-      {visibleOutput || visibleStderr || visibleError ? (
-        <DetailPre>
-          {visibleOutput || null}
-          {visibleOutput && (visibleStderr || visibleError) ? "\n" : null}
-          {visibleStderr ? (
-            <span className="text-danger" data-testid="bash-stderr">
-              {visibleStderr}
-            </span>
-          ) : null}
-          {visibleStderr && visibleError ? "\n" : null}
-          {visibleError ? <span className="text-danger">{visibleError}</span> : null}
-        </DetailPre>
-      ) : null}
+      <BashOutputLines output={visibleOutput} stderr={visibleStderr} errorText={visibleError} />
       {overflow ? (
         <button
           type="button"
-          onClick={() => setExpanded(value => !value)}
+          onClick={onToggle}
           className="flex w-fit items-center gap-1 text-[11.5px] text-subtle transition-colors hover:text-fg"
         >
           <ChevronsUpDown aria-hidden="true" className="size-3" />
@@ -83,4 +114,28 @@ export function BashContent({ message }: { message: UIMessage }) {
       ) : null}
     </div>
   );
+}
+
+function BashOutputLines({
+  output,
+  stderr,
+  errorText,
+}: {
+  output: string;
+  stderr: string;
+  errorText: string;
+}) {
+  return output || stderr || errorText ? (
+    <DetailPre>
+      {output || null}
+      {output && (stderr || errorText) ? "\n" : null}
+      {stderr ? (
+        <span className="text-danger" data-testid="bash-stderr">
+          {stderr}
+        </span>
+      ) : null}
+      {stderr && errorText ? "\n" : null}
+      {errorText ? <span className="text-danger">{errorText}</span> : null}
+    </DetailPre>
+  ) : null;
 }

@@ -13,7 +13,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-003](L-003-task-runs-single-queue.md)                      | `task_runs` is the single durable work queue                                     | Architecture / Autonomy          |
 | [L-004](L-004-manual-equals-peer.md)                          | Manual operator paths converge with autonomous on same primitives                | Architecture / Autonomy          |
 | [L-005](L-005-authoritative-primitive-exclusivity.md)         | Authoritative primitives are exclusive — observe ≠ own                           | Architecture                     |
-| [L-006](L-006-greenfield-delete-not-adapt.md)                 | Greenfield + zero-legacy means delete, not adapt                                 | Project posture                  |
+| [L-006](L-006-greenfield-delete-not-adapt.md)                 | Name delete targets and their compatibility regime                                 | Project posture                  |
 | [L-007](L-007-e2e-follows-runtime-contract.md)                | E2E harness regressions follow runtime contract changes                          | Testing                          |
 | [L-008](L-008-schema-migrations-mandatory.md)                 | Schema migrations are required even on fresh DBs                                 | Persistence                      |
 | [L-009](L-009-concurrent-worktree-deadlock.md)                | Concurrent worktree commits deadlock; isolate `COMPOZY_HOME` + ports                 | Workflow                         |
@@ -32,7 +32,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-022](L-022-eyebrow-canonical-source.md)                    | Eyebrow typography needs one canonical source                                    | Frontend / Design system         |
 | [L-023](L-023-token-utility-canonical-form.md)                | Design tokens belong in `@theme`, not in `:root` aliased through `@theme inline` | Frontend / Design system / Build |
 | [L-024](L-024-design-md-generated-tokens.md)                  | Generated design-token specs prevent documentation drift                         | Frontend / Design system / Docs  |
-| [L-025](L-025-greenfield-hardcut-current-protocol-version.md) | On greenfield, hard-cut the current protocol version — don't bump to a new one   | Project posture / RFC discipline |
+| [L-025](L-025-greenfield-hardcut-current-protocol-version.md) | Protocol versions follow published interoperability contracts   | Project posture / RFC discipline |
 | [L-026](L-026-integration-claims-require-substrate-evidence.md) | Integration claims require substrate evidence, not symbol greps                 | Analysis / Architecture review   |
 | [L-027](L-027-judge-platform-by-premise-not-reference-implementation.md) | Judge a platform against its premise, not its reference implementation | Architecture / Spec authoring    |
 | [L-028](L-028-correction-is-not-license-for-opposite-extreme.md) | A correction is not a license for the opposite extreme                          | Decision process / Spec authoring |
@@ -47,8 +47,11 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-037](L-037-vertical-slices-gates-travel-with-the-slice.md)   | Deliver in vertical slices; verification gates travel with the slice             | Spec authoring / Workflow / Process |
 | [L-038](L-038-qa-scenarios-need-reachability-and-visual-axes.md) | QA scenarios need a reachability and visual-language axis, not only data truth  | Testing / QA / Design system     |
 | [L-039](L-039-self-asserted-quality-and-inverted-goldens.md)    | Self-asserted quality is no gate; a green test can bless the bug                 | Process / Testing / Verification |
+| [L-040](L-040-real-users-end-zero-legacy-posture.md)            | Real users end the zero-legacy posture; compatibility is tiered by contract owner | Project posture / Release / Process |
 
 ## How to use
+
+Read only lessons matching the current incident or design question. Context/source sections preserve historical evidence; the current rule and newer standing directives determine application. A lesson does not add a review round, test quota, full-suite run, or report by itself.
 
 When designing a new feature or reviewing a PR, scan the index for adjacent classes. Each lesson cites specific files/incidents so you can verify whether it still applies.
 

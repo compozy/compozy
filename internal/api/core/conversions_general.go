@@ -8,7 +8,7 @@ import (
 )
 
 func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.SettingsGeneralConfigPayload {
-	return contract.SettingsGeneralConfigPayload{
+	payload := contract.SettingsGeneralConfigPayload{
 		Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: value.Limits.MaxConcurrentAgents},
 		Permissions: contract.SettingsPermissionsPayload{
 			Mode: contract.SettingsPermissionMode(value.Permissions.Mode),
@@ -33,4 +33,8 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 			MaxSubscribers:         value.Terminal.MaxSubscribers,
 		},
 	}
+	if value.FollowUpMode != nil {
+		payload.BusyInput = &contract.SettingsBusyInputPayload{DefaultMode: *value.FollowUpMode}
+	}
+	return payload
 }

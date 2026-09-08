@@ -20,9 +20,7 @@ A correction was treated as a negation of the prior position instead of a trigge
 
 ## Operationalization
 
-- Keep an explicit numbered premise list (P1..Pn) during design discussions; the final spec brief records them as settled premises with rationale.
-- When corrected, walk each affected conclusion against every premise and name which premise drives the revision — "P4 (delegation is opt-in) rules out composing human decisions via tasks" would have caught the swing immediately.
-- Treat a second correction on the same axis as a signal that the reasoning mode (pendulum) is the bug, not the specific position.
+For a multi-constraint design or after a user correction, retain the affected accepted premises and check the revised conclusion against them. State which premise changed or drove the correction. A short decision note is sufficient; ordinary answers need no numbered premise ledger.
 
 ## Anti-pattern
 

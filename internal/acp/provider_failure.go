@@ -32,6 +32,8 @@ type ProviderFailureAction string
 const (
 	ProviderFailureActionInstallCLI        ProviderFailureAction = "install_cli"
 	ProviderFailureActionLogin             ProviderFailureAction = "login"
+	ProviderFailureActionBindSecret        ProviderFailureAction = "bind_secret"
+	ProviderFailureActionInspect           ProviderFailureAction = "inspect"
 	ProviderFailureActionChangeModel       ProviderFailureAction = "change_model"
 	ProviderFailureActionRequestPermission ProviderFailureAction = "request_permission"
 	ProviderFailureActionWait              ProviderFailureAction = "wait"

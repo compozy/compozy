@@ -1,63 +1,35 @@
 ---
 name: cy-tasks-tail-qa-pair
-description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (scenario files, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy spec pipeline, for ideation/brainstorming output, or for review-round task lists.
+description: "Add or repair the final QA planning/execution pair in a requested cy-loop-tasks graph."
 trigger: explicit
 ---
 
 # Tasks Tail QA Pair
 
-Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario files, results become registry bugs and dated reports. The tail complements per-slice verification, never replaces it: each slice ships with its own `## Shippable Outcome` evidence, and the tail walks cross-slice journeys plus anything that changed after a slice's evidence was recorded — it does not re-walk untouched per-slice results.
+Complete the QA tail of the supplied full-loop task graph. Use the slug/path from
+the caller or current task context; modification time does not identify the user's
+intended workflow. Ordinary task lists outside a requested full loop need no pair.
 
-## Procedures
+Read `_tasks.md` and any existing QA task files. Reuse a valid pair; repair only a
+missing half or a concrete wiring/coverage gap, preserving customized task bodies
+and unrelated graph entries. Use the
+[task metadata schema](../cy-create-tasks/references/task-context-schema.md)
+for the runtime metadata/graph contract when needed.
 
-**Step 1: Locate the Tasks File**
+Use `references/qa-tail-template.md` for exact types and applicable body guidance.
+Assign the pair remaining changed/integration journeys and final visual rows, with
+current task evidence reused. Select real browser/runtime checks by actual behavior;
+full suites/labs require scope, risk, or policy. Planning needs no mandatory worker
+or runtime. Execution with no remaining checks records its evidence disposition
+without inventing sessions or a dated run report.
 
-1. Resolve the target `_tasks.md` path. If invoked immediately after `cy-create-tasks`, the orchestrator passes the slug; otherwise read the most recently modified `.compozy/tasks/<slug>/_tasks.md`.
-2. Read the file and check whether the last two non-empty entries already follow the QA pair pattern.
-3. If both `qa-report` and `qa-execution` rows exist with proper dependencies, exit with status `noop` — do not duplicate.
+The result contains `qa-report` followed by `qa-execution`, with sequential task IDs
+and risk-based complexity. Add their files and graph nodes/edges together and keep
+the table consistent. QA planning follows all implementation prerequisites; in a
+linear graph this is one dependency on the last implementation task. Execution
+depends on planning. Avoid redundant transitive edges and cycles.
 
-**Step 2: Detect UI-Bearing Features**
-
-1. If the slug directory contains `_uiux.md`, set `requires_e2e=true` — the spec marked the feature UI-bearing.
-2. Otherwise parse the task list for any task that touches `web/`, `packages/site`, `web/e2e/`, Storybook, or any frontend-facing surface; if at least one does, set `requires_e2e=true`.
-3. If no task touches UI but the spec covers public API/CLI, agent-manageability, extensibility, or config lifecycle surfaces, set `requires_cli_e2e=true`.
-4. Otherwise `requires_e2e=false` (rare — backend-only refactors).
-
-**Step 3: Read the Tail Template**
-
-1. Read `references/qa-tail-template.md` for the canonical row shape, complexity rating, and required `<critical>` blocks.
-2. Note the `Dependencies` syntax: the `qa-report` task depends on the last implementation task, and the `qa-execution` task depends on `qa-report`.
-3. Preserve the table column order used in the existing `_tasks.md` (do not reorder columns). The current canonical order is `# | Title | Status | Complexity | Dependencies`.
-
-**Step 4: Compose the QA Pair**
-
-1. Generate the `qa-report` task row using the template:
-   - Title: `QA Plan and Session Charters`
-   - Frontmatter type: `qa-report`
-   - Status: `pending`
-   - Complexity: `high`
-   - Dependencies: last implementation task ID
-2. Generate the `qa-execution` task row:
-   - Title: `Real-User QA Execution`
-   - Frontmatter type: `qa-execution`
-   - Status: `pending`
-   - Complexity: `critical`
-   - Dependencies: the new `qa-report` task ID
-   - Include e2e directive when `requires_e2e=true` (Playwright via `browser-use:browser`, fallback to `agent-browser`).
-   - Include CLI/API/agent-manageability end-to-end directive when `requires_cli_e2e=true`.
-3. Compute correct sequential task IDs (e.g., next `task_NN` numbers).
-
-**Step 5: Append and Verify**
-
-1. Append the two rows below the existing list. Do not modify earlier rows.
-2. Create matching `task_NN.md` files for both QA rows using the body guidance in `references/qa-tail-template.md`.
-3. If the `_tasks.md` includes a `## MVP Boundary` section that references "tasks 01-NN", update only the QA range to include the new tasks.
-4. Read `references/qa-pair-checklist.md` and confirm every item passes before exit.
-5. Print the final two-row diff to stdout for human/agent review.
-
-## Error Handling
-
-- If the target `_tasks.md` cannot be located, fail loudly and report the resolved slug. Do not write files speculatively.
-- If the file lacks a recognizable task table (e.g., it is empty or uses a custom format), refuse to edit; emit the discovered shape on stderr and ask for the correct path.
-- If `cy-create-tasks` already inserted partial QA tasks (only `qa-report` or only `qa-execution`), repair the missing half rather than duplicating.
-- Never replace existing QA rows. If the user has customized them, treat the file as ready and exit `noop`.
+Check the changed graph, task metadata, evidence ownership, and references once.
+`references/qa-pair-checklist.md` is a diagnostic aid for an ambiguous existing pair,
+not another mandatory audit. Update a QA range in `MVP Boundary` only if present.
+Summarize the added/repaired tasks or report that the pair was already valid.

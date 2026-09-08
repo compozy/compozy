@@ -52,4 +52,54 @@ describe("session transcript presentation", () => {
     expect(flattenTranscriptMessages(transcriptData([rawError, marker]))).toEqual([marker]);
     expect(flattenTranscriptMessages(transcriptData([rawError]))).toEqual([rawError]);
   });
+
+  it("Should keep the actionable provider error over the redundant provider_failure marker", () => {
+    const providerError = message("error", [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "error",
+          turn_id: "turn-auth",
+          error: "provider authentication required",
+          failure: { kind: "prompt_failure", summary: "provider authentication required" },
+          provider_error: {
+            code: "provider_auth_required",
+            provider: "claude-code",
+            next_action: "login",
+            guidance: "run provider auth login for this provider",
+            occurrence_count: 1,
+            first_seen_at: "2026-09-05T14:02:00Z",
+            last_seen_at: "2026-09-05T14:02:00Z",
+          },
+        },
+      },
+    ]);
+    const marker = message("marker", [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "transcript_marker.created",
+          turn_id: "turn-auth",
+          title: "transcript_marker.provider_failure",
+          text: "provider authentication required",
+        },
+      },
+    ]);
+    const otherTurnMarker = message("marker-other", [
+      {
+        type: "data-compozy-event",
+        data: {
+          type: "transcript_marker.created",
+          turn_id: "turn-other",
+          title: "transcript_marker.provider_failure",
+          text: "peer disconnected before response",
+        },
+      },
+    ]);
+
+    expect(
+      flattenTranscriptMessages(transcriptData([providerError, marker, otherTurnMarker]))
+    ).toEqual([providerError, otherTurnMarker]);
+    expect(flattenTranscriptMessages(transcriptData([providerError]))).toEqual([providerError]);
+  });
 });

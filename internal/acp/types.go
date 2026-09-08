@@ -40,7 +40,7 @@ const (
 	EventTypeSystem = "system"
 	// EventTypeRuntimeProgress is emitted by Compozy while a prompt remains active.
 	EventTypeRuntimeProgress = "runtime_progress"
-	// EventTypeRuntimeWarning is emitted by Compozy when active prompt activity is stale.
+	// EventTypeRuntimeWarning reports stale prompt activity or auxiliary runtime cleanup failures.
 	EventTypeRuntimeWarning = "runtime_warning"
 	// EventTypeRuntimeRecoveryStarted is emitted before an automatic runtime recovery attempt.
 	EventTypeRuntimeRecoveryStarted = "runtime_recovery_started"
@@ -237,6 +237,7 @@ type PromptActivityReport struct {
 
 // Caps captures the usable capabilities exposed by an ACP agent.
 type Caps struct {
+	SteerCapability       compozyconfig.SteerCapability
 	SupportsLoadSession   bool
 	SupportsCloseSession  bool
 	PromptImage           bool
@@ -250,6 +251,7 @@ type Caps struct {
 // CloneCaps returns a deep copy of ACP caps.
 func CloneCaps(caps Caps) Caps {
 	return Caps{
+		SteerCapability:       caps.SteerCapability,
 		SupportsLoadSession:   caps.SupportsLoadSession,
 		SupportsCloseSession:  caps.SupportsCloseSession,
 		PromptImage:           caps.PromptImage,

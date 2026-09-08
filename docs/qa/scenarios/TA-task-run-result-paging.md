@@ -20,4 +20,8 @@ Create one Loop action result that crosses both the 16 KiB inline boundary and 6
 
 QA impact 2026-08-31: new public task-run result resource and agent-manageable readers.
 
+Carry the external result through automatic `failed_only` generations while preserving its task-run identity. Confirm task read/list/status-list and paged result reads still describe one result, then stop and restart the daemon and compare the bytes. Identical references are valid provenance; different references for one task run remain corruption.
+
+QA 2026-09-04: the live 60-task import and missing-dependent-manifest scenario reproduced a failed baseline boot. The corrected binary reopened the same state and CLI/UDS plus HTTP returned the original 23,953 bytes with SHA-256 `04a086956afa6d4a04df752c6f1fd50196ddb805fd0d110366aa856ce9e81001`. The canonical GlobalDB suite verifies all four readers and conflicting descriptors. See `docs/qa/reports/2026-09-04-loop-stability.md` for commands and evidence.
+
 QA 2026-08-31: CLI/UDS, HTTP, and `compozy__task_run_result` returned the same descriptor and ordered 16 KiB byte pages. Five decoded pages reconstructed 71,694 bytes with SHA-256 `97eca41229b21547388b09aa0f26e9a46f7fee61bc2a85daa8cc4169a670da3f` before and after restart. An inline 1,944-byte run returned one JSON page with `eof=true`; invalid range returned 400 and a missing run returned the masked 404 shape. Canonical store/service tests own corruption, multibyte-boundary, and foreign-workspace probes.

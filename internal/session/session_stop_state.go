@@ -24,7 +24,7 @@ func (s *Session) beginPromptSetup() error {
 	if s.conversationRewindReserved {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved {
+	if s.worktreeForkReserved || s.turnStopPending {
 		return ErrPromptInProgress
 	}
 	if s.process == nil {
@@ -57,7 +57,7 @@ func (s *Session) beginExclusivePromptSetupLocked() (*AgentProcess, error) {
 	if s.conversationRewindReserved {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved {
+	if s.worktreeForkReserved || s.turnStopPending {
 		return nil, ErrPromptInProgress
 	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
@@ -82,7 +82,7 @@ func (s *Session) reserveConversationRewind() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
+	if s.turnStopPending || s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
 		s.currentTurnSource != "" || s.currentTurnID != "" {
 		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
 	}
@@ -130,6 +130,11 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	if s.promptSetupDone == nil {
 		s.promptSetupDone = closedSignalChan()
 	}
+	if cause == CauseInactivity && s.State == StateActive {
+		if s.supervisionStopAt.IsZero() || now.Before(s.supervisionStopAt) {
+			return false, nil, errSupervisionActivityResumed
+		}
+	}
 	cause = s.resolveSpawnTTLStopCauseLocked(cause)
 
 	switch s.State {
@@ -145,6 +150,7 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 		}
 		s.applyStopCauseLocked(cause, detail)
 		s.State = StateStopping
+		s.stopStartedAt = now
 		if !now.IsZero() {
 			s.UpdatedAt = now
 		}
@@ -213,4 +219,14 @@ func (s *Session) setStopClassification(reason store.StopReason, detail string) 
 	defer s.mu.Unlock()
 	s.stopReason = reason
 	s.stopDetail = strings.TrimSpace(detail)
+}
+
+// StoppingDeadline derives the fixed stop episode budget without renewing it on reads.
+func (s *Session) StoppingDeadline(cooperativeGrace time.Duration) time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.State != StateStopping || s.stopStartedAt.IsZero() {
+		return time.Time{}
+	}
+	return s.stopStartedAt.Add(cooperativeGrace + stopForcedGrace + stopKillGrace)
 }

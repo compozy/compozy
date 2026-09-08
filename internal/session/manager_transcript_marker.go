@@ -8,7 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const transcriptMarkerEvidenceSourceKey = "source"
+const (
+	transcriptMarkerEvidenceSourceKey    = "source"
+	transcriptMarkerEvidenceEventTypeKey = "event_type"
+)
 
 func (m *Manager) emitTranscriptMarker(
 	ctx context.Context,

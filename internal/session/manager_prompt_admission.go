@@ -135,6 +135,12 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		}
 	}
 
+	if preparation.request.expectedTurnID != "" {
+		if _, err := requireExpectedActiveTurn(session, preparation.request.expectedTurnID); err != nil {
+			return SendPromptResult{}, err
+		}
+	}
+
 	if session.IsPrompting() {
 		return m.submitAdmittedBusyPrompt(ctx, session, preparation.request, preparation.mode, admissionReq)
 	}
@@ -210,7 +216,14 @@ func (m *Manager) submitAdmittedBusyPrompt(
 	case BusyInputModeQueue:
 		return m.enqueueAdmittedBusyPrompt(ctx, session, admissionReq)
 	case BusyInputModeSteer:
-		return m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
+		result, err := m.stageAdmittedSteerPrompt(ctx, session, req, admissionReq)
+		// The completed turn can disappear between the busy snapshot and staging.
+		// No admission was claimed by this failure; ordinary unfenced sends are now direct.
+		if errors.Is(err, ErrPromptNotInProgress) && req.expectedTurnID == "" &&
+			admissionReq.Operation == store.SessionPromptOperationPrompt && !session.IsPrompting() {
+			return m.submitAdmittedDirectPrompt(ctx, session, req, mode, admissionReq)
+		}
+		return result, err
 	case BusyInputModeInterrupt:
 		return m.interruptAdmittedPrompt(ctx, session, req, admissionReq)
 	default:
@@ -230,7 +243,9 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	admission, entry, position, created, err := m.inputQueue.EnqueueAdmitted(ctx, admissionReq, generation)
+	admission, entry, position, created, err := m.inputQueue.EnqueueAdmitted(
+		ctx, admissionReq, generation, session.CurrentTurnID(),
+	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
 			m.emitTranscriptMarker(
@@ -265,6 +280,9 @@ func (m *Manager) stageAdmittedSteerPrompt(
 	req promptRequest,
 	admissionReq store.SessionPromptAdmissionRequest,
 ) (SendPromptResult, error) {
+	if len(req.attachments) > 0 {
+		return SendPromptResult{}, store.ErrSessionInputSteerTextOnly
+	}
 	if m.inputQueue == nil {
 		return SendPromptResult{}, ErrPromptInProgress
 	}
@@ -285,21 +303,16 @@ func (m *Manager) stageAdmittedSteerPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
+	if err := m.activateSteeringInput(ctx, session, &entry); err != nil {
 		activationErr := m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
 		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, activationErr)
-	}
-	if created {
-		m.emitTranscriptMarker(
-			ctx, session, targetTurnID, transcript.MarkerPromptSteered,
-			"Steering input accepted for the active turn.",
-			queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
-		)
 	}
 	result, err := sendPromptResultFromAdmission(admission)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	result.SteerDelivery = entry.SteerDelivery
+	result.PreviousTurnID = entry.TargetTurnID
 	result.Replayed = !created
 	return result, nil
 }
@@ -444,9 +457,11 @@ func (m *Manager) promptDispatchIndeterminate(
 	admission store.SessionPromptAdmission,
 	cause error,
 ) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
 	reason := "dispatch failed after the at-most-once boundary: " + cause.Error()
 	markErr := m.promptAdmissionStore.MarkSessionPromptAdmissionIndeterminate(
-		context.WithoutCancel(ctx),
+		cleanupCtx,
 		admission.WorkspaceID,
 		admission.SessionID,
 		admission.IdempotencyKey,

@@ -93,6 +93,16 @@ func (m *Manager) recordEventWithAuthoredText(
 	event acp.AgentEvent,
 	authoredText string,
 ) error {
+	return m.recordEventWithWriter(ctx, session, event, authoredText, recordPersistedSessionEvent)
+}
+
+func (m *Manager) recordEventWithWriter(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	authoredText string,
+	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
+) error {
 	event = m.enrichRecordedAgentEvent(session, event)
 	attentionCommitted, err := m.applyAttentionAgentEvent(ctx, session, event)
 	if err != nil {
@@ -116,7 +126,7 @@ func (m *Manager) recordEventWithAuthoredText(
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
-	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
+	persisted, err := write(ctx, recorder, store.SessionEvent{
 		ID:        strings.TrimSpace(event.EventIDValue()),
 		TurnID:    event.TurnID,
 		Type:      event.Type,

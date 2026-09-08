@@ -2129,3 +2129,61 @@ func failedItemOutputsForTest(t *testing.T) []GenerationOutput {
 		},
 	}
 }
+
+// Invariant: event waits always have a finite deadline from authored expiry or
+// the effective admission horizon. Owner: coordinator control planning suite.
+func TestCoordinatorRunnerShouldBoundEventWaitAdmission(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		horizon, expiry time.Duration
+	}{
+		{name: "default horizon", horizon: 168 * time.Hour},
+		{name: "configured horizon", horizon: 2 * time.Hour},
+		{name: "authored expiry", horizon: 2 * time.Hour, expiry: 15 * time.Minute},
+	} {
+		t.Run("Should honor "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			now := time.Date(2026, 8, 4, 15, 0, 0, 0, time.UTC)
+			params := dsl.NodeParams{"event": map[string]any{"kind": "task.run.completed"}}
+			if tc.expiry > 0 {
+				params["expires"] = map[string]any{"after": tc.expiry.String()}
+			}
+			resolved := compileCoordinatorControlDefinition(t, dsl.Definition{Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "await_ack", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait), Params: params},
+				},
+			}})
+			loopRun := controlLoopRun("bounded-wait", nil)
+			coordinator := controlCoordinatorRun(loopRun, 1)
+			defaults := DefaultLoopDefaults()
+			defaults.Delivery.Lifecycle.AdmissionHorizon = new(tc.horizon)
+			runner := newCoordinatorRunnerForControlTestWithDefaults(
+				t,
+				loopRun,
+				coordinator,
+				nil,
+				coordinatorRunnerOutputs{
+					outputs: map[int][]GenerationOutput{
+						1: {{Generation: 1, NodeID: "await_ack", Status: generationOutputPending, Attempt: 1}},
+					},
+				},
+				resolved,
+				defaults,
+			)
+			runner.now = func() time.Time { return now }
+			plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			waits := coordinatorSnapshotPayloadForTest(t, plan).Waits
+			want := tc.horizon
+			if tc.expiry > 0 {
+				want = tc.expiry
+			}
+			if len(waits) != 1 || waits[0].NextEscalationAt == nil || !waits[0].NextEscalationAt.Equal(now.Add(want)) {
+				t.Fatalf("wait deadline = %+v, want %s", waits, now.Add(want))
+			}
+		})
+	}
+}

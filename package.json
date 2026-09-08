@@ -7,6 +7,7 @@
         "packages/site",
         "web",
         "desktop",
+        "lint-plugins",
         "sdk/typescript",
         "sdk/react",
         "sdk/examples/prompt-enhancer",
@@ -16,6 +17,7 @@
         "build": "turbo run build",
         "codegen": "make codegen",
         "codegen-check": "bash scripts/codegen-check.sh",
+        "codegen-dev": "make codegen-dev",
         "dev": "turbo run dev --filter=./web",
         "doctor": "react-doctor",
         "format": "oxfmt",
@@ -69,7 +71,7 @@
         ],
         "*.{js,jsx,ts,tsx}": [
             "oxfmt --no-error-on-unmatched-pattern",
-            "oxlint --deny-warnings"
+            "oxlint --deny-warnings --no-error-on-unmatched-pattern"
         ]
     },
     "packageManager": "bun@1.4.0",

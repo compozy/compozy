@@ -39,6 +39,28 @@ func TestFallbackLifecycleContextUsesManagerLifecycleContext(t *testing.T) {
 
 func TestSessionNetworkLifecycleHandling(t *testing.T) {
 	t.Parallel()
+	t.Run("Should report diagnostic persistence failure without reopening a verified stop", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.SetNetworkPeerLifecycle(&recordingNetworkPeerLifecycle{leaveErr: context.DeadlineExceeded})
+		session := createSession(t, h)
+		persistErr := errors.New("cleanup diagnostic store unavailable")
+		h.manager.openStore = func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
+			return nil, persistErr
+		}
+		ctx := testutil.Context(t)
+		if err := h.manager.Stop(ctx, session.ID); !errors.Is(err, persistErr) {
+			t.Fatalf("Stop() error = %v, want diagnostic persistence error", err)
+		}
+		outcome, err := h.manager.AwaitStopped(ctx, session.ID)
+		if !errors.Is(err, persistErr) || !outcome.Verified || outcome.FinalState != StateStopped {
+			t.Fatalf("stop outcome = %#v, %v", outcome, err)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.State != string(StateStopped) || h.notifier.stoppedCount() != 1 {
+			t.Fatal("diagnostic write failure prevented verified finalization")
+		}
+	})
 
 	t.Run("ShouldFailCreateWhenNetworkJoinFails", func(t *testing.T) {
 		t.Parallel()
@@ -314,6 +336,11 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 			}
 			if got := lifecycle.leaveCount(); got != 1 {
 				t.Fatalf("leave calls after Stop() = %d, want 1", got)
+			}
+			warning := storedEventByType(t, readStoredEvents(t, session), acp.EventTypeRuntimeWarning)
+			payload := decodeStoredEventPayload(t, warning)
+			if text, ok := payload["text"].(string); !ok || !strings.Contains(text, "network cleanup") {
+				t.Fatalf("cleanup warning = %#v, want network cleanup diagnostic", payload)
 			}
 
 			meta := readMeta(t, session.MetaPath())
@@ -627,7 +654,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReturnImmediatelyWhenDriverStopFailsBeforeProcessExit", func(t *testing.T) {
+	t.Run("Should escalate and verify exit after driver stop failure", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -647,8 +674,18 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 
 		select {
 		case err := <-stopDone:
-			if !errors.Is(err, stopErr) {
-				t.Fatalf("StopWithCause() error = %v, want wrapped driver stop failure", err)
+			if err != nil {
+				t.Fatalf("StopWithCause() after escalation = %v", err)
+			}
+			outcome, outcomeErr := h.manager.AwaitStopped(t.Context(), session.ID)
+			if outcomeErr != nil || !outcome.Verified || !outcome.Escalated || outcome.Phase != StopPhaseKilled {
+				t.Fatalf("escalated outcome = %#v, %v", outcome, outcomeErr)
+			}
+			h.driver.mu.Lock()
+			kills := h.driver.killCalls
+			h.driver.mu.Unlock()
+			if kills != 1 {
+				t.Fatalf("kill calls = %d, want 1", kills)
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("StopWithCause() blocked waiting for proc.Done after driver stop failure")

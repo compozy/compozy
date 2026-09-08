@@ -2,14 +2,11 @@ package terminal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 func (s *session) Info() Info {
@@ -20,7 +17,6 @@ func (s *session) Info() Info {
 
 func (s *session) infoSnapshotLocked() Info {
 	info := s.info
-	info.Controller = cloneActor(s.info.Controller)
 	info.Exit = cloneExit(s.info.Exit)
 	return info
 }
@@ -143,69 +139,9 @@ func (s *session) readLines(options ReadOptions) (*ReadResult, error) {
 	return &ReadResult{Content: selected, Seq: seq, Truncated: truncated, Untrusted: true}, nil
 }
 
-func (s *session) Takeover(ctx context.Context, actor Actor, force bool) error {
-	if err := requestContextError(ctx, "takeover"); err != nil {
-		return err
-	}
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	if err := s.runningGate(); err != nil {
-		return err
-	}
-	if err := s.lease.takeover(actor, force); err != nil {
-		return err
-	}
-	if actor.Kind == ActorKindHuman {
-		s.supersedeInputRequests(ctx, actor)
-	}
-	return nil
-}
-
-func (s *session) Yield(ctx context.Context, actor Actor) error {
-	if err := requestContextError(ctx, "yield"); err != nil {
-		return err
-	}
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	if err := s.runningGate(); err != nil {
-		return err
-	}
-	return s.lease.yield(actor)
-}
-
-func (s *session) claim(actor Actor) error {
-	s.authorityMu.Lock()
-	defer s.authorityMu.Unlock()
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	if err := s.runningGate(); err != nil {
-		return err
-	}
-	info := s.Info()
-	if info.BoundRun != nil {
-		bound := info.BoundRun
-		if actor.Kind != ActorKindAgent || actor.SessionID != bound.SessionID || actor.RunID != bound.RunID {
-			return &Error{
-				Code: ErrorCodeLeaseRevoked, Message: "terminal is bound to a different agent run",
-				Controller: info.Controller, Err: ErrLeaseRevoked,
-			}
-		}
-		if actor.Generation != bound.Generation {
-			return &Error{
-				Code: ErrorCodeGenerationFenced, Message: errorMessageGenerationFenced,
-				Controller: info.Controller, Err: ErrGenerationFenced,
-			}
-		}
-	}
-	return s.lease.claim(actor)
-}
-
 func (s *session) runtimeRecovered(previous, current Actor) bool {
-	s.authorityMu.Lock()
-	defer s.authorityMu.Unlock()
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	s.mu.Lock()
 	bound := s.info.BoundRun
 	if bound == nil || bound.SessionID != previous.SessionID || bound.RunID != previous.RunID ||
@@ -217,19 +153,21 @@ func (s *session) runtimeRecovered(previous, current Actor) bool {
 		SessionID: current.SessionID, RunID: current.RunID, Generation: current.Generation,
 	}
 	s.mu.Unlock()
-	s.lease.runtimeRecovered(previous, current)
 	return true
 }
 
 func (s *session) runEnded(actor Actor) bool {
-	s.authorityMu.Lock()
-	defer s.authorityMu.Unlock()
-	info := s.Info()
-	if info.BoundRun == nil || info.BoundRun.SessionID != actor.SessionID ||
-		info.BoundRun.RunID != actor.RunID || info.BoundRun.Generation != actor.Generation {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	s.mu.Lock()
+	bound := s.info.BoundRun
+	if bound == nil || bound.SessionID != actor.SessionID || bound.RunID != actor.RunID ||
+		bound.Generation != actor.Generation {
+		s.mu.Unlock()
 		return false
 	}
-	s.lease.runEnded(actor)
+	s.info.BoundRun = nil
+	s.mu.Unlock()
 	s.supersedeInputRequests(s.ctx, actor)
 	return true
 }
@@ -244,12 +182,6 @@ func (s *session) Signal(ctx context.Context, actor Actor, signal Signal) error 
 	if err := s.runningGate(); err != nil {
 		return err
 	}
-	if err := s.authorizePendingInputMutation(actor); err != nil {
-		return err
-	}
-	if err := s.authorizeClose(actor); err != nil {
-		return err
-	}
 	if err := s.proc.Kill(terminalSignal(signal)); err != nil {
 		return fmt.Errorf("terminal: signal %q: %w", s.Info().ID, err)
 	}
@@ -257,33 +189,7 @@ func (s *session) Signal(ctx context.Context, actor Actor, signal Signal) error 
 }
 
 func (s *session) authorizeClose(actor Actor) error {
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	if actor.Kind == ActorKindHuman || actor.Kind == ActorKindSystem {
-		return nil
-	}
-	state, controller := s.lease.snapshot()
-	if controller == nil {
-		return fmt.Errorf("agent terminal authority requires an active controller: %w", ErrWriteLeaseRequired)
-	}
-	if actor.Kind == ActorKindAgent && controller != nil && sameRun(actor, *controller) &&
-		actor.Generation != controller.Generation {
-		return &Error{
-			Code:    ErrorCodeGenerationFenced,
-			Message: errorMessageGenerationFenced,
-			Err:     ErrGenerationFenced,
-		}
-	}
-	if state == LeaseAgentOwned && controller != nil && sameActor(actor, *controller) {
-		return nil
-	}
-	return &Error{
-		Code:       ErrorCodeLeaseRevoked,
-		Message:    "agent terminal authority is no longer active",
-		Controller: controller,
-		Err:        ErrLeaseRevoked,
-	}
+	return s.authorizeProfile(actor)
 }
 
 func (s *session) authorizeProfile(actor Actor) error {
@@ -343,46 +249,6 @@ func (s *session) touch() {
 	s.mu.Lock()
 	s.lastActivity = s.manager.now()
 	s.mu.Unlock()
-}
-
-func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, controller *Actor) {
-	s.mu.Lock()
-	s.info.Lease = to
-	s.info.Controller = cloneActor(controller)
-	if from == LeaseAgentOwned && to != LeaseAgentOwned {
-		s.info.TypingGeneration++
-	}
-	info := s.infoSnapshotLocked()
-	subscribers := make([]*subscription, 0, len(s.subscribers))
-	for _, subscriber := range s.subscribers {
-		subscribers = append(subscribers, subscriber)
-	}
-	s.mu.Unlock()
-	actorKind := ActorKind("")
-	actorID := ""
-	if controller != nil {
-		actorKind = controller.Kind
-		actorID = controller.ID
-	}
-	payload, err := json.Marshal(struct {
-		Lease     LeaseState `json:"lease"`
-		ActorKind ActorKind  `json:"actor_kind,omitempty"`
-		ActorID   string     `json:"actor_id,omitempty"`
-		Reason    string     `json:"reason"`
-	}{Lease: to, ActorKind: actorKind, ActorID: actorID, Reason: reason})
-	if err != nil {
-		s.manager.logger.Warn("terminal: encode owner frame", "terminal_id", info.ID, "error", err)
-	} else {
-		for _, subscriber := range subscribers {
-			subscriber.deliver(Frame{Op: terminalwire.ServerOpOwner, Payload: payload}, 0)
-		}
-	}
-	s.manager.events.Notify(s.ctx, Event{
-		Kind: EventKindLeaseChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
-		ProfileName: s.profileName,
-		TerminalID:  info.ID, Actor: actor, Info: &info,
-		Reason: reason, Detail: &EventDetail{LeaseFrom: from, LeaseTo: to}, At: s.manager.now(),
-	})
 }
 
 func (s *session) exited() bool {

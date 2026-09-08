@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
 type Request struct {
 	Mode            *Mode            `json:"mode,omitempty"`
 	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
@@ -117,10 +123,4 @@ type RoutingKey struct {
 	PeerID           string      `json:"peer_id,omitempty"`
 	ThreadID         string      `json:"thread_id,omitempty"`
 	GroupID          string      `json:"group_id,omitempty"`
-}
-
-type RoutingPolicy struct {
-	IncludePeer   bool `json:"include_peer"`
-	IncludeThread bool `json:"include_thread"`
-	IncludeGroup  bool `json:"include_group"`
 }

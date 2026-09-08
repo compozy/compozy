@@ -178,6 +178,7 @@ type AutomationRun struct {
 }
 
 type AutomationSchedulerState struct {
+	DeferredUntil             sql.NullString `json:"deferred_until"`
 	JobID                     string         `json:"job_id"`
 	NextRunAt                 sql.NullString `json:"next_run_at"`
 	LastRunAt                 sql.NullString `json:"last_run_at"`
@@ -446,6 +447,7 @@ type DeadEntity struct {
 }
 
 type EventSummary struct {
+	Seq                  int64          `json:"seq"`
 	ID                   string         `json:"id"`
 	ProfileID            string         `json:"profile_id"`
 	SessionID            string         `json:"session_id"`
@@ -1721,6 +1723,8 @@ type Session struct {
 	ArchivedAt               sql.NullString `json:"archived_at"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
+	StopEscalated            bool           `json:"stop_escalated"`
+	StopVerificationFailed   bool           `json:"stop_verification_failed"`
 	StopDetail               sql.NullString `json:"stop_detail"`
 	SubprocessPid            int64          `json:"subprocess_pid"`
 	SubprocessStartedAt      sql.NullString `json:"subprocess_started_at"`
@@ -1795,6 +1799,17 @@ type SessionHealth struct {
 	UpdatedAt           string         `json:"updated_at"`
 }
 
+type SessionInputClearTrace struct {
+	EntryID         string         `json:"entry_id"`
+	SessionID       string         `json:"session_id"`
+	TurnID          string         `json:"turn_id"`
+	ActorKind       string         `json:"actor_kind"`
+	ActorID         string         `json:"actor_id"`
+	QueueGeneration int64          `json:"queue_generation"`
+	CreatedAt       string         `json:"created_at"`
+	ProjectedAt     sql.NullString `json:"projected_at"`
+}
+
 type SessionInputQueue struct {
 	ID                       string         `json:"id"`
 	SessionID                string         `json:"session_id"`
@@ -1807,7 +1822,9 @@ type SessionInputQueue struct {
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Delivery                 string         `json:"delivery"`
+	SteerDelivery            sql.NullString `json:"steer_delivery"`
 	Text                     string         `json:"text"`
+	SyntheticPromptJson      sql.NullString `json:"synthetic_prompt_json"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`

@@ -2,7 +2,7 @@
 
 # Integrated terminal wire protocol
 
-The required WebSocket subprotocol is `compozy.terminal.v2`. Version 1 is rejected; there is no negotiation, alias, or fallback.
+The required WebSocket subprotocol is `compozy.terminal.v3`. Earlier versions are rejected; there is no negotiation, alias, or fallback.
 
 `OUTPUT` frames contain one opcode byte, one unsigned 64-bit big-endian sequence, then raw bytes. All control frames contain one opcode byte followed by JSON.
 
@@ -17,9 +17,8 @@ The required WebSocket subprotocol is `compozy.terminal.v2`. Version 1 is reject
 | `TITLE` | `0x05` |
 | `RESIZED` | `0x06` |
 | `GAP` | `0x07` |
-| `OWNER` | `0x08` |
-| `PRESENCE` | `0x09` |
-| `REDACTED_INPUT` | `0x0A` |
+| `PRESENCE` | `0x08` |
+| `REDACTED_INPUT` | `0x09` |
 
 ## Client to server
 
@@ -29,10 +28,8 @@ The required WebSocket subprotocol is `compozy.terminal.v2`. Version 1 is reject
 | `ACK` | `0x02` |
 | `RESIZE` | `0x03` |
 | `SIGNAL` | `0x04` |
-| `TAKEOVER` | `0x05` |
-| `DETACH` | `0x06` |
-| `RELEASE` | `0x07` |
+| `DETACH` | `0x05` |
 
-`REDACTED_INPUT` is daemon-owned JSON with `seq` and `characters`; PTY output can never create this frame. `PRESENCE` reports the current viewer count. `RELEASE` yields the active write lease without detaching.
+`REDACTED_INPUT` is daemon-owned JSON with `seq` and `characters`; PTY output can never create this frame. `PRESENCE` reports the current viewer count. Interactive write attachments share mutation rights; read attachments remain passive.
 
 Observable limits: input frames are at most 65536 bytes; columns are clamped to 20–2000 and rows to 5–1000.

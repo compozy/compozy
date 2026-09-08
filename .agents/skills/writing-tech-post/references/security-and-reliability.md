@@ -1,5 +1,7 @@
 # Security and Reliability
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The security/reliability specialty surface's contract: threat-model opening, layered-defense walkthrough, coordinated-disclosure four-panel, probabilistic register for adversary capabilities, CVE + upstream-commit citation contract, and the three sub-variants (preparedness, industry-migration, educational-explainer).
 
 ## Contents

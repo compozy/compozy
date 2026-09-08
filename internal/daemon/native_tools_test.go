@@ -141,7 +141,6 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 			ID:        "term-aaaaaaaaaaaa",
 			WS:        "workspace-a",
 			ProfileID: "profile-a",
-			Lease:     terminalpkg.LeaseAgentOwned,
 		},
 		read: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
 	}
@@ -287,14 +286,6 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		slices.Contains(unknownToolErr.ReasonCodes, "terminal_future_error") {
 		t.Fatalf("unknown terminal code mapping = %#v, want generic backend failure", unknownToolErr)
 	}
-	pendingErr := terminalToolError(
-		toolspkg.ToolIDTerminalWrite,
-		fmt.Errorf("agent mutation blocked: %w", terminalpkg.ErrInputPending),
-	)
-	pendingToolErr, ok := errors.AsType[*toolspkg.ToolError](pendingErr)
-	if !ok || pendingToolErr.Code != toolspkg.ErrorCodeConflict {
-		t.Fatalf("pending input mapping = %#v, want generic tool conflict", pendingToolErr)
-	}
 	shutdownErr := terminalToolError(
 		toolspkg.ToolIDTerminalWrite,
 		fmt.Errorf("terminal manager stopping: %w", terminalpkg.ErrShuttingDown),
@@ -426,7 +417,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 			ID:        "term-aaaaaaaaaaaa",
 			WS:        "workspace-a",
 			ProfileID: "profile-a",
-			Lease:     terminalpkg.LeaseAgentOwned,
 		},
 		read:        &terminalpkg.ReadResult{Content: "tail", Seq: 4, Untrusted: true},
 		wait:        &terminalpkg.WaitResult{Reason: "match", Screen: "matched", Untrusted: true},
@@ -544,27 +534,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 				requireNativeStructuredContains(t, result, []byte(`"outcome":"answered"`))
 			},
 		},
-		{
-			name: "yield", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalYield(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDTerminalYield,
-					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","reason":"operator"}`),
-				}))
-			},
-			check: func(result toolspkg.ToolResult) {
-				requireNativeStructuredContains(t, result, []byte(`"lease_state":"agent_owned"`))
-			},
-		},
-		{
-			name: "claim",
-			call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalClaim(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDTerminalClaim,
-					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
-				}))
-			},
-			check: func(result toolspkg.ToolResult) { requireNativeStructuredContains(t, result, []byte(`"granted":true`)) },
-		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Should execute "+testCase.name, func(t *testing.T) {
@@ -601,8 +570,6 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 	}
 	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 ||
 		handle.signal != terminalpkg.SignalTERM ||
-		!handle.yielded ||
-		manager.claimActor.Generation != 7 ||
 		manager.openRequest.Actor.Generation != 7 || manager.openRequest.Actor.RunID != "run-a" {
 		t.Fatalf("native calls lost actor/input state: handle=%#v manager=%#v", handle, manager)
 	}
@@ -777,8 +744,10 @@ type nativeNotificationSessionManager struct {
 
 type nativeOrchestrationSessionManager struct {
 	apitest.StubSessionManager
-	waitFn  func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn func(context.Context, session.SpawnOpts) (*session.Session, error)
+	requestStopFn  func(context.Context, string, session.StopCause, string) error
+	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
+	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
+	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
 }
 
 type nativeCoreOnlySessionManager struct {
@@ -790,7 +759,6 @@ type terminalNativeManagerStub struct {
 	closeActor  terminalpkg.Actor
 	execRequest terminalpkg.ExecRequest
 	openRequest terminalpkg.OpenRequest
-	claimActor  terminalpkg.Actor
 	execCalls   int
 }
 
@@ -944,19 +912,6 @@ func (*terminalNativeManagerStub) ResolvedInputRequests(
 	return nil, nil
 }
 
-func (m *terminalNativeManagerStub) Claim(
-	_ context.Context,
-	workspaceID string,
-	_ terminalpkg.ID,
-	actor terminalpkg.Actor,
-) error {
-	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
-		return terminalpkg.ErrNotFound
-	}
-	m.claimActor = actor
-	return nil
-}
-
 type terminalNativeHandleStub struct {
 	info        terminalpkg.Info
 	read        *terminalpkg.ReadResult
@@ -967,7 +922,6 @@ type terminalNativeHandleStub struct {
 	writeCalls  int
 	screenCalls int
 	signal      terminalpkg.Signal
-	yielded     bool
 }
 
 func (h *terminalNativeHandleStub) Info() terminalpkg.Info { return h.info }
@@ -988,14 +942,9 @@ func (h *terminalNativeHandleStub) Screen(context.Context, terminalpkg.ReadOptio
 func (h *terminalNativeHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
 	return h.wait, nil
 }
-func (*terminalNativeHandleStub) Takeover(context.Context, terminalpkg.Actor, bool) error { return nil }
-func (h *terminalNativeHandleStub) Yield(context.Context, terminalpkg.Actor) error {
-	h.yielded = true
-	return nil
-}
-
 func (h *terminalNativeHandleStub) RequestInput(
 	context.Context,
+	terminalpkg.Actor,
 	terminalpkg.InputRequest,
 ) (*terminalpkg.InputOutcome, error) {
 	return h.inputResult, nil
@@ -1115,6 +1064,19 @@ func (s *nativeEntityVaultService) PutSecret(
 
 func (s *nativeEntityVaultService) DeleteSecret(context.Context, string) error {
 	return nil
+}
+
+func (m *nativeOrchestrationSessionManager) RequestStopWithCause(
+	ctx context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	return m.requestStopFn(ctx, id, cause, detail)
+}
+
+func (m *nativeOrchestrationSessionManager) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
+	return m.awaitStoppedFn(ctx, id)
 }
 
 func (m *nativeOrchestrationSessionManager) WaitForBadge(
@@ -1413,6 +1375,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		var waitRequest session.WaitRequest
 		var spawnOpts session.SpawnOpts
 		var stopTarget string
+		stopVerified := true
+		stopRequests, stopWaits := 0, 0
 		var approval acp.ApproveRequest
 		var canceledTarget string
 		base := nativeNetworkTestSessionManager(workspaceID)
@@ -1455,6 +1419,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		manager := &nativeOrchestrationSessionManager{
 			StubSessionManager: base,
+			requestStopFn: func(_ context.Context, id string, cause session.StopCause, detail string) error {
+				stopRequests++
+				if id != targetID || cause != session.CauseUserRequested || !strings.Contains(detail, callerID) {
+					t.Fatalf("request stop = %s/%v/%s", id, cause, detail)
+				}
+				return nil
+			},
+			awaitStoppedFn: func(_ context.Context, id string) (session.StopOutcome, error) {
+				stopWaits++
+				if id != targetID {
+					t.Fatalf("await stop = %s", id)
+				}
+				outcome := session.StopOutcome{
+					FinalState: session.StateStopped,
+					Verified:   stopVerified,
+					Escalated:  true,
+					Cause:      session.CauseUserRequested,
+					Phase:      session.StopPhaseKilled,
+					Elapsed:    time.Second,
+				}
+				if !stopVerified {
+					outcome.FinalState = session.StateStopping
+					return outcome, session.ErrStopVerificationFailed
+				}
+				return outcome, nil
+			},
 			waitFn: func(_ context.Context, req session.WaitRequest) (session.WaitOutcome, error) {
 				waitRequest = req
 				return session.WaitOutcome{
@@ -1510,6 +1500,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				`"session_id":"sess-child"`,
 			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target","wait":false}`, `"status":"stopping"`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target","wait":true}`, `"verified":true`},
 			{
 				toolspkg.ToolIDSessionApprove,
 				`{"session_id":"sess-target","request_id":"perm-1","decision":"allow-once"}`,
@@ -1532,6 +1524,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			if !bytes.Contains(result.Structured, []byte(call.want)) {
 				t.Fatalf("Registry.Call(%s) result = %s, want %s", call.id, result.Structured, call.want)
 			}
+		}
+		if stopRequests != 2 || stopWaits != 1 {
+			t.Fatalf("stop acceptance/wait calls = %d/%d", stopRequests, stopWaits)
+		}
+		stopVerified = false
+		failedStop, stopErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionStop, Input: json.RawMessage(`{"session_id":"sess-target","wait":true}`),
+		})
+		if stopErr != nil {
+			t.Fatal(stopErr)
+		}
+		var failedPayload contract.SessionStopPayload
+		if err := json.Unmarshal(failedStop.Structured, &failedPayload); err != nil {
+			t.Fatal(err)
+		}
+		if failedPayload.State != session.StateStopping || failedPayload.Verified || !failedPayload.Escalated ||
+			failedPayload.Attention != "stop_verification_failed" {
+			t.Fatalf("unverified native stop = %#v", failedPayload)
 		}
 		if waitRequest.SessionID != targetID || waitRequest.Timeout != 2*time.Minute ||
 			!slices.Equal(waitRequest.Until, []session.Badge{session.BadgeIdle}) {
@@ -1582,6 +1592,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self","wait":false}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{
 				toolspkg.ToolIDSessionApprove,
@@ -8570,6 +8581,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		renameCalls := 0
 		promptSubmitCalls := 0
 		var listedInputSessionID string
+		clearInputCalls := 0
 		var replacedInput struct {
 			sessionID string
 			entryID   string
@@ -8757,6 +8769,16 @@ func TestDaemonNativeTools(t *testing.T) {
 						Generation:      7,
 						MaxSequence:     17,
 						DraftText:       "try another path",
+					}, nil
+				},
+				ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
+					if id != "sess-1" || caller.Kind != "human" || caller.ID != "operator" {
+						t.Fatalf("native clear target/actor = %q, %#v", id, caller)
+					}
+					clearInputCalls++
+					return session.ClearPendingInputsResult{
+						ClearedCount: 1, QueueGeneration: 5,
+						Inputs: []session.PendingInput{{ID: "input-queued", Status: "canceled"}},
 					}, nil
 				},
 				ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
@@ -9037,10 +9059,20 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-		if promptSubmitCalls != 0 {
-			t.Fatalf("SendPrompt calls = %d, want 0 without expected_turn_id", promptSubmitCalls)
+		if err != nil || promptSubmitCalls != 1 || submittedPrompt.ExpectedTurnID != "" {
+			t.Fatalf(
+				"immediate automatic-fence admission: calls=%d, opts=%#v, error=%v",
+				promptSubmitCalls,
+				submittedPrompt,
+				err,
+			)
 		}
+		if !errors.Is(submittedPrompt.DeliveryContext.Err(), context.Canceled) {
+			t.Fatal("immediate acceptance retained an unused event subscription")
+		}
+		close(promptEvents)
+		promptEvents = make(chan acp.AgentEvent)
+		promptAccepted = make(chan struct{})
 
 		workspaceCallsBeforeInvalidInput := workspaceGetCalls + workspaceResolveCalls
 		inputAdapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
@@ -9118,7 +9150,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionPrompt,
 					Input: json.RawMessage(
-						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","mode":"steer","expected_turn_id":"  turn-active  ","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","wait":true,"mode":"steer","expected_turn_id":"  turn-active  ","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
 					),
 				},
 			)
@@ -9169,7 +9201,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionPrompt,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","session_id":"sess-1","message":"continue","message_id":"msg-native-failed","idempotency_key":"idem-native-failed"}`,
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"continue","message_id":"msg-native-failed","idempotency_key":"idem-native-failed","wait":true}`,
 				),
 			},
 		)
@@ -9195,7 +9227,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionPrompt,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","session_id":"sess-1","message":"retry","message_id":"msg-native-incomplete","idempotency_key":"idem-native-incomplete"}`,
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"retry","message_id":"msg-native-incomplete","idempotency_key":"idem-native-incomplete","wait":true}`,
 				),
 			},
 		)
@@ -9252,6 +9284,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if rewindSubmitCalls != 1 {
 			t.Fatalf("RewindConversation calls = %d after denied workspace, want 1", rewindSubmitCalls)
+		}
+
+		clearInputsResult, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputsClear,
+			Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(session_inputs_clear) = %v", err)
+		}
+		requireNativeStructuredContains(t, clearInputsResult, []byte(`"cleared_count":1`))
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputsClear,
+			Input:  json.RawMessage(`{"workspace":"ws-foreign-stable","session_id":"sess-1"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if clearInputCalls != 1 {
+			t.Fatalf("clear dispatch count = %d, want one authorized mutation", clearInputCalls)
 		}
 
 		inputsResult, err := registry.Call(
@@ -9335,6 +9384,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("PromotePendingInputToSteer request = %#v, want queue-to-steer promotion", promotedInput)
 		}
 		requireNativeStructuredContains(t, promotedResult, []byte(`"delivery":"interrupt_then_prompt"`))
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionInputPromote,
+			Input: json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1",` +
+				`"queue_entry_id":"input-queued","text":"steer now",` +
+				`"message_id":"msg-auto","idempotency_key":"idem-auto"}`),
+		})
+		if err != nil || promotedInput.opts.ExpectedTurnID != "" || promotedInput.opts.MessageID != "msg-auto" {
+			t.Fatalf("automatic promotion = %#v, error=%v", promotedInput, err)
+		}
 
 		listResult, err := registry.Call(
 			t.Context(),
@@ -11966,6 +12024,62 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		profileID   string
+		profileName string
+		unavailable bool
+	}{
+		{name: "Should apply policy for an agent in the default session profile", profileID: store.DefaultProfileID, profileName: "default"},
+		{name: "Should apply policy for an agent in a named session profile", profileID: "profile-marketing", profileName: "marketing"},
+		{name: "Should reject an agent absent from the session profile", profileID: "profile-sales", profileName: "sales", unavailable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := testConfig(t, testHomePaths(t))
+			workspaces := apitest.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
+				},
+				ResolveForProfileFn: func(_ context.Context, ref, profileName string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != "ws-profile" || profileName != tc.profileName {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+					}
+					if tc.unavailable {
+						return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
+					}
+					return workspacepkg.ResolvedWorkspace{Config: cfg, Agents: []compozyconfig.AgentDef{{
+						Name: "profile-agent", Provider: "opencode", Prompt: "Work.", Permissions: "deny-all",
+					}}}, nil
+				},
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, WorkspaceResolver: workspaces,
+				ProfileNames: promptSkillsProfileNameResolver{tc.profileID: tc.profileName},
+				Sessions: &nativeToolPolicySessionStub{info: &session.Info{
+					ID: "sess-profile", ProfileID: tc.profileID,
+					WorkspaceID: "ws-profile", AgentName: "profile-agent",
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "sess-profile"})
+			if tc.unavailable {
+				if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+					t.Fatalf("Resolve(other profile agent) error = %v, want unavailable", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Resolve(profile agent) error = %v", err)
+			}
+			if inputs.SystemPermissionMode != toolspkg.PermissionModeDenyAll {
+				t.Fatalf("permission mode = %q, want profile agent deny-all", inputs.SystemPermissionMode)
+			}
+		})
+	}
 
 	t.Run("Should resolve full default projection and scoped runtime policy inputs", func(t *testing.T) {
 		t.Parallel()

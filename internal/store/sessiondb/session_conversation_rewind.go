@@ -185,34 +185,13 @@ func archiveConversationRewindSuffix(
 	if toSequence < target.StartSequence {
 		return conversationRewindArchive{}, store.ErrConversationRewindTargetInvalid
 	}
-	archived, err := queries.ArchiveEventRange(ctx, sqlcgen.ArchiveEventRangeParams{
-		FromSequence: target.StartSequence,
-		ToSequence:   toSequence,
+	archived, err := archiveTranscriptRange(ctx, queries, store.EventArchiveRequest{
+		FromSequence: target.StartSequence, ToSequence: toSequence,
 	})
 	if err != nil {
-		return conversationRewindArchive{}, fmt.Errorf(
-			"store: archive conversation rewind suffix: %w",
-			err,
-		)
+		return conversationRewindArchive{}, err
 	}
-	if err := queries.DeleteTranscriptToolRoutesFromSequence(ctx, target.StartSequence); err != nil {
-		return conversationRewindArchive{}, fmt.Errorf(
-			"store: delete conversation rewind tool routes: %w",
-			err,
-		)
-	}
-	if err := queries.DeleteTranscriptEntriesFromSequence(ctx, target.StartSequence); err != nil {
-		return conversationRewindArchive{}, fmt.Errorf(
-			"store: delete conversation rewind transcript suffix: %w",
-			err,
-		)
-	}
-	if err := queries.AdvanceTranscriptProjectionGeneration(ctx); err != nil {
-		return conversationRewindArchive{}, fmt.Errorf(
-			"store: advance conversation rewind generation: %w",
-			err,
-		)
-	}
+
 	updatedState, err := queries.GetTranscriptProjectionState(ctx)
 	if err != nil {
 		return conversationRewindArchive{}, fmt.Errorf(

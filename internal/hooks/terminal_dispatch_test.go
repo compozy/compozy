@@ -14,7 +14,6 @@ func TestDispatchTerminalHooksUseAsyncProfileOwnedPayloads(t *testing.T) {
 	events := []HookEvent{
 		HookTerminalOpened,
 		HookTerminalClosed,
-		HookTerminalLeaseChanged,
 		HookTerminalCommandStarted,
 		HookTerminalCommandFinished,
 		HookTerminalInputRequested,
@@ -106,12 +105,6 @@ func dispatchTerminalTestPayload(ctx context.Context, hooks *Hooks, event HookEv
 		_, err := hooks.DispatchTerminalClosed(
 			ctx,
 			TerminalClosedPayload{PayloadBase: base, TerminalContext: terminalContext},
-		)
-		return err
-	case HookTerminalLeaseChanged:
-		_, err := hooks.DispatchTerminalLeaseChanged(
-			ctx,
-			TerminalLeaseChangedPayload{PayloadBase: base, TerminalContext: terminalContext},
 		)
 		return err
 	case HookTerminalCommandStarted:

@@ -146,14 +146,14 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep the watcher attached after a recoverable lease denial", func(t *testing.T) {
+	t.Run("Should keep the watcher attached after a recoverable journal denial", func(t *testing.T) {
 		subscription := &terminalSubscriptionStub{frames: make(chan terminalpkg.Frame, 1)}
 		provider := &terminalProviderStub{Manager: terminalManagerStub{
 			handle: terminalHandleStub{
 				subscription: subscription,
 				writeErr: &terminalpkg.Error{
-					Code: terminalpkg.ErrorCodeLeaseRevoked, Message: "terminal lease was revoked",
-					Err: terminalpkg.ErrLeaseRevoked,
+					Code: terminalpkg.ErrorCodeJournalUnavailable, Message: "terminal journal is unavailable",
+					Err: terminalpkg.ErrJournalUnavailable,
 				},
 			},
 		}}
@@ -199,8 +199,8 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 		if err := json.Unmarshal(errorFrame.Payload, &payload); err != nil {
 			t.Fatalf("decode denial payload: %v", err)
 		}
-		if payload.Error.Code != string(terminalpkg.ErrorCodeLeaseRevoked) {
-			t.Fatalf("denial payload = %#v, want lease_revoked", payload)
+		if payload.Error.Code != string(terminalpkg.ErrorCodeJournalUnavailable) {
+			t.Fatalf("denial payload = %#v, want journal_unavailable", payload)
 		}
 		subscription.frames <- terminalpkg.Frame{
 			Op: terminalwire.ServerOpOutput, Seq: 9, Payload: []byte("still watching"),

@@ -29,9 +29,6 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 	s.mu.Unlock()
 	s.flow.Remove(subscriber.queue)
 	s.broadcastPresence()
-	if subscriber.leaseToken != 0 {
-		s.lease.detachWriter(subscriber.leaseToken)
-	}
 	if changed {
 		if err := s.applyResize(cols, rows, previousCols, previousRows); err != nil {
 			s.mu.Lock()

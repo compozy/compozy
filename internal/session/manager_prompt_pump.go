@@ -210,20 +210,13 @@ func (m *Manager) finishPromptPump(
 		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
 	}
 	m.finishManagedInputPrompt(lifecycleCtx, session, turnState)
-	if session != nil {
-		if turnState != nil {
-			session.clearPromptCancellation(turnState.turnID)
-		}
-		session.clearCurrentTurnID()
-		session.clearCurrentTurnSource()
-		session.clearCurrentPromptMessage()
-		session.clearCurrentPromptMeta()
-		session.clearCurrentSkillInvocations()
-		session.clearCurrentPromptCancel()
-		session.finishCurrentPromptCompletion()
-	}
 	if identityErr == nil {
 		m.clearActivePromptRun(identity)
+	}
+	if turnState != nil {
+		clearPromptState(session, turnState.turnID)
+	}
+	if identityErr == nil {
 		if fatalPromptFailure == nil {
 			notifier := m.currentTurnEndNotifier()
 			if notifier != nil {
@@ -247,7 +240,6 @@ func (m *Manager) finishPromptPump(
 	}
 	closePromptOutput(out)
 	m.startNextQueuedInputPrompt(session.ID)
-	m.startNextQueuedSyntheticPrompt(session.ID)
 }
 
 func closePromptOutput(out chan<- acp.AgentEvent) {

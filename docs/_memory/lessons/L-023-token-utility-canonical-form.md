@@ -67,7 +67,7 @@ narrative backticks).
    out of `@theme` prevents third-party tooling from value-matching them
    against generic literals.
 
-3. **Don't run `@tailwindcss/upgrade` on greenfield v4 projects.** The tool
+3. **Don't run `@tailwindcss/upgrade` on already-v4-native projects.** The tool
    is built for v3 → v4 migrations. On an already-v4 codebase it produces
    false positives (value-matching, string corruption, prose mangling) that
    outweigh its sparse correct simplifications. The repo-owned codemod

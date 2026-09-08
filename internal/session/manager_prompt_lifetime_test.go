@@ -19,13 +19,58 @@ import (
 )
 
 func TestPromptCallerCancellationContract(t *testing.T) {
+	t.Run("Should release execution before delivering terminal output", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		finishing := make(chan struct{})
+		release := make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		t.Cleanup(unblock)
+		h.manager.SetTurnEndNotifier(func(ctx context.Context, _ PromptRunIdentity) {
+			close(finishing)
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		})
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "finish before terminal"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-finishing:
+		case <-time.After(5 * time.Second):
+			t.Fatal("execution did not reach finalization")
+		}
+		deadline := time.NewTimer(25 * time.Millisecond)
+		defer deadline.Stop()
+	wait:
+		for {
+			select {
+			case event := <-result.Events:
+				if isPromptTerminalEvent(event.Type) {
+					t.Fatalf("terminal %q escaped before finalization", event.Type)
+				}
+			case <-deadline.C:
+				break wait
+			}
+		}
+		unblock()
+		events := collectEvents(t, result.Events)
+		if len(events) == 0 || events[len(events)-1].Type != acp.EventTypeDone {
+			t.Fatalf("terminal delivery after finalization = %#v", events)
+		}
+	})
+
 	t.Run("Should persist a provider burst while the delivery consumer is stalled", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
 		h.manager = newManagerWithHarness(t, h, WithPromptBufferSize(1))
 		notifierDrainCtx, cancelNotifierDrain := context.WithCancel(testutil.Context(t))
-		defer cancelNotifierDrain()
+		t.Cleanup(cancelNotifierDrain)
 		go func() {
 			for {
 				select {
@@ -43,7 +88,7 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			}
 		})
 
-		const eventCount = sessionEventSubscriberBuffer + 32
+		const eventCount = promptDeliveryPageSize*3 + sessionEventSubscriberBuffer + 32
 		source := make(chan acp.AgentEvent, eventCount+1)
 		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			for index := range eventCount {
@@ -244,12 +289,15 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
+		close(source)
+		if _, err := h.manager.AwaitTurnQuiesced(testutil.Context(t), session.ID, turnID); err != nil {
+			t.Fatal(err)
+		}
 		select {
 		case <-providerCtx.Done():
 		default:
-			t.Fatal("provider context is still active after CancelPrompt()")
+			t.Fatal("provider context is still active after verified turn quiescence")
 		}
-		close(source)
 		if events := collectEvents(t, eventsCh); len(events) != 0 {
 			t.Fatalf("delivered events after caller cancellation = %d, want 0", len(events))
 		}
@@ -264,6 +312,36 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 
 func TestPromptRuntimeRecovery(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should discard a recovery candidate when session stop wins the binding race", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		previous := session.processHandle()
+		var candidate *fakeProcess
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if _, _, err := session.prepareStop(time.Now(), CauseUserRequested, "concurrent stop"); err != nil {
+				return nil, err
+			}
+			candidate = newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "recovery-candidate")
+			return candidate, nil
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("cleanup stop: %v", err)
+			}
+		})
+		process, _, err := h.manager.recoverPromptRuntime(testutil.Context(t), session)
+		if !errors.Is(err, ErrSessionNotActive) || process != nil {
+			t.Fatalf("recovery = %v, %v; want no replacement and inactive error", process, err)
+		}
+		if session.Info().State != StateStopping || session.processHandle() != previous {
+			t.Fatal("recovery changed the binding after stop claimed the session")
+		}
+		if candidate == nil || !isProcessDone(candidate.handle) {
+			t.Fatal("discarded recovery candidate was not stopped")
+		}
+	})
 
 	t.Run("Should replace the failed runtime and replay the interrupted turn", func(t *testing.T) {
 		t.Parallel()

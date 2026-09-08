@@ -1,15 +1,6 @@
 ---
 name: qa-execution
-description: >-
-  Runs real-user dogfooding sessions through the product's public interfaces: a
-  persona walks a journey in the browser, takes a thematic tour, probes edges,
-  hunts paper cuts, and reports what a real user would experience. Reads its
-  plan from the living QA docs tree (<qa-docs-path>, default docs/qa/). Use when
-  validating a release candidate, branch diff, migration, or user-facing change
-  against production-like behavior. For planning that tree — personas, journeys,
-  charters, the bug registry — use qa-report; for CI gate runs, AI
-  implementation audits, or integration/security/performance suites, use
-  agent-output-audit.
+description: "Run persona-driven dogfooding through public product interfaces using living QA docs. Use for release candidates, branch diffs, migrations, and user-facing changes. qa-report owns planning; CI and specialist test suites are outside this workflow."
 disable-model-invocation: true
 argument-hint: "[qa-docs-path]"
 metadata:
@@ -33,12 +24,12 @@ Three non-negotiables hold every session:
 
 ## Steps
 
-Each step names the reference that owns its detail — read it in full when you reach the step; the inline text is the trigger, not the contract.
+Choose the planned smoke/targeted/full scope. Read only the relevant procedure/schema sections and reuse current evidence for unchanged behavior. A small changed journey does not require all tours, edge categories, or a second full walk.
 
 **Step 1 — Resolve the tree, scope, and preconditions**
-- Read, in order: `<qa-docs-path>/README.md` (entry points, dev-server command, area codes), the in-scope `scenarios/` files, open `bugs/`, and this cycle's charters. The tree is the memory; running without reading it recreates the duplication this design kills.
-- Scope: a **branch/PR run** covers the journeys its user-visible diff touches plus one adjacent canary — no user-visible change, report that and stop. A **release/full run** covers the journeys the cycle plan marked in scope.
-- Preconditions: the automated suite is green (a precondition, not a QA step — gaps route to `agent-output-audit`) and the product is reachable in a production-parity build (real dev server, real auth, no mocks). Not reachable → name the exact gap and stop.
+- Read, in order: `<qa-docs-path>/README.md` (entry points, dev-server command, area codes), the in-scope `scenarios/` files, related open `bugs/`, and this cycle's charters. The tree is the memory; running without reading it recreates the duplication this design kills.
+- Scope: a **branch/PR run** covers the journeys its user-visible diff touches plus an adjacent canary when shared behavior could regress — no user-visible change, report that and stop. A **release/full run** covers the journeys the cycle plan marked in scope.
+- Preconditions: the applicable preconditions and existing required checks are satisfied (reuse current evidence; unrelated suites need not finish before a focused probe) and the product is reachable in a production-parity build (real dev server, real auth, no mocks). Not reachable → name the exact gap and stop.
 - **Done when:** scope is fixed and every precondition is met or its gap is surfaced.
 
 **Step 2 — Build the matrix and create the report now**
@@ -57,13 +48,13 @@ Each step names the reference that owns its detail — read it in full when you 
 **Step 4 — Run each tour and edge probe**
 - Read `references/tours.md` (the 10-tour catalog and surface-to-tour matrix) and `references/edge-cases.md` (the non-technical user edge cases).
 - Run each charter's single **tour** against its surface, in persona, inside the box, asking at each action: *"would this matter for this tour's theme?"*
-- Pick 5-10 edge cases matching the surface and persona and attempt them; attempted-and-clean is evidence too.
+- Choose distinct edge cases supported by the changed contract and risk; there is no minimum count. Attempted-and-clean is evidence too.
 - **Done when:** every charter's tour is run and its chosen edge cases are attempted and recorded.
 
 **Step 5 — Experiential lens pass**
 - Read `references/lenses.md` — the six lenses and their severity defaults.
-- Pick the 2 journeys covering the largest changed surface and re-walk them holding the six lenses in a 45-minute box, recording `pass` / `friction` / `fail` per lens.
-- **Done when:** both journeys are re-walked and every lens verdict is recorded.
+- For a requested usability/full review or an unresolved experience risk, apply the relevant lenses to the affected journey. Reuse observations from the first walk and re-walk only the missing evidence.
+- **Done when:** the applicable experience risks have evidence, or this optional pass is not needed for the targeted scope.
 
 **Step 6 — File findings into the registry**
 - Read `../qa-report/references/bug-registry.md` — it owns ids, dedup, and the impact rubric.
@@ -73,12 +64,12 @@ Each step names the reference that owns its detail — read it in full when you 
 
 **Step 7 — Fix loop (governed)**
 - Read `references/fix-loop.md` — the **governor**, the regression-test-per-fix rule, and Decisions for a Human.
-- Judge each fix against the governor **before editing**: only what passes all its bounds is auto-fixed, and each auto-fix ships a regression test (red before, green after, or a documented replay) and re-walks its impacted and adjacent journeys in persona. Everything else goes to the report's **Decisions for a Human** with options and a recommendation.
+- Judge each fix against the governor **before editing**: only what passes all its bounds is auto-fixed, and each auto-fix has evidence at its owning suite/probe (add a regression only for an uncovered invariant) and re-walks the impacted journey, plus an adjacent journey when the failure can propagate. Everything else goes to the report's **Decisions for a Human** with options and a recommendation.
 - **Done when:** every finding is either fixed-and-retested or escalated with a recommendation, and no fix is left half-applied.
 
 **Step 8 — Close the round**
 - Re-read the round-close checklist in `references/status-and-reporting.md`; map matrix verdicts to tracker enums per `../qa-report/references/state-schema.md`.
-- Exit gate: run the project's required local pre-push gate and record it verbatim. Delivery still requires exact-head PR CI; a green matrix over a red local or remote gate is not ready.
+- Exit gate: satisfy the project's required local pre-push gate once or cite current evidence; record its result concisely. Delivery still requires exact-head PR CI; a green matrix over a red local or remote gate is not ready.
 - **Done when:** zero matrix rows are `Pending`, scenario-file verdicts and bug statuses are current, every session's debrief is in the report, and the report's Final Status states release readiness with totals by impact tier — backed by fresh evidence from the current build.
 
 ## Companion skills

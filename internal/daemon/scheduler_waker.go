@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -41,7 +42,7 @@ func newSchedulerSessionWaker(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	wakeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	wakeCtx, cancel := context.WithCancel(ctx)
 	return &schedulerSessionWaker{
 		ctx:      wakeCtx,
 		sessions: sessions,
@@ -148,13 +149,16 @@ func (w *schedulerSessionWaker) handleHeartbeatDecision(
 	switch decision.Result {
 	case heartbeat.WakeResultSent:
 		return nil
-	case heartbeat.WakeResultSkipped:
-		if decision.Reason == heartbeat.WakeReasonHeartbeatNoPolicy {
-			return w.wakePendingTaskRun(ctx, target, sessionID)
+	case heartbeat.WakeResultSkipped, heartbeat.WakeResultCoalesced, heartbeat.WakeResultRateLimited:
+		if err := w.wakePendingTaskRun(
+			ctx,
+			target,
+			sessionID,
+		); err != nil &&
+			!errors.Is(err, session.ErrPromptInProgress) {
+			return err
 		}
-		return nil
-	case heartbeat.WakeResultCoalesced, heartbeat.WakeResultRateLimited:
-		return nil
+		return schedulerpkg.ErrWakeSkipped
 	case heartbeat.WakeResultFailed:
 		return fmt.Errorf("daemon: heartbeat wake failed: %s", decision.Reason)
 	default:
@@ -184,8 +188,9 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 			metadata.CoordinatorSessionID = strings.TrimSpace(sessionID)
 		}
 		events, err := synthetic.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
-			Message:  message,
-			Metadata: metadata,
+			Message:    message,
+			Metadata:   metadata,
+			SkipIfBusy: true,
 		})
 		if err != nil {
 			complete()
@@ -319,9 +324,11 @@ func (w *schedulerSessionWaker) drainEvents(
 	}
 	go func() {
 		defer complete()
+		drainCtx, cancel := context.WithTimeout(w.ctx, 168*time.Hour)
+		defer cancel()
 		for {
 			select {
-			case <-w.ctx.Done():
+			case <-drainCtx.Done():
 				return
 			case event, ok := <-events:
 				if !ok {

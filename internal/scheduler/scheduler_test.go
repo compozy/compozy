@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -251,7 +252,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		capState  CapabilityState
 	}{
 		{
-			name:  "Should hold convergence while a compatible session owns an active lease",
+			name:  "Should escalate old queued work while a compatible session owns an active lease",
 			state: "active",
 			active: []taskpkg.Run{{
 				ID:        "run-active",
@@ -260,12 +261,12 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			}},
 		},
 		{
-			name:      "Should hold convergence while a compatible session is prompting",
+			name:      "Should escalate old queued work while a compatible session is prompting",
 			state:     "active",
 			prompting: true,
 		},
 		{
-			name:  "Should hold convergence while a compatible session is starting",
+			name:  "Should escalate old queued work while a compatible session is starting",
 			state: "starting",
 		},
 		{
@@ -323,18 +324,22 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RunOnce() error = %v", err)
 			}
-			if result.StarvedRuns != 0 || result.NoMatchRuns != 0 {
-				t.Fatalf(
-					"capacity-held result = %#v, want no starvation or no-match classification",
-					result,
-				)
+			wantStarved := 1
+			if testCase.capState == CapabilityStateUnknown {
+				wantStarved = 0
+			}
+			if result.StarvedRuns != wantStarved || result.NoMatchRuns != 0 {
+				t.Fatalf("capacity result = %#v, want %d starved runs", result, wantStarved)
 			}
 			if result.CapacityWaitingRuns != 1 ||
 				!slices.Equal(result.CapacityWaitingRunIDs, []string{work.Run.ID}) {
 				t.Fatalf("capacity wait result = %#v, want held run %q", result, work.Run.ID)
 			}
-			if _, ok := starvation.snapshot(work.Run.ID); ok {
-				t.Fatal("capacity-held run created a starvation budget")
+			if budget, ok := starvation.snapshot(
+				work.Run.ID,
+			); ok != (wantStarved == 1) ||
+				(ok && budget.WakeCount != 1) {
+				t.Fatalf("capacity budget = %#v, present %t", budget, ok)
 			}
 			if len(escalator.spawns()) != 0 || len(escalator.emitted()) != 0 || len(escalator.attention()) != 0 {
 				t.Fatalf("capacity-held run produced convergence side effects: %#v", escalator)
@@ -342,7 +347,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		})
 	}
 
-	t.Run("Should freeze and resume an existing starvation budget as compatible capacity changes", func(t *testing.T) {
+	t.Run("Should advance an existing starvation budget while compatible capacity stays busy", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 7, 15, 13, 0, 0, 0, time.UTC)
@@ -408,12 +413,11 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		if !ok {
 			t.Fatal("capacity-held run cleared its durable starvation budget")
 		}
-		if held.WakeCount != seeded.WakeCount ||
-			!held.FirstStarvedAt.Equal(seeded.FirstStarvedAt) ||
-			!held.LastWakeAt.Equal(seeded.LastWakeAt) ||
-			!held.UpdatedAt.Equal(seeded.UpdatedAt) {
-			t.Fatalf("held budget = %#v, want unchanged %#v", held, seeded)
+		if held.WakeCount != seeded.WakeCount+1 || !held.FirstStarvedAt.Equal(seeded.FirstStarvedAt) ||
+			!held.LastWakeAt.Equal(base.Add(10*time.Minute)) {
+			t.Fatalf("capacity budget did not advance: %#v", held)
 		}
+
 		if _, err := scheduler.RunOnce(testutil.Context(t)); err != nil {
 			t.Fatalf("RunOnce(capacity held again) error = %v", err)
 		}
@@ -436,7 +440,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		if !ok {
 			t.Fatal("unmatched run did not retain its resumed starvation budget")
 		}
-		if got, want := resumed.WakeCount, seeded.WakeCount+1; got != want {
+		if got, want := resumed.WakeCount, seeded.WakeCount+3; got != want {
 			t.Fatalf("resumed wake_count = %d, want %d", got, want)
 		}
 	})
@@ -488,7 +492,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RunOnce() error = %v", err)
 		}
-		if got, want := result.StarvedRunIDs, []string{first.Run.ID}; !slices.Equal(got, want) {
+		if got, want := result.StarvedRunIDs, []string{first.Run.ID, second.Run.ID}; !slices.Equal(got, want) {
 			t.Fatalf("StarvedRunIDs = %v, want %v", got, want)
 		}
 		if result.NoMatchRuns != 0 {
@@ -501,12 +505,12 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		if targets := waker.targetsSnapshot(); len(targets) != 1 || targets[0].Work.Run.ID != first.Run.ID {
 			t.Fatalf("wake targets = %#v, want only canonical first run", targets)
 		}
-		if _, ok := starvation.snapshot(second.Run.ID); ok {
-			t.Fatal("same-cycle capacity wait created a starvation budget for the later run")
+		if budget, ok := starvation.snapshot(second.Run.ID); !ok || budget.WakeCount != 1 {
+			t.Fatalf("old later run did not enter escalation: %#v", budget)
 		}
 	})
 
-	t.Run("Should fan out wakes to every eligible session for a starved run", func(t *testing.T) {
+	t.Run("Should bound fan-out to two eligible sessions for a starved run", func(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
@@ -515,6 +519,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 			sessionSnapshot("sess-a", "ws-1", "active", false, []string{"go"}, base.Add(time.Second)),
 			sessionSnapshot("sess-b", "ws-1", "active", false, []string{"go"}, base.Add(2*time.Second)),
+			sessionSnapshot("sess-c", "ws-1", "active", false, []string{"go"}, base.Add(3*time.Second)),
 		}}
 		waker := &fakeWaker{}
 		clock := clockwork.NewFakeClockAt(base.Add(3 * time.Minute))
@@ -532,7 +537,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 		}
 		targets := waker.targetsSnapshot()
 		if got, want := len(targets), 2; got != want {
-			t.Fatalf("wake targets = %d, want %d (fan out to all eligible)", got, want)
+			t.Fatalf("wake targets = %d, want %d (bounded fan-out)", got, want)
 		}
 		woken := make(map[string]struct{}, len(targets))
 		for idx := range targets {
@@ -1898,4 +1903,78 @@ func (f *fakeBatchWaker) targetsSnapshot() []WakeTarget {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]WakeTarget(nil), f.targets...)
+}
+
+// Invariant: a skipped advisory wake never counts as success or arms cooldown.
+// Owner: scheduler dispatch accounting; canonical scheduler suite (UT-066).
+func TestSkippedWakeDoesNotArmCooldown(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	work := workSnapshot("task-skip", "run-skip", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, now)
+	waker := &fakeWaker{err: ErrWakeSkipped}
+	scheduler := newTestScheduler(
+		t,
+		&fakeTaskSource{pending: []RunSnapshot{work}},
+		&fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("session", "ws-1", "active", false, []string{"go"}, now),
+		}},
+		waker,
+		WithClock(clockwork.NewFakeClockAt(now)),
+	)
+	result, err := scheduler.RunOnce(t.Context())
+	if err != nil || result.WakeSkipped != 1 || result.WakeSucceeded != 0 || result.WakeFailed != 0 {
+		t.Fatalf("skipped cycle = %#v, %v", result, err)
+	}
+	waker.err = nil
+	result, err = scheduler.RunOnce(t.Context())
+	if err != nil || result.WakeSucceeded != 1 || result.RecentlyNotified != 0 {
+		t.Fatalf("skip armed cooldown: %#v, %v", result, err)
+	}
+}
+
+// Invariant: mass starvation respects a fixed cycle budget and never broadcasts to every session.
+// Owner: scheduler selection; canonical scheduler suite (UT-069).
+func TestMassStarvationKeepsWakeDispatchBounded(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	var pending []RunSnapshot
+	var candidates []SessionSnapshot
+	for i := range 20 {
+		pending = append(
+			pending,
+			workSnapshot(
+				fmt.Sprintf("task-%02d", i),
+				fmt.Sprintf("run-%02d", i),
+				taskpkg.ScopeWorkspace,
+				"ws-1",
+				[]string{"go"},
+				now.Add(-time.Hour),
+			),
+		)
+		candidates = append(
+			candidates,
+			sessionSnapshot(fmt.Sprintf("session-%02d", i), "ws-1", "active", false, []string{"go"}, now),
+		)
+	}
+	waker := &fakeWaker{}
+	scheduler := newTestScheduler(t, &fakeTaskSource{pending: pending}, &fakeSessionSource{sessions: candidates}, waker,
+		WithClock(clockwork.NewFakeClockAt(now)), WithSweepLimit(5))
+	result, err := scheduler.RunOnce(t.Context())
+	if err != nil || result.WakeAttempts != 5 {
+		t.Fatalf("bounded cycle = %#v, %v", result, err)
+	}
+	byRun := make(map[string]int)
+	bySession := make(map[string]int)
+	for _, target := range waker.targetsSnapshot() {
+		byRun[target.Work.Run.ID]++
+		bySession[target.Session.ID]++
+	}
+	for id, count := range byRun {
+		if count > 2 {
+			t.Fatalf("run %s woke %d sessions", id, count)
+		}
+	}
+	for id, count := range bySession {
+		if count != 1 {
+			t.Fatalf("session %s woke %d times", id, count)
+		}
+	}
 }

@@ -18,12 +18,12 @@ type session struct {
 	filter      outputFilter
 	ring        *Ring
 	vt          *terminalvt.Actor
-	lease       *leaseMachine
 	audit       *auditGate
 	flow        *terminalwire.Group
 	nonce       string
 	profileName string
 	titlePinned bool
+	origin      Actor
 
 	mu                  sync.RWMutex
 	info                Info
@@ -48,7 +48,8 @@ type session struct {
 	recordingSealed     bool
 	recording           *activeRecording
 	failedRecording     *activeRecording
-	authorityMu         sync.Mutex
+	lifecycleMu         sync.Mutex
+	inputMu             sync.Mutex
 	finalizationMu      sync.Mutex
 	journalClosePending bool
 	streamMu            sync.Mutex
@@ -67,6 +68,7 @@ func newSession(
 	manager *Service,
 	proc Proc,
 	info Info,
+	origin Actor,
 	settings Settings,
 	nonce string,
 	profileName string,
@@ -86,6 +88,7 @@ func newSession(
 		nonce:         nonce,
 		profileName:   profileName,
 		titlePinned:   titlePinned,
+		origin:        origin,
 		info:          info,
 		lastActivity:  manager.now(),
 		policy:        settings,
@@ -99,7 +102,6 @@ func newSession(
 	item.vt = terminalvt.New(int(cols), int(rows), func() ([]byte, uint64) {
 		return item.ring.Snapshot()
 	})
-	item.lease = newLeaseMachine(infoController(info), proc, defaultControllerGrace, item.leaseChanged)
 	return item
 }
 
@@ -123,13 +125,6 @@ func (s *session) settings(ctx context.Context) Settings {
 	defer s.mu.Unlock()
 	s.policy = settings
 	return s.policy
-}
-
-func infoController(info Info) Actor {
-	if info.Controller == nil {
-		return Actor{}
-	}
-	return *info.Controller
 }
 
 func (s *session) MarkerNonce() string { return s.nonce }

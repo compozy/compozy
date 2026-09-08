@@ -19,6 +19,7 @@ import {
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    supervision: null,
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "session-1",

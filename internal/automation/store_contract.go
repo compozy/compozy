@@ -29,6 +29,7 @@ type Store interface {
 	SaveSchedulerState(ctx context.Context, state SchedulerState) (SchedulerState, error)
 	DeleteSchedulerState(ctx context.Context, jobID string) error
 	ClaimScheduledRun(ctx context.Context, claim SchedulerClaim) (SchedulerClaimResult, error)
+	SetScheduledDeferral(ctx context.Context, claim SchedulerClaim, retryAt *time.Time) (SchedulerState, error)
 	RecordRunDeliveryError(ctx context.Context, runID string, runErr error) (Run, error)
 	SetJobEnabledOverlay(ctx context.Context, overlay JobEnabledOverlay) (JobEnabledOverlay, error)
 	GetJobEnabledOverlay(ctx context.Context, jobID string) (JobEnabledOverlay, error)

@@ -12,6 +12,16 @@ import (
 
 const sessionModelConfigKey = "model"
 
+func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateStopping || (s.process != nil && s.process != proc) {
+		return fmt.Errorf("%w: cannot retain process while %s", ErrInvalidStateTransition, s.State)
+	}
+	s.updateFromProcessLocked(proc, now, false)
+	return nil
+}
+
 func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
 	s.process = proc
 	if proc != nil {

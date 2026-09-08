@@ -43,7 +43,7 @@ const ROW_KIND_ESTIMATE: Record<SessionRow["kind"], number> = {
   data: 24,
   working: 22,
   work: 26,
-  "work-toggle": 22,
+  "live-tool": 26,
   "turn-fold": 34,
   "changed-files": 26,
 };
@@ -52,12 +52,18 @@ const estimateCache = new WeakMap<object, number>();
 
 function rowEstimate(row: SessionRow): number {
   if (row.kind === "work") {
-    // A collapsed settled run is a single summary line; open runs pay per row.
+    // A collapsed run is a single summary line; open runs pay per row.
     if (row.summary && !row.expanded) {
       return ROW_KIND_ESTIMATE.work;
     }
-    const visible = row.summary ? row.entries.length : Math.max(1, row.visibleCount);
-    return ROW_KIND_ESTIMATE.work * visible + (row.summary ? ROW_KIND_ESTIMATE.work : 0);
+    return (
+      ROW_KIND_ESTIMATE.work * Math.max(1, row.entries.length) +
+      (row.summary ? ROW_KIND_ESTIMATE.work : 0)
+    );
+  }
+  if (row.kind === "live-tool") {
+    // One live line; a parallel row opened lists its in-flight calls.
+    return ROW_KIND_ESTIMATE["live-tool"] * (row.expanded ? row.entries.length + 1 : 1);
   }
   // The collapsed roll-up is one line; each revealed file adds a bare mono line.
   if (row.kind === "changed-files") {

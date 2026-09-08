@@ -7,39 +7,15 @@ metadata:
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
 ---
-
 # Tailwind CSS v4
 
-Style with utility classes only, and prefer v4 utilities over v3 idioms and hand-written CSS.
+Prefer utilities for component styling. CSS still owns theme tokens, base rules, and styles that utilities do not express clearly. Use the installed Tailwind version and existing design system.
 
-## Design tokens (theme-safe)
+- Use semantic tokens for theme-aware colors, borders, and states. Names come from the project, not a universal shadcn vocabulary; Compozy uses `packages/ui/src/tokens.css` and `DESIGN.md`, including `bg-canvas`, `text-fg`, and `border-line`.
+- Keep class names complete and statically discoverable. Use lookup maps instead of interpolated fragments such as `bg-${color}-500`.
+- Group long classes for readability; no character-count gate. Use the project's `cn`/merge helper when composing variants or accepting overriding `className` values.
+- Resolve specificity through the style design and class merging, avoiding `!important`. Use `@apply` only where the repository permits it.
+- Build responsive layouts from content needs, preserve visible keyboard focus, and select supported v4 utilities rather than copying older idioms.
+- Validate through the repository's owning gates. In Compozy, use root `make gate`/Turbo commands; a styling edit does not add a separate package-local lint/typecheck ritual.
 
-Every color, background, and border class uses a semantic token so theme and dark-mode switching stays automatic. Reach for a token, never a literal like `bg-white` or `bg-blue-500`:
-
-- Backgrounds — `bg-background`, `bg-card`, `bg-muted`, `bg-popover`
-- Text — `text-foreground`, `text-muted-foreground`, `text-card-foreground`
-- Borders — `border-border`, `border-input`, `border-ring`
-- Actions — `bg-primary text-primary-foreground`, `bg-secondary text-secondary-foreground`
-- States — `bg-destructive text-destructive-foreground`, `bg-accent text-accent-foreground`
-- Shades — tune with the opacity modifier (`bg-primary/90`), not a new color.
-
-## Class conventions
-
-- Break class strings over 100 characters into a logical array joined into `cn()`/`clsx()`.
-- Compose conflicting classes through `tailwind-merge` so the last value wins.
-- Use complete, static class names — a lookup map for variants, never an interpolated `bg-${color}-500`.
-- Extract shared styles by composing utilities; reserve `@apply` for element defaults in `@layer base`.
-- Resolve specificity through class order and merging, not `!important`.
-
-## Reach for v4
-
-Default to v4 utilities: `size-10` over `w-10 h-10`, `h-dvh`/`h-svh` for viewport height, `@container` queries, `bg-(--var)` for CSS variables, `text-shadow-*`, `text-balance`/`text-pretty`. Build layouts mobile-first, adding `sm:`/`md:`/`lg:` for larger screens.
-
-## Before finishing
-
-- Colors, backgrounds, and borders all use semantic tokens.
-- Long class strings broken into arrays; class names static; `@apply` only in the base layer; no `!important`.
-- `focus-visible:` used for keyboard focus rings.
-- `pnpm run lint` and `pnpm run typecheck` pass.
-
-For copy-ready examples and the full utility/variant catalog — extended v4 utilities, focus/peer/group/ARIA variants, dark mode, and anti-pattern examples — see [references/patterns.md](references/patterns.md); when a utility or variant you need is not listed above, read it before choosing classes.
+Read `references/patterns.md` for the utility or variant being changed. Its token names are examples; use the actual theme inventory.

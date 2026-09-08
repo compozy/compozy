@@ -23,7 +23,7 @@ func sessionInfoFromSandboxReconcileMeta(meta *store.SessionMeta) store.SessionI
 		SpeedResolution:   speedpkg.CloneResolution(meta.SpeedResolution),
 		RuntimeStatus:     meta.RuntimeStatus,
 		RuntimeTransition: meta.RuntimeTransition,
-		RuntimeFailure:    store.SessionRuntimeFailureValue(meta.RuntimeFailure),
+		RuntimeFailure:    meta.RuntimeFailureValue(),
 		WorkspaceID:       strings.TrimSpace(meta.WorkspaceID),
 		SessionType:       strings.TrimSpace(meta.SessionType),
 		Lineage:           store.NormalizeSessionLineage(meta.ID, meta.Lineage),

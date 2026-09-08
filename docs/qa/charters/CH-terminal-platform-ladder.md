@@ -1,5 +1,8 @@
 # CH-terminal-platform-ladder: Check each platform rung against what it actually promises
 
+> Superseded on 2026-09-04 for future scheduling because control transfer no longer exists. Preserve
+> this file as historical QA memory; `CH-terminal-v3-public-contract` owns the current public contract.
+
 ```yaml
 charter:
   id: CH-terminal-platform-ladder

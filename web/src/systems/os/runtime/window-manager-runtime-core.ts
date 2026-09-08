@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { replaceEqualDeep, type QueryClient } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 
 import { executeWindowManagerCommand } from "../adapters/window-manager-api";
@@ -343,8 +343,10 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   protected publish(): void {
-    if (this.projectionDeferred) return;
-    this.runtimeProjection?.set(this.buildView());
+    const projection = this.runtimeProjection;
+    if (this.projectionDeferred || projection === null) return;
+    // Keep the publication signal while reusing unchanged selector branches.
+    projection.set({ ...replaceEqualDeep(projection.get(), this.buildView()) });
   }
 
   protected snapshot(): WindowManagerSnapshot | null {

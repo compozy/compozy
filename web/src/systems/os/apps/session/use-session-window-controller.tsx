@@ -10,19 +10,39 @@ import {
   getSessionPromptRuntimeSnapshot,
   type InspectorMemoryState,
   type InspectorUsage,
+  isSessionTransportDisconnected,
   SessionGoalHeadAction,
   type SessionPayload,
+  SessionTransportChip,
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
   useSessionLedger,
   useSessionPromptRuntimeContext,
   useSessionTopbarSlot,
+  useSessionTransportState,
   useSessionWorktreeBinding,
   useSessionUsage,
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
 import type { WorktreePayload } from "@/systems/workspace";
+
+function toInspectorUsage(
+  usage: ReturnType<typeof useSessionUsage>["data"]
+): InspectorUsage | null {
+  return usage
+    ? {
+        tokensIn: usage.input_tokens ?? undefined,
+        tokensOut: usage.output_tokens ?? undefined,
+        totalTokens: usage.total_tokens ?? undefined,
+        costUsd: usage.total_cost ?? undefined,
+        costCurrency: usage.cost_currency || undefined,
+        costStatus: usage.cost_status ?? undefined,
+        costSource: usage.cost_source ?? undefined,
+        turnCount: usage.turn_count,
+      }
+    : null;
+}
 
 export function useSessionWindowController(input: {
   windowId: string;
@@ -70,23 +90,19 @@ export function useSessionWindowController(input: {
     enabled: inspectorEnabled,
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
-  const usage = sessionUsage.data;
-  const inspectorUsage: InspectorUsage | null = usage
-    ? {
-        tokensIn: usage.input_tokens ?? undefined,
-        tokensOut: usage.output_tokens ?? undefined,
-        totalTokens: usage.total_tokens ?? undefined,
-        costUsd: usage.total_cost ?? undefined,
-        costCurrency: usage.cost_currency || undefined,
-        costStatus: usage.cost_status ?? undefined,
-        costSource: usage.cost_source ?? undefined,
-        turnCount: usage.turn_count,
-      }
-    : null;
+  const inspectorUsage = toInspectorUsage(sessionUsage.data);
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const renameDialog = useSessionRenameDialog(controls.handleRename);
   const clearDialog = useSessionClearDialog(controls.handleClear);
-  const sidebar = useSessionWindowSidebar({ windowId, workspaceId, sessionId });
+  const transport = useSessionTransportState();
+  const sidebar = useSessionWindowSidebar({
+    sessionId,
+    // The list never reads "connected" under a dead stream (US-018.AC-1).
+    transportDisconnected:
+      transport.phase === "failed" || isSessionTransportDisconnected(transport),
+    windowId,
+    workspaceId,
+  });
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.
   const goal = useSessionGoalHeader(workspaceId, sessionId, {
@@ -127,6 +143,7 @@ export function useSessionWindowController(input: {
     inspectorOpen: inspector.open,
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
+    transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
     goalAction: (
       <SessionGoalHeadAction
         snapshot={goal.snapshot}

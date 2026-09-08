@@ -1,6 +1,6 @@
 # Spec Quality Markers
 
-When the user opts into peer review, a Spec's Part II is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
+Use these markers to assess the requested review, not to add an approval stage. Scope and affected boundaries always apply. Interface definitions, persistent-data rationale, ownership decisions, and safety invariants apply only where the design changes them. A missing applicable contract is a review finding; an explicit request to review the saved draft is sufficient to proceed. Ask first only when missing scope makes a useful review impossible.
 
 ## Marker 1: MVP Boundary Statement
 
@@ -37,4 +37,4 @@ Concurrency- or ownership-sensitive code paths spell out invariants as a numbere
 6. Lease extension bounded by config.
 7. One active lease per session in MVP.
 
-If any of these markers is missing, abort the requested peer review and ask the user to amend the spec first. External review on incomplete specs wastes credit and produces noise.
+Record material gaps and their consequence in the findings. Do not abort for inapplicable headings.

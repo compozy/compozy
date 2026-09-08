@@ -4,6 +4,7 @@ package httpapi
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,6 +43,100 @@ import (
 	vaultpkg "github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
+	t.Run("Should admit concurrent retries once and reject changed content", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		id := createIntegrationSession(t, runtime)
+		bindIntegrationSessionRuntime(t, runtime, id)
+		if err := runtime.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		held := make(chan acp.AgentEvent, 1)
+		var heldOnce sync.Once
+		release := func() {
+			heldOnce.Do(func() {
+				held <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
+				close(held)
+			})
+		}
+		defer release()
+		var calls atomic.Int32
+		runtime.driver.mu.Lock()
+		runtime.driver.promptHook = func(_ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			calls.Add(1)
+			if req.Message == "hold for HTTP replay" {
+				return held, nil
+			}
+			done := make(chan acp.AgentEvent, 1)
+			done <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			close(done)
+			return done, nil
+		}
+		runtime.driver.mu.Unlock()
+		active, err := runtime.manager.Prompt(t.Context(), id, "hold for HTTP replay")
+		if err != nil {
+			t.Fatal(err)
+		}
+		url := mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+id+"/prompt")
+		body := []byte(
+			`{"message":"one queued effect","mode":"queue","message_id":"msg-http-retry","idempotency_key":"idem-http-retry"}`,
+		)
+		responses := make(chan *http.Response, 2)
+		errorsCh := make(chan error, 2)
+		start := make(chan struct{})
+		for range 2 {
+			go func() {
+				<-start
+				response, requestErr := runtime.client.Post(url, "application/json", bytes.NewReader(body))
+				responses <- response
+				errorsCh <- requestErr
+			}()
+		}
+		close(start)
+		var firstID string
+		replays := 0
+		for range 2 {
+			response := <-responses
+			if requestErr := <-errorsCh; requestErr != nil {
+				t.Fatal(requestErr)
+			}
+			if response.StatusCode != http.StatusAccepted {
+				t.Fatalf("concurrent prompt status = %d: %s", response.StatusCode, readAndCloseHTTPBody(t, response))
+			}
+			var result contract.SendPromptResultResponse
+			decodeHTTPJSON(t, response, &result)
+			if firstID == "" {
+				firstID = result.Prompt.QueueEntryID
+			}
+			if firstID == "" || result.Prompt.QueueEntryID != firstID || result.Prompt.MessageID != "msg-http-retry" {
+				t.Fatalf("concurrent receipt = %#v, first entry %q", result.Prompt, firstID)
+			}
+			if result.Prompt.Replayed {
+				replays++
+			}
+		}
+		if replays != 1 {
+			t.Fatalf("concurrent replay receipts = %d, want 1", replays)
+		}
+		conflict := mustHTTPRequest(t, runtime.client, http.MethodPost, url,
+			bytes.Replace(body, []byte("one queued effect"), []byte("changed effect"), 1), nil)
+		conflictBody := readAndCloseHTTPBody(t, conflict)
+		if conflict.StatusCode != http.StatusConflict || !bytes.Contains(conflictBody, []byte("send_conflict")) {
+			t.Fatalf("content conflict = %d: %s", conflict.StatusCode, conflictBody)
+		}
+		release()
+		for range active {
+		}
+		if err := runtime.manager.WaitForPromptDrains(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if calls.Load() != 2 {
+			t.Fatalf("dispatches = %d, want held turn plus one replayed input", calls.Load())
+		}
+		stopIntegrationSession(t, runtime, id)
+	})
+}
 
 func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
@@ -709,52 +805,227 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 	}
 }
 
+// Invariant IT-042: bounded cursor replay drains a 500-event durable gap exactly
+// once, even when the session is already terminal. Owner: HTTP session streaming.
+// Invariant: an empty live log cursor accepts the first persisted sequence regardless of clock skew.
+// Owner: HTTP log streaming over the real observer/SQLite integration runtime.
+func TestHTTPLogsStreamFromEmptyHead(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver a newly persisted log with a timestamp before the connection", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		probe := &integrationLogHeadProbe{Observer: runtime.observer, head: make(chan int, 1)}
+		runtime.server.handlers.Observer = probe
+		response := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/logs/stream?type=profile.selection_changed&replay=false",
+			),
+			nil,
+			nil,
+		)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("log stream status = %d", response.StatusCode)
+		}
+		select {
+		case count := <-probe.head:
+			if count != 0 {
+				t.Fatalf("initial durable head = %d rows, want empty", count)
+			}
+		case <-t.Context().Done():
+			t.Fatal("log stream never read its initial durable head")
+		}
+		event := store.EventSummary{ID: "sum-after-empty-head", Type: "profile.selection_changed",
+			ProfileID: store.DefaultProfileID, Timestamp: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)}
+		event.SetContent(json.RawMessage(`{"name":"profile.selection_changed","profile_name":"default"}`))
+		if err := runtime.registry.WriteEventSummary(t.Context(), event); err != nil {
+			t.Fatal(err)
+		}
+		frames := collectLiveSSE(t, response.Body, 1, 5*time.Second)
+		if len(frames) != 1 || frames[0].Event != event.Type {
+			t.Fatalf("first live log = %#v", frames)
+		}
+		cursor, err := core.ParseLogsCursor(frames[0].ID)
+		if err != nil || cursor.Sequence <= 0 || !cursor.Timestamp.Equal(event.Timestamp) {
+			t.Fatalf("durable cursor = %#v, %v", cursor, err)
+		}
+	})
+}
+
+// This probe observes completion of a real read; all queries and payloads pass through unchanged.
+type integrationLogHeadProbe struct {
+	*observe.Observer
+	head chan int
+	once sync.Once
+}
+
+func (p *integrationLogHeadProbe) QueryEvents(
+	ctx context.Context,
+	query store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	rows, err := p.Observer.QueryEvents(ctx, query)
+	p.once.Do(func() { p.head <- len(rows) })
+	return rows, err
+}
+
+func TestHTTPSessionStreamReplaysLargeGap(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replay every durable event across bounded catch-up pages", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			output := make(chan acp.AgentEvent, 501)
+			for i := range 500 {
+				output <- acp.AgentEvent{Type: acp.EventTypeToolCall, SessionID: proc.SessionID,
+					TurnID: req.TurnID, ToolCallID: fmt.Sprintf("gap-%03d", i)}.WithTool("read", json.RawMessage(`{"path":"fixture"}`), false)
+			}
+			output <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.SessionID, TurnID: req.TurnID,
+				StopReason: string(acp.PromptStopReasonEndTurn), PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(output)
+			return output, nil
+		}
+		id := createIntegrationSession(t, runtime)
+		sendPrompt(t, runtime, id, "large replay gap")
+		stopIntegrationSession(t, runtime, id)
+		durable, err := runtime.manager.Events(t.Context(), id, store.EventQuery{Archive: store.EventArchiveUnarchived})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(durable) < 500 {
+			t.Fatalf("fixture gap too small: %d", len(durable))
+		}
+		cursor := durable[0].Sequence
+		resp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/workspaces/ws-workspace/sessions/"+id+"/stream?frames=raw&limit=37",
+			),
+			nil,
+			map[string]string{"Last-Event-ID": strconv.FormatInt(cursor, 10)},
+		)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("replay status=%d body=%s", resp.StatusCode, readAndCloseHTTPBody(t, resp))
+		}
+		replay := collectLiveSSE(t, resp.Body, len(durable)-1, 10*time.Second)
+		if len(replay) != len(durable)-1 {
+			t.Fatalf("replay length=%d want %d", len(replay), len(durable)-1)
+		}
+		for i, frame := range replay {
+			if frame.ID != strconv.FormatInt(durable[i+1].Sequence, 10) {
+				t.Fatalf("replay[%d] id=%s want %d", i, frame.ID, durable[i+1].Sequence)
+			}
+		}
+	})
+}
+
 func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
-	sessionID := createIntegrationSession(t, runtime)
-	sendPrompt(t, runtime, sessionID, "hello")
-	stopIntegrationSession(t, runtime, sessionID)
+	t.Run("Should replay the retained cursor of a stopped session", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		sessionID := createIntegrationSession(t, runtime)
+		sendPrompt(t, runtime, sessionID, "hello")
+		stopIntegrationSession(t, runtime, sessionID)
 
-	streamResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
-		nil,
-		nil,
-	)
-	if streamResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, streamResp)
-		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
-	}
-	initial := collectLiveSSE(t, streamResp.Body, 6, 2*time.Second)
-	if len(initial) < 6 {
-		t.Fatalf("initial stream events = %d, want 6", len(initial))
-	}
-	if initial[len(initial)-1].Event != session.EventTypeSessionStopped {
-		t.Fatalf("last event = %q, want %q", initial[len(initial)-1].Event, session.EventTypeSessionStopped)
-	}
+		streamResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+			),
+			nil,
+			nil,
+		)
+		if streamResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, streamResp)
+			t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
+		}
+		initial := collectLiveSSE(t, streamResp.Body, 6, 2*time.Second)
+		if len(initial) < 6 {
+			t.Fatalf("initial stream events = %d, want 6", len(initial))
+		}
+		if initial[len(initial)-1].Event != session.EventTypeSessionStopped {
+			t.Fatalf("last event = %q, want %q", initial[len(initial)-1].Event, session.EventTypeSessionStopped)
+		}
 
-	headers := map[string]string{"Last-Event-ID": initial[0].ID}
-	replayResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
-		nil,
-		headers,
-	)
-	if replayResp.StatusCode != http.StatusOK {
-		body := readAndCloseHTTPBody(t, replayResp)
-		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
-	}
-	replayed := collectLiveSSE(t, replayResp.Body, 5, 2*time.Second)
-	if len(replayed) < 5 {
-		t.Fatalf("replayed events = %d, want 5", len(replayed))
-	}
-	if replayed[0].ID != initial[1].ID {
-		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
-	}
+		headers := map[string]string{"Last-Event-ID": initial[0].ID}
+		replayResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+			),
+			nil,
+			headers,
+		)
+		if replayResp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, replayResp)
+			t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
+		}
+		replayed := collectLiveSSE(t, replayResp.Body, 5, 2*time.Second)
+		if len(replayed) < 5 {
+			t.Fatalf("replayed events = %d, want 5", len(replayed))
+		}
+		if replayed[0].ID != initial[1].ID {
+			t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
+		}
+	})
+
+	// Invariant: replaying a historical stop must not close an active session's
+	// live stream. Owner: HTTP session streaming; canonical reconnect suite.
+	t.Run("Should continue live delivery after replaying a historical stop", func(t *testing.T) {
+		t.Parallel()
+		runtime := newIntegrationRuntime(t)
+		id := createIntegrationSession(t, runtime)
+		sendPrompt(t, runtime, id, "before stop")
+		stopIntegrationSession(t, runtime, id)
+		if _, err := runtime.manager.Resume(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		before, err := runtime.manager.Events(t.Context(), id, store.EventQuery{})
+		if err != nil || len(before) == 0 {
+			t.Fatalf("retained history = %d events, error = %v", len(before), err)
+		}
+		resp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(
+				runtime.host,
+				runtime.port,
+				"/api/workspaces/ws-workspace/sessions/"+id+"/stream?frames=raw&limit=200",
+			),
+			nil,
+			nil,
+		)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stream status=%d body=%s", resp.StatusCode, readAndCloseHTTPBody(t, resp))
+		}
+		sendPrompt(t, runtime, id, "after resume")
+		after, err := runtime.manager.Events(t.Context(), id, store.EventQuery{})
+		if err != nil || len(after) <= len(before) {
+			t.Fatalf("post-resume history = %d events, before = %d, error = %v", len(after), len(before), err)
+		}
+		replay := collectLiveSSE(t, resp.Body, len(after), 5*time.Second)
+		for index, frame := range replay {
+			if frame.ID != strconv.FormatInt(after[index].Sequence, 10) {
+				t.Fatalf("frame[%d] id=%s want %d", index, frame.ID, after[index].Sequence)
+			}
+		}
+	})
 }
 
 func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
@@ -965,7 +1236,11 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
+		mustURL(
+			runtime.host,
+			runtime.port,
+			"/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+		),
 		nil,
 		nil,
 	)
@@ -987,7 +1262,11 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
+		mustURL(
+			runtime.host,
+			runtime.port,
+			"/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw&limit=200",
+		),
 		nil,
 		map[string]string{"Last-Event-ID": lastEventID},
 	)
@@ -3696,7 +3975,11 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	writeAgentDef(t, homePaths, "coder")
+	e2etest.WriteAgentDef(
+		t,
+		homePaths,
+		e2etest.AgentSeed{Name: "coder", Provider: "codex", Permissions: "approve-reads", Prompt: "You are coder."},
+	)
 
 	workspace := t.TempDir()
 	cfg := compozyconfig.DefaultWithHome(homePaths)
@@ -3704,7 +3987,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Network.Enabled = false
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
-		"fake": {Command: "fake-agent"},
+		"codex": {Command: "fake-agent"},
 	}
 
 	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
@@ -3724,6 +4007,13 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+		workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				homePaths,
+				compozyconfig.WithWorkspaceRoot(root),
+				compozyconfig.WithProfile(profile),
+			)
+		}),
 	)
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -3749,6 +4039,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
 		session.WithSessionPromptAdmissionStore(registry),
+		session.WithSessionInputQueueStore(registry),
 		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
@@ -4370,7 +4661,7 @@ func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, ses
 			"message":         "bind runtime",
 			"message_id":      "msg-bind-runtime",
 			"idempotency_key": "idem-bind-runtime",
-			"runtime":         map[string]any{"provider": "fake"},
+			"runtime":         map[string]any{"provider": "codex"},
 		}),
 		nil,
 	)

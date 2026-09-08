@@ -30,9 +30,6 @@ func (d *Daemon) applyServerFactoryDefaults() {
 }
 
 func (d *Daemon) applySystemDefaults() {
-	if d.listProcesses == nil {
-		d.listProcesses = listProcesses
-	}
 	if d.signalProcess == nil {
 		d.signalProcess = procutil.Signal
 	}
@@ -55,15 +52,6 @@ func (d *Daemon) applySystemDefaults() {
 		d.loadConfig = func() (compozyconfig.Config, error) {
 			return loadConfigFromHome(d.homePaths, d.getenv)
 		}
-	}
-}
-
-func (d *Daemon) applyTimingDefaults() {
-	if d.orphanGraceWait <= 0 {
-		d.orphanGraceWait = orphanCleanupGraceWait
-	}
-	if d.orphanPollWait <= 0 {
-		d.orphanPollWait = orphanCleanupPollWait
 	}
 }
 

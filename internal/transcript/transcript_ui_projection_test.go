@@ -102,11 +102,13 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 		var metadata struct {
 			TurnID    string `json:"turn_id"`
 			MessageID string `json:"message_id"`
+			Timestamp string `json:"timestamp"`
 		}
 		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
 			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
 		}
-		if metadata.TurnID != event.TurnID || metadata.MessageID != messageID {
+		if metadata.TurnID != event.TurnID || metadata.MessageID != messageID ||
+			metadata.Timestamp != timestamp.Format(time.RFC3339Nano) {
 			t.Fatalf("metadata = %#v, want turn/message identity", metadata)
 		}
 		if got, want := messages[0].Parts[0].Text, authoredText; got != want {

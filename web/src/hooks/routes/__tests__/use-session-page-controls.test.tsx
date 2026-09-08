@@ -2,7 +2,9 @@
 // Invariant: public session types share prompt controls while lifecycle controls remain user-only.
 // Boundary IN: useSessionPageControls and the real session prompt eligibility policy.
 // Boundary OUT: rendered composer/topbar wiring and daemon transport contracts.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeHookMocks = vi.hoisted(() => ({
@@ -12,20 +14,25 @@ const routeHookMocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   cancelSessionPrompt: vi.fn(),
+  invalidateSessionMutationQueries: vi.fn(async () => undefined),
   clearMutation: { isPending: false, mutate: vi.fn() },
   deleteOptions: { current: undefined as { onDeleteSuccess?: () => void } | undefined },
   deleteMutation: { isPending: false, mutate: vi.fn() },
   renameMutation: { isPending: false, mutateAsync: vi.fn() },
   resumeMutation: { isPending: false, mutateAsync: vi.fn() },
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
-  queuePromptMutation: { isPending: false, mutateAsync: vi.fn() },
-  interruptPromptMutation: { isPending: false, mutateAsync: vi.fn() },
-  steerPromptMutation: { isPending: false, mutateAsync: vi.fn() },
+  sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
-  sessionInputsQuery: { data: { inputs: [] as Array<Record<string, unknown>> } },
+  sessionInputsQuery: {
+    data: { inputs: [] } as {
+      inputs: Array<Record<string, unknown>>;
+      queue?: { cap: number; entries: number } | null;
+    },
+  },
   cancelInputMutation: { isPending: false, mutate: vi.fn() },
   replaceInputMutation: { isPending: false, mutateAsync: vi.fn() },
   promoteInputMutation: { isPending: false, mutate: vi.fn() },
+  clearInputsMutation: { isPending: false, mutateAsync: vi.fn() },
 }));
 
 vi.mock("@assistant-ui/react", () => ({
@@ -40,10 +47,24 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/systems/session", async () => {
   const { canPromptSession } = await import("@/systems/session/lib/session-running");
-  const { queuedPromptAttachmentSummary } = await import("@/systems/session/lib/queued-prompt");
+  const queuedPrompt = await import("@/systems/session/lib/queued-prompt");
+  const unconfirmed = await import("@/systems/session/lib/session-unconfirmed-send");
+  const apiErrors = await import("@/systems/session/adapters/session-api-errors");
+  const busyInput = await import("@/systems/session/lib/session-busy-input");
+  const refusal = await import("@/systems/session/lib/session-busy-input-refusal");
+  const outcome = await import("@/systems/session/lib/session-send-outcome");
+  const stopAttention = await import("@/systems/session/lib/session-stop-attention");
   return {
+    ...apiErrors,
+    ...busyInput,
+    ...queuedPrompt,
+    ...refusal,
+    ...outcome,
+    ...stopAttention,
+    ...unconfirmed,
     canPromptSession,
     cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
+    invalidateSessionMutationQueries: routeHookMocks.invalidateSessionMutationQueries,
     isSessionRunning: (session: {
       state?: string;
       badge?: string;
@@ -52,28 +73,26 @@ vi.mock("@/systems/session", async () => {
       session.state !== "stopped" &&
       (Boolean(session.activity?.turn_id) || session.badge === "running"),
     isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
-    queuedPromptAttachmentSummary,
     useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
+    useClearSessionInputs: () => routeHookMocks.clearInputsMutation,
     useClearSessionConversation: () => routeHookMocks.clearMutation,
     useDeleteSession: (options: { onDeleteSuccess?: () => void }) => {
       routeHookMocks.deleteOptions.current = options;
       return routeHookMocks.deleteMutation;
     },
-    useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
     usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
-    useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
+    useSendSessionPrompt: () => routeHookMocks.sendPromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
     useRenameSession: () => routeHookMocks.renameMutation,
     useResumeSession: () => routeHookMocks.resumeMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
     useSessionInputs: () => routeHookMocks.sessionInputsQuery,
     useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
-    useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
     useStopSession: () => routeHookMocks.stopMutation,
   };
 });
 
-import type { SessionPayload } from "@/systems/session";
+import { SessionApiError, type SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -84,6 +103,7 @@ function makeSession(
   sessionType: NonNullable<SessionPayload["type"]> = "user"
 ): SessionPayload {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id: "sess-1",
@@ -118,9 +138,17 @@ function makeSession(
   };
 }
 
+function createWrapper() {
+  const queryClient = new QueryClient();
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  };
+}
+
 function renderControls(session = makeSession("active"), onDeleteSuccess?: () => void) {
-  return renderHook(() =>
-    useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID, onDeleteSuccess })
+  return renderHook(
+    () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID, onDeleteSuccess }),
+    { wrapper: createWrapper() }
   );
 }
 
@@ -149,6 +177,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.toastError.mockReset();
     routeHookMocks.toastSuccess.mockReset();
     routeHookMocks.cancelSessionPrompt.mockReset();
+    routeHookMocks.invalidateSessionMutationQueries.mockClear();
     for (const mutation of [
       routeHookMocks.clearMutation,
       routeHookMocks.cancelInputMutation,
@@ -165,14 +194,12 @@ describe("useSessionPageControls", () => {
     routeHookMocks.renameMutation.mutateAsync.mockReset();
     routeHookMocks.unarchiveMutation.isPending = false;
     routeHookMocks.unarchiveMutation.mutate.mockReset();
-    routeHookMocks.queuePromptMutation.isPending = false;
-    routeHookMocks.queuePromptMutation.mutateAsync.mockReset();
-    routeHookMocks.interruptPromptMutation.isPending = false;
-    routeHookMocks.interruptPromptMutation.mutateAsync.mockReset();
-    routeHookMocks.steerPromptMutation.isPending = false;
-    routeHookMocks.steerPromptMutation.mutateAsync.mockReset();
+    routeHookMocks.sendPromptMutation.isPending = false;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockReset();
     routeHookMocks.replaceInputMutation.isPending = false;
     routeHookMocks.replaceInputMutation.mutateAsync.mockReset();
+    routeHookMocks.clearInputsMutation.isPending = false;
+    routeHookMocks.clearInputsMutation.mutateAsync.mockReset();
     routeHookMocks.stopMutation.isPending = false;
     routeHookMocks.stopMutation.mutate.mockReset();
     routeHookMocks.stopMutation.mutateAsync.mockReset();
@@ -201,6 +228,220 @@ describe("useSessionPageControls", () => {
     });
   });
 
+  // Invariant (US-009.AC-1/AC-3): the page reads stopping from the first
+  // activation until the session payload stops reporting the turn; the cancel
+  // acknowledgement alone never flips it back. Owning layer: page-controls
+  // hook over the real store. Canonical suite: this file.
+  it("Should keep reading stopping after the cancel is accepted until the session drops the turn", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active", "turn-1"), wrapper: createWrapper() }
+    );
+
+    act(() => result.current.handleCancelPrompt());
+    expect(result.current.isStopping).toBe(true);
+    await waitFor(() => expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledOnce());
+    // The request settled, the daemon still reports turn-1: still stopping, still guarded.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.isStopping).toBe(true);
+    act(() => result.current.handleCancelPrompt());
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledOnce();
+
+    routeHookMocks.auiState.thread.isRunning = false;
+    rerender(makeSession("active"));
+    await waitFor(() => expect(result.current.isStopping).toBe(false));
+  });
+
+  // Invariant (US-009.EC-2): the daemon's `nothing-in-flight` answer settles the
+  // stop at once and surfaces the completion note; nothing reads canceled.
+  it("Should settle a nothing-in-flight cancel at once and surface the completion note", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockResolvedValue({
+      outcome: "nothing-in-flight",
+      session_id: "sess-1",
+    });
+    const { result } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active", "turn-1"), wrapper: createWrapper() }
+    );
+
+    expect(result.current.stopCompletionNote).toBe(false);
+    act(() => result.current.handleCancelPrompt());
+    await waitFor(() => expect(result.current.stopCompletionNote).toBe(true));
+    expect(result.current.isStopping).toBe(false);
+  });
+
+  it("Should keep an accepted cancel stopping when the session reread fails", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockResolvedValue(undefined);
+    routeHookMocks.invalidateSessionMutationQueries.mockRejectedValueOnce(
+      new Error("session reread failed")
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { result } = renderControls(makeSession("active", "turn-1"));
+
+    await act(async () => {
+      result.current.handleCancelPrompt();
+    });
+    await waitFor(() =>
+      expect(routeHookMocks.invalidateSessionMutationQueries).toHaveBeenCalledOnce()
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Acceptance is authoritative: the reread failure is logged, not a failed stop.
+    expect(result.current.isStopping).toBe(true);
+    expect(routeHookMocks.toastError).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      "Failed to reread the session after cancelling its prompt",
+      expect.any(Error)
+    );
+    act(() => result.current.handleCancelPrompt());
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
+  it("Should return Stop to the operator when the cancel request fails", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockRejectedValueOnce(new Error("daemon disconnected"));
+    const { result } = renderControls(makeSession("active", "turn-1"));
+
+    act(() => result.current.handleCancelPrompt());
+    expect(result.current.isStopping).toBe(true);
+    await waitFor(() => expect(result.current.isStopping).toBe(false));
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("Failed to stop the current prompt.");
+
+    routeHookMocks.cancelSessionPrompt.mockResolvedValue(undefined);
+    await act(async () => {
+      result.current.handleCancelPrompt();
+    });
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledTimes(2);
+    // Accepted this time, and the daemon still reports turn-1: stopping holds.
+    await waitFor(() => expect(result.current.isStopping).toBe(true));
+  });
+
+  it("Should read stopping from the daemon and still let the operator retry the stop", async () => {
+    routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
+    const { result } = renderControls(makeSession("stopping"));
+
+    expect(result.current.isStopping).toBe(true);
+    act(() => result.current.handleStop());
+    // No attention on the session: an ordinary stop, accepted without waiting.
+    await waitFor(() =>
+      expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
+        id: "sess-1",
+        wait: false,
+      })
+    );
+  });
+
+  // Invariant (US-009.AC-3, ADR-004 invariant 3): a stop the daemon could not
+  // verify surfaces as durable attention on a session that still reads
+  // stopping; Retry is the same session stop, waited on (`wait: true`) so the
+  // guard holds until that request settles — not on a reread, not on an
+  // unrelated metadata change — and only the read model clears the warning.
+  // Owning layer: page-controls hook over the real store. Canonical suite: this file.
+  it("Should surface an unverified stop and hold its waited retry until the daemon's answer settles", async () => {
+    const settled = createDeferredPromise<{ status: string; verified: boolean }>();
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValue(settled.promise);
+    const unverified: SessionPayload = {
+      ...makeSession("stopping"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      escalated: true,
+      updated_at: "2026-09-05T10:00:00Z",
+    };
+    const { result, rerender } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: unverified, wrapper: createWrapper() }
+    );
+
+    expect(result.current.stopAttention).toBe("stop_verification_failed");
+    expect(result.current.isStopping).toBe(true);
+    expect(result.current.isStopRetrying).toBe(false);
+    expect(result.current.canRetryStop).toBe(true);
+
+    act(() => result.current.handleStop());
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
+      id: "sess-1",
+      wait: true,
+    });
+    expect(result.current.isStopRetrying).toBe(true);
+
+    // A rename (or any unrelated metadata stamp) rereads the session while the
+    // retry is still waiting: the guard holds, the attention stands, no duplicate.
+    rerender({ ...unverified, name: "Renamed while stopping", updated_at: "2026-09-05T10:00:05Z" });
+    expect(result.current.isStopRetrying).toBe(true);
+    expect(result.current.stopAttention).toBe("stop_verification_failed");
+    act(() => result.current.handleStop());
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledOnce();
+
+    // The daemon settled this retry unverified: the guard releases, the read
+    // model still carries the attention, and Retry is open again.
+    await act(async () => {
+      settled.resolve({ status: "stopping", verified: false });
+      await settled.promise;
+    });
+    expect(result.current.isStopRetrying).toBe(false);
+    expect(result.current.stopAttention).toBe("stop_verification_failed");
+    expect(result.current.isStopping).toBe(true);
+
+    // Only the read model clears the warning: a verified `stopped` from the daemon.
+    rerender({ ...makeSession("stopped"), updated_at: "2026-09-05T10:00:40Z" });
+    expect(result.current.stopAttention).toBeNull();
+    expect(result.current.isStopping).toBe(false);
+  });
+
+  it("Should keep the attention and reopen Retry when the retry request itself fails", async () => {
+    routeHookMocks.stopMutation.mutateAsync.mockRejectedValueOnce(new Error("daemon disconnected"));
+    const { result } = renderControls({
+      ...makeSession("stopping"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      updated_at: "2026-09-05T10:00:00Z",
+    });
+
+    // The rejection settles inside the same act as the request.
+    await act(async () => {
+      result.current.handleStop();
+    });
+    expect(result.current.isStopRetrying).toBe(false);
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("daemon disconnected");
+    expect(result.current.stopAttention).toBe("stop_verification_failed");
+    expect(result.current.isStopping).toBe(true);
+
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValue(new Promise(() => undefined));
+    act(() => result.current.handleStop());
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
+      id: "sess-1",
+      wait: true,
+    });
+    expect(result.current.isStopRetrying).toBe(true);
+  });
+
+  it("Should read an unverified stop on a managed session without offering the user-only retry", () => {
+    const { result } = renderControls({
+      ...makeSession("stopping", undefined, "system"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      updated_at: "2026-09-05T10:00:00Z",
+    });
+
+    expect(result.current.stopAttention).toBe("stop_verification_failed");
+    expect(result.current.canRetryStop).toBe(false);
+    act(() => result.current.handleStop());
+    expect(routeHookMocks.stopMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("Should stop a user session without canceling its active prompt through the prompt path", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
@@ -209,7 +450,10 @@ describe("useSessionPageControls", () => {
     act(() => result.current.handleStop());
 
     await waitFor(() =>
-      expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith("sess-1")
+      expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith({
+        id: "sess-1",
+        wait: false,
+      })
     );
     expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
   });
@@ -328,24 +572,25 @@ describe("useSessionPageControls", () => {
       ],
     };
     let session = makeSession("active", "turn-a");
-    const { result, rerender } = renderHook(() =>
-      useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID })
+    const { result, rerender } = renderHook(
+      () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { wrapper: createWrapper() }
     );
 
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep this" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
     session = makeSession("active", "turn-b");
     rerender();
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep this" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep this" },
     ]);
   });
 
-  it("Should keep a queue draft pending until acknowledgement and emit no success toast", async () => {
+  it("Should keep a queue draft pending until acknowledgement and resolve its disposition", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
     const admission = createDeferredPromise<unknown>();
-    routeHookMocks.queuePromptMutation.mutateAsync.mockReturnValue(admission.promise);
+    routeHookMocks.sendPromptMutation.mutateAsync.mockReturnValue(admission.promise);
     const { result } = renderControls(makeSession("active", "turn-managed", "system"));
 
     let request!: Promise<unknown>;
@@ -353,22 +598,124 @@ describe("useSessionPageControls", () => {
       request = result.current.handleQueuePrompt({ message: "queue me", attachments: [] })!;
     });
     expect(result.current.isBusyInputPending).toBe(true);
-    expect(routeHookMocks.queuePromptMutation.mutateAsync).toHaveBeenCalledWith({
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
+      expectedTurnId: "turn-managed",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "queue me",
+      messageId: expect.any(String),
+      mode: "queue",
     });
 
+    let outcome: unknown;
     await act(async () => {
-      admission.resolve({ delivery: "after_turn", queue_entry_id: "inq-1", status: "queued" });
-      await request;
+      admission.resolve({
+        delivery: "after_turn",
+        disposition: "queued",
+        entry_id: "inq-1",
+        idempotency_key: "idk-1",
+        message_id: "msg-1",
+        queue_position: 2,
+        replayed: false,
+        status: "queued",
+        turn_id: "turn-managed",
+      });
+      outcome = await request;
+    });
+    expect(outcome).toEqual({
+      disposition: "queued",
+      entryId: "inq-1",
+      idempotencyKey: "idk-1",
+      messageId: "msg-1",
+      queuePosition: 2,
+      replayed: false,
+      steerDelivery: null,
+      turnId: "turn-managed",
     });
     expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("Should expose the daemon follow-up default and steer delivery from the session resource", () => {
+    const { result } = renderControls({
+      ...makeSession("active", "turn-live"),
+      busy_input: {
+        default_mode: "queue",
+        steer_capability: "none",
+        steer_delivery: "interrupt_fallback",
+      },
+    });
+
+    expect(result.current.busyInputDefaultMode).toBe("queue");
+    expect(result.current.busyInputSteerDelivery).toBe("interrupt_fallback");
+    // No report yet: the shipped daemon default (steer) and an unknown delivery.
+    const { result: bare } = renderControls(makeSession("active", "turn-live"));
+    expect(bare.current.busyInputDefaultMode).toBe("steer");
+    expect(bare.current.busyInputSteerDelivery).toBeNull();
+  });
+
+  it("Should reject gated busy sends with their reason instead of a silent no-op", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    const stopped = { ...makeSession("stopped"), archived_at: "2026-04-17T10:00:00Z" };
+    const { result: gated } = renderControls(stopped);
+    await expect(
+      gated.current.handleQueuePrompt({ message: "after archive", attachments: [] })
+    ).rejects.toMatchObject({ refusal: { code: "session_not_promptable" } });
+
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    await expect(
+      result.current.handleSteerPrompt({
+        message: "steer with a file",
+        attachments: [
+          {
+            bytes: 4,
+            height: 10,
+            id: `att_${"b".repeat(64)}`,
+            kind: "image",
+            mime_type: "image/png",
+            name: "steer.png",
+            sha256: "b".repeat(64),
+            width: 10,
+          },
+        ],
+      })
+    ).rejects.toMatchObject({
+      refusal: { attachmentCount: 1, code: "steer_attachments_unsupported" },
+    });
+
+    const admission = createDeferredPromise<unknown>();
+    routeHookMocks.sendPromptMutation.mutateAsync.mockReturnValue(admission.promise);
+    let first!: Promise<unknown>;
+    act(() => {
+      first = result.current.handleSteerPrompt({ message: "first", attachments: [] })!;
+    });
+    await expect(
+      result.current.handleQueuePrompt({ message: "second", attachments: [] })
+    ).rejects.toMatchObject({ refusal: { code: "send_in_flight" } });
+    admission.resolve({
+      delivery: "direct",
+      disposition: "steering",
+      idempotency_key: "idk-1",
+      message_id: "msg-1",
+      queue_position: 0,
+      replayed: false,
+      status: "steering",
+      steer_delivery: "injected",
+      turn_id: "turn-live",
+    });
+    await act(async () => {
+      await first;
+    });
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledOnce();
+  });
+
   it("Should fence direct steer and interrupt with the active turn", async () => {
-    routeHookMocks.steerPromptMutation.mutateAsync.mockResolvedValue({ status: "steering" });
-    routeHookMocks.interruptPromptMutation.mutateAsync.mockResolvedValue({
-      status: "interrupting",
+    routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValue({
+      delivery: "direct",
+      idempotency_key: "idk",
+      message_id: "msg",
+      queue_position: 0,
+      replayed: false,
+      status: "steering",
     });
     const { result } = renderControls(makeSession("active", "turn-live", "system"));
 
@@ -391,15 +738,21 @@ describe("useSessionPageControls", () => {
       });
     });
 
-    expect(routeHookMocks.steerPromptMutation.mutateAsync).toHaveBeenCalledWith({
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
       expectedTurnId: "turn-live",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "new constraint",
+      messageId: expect.any(String),
+      mode: "steer",
     });
-    expect(routeHookMocks.interruptPromptMutation.mutateAsync).toHaveBeenCalledWith({
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenCalledWith({
       expectedTurnId: "turn-live",
       id: "sess-1",
+      idempotencyKey: expect.any(String),
       message: "replace the work",
+      messageId: expect.any(String),
+      mode: "interrupt",
       attachments: [
         {
           bytes: 4,
@@ -415,8 +768,18 @@ describe("useSessionPageControls", () => {
     });
   });
 
-  it("Should block steer and interrupt when no active turn fence exists", async () => {
+  it("Should let the daemon resolve the fence when no active turn id is known yet", async () => {
+    // Invariant 6: an omitted fence resolves the live turn at admission; the
+    // browser no longer blocks steer and interrupt behind its own poll.
     routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValue({
+      delivery: "direct",
+      idempotency_key: "idk",
+      message_id: "msg",
+      queue_position: 0,
+      replayed: false,
+      status: "steering",
+    });
     const { result } = renderControls(makeSession("active"));
 
     await act(async () => {
@@ -424,13 +787,32 @@ describe("useSessionPageControls", () => {
       await result.current.handleInterruptPrompt({ message: "replace the work", attachments: [] });
     });
 
-    expect(routeHookMocks.steerPromptMutation.mutateAsync).not.toHaveBeenCalled();
-    expect(routeHookMocks.interruptPromptMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(1, {
+      id: "sess-1",
+      idempotencyKey: expect.any(String),
+      message: "new constraint",
+      messageId: expect.any(String),
+      mode: "steer",
+    });
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenNthCalledWith(2, {
+      id: "sess-1",
+      idempotencyKey: expect.any(String),
+      message: "replace the work",
+      messageId: expect.any(String),
+      mode: "interrupt",
+    });
   });
 
   it("Should promote a durable queue entry with one atomic request", () => {
     const { result } = renderControls(makeSession("active", "turn-live"));
-    act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
+    act(() =>
+      result.current.handleSteerQueuedPrompt({
+        id: "inq-1",
+        owner: null,
+        position: 1,
+        text: "steer me",
+      })
+    );
 
     expect(routeHookMocks.promoteInputMutation.mutate).toHaveBeenCalledOnce();
     expect(routeHookMocks.promoteInputMutation.mutate).toHaveBeenCalledWith(
@@ -453,7 +835,7 @@ describe("useSessionPageControls", () => {
 
     await act(async () => {
       await result.current.handleReplaceQueuedPrompt(
-        { id: "inq-1", text: "old" },
+        { id: "inq-1", owner: null, position: 1, text: "old" },
         "new queued text"
       );
     });
@@ -479,10 +861,17 @@ describe("useSessionPageControls", () => {
     routeHookMocks.replaceInputMutation.mutateAsync.mockResolvedValue({ id: "inq-2" });
     const { result } = renderControls(makeSession("active", "turn-live"));
 
-    act(() => result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "steer me" }));
+    act(() =>
+      result.current.handleSteerQueuedPrompt({
+        id: "inq-1",
+        owner: null,
+        position: 1,
+        text: "steer me",
+      })
+    );
     await act(async () => {
       await result.current.handleReplaceQueuedPrompt(
-        { id: "inq-1", text: "old" },
+        { id: "inq-1", owner: null, position: 1, text: "old" },
         "new queued text"
       );
     });
@@ -518,7 +907,7 @@ describe("useSessionPageControls", () => {
     act(() => options.onError(new Error("cancel failed")));
 
     expect(result.current.queuedPrompts).toEqual([
-      { id: "inq-1", mode: "queue", status: "queued", text: "Keep me" },
+      { id: "inq-1", mode: "queue", owner: null, position: 1, status: "queued", text: "Keep me" },
     ]);
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("Couldn't remove queued prompt.");
     expect(consoleError).toHaveBeenCalledWith("Failed to remove a queued prompt");
@@ -528,7 +917,7 @@ describe("useSessionPageControls", () => {
 
   it("Should release the busy state after a failed acknowledgement", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
-    routeHookMocks.queuePromptMutation.mutateAsync.mockRejectedValue(new Error("queue failed"));
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValue(new Error("queue failed"));
     const { result } = renderControls();
 
     await act(async () => {
@@ -537,5 +926,140 @@ describe("useSessionPageControls", () => {
       ).rejects.toThrow("queue failed");
     });
     await waitFor(() => expect(result.current.isBusyInputPending).toBe(false));
+  });
+
+  it("Should keep a lost send's identity and replay exactly the same identity on Retry", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+    const { result } = renderControls(makeSession("active", "turn-live"));
+
+    await act(async () => {
+      await expect(
+        result.current.handleQueuePrompt({ message: "keep my identity", attachments: [] })
+      ).rejects.toThrow("Failed to fetch");
+    });
+    await waitFor(() => expect(result.current.unconfirmedSends).toHaveLength(1));
+    const [firstCall] = routeHookMocks.sendPromptMutation.mutateAsync.mock.calls;
+    const unconfirmed = result.current.unconfirmedSends[0]!;
+    expect(unconfirmed).toMatchObject({
+      action: "queue",
+      expectedTurnId: "turn-live",
+      phase: "unconfirmed",
+      text: "keep my identity",
+    });
+    expect(unconfirmed.identity).toEqual({
+      idempotencyKey: firstCall[0].idempotencyKey,
+      messageId: firstCall[0].messageId,
+    });
+
+    routeHookMocks.sendPromptMutation.mutateAsync.mockResolvedValueOnce({
+      delivery: "after_turn",
+      disposition: "queued",
+      entry_id: "inq-9",
+      idempotency_key: unconfirmed.identity.idempotencyKey,
+      message_id: unconfirmed.identity.messageId,
+      queue_position: 1,
+      replayed: true,
+      status: "queued",
+      turn_id: "turn-live",
+    });
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.handleRetryUnconfirmedSend(unconfirmed.id);
+    });
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).toHaveBeenLastCalledWith({
+      expectedTurnId: "turn-live",
+      id: "sess-1",
+      idempotencyKey: unconfirmed.identity.idempotencyKey,
+      message: "keep my identity",
+      messageId: unconfirmed.identity.messageId,
+      mode: "queue",
+    });
+    expect(outcome).toMatchObject({ disposition: "queued", replayed: true });
+    await waitFor(() => expect(result.current.unconfirmedSends).toEqual([]));
+  });
+
+  it("Should discard a waiting unconfirmed send locally and clear the queue explicitly", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+    routeHookMocks.clearInputsMutation.mutateAsync.mockResolvedValue({
+      cleared_count: 2,
+      inputs: [],
+      queue_generation: 3,
+    });
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    await act(async () => {
+      await expect(
+        result.current.handleSteerPrompt({ message: "lost", attachments: [] })
+      ).rejects.toThrow("Failed to fetch");
+    });
+    await waitFor(() => expect(result.current.unconfirmedSends).toHaveLength(1));
+    act(() => result.current.handleDiscardUnconfirmedSend(result.current.unconfirmedSends[0]!.id));
+    await waitFor(() => expect(result.current.unconfirmedSends).toEqual([]));
+
+    await act(async () => {
+      await result.current.handleClearQueue();
+    });
+    expect(routeHookMocks.clearInputsMutation.mutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it("Should read the cap from the queue summary before any refusal and follow its updates", () => {
+    routeHookMocks.sessionInputsQuery.data = {
+      inputs: [
+        { id: "inq-1", mode: "queue", status: "queued", text: "one", delivery: "after_turn" },
+        { id: "inq-2", mode: "queue", status: "queued", text: "two", delivery: "after_turn" },
+      ],
+      queue: { cap: 2, entries: 2 },
+    };
+    const session = makeSession("active", "turn-live");
+    const { result, rerender } = renderHook(
+      () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { wrapper: createWrapper() }
+    );
+    // No send has been refused: the daemon list alone says the queue is at cap.
+    expect(result.current.queueCap).toBe(2);
+    expect(routeHookMocks.sendPromptMutation.mutateAsync).not.toHaveBeenCalled();
+
+    // The daemon raised the cap: the next reread is the truth, nothing is remembered client-side.
+    routeHookMocks.sessionInputsQuery.data = {
+      ...routeHookMocks.sessionInputsQuery.data,
+      queue: { cap: 5, entries: 2 },
+    };
+    rerender();
+    expect(result.current.queueCap).toBe(5);
+  });
+
+  it("Should fall back to the cap a queue_full refusal named when the list carries no summary", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.sessionInputsQuery.data = {
+      inputs: [
+        { id: "inq-1", mode: "queue", status: "queued", text: "one", delivery: "after_turn" },
+        { id: "inq-2", mode: "queue", status: "queued", text: "two", delivery: "after_turn" },
+      ],
+    };
+    routeHookMocks.sendPromptMutation.mutateAsync.mockRejectedValueOnce(
+      new SessionApiError("queue full", 409, "sess-1", { code: "queue_full", queueCap: 2 })
+    );
+    const { result } = renderControls(makeSession("active", "turn-live"));
+    expect(result.current.queueCap).toBeNull();
+    await act(async () => {
+      await expect(
+        result.current.handleQueuePrompt({ message: "three", attachments: [] })
+      ).rejects.toMatchObject({ code: "queue_full" });
+    });
+    await waitFor(() => expect(result.current.queueCap).toBe(2));
+    expect(result.current.unconfirmedSends).toEqual([]);
+
+    // Once the list carries a summary it outranks the remembered refusal.
+    routeHookMocks.sessionInputsQuery.data = {
+      ...routeHookMocks.sessionInputsQuery.data,
+      queue: { cap: 4, entries: 2 },
+    };
+    const { result: withSummary } = renderControls(makeSession("active", "turn-live"));
+    expect(withSummary.current.queueCap).toBe(4);
   });
 });

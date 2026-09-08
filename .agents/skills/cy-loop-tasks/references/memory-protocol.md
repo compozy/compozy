@@ -50,14 +50,17 @@ Reuse the canonical task-memory sections from `cy-workflow-memory`:
 
 Phase-specific addenda (append after the canonical sections):
 
-- **Phase B**: record scoped-validation commands, intermediate failures and
-  repairs under `## Errors / Corrections`, and the final `cy-final-verify`
-  PASS evidence under `## Ready for Next Run`. A final FAIL appears only with
-  a proven external blocker.
+- **Phase B**: record scoped-validation evidence and remaining integration
+  journeys/visual rows with their owner under `## Ready for Next Run`; record
+  meaningful failures/repairs under `## Errors / Corrections`. Assess PASS
+  under `cy-final-verify` within the existing step, without another report.
+  A final FAIL appears only with a proven external blocker.
 - **Phase B mode=free**: add `## Slice Picked` (the exact text added to
   `progress.checklist[]`) and `## Acceptance Mapping` (which spec
   acceptance criterion this slice advances).
-- **Phase C**: add `## QA Artifacts Produced` (paths under `docs/qa/`).
+- **Phase C**: add `## QA Artifacts Produced` (paths under `docs/qa/`, or the
+  scoped reuse/no-work disposition with covering evidence). Do not create a
+  dated run report for sessions that did not run.
 - **Phase D**: each `## Round <N>` section records the verdict, the findings
   artifact path, and the remediated blockers/nits.
 

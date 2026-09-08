@@ -408,3 +408,33 @@ func (q *Queries) MarkSessionPromptAdmissionIndeterminate(ctx context.Context, a
 	}
 	return result.RowsAffected()
 }
+
+const resolveSessionSteerAdmission = `-- name: ResolveSessionSteerAdmission :execrows
+UPDATE session_prompt_admissions
+SET state = 'completed', completed_at = ?1, updated_at = ?1,
+    result_json = json_set(result_json, '$.steer_delivery', ?2,
+                           '$.previous_turn_id', ?3)
+WHERE id = ?4 AND session_id = ?5 AND state = 'dispatch_committed'
+`
+
+type ResolveSessionSteerAdmissionParams struct {
+	Now           sql.NullString `json:"now"`
+	SteerDelivery any            `json:"steer_delivery"`
+	TargetTurnID  any            `json:"target_turn_id"`
+	ID            string         `json:"id"`
+	SessionID     string         `json:"session_id"`
+}
+
+func (q *Queries) ResolveSessionSteerAdmission(ctx context.Context, arg ResolveSessionSteerAdmissionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resolveSessionSteerAdmission,
+		arg.Now,
+		arg.SteerDelivery,
+		arg.TargetTurnID,
+		arg.ID,
+		arg.SessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

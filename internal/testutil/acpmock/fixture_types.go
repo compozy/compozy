@@ -129,6 +129,8 @@ type Step struct {
 
 	Text   string   `json:"text,omitempty"`
 	Chunks []string `json:"chunks,omitempty"`
+	// BurstCount repeats Text without delivery pacing to exercise transport pressure.
+	BurstCount int `json:"burst_count,omitempty"`
 
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
 	Title       string          `json:"title,omitempty"`
@@ -169,4 +171,7 @@ const (
 	DriverControlWriteRawJSONRPC  DriverControlAction = "write_raw_jsonrpc"
 	DriverControlBlockUntilCancel DriverControlAction = "block_until_cancel"
 	DriverControlDelay            DriverControlAction = "delay"
+	// DriverControlHoldIgnoringCancel keeps the turn open for delay_ms while ignoring
+	// prompt cancellation, so stop ladders must escalate past the cooperative phase.
+	DriverControlHoldIgnoringCancel DriverControlAction = "hold_ignoring_cancel"
 )

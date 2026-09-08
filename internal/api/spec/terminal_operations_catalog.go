@@ -95,7 +95,7 @@ func terminalDeleteOperation(transports []Transport, workspace, id ParameterSpec
 		[]ResponseSpec{
 			{Status: 200, Description: "Terminated", Body: contract.TerminalExitResponse{}},
 			terminalErrorResponse(404, "Terminal not found"),
-			terminalErrorResponse(409, "Terminal state or controller conflict"),
+			terminalErrorResponse(409, "Terminal state conflict"),
 			terminalErrorResponse(410, "Terminal expired"),
 		},
 	)

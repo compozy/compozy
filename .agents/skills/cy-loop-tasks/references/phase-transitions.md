@@ -16,7 +16,7 @@ phase=E action=await_ci
 phase=E action=done
 ```
 
-The agent runs the printed action (procedures live in `SKILL.md`), repairs
+The agent runs the printed action (SKILL.md routes to its phase procedure), repairs
 every internal failure through `references/recovery-loop.md`, records the
 iteration via `update-state.py`, prints the summary, then **continues** at
 detect unless the outcome is a proven external blocker or Phase E. If the
@@ -41,9 +41,10 @@ filesystem truth.
 - Phase 0 exits once `init-state.py` has written `state.yaml`; the next
   iteration enters B (via **continue**, not a restart).
 - Phase B covers exactly one task or slice per iteration. In free mode,
-  `--deliverables-complete` (set only when every spec acceptance
-  criterion has a completed checklist entry) moves the loop to C.
-- Phase C produces exactly one QA artifact per iteration, `qa_report` first.
+  `--deliverables-complete` (set when implementation criteria have completed
+  checklist entries and remaining integration checks are assigned) moves the loop to C.
+- Phase C resolves one scoped QA obligation per iteration, `qa_report` first;
+  its evidence is a plan/run artifact or a documented reuse/no-work disposition.
   In mode=tasks the corresponding QA task is also marked completed so
   `tasks.pending` drains.
 - Phase D closes one `deep-review` round per iteration via
@@ -56,8 +57,8 @@ filesystem truth.
 
 ## Failure and blocker handling (any phase)
 
-Any command, gate, worker, or artifact failure first enters the self-healing
-procedure in `references/recovery-loop.md`. Keep the current phase action open
+Failed required checks use the repair procedure in `references/recovery-loop.md`;
+expected search misses and live-worker wait expiry do not. Keep the current phase action open
 and leave final iteration state untouched while repairing. A stale generated
 artifact, failing validation, or repeated repair is not intrinsically a
 blocker.

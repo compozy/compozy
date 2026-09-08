@@ -15,6 +15,7 @@ import (
 type InputQueueSummary struct {
 	QueueGeneration int64
 	PendingInputs   int
+	Cap             int
 }
 
 // ListAll returns active and stopped sessions discovered from on-disk metadata.
@@ -76,6 +77,9 @@ func (m *Manager) mergePersistedSessionInfos(
 		}
 		meta, err := m.readMetaWithContext(ctx, id)
 		if err != nil {
+			if errors.Is(err, ErrRecoveryPersistence) {
+				return nil, nil, err
+			}
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
 			}
@@ -142,7 +146,7 @@ func (m *Manager) InputQueueSummary(ctx context.Context, id string) (InputQueueS
 		return InputQueueSummary{}, errors.New("session: session id is required")
 	}
 	if m.inputQueueStore == nil {
-		return InputQueueSummary{}, nil
+		return InputQueueSummary{Cap: m.busyInput.QueueCap}, nil
 	}
 	summary, err := m.inputQueueStore.SessionInputQueueSummary(ctx, target)
 	if err != nil {
@@ -151,6 +155,7 @@ func (m *Manager) InputQueueSummary(ctx context.Context, id string) (InputQueueS
 	return InputQueueSummary{
 		QueueGeneration: summary.Generation,
 		PendingInputs:   summary.PendingActive,
+		Cap:             m.busyInput.QueueCap,
 	}, nil
 }
 

@@ -203,6 +203,9 @@ func (m *Manager) recordPromptRecoveryEvent(
 	event = m.preparePromptEvent(ctx, turnState, event)
 	event = transcript.RedactAgentEvent(event)
 	if err := m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, event, true); err != nil {
+		if m.discardPromptEventAfterStop(ctx, session, turnState.turnID, event.Type, err) {
+			return nil
+		}
 		return err
 	}
 	m.dispatchRuntimeRecoveryObservation(
@@ -254,15 +257,18 @@ func (m *Manager) recoverPromptRuntime(
 	if err != nil {
 		return nil, "", err
 	}
-	previous := session.completeRuntimeTransition(
+	previous, err := session.completeRecoveryTransition(
+		snapshot.process,
 		candidate,
 		plan.selection,
-		RuntimeTransitionAutomaticRecovery,
+		runtime.agentDef,
 		m.now(),
 	)
-	session.setAgentDefinition(runtime.agentDef)
+	if err != nil {
+		return nil, "", errors.Join(err, m.stopReplacedRuntime(session, candidate, false))
+	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
-		session.restoreRuntimeBinding(&snapshot, err.Error(), m.now())
+		session.restoreRecoveryBinding(candidate, &snapshot, err.Error(), m.now())
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
 		return nil, "", errors.Join(err, stopErr)
 	}

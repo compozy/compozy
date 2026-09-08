@@ -63,14 +63,7 @@ the same wall on the same day.
 
 ## Operationalization
 
-- Pair every "typed instead of metadata_json" decision with a
-  signature plan: which helpers/clients/tests take pointers; which hot-path structs receive an
-  optional pointer field; which observer/notifier interfaces hand off pointers and clone contained
-  values for async dispatch.
-- Land the signature shape in the same diff that introduces the new typed record. Discovering the
-  shape mid-`make verify` costs a churn cycle and a lint dance.
-- For value vs pointer judgement at hot-path boundaries, lean on the `Run.Review` pattern as the
-  canonical fix.
+For dense, side-table-backed, or hot-path records, decide pointer/copy ownership before adding fields. Carry that choice through the helpers, transports, observers, and tests that use the record; clone values where async ownership needs it. Inspect relevant lint/performance evidence and reuse the `Run.Review` pattern when it fits. Small ordinary records do not require a separate signature-plan artifact.
 
 ## Anti-pattern
 

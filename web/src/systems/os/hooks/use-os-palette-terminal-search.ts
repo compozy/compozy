@@ -23,8 +23,8 @@ export interface UseOsPaletteTerminalSearchOptions {
 /**
  * Live terminal jump rows for palette domain search.
  *
- * Each row is a real catalog terminal: id, title, state, and controller when
- * the daemon named one. Create/open lives on `app.open.terminal`, not here.
+ * Each row is a real catalog terminal with its id, title, and state.
+ * Create/open lives on `app.open.terminal`, not here.
  */
 export function useOsPaletteTerminalSection({
   enabled,
@@ -73,6 +73,5 @@ function terminalPaletteRow(
 }
 
 function terminalPaletteDetail(terminal: TerminalInfo): string {
-  if (!terminal.controller) return terminal.state;
-  return `${terminal.state} · ${terminal.controller.kind} ${terminal.controller.id}`;
+  return terminal.state;
 }

@@ -21,10 +21,22 @@ func (r *Registry) validateRecovered(record ProcessRecord) bool {
 
 func (r *Registry) markStale(ctx context.Context, id string, message string) error {
 	completedAt := r.now().UTC()
-	return r.updateState(ctx, id, ProcessStateStale, nil, message, &completedAt)
+	return r.updateState(ctx, id, ProcessStateStale, message, &completedAt)
 }
 
 func (r *Registry) updateState(
+	ctx context.Context,
+	id string,
+	state ProcessState,
+	errText string,
+	completedAt *time.Time,
+) error {
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
+	return r.updateStateLocked(ctx, id, state, nil, errText, completedAt)
+}
+
+func (r *Registry) updateStateLocked(
 	ctx context.Context,
 	id string,
 	state ProcessState,

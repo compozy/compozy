@@ -20,8 +20,18 @@ import {
   SettingsTile,
   SettingsTiles,
 } from "@/systems/settings";
+import { DEFAULT_SESSION_BUSY_INPUT_MODE, type SessionBusyInputMode } from "@/systems/session";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@compozy/ui";
+import {
+  Button,
+  PillGroup,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Spinner,
+  type PillGroupItem,
+} from "@compozy/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";
@@ -44,6 +54,29 @@ const PERMISSION_OPTIONS = [
   },
 ];
 
+/**
+ * Follow-up behavior mirrors `session.busy_input.default_mode` — daemon-owned,
+ * so the composer, the CLI, and native tools resolve the same default (ADR-002).
+ */
+const FOLLOW_UP_OPTIONS: ReadonlyArray<PillGroupItem<SessionBusyInputMode>> = [
+  {
+    value: "steer",
+    label: "Steer immediately",
+    testId: "settings-page-general-follow-up-steer",
+  },
+  {
+    value: "queue",
+    label: "Queue until the turn ends",
+    testId: "settings-page-general-follow-up-queue",
+  },
+];
+
+function followUpModeFromConfig(config: {
+  busy_input?: { default_mode: string } | null;
+}): SessionBusyInputMode {
+  return config.busy_input?.default_mode === "queue" ? "queue" : DEFAULT_SESSION_BUSY_INPUT_MODE;
+}
+
 function parseSessionTimeoutSeconds(raw: string): number {
   if (!raw) return 0;
   const match = /^(\d+)(s|m|h)?$/i.exec(raw.trim());
@@ -58,6 +91,204 @@ function parseSessionTimeoutSeconds(raw: string): number {
 function formatSessionTimeout(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
   return `${Math.floor(seconds)}s`;
+}
+
+type GeneralPageModel = ReturnType<typeof useSettingsGeneralPage>;
+type GeneralEnvelope = NonNullable<GeneralPageModel["envelope"]>;
+type GeneralRuntime = GeneralEnvelope["runtime"];
+
+function GeneralSettingsLoading() {
+  return (
+    <div
+      className="flex flex-1 items-center justify-center"
+      data-testid="settings-page-general-loading"
+    >
+      <Spinner className="size-5 text-subtle" />
+    </div>
+  );
+}
+
+function GeneralSettingsLoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div
+      className="flex flex-1 items-center justify-center"
+      data-testid="settings-page-general-error"
+    >
+      <div className="flex flex-col items-center gap-2 text-center">
+        <AlertCircle className="size-6 text-danger" />
+        <p className="text-sm text-subtle">{message}</p>
+        <Button onClick={onRetry} size="sm" type="button" variant="outline">
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The frame's meta strip: live session/agent counts, or the one fact that the runtime is unreachable. */
+function generalSettingsMeta(runtime: GeneralRuntime) {
+  if (!runtime.available) {
+    return [{ key: "runtime", content: <span>runtime unavailable</span> }];
+  }
+  return [
+    {
+      key: "sessions",
+      content: (
+        <span>
+          <span className="font-medium text-muted">{runtime.active_sessions}</span> active sessions
+        </span>
+      ),
+    },
+    {
+      key: "agents",
+      content: (
+        <span>
+          <span className="font-medium text-muted">{runtime.active_agents}</span> agents working
+        </span>
+      ),
+    },
+  ];
+}
+
+/** Read-only runtime facts, or the shared unavailable notice when they could not be measured. */
+function GeneralRuntimeSection({ envelope }: { envelope: GeneralEnvelope }) {
+  const runtime = envelope.runtime;
+  if (!runtime.available) {
+    return (
+      <SettingsGroup bare description="Read-only." title="Runtime">
+        <SettingsRuntimeUnavailable
+          slug="general"
+          description="Session, agent, socket, and uptime facts could not be measured."
+        />
+      </SettingsGroup>
+    );
+  }
+  const httpAddress =
+    runtime.http_host && runtime.http_port
+      ? `${runtime.http_host}:${runtime.http_port}`
+      : `${envelope.config.http.host}:${envelope.config.http.port}`;
+  return (
+    <SettingsGroup bare description="Read-only." title="Runtime">
+      <SettingsTiles>
+        <SettingsTile
+          label="Local socket"
+          mono
+          value={runtime.socket ?? envelope.config.daemon.socket}
+        />
+        <SettingsTile label="HTTP address" mono value={httpAddress} />
+        <SettingsTile
+          dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
+          label="Active sessions"
+          value={String(runtime.active_sessions)}
+        />
+        <SettingsTile
+          label="Agents running"
+          value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
+        />
+      </SettingsTiles>
+    </SettingsGroup>
+  );
+}
+
+/** Reload, apply-record history, config-file provenance, and the update detail fold. */
+function GeneralAdvancedSection({
+  envelope,
+  onOpenApplyRecords,
+  page,
+}: {
+  envelope: GeneralEnvelope;
+  onOpenApplyRecords: () => void;
+  page: GeneralPageModel;
+}) {
+  const applyRecordCount = page.applyRecords.data?.entries?.length ?? 0;
+  const updateRuntime = page.update.data?.runtime;
+  return (
+    <SettingsAdvancedFold data-testid="settings-page-general-advanced">
+      <SettingRow
+        data-testid="settings-page-general-reload"
+        description="Re-read the config file without restarting CompozyOS."
+        label={
+          <>
+            Reload configuration <SettingsProvChip>config.toml</SettingsProvChip>
+          </>
+        }
+        control={
+          <Button
+            data-testid="settings-page-general-reload-button"
+            disabled={page.isReloading}
+            onClick={page.handleReload}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            {page.isReloading ? <Spinner className="size-3" /> : null}
+            Reload
+          </Button>
+        }
+      />
+      <SettingActionRow
+        data-testid="settings-page-general-apply-records"
+        description={applyRecordCount > 0 ? `${applyRecordCount} apply records.` : undefined}
+        label="Configuration changes"
+        onClick={onOpenApplyRecords}
+      />
+      <SettingRow
+        description="Workspace overlays can override values from this file."
+        label="Config file"
+        control={<SettingValue mono>{envelope.config_paths?.global_config ?? "—"}</SettingValue>}
+      />
+      {updateRuntime ? (
+        <SettingRow
+          data-testid="settings-page-general-update-detail"
+          description={updateRuntime.recommendation ?? undefined}
+          label="Update detail"
+          control={
+            <SettingValue mono>
+              {updateRuntime.latest_version ?? "—"} · {updateRuntime.install_method || "—"}
+            </SettingValue>
+          }
+        />
+      ) : null}
+    </SettingsAdvancedFold>
+  );
+}
+
+function GeneralApplyRecordsSheet({
+  onOpenChange,
+  open,
+  page,
+}: {
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  page: GeneralPageModel;
+}) {
+  const error = page.applyRecords.error;
+  return (
+    <Sheet onOpenChange={onOpenChange} open={open}>
+      <SheetContent
+        className="w-[min(var(--width-settings-sheet),calc(100vw-var(--spacing-settings-sheet-viewport-gutter)))] sm:max-w-none"
+        data-testid="settings-page-general-apply-records-sheet"
+        side="right"
+      >
+        <SheetHeader>
+          <SheetTitle>Configuration changes</SheetTitle>
+        </SheetHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <SettingsApplyRecordsPanel
+            records={page.applyRecords.data?.entries ?? []}
+            isLoading={page.applyRecords.isLoading}
+            isFetching={page.applyRecords.isFetching}
+            error={error instanceof Error ? error : null}
+            reloadError={page.reloadError}
+            reloadResult={page.reloadResult}
+            isReloading={page.isReloading}
+            onRefresh={() => void page.applyRecords.refetch()}
+            onReload={page.handleReload}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 export function GeneralSettingsPage() {
@@ -81,65 +312,24 @@ export function GeneralSettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-general-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <GeneralSettingsLoading />;
   }
 
   if (page.error || !page.envelope || !page.draft) {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        data-testid="settings-page-general-error"
-      >
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">
-            {page.error?.message ?? "Failed to load general settings"}
-          </p>
-          <Button onClick={page.handleRetry} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        </div>
-      </div>
+      <GeneralSettingsLoadError
+        message={page.error?.message ?? "Failed to load general settings"}
+        onRetry={page.handleRetry}
+      />
     );
   }
 
   const { envelope, draft, setDraft, restart, update } = page;
-  const runtime = envelope.runtime;
 
   return (
     <SettingsPageFrame
       description="Changes here apply to new sessions on this machine."
-      meta={
-        runtime.available
-          ? [
-              {
-                key: "sessions",
-                content: (
-                  <span>
-                    <span className="font-medium text-muted">{runtime.active_sessions}</span> active
-                    sessions
-                  </span>
-                ),
-              },
-              {
-                key: "agents",
-                content: (
-                  <span>
-                    <span className="font-medium text-muted">{runtime.active_agents}</span> agents
-                    working
-                  </span>
-                ),
-              },
-            ]
-          : [{ key: "runtime", content: <span>runtime unavailable</span> }]
-      }
+      meta={generalSettingsMeta(envelope.runtime)}
       restart={restart}
       saveBar={
         <SettingsSaveBar
@@ -170,6 +360,25 @@ export function GeneralSettingsPage() {
 
       <SettingsGroup title="Sessions">
         <SettingRow
+          data-testid="settings-page-general-follow-up"
+          label="Follow-up behavior"
+          control={
+            <PillGroup
+              aria-label="Follow-up behavior"
+              data-testid="settings-page-general-follow-up-group"
+              items={FOLLOW_UP_OPTIONS.map(item => ({ ...item, disabled: page.isSaving }))}
+              onChange={mode =>
+                setDraft(prev => {
+                  const current = prev ?? draft;
+                  return { ...current, busy_input: { default_mode: mode } };
+                })
+              }
+              size="sm"
+              value={followUpModeFromConfig(draft)}
+            />
+          }
+        />
+        <SettingRow
           data-testid="settings-page-general-session-timeout"
           help="A session with no activity for this long is ended and kept in history."
           description="0 keeps sessions open."
@@ -199,40 +408,7 @@ export function GeneralSettingsPage() {
       <DaemonSection draft={draft} setDraft={setDraft} />
       <RedactionSection draft={draft} setDraft={setDraft} />
 
-      <SettingsGroup bare description="Read-only." title="Runtime">
-        {runtime.available ? (
-          <SettingsTiles>
-            <SettingsTile
-              label="Local socket"
-              mono
-              value={runtime.socket ?? envelope.config.daemon.socket}
-            />
-            <SettingsTile
-              label="HTTP address"
-              mono
-              value={
-                runtime.http_host && runtime.http_port
-                  ? `${runtime.http_host}:${runtime.http_port}`
-                  : `${envelope.config.http.host}:${envelope.config.http.port}`
-              }
-            />
-            <SettingsTile
-              dotTone={runtime.active_sessions > 0 ? "success" : "neutral"}
-              label="Active sessions"
-              value={String(runtime.active_sessions)}
-            />
-            <SettingsTile
-              label="Agents running"
-              value={`${runtime.active_agents} of ${envelope.config.limits.max_concurrent_agents} max`}
-            />
-          </SettingsTiles>
-        ) : (
-          <SettingsRuntimeUnavailable
-            slug="general"
-            description="Session, agent, socket, and uptime facts could not be measured."
-          />
-        )}
-      </SettingsGroup>
+      <GeneralRuntimeSection envelope={envelope} />
 
       <GeneralUpdateSection
         actions={page.updateActions}
@@ -244,83 +420,17 @@ export function GeneralSettingsPage() {
         onRetry={() => void update.refetch()}
       />
 
-      <SettingsAdvancedFold data-testid="settings-page-general-advanced">
-        <SettingRow
-          data-testid="settings-page-general-reload"
-          description="Re-read the config file without restarting CompozyOS."
-          label={
-            <>
-              Reload configuration <SettingsProvChip>config.toml</SettingsProvChip>
-            </>
-          }
-          control={
-            <Button
-              data-testid="settings-page-general-reload-button"
-              disabled={page.isReloading}
-              onClick={page.handleReload}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {page.isReloading ? <Spinner className="size-3" /> : null}
-              Reload
-            </Button>
-          }
-        />
-        <SettingActionRow
-          data-testid="settings-page-general-apply-records"
-          description={
-            page.applyRecords.data?.entries?.length
-              ? `${page.applyRecords.data.entries.length} apply records.`
-              : undefined
-          }
-          label="Configuration changes"
-          onClick={() => setApplyRecordsOpen(true)}
-        />
-        <SettingRow
-          description="Workspace overlays can override values from this file."
-          label="Config file"
-          control={<SettingValue mono>{envelope.config_paths?.global_config ?? "—"}</SettingValue>}
-        />
-        {update.data ? (
-          <SettingRow
-            data-testid="settings-page-general-update-detail"
-            description={update.data.runtime.recommendation ?? undefined}
-            label="Update detail"
-            control={
-              <SettingValue mono>
-                {update.data.runtime.latest_version ?? "—"} ·{" "}
-                {update.data.runtime.install_method || "—"}
-              </SettingValue>
-            }
-          />
-        ) : null}
-      </SettingsAdvancedFold>
+      <GeneralAdvancedSection
+        envelope={envelope}
+        onOpenApplyRecords={() => setApplyRecordsOpen(true)}
+        page={page}
+      />
 
-      <Sheet onOpenChange={setApplyRecordsOpen} open={applyRecordsOpen}>
-        <SheetContent
-          className="w-[min(var(--width-settings-sheet),calc(100vw-var(--spacing-settings-sheet-viewport-gutter)))] sm:max-w-none"
-          data-testid="settings-page-general-apply-records-sheet"
-          side="right"
-        >
-          <SheetHeader>
-            <SheetTitle>Configuration changes</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            <SettingsApplyRecordsPanel
-              records={page.applyRecords.data?.entries ?? []}
-              isLoading={page.applyRecords.isLoading}
-              isFetching={page.applyRecords.isFetching}
-              error={page.applyRecords.error instanceof Error ? page.applyRecords.error : null}
-              reloadError={page.reloadError}
-              reloadResult={page.reloadResult}
-              isReloading={page.isReloading}
-              onRefresh={() => void page.applyRecords.refetch()}
-              onReload={page.handleReload}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <GeneralApplyRecordsSheet
+        onOpenChange={setApplyRecordsOpen}
+        open={applyRecordsOpen}
+        page={page}
+      />
     </SettingsPageFrame>
   );
 }

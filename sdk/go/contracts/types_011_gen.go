@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type HeartbeatPreferencesPayload struct {
+	MinInterval  string                            `json:"min_interval"`
+	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
+	Context      HeartbeatContextProjectionPayload `json:"context"`
+}
+
 type HeartbeatPromptContributionPayload struct {
 	Active           bool                               `json:"active"`
 	Digest           string                             `json:"digest,omitempty"`
@@ -205,5 +212,3 @@ type HookMatcher struct {
 type HookMode string
 
 type HookRunOutcome string
-
-type HookSkillSource uint8

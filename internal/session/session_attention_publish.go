@@ -97,7 +97,7 @@ func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID st
 	}
 	for index := range rows {
 		if strings.TrimSpace(rows[index].ID) == strings.TrimSpace(sessionID) {
-			return sessionInfoFromCatalog(rows[index]), nil
+			return sessionInfoFromCatalog(&rows[index]), nil
 		}
 	}
 	return nil, errorsForAttentionSnapshot(sessionID)

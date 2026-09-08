@@ -1,5 +1,8 @@
 # CH-terminal-cli-transport-parity: Drive the whole terminal from structured surfaces and find where two of them disagree
 
+> Superseded on 2026-09-04 by `CH-terminal-v3-public-contract`. Preserve this file as historical QA
+> memory; do not schedule its removed watch/control attach modes or pre-v3 catalog counts.
+
 ```yaml
 charter:
   id: CH-terminal-cli-transport-parity

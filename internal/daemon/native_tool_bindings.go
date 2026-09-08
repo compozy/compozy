@@ -21,6 +21,8 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		n.sessionToolBindings(availability.sessions, availability.sessionCatalog, availability.sessionRuntime),
 	)
 	addNativeToolBindings(bindings, n.sessionAttentionToolBindings(availability.notifications))
+	addNativeToolBindings(bindings, n.sessionInputToolBindings(availability.sessions))
+	addNativeToolBindings(bindings, n.sessionNavigationToolBindings(availability.sessions))
 	addNativeToolBindings(
 		bindings,
 		n.sessionOrchestrationToolBindings(

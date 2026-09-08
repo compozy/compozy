@@ -14,6 +14,13 @@ flowchart TD
     US -->|removed| USN[No Usage tab at all]
     T -->|empty session| EMP[True ThreadEmpty — only success + 0 messages]
     T -->|very long| PG[Older pages load on scroll, gap-free via before_sequence]
+    T --> FIND[Find text across all persisted history]
+    FIND -->|match| LAND[Load context and reveal exact part inside folds]
+    FIND -->|no matches| NONE[Keep query editable and report no matches]
+    T --> TRAIL[Preview operator message and reply on message trail]
+    TRAIL --> LAND
+    LAND --> LIVE[Read under scroll ownership; return to live bottom explicitly]
+    LIVE --> TE
     E --> CLR[Branch: clear conversation]
     CLR --> CLR2[Messages removed AND stay removed after reload]
     T -.->|leaves mid-read| AB[Abandon: return — same view warm]
@@ -45,6 +52,9 @@ journey:
     - step: 4
       verb: "Scroll up in a very long session (and clear it)"
       expected_observable: "Older pages load gap-free on scroll via `before_sequence`; clearing removes the messages AND keeps them removed after reload; a truly-empty session shows a true ThreadEmpty (success + 0)"
+    - step: 5
+      verb: "Find an old message or tool field and revisit it through the message trail"
+      expected_observable: "Search spans unloaded history; the exact matching part opens and receives a highlight; no-matches preserves input; trail previews land on the chosen message without live output stealing scroll ownership"
   goal:
     observable: "The full audit trail is readable; every tool call is inspectable inline; usage is truthful; status glyphs match reality (no false success/danger)"
     side_effects: [transcript-paged, clear-persisted]

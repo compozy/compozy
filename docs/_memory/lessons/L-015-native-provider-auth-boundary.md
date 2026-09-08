@@ -41,9 +41,7 @@ Provider authentication must declare ownership before secrets are considered:
 
 Environment and home policy are part of the same boundary. `env_policy` defines what daemon
 environment reaches the child, and `home_policy` defines whether native CLI state comes from the
-operator home or a Compozy-owned provider home. Do not add compatibility aliases or optional native
-slots to bridge the models; use one hard contract and update code, API, web, docs, and tests
-together.
+operator home or a Compozy-owned provider home. Keep one internal auth ownership model; public config renames translate at the boundary for the SD-013 deprecation window. Update the affected code, API, web, docs, and tests together without introducing optional native secret slots.
 
 Harnesses and adapters are transport choices, not auth ownership. A provider should become
 `bound_secret` because it has explicit `credential_slots`, not because it uses `pi_acp`; the direct

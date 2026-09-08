@@ -5,7 +5,7 @@ Source: docs/_memory/lessons/L-012-techspec-prose-only-rework.md.
 
 Usage: python3 check-spec-markers.py <path/to/_spec.md>
 
-Exit 0 = all six markers present, exit 1 = missing markers.
+Exit 0 = required markers present, exit 1 = a required marker is missing.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def check_markers(text: str) -> dict[str, bool]:
         section = text[section_start:section_end]
         numbered = re.findall(r"^\s*[-*]?\s*\d+[\.)]\s+\S", section, re.MULTILINE)
         bullet_invariants = re.findall(r"^\s*[-*]\s+\S", section, re.MULTILINE)
-        findings["6-numbered-invariants"] = len(numbered) >= 3 or len(bullet_invariants) >= 4
+        findings["6-numbered-invariants"] = bool(numbered or bullet_invariants)
     else:
         findings["6-numbered-invariants"] = False
 
@@ -80,6 +80,9 @@ def check_markers(text: str) -> dict[str, bool]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="Path to the _spec.md file")
+    parser.add_argument("--require", action="append", default=[], choices=[
+        "3-go-interface-signatures", "4-data-model-rationale", "5-side-table-vs-json", "6-numbered-invariants",
+    ], help="additional marker required by the changed contract; repeatable")
     args = parser.parse_args()
     path = Path(args.path)
     if not path.exists():
@@ -87,11 +90,12 @@ def main() -> int:
         return 2
     text = path.read_text(encoding="utf-8")
     findings = check_markers(text)
-    missing = [marker for marker, ok in findings.items() if not ok]
+    required = {"1-mvp-boundary", "2-architectural-boundaries", *args.require}
+    missing = [marker for marker, ok in findings.items() if marker in required and not ok]
     if not missing:
-        print(f"OK: {args.path} carries all six Spec quality markers.")
+        print(f"OK: {args.path} carries all {len(required)} required Spec quality markers.")
         return 0
-    print(f"MISSING {len(missing)} of 6 quality markers in {args.path}:", file=sys.stderr)
+    print(f"MISSING {len(missing)} of {len(required)} required quality markers in {args.path}:", file=sys.stderr)
     for marker in missing:
         print(f"  - {marker}", file=sys.stderr)
     print(

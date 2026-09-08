@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { CompozyPermissionData } from "../../types";
+import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
+import type { CompozyPermissionData, SessionInteractionRecord } from "../../types";
 import { PermissionDataPart } from "../permission-data-part";
 
 const basePermissionData: CompozyPermissionData = {
@@ -14,6 +15,51 @@ const basePermissionData: CompozyPermissionData = {
   resource: "rm -rf /tmp/test",
   raw: { tool_input: { command: "rm -rf /tmp/test" } },
 };
+
+const terminalExecData: CompozyPermissionData = {
+  ...basePermissionData,
+  title: "compozy__terminal_exec",
+  raw: {
+    tool_id: "compozy__terminal_exec",
+    tool_input: {
+      command: "rm",
+      args: ["-rf", "/var/lib/atlas/journal-backups"],
+      cwd: "~/dev/atlas-api",
+      risk: "ordinary",
+    },
+  },
+};
+
+/** The daemon's resolved interaction row — the only evidence of who decided. */
+function resolvedRow(
+  resolvedBy: string,
+  overrides: Partial<SessionInteractionRecord> = {}
+): SessionInteractionRecord {
+  return {
+    interaction_id: "int-123",
+    kind: "permission",
+    provider_request_id: "req-123",
+    turn_id: "turn-001",
+    status: "resolved",
+    created_at: "2026-09-05T10:00:00Z",
+    resolved_at: "2026-09-05T10:02:00Z",
+    resolution: "reject-once",
+    resolved_by: resolvedBy,
+    ...overrides,
+  };
+}
+
+function renderWithResolvedRow(data: CompozyPermissionData, row: SessionInteractionRecord) {
+  return render(
+    <SessionRuntimeRenderProvider
+      resolvedInteractions={new Map([[row.provider_request_id, row]])}
+      sessionId="sess-001"
+      workspaceId="ws_alpha"
+    >
+      <PermissionDataPart data={data} />
+    </SessionRuntimeRenderProvider>
+  );
+}
 
 describe("PermissionDataPart", () => {
   it("Should render nothing for a pending generic permission — the composer dock owns the ask", () => {
@@ -69,16 +115,23 @@ describe("PermissionDataPart", () => {
     );
   });
 
-  it("Should leave a rejected receipt in the board's plain register", () => {
-    render(<PermissionDataPart data={{ ...basePermissionData, decision: "reject-once" }} />);
+  it("Should leave a rejected receipt in the board's plain register once the daemon says you answered", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-once" },
+      resolvedRow("operator")
+    );
 
     const receipt = screen.getByTestId("permission-rejected-notice");
     expect(receipt).toHaveAttribute("data-tone", "rejected");
+    expect(receipt).toHaveAttribute("data-actor", "you");
     expect(receipt).toHaveTextContent("Not allowed by you · Bash — rm -rf /tmp/test");
   });
 
   it("Should phrase a reject-always receipt as a project-and-agent refusal", () => {
-    render(<PermissionDataPart data={{ ...basePermissionData, decision: "reject-always" }} />);
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-always" },
+      resolvedRow("operator:control", { resolution: "reject-always" })
+    );
 
     expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
       "Not allowed by you · Bash for this project and this agent — rm -rf /tmp/test"
@@ -86,27 +139,120 @@ describe("PermissionDataPart", () => {
   });
 
   it("Should say a refused terminal command did not run", () => {
-    render(
-      <PermissionDataPart
-        data={{
-          ...basePermissionData,
-          decision: "reject-once",
-          title: "compozy__terminal_exec",
-          raw: {
-            tool_id: "compozy__terminal_exec",
-            tool_input: {
-              command: "rm",
-              args: ["-rf", "/var/lib/atlas/journal-backups"],
-              cwd: "~/dev/atlas-api",
-              risk: "ordinary",
-            },
-          },
-        }}
-      />
+    renderWithResolvedRow(
+      { ...terminalExecData, decision: "reject-once" },
+      resolvedRow("operator")
     );
 
     expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
       "Not allowed by you · rm -rf /var/lib/atlas/journal-backups did not run"
+    );
+  });
+
+  it("Should not blame you for a refusal the daemon never attributed", () => {
+    render(<PermissionDataPart data={{ ...terminalExecData, decision: "reject-once" }} />);
+
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-actor", "unknown");
+    expect(receipt).toHaveTextContent(
+      "Not allowed · rm -rf /var/lib/atlas/journal-backups did not run"
+    );
+    expect(receipt).not.toHaveTextContent("by you");
+  });
+
+  it("Should keep a refusal neutral when the row names an actor the Web does not know", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-always" },
+      resolvedRow("bridge:acme", { resolution: "reject-always" })
+    );
+
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-actor", "unknown");
+    expect(receipt).toHaveTextContent(
+      "Not allowed · Bash for this project and this agent — rm -rf /tmp/test"
+    );
+  });
+
+  it("Should attribute a timed-out ask to the timeout, never to you or the provider", () => {
+    renderWithResolvedRow({ ...terminalExecData, decision: "reject-once" }, resolvedRow("timeout"));
+
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-tone", "rejected");
+    expect(receipt).toHaveAttribute("data-decision", "reject-once");
+    expect(receipt).toHaveAttribute("data-actor", "timeout");
+    expect(receipt).toHaveTextContent(
+      "Timed out before anyone answered · rm -rf /var/lib/atlas/journal-backups did not run"
+    );
+    expect(receipt).not.toHaveTextContent(/by you|provider/);
+  });
+
+  it("Should name the timeout on a generic tool with its subject", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-once" },
+      resolvedRow("timeout")
+    );
+
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Timed out before anyone answered · Bash — rm -rf /tmp/test"
+    );
+  });
+
+  it("Should name the runtime, not you, when the row says the provider decided", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "allow-once" },
+      resolvedRow("provider", { resolution: "allow-once" })
+    );
+
+    const allowed = screen.getByTestId("permission-allowed-receipt");
+    expect(allowed).toHaveAttribute("data-actor", "runtime");
+    expect(allowed).toHaveTextContent("Allowed by the runtime · Bash once — rm -rf /tmp/test");
+    expect(allowed).not.toHaveTextContent(/asking|by you/);
+  });
+
+  it("Should attribute a provider-gated refusal to the runtime without claiming a question was shown", () => {
+    renderWithResolvedRow(
+      { ...terminalExecData, decision: "reject-once" },
+      resolvedRow("provider")
+    );
+
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Not allowed by the runtime · rm -rf /var/lib/atlas/journal-backups did not run"
+    );
+  });
+
+  it("Should credit another agent's native approval without claiming it was you", () => {
+    renderWithResolvedRow(
+      { ...terminalExecData, decision: "allow-always" },
+      resolvedRow("agent_session:sess-reviewer", { resolution: "allow-always" })
+    );
+
+    const allowed = screen.getByTestId("permission-allowed-receipt");
+    expect(allowed).toHaveAttribute("data-actor", "agent");
+    expect(allowed).toHaveTextContent(
+      "Allowed by another agent · rm -rf /var/lib/atlas/journal-backups for this project and this agent"
+    );
+  });
+
+  it("Should keep an allow by you in the board's bare shape", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "allow-once" },
+      resolvedRow("operator", { resolution: "allow-once" })
+    );
+
+    const allowed = screen.getByTestId("permission-allowed-receipt");
+    expect(allowed).toHaveAttribute("data-actor", "you");
+    expect(allowed).toHaveTextContent("Allowed Bash once — rm -rf /tmp/test");
+  });
+
+  it("Should ignore a row that is not a resolved decision when attributing", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-once" },
+      resolvedRow("operator", { status: "canceled", resolution: "operator-cleared" })
+    );
+
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveAttribute(
+      "data-actor",
+      "unknown"
     );
   });
 

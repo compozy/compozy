@@ -25,9 +25,6 @@ func (s *subscription) Resize(cols, rows uint16) error {
 	if s.mode != terminalAccessWrite {
 		return fmt.Errorf("terminal resize requires a write attachment: %w", ErrWriteAttachmentRequired)
 	}
-	if err := s.session.lease.authorize(s.actor); err != nil {
-		return err
-	}
 	if cols == 0 || rows == 0 {
 		return nil
 	}

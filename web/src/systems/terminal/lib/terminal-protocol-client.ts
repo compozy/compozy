@@ -6,9 +6,8 @@
  * parsed what it was given, resynchronising from a server snapshot after a gap,
  * and reconnecting with jittered backoff.
  *
- * It owns no rendering and no lease policy. The emulator is reached through a
- * sink, and lease state is reported exactly as the daemon's OWNER frames state
- * it — this client never infers who holds the write lease.
+ * It owns no rendering or authorization policy. The emulator is reached
+ * through a sink, while the attach mode decides whether local input is sent.
  */
 
 import { readTerminal } from "../adapters/terminal-api";
@@ -29,7 +28,6 @@ import {
   createTerminalFrameConsumers,
   type TerminalFrameConsumers,
 } from "./terminal-frame-consumers";
-import { TerminalLeaseRequests } from "./terminal-lease-requests";
 import { TerminalReplayState } from "./terminal-replay-state";
 import type {
   TerminalAttachedFrame,
@@ -65,7 +63,6 @@ export class TerminalProtocolClient {
    */
   private ended = false;
   private attempt = 0;
-  private readonly leaseRequests = new TerminalLeaseRequests();
   private readonly replay = new TerminalReplayState();
   private readonly sender = new TerminalCommandSender({
     // A socket that has not opened yet cannot carry a frame; handing it out
@@ -134,10 +131,8 @@ export class TerminalProtocolClient {
     const socket = this.socket;
     this.socket = null;
     this.socketOpen = false;
-    this.leaseRequests.clear();
     if (socket) {
-      // Exactly one DETACH per attachment. Releasing control already sent it,
-      // and a second would detach a lease this client no longer holds.
+      // Exactly one DETACH per attachment.
       this.sender.detachOnClose(socket);
       detachTerminalStreamHandlers(socket);
       socket.close(1000, "detached");
@@ -153,31 +148,12 @@ export class TerminalProtocolClient {
 
   proposeDimensions(cols: number, rows: number): void {
     this.sender.recordProposal(cols, rows);
-    // Watchers never vote on the wire: the daemon sizes by its writers, and an
-    // observer's RESIZE would only be refused (ADR-009/ADR-015).
+    // Read-only presentation attachments do not resize the shared PTY.
     if (this.options.mode === "write") this.sender.flushProposal();
   }
 
   sendSignal(signal: TerminalSignal): void {
     this.sender.signal(signal);
-  }
-
-  /** Claims the write lease. `force` skips the human-vs-human confirmation. */
-  requestTakeover(force: boolean): void {
-    if (this.stopped) return;
-    this.leaseRequests.requestTakeover(force);
-    this.flushLeaseRequest();
-  }
-
-  /** Gives the write lease back and waits for the daemon's `OWNER` frame. */
-  releaseControl(): void {
-    if (this.stopped) return;
-    this.leaseRequests.requestRelease();
-    this.flushLeaseRequest();
-  }
-
-  private flushLeaseRequest(): void {
-    this.leaseRequests.flush(this.socketOpen, this.sender);
   }
 
   private setStatus(status: TerminalStreamStatus): void {
@@ -254,7 +230,6 @@ export class TerminalProtocolClient {
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.socketOpen = true;
-      this.flushLeaseRequest();
       // Any size measured while this connection was opening goes out now.
       if (this.options.mode === "write") this.sender.flushProposal();
     };
@@ -267,9 +242,7 @@ export class TerminalProtocolClient {
       // Anything still in flight belongs to a connection that no longer exists.
       this.connectionEpoch += 1;
       this.setInputEnabled(false);
-      // A detached client asked to be closed. Reconnecting here would reclaim
-      // the write lease it just handed back, before the watcher attachment that
-      // replaces it has even been created.
+      // A detached client asked to be closed.
       if (this.sender.detachSent) return;
       if (this.ended) {
         this.setStatus("closed");
@@ -334,7 +307,6 @@ export class TerminalProtocolClient {
     try {
       dispatchTerminalControlFrame(op, payload, {
         onAttached: frame => this.applyAttached(frame),
-        onOwner: frame => handlers?.onLease?.(frame),
         onPresence: frame => handlers?.onPresence?.(frame),
         onRedactedInput: frame => this.consumers.redactedInput.consume(frame),
         onTitle: title => handlers?.onTitle?.(title),

@@ -104,6 +104,8 @@ type handlerConfig struct {
 	httpPort            int
 	resourceAuth        []gin.HandlerFunc
 	extensions          ExtensionService
+
+	onProviderAuthSuccess func()
 }
 
 // Handlers expose request/response and SSE endpoints for the Compozy API.
@@ -228,6 +230,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		ApprovalCoordinator:    cfg.approvalCoordinator,
 		CmdPalette:             cfg.cmdPalette,
 		Clarify:                cfg.clarify,
+		OnProviderAuthSuccess:  cfg.onProviderAuthSuccess,
 		Settings:               cfg.settings,
 		SettingsRestart:        cfg.settingsRestart,
 		SettingsUpdate:         cfg.settingsUpdate,

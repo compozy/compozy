@@ -55,6 +55,9 @@ func (m *Manager) activateAcceptedLogicalSession(accepted *acceptedSessionStart)
 	accepted.storage = storage
 	accepted.session.setRecorder(storage.recorder)
 	accepted.run.signalRecorderReady()
+	if err := m.projectInputClearTraces(ctx, accepted.session); err != nil {
+		return m.discardLogicalSessionStart(accepted, fmt.Errorf("session: project queue clear traces: %w", err))
+	}
 
 	runtime := accepted.runtime
 	if err := m.prepareAcceptedSessionDefinition(ctx, accepted.spec, &runtime, m.now()); err != nil {

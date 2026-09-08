@@ -72,11 +72,14 @@ var (
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
 		"limits.max_concurrent_agents":                             ConfigValueInt,
 		"session.limits.timeout":                                   ConfigValueDuration,
+		"session.stop.cooperative_grace":                           ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":          ConfigValueDuration,
 		"session.supervision.progress_notify_interval":             ConfigValueDuration,
 		"session.supervision.prompt_deadline":                      ConfigValueDuration,
 		"session.supervision.inactivity_warning_after":             ConfigValueDuration,
 		"session.supervision.inactivity_timeout":                   ConfigValueDuration,
+		"session.supervision.quiet_after":                          ConfigValueDuration,
+		"session.supervision.stop_grace":                           ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":                 ConfigValueDuration,
 		"session.busy_input.default_mode":                          ConfigValueString,
 		"session.busy_input.queue_cap":                             ConfigValueInt,
@@ -197,6 +200,7 @@ func RedactedConfigMap(cfg *Config) map[string]any {
 	if !ok {
 		return map[string]any{}
 	}
+	addQuietCompatibilityView(cfg, values)
 	return values
 }
 
@@ -301,6 +305,7 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 			"auth_mode",
 			"env_policy",
 			"home_policy",
+			"steer_capability",
 			"auth_status_command":
 			policy.Kind = ConfigValueString
 			return policy, nil

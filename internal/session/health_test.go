@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -802,6 +803,7 @@ func TestManagerSessionHealthErrorPaths(t *testing.T) {
 		baseAt := time.Date(2026, 5, 2, 14, 55, 0, 0, time.UTC)
 		clock := newSessionHealthTestClock(baseAt)
 		h := newHarness(t, WithNow(clock.Now))
+		useExitedProcessForHealthRecovery(t, h)
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
@@ -844,6 +846,7 @@ func TestManagerSessionHealthRecovery(t *testing.T) {
 			WithSessionHealthStore(healthStore),
 			WithSessionHealthConfig(compozyconfig.HeartbeatConfig{SessionHealthStaleAfter: time.Minute}),
 		)
+		useExitedProcessForHealthRecovery(t, h)
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
@@ -1071,6 +1074,26 @@ func TestManagerSessionHealthPromptPermissionBoundary(t *testing.T) {
 type sessionHealthTestClock struct {
 	mu  sync.Mutex
 	now time.Time
+}
+
+// useExitedProcessForHealthRecovery supplies real exit evidence at the fake driver boundary.
+func useExitedProcessForHealthRecovery(t *testing.T, h *harness) {
+	t.Helper()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Now().UTC()
+	cmd := exec.CommandContext(testutil.Context(t), binary, "-test.run=^$")
+	cmd.Env = append(os.Environ(), "COMPOZY_TEST_SESSION_STOP_HELPER=1")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run exit identity fixture: %v", err)
+	}
+	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-health-recovery")
+		proc.handle.PID, proc.handle.StartedAt = cmd.Process.Pid, startedAt
+		return proc, nil
+	}
 }
 
 func newSessionHealthTestClock(now time.Time) *sessionHealthTestClock {

@@ -20,11 +20,7 @@ Eliminated as causes (checked 2026-07-09): daemon singleton lock uses `flock.Try
 
 ## Operationalization
 
-- `Verify()` (magefile) acquires `~/Library/Caches/compozy-dev/verify.lock` (`os.UserCacheDir()`-based) before running steps; a queued run prints `make verify is queued: pid N (worktree X) holds the machine-wide verify lock` every 15s. Lock release is automatic on process exit (kernel flock), so a crashed holder never wedges the queue.
-- The lock is capacity management, not correctness: every failure path (no cache dir, flock error) warns and proceeds. `COMPOZY_VERIFY_LOCK=off` bypasses for single-checkout machines (CI runners don't contend anyway).
-- Agents seeing the queue message must wait, not kill: a queued verify is working as designed. During iteration, scoped lanes (`make lint` + scoped `go test`, turbo `--filter`) remain the concurrency-friendly path — the queue only serializes the machine-sized gates (verify and the E2E lanes, which share the lock).
-- Scoped lanes are bounded instead of locked: the unit lane budgets combined `go test -p` × `-parallel` concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and every Vitest project caps `maxWorkers` at 50%, so iteration in one worktree stays safe next to another worktree's work.
-- Helpers live in `magefiles/verifylock.go`; suite: `magefiles/verifylock_test.go` (`go test -tags mage -race ./magefiles`).
+Use `make gate` and affected suites for ordinary iteration. Local full/E2E runs share the machine lock implemented in `magefiles/verifylock.go`; a queued run is working as designed and is not killed as hung. The existing `magefiles/verifylock_test.go` suite owns lock behavior. Capacity defaults belong in tooling, not a second prose configuration.
 
 ## Detection signals
 

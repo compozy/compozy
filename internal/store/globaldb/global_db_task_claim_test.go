@@ -4020,6 +4020,39 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistPostReserveGenera
 func TestGlobalDBGenerationSuccessionObservabilityCoverageMatrix(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should emit one start when reservation rewrites the same initial generation", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 9, 5, 3, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-same-generation-start", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, run.ID, "run-same-generation-start", now)
+		snapshot := taskpkg.GenerationSnapshot{LoopRunID: string(run.ID), Generation: 1}
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken, Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: snapshot, PostReserveSnapshot: &snapshot,
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID: claim.Run.TaskID, RunID: "run-same-generation-followup",
+					RunKind: taskpkg.RunKindCoordinator, LoopRunID: string(run.ID),
+					IdempotencyKey: "same-generation-followup",
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		assertLoopLifecycleEventCounts(ctx, t, globalDB, run.ID, 1, 0)
+	})
+
 	t.Run(
 		"Should persist exactly one provenance row and generation event for every successor origin",
 		func(t *testing.T) {
@@ -8297,12 +8330,43 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if !outputRef.Valid || outputRef.String != wantRef {
 			t.Fatalf("output_ref = %#v, want %q", outputRef, wantRef)
 		}
+		for generation := 2; generation <= 3; generation++ {
+			if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id
+			) SELECT loop_run_id, ?, node_id, item_index, status, output_ref, task_run_id
+			  FROM loop_generation_outputs
+			  WHERE loop_run_id = ? AND generation = 1 AND node_id = 'summarize' AND item_index = 0`,
+				generation, string(loopRun.ID)); err != nil {
+				t.Fatalf("carry generation output error = %v", err)
+			}
+		}
 
 		databasePath := globalDB.path
 		if err := globalDB.Close(ctx); err != nil {
 			t.Fatalf("Close() before result reload error = %v", err)
 		}
 		globalDB = openGlobalDBForTest(t, databasePath)
+		carriedRun, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(carried after reopen) error = %v", err)
+		}
+		listedRuns, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if err != nil || len(listedRuns) != 1 {
+			t.Fatalf("ListTaskRuns(carried) = %d runs, error = %v", len(listedRuns), err)
+		}
+		terminalRuns, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusCompleted})
+		if err != nil || len(terminalRuns) != 1 {
+			t.Fatalf("ListTaskRunsByStatus(carried) = %d runs, error = %v", len(terminalRuns), err)
+		}
+		for _, run := range []taskpkg.Run{carriedRun, listedRuns[0], terminalRuns[0]} {
+			if run.ResultReference() != wantRef || run.ResultByteCount() != int64(len(resultPayload)) {
+				t.Fatalf("carried result descriptor = %q/%d", run.ResultReference(), run.ResultByteCount())
+			}
+		}
+		carriedPage, err := globalDB.ReadTaskRunResultPage(ctx, claim.Run.ID, pageOffset, pageLimit)
+		if err != nil || carriedPage != page {
+			t.Fatalf("ReadTaskRunResultPage(carried) = %#v, error = %v, want %#v", carriedPage, err, page)
+		}
 
 		owner := looppkg.GenerationOutputPayloadKey{
 			WorkspaceID: loopRun.WorkspaceID,
@@ -8325,7 +8389,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		wrongRun := owner
 		wrongRun.RunID = "looprun-other"
 		wrongGeneration := owner
-		wrongGeneration.Generation = 2
+		wrongGeneration.Generation = 4
 		wrongNode := owner
 		wrongNode.NodeID = "other"
 		wrongItem := owner
@@ -8369,6 +8433,48 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 			taskpkg.ErrTaskRunResultCorrupt,
 		) {
 			t.Fatalf("ReadTaskRunResultPage(corrupt) error = %v, want corrupt result", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx,
+			`UPDATE loop_output_blobs SET payload_json = ? WHERE output_ref = ?`, string(resultPayload), wantRef,
+		); err != nil {
+			t.Fatalf("restore intact output blob error = %v", err)
+		}
+		conflictingPayload := json.RawMessage(`{"status":"different"}`)
+		conflictingRef := looppkg.OutputRefForPayload(conflictingPayload)
+		if _, err := globalDB.db.ExecContext(ctx,
+			`INSERT INTO loop_output_blobs (output_ref, payload_json, byte_size, created_at, last_used_at)
+			 VALUES (?, ?, ?, ?, ?)`,
+			conflictingRef, string(conflictingPayload), len(conflictingPayload), now, now,
+		); err != nil {
+			t.Fatalf("insert conflicting output blob error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx,
+			`UPDATE loop_generation_outputs SET output_ref = ? WHERE loop_run_id = ? AND generation = 3`,
+			conflictingRef, string(loopRun.ID),
+		); err != nil {
+			t.Fatalf("set conflicting carried output error = %v", err)
+		}
+		if _, err := globalDB.GetTaskRun(ctx, claim.Run.ID); !errors.Is(err, taskpkg.ErrTaskRunResultCorrupt) {
+			t.Fatalf("GetTaskRun(conflicting) error = %v, want corrupt result", err)
+		}
+		if _, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID}); !errors.Is(
+			err, taskpkg.ErrTaskRunResultCorrupt,
+		) {
+			t.Fatalf("ListTaskRuns(conflicting) error = %v, want corrupt result", err)
+		}
+		if _, err := globalDB.ListTaskRunsByStatus(
+			ctx,
+			[]taskpkg.RunStatus{taskpkg.TaskRunStatusCompleted},
+		); !errors.Is(
+			err,
+			taskpkg.ErrTaskRunResultCorrupt,
+		) {
+			t.Fatalf("ListTaskRunsByStatus(conflicting) error = %v, want corrupt result", err)
+		}
+		if _, err := globalDB.ReadTaskRunResultPage(ctx, claim.Run.ID, 0, pageLimit); !errors.Is(
+			err, taskpkg.ErrTaskRunResultCorrupt,
+		) {
+			t.Fatalf("ReadTaskRunResultPage(conflicting) error = %v, want corrupt result", err)
 		}
 	})
 }

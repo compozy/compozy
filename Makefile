@@ -66,6 +66,11 @@ test-e2e-nightly:
 codegen:
 	@$(MAGE_RUN) codegen
 
+# Development startup reuses generation only for an unchanged source/artifact tree.
+.PHONY: codegen-dev
+codegen-dev:
+	@bash scripts/gate.sh generate
+
 codegen-check:
 	@$(MAGE_RUN) codegenCheck
 
@@ -107,7 +112,7 @@ demo-seed:
 # through the active COMPOZY_HOME. Quitting the app or pressing Ctrl-C tears
 # the stack down. Shell-only iteration against an already-running daemon:
 # `bun run --cwd desktop dev`.
-desktop-dev: codegen web-build
+desktop-dev: codegen-dev web-build
 	@AIR_VERSION="$(AIR_VERSION)" bash scripts/desktop-dev.sh
 
 desktop-build:
@@ -216,7 +221,7 @@ qa-reap:
 # daemon web routes redirect to Vite, and Air owns every later rebuild/restart.
 .PHONY: start stop restart dev dev-daemon
 
-dev: codegen
+dev: codegen-dev
 	@AIR_VERSION="$(AIR_VERSION)" bash scripts/dev.sh
 
 dev-daemon:

@@ -197,6 +197,15 @@ func newSchedulerRuntime(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create scheduler: %w", err)
 	}
+	manager.SetSchedulerCountersReader(func() taskpkg.SchedulerCounters {
+		stats := scheduler.Stats()
+		return taskpkg.SchedulerCounters{
+			Cycles: stats.Cycles, WakeAttempts: stats.WakeAttempts, WakeSkipped: stats.WakeSkipped,
+			WakeSucceeded: stats.WakeSucceeded, WakeFailed: stats.WakeFailed,
+			CapacityWaitingRuns: stats.CapacityWaitingRuns, SpawnRequested: stats.SpawnRequested,
+			NeedsAttention: stats.NeedsAttention, LastCycleAt: stats.LastCycleAt,
+		}
+	})
 	return &schedulerRuntime{scheduler: scheduler, waker: waker}, nil
 }
 
@@ -225,6 +234,9 @@ func (a escalationActorAdapter) EmitRunStarved(
 	work *schedulerpkg.RunSnapshot,
 	age time.Duration,
 ) error {
+	if work.CapacityReason != "" {
+		return a.manager.RecordCapacityWaitingEscalated(ctx, work.Run.ID, age, work.CapacityReason, a.actor)
+	}
 	return a.manager.RecordRunStarved(ctx, work.Run.ID, work.Run.QueuedAt, age, a.actor)
 }
 

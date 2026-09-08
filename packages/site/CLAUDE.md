@@ -1,65 +1,32 @@
-# CLAUDE.md (packages/site)
+# Documentation Site
 
-Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Velite blog content, Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
+Fumadocs/Next.js site at `compozy.com`, with Velite blog content and Bun workspaces. Root `CLAUDE.md` owns compatibility, test placement, and delivery.
 
-## Critical Rules
+## Content and UI
 
-- **Tokens from `packages/ui/src/tokens.css` + generated `DESIGN.md`** — no invented values. Site-only layout/type extensions go in `packages/site/app/global.css` `@theme inline`. After changing runtime/site theme tokens run `make codegen` + `make codegen-check`; never hand-edit generated `DESIGN.md` regions.
-- **Eyebrow markup is mandatory** for every structural micro-label: `<Eyebrow>` from `@compozy/ui` (children, `className`, and the opt-in `variant="caps"` — nothing else) **or** the `eyebrow` utility class (`packages/ui/src/tokens-runtime.css`) on structural elements; tone via `className`. Contract **Geist sentence case 12/510/-0.005em**; uppercase is opt-in through `variant="caps"`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility). Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
-- **Product language from `COPY.md`** — landing copy, blog/changelog, docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
-- **Hero lock:** the landing hero ships the `COPY.md` §2 Hero Lock verbatim (headline + subhead + small category label) — never paraphrase or relock it here. The retired "only true OS" hero and its OS-test definition must not reappear on any surface.
-- **`packages/site` ships in the same PR as backend contract changes** that affect documented APIs/CLI verbs (per the `internal/api/contract` co-ship rule).
-- **Test placement before any site test.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites first. No prose-string/snapshot/generated/file-existence tests unless that artifact is the product contract and no stronger gate exists.
+- Read `COPY.md` for public language and its Hero Lock; the landing hero stays verbatim. Canonical vocabulary comes from `docs/_memory/glossary.md`.
+- Document supported runtime behavior. Label RFC-only behavior as a future profile. Generated API/CLI references come from `openapi/compozy.json` and Cobra sources; repair those sources instead of hand-editing generated pages.
+- Co-ship affected site docs with backend contracts, including SD-013 compatibility/deprecation guidance. Changelog pages preserve full published GitHub Release notes from `v0.3.0-beta.1`, including categories, PR evidence, contributors, and assets.
+- Reuse `@compozy/ui`; tokens and generated `DESIGN.md` own visual values. Site-only extensions live in `app/global.css` `@theme inline`. Token changes run `make codegen` and `make codegen-check`.
+- Structural micro-labels use `Eyebrow` or the `eyebrow` utility; casing and typography follow its token contract.
+- MDX docs live in `content/docs/`, network protocol docs under `content/docs/network/protocol/`, blog posts under `content/blog/posts/`, and authors under `content/blog/authors/`. Preserve existing metadata and syntax-highlighting conventions.
+- Use kebab-case files, named exports, functional components, strict types, and `@/*` imports. Generated `.source/`, `.velite/`, `out/`, `.next/`, and `tsconfig.tsbuildinfo` are not committed.
 
-## Build Commands
+## References and Validation
+
+Use `fumadocs` or `next-best-practices` for framework-specific work, `documentation-writer` for substantial doc structure, `copywriting` for marketing, and `eng-design` for redesign. Load only the relevant procedure; ordinary prose edits need no whole skill stack.
+
+Choose the existing content/route/component suite that owns changed behavior. Source generation, build, metadata, and link checks often cover editorial changes without a new Vitest test. Frontend validation runs through Turbo from the repo root:
 
 ```bash
-# Turbo-backed validation from the repo root:
-make bun-typecheck / bun-test                       # full Bun workspace typecheck / test
-bunx turbo run typecheck|test|build --filter=./packages/site   # focused @compozy/site
-
-# Generators + local dev:
-cd packages/site && bun run source:generate         # Fumadocs MDX -> .source/
-cd packages/site && bun run content:generate        # Velite MDX/YAML -> .velite/
-cd packages/site && bun run dev  (or make site-dev)  # next dev (predev runs both generators)
-make cli-docs / make cli-docs-check                  # regenerate / verify the Cobra CLI reference
+bunx turbo run typecheck --filter=./packages/site
+bunx turbo run test --filter=./packages/site
+bunx turbo run build --filter=./packages/site
+make cli-docs
+make cli-docs-check
 ```
 
-`predev` and direct builds run `generate`; Turbo-backed build/typecheck/test reuse the cacheable `generate:openapi → generate:content` graph. `.source/`, `.velite/`, `out/`, `.next/`, `tsconfig.tsbuildinfo` are generated — never commit them.
-
-## Skill Dispatch
-
-| Domain                        | Required Skills                          | Conditional Skills            |
-| ----------------------------- | ---------------------------------------- | ----------------------------- |
-| Fumadocs page authoring       | `documentation-writer`                   | `context7`                    |
-| Marketing / landing copy      | `copywriting` + `documentation-writer`   | `seo-audit` + `ui-craft`      |
-| Site UI / components          | `eng-design` + `ui-craft` + `impeccable` | `eng-ui-screenshot`           |
-| Diagrams (architecture, flow) | `mermaid-diagrams`                       |                               |
-| Next.js / SSR / app router    | `next-best-practices`                    | `vercel-react-best-practices` |
-| Tailwind v4 styling           | `tailwindcss`                            |                               |
-| TanStack (when used in site)  | `tanstack`                               |                               |
-| Site testing                  | `eng-consolidate-test-suites` + `vitest` | `testing-boss`                |
-
-## Coding Style
-
-- TypeScript strict (no `any` when the concrete type is known). Functional React components only — no `React.FC`; named exports; kebab-case files; `@/*` alias.
-- MDX lives under `content/docs/` (Fumadocs, single tree; protocol spec nests at `content/docs/network/protocol/`) and `content/blog/` (Velite). CLI docs auto-generate under `content/docs/cli/`, API docs under `content/docs/api/` — never hand-edit generated pages; edit the Cobra command source or `openapi/compozy.json`.
-- Blog layout: `content/blog/posts/<slug>.mdx` and `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
-- Pages need `<title>` + meta via Fumadocs metadata helpers. Code blocks use the project syntax-highlight theme — no new variants.
-
-## Truthful Docs > Plausible Docs
-
-- Document only behavior the runtime supports today. When the Compozy Network RFC differs from the daemon, docs follow the daemon and link the RFC as "future profile".
-- API/CLI references are generated from `openapi/compozy.json` + the Cobra command tree — never paraphrase; if the generated reference is wrong, fix the source.
-- Changelog pages read published GitHub Releases from `v0.3.0-beta.1`; preserve their full notes, categories, pull-request evidence, contributors, and assets.
-
-## Testing
-
-Use `eng-consolidate-test-suites` before adding/moving a site test (record invariant, owning layer, canonical suite, verification command). A docs/site task needs a test _decision_, not automatic Vitest coverage — "no new test" is valid when source generation, route metadata, `make codegen-check`, build, or link checks already own the invariant. Validation MUST run through Turbo (`bunx turbo run test --filter=./packages/site` or `make bun-test`), never `cd packages/site && bun run test`. After changing `source.config.ts`, regenerate and re-run the focused typecheck.
-
-## Cross-References
-
-Root: `/CLAUDE.md`. Web runtime UI: `/web/CLAUDE.md`. Design tokens: `/packages/ui/src/tokens.css` → `/DESIGN.md`; site theme: `/packages/site/app/global.css`. Copy: `/COPY.md`. Memory/glossary/directives: `/docs/_memory/`.
+`make gate` selects required delivery lanes. The Turbo `generate:openapi → generate:content` graph owns generation; local `make site-dev` runs dev generators. After `source.config.ts` changes, regenerate and run the focused typecheck. Reuse current check results for unchanged inputs.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

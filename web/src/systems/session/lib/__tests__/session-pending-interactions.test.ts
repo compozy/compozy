@@ -1,13 +1,23 @@
 // Suite: session-pending-interactions
 // Invariant: the needs-you reason quotes the newest pending interaction, prefers
-// a permission over a later question, and rewrites a terminal tool-id title to
-// the board's verb without inventing a command the projection does not carry.
+// a permission over a later question, and rewrites only terminal actions with
+// dedicated approval copy.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
 import { sessionRuntime } from "../../mocks/fixtures";
-import type { SessionPayload, SessionPendingInteraction } from "../../types";
-import { pendingInteractionReason } from "../session-pending-interactions";
+import type {
+  SessionInteractionRecord,
+  SessionPayload,
+  SessionPendingInteraction,
+} from "../../types";
+import {
+  expiredInteractionsByRequest,
+  interactionExpiredByRestart,
+  pendingInteractionReason,
+  permissionDecisionActor,
+  resolvedInteractionsByRequest,
+} from "../session-pending-interactions";
 
 function interaction(
   overrides: Partial<SessionPendingInteraction> & Pick<SessionPendingInteraction, "kind">
@@ -23,6 +33,7 @@ function interaction(
 
 function sessionWith(rows: SessionPendingInteraction[]): SessionPayload {
   return {
+    supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id: "sess-1",
@@ -87,10 +98,110 @@ describe("pendingInteractionReason", () => {
           }),
         ])
       )
-    ).toBe("wants to type");
+    ).toBe("Terminal Write");
   });
 
   it("Should return null when nothing is pending", () => {
     expect(pendingInteractionReason(sessionWith([]))).toBeNull();
+  });
+});
+
+describe("expiredInteractionsByRequest", () => {
+  function record(overrides: Partial<SessionInteractionRecord>): SessionInteractionRecord {
+    return {
+      interaction_id: "int-1",
+      kind: "permission",
+      provider_request_id: "req-1",
+      status: "canceled",
+      created_at: "2026-09-05T10:00:00Z",
+      resolution: "failed-by-restart",
+      resolved_by: "system",
+      ...overrides,
+    };
+  }
+
+  it("Should key only canceled rows by the provider request id the transcript carries", () => {
+    const restartExpired = record({});
+    const rows = [
+      restartExpired,
+      record({ interaction_id: "int-2", provider_request_id: "req-2", status: "resolved" }),
+      record({ interaction_id: "int-3", provider_request_id: "req-3", status: "timed_out" }),
+      record({ interaction_id: "int-4", provider_request_id: "req-4", status: "pending" }),
+      record({ interaction_id: "int-5", provider_request_id: "  " }),
+    ];
+
+    const expired = expiredInteractionsByRequest(rows);
+
+    expect([...expired.keys()]).toEqual(["req-1"]);
+    expect(expired.get("req-1")).toBe(restartExpired);
+  });
+
+  it("Should key only resolved rows by the provider request id for attribution", () => {
+    const decided = record({
+      status: "resolved",
+      resolution: "reject-once",
+      resolved_by: "timeout",
+    });
+    const rows = [
+      decided,
+      record({ interaction_id: "int-2", provider_request_id: "req-2" }),
+      record({ interaction_id: "int-3", provider_request_id: "req-3", status: "timed_out" }),
+      record({ interaction_id: "int-4", provider_request_id: " ", status: "resolved" }),
+    ];
+
+    const resolved = resolvedInteractionsByRequest(rows);
+
+    expect([...resolved.keys()]).toEqual(["req-1"]);
+    expect(resolved.get("req-1")).toBe(decided);
+  });
+
+  it("Should never let a resolved clarification sharing the request id overwrite the permission", () => {
+    const permission = record({
+      interaction_id: "int-perm",
+      status: "resolved",
+      resolution: "reject-once",
+      resolved_by: "timeout",
+    });
+    const clarification = record({
+      interaction_id: "int-clar",
+      kind: "clarify",
+      status: "resolved",
+      resolution: "Fast",
+      resolved_by: "operator",
+    });
+
+    expect(resolvedInteractionsByRequest([permission, clarification]).get("req-1")).toBe(
+      permission
+    );
+    expect(resolvedInteractionsByRequest([clarification, permission]).get("req-1")).toBe(
+      permission
+    );
+    expect(resolvedInteractionsByRequest([clarification]).has("req-1")).toBe(false);
+  });
+
+  it("Should read the daemon's resolved_by actor without inventing one", () => {
+    const resolved = (resolvedBy: string, status = "resolved") =>
+      permissionDecisionActor(
+        record({ status, resolution: "reject-once", resolved_by: resolvedBy })
+      );
+
+    expect(resolved("operator")).toBe("you");
+    expect(resolved("operator:control")).toBe("you");
+    expect(resolved("agent_session:sess-reviewer")).toBe("agent");
+    expect(resolved("timeout")).toBe("timeout");
+    expect(resolved("provider")).toBe("runtime");
+    expect(resolved("system")).toBe("runtime");
+    expect(resolved("")).toBe("unknown");
+    expect(resolved("bridge:acme")).toBe("unknown");
+    expect(resolved("operator", "canceled")).toBe("unknown");
+    expect(permissionDecisionActor(undefined)).toBe("unknown");
+  });
+
+  it("Should attribute a canceled row to the restart only when the daemon says so", () => {
+    expect(interactionExpiredByRestart(record({}))).toBe(true);
+    expect(
+      interactionExpiredByRestart(record({ kind: "clarify", resolution: "", resolved_by: "" }))
+    ).toBe(false);
+    expect(interactionExpiredByRestart(record({ status: "resolved" }))).toBe(false);
   });
 });

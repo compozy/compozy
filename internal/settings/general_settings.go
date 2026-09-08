@@ -8,6 +8,7 @@ import (
 
 // GeneralSettings groups the editable general section config.
 type GeneralSettings struct {
+	FollowUpMode   *string
 	Limits         compozyconfig.LimitsConfig
 	Permissions    compozyconfig.PermissionsConfig
 	SessionTimeout time.Duration
@@ -19,6 +20,7 @@ type GeneralSettings struct {
 
 func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
 	return GeneralSettings{
+		FollowUpMode:   new(cfg.Session.BusyInput.Normalize().DefaultMode),
 		Limits:         cfg.Limits,
 		Permissions:    cfg.Permissions,
 		SessionTimeout: cfg.Session.Limits.Timeout,

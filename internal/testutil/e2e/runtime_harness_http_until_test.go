@@ -75,7 +75,7 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should request raw frames for raw session stream helper", func(t *testing.T) {
+	t.Run("Should request bounded raw catch-up for raw session stream helper", func(t *testing.T) {
 		t.Parallel()
 
 		requests := make(chan string, 1)
@@ -105,7 +105,7 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StreamSessionRawHTTPUntil(runtime_progress) error = %v", err)
 		}
-		if got, want := <-requests, "frames=raw"; got != want {
+		if got, want := <-requests, "frames=raw&limit=200"; got != want {
 			t.Fatalf("StreamSessionRawHTTPUntil() raw query = %q, want %q", got, want)
 		}
 		if len(records) != 1 || records[0].Event != "runtime_progress" {

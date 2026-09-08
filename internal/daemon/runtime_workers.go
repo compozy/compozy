@@ -3,11 +3,14 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/retention"
+
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type daemonRuntimeWorkers struct {
+	supervision           *retention.PeriodicWorker
 	autoTitle             *autoTitleRuntime
 	runtimeMemory         *runtimeMemoryMonitor
 	toolArtifacts         *toolspkg.ToolArtifactSweeper
@@ -17,6 +20,9 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	if w.supervision != nil {
+		appendWrappedError(errs, "daemon: shutdown supervision", w.supervision.Shutdown(ctx))
+	}
 	if w.loopReconciler != nil {
 		appendWrappedError(errs, "daemon: shutdown Loop reconciler", w.loopReconciler.Shutdown(ctx))
 	}

@@ -1,40 +1,17 @@
-# Phase → Lessons mapping
+# Selective Lesson Index
 
-Read the matching lessons before authoring. All paths relative to `docs/_memory/lessons/`.
+Read the relevant lesson only when its question occurs; reuse current context. Paths below are relative to `docs/_memory/lessons/`.
 
-## Phase: `spec`
+| Question | Lessons |
+| --- | --- |
+| Product vs technical requirements | L-013 |
+| Missing concrete technical contracts | L-012 |
+| Request/execution lifetime | L-001 |
+| Durable work queue and authoritative ownership | L-003, L-004, L-005 |
+| Deletion, public compatibility, user upgrades | L-006, L-040 and SD-013 |
+| SQLite migrations | L-008, L-021 |
+| Test ownership and useful coverage | L-002, L-007, L-011 |
+| Concurrent QA and teardown | L-009, L-029 |
+| Outcomes and proportional verification | L-036, L-037, L-039 |
 
-Stage 1 — Part I (Product):
-
-- `L-013-prd-must-not-name-implementation.md` — Part I strips frameworks/storage/error codes/file formats.
-
-Stage 2 — Surface + Part II (Technical):
-
-- `L-001-detached-prompt-lifetime.md` — request lifetime ≠ execution lifetime.
-- `L-003-task-runs-single-queue.md` — no parallel queue alongside `task_runs`.
-- `L-004-manual-equals-peer.md` — manual + autonomous converge on same primitives.
-- `L-005-authoritative-primitive-exclusivity.md` — observe ≠ own.
-- `L-006-greenfield-delete-not-adapt.md` — name delete targets explicitly.
-- `L-008-schema-migrations-mandatory.md` — declarative schema + appended Goose SQL; no boot reconciliation.
-- `L-012-techspec-prose-only-rework.md` — six quality markers required.
-
-## Phase: `tasks`
-
-- `L-002-tparallel-vs-tsetenv.md` — test plan must respect Go testing contract.
-- `L-007-e2e-follows-runtime-contract.md` — E2E mocks ship with runtime contract changes.
-- `L-009-concurrent-worktree-deadlock.md` — QA tasks include `eng-worktree-isolation`.
-- `L-011-fraco-test-coverage-pushback.md` — test density must be proportional to behaviors.
-
-## Phase: `task-body`
-
-- `L-002-tparallel-vs-tsetenv.md`
-- `L-008-schema-migrations-mandatory.md`
-- `L-001-detached-prompt-lifetime.md`
-- All applicable from the Tasks list above.
-
-## Always-on (every phase)
-
-- `docs/_memory/standing_directives.md` (SD-001..SD-011).
-- `docs/_memory/glossary.md` (vocabulary discipline).
-- `docs/_memory/spec-authoring-playbook.md` (canonical playbook).
-- `CLAUDE.md` (Architecture, Autonomy Contracts, Security Invariants, Workflow Rules).
+Use the lesson README to resolve each full filename. Root/subtree instructions already loaded remain current until changed. Consult the glossary for naming and matching standing directives for decisions; there is no always-on full-memory reading list.

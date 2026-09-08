@@ -13,6 +13,31 @@ import (
 func TestToUIMessagesToolResultContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should replace a provisional tool label with the provider result identity", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 9, 6, 10, 0, 0, 0, time.UTC)
+		messages, err := ToUIMessages([]store.SessionEvent{
+			mustUIAgentSessionEvent(t, "preparing", 1, at, acp.AgentEvent{
+				Type: acp.EventTypeToolCall, SessionID: "session", TurnID: "turn", Timestamp: at,
+				Title: "Preparing file…", ToolCallID: "write-chapter",
+				Raw: json.RawMessage(`{"rawInput":{"file_path":"chapter.md","content":"Chapter"}}`),
+			}),
+			mustUIAgentSessionEvent(t, "written", 2, at.Add(time.Second), acp.AgentEvent{
+				Type: acp.EventTypeToolResult, SessionID: "session", TurnID: "turn", Timestamp: at.Add(time.Second),
+				Title: "Write", ToolCallID: "write-chapter",
+				Raw: json.RawMessage(`{"status":"completed","rawOutput":"File written"}`),
+			}),
+		})
+		if err != nil || len(messages) != 1 {
+			t.Fatalf("projected write=%#v/%v", messages, err)
+		}
+		part := findUIToolPart(messages[0].Parts, "tool-Write", "write-chapter")
+		if part == nil || part.Title != "Write" || part.State != uiToolStateOutput ||
+			!strings.Contains(string(part.Input), "chapter.md") {
+			t.Fatalf("completed tool identity/input=%#v", messages[0].Parts)
+		}
+	})
+
 	t.Run("Should mark failed tool result as error part", func(t *testing.T) {
 		t.Parallel()
 

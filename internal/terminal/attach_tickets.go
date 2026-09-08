@@ -61,9 +61,6 @@ func (m *Service) MintAttachTicket(
 	if handle.Info().State != terminalStateRunning {
 		return AttachTicket{}, newTerminalError(ErrorCodeExited, errorMessageExited, ErrExited)
 	}
-	if err := authorizeAttachTicketActor(handle.Info(), actor); err != nil {
-		return AttachTicket{}, err
-	}
 	settings, err := m.settings(ctx, binding.WorkspaceID, binding.ProfileID)
 	if err != nil {
 		return AttachTicket{}, fmt.Errorf("terminal: load attach settings: %w", err)
@@ -85,26 +82,6 @@ func (m *Service) MintAttachTicket(
 	}
 	m.tickets.mint(ticket, now)
 	return ticket, nil
-}
-
-func authorizeAttachTicketActor(info Info, actor Actor) error {
-	if actor.Kind != ActorKindAgent || info.BoundRun == nil {
-		return nil
-	}
-	bound := info.BoundRun
-	if actor.SessionID != bound.SessionID || actor.RunID != bound.RunID {
-		return &Error{
-			Code: ErrorCodeLeaseRevoked, Message: "terminal is bound to a different agent run",
-			Controller: info.Controller, Err: ErrLeaseRevoked,
-		}
-	}
-	if actor.Generation != bound.Generation {
-		return &Error{
-			Code: ErrorCodeGenerationFenced, Message: errorMessageGenerationFenced,
-			Controller: info.Controller, Err: ErrGenerationFenced,
-		}
-	}
-	return nil
 }
 
 func (m *Service) AttachWithTicket(

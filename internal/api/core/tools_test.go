@@ -300,10 +300,9 @@ func TestToolErrorResponses(t *testing.T) {
 	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {
 		t.Parallel()
 
-		controller := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "client:web"}
 		domainErr := &terminalpkg.Error{
 			Code: terminalpkg.ErrorCodeLimitReached, Message: "opaque terminal refusal",
-			Current: 8, Max: 10, Controller: &controller, Path: "/workspace",
+			Current: 8, Max: 10, Path: "/workspace",
 			Mode: terminalpkg.ModePTY, Platform: "windows", Err: terminalpkg.ErrLimitReached,
 		}
 		err := toolspkg.NewToolError(
@@ -316,8 +315,7 @@ func TestToolErrorResponses(t *testing.T) {
 		payload := core.ToolErrorResponseForError(err, http.StatusConflict, true)
 		want := map[string]string{
 			"current": "8", "max": "10",
-			"controller": `{"kind":"human","id":"client:web"}`,
-			"path":       `"/workspace"`, "mode": `"pty"`, "platform": `"windows"`,
+			"path": `"/workspace"`, "mode": `"pty"`, "platform": `"windows"`,
 		}
 		for key, value := range want {
 			if got := string(payload.Error.Details[key]); got != value {

@@ -257,6 +257,25 @@ never execute login commands; they only run non-interactive `auth_status_command
 providers use their configured `credential_slots` instead of Pi login. Custom providers should set
 `auth_mode` to match the runtime's real authentication contract.
 
+After login, run `compozy provider auth status <provider> --remote`. This calls the live authentication
+probe (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authenticated` result clears cached startup checks, so you can retry session
+creation immediately without waiting for the 30-second cache expiry. The next startup checks the
+credentials for its own workspace and profile.
+
+### Recover from a provider error during a turn
+
+Authentication and rate-limit failures end the affected turn while keeping the session available.
+After restoring authentication or waiting for the provider to recover, send another prompt in the
+same session. CompozyOS does not automatically retry the failed prompt.
+
+Error events include `provider_error` with `code` (`provider_auth_required` or
+`provider_rate_limited`), `provider`, `next_action`, and `guidance`. Authentication errors suggest `login` for native CLI auth,
+`bind_secret` for bound credentials, or `inspect` when the provider declares no auth. Rate limits
+suggest `retry`. The
+`occurrence_count`, `first_seen_at`, and `last_seen_at` fields group occurrences of the same code
+within one provider process. Stored transcript events retain their original occurrence counts;
+a replacement process starts a new count. Older events may omit this object.
+
 ## Override a built-in provider
 
 Use this when you need to pin a different adapter command or change the default model used by

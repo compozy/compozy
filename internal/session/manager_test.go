@@ -45,35 +45,28 @@ func (n *blockingSessionCreatedNotifier) OnSessionCreated(ctx context.Context, s
 	n.Notifier.OnSessionCreated(ctx, session)
 }
 
-func TestSupervisionForSessionShouldDisableOnlyLoopInactivityTimers(t *testing.T) {
-	t.Parallel()
-
-	configured := compozyconfig.SessionSupervisionConfig{
-		ActivityHeartbeatInterval: 5 * time.Second,
-		ProgressNotifyInterval:    7 * time.Second,
-		PromptDeadline:            time.Hour,
-		InactivityWarningAfter:    15 * time.Minute,
-		InactivityTimeout:         30 * time.Minute,
-		TimeoutCancelGrace:        5 * time.Second,
+// Invariant: Loop ownership alone never exempts silence. Owner: session supervision; canonical manager suite.
+func TestSupervisionShouldRequireWorkEvidenceForLoopOwnership(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	cfg := testSupervisionConfig()
+	cfg.QuietAfter = time.Second
+	h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+	target := createSession(t, h)
+	target.NetworkOwnerKey = participation.OwnerKey(
+		participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: "run-1"},
+	)
+	installAbsentWorkSources(h.manager)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
 	}
-	loopSession := &Session{NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
-		Kind: participation.OwnerKindLoopRun,
-		ID:   "run-1",
-	})}
-	got := supervisionForSession(loopSession, configured)
-	if got.InactivityWarningAfter != 0 || got.InactivityTimeout != 0 {
-		t.Fatalf("Loop inactivity supervision = %#v, want warning and timeout disabled", got)
+	now = now.Add(time.Second)
+	if err := h.manager.Supervise(t.Context(), now); err != nil {
+		t.Fatal(err)
 	}
-	got.InactivityWarningAfter = configured.InactivityWarningAfter
-	got.InactivityTimeout = configured.InactivityTimeout
-	if got != configured {
-		t.Fatalf("Loop supervision changed unrelated fields: got %#v want %#v", got, configured)
+	if target.Info().Supervision.QuietWarning == nil {
+		t.Fatal("loop-owned silence did not warn")
 	}
-
-	nonLoop := supervisionForSession(&Session{NetworkOwnerKey: "session:sess-1"}, configured)
-	if nonLoop != configured {
-		t.Fatalf("non-Loop supervision = %#v, want configured %#v", nonLoop, configured)
-	}
+	reportSessionStop(t, h, target.ID)
 }
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {

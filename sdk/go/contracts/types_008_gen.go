@@ -166,11 +166,11 @@ type DetailBody struct {
 	Actions   []RowAction `json:"actions,omitempty"`
 }
 
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
-}
+type Disposition string
+
+const (
+	DispositionDirect       Disposition = "direct"
+	DispositionSteering     Disposition = "steering"
+	DispositionQueued       Disposition = "queued"
+	DispositionInterrupting Disposition = "interrupting"
+)

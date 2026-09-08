@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
 import { useTerminalWindowBodyController } from "../hooks/use-terminal-window-body-controller";
 import { exitNoticeFromTerminal } from "../lib/terminal-exit";
-import { terminalLeaseView } from "../lib/terminal-lease";
 import {
   terminalPipeOutputQuery,
   terminalScope,
@@ -20,7 +19,6 @@ import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
 import { TerminalInputRequestStack } from "./terminal-input-request-stack";
 import { TerminalPane, type TerminalPaneSelectionActions } from "./terminal-pane";
 import { TerminalPipeLogPane } from "./terminal-pipe-log-pane";
-import { TerminalTakeoverDialog } from "./terminal-takeover-dialog";
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 
 const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
@@ -54,10 +52,7 @@ export interface TerminalWindowBodyProps {
 /**
  * One terminal, live.
  *
- * The head, the grid and the questions pinned under it all read from the same
- * connection, because taking control and giving it back are frames on that
- * socket rather than calls to a parent. Nothing in the window claims either
- * happened before the daemon says so.
+ * The head, grid, and questions pinned under it all share one connection.
  */
 export function TerminalWindowBody(props: TerminalWindowBodyProps) {
   return props.terminal.mode === "pipe" ? (
@@ -93,14 +88,13 @@ function TerminalInteractiveWindowBody({
     terminal,
     workspaceId,
     profile,
-    viewerId,
     viewer: viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null,
     socketFactory,
     readOnly,
     actions,
   });
   const { connection } = controller;
-  const { lease, pane, attachment, handleRef } = connection;
+  const { pane, attachment, handleRef } = connection;
   const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
   const goneCode = pane?.errorCode;
   if (goneCode === "terminal_expired" || goneCode === "terminal_not_found") {
@@ -108,7 +102,6 @@ function TerminalInteractiveWindowBody({
       <>
         <TerminalHeader
           hostChrome={hostChrome}
-          lease={lease}
           limit={limit}
           onNewTerminal={newTerminal}
           onViewJournal={onViewJournal}
@@ -134,14 +127,11 @@ function TerminalInteractiveWindowBody({
       <TerminalHeader
         closePending={actions.closePending}
         hostChrome={hostChrome}
-        lease={lease}
         limit={limit}
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}
-        onReleaseControl={controller.releaseControl}
         onStop={controller.stop}
         onStopRecording={controller.stopRecording}
-        onTakeControl={controller.takeControl}
         onViewJournal={onViewJournal}
         recording={recording}
         terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
@@ -154,7 +144,7 @@ function TerminalInteractiveWindowBody({
         exitRetentionMs={exitRetentionMs}
         handleRef={handleRef}
         instanceId={terminalInstanceKey(workspaceId, profile, terminal.id)}
-        lease={lease}
+        readOnly={readOnly}
         onReconnect={connection.reconnect}
         onViewJournal={onViewJournal}
         pane={pane}
@@ -166,7 +156,6 @@ function TerminalInteractiveWindowBody({
           >
             <TerminalInputRequestStack
               canAnswer={!readOnly}
-              canAnswerDirectly={lease.canType && !readOnly}
               onAnswer={(request, input) => actions.onAnswerInputRequest(request, input)}
               onReject={request => actions.onRejectInputRequest(request)}
               pending={inputRequests}
@@ -178,23 +167,12 @@ function TerminalInteractiveWindowBody({
         selectionActions={terminalSelectionActions(actions, terminal.id)}
         terminal={terminal}
       />
-      {controller.pendingTakeover ? (
-        <TerminalTakeoverDialog
-          controllerName={lease.controllerName ?? "the current controller"}
-          onCancel={controller.cancelTakeover}
-          onConfirm={controller.confirmTakeover}
-          open
-          terminalId={terminal.id}
-          terminalTitle={terminal.title}
-        />
-      ) : null}
     </>
   );
 }
 
 function TerminalPipeWindowBody({
   terminal,
-  viewerId,
   workspaceId,
   profile,
   readOnly = false,
@@ -207,20 +185,11 @@ function TerminalPipeWindowBody({
 }: TerminalWindowBodyProps) {
   const scope = terminalScope(workspaceId, profile);
   const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
-  const lease = terminalLeaseView({
-    lease: terminal.lease,
-    controller: terminal.controller,
-    viewerId,
-    mode: terminal.mode,
-    capabilities: terminal.capabilities,
-  });
-
   return (
     <>
       <TerminalHeader
         closePending={actions.closePending}
         hostChrome={hostChrome}
-        lease={lease}
         limit={limit}
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}

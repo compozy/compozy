@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type NetworkUsageSummaryPayload struct {
+	WakeCount            int    `json:"wake_count"`
+	ReservedWakeCount    int    `json:"reserved_wake_count"`
+	ActualWakeCount      int    `json:"actual_wake_count"`
+	UnavailableWakeCount int    `json:"unavailable_wake_count"`
+	ChargedWallTime      string `json:"charged_wall_time"`
+	InputTokens          int64  `json:"input_tokens"`
+	OutputTokens         int64  `json:"output_tokens"`
+}
+
 type NetworkWorkClosedPayload struct {
 	Event       HookEvent  `json:"event"`
 	Timestamp   time.Time  `json:"timestamp"`
@@ -226,32 +236,4 @@ type PermissionRequestPatch struct {
 	Decision      *string `json:"decision,omitempty"`
 	DecisionClass *string `json:"decision_class,omitempty"`
 	Reason        *string `json:"reason,omitempty"`
-}
-
-type PermissionRequestPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	ProfileID      string             `json:"profile_id,omitempty"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
-	Options        []PermissionOption `json:"options,omitempty"`
 }

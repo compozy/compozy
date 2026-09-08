@@ -69,7 +69,8 @@ func (m *Manager) AggregateSessionsByAgent(
 		}
 	}
 	now := m.now().UTC()
-	for _, active := range activeMatches {
+	for index := range activeMatches {
+		active := &activeMatches[index]
 		name := strings.TrimSpace(active.AgentName)
 		if name == "" {
 			continue
@@ -97,7 +98,7 @@ func (m *Manager) AggregateSessionsByAgent(
 	return metrics, nil
 }
 
-func storeSessionInfoFailed(info store.SessionInfo) bool {
+func storeSessionInfoFailed(info *store.SessionInfo) bool {
 	if strings.TrimSpace(info.State) != string(StateStopped) {
 		return false
 	}
@@ -119,7 +120,7 @@ func sessionRuntimeSeconds(createdAt time.Time, updatedAt time.Time, state State
 	return int64(end.Sub(createdAt).Seconds())
 }
 
-func storeSessionInfoLastActivityAt(info store.SessionInfo) time.Time {
+func storeSessionInfoLastActivityAt(info *store.SessionInfo) time.Time {
 	if info.Liveness != nil && info.Liveness.LastUpdateAt != nil &&
 		!info.Liveness.LastUpdateAt.IsZero() {
 		return info.Liveness.LastUpdateAt.UTC()

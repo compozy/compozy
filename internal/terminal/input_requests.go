@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,9 +18,12 @@ const (
 	maxInputRequestsPerScope    = 32
 )
 
-func (s *session) RequestInput(ctx context.Context, request InputRequest) (*InputOutcome, error) {
+func (s *session) RequestInput(ctx context.Context, actor Actor, request InputRequest) (*InputOutcome, error) {
 	if ctx == nil {
 		return nil, errors.New("terminal: input request context is required")
+	}
+	if err := s.authorizeProfile(actor); err != nil {
+		return nil, err
 	}
 	if s.Info().Mode != ModePTY {
 		return nil, &Error{
@@ -47,22 +49,15 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 		return nil, inputRequiresHiddenError(nil)
 	}
 	redacted = redacted || !inputVisible
-	var pending *pendingInput
-	var requester Actor
-	err = s.lease.withAgentController(func(controller Actor) error {
-		requester = controller
-		var createErr error
-		pending, createErr = s.manager.inputs.create(s, request, redacted, controller, func() (InputRequestID, error) {
-			return newInputRequestID(s.manager.entropy)
-		})
-		return createErr
+	pending, err := s.manager.inputs.create(s, request, redacted, actor, func() (InputRequestID, error) {
+		return newInputRequestID(s.manager.entropy)
 	})
 	if err != nil {
 		return nil, err
 	}
 	s.manager.events.Notify(ctx, Event{
 		Kind: EventKindInputRequested, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: s.profileName,
-		TerminalID: info.ID, Actor: requester, Reason: request.Reason,
+		TerminalID: info.ID, Actor: actor, Reason: request.Reason,
 		Detail: &EventDetail{RequestID: pending.projection.ID, Redacted: redacted}, At: s.manager.now(),
 	})
 	select {
@@ -85,69 +80,50 @@ func (s *session) AnswerInput(
 	if err := s.authorizeProfile(actor); err != nil {
 		return nil, err
 	}
-	if actor.Kind != ActorKindHuman {
-		return nil, &Error{
-			Code:    ErrorCodeInputAnswerRequiresWrite,
-			Message: "only a human write participant can answer an input request",
-			Err:     ErrInputRequiresWrite,
-		}
-	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
 		return nil, err
 	}
-	handoff, err := s.beginInputAnswerHandoff(actor)
-	if err != nil {
-		s.manager.inputs.release(pending)
-		return nil, err
-	}
-	filtered := s.filter.FilterInput(answer.Input)
-	delivery := slices.Clone(filtered)
-	if len(delivery) == 0 || (delivery[len(delivery)-1] != '\n' && delivery[len(delivery)-1] != '\r') {
-		delivery = append(delivery, '\n')
-	}
-	characters := utf8.RuneCount(filtered)
+	characters := utf8.RuneCount(answer.Input)
 	deliveryState, deliveryErr := s.deliverInputMode(
-		ctx, actor, delivery, pending.projection.Redacted, &characters,
+		ctx, actor, answer.Input, pending.projection.Redacted, &characters, true,
 	)
-	returnErr := s.finishInputAnswerHandoff(actor, handoff)
 	if deliveryErr != nil {
 		if deliveryState.BytesDelivered == 0 && errors.Is(deliveryErr, ErrInputRequiresHidden) {
 			outcome := InputOutcome{
 				Outcome: InputResolutionOutcomeSuperseded, Redacted: pending.projection.Redacted,
 			}
 			if !s.manager.inputs.complete(pending, outcome, actor, "input_visibility_changed") {
-				return nil, errors.Join(inputRequestResolutionLostError(), returnErr)
+				return nil, inputRequestResolutionLostError()
 			}
 			s.emitInputProvided(ctx, pending, actor, "superseded", 0, "input_visibility_changed")
-			return nil, errors.Join(deliveryErr, returnErr)
+			return nil, deliveryErr
 		}
 		if deliveryState.BytesDelivered == 0 {
 			s.manager.inputs.release(pending)
-			return nil, errors.Join(deliveryErr, returnErr)
+			return nil, deliveryErr
 		}
-		outcome := inputAnswerOutcome(pending, filtered, deliveryState)
+		outcome := inputAnswerOutcome(pending, deliveryState)
 		if !s.manager.inputs.complete(pending, outcome, actor, "") {
 			return nil, inputRequestResolutionLostError()
 		}
 		s.emitInputProvided(ctx, pending, actor, "answered", outcome.Length, "")
-		return &outcome, errors.Join(deliveryErr, returnErr)
+		return &outcome, deliveryErr
 	}
-	outcome := inputAnswerOutcome(pending, filtered, deliveryState)
+	outcome := inputAnswerOutcome(pending, deliveryState)
 	if !s.manager.inputs.complete(pending, outcome, actor, "") {
 		return nil, inputRequestResolutionLostError()
 	}
 	s.emitInputProvided(ctx, pending, actor, "answered", outcome.Length, "")
-	return &outcome, returnErr
+	return &outcome, nil
 }
 
 func inputAnswerOutcome(
 	pending *pendingInput,
-	filtered []byte,
 	delivery inputDeliveryState,
 ) InputOutcome {
-	bytesDelivered := min(delivery.BytesDelivered, len(filtered))
-	characters := utf8.RuneCount(filtered[:bytesDelivered])
+	bytesDelivered := len(delivery.Content)
+	characters := utf8.RuneCount(delivery.Content)
 	if pending.projection.Redacted {
 		characters = delivery.CharactersDelivered
 	}
@@ -164,20 +140,8 @@ func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestI
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
-	if actor.Kind != ActorKindHuman {
-		return &Error{
-			Code:    ErrorCodeInputAnswerRequiresWrite,
-			Message: "only a human write participant can reject an input request",
-			Err:     ErrInputRequiresWrite,
-		}
-	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
-		return err
-	}
-	handoff, err := s.beginInputAnswerHandoff(actor)
-	if err != nil {
-		s.manager.inputs.release(pending)
 		return err
 	}
 	trimmedReason := strings.TrimSpace(reason)
@@ -190,7 +154,7 @@ func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestI
 		return inputRequestResolutionLostError()
 	}
 	s.emitInputProvided(ctx, pending, actor, "rejected", 0, trimmedReason)
-	return s.finishInputAnswerHandoff(actor, handoff)
+	return nil
 }
 
 func inputRequestResolutionLostError() error {

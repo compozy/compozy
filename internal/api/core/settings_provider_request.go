@@ -47,6 +47,7 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		AuthMode:        compozyconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
 		EnvPolicy:       compozyconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
 		HomePolicy:      compozyconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
+		SteerCapability: body.Settings.SteerCapability,
 		AuthStatusCmd:   strings.TrimSpace(body.Settings.AuthStatusCmd),
 		AuthLoginCmd:    trimmedOptionalString(body.Settings.AuthLoginCmd),
 		AuthLoginCmdSet: body.Settings.AuthLoginCmd != nil,
@@ -95,7 +96,7 @@ func cloneReasoningEffortPtr(value *modelcatalog.ReasoningEffort) *modelcatalog.
 }
 
 func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload) bool {
-	return strings.TrimSpace(payload.Command) == "" &&
+	return payload.SteerCapability == "" && strings.TrimSpace(payload.Command) == "" &&
 		strings.TrimSpace(payload.DisplayName) == "" &&
 		payload.Models == nil &&
 		strings.TrimSpace(payload.Harness) == "" &&

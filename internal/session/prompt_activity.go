@@ -40,8 +40,6 @@ type promptActivitySupervisor struct {
 
 	mu                    sync.Mutex
 	activity              store.SessionActivityMeta
-	warned                bool
-	timedOut              bool
 	unhealthy             bool
 	unhealthyWarned       bool
 	deadlineWarnAck       chan struct{}
@@ -154,6 +152,33 @@ func (s *promptActivitySupervisor) observeEvent(event acp.AgentEvent) {
 	s.touchWithTool(event.Timestamp, kind, detail, currentTool, toolCallID, clearTool)
 }
 
+// observeEventBatch commits the latest activity snapshot once per persisted batch.
+// Every event still enters the ledger; intermediate metadata snapshots need no fsync.
+func (s *promptActivitySupervisor) observeEventBatch(events []acp.AgentEvent) {
+	var timestamp time.Time
+	var kind, detail, currentTool, toolCallID string
+	clearTool := false
+	for _, event := range events {
+		nextKind, nextDetail, nextTool, nextID, nextClear := activityFromEvent(event)
+		if nextKind == "" {
+			continue
+		}
+		timestamp, kind, detail = event.Timestamp, nextKind, nextDetail
+		if nextClear {
+			currentTool, toolCallID, clearTool = "", "", true
+		}
+		if strings.TrimSpace(nextTool) != "" {
+			currentTool = nextTool
+		}
+		if strings.TrimSpace(nextID) != "" {
+			toolCallID = nextID
+		}
+	}
+	if kind != "" {
+		s.touchWithTool(timestamp, kind, detail, currentTool, toolCallID, clearTool)
+	}
+}
+
 func (s *promptActivitySupervisor) finish(now time.Time) {
 	if s == nil || s.session == nil {
 		return
@@ -216,9 +241,7 @@ func (s *promptActivitySupervisor) run() {
 		case <-s.ctx.Done():
 			return
 		case now := <-ticker.C:
-			if s.evaluate(now.UTC()) {
-				return
-			}
+			s.evaluate(now.UTC())
 		case now := <-deadlineCh:
 			s.handlePromptDeadline(now.UTC())
 			return
@@ -226,22 +249,14 @@ func (s *promptActivitySupervisor) run() {
 	}
 }
 
-func (s *promptActivitySupervisor) evaluate(now time.Time) bool {
+func (s *promptActivitySupervisor) evaluate(now time.Time) {
 	if s == nil {
-		return false
+		return
 	}
 	processUnhealthy := s.handleUnhealthyProcess(now, true)
 	if !processUnhealthy && s.shouldEmitProgress(now) {
 		s.emitRuntimeEvent(acp.EventTypeRuntimeProgress, s.progressText(now), now, nil)
 	}
-	if s.shouldEmitWarning(now) {
-		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, s.warningText(now), now, nil)
-	}
-	if s.shouldTimeout(now) {
-		s.handleTimeout(now)
-		return true
-	}
-	return false
 }
 
 func (s *promptActivitySupervisor) shouldEmitProgress(now time.Time) bool {
@@ -261,39 +276,5 @@ func (s *promptActivitySupervisor) shouldEmitProgress(now time.Time) bool {
 	progressAt := now.UTC()
 	s.activity.LastProgressAt = &progressAt
 	s.activity.IdleSeconds = store.SessionActivityIdleSeconds(&s.activity, now)
-	return true
-}
-
-func (s *promptActivitySupervisor) shouldEmitWarning(now time.Time) bool {
-	if s.config.InactivityWarningAfter <= 0 {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.warned || s.idleSecondsLocked(now) < int64(s.config.InactivityWarningAfter.Seconds()) {
-		return false
-	}
-	s.warned = true
-	s.activity.LastActivityKind = runtimeActivityKindWarning
-	s.activity.LastActivityDetail = "runtime activity is stale"
-	s.activity.IdleSeconds = s.idleSecondsLocked(now)
-	return true
-}
-
-func (s *promptActivitySupervisor) shouldTimeout(now time.Time) bool {
-	if s.config.InactivityTimeout <= 0 {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.timedOut || s.idleSecondsLocked(now) < int64(s.config.InactivityTimeout.Seconds()) {
-		return false
-	}
-	s.timedOut = true
-	s.activity.LastActivityKind = runtimeActivityKindTimeout
-	s.activity.LastActivityDetail = "runtime activity timed out"
-	s.activity.IdleSeconds = s.idleSecondsLocked(now)
 	return true
 }

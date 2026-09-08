@@ -132,16 +132,8 @@ export function encodeTerminalSignal(signal: string): TerminalFrameBytes {
   return prefix(TERMINAL_CLIENT_OP.signal, encoder.encode(JSON.stringify({ signal })));
 }
 
-export function encodeTerminalTakeover(force: boolean): TerminalFrameBytes {
-  return prefix(TERMINAL_CLIENT_OP.takeover, encoder.encode(JSON.stringify({ force })));
-}
-
 export function encodeTerminalDetach(): TerminalFrameBytes {
   return prefix(TERMINAL_CLIENT_OP.detach, encoder.encode("{}"));
-}
-
-export function encodeTerminalRelease(): TerminalFrameBytes {
-  return prefix(TERMINAL_CLIENT_OP.release, encoder.encode("{}"));
 }
 
 /** Builds one daemon control frame for contract fixtures and scripted transports. */

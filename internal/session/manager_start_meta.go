@@ -18,7 +18,7 @@ func sessionStartSpecFromMeta(
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	acpOptions := ACPOptionSelectionsFromStore(meta.ACPOptionsValue())
 	spec := sessionStartSpec{
 		sessionID:                meta.ID,

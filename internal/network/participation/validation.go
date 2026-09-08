@@ -213,28 +213,28 @@ func validatePartialBounds(request *BoundsRequest) error {
 		value *string
 	}{
 		{field: "bounds.max_wake_wall_time", value: request.MaxWakeWallTime},
-		{field: "bounds.max_total_wall_time", value: request.MaxTotalWallTime},
+		{field: maxTotalWallTimeField, value: request.MaxTotalWallTime},
 		{field: "bounds.coalesce_window", value: request.CoalesceWindow},
 	} {
 		if candidate.value == nil {
 			continue
 		}
-		duration, err := parsePositiveDuration(candidate.field, *candidate.value)
+		duration, err := parseBoundDuration(candidate.field, *candidate.value)
 		if err != nil {
 			return err
 		}
 		switch candidate.field {
 		case "bounds.max_wake_wall_time":
 			wakeWall = &duration
-		case "bounds.max_total_wall_time":
+		case maxTotalWallTimeField:
 			totalWall = &duration
 		}
 	}
-	if wakeWall != nil && totalWall != nil && *wakeWall > *totalWall {
+	if wakeWall != nil && totalWall != nil && *totalWall > 0 && *wakeWall > *totalWall {
 		return exceedsLimit(
 			"bounds.max_wake_wall_time",
 			*request.MaxWakeWallTime,
-			"bounds.max_total_wall_time",
+			maxTotalWallTimeField,
 			*request.MaxTotalWallTime,
 		)
 	}

@@ -1,6 +1,6 @@
 ---
 name: testing-boss
-description: Testing doctrine for tests that reveal bugs instead of passing for the wrong reason — spanning software and LLM/AI systems. Use when authoring or reviewing tests, adding a mock, deciding where a test belongs, letting a coding agent generate tests, triaging flaky CI, designing an eval suite for an LLM/agent feature, or rebuilding a brittle suite. Not for general code review, library debugging unrelated to tests, CI pipeline design beyond tests, or production observability.
+description: "Author or review software tests and LLM/agent evals; choose test placement and mocks, diagnose flaky CI, or repair brittle suites. Excludes unrelated code review, debugging, CI design, and production observability."
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
@@ -9,32 +9,25 @@ metadata:
 
 # Testing Boss
 
-Tests exist to expose defects, not to keep CI green. A test that fails has done its job; a test that passes for the wrong reason is worse than none. The doctrine spans human and AI-generated code, LLM/agent features, and the CI that gates them; its body lives in `references/` as language-agnostic pseudo-code.
+Choose tests that can expose the changed behavior's failure. Use the existing suite at the lowest layer that can observe the invariant; reuse fixtures and utilities before creating new files.
 
-## Iron Laws
+- Assert observable results, not mock behavior or implementation structure. Keep mocks at unit-test I/O boundaries; use real integration evidence for integration claims.
+- When a test exposes a regression, fix production code. Change an incorrect test only with evidence that its contract is wrong or intentionally changed; preserve valid coverage.
+- Existing tests or stronger build/codegen/link/render checks may already own the invariant. Do not add prose, CSS, generated-output, configuration, or snapshot tests without a real artifact contract and a reason the owning gate is insufficient.
+- Coverage and mutation scores help find blind spots; they do not replace a behavioral oracle. Do not add production branches or methods solely for tests.
+- Run affected checks, then the project's delivery gates. Reuse results for unchanged inputs and expand only for a failure, relevant edit, or unresolved risk. Match regression reproduction to the failure; avoid a second ceremony when red/green evidence already exists.
 
-Apply every law that bears on the change under test. They subsume every anti-pattern named in the references; when two disagree, the lower-numbered one wins.
+## References by Question
 
-```
-1. Test the behavior, never the mock.
-2. Push every test to the lowest layer that can detect the failure.
-3. When a test fails, fix production first — change the test only after writing why.
-4. Real systems gate the merge. Mocks isolate; they do not validate.
-5. Coverage is a flashlight. Mutation score is a quality probe. Neither is a target.
-6. No test-only methods, branches, or flags leak into production code.
-```
+Read the relevant section, including its contract dependencies, when the question arises; test authorship by an agent does not itself require every reference.
 
-## Reference router
-
-The Iron Laws are the always-loaded tripwire; each reference is the contract. Match the task, read the listed file(s) **in full** before producing output, and apply every gate, pattern, and principle in them that bears on the work.
-
-| When you are… | Read in full |
+| Question | Reference |
 | --- | --- |
-| Deciding where a test belongs — layer, owner, boundary, or whether to write it at all | `references/foundations.md` |
-| Writing a test at any layer — selectors, waits, test data, isolation, what to mock | `references/patterns.md` |
-| Reviewing a test, smelling brittleness, or rebuilding a brittle suite | `references/antipatterns.md` |
-| Letting a coding agent generate, modify, or "fix" tests | `references/ai-writes-tests.md` + `references/antipatterns.md` |
-| Triaging flaky CI, designing gates, or choosing contract / property / mutation tests | `references/ci-automation.md` |
-| Designing an eval for an LLM/agent feature — oracle ladder, LLM-as-judge, RAG, trajectory vs outcome | `references/llm-eval.md` |
+| Which layer or suite owns the invariant? | `references/foundations.md` |
+| How should selectors, waits, data, or mocks work? | `references/patterns.md` |
+| Why is a test brittle or passing for the wrong reason? | `references/antipatterns.md` |
+| How should agent-generated tests be evaluated? | `references/ai-writes-tests.md` |
+| How should flakiness or contract/property/mutation checks be handled? | `references/ci-automation.md` |
+| How should an LLM/agent outcome be evaluated? | `references/llm-eval.md` |
 
-Each reference ends with its own sources; `references/sources.md` is the consolidated bibliography for auditing any claim.
+`references/sources.md` holds supporting sources. Completion evidence can be a concise command/result summary; no separate report is needed unless the task's artifact contract requires one.

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Dock } from "@compozy/ui";
 
 import { useSessionClarifications } from "../hooks/use-session-clarifications";
+import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useSessionDecisionMessages } from "../hooks/use-session-transcript-thread-messages";
 import { derivePendingPermissions } from "../lib/pending-permissions";
 import { ClarificationDock } from "./clarification-dock";
@@ -26,6 +27,9 @@ export function SessionDecisionDock({
   workspaceId,
 }: SessionDecisionDockProps) {
   const decisionMessages = useSessionDecisionMessages();
+  // Decisions the daemon already settled behind the transcript's back (expired at a
+  // restart) are not asks: the transcript renders their receipt, the dock never docks them.
+  const expiredInteractions = useSessionRuntimeRenderContext()?.expiredInteractions;
   const clarifications = useSessionClarifications(workspaceId, sessionId, { enabled });
   // Locally-resolved ids hide a decided ask before the durable transcript /
   // pending-list catch up, so the next queued decision surfaces immediately.
@@ -38,7 +42,8 @@ export function SessionDecisionDock({
     });
 
   const pendingPermissions = derivePendingPermissions(decisionMessages).filter(
-    permission => !resolvedIds.has(permission.requestId)
+    permission =>
+      !resolvedIds.has(permission.requestId) && !expiredInteractions?.has(permission.requestId)
   );
   const pendingClarifications = clarifications.error
     ? []

@@ -21,6 +21,7 @@ import {
 } from "../lib/session-transcript-query";
 import type {
   NormalizedSessionTranscriptEntry,
+  SessionConsumerDegradedPayload,
   SessionEventPayload,
   SessionPayload,
   TranscriptDeltaPayload,
@@ -59,6 +60,16 @@ async function normalizeEntries(
 
 function reportInvalidationFailure(surface: string, error: unknown): void {
   console.error(`Failed to invalidate ${surface}`, error);
+}
+
+/**
+ * The view had history loaded that this reset replaces: another generation
+ * (rewind, clear), a sequence reset, or the same generation with the old
+ * cursor retired by retention (`cursor_expired`) — all stated to the reader.
+ */
+function replacesLoadedHistory(data: SessionTranscriptData | undefined): boolean {
+  const head = transcriptStreamCursor(data);
+  return head.generation !== undefined && (head.afterSequence ?? 0) > 0;
 }
 
 function transcriptFrameCanApply(
@@ -109,15 +120,20 @@ export function createSessionLiveTailRuntime({
 
     const entries = await normalizeEntries(frame.payload.entries);
     if (signal.aborted) return "cancelled";
-    let applied = false;
+    let applied: SessionLiveTailApplyResult = "mismatch";
     queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing => {
       if (!transcriptFrameCanApply(existing, frame)) return existing;
-      applied = true;
+      // A reset snapshot over loaded history of another generation is a stated
+      // history rewrite (rewind, clear, retention), not a silent replacement.
+      applied =
+        frame.kind === "snapshot" && frame.payload.reset && replacesLoadedHistory(existing)
+          ? "reset"
+          : "applied";
       return frame.kind === "snapshot"
         ? applyTranscriptSnapshot(existing, { ...frame.payload, entries }, frame.cursor)
         : applyTranscriptDelta(existing, { ...frame.payload, entries }, frame.cursor);
     });
-    return applied ? "applied" : "mismatch";
+    return applied;
   };
 
   const applyTerminal = (payload: SessionEventPayload | null, sequence: number) => {
@@ -187,11 +203,20 @@ export function createSessionLiveTailRuntime({
     };
     const goalSnapshotListener: EventListener = () => handlers.goalChanged();
     const commandsChangedListener: EventListener = () => handlers.commandsChanged();
+    const degradedListener: EventListener = event => {
+      const payload = parseSessionStreamPayload<SessionConsumerDegradedPayload>(
+        event as MessageEvent
+      );
+      // No SSE id on this event: it never advances the resume cursor.
+      if (!payload || typeof payload.through_sequence !== "number") return;
+      handlers.degraded(payload.through_sequence);
+    };
 
     let detach: () => void;
     try {
       detach = attachSessionStreamSource(source, handlers.error, {
         commandsChanged: commandsChangedListener,
+        degraded: degradedListener,
         delta: deltaListener,
         goalSnapshot: goalSnapshotListener,
         snapshot: snapshotListener,

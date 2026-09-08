@@ -20,6 +20,9 @@ sources:
   - internal/acp/process_tree_windows.go
 ---
 
+> Historical QA seed: the zero-legacy/greenfield assumptions and full-local-gate defaults below are superseded by SD-013 and the current root CLAUDE.md. Reuse applicable scenarios, not obsolete policy; validate user-state upgrades and public deprecation windows against current contracts. Historical verdicts do not establish present release compatibility.
+
+
 # Tools / Tool Runtime / Sandbox / MCP — Final QA Plan
 
 ## 1. Module Surface

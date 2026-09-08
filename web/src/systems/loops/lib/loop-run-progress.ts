@@ -1,5 +1,5 @@
 import type { LoopFanoutRollup, LoopRosterNode, LoopStepProgress } from "../types";
-import { type LoopGraph, topoOrder } from "./loop-graph";
+import { type LoopGraph, type LoopNodeClass, topoOrder } from "./loop-graph";
 import {
   type LoopFanOutBand,
   type LoopProgressSegment,
@@ -42,8 +42,21 @@ export interface LoopStepRow {
   attemptLabel: string | null;
   /** Present only on a fan-out container; the branches live inside it. */
   fanOut: LoopFanOutBand | null;
-  /** True for control segments — they carry state but contribute no step. */
-  isControl: boolean;
+  /** The authored class; null for a roster row the definition does not name. */
+  nodeClass: LoopNodeClass | null;
+  /**
+   * Foldable out of the default read: a control or source row that succeeded,
+   * or a branch the route declined. Parked, failed, running and pending rows
+   * are where the run is going and never fold.
+   */
+  quiet: boolean;
+}
+
+/** The folded rows' fates, counted, so hiding them never hides the fact. */
+export interface LoopStepsFold {
+  hiddenCount: number;
+  /** "1 succeeded · 5 not taken" — the chips' own words, no class taxonomy. */
+  summary: string;
 }
 
 export interface LoopStepsProgressModel {
@@ -62,7 +75,10 @@ export interface LoopStepsProgressModel {
    * dominant reason instead of a percentage that has stopped meaning anything.
    */
   parkedReason: string | null;
+  /** Every row of the round in graph order; `quiet` marks the foldable ones. */
   steps: LoopStepRow[];
+  /** Null when fewer than two rows are quiet, or every row is. */
+  fold: LoopStepsFold | null;
   ariaLabel: string;
 }
 
@@ -102,11 +118,22 @@ function indexRoster(
   return { byNode, rollups: roundRollups, rollupByNode, claimed };
 }
 
-function isControlNode(graph: LoopGraph | null, nodeId: string): boolean {
-  const authored = graph?.nodes.find(node => node.id === nodeId);
-  // An unauthored roster row is treated as an action step: it executed, so it
-  // counts. Only a node the definition calls `control` contributes zero.
-  return authored?.nodeClass === "control";
+function authoredClass(graph: LoopGraph | null, nodeId: string): LoopNodeClass | null {
+  return graph?.nodes.find(node => node.id === nodeId)?.nodeClass ?? null;
+}
+
+/**
+ * Whether a row is one of the steps the served count counts. An unauthored row
+ * executed, so it counts; `control` and `source` rows contribute no segment,
+ * matching the daemon's `steps_total`.
+ */
+function contributesStep(nodeClass: LoopNodeClass | null): boolean {
+  return nodeClass !== "control" && nodeClass !== "source";
+}
+
+function isQuietStep(nodeClass: LoopNodeClass | null, state: string): boolean {
+  if (state === "not_taken") return true;
+  return !contributesStep(nodeClass) && state === "succeeded";
 }
 
 /** Graph order when the definition is readable, roster order otherwise. */
@@ -155,10 +182,13 @@ function buildSteps(
         ),
         attemptLabel: null,
         fanOut: band,
-        isControl: false,
+        nodeClass: authoredClass(graph, nodeId),
+        // A fan-out never folds: the band is the only place its width is drawn.
+        quiet: false,
       });
       continue;
     }
+    const nodeClass = authoredClass(graph, nodeId);
     for (const node of index.byNode.get(nodeId) ?? []) {
       // A branch already drawn inside its fan-out never reappears as a sibling.
       if (index.claimed.has(rowKey(node))) continue;
@@ -168,11 +198,27 @@ function buildSteps(
         chip: loopRosterStateChip(node.state),
         attemptLabel: loopAttemptLabel(node.attempt),
         fanOut: null,
-        isControl: isControlNode(graph, nodeId),
+        nodeClass,
+        quiet: isQuietStep(nodeClass, node.state),
       });
     }
   }
   return steps;
+}
+
+/** Folding one row behind a line of the same height would save nothing. */
+const STEP_FOLD_MIN = 2;
+
+/** Nothing folds when nothing would remain: an all-quiet round reads whole. */
+function buildFold(steps: readonly LoopStepRow[]): LoopStepsFold | null {
+  const quiet = steps.filter(step => step.quiet);
+  if (quiet.length < STEP_FOLD_MIN || quiet.length === steps.length) return null;
+  const notTaken = quiet.filter(step => step.chip.state === "not_taken").length;
+  const succeeded = quiet.length - notTaken;
+  const parts: string[] = [];
+  if (succeeded > 0) parts.push(`${succeeded} succeeded`);
+  if (notTaken > 0) parts.push(`${notTaken} not taken`);
+  return { hiddenCount: quiet.length, summary: parts.join(" · ") };
 }
 
 /**
@@ -186,11 +232,12 @@ function buildSteps(
 function buildSegments(steps: readonly LoopStepRow[]): LoopProgressSegment[] {
   const segments: LoopProgressSegment[] = [];
   for (const step of steps) {
-    if (step.isControl) continue;
+    // A fan-out container is authored `control`; its lanes are the counted steps.
     if (step.fanOut) {
       segments.push(...step.fanOut.segments.filter(segment => segment !== "never"));
       continue;
     }
+    if (!contributesStep(step.nodeClass)) continue;
     if (step.chip.state === "not_taken") continue;
     segments.push(progressSegmentForState(step.chip.state));
   }
@@ -203,7 +250,7 @@ function dominantParkReason(
   graph: LoopGraph | null
 ): string | null {
   const actionable = nodesInRound.filter(
-    node => !isControlNode(graph, node.node_id) && node.state !== "not_taken"
+    node => contributesStep(authoredClass(graph, node.node_id)) && node.state !== "not_taken"
   );
   if (actionable.length === 0) return null;
   if (!actionable.every(node => isParkedRosterState(node.state))) return null;
@@ -276,6 +323,7 @@ export function buildStepsProgress({
     rightMeta: remaining > 0 ? `${remaining} to go` : "",
     parkedReason,
     steps,
+    fold: buildFold(steps),
     ariaLabel: ariaLabel(progress, segments, rosterIsComplete),
   };
 }

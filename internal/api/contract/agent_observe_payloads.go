@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -85,6 +86,7 @@ type AgentEventPayload struct {
 	Decision          string                       `json:"decision,omitempty"`
 	Error             string                       `json:"error,omitempty"`
 	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
+	ProviderError     *acp.ProviderErrorDiagnostic `json:"provider_error,omitempty"`
 	Goal              *GoalPromptMeta              `json:"goal,omitempty"`
 	Usage             *TokenUsagePayload           `json:"usage,omitempty"`
 	Runtime           *RuntimeActivityPayload      `json:"runtime,omitempty"`

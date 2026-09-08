@@ -158,6 +158,7 @@ export {
   shortcutKeyGlyphs,
   shortcutLabel,
   SHORTCUT_RANGE_FAMILIES,
+  primaryShortcutModifier,
   type ParsedShortcutChord,
   type ResolvedWindowManagerAction,
   type ShortcutBinding,

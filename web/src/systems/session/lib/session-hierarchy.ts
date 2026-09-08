@@ -155,8 +155,10 @@ export type ChildSessionSignalTone = "danger" | "warning" | "accent";
  * Most urgent child state, so a collapsed thread never hides an escalation.
  * Urgency is read from the one badge dictionary rather than a local badge list,
  * so every member of the needs-you class escalates and runtime-health warnings
- * stay a rank below it. `done` deliberately raises nothing: finished-unseen work
- * is an inbox item, not an escalation.
+ * stay a rank below it. The dictionary's tone decides the rank: a needs-you
+ * badge inked warning (`needs-attention`, an unverified stop) escalates as a
+ * warning, never as a failure of the operator's work. `done` deliberately
+ * raises nothing: finished-unseen work is an inbox item, not an escalation.
  */
 export function childSessionSignalTone(
   children: readonly SessionPayload[]
@@ -164,7 +166,7 @@ export function childSessionSignalTone(
   let tone: ChildSessionSignalTone | null = null;
   for (const child of children) {
     const signal = sessionBadgeSignal(child.badge);
-    if (signal.attention === "needs-you") return "danger";
+    if (signal.attention === "needs-you" && signal.tone === "danger") return "danger";
     if (signal.tone === "warning") {
       tone = "warning";
     } else if (signal.label === "running" && tone !== "warning") {

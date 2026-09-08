@@ -1,6 +1,8 @@
 # System Directory Layout
 
-## Canonical Structure
+## Available layers
+
+Create only the layers and operations the system needs. Test the invariant in its existing owning suite; this is not a per-layer test scaffold.
 
 ```
 systems/<domain>/
@@ -9,7 +11,6 @@ systems/<domain>/
 │
 ├── adapters/
 │   ├── <domain>-api.ts              # API service functions + error class
-│   └── <domain>-api.test.ts
 │
 ├── lib/
 │   ├── query-keys.ts                # TanStack Query key factory
@@ -19,8 +20,6 @@ systems/<domain>/
 │   └── constants.ts                 # Domain constants (timeouts, limits, etc.)
 │
 ├── hooks/
-│   ├── __tests__/                   # Subdirectory for complex/integration tests
-│   │   └── use-<action>.test.tsx
 │   ├── use-<action>.ts              # Query hooks (useQuery wrappers)
 │   ├── use-create-<entity>.ts       # Mutation hooks (useMutation wrappers)
 │   ├── use-update-<entity>.ts
@@ -29,22 +28,18 @@ systems/<domain>/
 │
 ├── contexts/
 │   ├── <domain>-context.tsx         # Context + provider + re-exported consumer hooks
-│   └── <domain>-context.test.tsx
 │
 ├── stores/
 │   ├── <domain>-store.ts            # XState store
-│   └── <domain>-store.test.ts
 │
 ├── components/
 │   ├── <component-name>.tsx
-│   ├── <component-name>.test.tsx
 │   ├── stories/
 │   │   └── <component-name>.stories.tsx
 │   └── index.ts                     # Component barrel
 │
 └── guards/
     ├── <guard-name>.ts
-    └── <guard-name>.test.ts
 ```
 
 ## File Naming Rules
@@ -61,14 +56,13 @@ systems/<domain>/
 | Store         | `<domain>-store.ts`       | `api-key-store.ts`          |
 | Component     | `kebab-case.tsx`          | `issue-list-item.tsx`       |
 | Story         | `<component>.stories.tsx` | `issue-list.stories.tsx`    |
-| Test          | `<file>.test.ts(x)`       | `use-delete-issue.test.tsx` |
 
 ## Folders That Are Optional
 
 Only create these when the system actually needs them:
 
 - `contexts/` — only when query data or state must be shared across a subtree without prop-drilling
-- `stores/` — only for complex async state machines (multi-step flows, polling, event emission)
+- `stores/` — only for event-driven local state; lifecycle modes and guards may require a state machine
 - `guards/` — only for route-level or access-control logic
 
 ## Index Barrel Convention

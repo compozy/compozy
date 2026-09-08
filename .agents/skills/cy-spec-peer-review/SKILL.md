@@ -1,6 +1,6 @@
 ---
 name: cy-spec-peer-review
-description: Cross-LLM peer review of a Spec's technical design by a persistent reviewer session — scoped Markdown findings for user-directed incorporation; follow-up rounds continue the same reviewer instead of spawning a new one. Use when a spec has already been approved and the user wants an external review round, especially for autonomy/network/memory-impacting designs. Do not use for Stage 1 product drafts, automatic approval gates, code review batches, or auto-looped review cycles.
+description: "Run a requested external review of an approved Compozy spec; continue follow-ups in the same reviewer session and incorporate only user-selected findings. Excludes product drafts, automatic gates, code reviews, and review loops."
 trigger: explicit
 argument-hint: "[spec-path] [--reviewer] [--model] [--reasoning]"
 ---
@@ -30,9 +30,9 @@ The validator is a read-only helper: it inspects the findings artifact and exits
 ## Required Inputs
 
 - **spec-path** (optional): explicit path to the `_spec.md` under review. When omitted, resolve to the most recently modified `.compozy/tasks/<slug>/_spec.md` whose sibling `_meta.md` shows `Pending: > 0` or no `_meta.md` exists yet.
-- **Reviewer selection** (default: Codex on `gpt-5.6-sol`, reasoning `xhigh`): how the reviewer session runs depends on the dispatch substrate —
+- **Reviewer selection** (default: the configured reviewer runtime/model): how the reviewer session runs depends on the dispatch substrate —
   - **CompozyOS session** (canonical): a reviewer agent definition carries provider/model/reasoning; pass it via `--reviewer <agent-name>`.
-  - **herdr worker TUI** (when the operator orchestrates through herdr): model flags ride the worker launch, e.g. `--kind codex -- --yolo -m gpt-5.6-sol -c model_reasoning_effort=xhigh`.
+  - **herdr worker TUI** (when the operator orchestrates through herdr): model flags ride the worker launch, e.g. `--kind codex -- --yolo`.
   - `--model` / `--reasoning` override the defaults on either substrate. Never substitute a different model than the user requested.
 
 ## Findings Artifact Contract
@@ -77,8 +77,8 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 
 1. Resolve `spec-path`. If omitted, list candidate paths and pick the freshest.
 2. Confirm the user has already approved the current draft or explicitly asked to review the saved spec as-is.
-3. Read the spec and confirm it is final-shape (complete Part I and Part II, with `Architectural Boundaries`, `Development Sequencing`, and `Testing Approach` sections) — not a draft.
-4. Read `references/quality-markers.md` and verify the spec carries the six markers (boundary statement, listed boundaries, Go interface signatures, data-model field rationale, side-table-vs-JSON decisions, lease/safety invariants enumerated). If any marker is missing, abort and report the missing markers — external review is wasted on incomplete specs.
+3. Read the saved spec and identify its scope, changed contracts, and verification strategy; honor an explicit request to review it as-is.
+4. Use the applicable markers in `references/quality-markers.md`. Missing applicable contracts become findings; no mandatory Go/storage/lease sections for unrelated designs.
 5. Resolve the slug from the path; ensure `.compozy/tasks/<slug>/` exists and is writable.
 6. Ensure `.compozy/tasks/<slug>/qa/` exists before dispatch.
 7. Determine the next review round number by listing existing `qa/peer-review-findings-round*.md`, `qa/peer-review-summary-round*.md`, and legacy `qa/peer-review-result-round*.json*` files (prior local output only — not a compatibility path). Start at `round1` when none exist.
@@ -100,7 +100,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    - `{findings_path}` — exact absolute path to `.compozy/tasks/<slug>/qa/peer-review-findings-roundN.md`.
    - `{round}` — numeric review round `N`.
    - `{reviewer_runtime}` — the reviewer runtime (default `codex`).
-   - `{reviewer_model}` — resolved `--model` (default `gpt-5.6-sol`).
+   - `{reviewer_model}` — resolved explicit model or configured runtime default.
 4. Write the assembled prompt to `.compozy/tasks/<slug>/qa/peer-review-prompt-roundN.md`.
 5. Round 1 uses the full template. **Round N+1 composes a continuation prompt instead** — the reviewer session already holds the corpus. It contains only: the exact list of changed files (with a one-line summary of what changed in each), the incorporation record path, the instruction to verify each prior finding is genuinely resolved and to sweep the new text for fresh regressions, and the new findings target with frontmatter `round: N+1` (new finding IDs continue the sequence). Same scoped-write contract and findings format; never resend the full corpus.
 
@@ -190,7 +190,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 
 ## Error Handling
 
-- **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The reviewer agent definition or worker flags may carry a stale name like `gpt-5.5`. Do not mutate the call to substitute a model — verify with the user. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
+- **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The reviewer agent definition or worker flags may carry an unavailable name. Preserve an explicitly requested model; correct a stale skill default from the configured runtime when no override was requested. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
 - **Dispatch substrate unavailable** (daemon not running for `compozy session`, herdr absent for a worker): fail with the start hint (`compozy daemon start` / `herdr status`) rather than swallowing.
 - **Reviewer session lost between rounds** (stopped, daemon restarted, worker retired, corrupted state): note the loss in the round summary, spawn a fresh reviewer with the full round-1 template, and continue the round numbering.
 - **Quality markers missing:** if the Step 1 quality-marker check fails, do not run the reviewer. Print the missing markers and exit so the user can amend the spec first.

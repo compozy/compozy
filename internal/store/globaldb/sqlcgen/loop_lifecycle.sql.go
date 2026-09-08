@@ -11,6 +11,35 @@ import (
 	"time"
 )
 
+const backfillLoopEventWaitDeadline = `-- name: BackfillLoopEventWaitDeadline :execrows
+UPDATE loop_node_waits SET next_escalation_at = ?1
+WHERE loop_run_id = ?2 AND generation = ?3
+AND node_id = ?4 AND item_index = ?5
+AND kind = 'event' AND claim_state = 'waiting' AND next_escalation_at IS NULL
+`
+
+type BackfillLoopEventWaitDeadlineParams struct {
+	Deadline   sql.NullTime `json:"deadline"`
+	LoopRunID  string       `json:"loop_run_id"`
+	Generation int64        `json:"generation"`
+	NodeID     string       `json:"node_id"`
+	ItemIndex  int64        `json:"item_index"`
+}
+
+func (q *Queries) BackfillLoopEventWaitDeadline(ctx context.Context, arg BackfillLoopEventWaitDeadlineParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, backfillLoopEventWaitDeadline,
+		arg.Deadline,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const closePendingLoopEffect = `-- name: ClosePendingLoopEffect :execrows
 UPDATE loop_effect_outbox
 SET state = ?1, attempts = attempts + 1, delivered_at = ?2
@@ -197,6 +226,52 @@ func (q *Queries) ListAttentionLoopNodeInventory(ctx context.Context, arg ListAt
 			&i.NodeID,
 			&i.ItemIndex,
 			&i.StateAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpirylessLoopEventWaits = `-- name: ListExpirylessLoopEventWaits :many
+SELECT wait.loop_run_id, wait.generation, wait.node_id, wait.item_index, wait.created_at
+FROM loop_node_waits wait JOIN loop_runs run ON run.id = wait.loop_run_id
+WHERE wait.kind = 'event' AND wait.claim_state = 'waiting' AND wait.next_escalation_at IS NULL
+AND run.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
+ORDER BY wait.loop_run_id, wait.generation, wait.node_id, wait.item_index
+LIMIT ?1
+`
+
+type ListExpirylessLoopEventWaitsRow struct {
+	LoopRunID  string    `json:"loop_run_id"`
+	Generation int64     `json:"generation"`
+	NodeID     string    `json:"node_id"`
+	ItemIndex  int64     `json:"item_index"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (q *Queries) ListExpirylessLoopEventWaits(ctx context.Context, pageLimit int64) ([]ListExpirylessLoopEventWaitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExpirylessLoopEventWaits, pageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpirylessLoopEventWaitsRow{}
+	for rows.Next() {
+		var i ListExpirylessLoopEventWaitsRow
+		if err := rows.Scan(
+			&i.LoopRunID,
+			&i.Generation,
+			&i.NodeID,
+			&i.ItemIndex,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -652,6 +727,62 @@ func (q *Queries) ListRetryingLoopNodeInventory(ctx context.Context, arg ListRet
 			&i.ItemIndex,
 			&i.StateAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionLoopWork = `-- name: ListSessionLoopWork :many
+SELECT lr.id, lr.created_at,
+ CAST(COALESCE((SELECT MAX(tr.ended_at) FROM task_runs tr
+  WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator' AND tr.status = 'completed'), '') AS TEXT) AS reconciled_at
+FROM loop_runs lr
+WHERE lr.workspace_id = ?1
+AND (?2 = 1 OR lr.profile_id = ?3)
+AND lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
+AND (lr.origin_session_id = ?4 OR lr.id = ?5
+ OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = ?4))
+ORDER BY lr.id
+`
+
+type ListSessionLoopWorkParams struct {
+	WorkspaceID string         `json:"workspace_id"`
+	AllProfiles any            `json:"all_profiles"`
+	ProfileID   string         `json:"profile_id"`
+	SessionID   sql.NullString `json:"session_id"`
+	OwnerRunID  string         `json:"owner_run_id"`
+}
+
+type ListSessionLoopWorkRow struct {
+	ID           string `json:"id"`
+	CreatedAt    string `json:"created_at"`
+	ReconciledAt string `json:"reconciled_at"`
+}
+
+func (q *Queries) ListSessionLoopWork(ctx context.Context, arg ListSessionLoopWorkParams) ([]ListSessionLoopWorkRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionLoopWork,
+		arg.WorkspaceID,
+		arg.AllProfiles,
+		arg.ProfileID,
+		arg.SessionID,
+		arg.OwnerRunID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSessionLoopWorkRow{}
+	for rows.Next() {
+		var i ListSessionLoopWorkRow
+		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.ReconciledAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -128,3 +128,41 @@ export function clarifyAnswerLabel(view: ClarifyEventView): string | null {
   const text = answer.text.trim();
   return text === "" ? null : text;
 }
+
+interface MessageLike {
+  content?: unknown;
+}
+
+function isClarifyPart(
+  part: unknown
+): part is Record<string, unknown> & { data: AgentEventPayload } {
+  if (!isRecord(part)) return false;
+  const isEventPart =
+    part.type === "data-compozy-event" || (part.type === "data" && part.name === "compozy-event");
+  return isEventPart && isClarifyEventData(part.data);
+}
+
+/**
+ * Request ids of clarify asks the transcript still shows as pending, in first-seen order. A
+ * later lifecycle event for the same request supersedes the earlier one, so a settled question
+ * drops out. Pure derivation over the same message shape the decision dock reads.
+ */
+export function derivePendingClarifyRequestIds(
+  messages: readonly MessageLike[]
+): ReadonlySet<string> {
+  const statusByRequest = new Map<string, ClarifyStatus>();
+  for (const message of messages) {
+    const content = Array.isArray(message.content) ? message.content : [];
+    for (const part of content) {
+      if (!isClarifyPart(part)) continue;
+      const view = parseClarifyEvent(part.data);
+      if (!view) continue;
+      statusByRequest.set(view.requestId, view.status);
+    }
+  }
+  const pending = new Set<string>();
+  for (const [requestId, status] of statusByRequest) {
+    if (status === "pending") pending.add(requestId);
+  }
+  return pending;
+}

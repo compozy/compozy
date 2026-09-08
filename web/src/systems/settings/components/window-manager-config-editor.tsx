@@ -62,29 +62,29 @@ export function WindowManagerConfigEditor({
         title="Spacing and snapping"
       >
         <div className="grid gap-3 min-[900px]:grid-cols-2">
-          <Card
+          <WindowManagerConfigCard
             help="Drag the four outer guides for screen insets, and the cross in the middle for the space between tiles."
             problem={editor.problems.find(problem => problem.field === "gaps")?.message}
             title="Gaps"
           >
             <WindowManagerGapEditor draft={editor.draft} setDraft={editor.setDraft} />
-          </Card>
-          <Card
+          </WindowManagerConfigCard>
+          <WindowManagerConfigCard
             help="Where a dragged window is caught. Drag a band to resize it; pick what a centre zone claims."
             problem={editor.problems.find(problem => problem.field === "snap")?.message}
             title="Snap zones"
           >
             <WindowManagerSnapMap draft={editor.draft} setDraft={editor.setDraft} />
-          </Card>
+          </WindowManagerConfigCard>
         </div>
-        <Card
+        <WindowManagerConfigCard
           className="mt-3"
           help="Snapping a window to the same edge again cycles it through these widths. Drag a stop to move it, click the track to add one, or press Backspace on a selected stop to remove it."
           problem={editor.problems.find(problem => problem.field === "repeatRatios")?.message}
           title="Repeat widths"
         >
           <WindowManagerRatioTrack draft={editor.draft} setDraft={editor.setDraft} />
-        </Card>
+        </WindowManagerConfigCard>
       </SettingsGroup>
 
       <SettingsGroup
@@ -150,7 +150,7 @@ export function WindowManagerConfigEditor({
   );
 }
 
-function Card({
+function WindowManagerConfigCard({
   title,
   help,
   problem,

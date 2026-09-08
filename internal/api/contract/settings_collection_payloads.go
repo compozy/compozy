@@ -3,10 +3,13 @@ package contract
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/config"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 type SettingsProviderSettingsPayload struct {
+	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
 	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`
@@ -23,6 +26,7 @@ type SettingsProviderSettingsPayload struct {
 
 // SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
 type SettingsProviderWritePayload struct {
+	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
 	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`

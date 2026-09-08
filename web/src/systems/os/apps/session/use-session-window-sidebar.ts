@@ -37,10 +37,13 @@ export interface SessionWindowSidebarModel {
  * session already owns a window — that window wins focus instead.
  */
 export function useSessionWindowSidebar({
+  transportDisconnected = false,
   windowId,
   workspaceId,
   sessionId,
 }: {
+  /** The window's live stream is down; the rail must not read "connected" (US-018.AC-1). */
+  transportDisconnected?: boolean;
   windowId: string;
   workspaceId: string;
   sessionId?: string;
@@ -96,7 +99,8 @@ export function useSessionWindowSidebar({
     open: sidebar.open,
     toggle: sidebar.toggle,
     sessions: sessionsQuery.data ?? [],
-    disconnected: sidebar.open && worktree.resolved && sessionsQuery.isError,
+    disconnected:
+      sidebar.open && worktree.resolved && (sessionsQuery.isError || transportDisconnected),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
     onToggleThread: sidebar.toggleThread,

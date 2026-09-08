@@ -79,7 +79,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -113,7 +113,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw&limit=200",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -194,20 +194,28 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 					t.Fatalf("initial replay limit = %d, want %d", got, want)
 				}
 				return []store.EventSummary{
-					{ID: "sum-1", SessionID: "sess-1", Type: "agent_message", AgentName: "coder", Timestamp: timestamp},
+					{
+						ID:        "sum-1",
+						Sequence:  1,
+						SessionID: "sess-1",
+						Type:      "agent_message",
+						AgentName: "coder",
+						Timestamp: timestamp,
+					},
 				}, nil
 			case 2:
-				if query.Limit != 0 || !query.Since.Equal(timestamp) {
-					t.Fatalf("poll query = %#v, want unbounded live read after initial cursor", query)
+				if query.Limit <= 0 || query.Limit > 500 || query.AfterSequence != 1 || !query.Forward {
+					t.Fatalf("poll query = %#v, want bounded forward read after the durable cursor", query)
 				}
 				close(done)
 				return []store.EventSummary{
 					{
 						ID:        "sum-2",
+						Sequence:  2,
 						SessionID: "sess-1",
 						Type:      "done",
 						AgentName: "coder",
-						Timestamp: timestamp.Add(time.Second),
+						Timestamp: timestamp.Add(-time.Second),
 					},
 				}, nil
 			default:
@@ -249,12 +257,16 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		observer := stubObserver{
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 				callCount++
-				if query.Limit != 0 || !query.Since.Equal(boundary) {
-					t.Fatalf("live-only query = %#v, want no replay and connection boundary", query)
+				if callCount == 1 {
+					return []store.EventSummary{{ID: "sum-retained", Sequence: 40, Timestamp: boundary}}, nil
+				}
+				if query.Limit <= 0 || query.Limit > 500 || query.AfterSequence != 40 || !query.Forward {
+					t.Fatalf("live-only query = %#v, want bounded read after the connection's durable cursor", query)
 				}
 				close(done)
 				return []store.EventSummary{{
 					ID:        "sum-live",
+					Sequence:  41,
 					SessionID: "sess-1",
 					Type:      "done",
 					AgentName: "coder",
@@ -275,10 +287,14 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 		)
 		engine.ServeHTTP(recorder, req)
 
-		if got, want := callCount, 1; got != want {
-			t.Fatalf("QueryEvents() calls = %d, want %d live poll", got, want)
+		if got, want := callCount, 2; got != want {
+			t.Fatalf("QueryEvents() calls = %d, want %d head/read calls", got, want)
 		}
-		if records := parseSSE(t, recorder.Body.String()); len(records) != 1 || records[0].ID == "" {
+		if records := parseSSE(
+			t,
+			recorder.Body.String(),
+		); len(records) != 1 ||
+			records[0].ID != core.LogEventID(store.EventSummary{Sequence: 41, Timestamp: boundary.Add(time.Second)}) {
 			t.Fatalf("live-only records = %#v, want one event", records)
 		}
 	})
@@ -380,11 +396,15 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 		observer := stubObserver{
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
 				observedQuery = query
+				if query.Limit == 1 && !query.Forward {
+					return nil, nil
+				}
 				doneOnce.Do(func() { close(done) })
 				// Profile events are global scope: they carry no workspace, session, or
 				// agent, and the registry allows that.
 				return []store.EventSummary{streamEventSummary(store.EventSummary{
 					ID:        "sum-profile",
+					Sequence:  1,
 					Type:      "profile.selection_changed",
 					Outcome:   "info",
 					Summary:   "profile.selection_changed",

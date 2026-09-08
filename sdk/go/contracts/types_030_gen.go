@@ -2,7 +2,31 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ToolResult struct {
+	Content    []ToolContent              `json:"content,omitempty"`
+	Structured json.RawMessage            `json:"structured,omitempty"`
+	Preview    string                     `json:"preview,omitempty"`
+	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
+	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
+	Redactions []Redaction                `json:"redactions,omitempty"`
+	Truncated  bool                       `json:"truncated"`
+	Bytes      int64                      `json:"bytes"`
+	DurationMS int64                      `json:"duration_ms"`
+	Trust      ResultTrust                `json:"trust,omitempty"`
+}
+
+type ToolResultPatch struct {
+	Deny       bool            `json:"deny,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+	Title      *string         `json:"title,omitempty"`
+	ToolResult json.RawMessage `json:"tool_result,omitempty"`
+	Error      *string         `json:"error,omitempty"`
+}
 
 type ToolsetID string
 
@@ -229,26 +253,4 @@ type WindowManagerChanges struct {
 	ClientIDs      []string `json:"client_ids,omitempty"`
 	StackGrouped   []string `json:"stack_grouped,omitempty"`
 	StackUngrouped []string `json:"stack_ungrouped,omitempty"`
-}
-
-type WindowManagerDesktopCreatedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerDesktopDeletedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
 }

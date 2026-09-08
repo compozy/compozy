@@ -1,6 +1,11 @@
 import type { EnqueueObject } from "@xstate/store";
 
 import type {
+  SessionTransportFailure,
+  SessionTransportHistoryReset,
+  SessionTransportPhase,
+} from "../lib/session-transport";
+import type {
   SessionEventPayload,
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
@@ -9,6 +14,8 @@ import type {
 export const MAX_PENDING_FRAMES = 64;
 export const RECONNECT_BASE_DELAY_MS = 250;
 export const RECONNECT_MAX_DELAY_MS = 4_000;
+/** Reconnects tried before the live view gives up and says so (US-018.AC-2). */
+export const MAX_RECONNECT_ATTEMPTS = 6;
 export const SURFACE_REFRESH_DELAY_MS = 120;
 export const TRANSCRIPT_RECOVERY_DELAY_MS = 5_000;
 
@@ -26,10 +33,13 @@ export type SessionLiveTailFrame =
       payload: TranscriptSnapshotPayload;
     };
 
-export type SessionLiveTailApplyResult = "applied" | "cancelled" | "mismatch";
+/** `reset` is an applied snapshot that replaced loaded history with another generation. */
+export type SessionLiveTailApplyResult = "applied" | "reset" | "cancelled" | "mismatch";
 
 export interface SessionLiveTailStreamHandlers {
   commandsChanged: () => void;
+  /** The server shed this watcher and is replaying up to `throughSequence` on this stream. */
+  degraded: (throughSequence: number) => void;
   error: (error?: unknown) => void;
   frame: (frame: SessionLiveTailFrame) => void;
   goalChanged: () => void;
@@ -65,11 +75,23 @@ export type ApplyPhase =
   | "repair-waiting"
   | "terminal-refreshing";
 export type QueryRecoveryPhase = "idle" | "waiting" | "refreshing";
-export type TransportPhase = "disabled" | "connecting" | "live" | "waiting-reconnect" | "terminal";
+export type TransportPhase = SessionTransportPhase;
 
 export interface SessionLiveTailContext {
   applyPhase: ApplyPhase;
+  /** The stream is replaying a gap: after a reopen (until the queue drains) or after a shed (until the watermark). */
+  catchingUp: boolean;
+  /** The shed replay's watermark; catching up ends only once an applied frame reaches it. */
+  catchUpThrough: number | null;
+  /** When the transport stopped being live; `null` while live. */
+  degradedAt: number | null;
+  /** Retries exhausted: how many and when. */
+  failure: SessionTransportFailure | null;
   generation: number;
+  /** A reset snapshot replaced loaded history with another generation. */
+  historyReset: SessionTransportHistoryReset | null;
+  /** When the last frame applied. */
+  lastLiveAt: number | null;
   lastTranscriptError: unknown | null;
   overflowed: boolean;
   pendingFrames: readonly SessionLiveTailFrame[];
@@ -84,13 +106,19 @@ export interface SessionLiveTailContext {
 }
 
 export type SessionLiveTailEvents = {
-  applyCompleted: { generation: number; result: SessionLiveTailApplyResult };
+  applyCompleted: {
+    at: number;
+    frame: SessionLiveTailFrame;
+    generation: number;
+    result: SessionLiveTailApplyResult;
+  };
   applyFailed: { error: unknown; frame: SessionLiveTailFrame; generation: number };
   applyStarted: { generation: number };
   commandsChanged: { generation: number };
-  configured: { enabled: boolean; runtime: SessionLiveTailRuntime };
+  configured: { at: number; enabled: boolean; runtime: SessionLiveTailRuntime };
+  degradedReceived: { generation: number; throughSequence: number };
   disposed: Record<never, never>;
-  frameReceived: { frame: SessionLiveTailFrame; generation: number };
+  frameReceived: { at: number; frame: SessionLiveTailFrame; generation: number };
   goalChanged: { generation: number };
   manualRecoveryRequested: Record<never, never>;
   queryRecoveryElapsed: { generation: number };
@@ -101,7 +129,7 @@ export type SessionLiveTailEvents = {
   repairFailed: { error: unknown; generation: number };
   repairStarted: { generation: number };
   repairSucceeded: { generation: number };
-  streamError: { error?: unknown; generation: number };
+  streamError: { at: number; error?: unknown; generation: number };
   surfaceRefreshElapsed: { generation: number };
   terminalReceived: {
     generation: number;
@@ -123,6 +151,7 @@ export interface SessionLiveTailTrigger {
   applyFailed: (event: SessionLiveTailEvents["applyFailed"]) => void;
   applyStarted: (event: SessionLiveTailEvents["applyStarted"]) => void;
   commandsChanged: (event: SessionLiveTailEvents["commandsChanged"]) => void;
+  degradedReceived: (event: SessionLiveTailEvents["degradedReceived"]) => void;
   frameReceived: (event: SessionLiveTailEvents["frameReceived"]) => void;
   goalChanged: (event: SessionLiveTailEvents["goalChanged"]) => void;
   queryRecoveryElapsed: (event: SessionLiveTailEvents["queryRecoveryElapsed"]) => void;

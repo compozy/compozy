@@ -268,6 +268,7 @@ func (h *BaseHandlers) GetSchedulerBacklog(c *gin.Context) {
 // SchedulerStatusPayloadFromDomain keeps transports on one scheduler DTO shape.
 func SchedulerStatusPayloadFromDomain(status taskpkg.SchedulerStatus) contract.SchedulerStatusPayload {
 	return contract.SchedulerStatusPayload{
+		Counters:               schedulerCountersPayload(status.Counters),
 		Paused:                 status.Paused,
 		PausedBy:               status.PausedBy,
 		PausedAt:               optionalTime(status.PausedAt),
@@ -348,5 +349,17 @@ func TaskSummaryPayloadFromTask(record *taskpkg.Task) contract.TaskSummaryPayloa
 		UpdatedAt:      record.UpdatedAt,
 		ClosedAt:       optionalTime(record.ClosedAt),
 		LastActivityAt: optionalTime(record.UpdatedAt),
+	}
+}
+
+func schedulerCountersPayload(counters *taskpkg.SchedulerCounters) *contract.SchedulerCountersPayload {
+	if counters == nil {
+		return nil
+	}
+	return &contract.SchedulerCountersPayload{
+		Cycles: counters.Cycles, WakeAttempts: counters.WakeAttempts, WakeSkipped: counters.WakeSkipped,
+		WakeSucceeded: counters.WakeSucceeded, WakeFailed: counters.WakeFailed,
+		CapacityWaitingRuns: counters.CapacityWaitingRuns, SpawnRequested: counters.SpawnRequested,
+		NeedsAttention: counters.NeedsAttention, LastCycleAt: optionalTime(counters.LastCycleAt),
 	}
 }

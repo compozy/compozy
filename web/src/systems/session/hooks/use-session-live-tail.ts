@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { useStore } from "@xstate/store-react";
+import { shallowEqual } from "@xstate/store";
+import { useSelector, useStore } from "@xstate/store-react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { flattenTranscriptMessages } from "../lib/session-transcript-query";
@@ -10,6 +11,7 @@ import {
   sessionTranscriptOptions,
 } from "../lib/query-options";
 import { toReadonlyThreadMessages } from "../lib/session-thread-repository";
+import type { SessionTransportSnapshot } from "../lib/session-transport";
 import { createSessionLiveTailRuntime } from "./session-live-tail-runtime";
 import { sessionLiveTailLogic } from "./session-live-tail-store";
 import {
@@ -57,7 +59,7 @@ export function useSessionLiveTail({
       sessionId,
       workspaceId,
     });
-    store.trigger.configured({ enabled: canOpenStream, runtime });
+    store.trigger.configured({ at: Date.now(), enabled: canOpenStream, runtime });
     return () => store.trigger.disposed();
   }, [
     canOpenStream,
@@ -76,6 +78,11 @@ export function useSessionLiveTail({
     });
   }, [sessionState, store, transcriptQuery.error, transcriptQuery.isError]);
 
+  const transport = useSelector(
+    store,
+    snapshot => transportSnapshot(snapshot.context),
+    shallowEqual
+  );
   const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"
@@ -95,6 +102,27 @@ export function useSessionLiveTail({
       void transcriptQuery.fetchNextPage();
     },
     retry: () => store.trigger.manualRecoveryRequested(),
+    transport,
+  };
+}
+
+function transportSnapshot(context: {
+  catchingUp: boolean;
+  degradedAt: number | null;
+  failure: SessionTransportSnapshot["failure"];
+  historyReset: SessionTransportSnapshot["historyReset"];
+  lastLiveAt: number | null;
+  reconnectAttempt: number;
+  transportPhase: SessionTransportSnapshot["phase"];
+}): SessionTransportSnapshot {
+  return {
+    catchingUp: context.catchingUp,
+    degradedAt: context.degradedAt,
+    failure: context.failure,
+    historyReset: context.historyReset,
+    lastLiveAt: context.lastLiveAt,
+    phase: context.transportPhase,
+    reconnectAttempt: context.reconnectAttempt,
   };
 }
 

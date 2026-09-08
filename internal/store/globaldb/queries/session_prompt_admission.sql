@@ -87,3 +87,10 @@ WHERE id = sqlc.arg(id)
 -- name: GetQueuedSessionPromptAdmissionState :one
 SELECT state FROM session_prompt_admissions
 WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id);
+
+-- name: ResolveSessionSteerAdmission :execrows
+UPDATE session_prompt_admissions
+SET state = 'completed', completed_at = sqlc.arg(now), updated_at = sqlc.arg(now),
+    result_json = json_set(result_json, '$.steer_delivery', sqlc.arg(steer_delivery),
+                           '$.previous_turn_id', sqlc.arg(target_turn_id))
+WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND state = 'dispatch_committed';

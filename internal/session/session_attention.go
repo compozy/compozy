@@ -25,7 +25,7 @@ type AttentionEvent struct {
 // ClassForBadge returns the stable attention class shared by every surface.
 func ClassForBadge(badge Badge) AttentionClass {
 	switch badge {
-	case BadgeWaitingForAuth, BadgeWaitingForInput, BadgeFailed:
+	case BadgeWaitingForAuth, BadgeWaitingForInput, BadgeFailed, BadgeNeedsAttention:
 		return AttentionNeedsYou
 	case BadgeDone:
 		return AttentionFinished

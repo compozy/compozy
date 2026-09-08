@@ -63,7 +63,9 @@ def main() -> int:
     slug = args.slug or f"compozy-iso-{int(time.time())}"
 
     try:
-        compozy_home = resolve_home(slug, prefer_worktree=args.prefer_worktree)
+        # Teardown identifies process argv by the canonical root, including on
+        # macOS where /var and /private/var refer to the same temporary directory.
+        compozy_home = resolve_home(slug, prefer_worktree=args.prefer_worktree).resolve()
     except Exception as exc:
         print(f"FAILED to allocate COMPOZY_HOME: {exc}", file=sys.stderr)
         return 1

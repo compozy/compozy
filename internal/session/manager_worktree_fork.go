@@ -36,7 +36,7 @@ func (s *Session) reserveWorktreeFork() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved || s.conversationRewindReserved || s.promptSetupCount > 0 ||
+	if s.turnStopPending || s.worktreeForkReserved || s.conversationRewindReserved || s.promptSetupCount > 0 ||
 		s.currentTurnSource != "" || s.currentTurnID != "" {
 		return ErrPromptInProgress
 	}

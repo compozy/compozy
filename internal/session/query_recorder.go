@@ -53,6 +53,24 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventReadCl
 	return nil, nil, errors.New("session: query recorder retry exhausted")
 }
 
+// UpgradeSessionDatabase lets the daemon migrate retained histories before
+// publishing read-only surfaces. Only a validated, older schema opens a writer;
+// unknown, ahead, corrupt, or foreign databases retain their refusal unchanged.
+func (m *Manager) UpgradeSessionDatabase(ctx context.Context, id string) error {
+	_, cleanup, err := m.openQueryRecorder(ctx, id)
+	if err == nil {
+		return cleanup()
+	}
+	if !errors.Is(err, store.ErrSchemaBehind) {
+		return err
+	}
+	_, cleanup, err = m.openMutationRecorder(ctx, id)
+	if err != nil {
+		return err
+	}
+	return cleanup()
+}
+
 func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
 	if m.openStore == nil {
 		return nil, nil, errors.New("session: mutable recorder opener is required")

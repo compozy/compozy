@@ -25,7 +25,32 @@ not walk its rendered briefing, needs-you, progress, story, Usage, or About cont
 steps:
 1. Start a loop run that reaches a human approval gate and open `/loop-runs/<run-id>` with every disclosure collapsed.
 2. Read the briefing strip, the needs-you card, the progress line and the story without expanding anything.
-3. Confirm the run id appears only in the About rail, never in the main column.
+3. Expand About and confirm the run id appears only there, never in the main column. With About closed, confirm a recorded Last woke timestamp and daemon-selected Best result link remain visible when present.
 4. Confirm the briefing offers no Approve/Reject — only the quiet pointer to the card.
 5. Let the run finish, reload, and confirm the outcome and artifacts lead the page.
 6. Repeat against a failed run and confirm the failure signal is visible with everything collapsed.
+
+QA result 2026-09-04: a real two-round built-in review/fix run exposed a 2,644-character JSON
+headline and false retention warnings. The corrected default read has a 19-character outcome
+headline and three previews of five actual action results, with latest-round results first.
+Content and remaining results expand on demand; partial/pruned counts remain visible while folded.
+About metadata starts collapsed and preserves its links, inputs, identity, and copy control when
+opened. The final empty review and the earlier finding were both opened in Chrome after a daemon
+restart. CLI and HTTP returned matching result identity, availability, and headline.
+Evidence: `docs/qa/reports/2026-09-04-loop-stability.md`, cycle 2.
+
+QA result 2026-09-05 (Progress disclosure): the same runs, read in Chrome, showed the Progress
+list contradicting its own heading — "Step 1 of 1" over seven rows (five "not taken"), and
+"Step 7 of 7" over thirteen identical "succeeded" rows with an eight-segment bar, because control
+and source nodes rendered exactly like the counted steps. The default read now lists only the
+counted steps and anything parked, failed, running, or still ahead; control and source rows that
+succeeded and branches the route declined fold behind "N more steps · X succeeded · Y not taken",
+and one click brings them back in graph order. Fan-out bands, quarantined and pending rows never
+fold; nothing folds when fewer than two rows are quiet or when nothing would remain. The bar now
+draws one segment per counted step, matching the heading. On a terminal run, the quarantine row
+in Needs you reads "Set aside after N attempts. This run has ended." and keeps "Open entry"; the
+entry sheet keeps the hint, facts and attempt chain but offers neither Requeue nor Cancel, and its
+foot says the run has ended. Live runs keep the requeue instruction and both verbs. Observed on
+`looprun-61ec517447b2aae9` (done, review-and-fix), `looprun-bcd2b1ad861f8a46` (done,
+orchestrated), and `looprun-c494117598fe2188` (failed, quarantined `orchestrate`). VC-20
+(`RegisterRoutedGraph`) recaptured at 1440×900 through the eng-ui-screenshot helper.

@@ -21,7 +21,6 @@ flowchart TD
   E --> F{What does B see?}
   F -->|list, badge, journal| F1[Only B's terminals — A's are hidden, not closed]
   F -->|A terminal id addressed directly| F2[terminal_not_found — indistinguishable from absence]
-  F -->|typing grant issued under A| F3[Does not authorize typing under B]
   F -->|per-project cap| F4[Counted per profile — A never consumes B's budget]
   F1 --> G{Widen to all profiles?}
   G -->|read verb or ?all_profiles=| G1[Every terminal and journal row labels its owning profile]
@@ -32,7 +31,6 @@ flowchart TD
   G2 --> H
   G3 --> H
   F2 --> H
-  F3 --> H
   F4 --> H
   H --> I[A's terminals are still running with their processes and scrollback intact]
   I --> J{Archive profile A?}
@@ -69,8 +67,8 @@ journey:
       verb: "Switch profile with the Terminal app open"
       expected_observable: "List, tab strip, dock badge, catalog stream, and journal re-scope immediately; the previous profile's terminals disappear from view without being closed."
     - step: 3
-      verb: "Address the hidden terminal by id and try its grant"
-      expected_observable: "The id reads as not found with no hint of another owner, and a typing grant from the other profile does not authorize typing here."
+      verb: "Address the hidden terminal by id"
+      expected_observable: "The id reads as not found with no hint of another owner, while authorized participants inside the owning profile retain shared input."
     - step: 4
       verb: "Widen to the all-profiles read and try the refused selector shapes"
       expected_observable: "Every aggregate row labels its owner; a mutation with the aggregate form, both selectors together, and a flag that disagrees with the bound session are each refused with their own code."
@@ -93,5 +91,5 @@ journey:
     - at_step: 4
       how: "Close the all-profiles read without acting on any row."
       resume: "The scoped view returns unchanged; no aggregate row is cached into it."
-  crosses: [J-scope-work-by-profile, J-operate-integrated-terminal, J-audit-terminal-work, profile-resolver, terminal-registry, catalog-SSE, typing-grants, input-requests, admission-caps, journal]
+  crosses: [J-scope-work-by-profile, J-operate-integrated-terminal, J-audit-terminal-work, profile-resolver, terminal-registry, catalog-SSE, input-requests, admission-caps, journal]
 ```

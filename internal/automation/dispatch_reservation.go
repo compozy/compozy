@@ -9,7 +9,11 @@ import (
 	"strings"
 
 	"time"
+
+	"github.com/compozy/compozy/internal/admission"
 )
+
+var errScheduledAdmissionDeferred = errors.New("automation: scheduled admission deferred")
 
 func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
 	if !d.tryAcquire() {
@@ -39,7 +43,7 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 	prompt, canceled, hookErr := d.dispatchPreFireHook(ctx, req, prompt, attempt)
 	if hookErr != nil {
-		return d.finishRun(ctx, scheduledRun, RunFailed, hookErr)
+		return d.finishUnstartedSessionRun(ctx, req, scheduledRun, hookErr)
 	}
 	if canceled {
 		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
@@ -48,7 +52,7 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	createOpts := d.createOpts(req)
 	createdSession, createErr := d.sessions.Create(ctx, createOpts)
 	if createErr != nil {
-		return d.finishRun(ctx, scheduledRun, classifyDispatchError(createErr), createErr)
+		return d.finishUnstartedSessionRun(ctx, req, scheduledRun, createErr)
 	}
 	if createdSession == nil || strings.TrimSpace(createdSession.ID) == "" {
 		return d.finishRun(
@@ -92,6 +96,25 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 
 	return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, RunCompleted, nil)
+}
+
+// The scheduler atomically restores unstarted reservations with their retry cursor.
+func (d *Dispatcher) finishUnstartedSessionRun(
+	ctx context.Context,
+	req DispatchRequest,
+	run *Run,
+	runErr error,
+) (*Run, error) {
+	if scheduledAdmissionInterrupted(req, runErr) {
+		return cloneRun(run), errors.Join(errScheduledAdmissionDeferred, runErr)
+	}
+	return d.finishRun(ctx, run, classifyDispatchError(runErr), runErr)
+}
+
+func scheduledAdmissionInterrupted(req DispatchRequest, err error) bool {
+	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
+		(errors.Is(err, admission.ErrDraining) || errors.Is(err, context.Canceled) ||
+			errors.Is(err, context.DeadlineExceeded))
 }
 
 func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
@@ -174,6 +197,9 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 		now,
 	)
 	if err != nil {
+		if reserved.Status == RunScheduled && scheduledAdmissionInterrupted(req, err) {
+			return reserved, errors.Join(errScheduledAdmissionDeferred, err)
+		}
 		return reserved, err
 	}
 	if !result.Reserved {

@@ -4,10 +4,12 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -232,5 +234,200 @@ func waitUntil(t *testing.T, timeout time.Duration, interval time.Duration, fn f
 			t.Fatalf("condition not met within %s", timeout)
 		case <-ticker.C:
 		}
+	}
+}
+
+// Invariant: a busy gate retains the original fire across restart or retires it
+// on schedule replacement. Owner: durable automation scheduler integration suite.
+func TestSchedulerIntegrationDeferredFire(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{
+		"one-shot restart", "recurring restart", "schedule replacement", "past replacement", "gate release",
+		"draining restart", "cancelled restart", "deadline restart", "recurring draining restart",
+	} {
+		t.Run("Should preserve fire ownership on "+scenario, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			db, err := globaldb.OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+			clock := clockwork.NewFakeClockAt(base)
+			started, release := make(chan struct{}, 1), make(chan struct{})
+			admissionErr := map[string]error{
+				"draining restart": admission.ErrDraining, "cancelled restart": context.Canceled,
+				"deadline restart": context.DeadlineExceeded, "recurring draining restart": admission.ErrDraining,
+			}[scenario]
+			creator := newRecordingSessionCreator(
+				sessionAttemptPlan{promptStarted: started, promptRelease: release},
+				sessionAttemptPlan{createErr: admissionErr},
+			)
+			dispatcher := newTestDispatcher(
+				t,
+				creator,
+				db,
+				WithDispatcherMaxConcurrent(1),
+				WithDispatcherNow(clock.Now),
+			)
+			blocker, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "capacity-holder", ""))
+			if err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, err := dispatcher.Dispatch(ctx, DispatchRequest{Kind: DispatchKindSchedule, Job: &blocker})
+				done <- err
+			}()
+			select {
+			case <-started:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			job := testJob(AutomationScopeGlobal, "deferred-job", "")
+			fireAt := base.Add(time.Minute)
+			job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: fireAt.Format(time.RFC3339)}
+			if scenario == "recurring restart" || scenario == "recurring draining restart" {
+				job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+			}
+			job, err = db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scheduler := newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
+			if _, err := scheduler.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			clock.Advance(time.Minute)
+			if err := scheduler.executeScheduledJob(ctx, job.ID); err != nil {
+				t.Fatal(err)
+			}
+			deferred, err := db.GetSchedulerState(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if deferred.DeferredUntil == nil || deferred.LastScheduledAt == nil ||
+				!deferred.LastScheduledAt.Equal(fireAt) {
+				t.Fatalf("missing durable deferral: %+v", deferred)
+			}
+			originalID := scheduledRunID(job.ID, fireAt)
+			if scenario == "schedule replacement" || scenario == "past replacement" {
+				job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1h"}
+				if scenario == "past replacement" {
+					job.Schedule = &ScheduleSpec{Mode: ScheduleModeAt, Time: base.Format(time.RFC3339)}
+				}
+				if _, err := scheduler.Update(ctx, job); err != nil {
+					t.Fatal(err)
+				}
+				run, err := db.GetRun(ctx, originalID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if run.Status != RunCancelled {
+					t.Fatalf("superseded status = %s", run.Status)
+				}
+				_, err = db.SetScheduledDeferral(
+					ctx,
+					SchedulerClaim{JobID: job.ID, FireID: deferred.LastFireID, ScheduleHash: deferred.ScheduleHash},
+					deferred.DeferredUntil,
+				)
+				if !errors.Is(err, ErrScheduledFireAlreadyClaimed) {
+					t.Fatalf("stale deferral error = %v", err)
+				}
+			}
+			if scenario == "gate release" {
+				if err := scheduler.Start(ctx); err != nil {
+					t.Fatal(err)
+				}
+				waitForTimers(t, clock, 1)
+			}
+			close(release)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "schedule replacement" || scenario == "past replacement" {
+				return
+			}
+			if admissionErr != nil {
+				if err := scheduler.executeScheduledJob(ctx, job.ID); err != nil {
+					t.Fatal(err)
+				}
+				run, err := db.GetRun(ctx, originalID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if run.Status != RunScheduled || run.EndedAt != nil || run.Error != "" || run.SessionID != "" {
+					t.Fatalf("unstarted fire was consumed by admission failure: %+v", run)
+				}
+				if err := scheduler.Start(ctx); err != nil {
+					t.Fatal(err)
+				}
+				waitForTimers(t, clock, 1)
+				if got := len(creator.createCalls()); got != 2 {
+					t.Fatalf("admission retry bypassed deferred timer: create calls = %d", got)
+				}
+			}
+			if scenario != "gate release" {
+				if err := scheduler.Stop(ctx); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+				db, err = globaldb.OpenGlobalDB(ctx, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				clock = clockwork.NewFakeClockAt(fireAt.Add(10 * time.Minute))
+				dispatcher = newTestDispatcher(t, newRecordingSessionCreator(), db, WithDispatcherNow(clock.Now))
+				scheduler = newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
+				state, err := scheduler.Register(ctx, job)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !state.Registered {
+					t.Fatal("deferred fire was discarded on restart")
+				}
+				if err := scheduler.Start(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitUntil(t, 3*time.Second, 10*time.Millisecond, func() bool {
+				run, err := db.GetRun(ctx, originalID)
+				return err == nil && run.Status == RunCompleted
+			})
+			if err := scheduler.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			completions := 0
+			for _, run := range runs {
+				if run.Status == RunCompleted {
+					completions++
+					if run.ID != originalID {
+						t.Fatalf("replacement fire ran: %s", run.ID)
+					}
+				}
+			}
+			if completions != 1 {
+				t.Fatalf("completed fires = %d", completions)
+			}
+			state, err := db.GetSchedulerState(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.DeferredUntil != nil {
+				t.Fatal("completed fire remains deferred")
+			}
+		})
 	}
 }

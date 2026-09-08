@@ -11,7 +11,7 @@ import {
 import { useToolApprovalGrants } from "./use-tool-approval-grants";
 
 const TERMINAL_BROADER_DECISION_ERROR =
-  "Terminal run and typing decisions come from a prompt, not a broader remembered allow.";
+  "Terminal run decisions come from a prompt, not a broader remembered allow.";
 
 export type ToolApprovalGrantsState = "loading" | "error" | "empty" | "ready";
 

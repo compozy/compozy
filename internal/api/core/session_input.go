@@ -24,7 +24,44 @@ func (h *BaseHandlers) HandleListSessionInputs(c *gin.Context) {
 	for _, input := range inputs {
 		payloads = append(payloads, SessionInputPayloadFromSession(input))
 	}
-	c.JSON(http.StatusOK, contract.SessionInputListResponse{Inputs: payloads})
+	summary, err := h.Sessions.InputQueueSummary(c.Request.Context(), sessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionInputListResponse{
+		Inputs: payloads,
+		Queue:  &contract.SessionQueueSummaryPayload{Entries: len(inputs), Cap: summary.Cap},
+	})
+}
+
+func (h *BaseHandlers) HandleClearSessionInputs(c *gin.Context) {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
+	if err != nil {
+		h.respondError(c, http.StatusForbidden, err)
+		return
+	}
+	result, err := h.Sessions.ClearPendingInputs(c.Request.Context(), sessionID, caller)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, SessionInputClearPayload(result))
+}
+
+func SessionInputClearPayload(result session.ClearPendingInputsResult) contract.SessionInputClearResponse {
+	payload := contract.SessionInputClearResponse{
+		Inputs:       make([]contract.SessionInputPayload, 0, len(result.Inputs)),
+		ClearedCount: result.ClearedCount, QueueGeneration: result.QueueGeneration,
+	}
+	for _, input := range result.Inputs {
+		payload.Inputs = append(payload.Inputs, SessionInputPayloadFromSession(input))
+	}
+	return payload
 }
 
 // HandleReplaceSessionInput atomically replaces one queued input.
@@ -105,8 +142,10 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 	payload := contract.SessionInputPayload{
 		ID: input.ID, SessionID: input.SessionID, MessageID: input.MessageID,
 		IdempotencyKey: input.IdempotencyKey, TargetTurnID: input.TargetTurnID,
-		Status: input.Status, Mode: contract.PromptMode(input.Mode),
+		Status: contract.SessionInputStatus(input.Status), Mode: contract.PromptMode(input.Mode),
+		OwnerKind: input.OwnerKind, OwnerID: input.OwnerID,
 		Delivery: contract.PromptDelivery(input.Delivery), Text: input.Text,
+		SteerDelivery:   input.SteerDelivery,
 		QueueGeneration: input.QueueGeneration, EnqueuedAt: input.EnqueuedAt,
 	}
 	if input.Runtime != nil {

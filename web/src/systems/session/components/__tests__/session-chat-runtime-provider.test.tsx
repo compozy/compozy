@@ -2,13 +2,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
-import { StrictMode, useEffect, useLayoutEffect, useState } from "react";
+import { StrictMode, use, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
+import {
+  createSessionPromptDispatchStore,
+  SessionPromptDispatchContext,
+} from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -24,7 +27,7 @@ import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-r
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
-import type { TranscriptMessage } from "@/systems/session/types";
+import type { SessionInteractionRecord, TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
 import {
@@ -430,6 +433,14 @@ function composerText(): string {
   return requireComposerAui().composer.getState().text;
 }
 
+/** Counts mounts of the runtime subtree: a remount of the provider re-runs it. */
+function RuntimeMountProbe({ onMount }: { onMount: () => void }) {
+  useEffect(() => {
+    onMount();
+  }, [onMount]);
+  return null;
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
@@ -442,7 +453,9 @@ function renderSessionThread(
     isSessionRunning?: boolean;
     liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
+    onRuntimeMount?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
+    onUnconfirmedSend?: (messageId: string) => void;
     runtimeSnapshot?: SessionPromptRuntimeSnapshot;
     strictMode?: boolean;
   } = {}
@@ -459,10 +472,14 @@ function renderSessionThread(
           liveTailEnabled={options.liveTailEnabled}
         >
           <ComposerAuiProbe />
+          {options.onRuntimeMount ? <RuntimeMountProbe onMount={options.onRuntimeMount} /> : null}
           {options.onRuntimeTranscriptCommit ? (
             <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
           ) : null}
           {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
+          {options.onUnconfirmedSend ? (
+            <UnconfirmedSendProbe onUnconfirmed={options.onUnconfirmedSend} />
+          ) : null}
           {options.includeClearAction ? <ClearConversationButton /> : null}
           {options.includeRuntimeRetryControl ? <RetryLatestAssistantMessageButton /> : null}
           <SessionThread
@@ -537,6 +554,37 @@ function countPromptFetches(fetchMock: ReturnType<typeof vi.fn>): number {
   }).length;
 }
 
+function countQueueFetches(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => {
+    return (
+      getPathname(input as RequestInfo | URL) ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
+    );
+  }).length;
+}
+
+function countSessionDetailFetches(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => {
+    return (
+      getPathname(input as RequestInfo | URL) ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`
+    );
+  }).length;
+}
+
+/** Observes the dispatch store's pending-ack hand-off the page controls subscribe to. */
+function UnconfirmedSendProbe({ onUnconfirmed }: { onUnconfirmed: (messageId: string) => void }) {
+  const store = use(SessionPromptDispatchContext);
+  useEffect(() => {
+    if (store === null) return;
+    const subscription = store.on("sendUnconfirmed", event =>
+      onUnconfirmed(event.envelope.identity.messageId)
+    );
+    return () => subscription.unsubscribe();
+  }, [onUnconfirmed, store]);
+  return null;
+}
+
 function countClarificationFetches(fetchMock: ReturnType<typeof vi.fn>): number {
   return fetchMock.mock.calls.filter(([input]) => {
     return (
@@ -544,6 +592,17 @@ function countClarificationFetches(fetchMock: ReturnType<typeof vi.fn>): number 
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
     );
   }).length;
+}
+
+function interactionFetchSearches(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return fetchMock.mock.calls
+    .map(([input]) => getRequestURL(input as RequestInfo | URL))
+    .filter(
+      url =>
+        url.pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+    )
+    .map(url => url.search);
 }
 
 function fixtureWorkspaceId(): string {
@@ -569,7 +628,6 @@ describe("SessionChatRuntimeProvider", () => {
     expect(first.signal.aborted).toBe(true);
     expect(store.getSnapshot().context).toMatchObject({
       controller: second,
-      generation: 1,
       pending: true,
     });
   });
@@ -708,6 +766,7 @@ describe("SessionChatRuntimeProvider", () => {
   let lastPromptMessageID = "";
   let promptResponseSequence = 0;
   let streamTickets: string[] = [];
+  let settledInteractions: SessionInteractionRecord[] = [];
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -731,6 +790,7 @@ describe("SessionChatRuntimeProvider", () => {
     lastPromptMessageID = "";
     promptResponseSequence = 0;
     streamTickets = [];
+    settledInteractions = [];
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
@@ -808,6 +868,20 @@ describe("SessionChatRuntimeProvider", () => {
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
       ) {
         return jsonResponse({ clarifications: [] });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/interactions`
+      ) {
+        return jsonResponse({ interactions: settledInteractions });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
+      ) {
+        return jsonResponse({ inputs: [] });
       }
 
       if (
@@ -1239,6 +1313,192 @@ describe("SessionChatRuntimeProvider", () => {
     });
   });
 
+  // Invariant (Part II POST topology, IT-048 client half): while the prompt POST streams,
+  // the transcript SSE stays closed and a bounded 1s control poll — session detail, queue,
+  // pending decisions — owns control-plane freshness; it stops at settle, when the tail
+  // reopens at the durable cursor with its fences.
+  // Owning layer: runtime extensions. Canonical suite: this file.
+  it("Should run the 1s control poll only for the POST's duration and hand off at settle", async () => {
+    const promptResponse = openSseResponse([
+      'data: {"type":"start","messageId":"control-poll-turn"}\n\n',
+    ]);
+    promptResponsePromise = Promise.resolve(promptResponse.response);
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    await setComposerText("Keep the control plane fresh");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => {
+      expect(countPromptFetches(fetchMock)).toBe(1);
+      expect(sources[0]?.closed).toBe(true);
+    });
+    const queueBefore = countQueueFetches(fetchMock);
+    const detailBefore = countSessionDetailFetches(fetchMock);
+    await waitFor(
+      () => {
+        expect(countQueueFetches(fetchMock)).toBeGreaterThan(queueBefore);
+        expect(countSessionDetailFetches(fetchMock)).toBeGreaterThan(detailBefore);
+      },
+      { timeout: 2_500 }
+    );
+
+    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await waitFor(() => {
+      expect(sources).toHaveLength(2);
+      expect(sources[1]?.closed).toBe(false);
+    });
+    // The reopened tail resumes from the durable cursor with its fences (settle handoff).
+    const reopened = new URL(sources[1]!.url, "http://localhost");
+    expect(reopened.searchParams.get("after_sequence")).toBe("2");
+    expect(reopened.searchParams.get("epoch")).toBe("1");
+    expect(reopened.searchParams.get("generation")).toBe("1");
+    // The bounded poll stops once the POST settled: no new queue rereads after the handoff quiets.
+    await new Promise(resolve => setTimeout(resolve, 1_600));
+    const queueAfterSettle = countQueueFetches(fetchMock);
+    await new Promise(resolve => setTimeout(resolve, 1_200));
+    expect(countQueueFetches(fetchMock)).toBe(queueAfterSettle);
+  });
+
+  // Invariant (Part II POST topology, IT-046 client half): a prompt POST that never got an
+  // answer is retained as pending-ack by identity — the draft is not restored as if unsent —
+  // and the live tail reopens immediately to catch up by cursor.
+  // Owning layer: chat runtime + dispatch store. Canonical suite: this file.
+  it("Should retain a prompt whose POST got no answer as pending-ack and reopen the tail at once", async () => {
+    const lost = createDeferred<Response>();
+    promptResponsePromise = lost.promise;
+    const unconfirmed: string[] = [];
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    await setComposerText("Lost in transit");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    lost.reject(new TypeError("Failed to fetch"));
+    await waitFor(() => expect(unconfirmed).toHaveLength(1));
+    expect(unconfirmed[0]).toBe(lastPromptMessageID);
+    // Not a rejection: the draft is not restored, the identity is what Retry replays.
+    await waitFor(() => expect(sources).toHaveLength(2));
+    expect(sources[1]?.closed).toBe(false);
+    expect(composerText()).toBe("");
+  });
+
+  // Invariant (task_06 req. 5, mid-POST disconnect after acceptance): a 2xx answer accepted
+  // the turn; if the body then breaks or ends before a terminal frame, the turn continues
+  // detached — no unconfirmed row, no restored duplicate draft — and the tail reopens at once.
+  it("Should treat a body error after an accepted answer as a detached turn, not a lost send", async () => {
+    const encoder = new TextEncoder();
+    promptResponsePromise = Promise.resolve(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode('data: {"type":"start","messageId":"accepted-then-broken"}\n\n')
+            );
+            controller.error(new Error("socket hung up mid-body"));
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "x-vercel-ai-ui-message-stream": "v1",
+          },
+        }
+      )
+    );
+    const unconfirmed: string[] = [];
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    await setComposerText("Accepted then broken");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    await waitFor(() => expect(sources).toHaveLength(2));
+    expect(sources[0]?.closed).toBe(true);
+    expect(sources[1]?.closed).toBe(false);
+    expect(composerText()).toBe("");
+    expect(unconfirmed).toEqual([]);
+  });
+
+  it("Should treat a premature stream end before a terminal frame as a detached turn", async () => {
+    const openPrompt = openSseResponse([
+      'data: {"type":"start","messageId":"accepted-then-eof"}\n\n',
+      'data: {"type":"text-start","id":"t1"}\n\n',
+      'data: {"type":"text-delta","id":"t1","delta":"Half a "}\n\n',
+    ]);
+    promptResponsePromise = Promise.resolve(openPrompt.response);
+    const unconfirmed: string[] = [];
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    await setComposerText("Accepted then cut");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(sources[0]?.closed).toBe(true));
+
+    // EOF with no finish frame and no [DONE].
+    openPrompt.close([]);
+    await waitFor(() => expect(sources).toHaveLength(2));
+    expect(sources[1]?.closed).toBe(false);
+    expect(composerText()).toBe("");
+    expect(unconfirmed).toEqual([]);
+    expect(countPromptFetches(fetchMock)).toBe(1);
+  });
+
+  // Invariant: a 5xx after headers is not an authoritative admission answer — the daemon
+  // may have recorded the send — so the identity is retained as pending-ack, like no answer.
+  it("Should retain a prompt answered with a 5xx as pending-ack instead of restoring the draft", async () => {
+    promptResponsePromise = Promise.resolve(
+      jsonResponse({ error: "gateway timeout" }, { status: 504 })
+    );
+    const unconfirmed: string[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({
+      eventSourceFactory: url => new FakeSessionEventSource(url),
+      onUnconfirmedSend: messageId => unconfirmed.push(messageId),
+    });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Timed out at the gateway");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(unconfirmed).toHaveLength(1));
+    expect(unconfirmed[0]).toBe(lastPromptMessageID);
+    expect(composerText()).toBe("");
+  });
+
   it("Should report a revoked device response from the prompt transport", async () => {
     streamTickets = ["prompt-ticket"];
     promptResponsePromise = Promise.resolve(
@@ -1380,6 +1640,51 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
+  // Invariant (UT-105, US-019.EC-1 / US-009.EC-4): cancelling a prompt never
+  // changes the runtime identity — no remount — so the transport settles while
+  // the composer draft and the runtime subtree stay in place. Owning layer:
+  // chat-runtime provider integration. Canonical suite: this file.
+  it("UT-105: Should settle a cancelled prompt without remounting the runtime or losing the draft", async () => {
+    const promptResponse = createDeferred<Response>();
+    const onCancelPrompt = vi.fn();
+    const onRuntimeMount = vi.fn();
+    const user = userEvent.setup();
+    promptResponsePromise = promptResponse.promise;
+
+    renderSessionThread({ onCancelPrompt, onRuntimeMount });
+
+    try {
+      await screen.findByTestId("composer-input");
+      await waitFor(() => expect(onRuntimeMount).toHaveBeenCalledOnce());
+      const runtimeBeforeCancel = requireComposerAui();
+
+      await setComposerText("cancel this one");
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      const promptRequest = fetchMock.mock.calls.find(([input]) =>
+        getPathname(input as RequestInfo | URL).endsWith("/prompt")
+      );
+      expect(await screen.findByText("cancel this one")).toBeInTheDocument();
+      // The operator keeps typing while the turn runs: that draft is theirs.
+      await setComposerText("next question, kept");
+
+      await user.click(screen.getByTestId("composer-stop-button"));
+
+      expect(onCancelPrompt).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(true);
+        expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
+      });
+      expect(onRuntimeMount).toHaveBeenCalledOnce();
+      expect(requireComposerAui()).toBe(runtimeBeforeCancel);
+      expect(composerText()).toBe("next question, kept");
+      // The interrupted turn stays on screen at the point it was stopped.
+      expect(screen.getByText("cancel this one")).toBeInTheDocument();
+    } finally {
+      promptResponse.resolve(sseResponse([]));
+    }
+  });
+
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
     const prompt =
       '/goal Reply in exactly one sentence: "CompozyOS keeps agent work local-first and durable."';
@@ -1434,7 +1739,10 @@ describe("SessionChatRuntimeProvider", () => {
       );
       expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(false);
       expect(await screen.findByText(prompt)).toBeInTheDocument();
-      expect(await screen.findByLabelText("Working")).toBeInTheDocument();
+      // The status row reads Thinking until the first content, then Working.
+      expect(
+        await screen.findByRole("status", { name: /Working|Agent is responding/ })
+      ).toBeInTheDocument();
 
       await user.click(screen.getByTestId("composer-stop-button"));
 
@@ -1866,7 +2174,9 @@ describe("SessionChatRuntimeProvider", () => {
     expect(merged.map(message => message.id)).toEqual(["server_assistant_replacement_001"]);
   });
 
-  it("renders runtime progress events as activity notices instead of assistant text", async () => {
+  // ADR-006: progress ticks never become rows — the status row under the
+  // scroller carries elapsed and activity; the transcript stays quiet.
+  it("drops runtime progress ticks from the transcript instead of rendering them as rows", async () => {
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),
       {
@@ -1894,11 +2204,11 @@ describe("SessionChatRuntimeProvider", () => {
     renderSessionThread();
 
     await waitFor(() => {
-      expect(screen.getByTestId("runtime-activity-notice")).toBeInTheDocument();
+      expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("runtime-activity-notice")).toHaveTextContent("Still working");
-    expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
+    expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
+    expect(screen.queryByText("Still working")).not.toBeInTheDocument();
   }, 10_000);
 
   it("renders persisted session error events as failure notices", async () => {
@@ -2023,6 +2333,183 @@ describe("SessionChatRuntimeProvider", () => {
     // composer instead (owned by session-decision-dock.test.tsx).
     expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
+  }, 10_000);
+
+  function pendingPermissionTranscript(requestId: string): TranscriptMessage[] {
+    return [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: `transcript_permission_${requestId}`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-permission",
+            data: {
+              type: "permission",
+              request_id: requestId,
+              title: "compozy__terminal_exec",
+              action: "session/request_permission",
+              timestamp: "2026-09-05T10:00:00Z",
+              raw: {
+                tool_id: "compozy__terminal_exec",
+                tool_input: {
+                  command: "bun",
+                  args: ["test"],
+                  cwd: "~/dev/atlas-api",
+                  risk: "ordinary",
+                },
+              },
+            },
+          },
+        ],
+      } as TranscriptMessage,
+    ];
+  }
+
+  function restartExpiredRow(requestId: string): SessionInteractionRecord {
+    return {
+      interaction_id: `int_${requestId}`,
+      kind: "permission",
+      provider_request_id: requestId,
+      turn_id: "turn_001",
+      title: "compozy__terminal_exec",
+      tool_id: "compozy__terminal_exec",
+      status: "canceled",
+      created_at: "2026-09-05T10:00:00Z",
+      resolved_at: "2026-09-05T10:02:00Z",
+      resolution: "failed-by-restart",
+      resolved_by: "system",
+    };
+  }
+
+  it("does not read the daemon's settled interactions while the transcript shows no undecided ask", async () => {
+    renderSessionThread();
+    await waitFor(() => expect(countClarificationFetches(fetchMock)).toBeGreaterThan(0));
+    expect(interactionFetchSearches(fetchMock)).toEqual([]);
+  });
+
+  it("re-reads settled interactions on the live cadence while an ask is still genuinely open, and keeps rewind blocked", async () => {
+    vi.useFakeTimers();
+    transcriptMessages = pendingPermissionTranscript("turn_001:perm_open");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"])
+      );
+    });
+    expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_500);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=canceled"]);
+    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+  }, 10_000);
+
+  it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
+    vi.useFakeTimers();
+    settledInteractions = [restartExpiredRow("turn_001:perm_expired")];
+    transcriptMessages = pendingPermissionTranscript("turn_001:perm_expired");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument()
+      );
+    });
+    const receipt = screen.getByTestId("permission-expired-receipt");
+    expect(receipt).toHaveAttribute("data-resolution", "failed-by-restart");
+    expect(receipt).toHaveTextContent(
+      "Not decided · CompozyOS restarted before you answered — bun test did not run"
+    );
+    expect(screen.queryByTestId("permission-waiting-line")).not.toBeInTheDocument();
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    // The other rewind blockers (pending clarifications, queued inputs) settle on
+    // their own reads; the settled ask must not be the one holding rewind.
+    await act(async () => {
+      await vi.waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled"]);
+    expect(screen.getByTestId("permission-expired-receipt")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
+  }, 10_000);
+
+  function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {
+    const [user, ask] = pendingPermissionTranscript(requestId);
+    const part = (ask as { parts: { data: Record<string, unknown> }[] }).parts[0];
+    return [
+      user as TranscriptMessage,
+      { ...ask, parts: [{ ...part, data: { ...part?.data, decision } }] } as TranscriptMessage,
+    ];
+  }
+
+  function resolvedRow(requestId: string, resolvedBy: string): SessionInteractionRecord {
+    return {
+      ...restartExpiredRow(requestId),
+      status: "resolved",
+      resolution: "reject-once",
+      resolved_by: resolvedBy,
+    };
+  }
+
+  it("attributes a decided ask from the daemon's resolved row with one read and no polling", async () => {
+    vi.useFakeTimers();
+    settledInteractions = [resolvedRow("turn_001:perm_timeout", "timeout")];
+    transcriptMessages = decidedPermissionTranscript("turn_001:perm_timeout", "reject-once");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("permission-rejected-notice")).toHaveAttribute(
+          "data-actor",
+          "timeout"
+        )
+      );
+    });
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Timed out before anyone answered · bun test did not run"
+    );
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
+  }, 10_000);
+
+  it("keeps a decided ask neutral when the daemon has no resolved row for it", async () => {
+    vi.useFakeTimers();
+    transcriptMessages = decidedPermissionTranscript("turn_001:perm_legacy", "reject-once");
+
+    renderSessionThread();
+
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"])
+      );
+    });
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-actor", "unknown");
+    expect(receipt).toHaveTextContent("Not allowed · bun test did not run");
+    expect(receipt).not.toHaveTextContent("by you");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000);
+    });
+
+    expect(interactionFetchSearches(fetchMock)).toEqual(["?status=resolved"]);
   }, 10_000);
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
@@ -2217,19 +2704,23 @@ describe("SessionChatRuntimeProvider", () => {
       role: "assistant",
       parts: [{ type: "text", text: "Live reattached answer.", state: "done" }],
     };
-    sources[0]?.dispatch(
-      "transcript_delta",
-      {
-        session_id: primarySessionFixture.id,
-        epoch: 1,
-        generation: 1,
-        cursor: 2,
-        entries: [{ message: liveMessage, sequence: 2, start_sequence: 2 }],
-        has_more: false,
-        max_sequence: 2,
-      },
-      "2"
-    );
+    // The stream event is the I/O boundary that updates React state: dispatch
+    // it inside act so the runtime's reconciliation lands in the same flush.
+    await act(async () => {
+      sources[0]?.dispatch(
+        "transcript_delta",
+        {
+          session_id: primarySessionFixture.id,
+          epoch: 1,
+          generation: 1,
+          cursor: 2,
+          entries: [{ message: liveMessage, sequence: 2, start_sequence: 2 }],
+          has_more: false,
+          max_sequence: 2,
+        },
+        "2"
+      );
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Live reattached answer.")).toBeInTheDocument();

@@ -45,6 +45,14 @@ func (m *Manager) appendDurableSessionEventAttempt(
 	if _, err := m.waitForSessionFinalization(ctx, sessionID); err != nil {
 		return store.SessionEvent{}, err
 	}
+	return m.appendStoredSessionEvent(ctx, sessionID, event)
+}
+
+// appendStoredSessionEvent is also used by the finalization owner after closing
+// its recorder; that owner must not wait for its own finalization to finish.
+func (m *Manager) appendStoredSessionEvent(
+	ctx context.Context, sessionID string, event store.SessionEvent,
+) (store.SessionEvent, error) {
 	path := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, sessionID))
 	meta, err := m.readMetaWithContext(ctx, sessionID)
 	if err != nil {
@@ -75,6 +83,9 @@ func appendDurableSessionEventWithRecorder(
 	recorder EventRecorder,
 	event store.SessionEvent,
 ) (store.SessionEvent, error) {
+	if recorder == nil {
+		return store.SessionEvent{}, store.ErrClosed
+	}
 	appender, ok := recorder.(idempotentSessionEventAppender)
 	if !ok {
 		return store.SessionEvent{}, fmt.Errorf(

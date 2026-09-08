@@ -6,7 +6,6 @@ import { destroyTerminalInstances } from "@compozy/ui";
 
 import {
   ANSWERED_PASSWORD_REQUEST,
-  CONTESTED_TERMINAL,
   DEV_SERVER_TERMINAL,
   exitedTerminal,
   MAKE_GATE_TERMINAL,
@@ -19,7 +18,7 @@ import {
   TERMINAL_FIXTURE_VIEWER,
 } from "../../mocks/terminal-fixtures";
 import { TerminalWindowApp, type TerminalWindowAppProps } from "../terminal-window-app";
-import { TERMINAL_CLIENT_OP, TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
+import { TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
 import {
   recordingSocketFactory,
   renderTerminalWindow,
@@ -35,11 +34,10 @@ import {
  * Invariant: one terminal per OS window — every S1 state renders with its
  * distinguishing behaviour, the id-less route resolves itself (adopt the newest
  * unwindowed running terminal, else create once, cap surfaced instead of a dead
- * create), and the two contention behaviours hold — displacing another person
- * confirms by name before any write, and an unchanged browser identity keeps
- * one writable attachment. A pending question stays on screen for a watcher or
- * aggregate read, with the write row absent; resolved rows from the host
- * projection, including "by you", stay on the same stack.
+ * create), and every interactive attachment is writable regardless of who
+ * started the terminal. A pending question stays on screen for an aggregate
+ * read, with the write row absent; resolved rows from the host projection,
+ * including "by you", stay on the same stack.
  */
 
 const TERMINAL_LIMIT = 8;
@@ -48,20 +46,10 @@ function attachedPayload(overrides: Record<string, unknown> = {}) {
   return {
     seq: 0,
     truncated: false,
-    lease: "human_owned",
     mode: "pty",
     cols: 96,
     rows: 28,
     ...overrides,
-  };
-}
-
-function humanOwnerPayload(actorId: string) {
-  return {
-    lease: "human_owned",
-    actor_kind: "human",
-    actor_id: actorId,
-    reason: "takeover",
   };
 }
 
@@ -108,34 +96,26 @@ function renderWindow(overrides: Partial<TerminalWindowAppProps> = {}) {
 }
 
 describe("TerminalWindowApp — S1 states", () => {
-  it("Should render a controlled terminal with release rather than take control", async () => {
+  it("Should render a user-started terminal as an interactive shared surface", async () => {
     renderWindow();
 
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument()
     );
-    expect(screen.getByTestId("terminal-lease-badge")).toHaveAttribute("data-lease", "me");
-    expect(screen.getByTestId("terminal-lease-badge")).toHaveTextContent("You're in control");
-    expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-viewers")).toHaveAccessibleName("2 viewers");
+    expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).toBeInTheDocument();
   });
 
-  it("Should render a watched terminal read-only with one take-control action", async () => {
+  it("Should render an agent-started terminal as an interactive shared surface", async () => {
     renderWindow({ terminals: [PSQL_TERMINAL] });
 
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${PSQL_TERMINAL.id}`)).toBeInTheDocument()
     );
-    expect(screen.getByTestId("terminal-lease-badge")).toHaveAttribute("data-lease", "agent");
-    expect(screen.getByTestId("terminal-lease-badge")).toHaveTextContent(
-      "Claude Code is in control"
-    );
-    expect(screen.getByTestId("terminal-take-control")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-release-control")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("log", { name: PSQL_TERMINAL.title })).toBeInTheDocument()
     );
-    expect(screen.queryByRole("log", { name: `${PSQL_TERMINAL.title} — watching` })).toBeNull();
+    expect(screen.getByTestId("terminal-viewers")).toBeInTheDocument();
   });
 
   it("Should render a pipe terminal as a log with no interactive affordance", async () => {
@@ -158,8 +138,6 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.queryByTestId("terminal-signal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("terminal-pipe-overflow"));
     expect(await screen.findByTestId("terminal-signal")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-release-control")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-stop")).not.toBeInTheDocument();
   });
 
@@ -236,7 +214,7 @@ describe("TerminalWindowApp — S1 states", () => {
     );
   });
 
-  it("Should keep one writable attachment when the browser identity is unchanged", async () => {
+  it("Should keep one attachment when the browser identity is unchanged", async () => {
     const socket = recordingSocketFactory();
     renderWindow({
       socketFactory: socket.factory,
@@ -246,7 +224,6 @@ describe("TerminalWindowApp — S1 states", () => {
 
     await socket.readyForConnectionCount(1);
     await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
-    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
 
     await waitFor(() =>
       expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).toBeInTheDocument()
@@ -451,7 +428,7 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
   });
 
-  it("Should let a destination-profile watcher answer through an atomic handoff", async () => {
+  it("Should let any destination-profile viewer answer directly", async () => {
     const request = { ...PASSWORD_REQUEST, requested_at: new Date().toISOString() };
     renderWindow({ inputRequests: [request], terminals: [PSQL_TERMINAL] });
 
@@ -461,7 +438,7 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByText(request.reason)).toBeInTheDocument();
     expect(screen.getByTestId(`terminal-input-request-field-${request.id}`)).toBeInTheDocument();
     expect(screen.getByTestId(`terminal-input-request-send-${request.id}`)).toHaveTextContent(
-      "Take control & send"
+      "Send"
     );
   });
 
@@ -485,7 +462,7 @@ describe("TerminalWindowApp — S1 states", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("Should send directly only with a writable lease on a destination profile", async () => {
+  it("Should send directly from an interactive destination profile", async () => {
     const request = {
       ...PASSWORD_REQUEST,
       requested_at: new Date().toISOString(),
@@ -583,117 +560,7 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 });
 
-describe("TerminalWindowApp — contention", () => {
-  it("Should take control of an agent's terminal immediately, without asking", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [PSQL_TERMINAL] });
-
-    await socket.ready();
-    await userEvent.click(screen.getByTestId("terminal-take-control"));
-
-    // Exactly one TAKEOVER, unforced: displacing an agent never asks.
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([
-      { op: TERMINAL_CLIENT_OP.takeover, payload: { force: false } },
-    ]);
-    expect(screen.queryByTestId("terminal-takeover-dialog")).not.toBeInTheDocument();
-  });
-
-  it("Should confirm by name before displacing another person", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [CONTESTED_TERMINAL] });
-
-    await socket.ready();
-    await userEvent.click(screen.getByTestId("terminal-take-control"));
-
-    // Nothing reaches the wire until the confirmation lands.
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([]);
-    const dialog = await screen.findByTestId("terminal-takeover-dialog");
-    expect(dialog).toHaveTextContent("Take control from marina?");
-    expect(dialog).toHaveTextContent(CONTESTED_TERMINAL.title);
-
-    await userEvent.click(screen.getByTestId("terminal-takeover-confirm"));
-
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([
-      { op: TERMINAL_CLIENT_OP.takeover, payload: { force: true } },
-    ]);
-  });
-
-  it("Should send nothing when the displacement is cancelled", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [CONTESTED_TERMINAL] });
-
-    await userEvent.click(screen.getByTestId("terminal-take-control"));
-    await screen.findByTestId("terminal-takeover-dialog");
-    await userEvent.keyboard("{Escape}");
-
-    await waitFor(() =>
-      expect(screen.queryByTestId("terminal-takeover-dialog")).not.toBeInTheDocument()
-    );
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([]);
-  });
-
-  it("Should read control from the daemon's own frames, not from the catalog", async () => {
-    const socket = recordingSocketFactory();
-    // The catalog says the agent holds it; that is the starting point only.
-    renderWindow({ socketFactory: socket.factory, terminals: [PSQL_TERMINAL] });
-
-    await waitFor(() => expect(screen.getByTestId("terminal-take-control")).toBeInTheDocument());
-    await socket.ready();
-    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload({ lease: "agent_owned" }));
-    // The daemon then hands the lease to this viewer.
-    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
-
-    await waitFor(() => expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument());
-    expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
-  });
-
-  it("Should give control back explicitly rather than by claiming locally", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
-
-    await socket.ready();
-    const release = await screen.findByTestId("terminal-release-control");
-    await userEvent.click(release);
-
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.release)).toEqual([
-      { op: TERMINAL_CLIENT_OP.release, payload: {} },
-    ]);
-    // The chip does not move until the daemon says the lease moved.
-    expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument();
-  });
-
-  it("Should preserve an explicit release while the write connection reconnects", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
-
-    await socket.ready();
-    await socket.drop();
-    await userEvent.click(screen.getByTestId("terminal-release-control"));
-    await socket.readyForConnectionCount(2);
-
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.release)).toEqual([
-      { op: TERMINAL_CLIENT_OP.release, payload: {} },
-    ]);
-  });
-
-  it("Should announce a change of control without announcing the whole head", async () => {
-    const socket = recordingSocketFactory();
-    renderWindow({ socketFactory: socket.factory, terminals: [PSQL_TERMINAL] });
-
-    // Only the sentence is live. Marking the chip, the glyph and the viewer
-    // count live would repeat all of it on every render.
-    const label = await screen.findByTestId("terminal-lease-label");
-    expect(label).toHaveAttribute("aria-live", "polite");
-    expect(screen.getByTestId("terminal-lease-badge")).not.toHaveAttribute("aria-live");
-
-    await socket.ready();
-    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("terminal-lease-label")).toHaveTextContent("You're in control")
-    );
-  });
-
+describe("TerminalWindowApp — stream states", () => {
   it("Should offer the journal, not a retry, once the terminal is gone", async () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
@@ -827,8 +694,6 @@ describe("TerminalWindowApp — contention", () => {
     await socket.deliver(
       TERMINAL_SERVER_OP.attached,
       attachedPayload({
-        // The smallest controlling viewer decides, so this is frequently not the
-        // size this window would have chosen.
         cols: 80,
         rows: 24,
       })

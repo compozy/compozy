@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -470,11 +471,12 @@ func assertPermissionResult(t *testing.T, err error, wantOK bool) {
 }
 
 type helperACPAgent struct {
-	conn            *acpsdk.AgentSideConnection
-	scenario        string
-	filePath        string
-	configOptionsMu sync.Mutex
-	configOptions   []acpsdk.SessionConfigOption
+	conn                   *acpsdk.AgentSideConnection
+	scenario               string
+	filePath               string
+	configOptionsMu        sync.Mutex
+	configOptions          []acpsdk.SessionConfigOption
+	providerFailurePrompts atomic.Uint64
 }
 
 func (a *helperACPAgent) Authenticate(
@@ -485,7 +487,12 @@ func (a *helperACPAgent) Authenticate(
 }
 
 func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+	var meta map[string]any
+	if strings.HasPrefix(a.scenario, "steering_") {
+		meta = map[string]any{"steering": map[string]any{"supported": true}}
+	}
 	return acpsdk.InitializeResponse{
+		Meta:            meta,
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
@@ -502,7 +509,13 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 	}, nil
 }
 
-func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
+func (a *helperACPAgent) Cancel(ctx context.Context, params acpsdk.CancelNotification) error {
+	if a.scenario == "cooperative_cancel_ignored" {
+		return a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText("cancel received"),
+		})
+	}
 	return nil
 }
 
@@ -632,6 +645,15 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	switch a.scenario {
 	case "crash_on_prompt":
 		os.Exit(23)
+	case "provider_auth_recovers", "provider_rate_limit_recovers":
+		if a.providerFailurePrompts.Add(1) > 2 {
+			return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
+		}
+		message := "HTTP 401 authentication required"
+		if a.scenario == "provider_rate_limit_recovers" {
+			message = "HTTP 429 rate limit"
+		}
+		return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: message}
 	case "prompt_request_error_with_reason":
 		return acpsdk.PromptResponse{}, &acpsdk.RequestError{
 			Code:    -32000,
@@ -640,7 +662,8 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 				"reason_codes": []string{"mcp_auth_required"},
 			},
 		}
-	case "block_prompt_until_cancel":
+	case "block_prompt_until_cancel", "cooperative_cancel_ignored", "concurrent_steering",
+		"steering_injected", "steering_pending", "steering_failed", "steering_idle":
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
 			SessionId: params.SessionId,
 			Update:    acpsdk.UpdateAgentMessageText("blocking"),
@@ -1113,4 +1136,41 @@ func helperModeStateWithCurrent(current string, available ...string) *acpsdk.Ses
 		CurrentModeId:  acpsdk.SessionModeId(current),
 		AvailableModes: modes,
 	}
+}
+
+var _ acpsdk.ExtensionMethodHandler = (*helperACPAgent)(nil)
+
+func (a *helperACPAgent) HandleExtensionMethod(
+	ctx context.Context,
+	method string,
+	params json.RawMessage,
+) (any, error) {
+	if method != steerExtensionMethod || !strings.HasPrefix(a.scenario, "steering_") {
+		return nil, acpsdk.NewMethodNotFound(method)
+	}
+	var request acpsdk.PromptRequest
+	if err := json.Unmarshal(params, &request); err != nil {
+		return nil, err
+	}
+	steering, ok := request.Meta["steering"].(map[string]any)
+	if !ok || steering["idleBehavior"] != "promptRequired" {
+		return nil, errors.New("steering must keep idle fallback host-owned")
+	}
+	switch a.scenario {
+	case "steering_failed":
+		return wireSteerResponse{Outcome: "failed"}, nil
+	case "steering_idle":
+		return wireSteerResponse{Outcome: "promptRequired", Reason: "noRunningTurn"}, nil
+	case "steering_pending":
+		return wireSteerResponse{Outcome: "pending_injection"}, nil
+	}
+	if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
+		return nil, errors.New("steering requires one text block")
+	}
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+		SessionId: request.SessionId, Update: acpsdk.UpdateAgentMessageText(request.Prompt[0].Text.Text),
+	}); err != nil {
+		return nil, err
+	}
+	return wireSteerResponse{Outcome: "injected"}, nil
 }

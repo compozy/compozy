@@ -32,6 +32,10 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		return
 	}
 	response := contract.SessionStatusResponse{
+		LifecycleState:      health.LifecycleState,
+		Verified:            health.Verified,
+		Escalated:           health.Escalated,
+		Attention:           health.Attention,
 		SessionID:           health.SessionID,
 		WorkspaceID:         health.WorkspaceID,
 		AgentName:           health.AgentName,
@@ -45,6 +49,12 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		PendingInteractions: make([]contract.PendingInteractionPayload, 0),
 		UpdatedAt:           health.UpdatedAt,
 	}
+	queue, err := h.Sessions.InputQueueSummary(c.Request.Context(), health.SessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	response.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
 	if manager, available := h.Sessions.(SessionAttentionManager); available {
 		interactions, err := manager.PendingInteractions(c.Request.Context(), health.SessionID, nil)
 		if err != nil {

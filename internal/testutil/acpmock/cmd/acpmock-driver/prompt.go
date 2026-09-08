@@ -199,6 +199,9 @@ func (a *mockAgent) emitTextChunks(
 	update func(string) acpsdk.SessionUpdate,
 	step acpmock.Step,
 ) (acpmock.DiagnosticsStep, error) {
+	if step.BurstCount > 0 {
+		return a.emitTextBurst(ctx, sessionID, update, step)
+	}
 	chunks := normalizedChunks(step)
 	for _, chunk := range chunks {
 		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{

@@ -107,9 +107,9 @@ A QA pass is not complete while lab processes are alive. On every terminal path 
 
 ```bash
 eval "$TEARDOWN_COMMAND"            # single lab, from the manifest
-# or, to reap every discoverable lab on the machine:
-make qa-reap                         # add PURGE=1 to also delete runtime dirs after a clean sweep
 ```
+
+Use `make qa-reap` only for intentional machine-wide stale-lab recovery, not normal cleanup while unrelated runs may be active. `PURGE=1` additionally deletes runtime directories after a clean sweep and requires that deletion to be in scope.
 
 - The teardown stops the daemon gracefully first (`compozy daemon stop` under the lab `COMPOZY_HOME`), kills the lab tmux server, then sweeps survivors (registered PIDs, cmdline references, lab-port listeners, open files under the runtime/provider homes).
 - It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.

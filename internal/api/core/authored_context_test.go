@@ -418,12 +418,13 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		path          string
-		heartbeatErr  error
-		wantStatus    int
-		registerRoute func(handlerFixture)
-		assertPayload func(*testing.T, map[string]any)
+		name                   string
+		stopVerificationFailed bool
+		path                   string
+		heartbeatErr           error
+		wantStatus             int
+		registerRoute          func(handlerFixture)
+		assertPayload          func(*testing.T, map[string]any)
 	}{
 		{
 			name:         "Should return status without Heartbeat enrichment after agent deletion",
@@ -446,6 +447,39 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 				}
 				if got, want := payload["badge"], string(session.BadgeWaitingForInput); got != want {
 					t.Fatalf("badge = %#v, want %q", got, want)
+				}
+				if _, ok := payload["wake_state"]; ok {
+					t.Fatalf("wake_state = %#v, want omitted", payload["wake_state"])
+				}
+			},
+		},
+		{
+			name:                   "Should expose unverified stop attention without terminal success",
+			path:                   "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
+			heartbeatErr:           heartbeat.ErrAuthoringAgentNotFound,
+			stopVerificationFailed: true,
+			wantStatus:             http.StatusOK,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/status",
+					fixture.Handlers.GetSessionStatus,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				if got, want := payload["session_id"], "sess-deleted-agent"; got != want {
+					t.Fatalf("session_id = %#v, want %q", got, want)
+				}
+				if got, want := payload["agent_name"], "deleted-agent"; got != want {
+					t.Fatalf("agent_name = %#v, want %q", got, want)
+				}
+				if got, want := payload["badge"], string(session.BadgeNeedsAttention); got != want {
+					t.Fatalf("badge = %#v, want %q", got, want)
+				}
+				if payload["lifecycle_state"] != string(session.StateActive) || payload["verified"] != false ||
+					payload["escalated"] != true ||
+					payload["attention"] != session.StopVerificationFailedCode {
+					t.Fatalf("stop attention = %#v", payload)
 				}
 				if _, ok := payload["wake_state"]; ok {
 					t.Fatalf("wake_state = %#v, want omitted", payload["wake_state"])
@@ -511,11 +545,13 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 						return nil, err
 					}
 					return &session.Info{
-						ID:                  id,
-						WorkspaceID:         "ws-registry",
-						AgentName:           "deleted-agent",
-						State:               session.StateActive,
-						PendingClarifyCount: 1,
+						ID:                     id,
+						WorkspaceID:            "ws-registry",
+						AgentName:              "deleted-agent",
+						State:                  session.StateActive,
+						PendingClarifyCount:    1,
+						StopVerificationFailed: testCase.stopVerificationFailed,
+						StopEscalated:          testCase.stopVerificationFailed,
 					}, nil
 				},
 			}

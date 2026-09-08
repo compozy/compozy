@@ -110,3 +110,52 @@ func TestMatchesStartTimeCurrentProcess(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyProcessExit(t *testing.T) {
+	t.Parallel()
+	t.Run("Should distinguish the live process from a reused PID", func(t *testing.T) {
+		t.Parallel()
+		started, err := StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		verified, err := VerifyProcessExit(os.Getpid(), started)
+		if err != nil || verified {
+			t.Fatalf("VerifyProcessExit(live) = %v, %v", verified, err)
+		}
+		verified, err = VerifyProcessExit(os.Getpid(), started.Add(-time.Hour))
+		if err != nil || !verified {
+			t.Fatalf("VerifyProcessExit(reused) = %v, %v", verified, err)
+		}
+	})
+	t.Run("Should retain uncertainty when the process table lookup fails", func(t *testing.T) {
+		t.Parallel()
+		lookupErr := errors.New("process table unavailable")
+		verified, err := verifyProcessExit(42, time.Unix(100, 0),
+			func(int, syscall.Signal) error { return nil },
+			func(int) (time.Time, error) { return time.Time{}, lookupErr },
+		)
+		if verified || !errors.Is(err, lookupErr) {
+			t.Fatalf("verifyProcessExit() = %v, %v", verified, err)
+		}
+	})
+	t.Run("Should retain uncertainty when the initial probe fails", func(t *testing.T) {
+		t.Parallel()
+		probeErr := errors.New("process probe unavailable")
+		verified, err := verifyProcessExit(42, time.Unix(100, 0),
+			func(int, syscall.Signal) error { return probeErr },
+			func(int) (time.Time, error) { t.Fatal("unexpected lookup after failed probe"); return time.Time{}, nil },
+		)
+		if verified || !errors.Is(err, probeErr) {
+			t.Fatalf("verifyProcessExit() = %v, %v", verified, err)
+		}
+	})
+	t.Run("Should reject missing process identity", func(t *testing.T) {
+		t.Parallel()
+		for _, pid := range []int{0, -1, os.Getpid()} {
+			if verified, err := VerifyProcessExit(pid, time.Time{}); verified || err == nil {
+				t.Fatalf("VerifyProcessExit(%d, zero) = %v, %v", pid, verified, err)
+			}
+		}
+	})
+}

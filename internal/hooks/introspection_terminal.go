@@ -6,7 +6,6 @@ func terminalHookEventDescriptors() map[HookEvent]EventDescriptor {
 	return map[HookEvent]EventDescriptor{
 		HookTerminalOpened:         terminalDescriptor(HookTerminalOpened, "TerminalOpenedPayload"),
 		HookTerminalClosed:         terminalDescriptor(HookTerminalClosed, "TerminalClosedPayload"),
-		HookTerminalLeaseChanged:   terminalDescriptor(HookTerminalLeaseChanged, "TerminalLeaseChangedPayload"),
 		HookTerminalCommandStarted: terminalDescriptor(HookTerminalCommandStarted, "TerminalCommandStartedPayload"),
 		HookTerminalCommandFinished: terminalDescriptor(
 			HookTerminalCommandFinished,

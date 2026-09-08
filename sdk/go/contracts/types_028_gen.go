@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+type TaskRunResultPage struct {
+	RunID      string `json:"run_id"`
+	ResultRef  string `json:"result_ref,omitempty"`
+	Offset     int64  `json:"offset"`
+	Bytes      int64  `json:"bytes"`
+	TotalBytes int64  `json:"total_bytes"`
+	DataBase64 string `json:"data_base64"`
+	NextOffset *int64 `json:"next_offset,omitempty"`
+	EOF        bool   `json:"eof"`
+}
+
+type TaskRunResultParams struct {
+	ID     string `json:"id"`
+	Offset int64  `json:"offset,omitempty"`
+	Limit  int64  `json:"limit,omitempty"`
+}
+
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type TaskRunStartParams struct {
 	ID             string `json:"id"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
@@ -265,49 +292,4 @@ type TerminalClosedPayload struct {
 	At          time.Time    `json:"at"`
 	Exit        TerminalExit `json:"exit"`
 	Reason      string       `json:"reason"`
-}
-
-type TerminalCommandFinishedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	CommandID   string    `json:"command_id"`
-	ExitCode    *int      `json:"exit_code,omitempty"`
-	Signal      *string   `json:"signal,omitempty"`
-	ExitCause   string    `json:"exit_cause"`
-	DurationMS  int64     `json:"duration_ms"`
-	DetectedBy  string    `json:"detected_by"`
-	Approval    string    `json:"approval"`
-}
-
-type TerminalCommandStartedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	CommandID   string    `json:"command_id"`
-	Command     string    `json:"command"`
-	Cwd         string    `json:"cwd"`
-	DetectedBy  string    `json:"detected_by"`
-}
-
-type TerminalExit struct {
-	Cause  string  `json:"cause"`
-	Code   *int    `json:"code,omitempty"`
-	Signal *string `json:"signal,omitempty"`
 }

@@ -144,6 +144,51 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 		requireDecisionReason(t, decision, ReasonApprovalUnreachable)
 	})
 
+	t.Run("Should not prompt for terminal input under approve reads", func(t *testing.T) {
+		t.Parallel()
+
+		terminalWrite := builtinWrite
+		terminalWrite.ID = ToolIDTerminalWrite
+		terminalWrite.Risk = RiskDestructive
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveReads,
+			ApprovalAvailable:    true,
+		}, ToolsetCatalog{}, []ToolID{terminalWrite.ID})
+		if err != nil {
+			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, terminalWrite)
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if !decision.Callable || decision.ApprovalRequired {
+			t.Fatalf("decision = %#v, want direct terminal input", decision)
+		}
+	})
+
+	t.Run("Should require approval for terminal input under deny all", func(t *testing.T) {
+		t.Parallel()
+
+		terminalWrite := builtinWrite
+		terminalWrite.ID = ToolIDTerminalWrite
+		terminalWrite.Risk = RiskDestructive
+		evaluator, err := NewEffectivePolicyEvaluator(PolicyInputs{
+			SystemPermissionMode: PermissionModeDenyAll,
+			ApprovalAvailable:    true,
+		}, ToolsetCatalog{}, []ToolID{terminalWrite.ID})
+		if err != nil {
+			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+		}
+		decision, err := evaluator.Evaluate(ctx, Scope{}, terminalWrite)
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if !decision.Callable || !decision.ApprovalRequired {
+			t.Fatalf("decision = %#v, want approval-gated terminal input", decision)
+		}
+		requireDecisionReason(t, decision, ReasonApprovalRequired)
+	})
+
 	t.Run("Should enforce session lineage concrete atoms independently", func(t *testing.T) {
 		t.Parallel()
 

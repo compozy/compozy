@@ -16,24 +16,11 @@ LLM-authored PRDs default to "concrete and useful" framing because that's how pr
 
 ## Rule
 
-> PRDs frame **what** and **why**, never **how**. PRDs MUST NOT name:
->
-> - Frameworks (`react`, `next.js`, `tanstack-query`, `gin`, `cobra`, `gorm`).
-> - Storage engines (`PostgreSQL`, `SQLite`, `Redis`, `S3`).
-> - Wire protocols (`gRPC`, `JSON-RPC`, `WebSocket`).
-> - Auth standards (`OAuth 2.0`, `JWT`, `mTLS`, `PKCE`).
-> - File formats (`YAML`, `JSON`, `TOML`, `Protobuf`).
-> - HTTP error codes / status numbers.
-> - SQL schema or column names.
-> - Specific tools (`bun`, `mise`, `goreleaser`).
->
-> Strip and push to the TechSpec. Approval owner: PRD author.
+> Product requirements explain observable outcomes and why they matter. Technical implementation decisions belong in the technical section unless they are themselves a public contract, a fixed user constraint, or the subject of the product requirement.
 
 ## Operationalization
 
-`cy-spec-preflight` runs a regex pass over the PRD draft and surfaces any matching tokens. Items found are listed for the author to either justify (rare exception, e.g., when the PRD is _about_ Compozy Network's wire format) or strip.
-
-PRDs may name **product surfaces** (CLI verb, web route, doc page) when those are user-observable. They may not name the implementation behind those surfaces.
+Treat implementation-keyword scans as advisory prompts to inspect context. Move incidental library/schema choices to the technical design; retain user-facing CLI paths, protocols, formats, and constraints when they define acceptance. Vocabulary alone is not a blocking failure.
 
 ## Anti-patterns
 

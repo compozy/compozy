@@ -40,11 +40,17 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
+	Stop        SessionStopConfig        `toml:"stop"`
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
 	Compaction  SessionCompactionConfig  `toml:"compaction"`
 	Attachments SessionAttachmentsConfig `toml:"attachments"`
+}
+
+// SessionStopConfig bounds the cooperative phase before process termination.
+type SessionStopConfig struct {
+	CooperativeGrace time.Duration `toml:"cooperative_grace"`
 }
 
 // SessionAttachmentsConfig controls persisted session-attachment admission and retention.
@@ -69,11 +75,12 @@ type SessionLimitsConfig struct {
 
 // SessionSupervisionConfig defines runtime activity monitoring controls applied to sessions.
 type SessionSupervisionConfig struct {
+	compatibilityQuietPolicy  *QuietPolicy
 	ActivityHeartbeatInterval time.Duration `toml:"activity_heartbeat_interval,omitempty"`
 	ProgressNotifyInterval    time.Duration `toml:"progress_notify_interval,omitempty"`
 	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
-	InactivityWarningAfter    time.Duration `toml:"inactivity_warning_after,omitempty"`
-	InactivityTimeout         time.Duration `toml:"inactivity_timeout,omitempty"`
+	QuietAfter                time.Duration `toml:"quiet_after"`
+	StopGrace                 time.Duration `toml:"stop_grace"`
 	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
 

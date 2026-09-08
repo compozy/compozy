@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+type TaskBlockedPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	ParentTaskID                 string          `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	TaskStatus                   string          `json:"task_status,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	ReleaseReason                string          `json:"release_reason,omitempty"`
+	ClaimTokenHash               string          `json:"claim_token_hash,omitempty"`
+	BlockID                      string          `json:"block_id,omitempty"`
+	Kind                         string          `json:"kind,omitempty"`
+	Reason                       string          `json:"reason,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+	ClearedAt                    time.Time       `json:"cleared_at,omitzero"`
+	ClearNote                    string          `json:"clear_note,omitempty"`
+}
+
+type TaskCancelParams struct {
+	ID       string          `json:"id"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type TaskCatalogFacetsPayload struct {
+	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
+	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
+}
+
 type TaskCatalogItemPayload struct {
 	ID                           string                 `json:"id"`
 	ProfileID                    string                 `json:"profile_id"`
@@ -265,26 +302,4 @@ type TaskDashboardTotalsPayload struct {
 	FailedRuns             int `json:"failed_runs"`
 	CanceledRuns           int `json:"canceled_runs"`
 	ActiveRuns             int `json:"active_runs"`
-}
-
-type TaskDependencyPayload struct {
-	TaskID          string         `json:"task_id"`
-	DependsOnTaskID string         `json:"depends_on_task_id"`
-	Kind            DependencyKind `json:"kind"`
-	CreatedAt       time.Time      `json:"created_at"`
-}
-
-type TaskDependencyReferencePayload struct {
-	TaskID          string               `json:"task_id"`
-	DependsOnTaskID string               `json:"depends_on_task_id"`
-	Kind            DependencyKind       `json:"kind"`
-	CreatedAt       time.Time            `json:"created_at"`
-	DependsOn       TaskReferencePayload `json:"depends_on"`
-}
-
-type TaskDesignationRollupPayload struct {
-	DesignationGroupID string          `json:"designation_group_id"`
-	TaskID             string          `json:"task_id"`
-	Summary            json.RawMessage `json:"summary"`
-	CreatedAt          time.Time       `json:"created_at"`
 }

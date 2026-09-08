@@ -16,7 +16,7 @@ Reviewers (especially LLM-based reviewers) apply "always add `t.Parallel()`" as 
 
 ## Rule
 
-> Independent subtests MUST call `t.Parallel()`. Tests that use `t.Setenv` (directly or transitively) MUST NOT call `t.Parallel()`. Reject reviewer suggestions to add `t.Parallel()` to env-mutating tests as INVALID — with concrete evidence (the `t.Setenv` callsite).
+> Independent subtests run in parallel when safe. Tests using `t.Setenv` directly or through helpers, or mutating shared process state, stay serial; identify that dependency when reviewing their parallelism.
 
 ## Triage protocol
 

@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-01
+## 0.3.0 - 2026-09-07
 
 ### ♻️ Refactoring
 
@@ -13,6 +13,8 @@
 ### ⚡ Performance Improvements
 
 - Delegate full gates to pull request CI (#476)
+- Reduce test and development feedback overhead (#556)
+- Avoid rendering unchanged windows during layout updates
 
 ### 🎉 Features
 
@@ -64,6 +66,9 @@
 - Merge spec-cycle task delivery loops (#491)
 - Rebuild ACP runtime catalogs (#498)
 - Support child Loop config overrides (#494)
+- Integrated terminal — runtime-owned shells for people and agents (#490)
+- Live steer and truthful stop for sessions (#555)
+- Manageable session queue, truthful live view, and legible transcripts (#557)
 
 ### 🐛 Bug Fixes
 
@@ -166,6 +171,24 @@
 - Scope Loop extension tools to worktrees (#519)
 - Preserve profile-scoped extension Agent skills (#516)
 - Prevent session cancel and clear races (#523)
+- Restore beta 22 release notes and changelog
+- Package site search catalogs
+- Zoom windows without covering others and keep the layout stream alive (#525)
+- Honor route skips within a planning pass (#529)
+- Scope lifecycle loop actions (#531)
+- Preserve profile scope in loop implementers (#527)
+- Stabilize base CI integration (#536)
+- Fence terminal generation outputs and stabilize e2e contracts (#547)
+- Preserve ACP options in loop-managed session profiles (#542)
+- Preserve unresolved review findings (#543)
+- Mark skipped terminal loop nodes as not taken (#544)
+- Sanitize runtime settings when changing providers (#546)
+- Ship the AppImage with the static runtime (#548)
+- Preserve provider failures before output validation (#545)
+- Terminal operating system (#552)
+- Stabilize loop recovery and simplify run inspection (#554)
+- Keep pending activity visible and repair CI synchronization
+- Prevent stale terminal catalog reads from replacing live state
 
 ### 🔧 Miscellaneous Tasks
 
@@ -179,6 +202,8 @@
 - Preserve loop claim tokens in daemon fixtures (#418)
 - Fix cases failing
 - Fix failing tests
+- Stabilize Windows PTY read readiness
+- Drain Windows PTY startup output
 
 ### Release Notes
 
@@ -470,6 +495,16 @@ Git worktrees are runtime objects across the daemon, Web desktop, CLI, HTTP and 
 
 CompozyOS now discovers `SKILL.md` definitions at any depth below each skill root, so teams can organize capabilities under folders such as `marketing/content/` without changing frontmatter identity or normal precedence. `compozy skill create <name> --group <relative/path>` now scaffolds grouped workspace skills safely.
 
+##### Keep sessions alive while observable work is still running
+
+Session supervision now considers agent progress, running tools, active children, Loop runs, task leases, and scheduled waits. A quiet transcript alone no longer means the session is idle. If a work-signal source cannot answer, supervision reports attention and suspends automatic stopping.
+
+Observed silence warns after 30 minutes by default and enters the normal stop ladder after another 10 minutes; fresh work cancels the pending stop. Network Live participation has no aggregate wall-time limit by default, while explicitly configured and other budgets remain effective.
+
+Capacity starvation now escalates visibly. Blocked automation fires defer durably and resume after restart, and scheduler counters distinguish skipped wakes from successful work.
+
+PR: [#557](https://github.com/compozy/compozy/pull/557).
+
 ##### Feedback semantics for durable Loops
 
 A rejected Loop generation no longer restarts blind. The rejection is carried into the next attempt as context, only the producers responsible for it are re-run, and an opt-in ratchet keeps the best-scoring generation instead of losing it to a later regression. Every generation now records its origin, its parent, the gate verdict, the score, and the blocking issues inside claim-fenced transactions, so the CLI, HTTP, UDS, native tools, SSE, and the web UI all read the same durable run truth. (#290)
@@ -555,6 +590,14 @@ Every Loops surface adopts the approved visual contract's locked review decision
 - Automation suggestions and task templates are empty-state affordances again: they render only in the unfiltered zero-inventory state instead of sitting above a populated Jobs catalog.
 - The three catalogs compose the same components and differ only in icon, title, support line, action, and panel content.
 
+##### Manage follow-ups without losing them when a turn is interrupted
+
+Queued follow-ups survive interruption of the active turn, including agent- and Goal-owned entries. Edit, remove, steer, or explicitly clear the queue from the session controls. Clearing writes durable actor-attributed records and is also available through `compozy session input clear` and the corresponding HTTP/UDS and native-tool surfaces.
+
+Send identities make retries idempotent: retrying the same message returns its recorded outcome, while reusing the identity with different content is rejected. When an acknowledgment is lost, the client shows Not confirmed and retries the original identity. Daemon-generated follow-ups now use the same durable queue.
+
+PR: [#557](https://github.com/compozy/compozy/pull/557).
+
 ##### Pin, rename, and bind any command
 
 The palette learns your workspace. Pins float the commands you always want first, ranking signals push the ones you actually use, aliases give a command your own vocabulary, and any command can take a chord — including a system-wide one on the desktop app. (#441)
@@ -583,6 +626,16 @@ personalization = true
 [window_manager.global_shortcuts]
 "palette.summon.global" = "meta+shift+Space"
 ```
+
+##### Reconnect and read long sessions with a truthful live view
+
+Session streams recover from their last delivered position, including an empty catch-up acknowledgment when already current. Brief interruptions stay quiet; repeated failures show Reconnecting, then Disconnected with Try again. Sending while disconnected keeps the draft. Compaction and retention recovery preserve a consistent active turn and replace expired history windows explicitly.
+
+Completed tool work and settled turns fold into readable summaries, interrupted work stays open, and Thinking is explicit. Reading older history or expanding work no longer competes with live scrolling. Large payloads have Show all and Download controls; stop and steering provenance remain visible on the relevant messages.
+
+Bounded agent event ingestion and durable-history recovery prevent a slow watcher from wedging the producer or silently losing accepted output. Streaming redaction was optimized while preserving its output.
+
+PR: [#557](https://github.com/compozy/compozy/pull/557).
 
 ##### Remote gateway: reach your daemon from anywhere
 
@@ -651,6 +704,14 @@ runtimes:
 compozy loop run --name release --input worker_runtime=codex/gpt-5.4@high:speed=fast
 ```
 
+##### Search the full conversation and jump between your messages
+
+Find matches in older, unloaded conversation history and jump directly to the containing message or tool result, opening the necessary folds. Search covers text, tool names, filenames, errors, inputs, and outputs. An operator-message outline and a compact message trail make long sessions easier to navigate without losing your place as output streams.
+
+The same reads are available through `compozy session search`, `compozy session outline`, HTTP/UDS, and the corresponding native tools. Search results carry location hints so clients can open the exact matching work row.
+
+PR: [#557](https://github.com/compozy/compozy/pull/557).
+
 ##### Session attachments: paste, drop, or pick
 
 The session composer accepts images (PNG, JPEG, WebP) and files (PDF, Markdown, plain text) by paste, drag-and-drop, or file picker. Attachments persist before the prompt is accepted, ride the prompt as provider-neutral references, and reach multimodal agents as protocol-conformant ACP content blocks gated by the capabilities that agent negotiated at initialization. Saving a screenshot to disk and describing its path is no longer the workaround. (#412)
@@ -668,6 +729,24 @@ Slash commands in the composer are now backed by a single daemon-owned catalog s
 - What is effective respects global and workspace scope, agent activation and disable lists, runtime disable overlays, enabled and disabled extension resources, workspace and session ownership, and live resource revisions. A `session_commands_changed` stream frame refreshes only the affected session.
 - Injection is bounded at 24 KB per skill and 64 KB per turn, and repeating the same skill activates it once. Invocations persist through admission, queueing, replay, transcript storage, and the UI, and queued ones are revalidated against the exact source before dispatch.
 - Slash activation is limited to human operator input. Agent-authored prompts and `compozy__session_prompt` keep slash-shaped text literal, and hooks can remove an admitted invocation but never add one.
+
+##### Steer a working session and see when Stop has actually finished
+
+Follow-ups now default to steering. Runtimes that advertise live steering receive the guidance inside the active turn; other runtimes report an explicit interrupt-and-replace fallback. The composer shows what happened, restores refused drafts, and Settings lets you choose queueing instead. CLI and native-tool responses expose the send outcome and steering capability.
+
+Stop uses cooperative cancellation, forced stop, and process-group termination with process identity checks. The UI stays at Stopping until the runtime can verify the outcome; an unverifiable stop remains visible with attention. Canceling a turn keeps the session promptable, including when escalation needs to replace its process. Restart reconciliation identifies crashed agents and stale decisions instead of leaving phantom activity.
+
+PR: [#555](https://github.com/compozy/compozy/pull/555).
+
+##### Terminals stay with the workspace and welcome people and agents
+
+Open real terminals inside CompozyOS, watch an agent's deliberate command run live, and reconnect after closing a window or reloading the app while the daemon keeps the process running. Visible agent terminals appear without taking focus. The same terminals are available through the Web and Desktop apps, CLI, HTTP/UDS, and native tools.
+
+Authorized people and agents in the same workspace and profile can type, resize, answer input, signal, and close concurrently. Each submitted write stays whole and actor-attributed; there is no control handoff. Explicit read-only attachments remain available. Agent execution uses the approval policy, and hidden input is redacted from retained terminal surfaces.
+
+A command journal records who ran what, approval, outcome, and boundary-detection confidence. Recording is opt-in with retention limits. Local macOS, Linux, and Windows support interactive terminals; remote sandboxes support command execution and journaling without interactive attachment.
+
+PRs: [#490](https://github.com/compozy/compozy/pull/490), [#552](https://github.com/compozy/compozy/pull/552).
 
 ##### The command palette runs CompozyOS
 
@@ -797,6 +876,16 @@ Blocking issues: {{ .previous.verdicts.quality.blocking_issues }}
 
 The autonomous memory extractor could write operational chatter into curated memory, and a generated slug collision could overwrite an unrelated entry. The deterministic scanner now rejects Memory v2 operational identifiers — `memory_propose`, native `compozy__memory_*` tool names, controller event names, and scanner rule IDs — and extractor, provider, and dreaming candidates no longer update an existing memory solely because their generated slug collides. Explicit filename-collision updates from direct CLI or user writes keep working. (#396)
 
+##### Carry the selected Profile through Loop compilation and worker sessions
+
+Profile-scoped Agents, Skills, Loops, and Session references now resolve consistently through validation, persisted responses, and execution. Orchestrated implementers and nested daemon-issued Session commands retain the validated caller Profile while preserving workspace and identity checks.
+
+Lifecycle extension tools are authorable only in the workspace and Profile where they are enabled. Compilation sees the same tool schema and placement as execution, with normal validation and permission policy still enforced.
+
+Loop-managed sessions also inherit configured ACP options and speed, with explicit runtime options taking precedence. This prevents session creation-profile mismatches before the provider starts.
+
+PRs: [#527](https://github.com/compozy/compozy/pull/527), [#531](https://github.com/compozy/compozy/pull/531), [#542](https://github.com/compozy/compozy/pull/542).
+
 ##### Dry-run proves the run you are about to submit
 
 A Loop could validate, dry-run cleanly, and then fail at submission with `executed definition template manifest changed`. The compiler folded default values into the definition it stored, but compiled templates from the definition _before_ those defaults — so a persisted run carried more template keys than its own snapshot, and hydration rightly refused it. Compilation now uses one canonical definition throughout, and dry-run exercises the exact snapshot boundary a real submission uses. (#313, #317)
@@ -869,6 +958,22 @@ A cluster of failures where the runtime reported the wrong thing about its own s
 - **Permissions follow the live agent** (fixes #415). The observer carried a duplicate permission-mode resolver instead of the resource-backed agent catalog the daemon uses. Live snapshots are built from effective permissions and cached by runtime identity and revision, so a revision change can no longer leave stale permissions in place; a stopped session's fallback snapshot stays deliberately shallow.
 - **A committed result survives a failed publish** (fixes #435). A pre-commit lease failure and a post-commit publication failure looked identical, so an already-settled run could be failed and settled a second time. A claimed run fails only when completion returned no committed run.
 - **A crashed process is reported as crashed** (fixes #436). A non-zero exit code or a signal is now classified as a process failure and maps to the process-exited stop cause. A clean exit with code `0` after a transport failure stays on the transport path and keeps `error`, so `agent_crashed` means the subprocess actually died.
+
+##### Keep skipped Loop branches and unresolved review findings honest
+
+Exclusive routing no longer executes a dominated branch later in the same planning pass. Skipped downstream and fan-out steps settle as Not taken instead of appearing permanently pending after the run ends; work that ran in earlier rounds keeps its history.
+
+Review-and-fix findings that are valid but blocked or unresolved remain pending and retain their status. Invalid findings remain invalid. Finalization no longer counts those findings as resolved simply because the review round finished.
+
+PRs: [#529](https://github.com/compozy/compozy/pull/529), [#543](https://github.com/compozy/compozy/pull/543), [#544](https://github.com/compozy/compozy/pull/544).
+
+##### Keep terminal output and session activity visible through lifecycle races
+
+A short-lived terminal that exits while the browser is attaching now keeps its exited state when an older catalog response arrives late. The exit bar and retained output remain discoverable. Terminal selection controls no longer resize the process and clear the selection, hidden panes no longer publish invalid dimensions, and a completed CLI detach no longer causes an unintended reconnect.
+
+Session stream closure drains the persisted stop marker. The pending-reply indicator also appears when a delayed React effect has already consumed its initial guard interval, instead of staying hidden indefinitely. Delayed Settings navigation and runtime-selector closing focus no longer override a newer operator action.
+
+PRs: [#547](https://github.com/compozy/compozy/pull/547), [#557](https://github.com/compozy/compozy/pull/557). CI follow-ups: [862e138](https://github.com/compozy/compozy/commit/862e138113f438e532777421ae3b85343162360e), [52d2c4a](https://github.com/compozy/compozy/commit/52d2c4a63f8dbaa429ff61f31671f52bee8a518b).
 
 ##### Live changelog and composer fixes
 
@@ -948,6 +1053,16 @@ A Loop worker task run parked in `needs_attention` had no honest way back. Gener
 compozy task run recover <run-id> --reason "operator recovery" -o json
 ```
 
+##### Recover Loop runs without losing results or reporting an old failure as current
+
+Carried external results with identical descriptors are deduplicated, fixing task-result reads and daemon startup during recovery while retaining corruption checks for conflicting content. Current-generation activity and blockers no longer inherit an earlier generation's failure or quarantine.
+
+Reruns respect immutable generation lineage and allocate fresh Goal binding epochs. Completed generation outputs reject stale nonterminal overwrites, and new rounds emit one generation-start event. Built-in command judges use the daemon-matched executable and environment.
+
+The run page leads with outcomes and action results. It previews a few outputs, keeps Details available, folds quiet control and skipped steps, and shows terminal retry guidance only when the existing planner accepts that recovery.
+
+PRs: [#547](https://github.com/compozy/compozy/pull/547), [#554](https://github.com/compozy/compozy/pull/554).
+
 ##### Removing the suggested Home folder no longer breaks the desktop
 
 Onboarding seeded every daemon registration into the selectable project draft, including the internal operator-home registration that Global runs on. Removing the suggested Home folder deleted that registration and left a desktop where dock apps took focus but opened nothing. (#440)
@@ -955,9 +1070,23 @@ Onboarding seeded every daemon registration into the selectable project draft, i
 - Onboarding now partitions project workspaces from the operator home, so that row can never be seeded, added, or deleted as a project.
 - The fix is covered by the canonical onboarding suite, with three cases that fail against the previous behavior.
 
+##### Report provider failures clearly and clear stale settings when switching providers
+
+Loop actions preserve quota, authentication, transport, timeout, and refusal failures before validating the model's output. An expired login or usage limit is no longer disguised as an invalid JSON result; genuine malformed model output still fails schema validation.
+
+Changing an Agent's provider with `compozy agent update` clears the previous provider's model, command, reasoning effort, and ACP options unless you explicitly supply replacements. Providers that do not support reasoning configuration reject it during resolution instead of failing later at session startup.
+
+PRs: [#545](https://github.com/compozy/compozy/pull/545), [#546](https://github.com/compozy/compozy/pull/546).
+
 ##### Resource-only extensions need no toolchain
 
 An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
+
+##### Run the Linux AppImage without installing libfuse2
+
+Linux AppImages now embed the static runtime, allowing distributions with FUSE 3 to launch the app without installing `libfuse2`. Release, local, and update-test packaging share the same runtime selection. The extraction fallback remains available for environments without kernel FUSE support.
+
+PR: [#548](https://github.com/compozy/compozy/pull/548).
 
 ##### The daemon owns a managed worker's outcome
 
@@ -974,6 +1103,16 @@ Long-running sessions with a large internal session catalog put the macOS deskto
 - Memory-extractor, auto-title, and dream sessions no longer publish wake events to the public session catalog.
 - Built-in background agents, including `dreaming-curator`, resolve through effective workspace configuration instead of being reported as missing workspace-authored agents.
 - The identity contract ships in OpenAPI and the generated TypeScript types.
+
+##### Zoom a window without covering its tiled neighbors
+
+Zoom now moves a window or its entire tab frame to a separate regular desktop when needed, preserving the other windows. Unzoom returns the unit through its saved layout anchors and removes an empty desktop created for zoom. Tiling another window ends zoom and gives the new neighbor its own space.
+
+Persisted version 3 layouts migrate losslessly to the current layout shape, preserving tab order and the active tab. Layout streams now use heartbeats, stalled-stream recovery, and authoritative reconnect fences so the browser catches up after a disconnect.
+
+Moving one window no longer forces unchanged windows to render again, reducing work during layout updates from another browser or the CLI. The existing 12-window drag, restore, and peer-convergence performance limits remain enforced.
+
+PR: [#525](https://github.com/compozy/compozy/pull/525).
 
 #### Highlights
 
@@ -1002,6 +1141,28 @@ CompozyOS beta expands how people and agents configure the runtime across MCP, s
 - Automation jobs can target Loops with workspace inputs and mappings, unresolved tool calls now fail explicitly, and Loop/session recovery paths report clearer state and errors. (#276, #279)
 
 Migration notes: update MCP catalog manifests to version 2 and replace public SSE transport; create a session before submitting its first prompt and runtime selection; update extension manifests to version 2.
+
+##### Spend less time repeating development and verification work
+
+Repeated development startup and verification reuse successful evidence when source, generated artifacts, toolchain, and build settings still match. Development entry points avoid unchanged generation, and Air avoids relinking an unchanged daemon while preserving atomic publication and failed-build recovery. Explicit generation and drift checks remain available.
+
+Web tests use the existing worker bound with a threads pool; migration fixtures reuse an empty historical prefix while still exercising real upgrades. Active lint-plugin tests are included in normal verification. The full-checkptr audit now installs its Bun dependencies and uses the existing eight-way Go partitioner without reducing instrumentation or timeouts.
+
+Marketplace MCP configuration no longer waits for unrelated model-catalog discovery. Provider and catalog changes still reconcile normally.
+
+PRs: [#536](https://github.com/compozy/compozy/pull/536), [#556](https://github.com/compozy/compozy/pull/556).
+
+##### Upgrade defaults and compatibility for session control
+
+Persisted database state and layouts upgrade through their owning migrations. Review these session defaults when upgrading:
+
+- `session.busy_input.default_mode` is now `steer`; choose `queue` to defer follow-ups. Live injection depends on runtime capability, and unsupported runtimes report the interrupt fallback.
+- New supervision settings are `session.supervision.quiet_after` (30m) and `stop_grace` (10m). Existing `inactivity_warning_after` and `inactivity_timeout` settings retain their legacy timer behavior during the v0.4 compatibility window. For ordinary positive thresholds, migrate the warning threshold to `quiet_after` and the difference between stop and warning thresholds to `stop_grace`; check the documented zero semantics before changing disabled timers.
+- `network.live.max_total_wall_time` defaults to `0`, disabling that aggregate wall budget. Set an explicit duration if you need a limit.
+- Prefer `--expected-turn` over the deprecated `--expected-turn-id`. The old flag and the historical `interrupt` default remain accepted with warnings until their planned removal in v0.5.0; explicit per-send interruption remains supported.
+- `compozy__session_prompt` defaults to `wait: false`. Request `wait: true` explicitly when you need a synchronous native-tool call.
+
+PRs: [#525](https://github.com/compozy/compozy/pull/525), [#555](https://github.com/compozy/compozy/pull/555), [#557](https://github.com/compozy/compozy/pull/557).
 
 ## 0.0.9 - 2026-07-04
 

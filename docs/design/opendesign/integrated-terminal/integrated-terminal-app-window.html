@@ -13,18 +13,17 @@
 <link rel="stylesheet" href="integrated-terminal.css">
 <!--
   integrated-terminal-app-window · S1 + S2 — the Terminal OS app window
-  (deck tabs, lease chrome, grid) and the dock launcher.
+  (deck tabs, presence chrome, grid) and the dock launcher.
   Spec: .compozy/tasks/integrated-terminal/_uiux.md S1/S2 · US-001..010, 029 · ADR set.
   Contract: DESIGN-NOTES.md.
   Provenance:
     production — ds-shell window/deck/dock anatomy (design-system/os-shell.html
       chapter 02/03/05); buttons/pills ds-core; app catalog
       web/src/systems/os/lib/app-catalog.ts (descriptor pattern).
-    spec — hollow cursor = watching (US-007); one Take control affordance
-      (US-008); presence always visible (US-010); size follows smallest
-      controlling viewer, watchers never vote (US-007.EC-3); pipe terminals
-      render as a read-only log pane (exec-yield, US-013); human-vs-human
-      displacement confirms by name (US-008.AC-3).
+    spec — every interactive attachment is writable (ADR-020); presence is
+      always visible (US-010); size follows the smallest writable attachment;
+      explicit read-only views never vote (US-007.EC-3); pipe terminals render
+      as a read-only log pane (exec-yield, US-013).
     authorized delta — .a1..a15 spans stand in for emulator cell attributes
       (production paints via the TerminalView theme object, not CSS classes);
       recording dot reuses the danger hue as the universal record convention
@@ -47,23 +46,22 @@
   </header>
   <div class="scroll"><div class="page">
 
-    <!-- ===== 01 · FINAL — you control ===== -->
+    <!-- ===== 01 · FINAL — shared input ===== -->
     <section class="lab-sec" data-od-id="taw-final">
       <div class="lab-sec__head">
         <span class="lab-sec__num">01</span>
-        <h2 class="lab-sec__t">Terminal window — you control</h2>
+        <h2 class="lab-sec__t">Terminal window — shared input</h2>
         <span class="lab-sec__gist">US-002.AC-1 · US-005 · US-010.AC-1</span>
       </div>
       <div class="spec">
         <div class="spec__note">
           <b>The dark screen is the window.</b> Tabs list this project's
-          terminals; each one gets a 44px head — the name once, a chip
-          saying who's in control, who's watching — and at most two
-          trailing actions. The screen sits full-bleed on
+          terminals; each one gets a 44px head — the name once, current
+          viewer count, and at most two trailing actions. The screen sits full-bleed on
           <code>--term-bg</code>, one step darker than the canvas. A solid
-          cursor means you can type. Nothing is highlighted at rest —
-          being in control is the quiet default, not an event.
-          <span class="mono">US-002 · US-005 · ADR-002</span>
+          cursor means this interactive attachment can type. Shared input is
+          the quiet default, not an event.
+          <span class="mono">US-002 · US-005 · ADR-020</span>
         </div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="taw-final-stage">
@@ -103,13 +101,10 @@
                 </div>
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
-                  <!-- lease truth: GET /terminals/:id → controller {kind,id} + lease -->
-                  <span class="tm-lease" data-lease="me" data-od-id="taw-final-lease"><svg data-lucide="keyboard"></svg>You're in control</span>
-                  <span class="tm-viewers" title="2 watching" data-od-id="taw-final-viewers"><svg data-lucide="eye"></svg>2</span>
+                  <span class="tm-viewers" title="2 viewers" data-od-id="taw-final-viewers"><svg data-lucide="eye"></svg>2</span>
                   <span class="w2-vsep" aria-hidden="true"></span>
                   <div class="w2-actions">
-                    <button class="btn btn--sm btn--ghost" type="button" data-od-id="taw-final-release">Release control</button>
-                    <!-- stop = danger verb: POST /terminals/:id/kill · record lives in §08 (≤2 head actions) -->
+                    <!-- stop = danger verb: POST /terminals/:id/kill · record lives in §07 (≤2 head actions) -->
                     <button class="btn btn--sm btn--icon btn--ghost" type="button" aria-label="Stop" title="Stop"><svg data-lucide="circle-stop"></svg></button>
                   </div>
                 </div>
@@ -135,22 +130,19 @@
       </div>
     </section>
 
-    <!-- ===== 02 · WATCHING — agent controls ===== -->
-    <section class="lab-sec" data-od-id="taw-watching">
+    <!-- ===== 02 · AGENT AND OPERATOR — SHARED INPUT ===== -->
+    <section class="lab-sec" data-od-id="taw-shared">
       <div class="lab-sec__head">
         <span class="lab-sec__num">02</span>
-        <h2 class="lab-sec__t">Watching — the agent controls</h2>
-        <span class="lab-sec__gist">US-007.AC-1 · US-010.AC-1 · US-008.AC-1</span>
+        <h2 class="lab-sec__t">Agent and operator — both can type</h2>
+        <span class="lab-sec__gist">ADR-020 · concurrent shared input</span>
       </div>
       <div class="spec">
         <div class="spec__note">
-          <b>The hollow cursor says you're watching.</b> Read-only shows in
-          the cursor shape and the missing input line — never in a helper
-          sentence. The chip names who is in control; <b>Take control</b> is
-          the one highlighted action, and taking over from an agent is
-          instant and never fails. Every viewer sees the change at the same
-          moment.
-          <span class="mono">US-007 · US-008.AC-1 · ADR-005</span>
+          <b>Opening an agent-started terminal is immediately interactive.</b>
+          The viewer count shows shared presence while the normal cursor stays
+          writable. Focus changes and reconnects do not change anyone's access.
+          <span class="mono">ATTACHED → writable · ADR-020</span>
         </div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="taw-watching-stage">
@@ -163,13 +155,7 @@
                 </div>
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
-                  <span class="tm-lease" data-lease="agent" data-od-id="taw-watching-lease"><span class="agent-chip">CC</span><b>Claude Code</b> is in control</span>
-                  <span class="tm-viewers" title="You and 1 other watching"><svg data-lucide="eye"></svg>2</span>
-                  <span class="w2-vsep" aria-hidden="true"></span>
-                  <div class="w2-actions">
-                    <!-- the ONE accent affordance: POST /terminals/:id/takeover -->
-                    <button class="btn btn--sm btn--primary" type="button" data-od-id="taw-take-control">Take control</button>
-                  </div>
+                  <span class="tm-viewers" title="2 viewers"><svg data-lucide="eye"></svg>2</span>
                 </div>
               </header>
               <div class="tm-winbody">
@@ -183,7 +169,7 @@
 <span class="tm-ln">gate: go lane → <span class="a3">go-lint</span> + <span class="a3">go test -race</span> (scoped)</span>
 <span class="tm-ln">ok   internal/terminal  2.148s</span>
 <span class="tm-ln">ok   internal/terminal/journal  0.912s</span>
-<span class="tm-ln"><span class="a2">$</span> <span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+<span class="tm-ln"><span class="a2">$</span> <span class="tm-cur" aria-hidden="true"></span></span>
                   </div>
                 </div>
               </div>
@@ -193,45 +179,10 @@
       </div>
     </section>
 
-    <!-- ===== 03 · TAKEOVER — human vs human ===== -->
-    <section class="lab-sec" data-od-id="taw-takeover">
-      <div class="lab-sec__head">
-        <span class="lab-sec__num">03</span>
-        <h2 class="lab-sec__t">Takeover — displacing another person</h2>
-        <span class="lab-sec__gist">US-008.AC-3 · EC write_owner_held</span>
-      </div>
-      <div class="spec">
-        <div class="spec__note">
-          <b>Displacement confirms by name.</b> Taking over an agent never
-          asks. Taking over another person does — full dialog anatomy, the
-          current controller named, one neutral confirm. If two people race,
-          exactly one wins and the other sees who holds control now.
-          <span class="mono">US-008.AC-3 · write_owner_held</span>
-        </div>
-        <div class="spec__demo">
-          <div class="stage stage--short stage--center" data-od-id="taw-takeover-stage">
-            <div class="dialog dialog--sm" role="alertdialog" aria-labelledby="taw-to-title" data-od-id="taw-takeover-dialog">
-              <div class="dialog__head">
-                <div class="dialog__head-main">
-                  <h3 class="dialog__title" id="taw-to-title">Take control from Marina?</h3>
-                  <p class="dialog__desc">Marina is typing in dev server right now. Taking control disconnects her input immediately.</p>
-                </div>
-              </div>
-              <div class="dialog__foot">
-                <span class="dialog__foot-note mono-id">term-4f21c9a03b7e</span>
-                <button class="btn btn--sm btn--ghost" type="button">Cancel</button>
-                <button class="btn btn--sm" type="button" data-od-id="taw-takeover-confirm">Take control</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== 04 · PIPE MODE — read-only log pane ===== -->
+    <!-- ===== 03 · PIPE MODE — read-only log pane ===== -->
     <section class="lab-sec" data-od-id="taw-pipe">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">04</span>
+        <span class="lab-sec__num">03</span>
         <h2 class="lab-sec__t">Read-only log — output, not a prompt</h2>
         <span class="lab-sec__gist">US-013 · exec-yield promotion</span>
       </div>
@@ -257,7 +208,7 @@
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
                   <span class="pill pill--xs" data-tone="neutral">read-only log</span>
-                  <span class="tm-lease" data-lease="agent"><span class="agent-chip">CC</span><b>Claude Code</b> ran this</span>
+                  <span class="pill pill--xs" data-tone="neutral">Claude Code ran this</span>
                   <span class="w2-vsep" aria-hidden="true"></span>
                   <div class="w2-actions">
                     <!-- pipe verbs only: read/wait/signal/close -->
@@ -283,10 +234,10 @@
       </div>
     </section>
 
-    <!-- ===== 05 · DECK GRAMMAR ===== -->
+    <!-- ===== 04 · DECK GRAMMAR ===== -->
     <section class="lab-sec" data-od-id="taw-deck">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">05</span>
+        <span class="lab-sec__num">04</span>
         <h2 class="lab-sec__t">Deck grammar — tab states and the cap</h2>
         <span class="lab-sec__gist">US-004 · US-029 scale · cap 8/project</span>
       </div>
@@ -362,10 +313,10 @@
       </div>
     </section>
 
-    <!-- ===== 06 · DOCK — launcher + attention (S2) ===== -->
+    <!-- ===== 05 · DOCK — launcher + attention (S2) ===== -->
     <section class="lab-sec" data-od-id="taw-dock">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">06</span>
+        <span class="lab-sec__num">05</span>
         <h2 class="lab-sec__t">Dock — launcher and attention badge</h2>
         <span class="lab-sec__gist">US-004 · US-017 · US-019</span>
       </div>
@@ -401,10 +352,10 @@
       </div>
     </section>
 
-    <!-- ===== 07 · CONNECTING ===== -->
+    <!-- ===== 06 · CONNECTING ===== -->
     <section class="lab-sec" data-od-id="taw-connecting">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">07</span>
+        <span class="lab-sec__num">06</span>
         <h2 class="lab-sec__t">Connecting — brief and truthful</h2>
         <span class="lab-sec__gist">US-003 · attach ticket, 30s TTL</span>
       </div>
@@ -428,7 +379,7 @@
                 </div>
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
-                  <span class="tm-lease" data-lease="available">No one in control</span>
+                  <span class="tm-presence" data-state="empty"><svg data-lucide="eye"></svg><b>0</b> viewers</span>
                 </div>
               </header>
               <div class="tm-winbody">
@@ -442,19 +393,18 @@
       </div>
     </section>
 
-    <!-- ===== 08 · SIZE VOTE · RECORDING ===== -->
+    <!-- ===== 07 · SIZE VOTE · RECORDING ===== -->
     <section class="lab-sec" data-od-id="taw-chrome">
       <div class="lab-sec__head">
-        <span class="lab-sec__num">08</span>
+        <span class="lab-sec__num">07</span>
         <h2 class="lab-sec__t">Screen size and recording</h2>
         <span class="lab-sec__gist">US-007.EC-3 · US-024</span>
       </div>
       <div class="spec">
         <div class="spec__note">
-          <b>Watchers never shrink the screen.</b> The terminal is sized by
-          the smallest window among people who can type — watching from a
-          small laptop never squeezes anyone. That fact renders as small
-          print, and recording is always announced: a pulsing dot with
+          <b>Read-only views never shrink the screen.</b> The terminal is sized by
+          the smallest writable attachment; transcript and aggregate reads do not vote. That fact
+          renders as small print, and recording is always announced: a pulsing dot with
           elapsed time sits in the head while the capture runs.
           <span class="mono">US-007.EC-3 · RESIZED · asciicast v2</span>
         </div>
@@ -470,8 +420,7 @@
                 <span class="w2-flex" aria-hidden="true"></span>
                 <div class="win-trail">
                   <span class="tm-rec" data-od-id="taw-rec"><i aria-hidden="true"></i>rec 02:14</span>
-                  <span class="tm-lease" data-lease="me"><svg data-lucide="keyboard"></svg>You're in control</span>
-                  <span class="tm-viewers" title="1 watching"><svg data-lucide="eye"></svg>1</span>
+                  <span class="tm-viewers" title="2 viewers"><svg data-lucide="eye"></svg>2</span>
                   <span class="w2-vsep" aria-hidden="true"></span>
                   <div class="w2-actions">
                     <button class="btn btn--sm btn--ghost" type="button">Stop recording</button>

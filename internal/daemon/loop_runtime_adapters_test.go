@@ -645,6 +645,27 @@ func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
 		}
 	})
 
+	t.Run("Should invoke the daemon executable through the command environment", func(t *testing.T) {
+		t.Parallel()
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     `"$COMPOZY_BIN" -test.list '^TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace$'`,
+		})
+		if err != nil {
+			t.Fatalf("RunCommand() error = %v", err)
+		}
+		if result.ExitCode != 0 ||
+			strings.TrimSpace(result.Stdout) != "TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace" {
+			t.Fatalf("daemon executable command = %#v", result)
+		}
+	})
+
 	t.Run("Should fail before execution when the workspace cannot be resolved", func(t *testing.T) {
 		t.Parallel()
 

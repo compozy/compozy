@@ -157,9 +157,7 @@ function revokeDescription(target: ToolApprovalGrant | null): string | null {
   if (!target) return null;
   const terminal = terminalGrantFromToolGrant(target);
   if (terminal) {
-    return terminal.kind === "typing"
-      ? "CompozyOS will forget this typing permission in this project. The next keystroke in that terminal will ask again."
-      : "CompozyOS will forget this exact command in this project. The next matching run will ask again.";
+    return "CompozyOS will forget this exact command in this project. The next matching run will ask again.";
   }
   return `CompozyOS will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`;
 }

@@ -11,12 +11,15 @@ interface SessionPromptChatTransportOptions {
   fetch: typeof globalThis.fetch;
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   idempotencyKeys?: Map<string, string>;
-  onPromptPrepared?: (request: { messages: readonly UIMessage[] }) => void;
+  onPromptPrepared?: (request: {
+    body: SessionPromptRequestBody;
+    messages: readonly UIMessage[];
+  }) => void;
   prepareUserMessage?: (message: UIMessage) => UIMessage;
   preparedUserMessages?: Map<string, UIMessage>;
 }
 
-type SessionPromptRequestBody = Omit<SessionPromptRequest, "messages"> & {
+export type SessionPromptRequestBody = Omit<SessionPromptRequest, "messages"> & {
   messages: UIMessage[];
 };
 
@@ -64,7 +67,7 @@ export function createSessionPromptChatTransport({
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(runtime ? { runtime } : {}),
       };
-      onPromptPrepared?.({ messages: [message] });
+      onPromptPrepared?.({ body, messages: [message] });
       return { body };
     },
   });

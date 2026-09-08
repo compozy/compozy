@@ -50,7 +50,7 @@ const meta: Meta<typeof BadgeDictionary> = {
     docs: {
       description: {
         component:
-          "The exported badge dictionary at both scales: 7–9 px row marks and 18 px tinted glyph roundels. The needs-you class shares one tone and separates by glyph; `done` is its own tone and never counts toward needs-you; `unknown` stays visually distinct from `stopped` so the shell never fakes liveness.",
+          "The exported badge dictionary at both scales: 7–9 px row marks and 18 px tinted glyph roundels. The needs-you class shares one tone and separates by glyph, except `needs-attention` (an unverified stop), which is inked warning; `done` is its own tone and never counts toward needs-you; `unknown` stays visually distinct from `stopped` so the shell never fakes liveness.",
       },
     },
   },
@@ -67,5 +67,5 @@ export default meta;
 
 type Story = StoryObj<typeof BadgeDictionary>;
 
-/** All ten badges — the visual contract for the dictionary. */
+/** All eleven badges — the visual contract for the dictionary. */
 export const AllStates: Story = {};

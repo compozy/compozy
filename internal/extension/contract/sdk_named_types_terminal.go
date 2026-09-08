@@ -8,10 +8,6 @@ func terminalNamedHookTypes() map[string]NamedType {
 		"TerminalExit":          {Name: "TerminalExit", Value: hooks.TerminalExit{}},
 		"TerminalOpenedPayload": {Name: "TerminalOpenedPayload", Value: hooks.TerminalOpenedPayload{}},
 		"TerminalClosedPayload": {Name: "TerminalClosedPayload", Value: hooks.TerminalClosedPayload{}},
-		"TerminalLeaseChangedPayload": {
-			Name:  "TerminalLeaseChangedPayload",
-			Value: hooks.TerminalLeaseChangedPayload{},
-		},
 		"TerminalCommandStartedPayload": {
 			Name:  "TerminalCommandStartedPayload",
 			Value: hooks.TerminalCommandStartedPayload{},

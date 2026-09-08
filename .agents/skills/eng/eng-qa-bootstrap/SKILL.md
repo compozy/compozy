@@ -32,7 +32,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 **Step 2: Verify the Handoff Contract**
 
 1. Read `.agents/skills/eng/eng-qa-bootstrap/references/bootstrap-contract.md` in full.
-2. Validate every required manifest field, env value, scratch-evidence file, provider-home policy, browser policy, audit command, and teardown command against that contract.
+2. Check that the emitted manifest, required paths, launch policy, and teardown command match the selected profile. Use helper diagnostics and the strict auditor for machine-checkable fields; do not manually repeat each schema check.
 3. When a playbook was supplied, also validate the materialized playbook, agents, open-task tree, knowledge files, required deliverables/collaboration, and populated charter.
 4. Treat scaffolding as empty evidence until downstream QA records real actions and the strict auditor passes.
 
@@ -51,7 +51,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 **Step 4: Preserve Continuation State**
 
 1. Report the manifest path, lab root, `COMPOZY_HOME`, base URL, dated run-report path, and reuse status.
-2. For a continuing loop, append the exact machine-readable continuation block from the bootstrap contract.
+2. For a continuing loop, append the exact machine-readable continuation block from the bootstrap contract. Hand off with the lab alive; Step 5 runs when downstream QA reaches a terminal outcome, not before its first action.
 
 *Done when:* the next continuation can identify the same lab from one exact manifest without discovery or guessing.
 

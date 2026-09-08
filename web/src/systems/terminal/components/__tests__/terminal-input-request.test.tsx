@@ -18,9 +18,9 @@ import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-
  * Canonical suite for the input-request surface (UT-114).
  *
  * Invariant: the pin names the requester the daemon published, a redacted
- * answer never reaches the DOM as readable text, a watcher can request an atomic
- * handoff, expired requests omit the write row, and each of the four frozen outcomes renders
- * its own copy including "by you" when a human resolved it.
+ * answer never reaches the DOM as readable text, every interactive viewer can
+ * answer directly, expired requests omit the write row, and each frozen outcome
+ * renders its own copy including "by you" when a human resolved it.
  */
 
 const ONE_MINUTE_IN = Date.parse(PASSWORD_REQUEST.requested_at) + 60_000;
@@ -31,7 +31,6 @@ describe("TerminalInputRequestCard", () => {
     const now = ONE_MINUTE_IN;
     render(
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={now}
         onAnswer={vi.fn()}
         onReject={vi.fn()}
@@ -51,7 +50,6 @@ describe("TerminalInputRequestCard", () => {
     const now = Date.parse(PASSWORD_REQUEST.requested_at) + 16 * 60_000;
     render(
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={now}
         onAnswer={vi.fn()}
         onReject={vi.fn()}
@@ -77,7 +75,6 @@ describe("TerminalInputRequestCard", () => {
     const onAnswer = vi.fn();
     const { container } = render(
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={ONE_MINUTE_IN}
         onAnswer={onAnswer}
         onReject={vi.fn()}
@@ -102,7 +99,6 @@ describe("TerminalInputRequestCard", () => {
     const onAnswer = vi.fn();
     render(
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={CONFIRMATION_ONE_MINUTE_IN}
         onAnswer={onAnswer}
         onReject={vi.fn()}
@@ -121,10 +117,9 @@ describe("TerminalInputRequestCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("y");
   });
 
-  it("Should offer an atomic handoff to a watcher in the destination profile", () => {
+  it("Should let every interactive viewer answer directly", () => {
     render(
       <TerminalInputRequestCard
-        canAnswerDirectly={false}
         now={ONE_MINUTE_IN}
         onAnswer={vi.fn()}
         onReject={vi.fn()}
@@ -138,14 +133,13 @@ describe("TerminalInputRequestCard", () => {
     ).toHaveAttribute("type", "password");
     expect(
       screen.getByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
-    ).toHaveTextContent("Take control & send");
+    ).toHaveTextContent("Send");
   });
 
-  it("Should let the controller decline without answering", async () => {
+  it("Should let an interactive viewer decline without answering", async () => {
     const onReject = vi.fn();
     render(
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={ONE_MINUTE_IN}
         onAnswer={vi.fn()}
         onReject={onReject}
@@ -163,7 +157,6 @@ describe("TerminalInputRequestCard", () => {
   it("Should name the terminal when several are asking at once", () => {
     render(
       <TerminalInputRequestStack
-        canAnswerDirectly
         now={Date.parse(PASSWORD_REQUEST.requested_at) + 60_000}
         onAnswer={vi.fn()}
         onReject={vi.fn()}
@@ -199,7 +192,7 @@ describe("TerminalInputResolvedRow", () => {
 
     const superseded = render(<TerminalInputResolvedRow request={SUPERSEDED_PASSWORD_REQUEST} />);
     expect(superseded.container.textContent).toContain("Superseded");
-    expect(superseded.container.textContent).toContain("marina took control");
+    expect(superseded.container.textContent).toContain("the request was no longer current");
 
     const expired = render(<TerminalInputResolvedRow request={EXPIRED_PASSWORD_REQUEST} />);
     expect(expired.container.textContent).toContain("Expired");

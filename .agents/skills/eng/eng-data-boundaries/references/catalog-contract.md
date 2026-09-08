@@ -29,5 +29,5 @@ Apply only the sections matching the changed read model.
 
 ## Public parity
 
-- Keep HTTP, UDS, CLI, native tools, Extension Host, generated SDKs, docs, and `skills/compozy/` on the same hard-cut contract.
+- Keep HTTP, UDS, CLI, native tools, Extension Host, generated SDKs, docs, and `skills/compozy/` on the same current contract, preserving required SD-013 boundary translations and deprecation windows.
 - Preserve a lean list shape; keep expensive, sensitive, and execution-only fields in detail reads.

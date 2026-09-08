@@ -1,4 +1,6 @@
-# L-025 — On greenfield, hard-cut the current protocol version — don't bump to a new one
+# L-025 — Protocol versions follow published interoperability contracts
+
+> **Scope narrowed 2026-09-04** (SD-013, [L-040](L-040-real-users-end-zero-legacy-posture.md)). "No published peers" held for Compozy Network at the time. Once a wire shape has shipped to real users, a change follows the public-surface ladder — old shape accepted for one release, then deleted — instead of a silent in-place redefinition. The versioning rule itself — version identifiers are interop tokens, not feature labels — is unchanged.
 
 **Class:** Project posture / RFC discipline
 **Date discovered:** 2026-05-13 (workspace-isolation hard-cut follow-up; PR #145 on branch `workspace-fix`)
@@ -40,36 +42,13 @@ RFC narrative across `003`, `004`, `005`.
 
 ## Rule
 
-> Protocol version identifiers are wire-compat tokens, not feature labels. On greenfield, when the
-> current protocol has no published peers, changes to its wire shape hard-cut the **current**
-> version in place; do not invent a new version identifier. Reserve new version slots for genuine
-> interoperability boundaries with already-shipped peers, or for clearly future protocols that the
-> runtime does not yet implement.
-
-This is the protocol-grammar corollary of [L-006](L-006-greenfield-delete-not-adapt.md): greenfield
-zero-legacy means _delete_, not _adapt_. Here it means _redefine the current version_, not
-_invent a new one_.
+> Protocol version identifiers describe interoperability boundaries. A never-published protocol with no published peers can change its current version in place. Released public protocols and persisted state follow SD-013; an internal hard-cut rule does not authorize breaking deployed peers.
 
 ## Operationalization
 
-- Before adding a new version identifier to any RFC, ask: **does a published peer speak the old
-  version?** If no, hard-cut the current version's RFC, code constants, routing fields, envelope
-  schema, tests, docs, copy, and landing/slides in one change.
-- The hard cut sweeps every surface in one commit. Renames of protocol version strings touch:
-  - RFC files under `docs/rfcs/` (current contract + any historical archive marker).
-  - Go constants under `internal/network/` (for example, `ProtocolV0`).
-  - Generated artifacts: `openapi/compozy.json`, `web/src/generated/compozy-openapi.d.ts`, runtime/API
-    reference pages.
-  - Site content: `packages/site/content/protocol/**`, `packages/site/content/runtime/core/network/**`,
-    blog posts, landing components, `packages/slides/slides/compozy-network/`.
-  - Copy: `COPY.md`, `docs/_memory/glossary.md`.
-  - Tests: any fixture pinning the protocol literal, including hard-cut truth tests.
-- Future versions (`v1`, `v2`, ...) describe work the runtime does **not yet implement** and which
-  introduces a real interop boundary (auth, proofs, trust profiles, new required fields, removed
-  kinds). They are RFCs, not runtime claims.
-- Truth tests should encode the rule: the hard-cut test suite asserts both
-  "current runtime contract uses `compozy-network/v0`" and a regex blacklist for forbidden alternative
-  version strings, so a future agent cannot silently rebrand.
+- Determine whether the old wire contract shipped or has published peers from release/runtime evidence.
+- For an unpublished contract, update its affected constants, schema, routing, tests, and documentation together. For a published contract, choose lossless boundary translation or the required deprecation window; name the removal release.
+- Describe future protocols as future work. Tests verify actual interoperability and upgrade behavior rather than blacklisting alternative version strings or freezing a current version name forever.
 
 ## Anti-pattern
 

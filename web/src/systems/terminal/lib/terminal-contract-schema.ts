@@ -30,13 +30,8 @@ function closedGeneratedEnum<Generated extends string>() {
 }
 
 export const terminalActorKindSchema = closedGeneratedEnum<
-  NonNullable<TerminalInfo["controller"]>["kind"]
+  TerminalJournalResponse["entries"][number]["actor"]["kind"]
 >()(["human", "agent", "system"]);
-export const terminalLeaseStateSchema = closedGeneratedEnum<TerminalInfo["lease"]>()([
-  "human_owned",
-  "agent_owned",
-  "available",
-]);
 export const terminalModeSchema = closedGeneratedEnum<TerminalInfo["mode"]>()(["pty", "pipe"]);
 export const terminalStateSchema = closedGeneratedEnum<TerminalInfo["state"]>()([
   "running",
@@ -81,10 +76,7 @@ export type GeneratedTerminalErrorCode = Extract<
   | `ticket_${string}`
   | "invalid_cwd"
   | "timeout_out_of_range"
-  | "write_owner_held"
-  | "lease_revoked"
   | "generation_fenced"
-  | "typing_grant_rejected"
   | "approval_rejected"
   | "slow_consumer"
   | "journal_unavailable"
@@ -106,10 +98,7 @@ export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErro
   "terminal_not_interactive",
   "invalid_cwd",
   "timeout_out_of_range",
-  "write_owner_held",
-  "lease_revoked",
   "generation_fenced",
-  "typing_grant_rejected",
   "approval_rejected",
   "ticket_invalid",
   "ticket_expired",
@@ -117,7 +106,6 @@ export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErro
   "input_request_already_answered",
   "input_request_superseded",
   "input_request_limit_reached",
-  "input_answer_requires_write",
   "input_request_requires_hidden_input",
   "recording_already_started",
   "recording_not_active",
@@ -149,8 +137,6 @@ export const terminalInfoSchema: z.ZodType<TerminalInfo> = z.strictObject({
   cwd: z.string(),
   mode: terminalModeSchema,
   state: terminalStateSchema,
-  controller: terminalActorSchema.nullable(),
-  lease: terminalLeaseStateSchema,
   viewers: z.number().int().nonnegative(),
   bound_run: z
     .strictObject({
@@ -294,7 +280,6 @@ export const terminalWaitResponseSchema: z.ZodType<TerminalWaitResponse> = z.str
 export const terminalErrorDetailsSchema = z.strictObject({
   current: z.number().int().nonnegative().optional(),
   max: z.number().int().positive().optional(),
-  controller: terminalInputActorSchema.optional(),
   path: z.string().optional(),
   mode: terminalModeSchema.optional(),
   platform: z.string().optional(),

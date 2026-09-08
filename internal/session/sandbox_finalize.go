@@ -20,6 +20,12 @@ func (m *Manager) finalizeSandbox(
 	session *Session,
 	reason envpkg.SyncReason,
 ) error {
+	return m.finalizeSandboxWithPersistence(ctx, session, reason, m.persistSessionMetadataOnly)
+}
+
+func (m *Manager) finalizeSandboxWithPersistence(
+	ctx context.Context, session *Session, reason envpkg.SyncReason, persist sandboxMetadataWriter,
+) error {
 	if session == nil {
 		return nil
 	}
@@ -38,7 +44,7 @@ func (m *Manager) finalizeSandbox(
 
 	state := sessionSandboxStateFromMeta(meta)
 	var errs []error
-	if syncErr := m.syncSandboxFromRuntime(ctx, provider, session, state, meta, reason); syncErr != nil {
+	if syncErr := m.syncSandboxFromRuntime(ctx, provider, session, state, meta, reason, persist); syncErr != nil {
 		if reason == envpkg.SyncReasonCrash {
 			m.sessionLogger(session).Warn("session: sandbox crash sync failed", "error", syncErr)
 		} else {
@@ -59,7 +65,7 @@ func (m *Manager) finalizeSandbox(
 	}
 
 	if shouldDestroy {
-		if destroyErr := m.destroySandbox(ctx, provider, session, state); destroyErr != nil {
+		if destroyErr := m.destroySandbox(ctx, provider, session, state, persist); destroyErr != nil {
 			errs = append(errs, destroyErr)
 		}
 	} else {
@@ -68,7 +74,7 @@ func (m *Manager) finalizeSandbox(
 		if meta != nil {
 			meta.State = sandboxStateStopped
 			session.setSandbox(meta, now)
-			if err := m.persistSessionMetadataOnly(session); err != nil {
+			if err := persist(session); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -84,6 +90,7 @@ func (m *Manager) syncSandboxFromRuntime(
 	state envpkg.SessionState,
 	meta *store.SessionSandboxMeta,
 	reason envpkg.SyncReason,
+	persist sandboxMetadataWriter,
 ) error {
 	return m.syncSandboxRuntime(
 		ctx,
@@ -93,6 +100,7 @@ func (m *Manager) syncSandboxFromRuntime(
 		envpkg.SyncDirectionFromRuntime,
 		reason,
 		provider.SyncFromRuntime,
+		persist,
 	)
 }
 
@@ -101,6 +109,7 @@ func (m *Manager) destroySandbox(
 	provider envpkg.Provider,
 	session *Session,
 	state envpkg.SessionState,
+	persist sandboxMetadataWriter,
 ) error {
 	meta := cloneSessionSandboxMeta(session.Info().Sandbox)
 	started := time.Now()
@@ -122,7 +131,7 @@ func (m *Manager) destroySandbox(
 	if meta != nil {
 		meta.State = sandboxStateDestroyed
 		session.setSandbox(meta, now)
-		if err := m.persistSessionMetadataOnly(session); err != nil {
+		if err := persist(session); err != nil {
 			return err
 		}
 	}

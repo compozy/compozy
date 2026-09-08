@@ -16,13 +16,14 @@ Layer-horizontal decomposition with tail-only verification makes integration and
 
 ## Rule
 
-> Every implementation task is a shippable slice — the smallest increment that could merge to `main` alone, crossing every layer its outcome needs — with a `## Shippable Outcome` naming the cheapest verification tier that can falsify it (`gate` | `probe` | `smoke` with Visual Contract capture). Tier evidence lands with the slice, in the same phase action; relocating a slice's gate to a later task is invalid regardless of intent. Full QA cycles remain the trailing pair's job — proportionality is the speed guard: per-slice verification covers only what the slice changed.
+> Prefer shippable increments with an observable outcome and the cheapest check that can expose failure. Verification travels with the changed outcome; broader integration QA covers gaps rather than repeating current slice evidence.
 
 ## Operationalization
 
-- `cy-create-tasks` Task Sizing: layer groupings are invalid breakdowns; slice budget default 5 (`slice_budget: N` overrides), overflow becomes a sequenced program of specs; Visual Contract rows derive from the `_uiux.md` inventory, not task self-citation.
-- `cy-loop-tasks` Phase B runs the slice's tier and records evidence; per-slice PRs stay opt-in via `--stacked` (off by default) — the cut changes even when the PR flow does not.
-- SD-012 carries the standing posture.
+- Size work by risk and dependencies, not a fixed slice quota. A foundation task identifies its consuming outcome and verifies its own boundary.
+- A requested full `cy-loop-tasks` workflow keeps its checkpoint/phase contract; ordinary fixes do not need that workflow. Its trailing QA phase owns remaining integration journeys once.
+- A slice uses its declared `gate`, `probe`, or `smoke` evidence. Named-reference visual rows derive from the actual UI contract.
+- SD-012 owns current execution policy; branch/PR options belong to the invoked workflow.
 
 ## Anti-pattern
 

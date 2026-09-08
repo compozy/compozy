@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { useState, type ComponentProps, type Ref } from "react";
+import { useState, type ComponentProps, type MouseEvent, type Ref } from "react";
 
 import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@compozy/ui";
 
+import type { OsWindowRoute } from "../../lib/os-types";
 import { settingsConnectionLabel } from "./settings-connection-label";
 import {
   filterSettingsSections,
@@ -14,6 +15,13 @@ import {
 export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
   activeSlug: string;
   connection: ConnectionStatus;
+  /**
+   * Receives a plain click on a section link. Section links are window
+   * navigation, not page navigation: the shell writes the URL and steers the
+   * window, which a router `<Link>` cannot do when the location already reads
+   * the chosen section. Modified clicks keep native link behavior.
+   */
+  onNavigate: (route: OsWindowRoute) => void;
   searchInputRef?: Ref<HTMLInputElement>;
 }
 
@@ -21,6 +29,7 @@ export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "chi
 export function SettingsWindowNav({
   activeSlug,
   connection,
+  onNavigate,
   searchInputRef,
   className,
   ...navProps
@@ -69,6 +78,7 @@ export function SettingsWindowNav({
                 <SettingsSectionLink
                   isActive={section.slug === activeSlug}
                   key={section.slug}
+                  onNavigate={onNavigate}
                   section={section}
                 />
               ))}
@@ -98,19 +108,33 @@ export function SettingsWindowNav({
 interface SettingsSectionLinkProps extends Omit<ComponentProps<typeof Link>, "children" | "to"> {
   section: SettingsSectionDescriptor;
   isActive: boolean;
+  onNavigate: (route: OsWindowRoute) => void;
+}
+
+function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return event.button === 0 && !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey;
 }
 
 function SettingsSectionLink({
   section,
   isActive,
+  onNavigate,
   className,
+  onClick,
   ...linkProps
 }: SettingsSectionLinkProps) {
   const Icon = section.icon;
+  const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(event);
+    if (event.defaultPrevented || !isPlainLeftClick(event)) return;
+    event.preventDefault();
+    onNavigate({ pathname: settingsSectionPath(section.slug), search: {} });
+  };
 
   return (
     <Link
       {...linkProps}
+      onClick={handleClick}
       aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex h-11 shrink-0 items-center gap-2.5 rounded-md px-2 text-ws-name font-medium @min-settings-takeover:h-8",

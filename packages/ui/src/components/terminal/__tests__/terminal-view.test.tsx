@@ -48,7 +48,25 @@ function loaderFor(engine: FakeEngine) {
   return () => Promise.resolve(engine);
 }
 
+/**
+ * jsdom performs no layout, so the DOM boundary models it: every element has a
+ * rendered box unless a test collapses it, the way a hidden ancestor would.
+ */
+function modelLayout(rendered: boolean): void {
+  Object.defineProperty(HTMLElement.prototype, "getClientRects", {
+    configurable: true,
+    writable: true,
+    value: () => (rendered ? [new DOMRect(0, 0, 840, 600)] : []) as unknown as DOMRectList,
+  });
+}
+
+const nativeGetClientRects = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "getClientRects"
+);
+
 beforeEach(() => {
+  modelLayout(true);
   for (const [token, value] of Object.entries(TERMINAL_TOKENS)) {
     document.documentElement.style.setProperty(token, value);
   }
@@ -60,6 +78,11 @@ afterEach(() => {
   destroyTerminalInstances(() => true);
   restoreFonts?.();
   restoreFonts = null;
+  if (nativeGetClientRects) {
+    Object.defineProperty(HTMLElement.prototype, "getClientRects", nativeGetClientRects);
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, "getClientRects");
+  }
   for (const token of Object.keys(TERMINAL_TOKENS)) {
     document.documentElement.style.removeProperty(token);
   }
@@ -393,6 +416,55 @@ describe("TerminalView", () => {
     handleRef.current?.applyDimensions({ cols: 96, rows: 28 });
 
     expect(engine.lastTerminal().resizes).toEqual([{ cols: 96, rows: 28 }]);
+  });
+
+  it("Should not propose a size for a view whose layout produced no box", async () => {
+    modelLayout(false);
+    const engine = createFakeEngine({ proposedDimensions: { cols: 12, rows: 4 } });
+    const onProposeDimensions = vi.fn();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        instanceId={nextInstanceId()}
+        onProposeDimensions={onProposeDimensions}
+      />
+    );
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    await waitFor(() => expect(engine.lastTerminal().openedIn).toHaveLength(1));
+
+    expect(onProposeDimensions).not.toHaveBeenCalled();
+    expect(engine.lastTerminal().resizes).toEqual([]);
+  });
+
+  it("Should not propose a size for a view the visibility API reports hidden", async () => {
+    const engine = createFakeEngine({ proposedDimensions: { cols: 12, rows: 4 } });
+    const onProposeDimensions = vi.fn();
+    const checkVisibility = vi.fn(() => false);
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "checkVisibility");
+    Object.defineProperty(HTMLElement.prototype, "checkVisibility", {
+      configurable: true,
+      value: checkVisibility,
+      writable: true,
+    });
+    try {
+      render(
+        <TerminalView
+          aria-label="Terminal output"
+          engineLoader={loaderFor(engine)}
+          instanceId={nextInstanceId()}
+          onProposeDimensions={onProposeDimensions}
+        />
+      );
+      await waitFor(() => expect(engine.terminals).toHaveLength(1));
+      await waitFor(() => expect(checkVisibility).toHaveBeenCalled());
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, "checkVisibility", original);
+      else Reflect.deleteProperty(HTMLElement.prototype, "checkVisibility");
+    }
+
+    expect(onProposeDimensions).not.toHaveBeenCalled();
+    expect(engine.lastTerminal().resizes).toEqual([]);
   });
 
   it("Should expose the selected scrollback range for quoting", async () => {

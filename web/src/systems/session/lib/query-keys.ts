@@ -69,9 +69,20 @@ export const sessionKeys = {
     [...sessionKeys.workspace(workspace), "rewind-conversation"] as const,
   transcript: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript"] as const,
+  /** Operator-message outline over full retained history (S9). */
+  transcriptOutline: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "transcript-outline"] as const,
+  /** Every committed full-history search of one session (S8). */
+  transcriptSearchRoot: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "transcript-search"] as const,
+  transcriptSearch: (workspace: string, id: string, query: string, limit: number) =>
+    [...sessionKeys.transcriptSearchRoot(workspace, id), { limit, q: query }] as const,
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,
   clarifications: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "clarifications"] as const,
+  /** Restart-durable interaction records read by one explicit daemon status. */
+  interactions: (workspace: string, id: string, status: string) =>
+    [...sessionKeys.detail(workspace, id), "interactions", status] as const,
   inputQueue: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "input-queue"] as const,
   recap: (workspace: string, id: string, limit?: number) =>

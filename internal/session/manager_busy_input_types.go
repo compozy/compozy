@@ -6,24 +6,34 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // PendingInput is one daemon-owned operator input waiting for dispatch.
 type PendingInput struct {
 	ID               string
 	SessionID        string
+	OwnerKind        string
+	OwnerID          string
 	MessageID        string
 	IdempotencyKey   string
 	TargetTurnID     string
 	Status           string
 	Mode             BusyInputMode
 	Delivery         string
+	SteerDelivery    store.SteerDeliveryMode
 	Text             string
 	QueueGeneration  int64
 	EnqueuedAt       time.Time
 	Runtime          *RuntimeSelection
 	SkillInvocations []commandpkg.Invocation
 	Attachments      []AttachmentMeta
+}
+
+type ClearPendingInputsResult struct {
+	Inputs          []PendingInput
+	ClearedCount    int
+	QueueGeneration int64
 }
 
 // ReplacePendingInputOpts carries an atomic queued-input replacement.
@@ -73,6 +83,7 @@ type SendPromptResult struct {
 	Status                string
 	Mode                  BusyInputMode
 	Delivery              string
+	SteerDelivery         store.SteerDeliveryMode
 	MessageID             string
 	IdempotencyKey        string
 	Replayed              bool

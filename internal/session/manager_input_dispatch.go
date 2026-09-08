@@ -1,7 +1,9 @@
 package session
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -10,7 +12,8 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-type humanQueuedInput struct {
+type queuedInput struct {
+	syntheticPrompt   *store.SessionInputSyntheticPrompt
 	id                string
 	promptAdmissionID string
 	messageID         string
@@ -54,8 +57,9 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		m.startNextQueuedInputPrompt(target)
 		return
 	}
-	m.dispatchHumanQueuedInput(target, session, humanQueuedInput{
+	m.dispatchQueuedInput(target, session, queuedInput{
 		id:                entry.ID,
+		syntheticPrompt:   entry.SyntheticPrompt,
 		promptAdmissionID: entry.PromptAdmissionID,
 		messageID:         entry.MessageID,
 		idempotencyKey:    entry.IdempotencyKey,
@@ -82,7 +86,7 @@ func (m *Manager) peekNextQueuedInputPrompt(
 		return "", nil, store.SessionInputQueueEntry{}, false
 	}
 	session, err := m.lookupPromptSession(m.fallbackLifecycleContext(), target)
-	if err != nil || session.IsPrompting() {
+	if err != nil || session.IsPrompting() || session.Info().State != StateActive {
 		return "", nil, store.SessionInputQueueEntry{}, false
 	}
 	entry, ok, err := m.inputQueue.PeekNext(m.fallbackLifecycleContext(), target)
@@ -93,10 +97,10 @@ func (m *Manager) peekNextQueuedInputPrompt(
 	return target, session, entry, ok
 }
 
-func (m *Manager) dispatchHumanQueuedInput(
+func (m *Manager) dispatchQueuedInput(
 	target string,
 	session *Session,
-	entry humanQueuedInput,
+	entry queuedInput,
 ) {
 	req, err := m.newQueuedInputPromptRequest(target, entry)
 	if err != nil {
@@ -116,7 +120,7 @@ func (m *Manager) dispatchHumanQueuedInput(
 
 func (m *Manager) newQueuedInputPromptRequest(
 	target string,
-	entry humanQueuedInput,
+	entry queuedInput,
 ) (promptRequest, error) {
 	req := promptRequest{
 		target:           target,
@@ -140,6 +144,20 @@ func (m *Manager) newQueuedInputPromptRequest(
 		}
 	}
 	req.turnID = turnID
+	if entry.syntheticPrompt != nil {
+		req.turnSource = TurnSourceSynthetic
+		req.meta = acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic}
+		if err := json.Unmarshal(entry.syntheticPrompt.Metadata, &req.meta.Synthetic); err != nil {
+			return req, fmt.Errorf("session: decode synthetic input metadata: %w", err)
+		}
+		var err error
+		req.meta, err = normalizePromptMeta(TurnSourceSynthetic, req.meta, promptSubmissionPathSynthetic)
+		if err != nil {
+			return req, err
+		}
+		req.runID = entry.syntheticPrompt.RunID
+		return req, nil
+	}
 	var err error
 	req.runID, err = m.newPromptRunID()
 	if err != nil {
@@ -151,11 +169,11 @@ func (m *Manager) newQueuedInputPromptRequest(
 func (m *Manager) handleQueuedInputDispatchError(
 	session *Session,
 	target string,
-	entry humanQueuedInput,
+	entry queuedInput,
 	req promptRequest,
 	cause error,
 ) {
-	if errors.Is(cause, ErrPromptInProgress) {
+	if errors.Is(cause, ErrPromptInProgress) || errors.Is(cause, ErrSessionNotActive) {
 		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.id); err != nil {
 			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.id, "error", err)
 		}
@@ -178,19 +196,41 @@ func (m *Manager) handleQueuedInputDispatchError(
 func (m *Manager) acceptQueuedInputDispatch(
 	session *Session,
 	target string,
-	entry humanQueuedInput,
+	entry queuedInput,
 	req promptRequest,
 ) {
 	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.id); err != nil {
 		m.sessionLogger(session).Warn("session: mark queued input sent failed", "entry_id", entry.id, "error", err)
+		if failErr := m.inputQueue.MarkFailed(
+			m.fallbackLifecycleContext(),
+			target,
+			entry.id,
+			err.Error(),
+		); failErr != nil {
+			m.sessionLogger(session).Error("session: mark queued input failed", "entry_id", entry.id, "error", failErr)
+		}
+		m.emitTranscriptMarker(
+			m.fallbackLifecycleContext(),
+			session,
+			req.turnID,
+			transcript.MarkerPromptDropped,
+			"Queued input dispatched but its sent receipt could not be persisted.",
+			queueEntryEvidence(entry.id, entry.sessionGeneration, store.SessionInputQueueStatusFailed, entry.mode, 0),
+		)
+		return
 	}
+	evidence := queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0)
+	evidence["message_id"] = entry.messageID
+	evidence["authored_text"] = entry.text
+	evidence["input_event_id"] = entry.eventID
+	evidence["target_turn_id"] = req.turnID
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
 		session,
 		req.turnID,
 		transcript.MarkerPromptAccepted,
 		"Queued input accepted for dispatch.",
-		queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0),
+		evidence,
 	)
 }
 

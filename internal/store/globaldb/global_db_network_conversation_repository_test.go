@@ -1404,6 +1404,50 @@ WHERE workspace_id = ? AND owner_key = ?`,
 			})
 		}
 	})
+	// Invariant: disabling total wall time preserves admission after real usage,
+	// while the independent wake cap still closes the budget. Owner: settlement suite.
+	t.Run("Should disable only the aggregate wall budget", func(t *testing.T) {
+		t.Parallel()
+		db := openNetworkConversationRepositoryTestDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 14, 3, 0, 0, 0, time.UTC)
+		for index := range 3 {
+			suffix := strconv.Itoa(index)
+			request := networkWakeAcceptanceRequest(
+				t,
+				"msg-unlimited-"+suffix,
+				"wake-unlimited-"+suffix,
+				"run-unlimited-"+suffix,
+				now.Add(time.Duration(index)*time.Hour),
+			)
+			request.Admissions[0].Spec.Bounds.MaxTotalWallTime = "0"
+			request.Admissions[0].Spec.Bounds.MaxWakeWallTime = "1h"
+			request.Admissions[0].Spec.Bounds.MaxWakes = 2
+			accepted, err := db.AcceptNetworkMessage(ctx, &request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if index == 2 {
+				if len(accepted.Admitted) != 0 || len(accepted.Skipped) != 1 ||
+					accepted.Skipped[0].Reason != store.NetworkWakeSkipBudgetExhausted {
+					t.Fatalf("wake cap admission = %+v", accepted)
+				}
+				continue
+			}
+			if len(accepted.Admitted) != 1 {
+				t.Fatalf("unlimited wall admission = %+v", accepted)
+			}
+			settlement := claimNetworkWakeSettlementForTest(t, db, accepted.Admitted[0])
+			settlement.Outcome = store.NetworkWakeOutcome{
+				State:          store.NetworkWakeStateSucceeded,
+				UsageState:     store.NetworkWakeUsageActual,
+				ActualWallTime: 30 * time.Minute,
+			}
+			if _, err := db.SettleNetworkWake(ctx, settlement); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 }
 
 func TestGlobalDBResolveDirectRoom(t *testing.T) {

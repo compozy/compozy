@@ -1,8 +1,17 @@
 import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
-import { Info } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 
-import { cn, Eyebrow, MonoId, PropertyRow, Time } from "@compozy/ui";
+import {
+  cn,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Eyebrow,
+  MonoId,
+  PropertyRow,
+  Time,
+} from "@compozy/ui";
 
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
@@ -40,32 +49,16 @@ export function LoopRunAboutRail({
   ...props
 }: LoopRunAboutRailProps) {
   const best = loopRunBestLabel(run);
+  const showBest = best && run.best_generation !== null && run.best_generation !== undefined;
+  const hasStatusRows = Boolean(showBest || lastWakeAt);
   return (
     <div
       className={cn("border-t border-line-soft px-4.5 py-4", className)}
       data-testid="loop-run-about"
       {...props}
     >
-      <div className="mb-2 flex items-center gap-1.5">
-        <Info aria-hidden="true" className="size-3 text-muted" />
-        <Eyebrow className="text-subtle">About this run</Eyebrow>
-      </div>
-      <PropertyRow label="Loop">
-        <Link
-          className="inline-flex min-h-6 items-center truncate rounded-xs text-small-body font-medium text-fg hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
-          data-testid="loop-run-about-loop"
-          params={{ name: run.loop_name }}
-          to="/loops/$name"
-        >
-          {run.loop_name}
-        </Link>
-      </PropertyRow>
-      {versionLabel !== undefined ? (
-        <PropertyRow label="Version" mono data-testid="loop-run-about-version">
-          {versionLabel}
-        </PropertyRow>
-      ) : null}
-      {best && run.best_generation !== null && run.best_generation !== undefined ? (
+      {/* Operational status stays readable with About closed; metadata folds. */}
+      {showBest ? (
         <PropertyRow label="Best result" data-testid="loop-run-about-best">
           <a
             aria-label={`Best result · ${best}`}
@@ -86,43 +79,74 @@ export function LoopRunAboutRail({
           <Time iso={lastWakeAt} />
         </PropertyRow>
       ) : null}
-      {inputRows.map(row =>
-        row.isAgent ? (
-          <PropertyRow key={row.key} label={row.label} data-testid={`loop-run-input-${row.key}`}>
-            <span
-              aria-hidden="true"
-              className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-pill-group-badge font-semibold text-muted"
+      <Collapsible className={hasStatusRows ? "mt-2" : undefined}>
+        <CollapsibleTrigger className="group/about flex w-full items-center gap-1.5 text-left">
+          <Info aria-hidden="true" className="size-3 text-muted" />
+          <Eyebrow className="text-subtle">About this run</Eyebrow>
+          <ChevronDown
+            aria-hidden="true"
+            className="ml-auto size-3.5 text-faint group-data-panel-open/about:rotate-180"
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <PropertyRow label="Loop">
+            <Link
+              className="inline-flex min-h-6 items-center truncate rounded-xs text-small-body font-medium text-fg hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
+              data-testid="loop-run-about-loop"
+              params={{ name: run.loop_name }}
+              to="/loops/$name"
             >
-              {avatarSeed(row.value)}
-            </span>
-            <span className="truncate">{row.value}</span>
+              {run.loop_name}
+            </Link>
           </PropertyRow>
-        ) : (
-          <PropertyRow
-            key={row.key}
-            label={row.label}
-            mono
-            data-testid={`loop-run-input-${row.key}`}
-          >
-            {row.value}
+          {versionLabel !== undefined ? (
+            <PropertyRow label="Version" mono data-testid="loop-run-about-version">
+              {versionLabel}
+            </PropertyRow>
+          ) : null}
+          {inputRows.map(row =>
+            row.isAgent ? (
+              <PropertyRow
+                key={row.key}
+                label={row.label}
+                data-testid={`loop-run-input-${row.key}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill font-mono text-pill-group-badge font-semibold text-muted"
+                >
+                  {avatarSeed(row.value)}
+                </span>
+                <span className="truncate">{row.value}</span>
+              </PropertyRow>
+            ) : (
+              <PropertyRow
+                key={row.key}
+                label={row.label}
+                mono
+                data-testid={`loop-run-input-${row.key}`}
+              >
+                {row.value}
+              </PropertyRow>
+            )
+          )}
+          <PropertyRow label="Started by" data-testid="loop-run-about-started-by">
+            {startedBy}
           </PropertyRow>
-        )
-      )}
-      <PropertyRow label="Started by" data-testid="loop-run-about-started-by">
-        {startedBy}
-      </PropertyRow>
-      <PropertyRow label="Workspace" data-testid="loop-run-about-workspace">
-        {workspaceLabel}
-      </PropertyRow>
-      <PropertyRow label="Run id" mono>
-        <MonoId
-          className="text-muted"
-          copy
-          copyLabel="Copy run id"
-          data-testid="loop-run-about-id"
-          value={run.id}
-        />
-      </PropertyRow>
+          <PropertyRow label="Workspace" data-testid="loop-run-about-workspace">
+            {workspaceLabel}
+          </PropertyRow>
+          <PropertyRow label="Run id" mono>
+            <MonoId
+              className="text-muted"
+              copy
+              copyLabel="Copy run id"
+              data-testid="loop-run-about-id"
+              value={run.id}
+            />
+          </PropertyRow>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

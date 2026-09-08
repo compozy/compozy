@@ -79,7 +79,7 @@ func enqueueAdmittedSessionInputInTransaction(
 		return err
 	}
 	if queueReq.Mode == store.SessionInputQueueModeInterrupt {
-		queueReq, result.canceled, err = prepareInterruptSessionInput(ctx, exec, queueReq)
+		queueReq, err = prepareInterruptSessionInput(ctx, exec, queueReq)
 		if err != nil {
 			return err
 		}
@@ -88,13 +88,8 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil {
 		return err
 	}
-	if count >= queueReq.QueueCap {
-		return fmt.Errorf(
-			"%w: session %s cap %d",
-			store.ErrSessionInputQueueFull,
-			queueReq.SessionID,
-			queueReq.QueueCap,
-		)
+	if queueReq.Mode == store.SessionInputQueueModeQueue && count >= queueReq.QueueCap {
+		return &store.SessionInputQueueFullError{SessionID: queueReq.SessionID, Cap: queueReq.QueueCap, Count: count}
 	}
 	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
 	if err != nil {
@@ -165,7 +160,8 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil || replayed {
 		return err
 	}
-	if err := cancelPriorAdmittedSessionSteers(ctx, exec, queueReq, admissionReq.Now); err != nil {
+	superseded, err := cancelPriorAdmittedSessionSteers(ctx, exec, queueReq, admissionReq.Now)
+	if err != nil {
 		return err
 	}
 	inserted, err := insertSessionInputQueueEntry(ctx, exec, bindQueueAdmission(queueReq, claimed))
@@ -186,6 +182,7 @@ func stageAdmittedSessionSteerInTransaction(
 		return err
 	}
 	result.admission = completed
+	inserted.SupersededIDs = superseded
 	result.entry = inserted
 	result.created = true
 	return nil
@@ -263,9 +260,9 @@ func cancelPriorAdmittedSessionSteers(
 	exec globalSQLExecutor,
 	queueReq store.SessionInputQueueInsert,
 	now time.Time,
-) error {
+) ([]string, error) {
 	nowRaw := store.FormatTimestamp(now)
-	err := sqlcgen.New(exec).CancelPriorSessionSteers(
+	ids, err := sqlcgen.New(exec).CancelPriorSessionSteers(
 		ctx,
 		sqlcgen.CancelPriorSessionSteersParams{
 			CanceledStatus: store.SessionInputQueueStatusCanceled,
@@ -277,9 +274,9 @@ func cancelPriorAdmittedSessionSteers(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("store: cancel prior admitted session steer: %w", err)
+		return nil, fmt.Errorf("store: cancel prior admitted session steer: %w", err)
 	}
-	return nil
+	return ids, nil
 }
 
 func queuedPromptAdmissionResult(
@@ -298,6 +295,7 @@ func queuedPromptAdmissionResult(
 		QueuePosition:         position,
 		QueueGeneration:       entry.SessionGeneration,
 		Delivery:              entry.Delivery,
+		PreviousTurnID:        entry.TargetTurnID,
 		CanceledQueuedEntries: canceled,
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -108,16 +109,14 @@ func TestSessionEventBroadcaster(t *testing.T) {
 				TurnID:    "turn-wake",
 				Type:      "agent_message",
 			})
-		}
-
-		for _, wantSequence := range []int64{100, 1} {
+			// Consume each wake; unread wake coalescing is owned by TestLiveBroadcast.
 			select {
 			case event := <-events:
-				if event.Sequence != wantSequence {
-					t.Fatalf("event.Sequence = %d, want %d", event.Sequence, wantSequence)
+				if event.Sequence != sequence {
+					t.Fatalf("event.Sequence = %d, want %d", event.Sequence, sequence)
 				}
 			case <-testutil.Context(t).Done():
-				t.Fatalf("timed out waiting for wake sequence %d", wantSequence)
+				t.Fatalf("timed out waiting for wake sequence %d", sequence)
 			}
 		}
 	})
@@ -147,6 +146,10 @@ func TestSessionEventBroadcaster(t *testing.T) {
 
 		for range sessionEventSubscriberBuffer {
 			<-events
+		}
+		marker := <-events
+		if marker.Type != eventspkg.StreamConsumerDegraded || marker.Sequence != 0 {
+			t.Fatalf("overflow marker = %#v, want replay instruction without a durable cursor", marker)
 		}
 		if _, ok := <-events; ok {
 			t.Fatal("events channel remains open after overflow")
@@ -640,6 +643,36 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 		}
 		if len(stored) != 2 || stored[0].ID != projection.EventID || stored[1].ID != stoppedProjection.EventID {
 			t.Fatalf("stored Goal snapshot events = %#v", stored)
+		}
+	})
+
+	t.Run("Should retain retryable closure after finalization detaches the recorder", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		ctx := testutil.Context(t)
+		if err := h.manager.closeSessionRecorder(sess); err != nil {
+			t.Fatalf("closeSessionRecorder() error = %v", err)
+		}
+		event := store.SessionEvent{
+			ID: "post-stop:detached-recorder", SessionID: sess.ID, TurnID: "detached-turn",
+			Type: EventTypeGoalSnapshotChanged, AgentName: "system", Content: `{}`,
+			Timestamp: time.Date(2026, 7, 10, 19, 1, 0, 0, time.UTC),
+		}
+		if _, err := h.manager.appendDurableSessionEventAttempt(ctx, sess.ID, event); !errors.Is(err, store.ErrClosed) {
+			t.Fatalf("append during recorder detachment = %v, want retryable closed store", err)
+		}
+		recorder, err := sessiondb.OpenSessionDB(ctx, testSessionDBOwner(sess.ID, sess.WorkspaceID), sess.DBPath())
+		if err != nil {
+			t.Fatalf("reopen recorder for lifecycle cleanup: %v", err)
+		}
+		sess.setRecorder(recorder)
+		if err := h.manager.Stop(ctx, sess.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		persisted, err := h.manager.appendDurableSessionEvent(ctx, sess.ID, event)
+		if err != nil || persisted.ID != event.ID {
+			t.Fatalf("append after finalization = %#v, %v", persisted, err)
 		}
 	})
 

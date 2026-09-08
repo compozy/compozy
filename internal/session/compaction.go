@@ -22,6 +22,7 @@ const (
 
 type sessionCompactionState struct {
 	inFlight      bool
+	retired       bool
 	cancel        context.CancelFunc
 	done          chan struct{}
 	attemptTurnID string
@@ -73,6 +74,11 @@ func (m *Manager) maybeCompact(session *Session, usage acp.TokenUsage) error {
 	turnID := strings.TrimSpace(usage.TurnID)
 	if turnID == "" {
 		return errors.New("session: compaction usage turn id is required")
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.State != StateActive {
+		return nil
 	}
 
 	m.compactionLifecycle.mu.Lock()
@@ -191,6 +197,9 @@ func (m *Manager) compactPersistedReplaySpan(ctx context.Context, work compactio
 					compactErr,
 				)
 			}
+			if cancelErr := compactCtx.Err(); cancelErr != nil {
+				return hookspkg.ContextPostCompactPayload{}, cancelErr
+			}
 			if archiveErr := archiveCompactionSpan(
 				compactCtx,
 				work.session,
@@ -225,24 +234,36 @@ func queryCompleteCompactionSpan(
 	return completePriorTurnPrefix(events, strings.TrimSpace(triggerTurnID)), nil
 }
 
+type compactionTurnBoundary struct {
+	lastIndex        int
+	terminal         bool
+	requiresTerminal bool
+}
+
 func completePriorTurnPrefix(events []store.SessionEvent, triggerTurnID string) []store.SessionEvent {
-	end := 0
-	for start := 0; start < len(events); {
-		turnID := strings.TrimSpace(events[start].TurnID)
-		if turnID == "" || turnID == triggerTurnID {
+	// Audit/clarification events can interleave a conversation turn. Resolve its
+	// whole span before choosing a contiguous cut, so no turn is archived in part.
+	turns := make(map[string]compactionTurnBoundary)
+	for index, event := range events {
+		turnID := strings.TrimSpace(event.TurnID)
+		boundary := turns[turnID]
+		boundary.lastIndex = index
+		boundary.terminal = boundary.terminal || event.Type == acp.EventTypeDone ||
+			event.Type == acp.EventTypeError || event.Type == EventTypeSessionStopped
+		boundary.requiresTerminal = boundary.requiresTerminal || compactionGroupRequiresTerminal(events[index:index+1])
+		turns[turnID] = boundary
+	}
+	end, lastIndex := 0, 0
+	for index, event := range events {
+		turnID := strings.TrimSpace(event.TurnID)
+		boundary := turns[turnID]
+		if turnID == "" || turnID == triggerTurnID || (boundary.requiresTerminal && !boundary.terminal) {
 			break
 		}
-		next := start
-		terminal := false
-		for next < len(events) && strings.TrimSpace(events[next].TurnID) == turnID {
-			terminal = terminal || events[next].Type == acp.EventTypeDone || events[next].Type == acp.EventTypeError
-			next++
+		lastIndex = max(lastIndex, boundary.lastIndex)
+		if index == lastIndex {
+			end = index + 1
 		}
-		if !terminal && compactionGroupRequiresTerminal(events[start:next]) {
-			break
-		}
-		end = next
-		start = next
 	}
 	return append([]store.SessionEvent(nil), events[:end]...)
 }
@@ -250,7 +271,8 @@ func completePriorTurnPrefix(events []store.SessionEvent, triggerTurnID string) 
 func compactionGroupRequiresTerminal(group []store.SessionEvent) bool {
 	for _, event := range group {
 		switch event.Type {
-		case events.TranscriptMarkerCreated, acp.EventTypeClarify:
+		case events.TranscriptMarkerCreated, acp.EventTypeClarify,
+			events.HookDispatchStart, events.HookDispatchComplete:
 			continue
 		default:
 			return true

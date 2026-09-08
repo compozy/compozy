@@ -33,6 +33,21 @@ const (
 )
 
 func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta) (sessionStartSpec, error) {
+	if m.hasPendingStopSettlement(meta.ID) {
+		return sessionStartSpec{}, fmt.Errorf(
+			"%w: recovered stop for %s has pending persistence",
+			ErrRecoveryPersistence,
+			meta.ID,
+		)
+	}
+	if State(meta.State) == StateStopping ||
+		(meta.Liveness != nil && meta.Liveness.SubprocessPID > 0 && !inactiveProcessExitVerified(&meta)) {
+		return sessionStartSpec{}, fmt.Errorf(
+			"%w: cannot resume %s before process exit",
+			ErrStopVerificationFailed,
+			meta.ID,
+		)
+	}
 	meta, err := m.dispatchSessionPreResume(ctx, meta)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: dispatch pre-resume for %q: %w", meta.ID, err)
@@ -66,9 +81,9 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	spec.postEvent = hookspkg.HookSessionPostResume
 	spec.startAction = sessionStartActionResume
 	spec.includePromptUpdatedAt = true
-	spec.preserveStopReason = sessionMetaStopReason(meta) == store.StopAgentCrashed
+	spec.preserveStopReason = sessionMetaStopReason(&meta) == store.StopAgentCrashed
 	spec.acpSessionID = derefString(meta.ACPSessionID)
-	spec.stopReason = sessionMetaStopReason(meta)
+	spec.stopReason = sessionMetaStopReason(&meta)
 	spec.stopDetail = strings.TrimSpace(meta.StopDetail)
 	spec.failure = store.CloneSessionFailure(meta.Failure)
 	return spec, nil

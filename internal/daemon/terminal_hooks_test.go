@@ -24,7 +24,6 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 	}{
 		{terminalpkg.EventKindOpened, hookspkg.HookTerminalOpened},
 		{terminalpkg.EventKindClosed, hookspkg.HookTerminalClosed},
-		{terminalpkg.EventKindLeaseChanged, hookspkg.HookTerminalLeaseChanged},
 		{terminalpkg.EventKindCommandStarted, hookspkg.HookTerminalCommandStarted},
 		{terminalpkg.EventKindCommandFinished, hookspkg.HookTerminalCommandFinished},
 		{terminalpkg.EventKindInputRequested, hookspkg.HookTerminalInputRequested},
@@ -38,11 +37,12 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 		event   hookspkg.HookEvent
 		payload map[string]any
 	}
-	seen := make(chan delivered, len(cases))
+	seen := make(map[hookspkg.HookEvent]chan delivered, len(cases))
 	decls := make([]hookspkg.HookDecl, 0, len(cases))
 	executors := make(map[string]hookspkg.Executor, len(cases))
 	for _, testCase := range cases {
 		name := testCase.hook.String()
+		seen[testCase.hook] = make(chan delivered, 1)
 		decls = append(decls, hookspkg.HookDecl{
 			Name: name, ProfileID: "profile-a", Event: testCase.hook,
 			Mode: hookspkg.HookModeAsync, ExecutorKind: hookspkg.HookExecutorNative,
@@ -56,7 +56,7 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 			if err := json.Unmarshal(payload, &decoded); err != nil {
 				return nil, err
 			}
-			seen <- delivered{event: hook.Event, payload: decoded}
+			seen[hook.Event] <- delivered{event: hook.Event, payload: decoded}
 			return []byte(`{}`), nil
 		})
 	}
@@ -75,46 +75,46 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 
 	at := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
 	for _, testCase := range cases {
-		event := terminalpkg.Event{
-			Kind: testCase.kind, WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: "term-a",
-			Actor: terminalpkg.Actor{
-				Kind: terminalpkg.ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
-				SessionID: "session-a", RunID: "run-a", Generation: 17,
-			},
-			At: at, Reason: "operator_close",
-			Exit: &terminalpkg.Exit{Cause: "exited", Code: new(0)},
-			Detail: &terminalpkg.EventDetail{
-				Mode: terminalpkg.ModePTY, Cwd: "/workspace", Title: "Build", CommandID: "cmd-a", Command: "pwd",
-				DetectedBy: "marker", ExitCode: new(0), ExitCause: "exited", DurationMS: 12,
-				Signal: new("TERM"), Approval: "human", RequestID: "request-a", Redacted: true,
-				Length: 7, Outcome: "provided", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
-				LeaseFrom: terminalpkg.LeaseAvailable, LeaseTo: terminalpkg.LeaseHumanOwned, Truncated: true,
-				Flow: "drop", Limit: "workspace", Current: 8, Max: 8,
-			},
-		}
-		if err := dispatchTerminalHookEvent(t.Context(), hooks, event); err != nil {
-			t.Fatalf("dispatch %s error = %v", testCase.kind, err)
-		}
-	}
-
-	for _, testCase := range cases {
-		select {
-		case got := <-seen:
-			if got.event != testCase.hook || got.payload["event"] != testCase.hook.String() ||
-				got.payload["workspace_id"] != "workspace-a" || got.payload["profile_id"] != "profile-a" ||
-				got.payload["terminal_id"] != "term-a" || got.payload["actor_id"] != "agent-a" ||
-				got.payload["session_id"] != "session-a" || got.payload["run_id"] != "run-a" ||
-				got.payload["generation"] != float64(17) {
-				t.Fatalf("bridge payload for %s = %#v (%s)", testCase.hook, got.payload, got.event)
+		t.Run("Should bridge "+testCase.hook.String()+" once with its correlation keys", func(t *testing.T) {
+			t.Parallel()
+			event := terminalpkg.Event{
+				Kind: testCase.kind, WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: "term-a",
+				Actor: terminalpkg.Actor{
+					Kind: terminalpkg.ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
+					SessionID: "session-a", RunID: "run-a", Generation: 17,
+				},
+				At: at, Reason: "operator_close",
+				Exit: &terminalpkg.Exit{Cause: "exited", Code: new(0)},
+				Detail: &terminalpkg.EventDetail{
+					Mode: terminalpkg.ModePTY, Cwd: "/workspace", Title: "Build", CommandID: "cmd-a", Command: "pwd",
+					DetectedBy: "marker", ExitCode: new(0), ExitCause: "exited", DurationMS: 12,
+					Signal: new("TERM"), Approval: "human", RequestID: "request-a", Redacted: true,
+					Length: 7, Outcome: "provided", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
+					Truncated: true,
+					Flow:      "drop", Limit: "workspace", Current: 8, Max: 8,
+				},
 			}
-			for key, want := range terminalHookExpectedPayload(testCase.hook) {
-				if value := got.payload[key]; !reflect.DeepEqual(value, want) {
-					t.Fatalf("bridge payload %s[%q] = %#v, want %#v", testCase.hook, key, value, want)
+			if err := dispatchTerminalHookEvent(t.Context(), hooks, event); err != nil {
+				t.Fatalf("dispatch %s error = %v", testCase.kind, err)
+			}
+			select {
+			case got := <-seen[testCase.hook]:
+				if got.event != testCase.hook || got.payload["event"] != testCase.hook.String() ||
+					got.payload["workspace_id"] != "workspace-a" || got.payload["profile_id"] != "profile-a" ||
+					got.payload["terminal_id"] != "term-a" || got.payload["actor_id"] != "agent-a" ||
+					got.payload["session_id"] != "session-a" || got.payload["run_id"] != "run-a" ||
+					got.payload["generation"] != float64(17) {
+					t.Fatalf("bridge payload for %s = %#v (%s)", testCase.hook, got.payload, got.event)
 				}
+				for key, want := range terminalHookExpectedPayload(testCase.hook) {
+					if value := got.payload[key]; !reflect.DeepEqual(value, want) {
+						t.Fatalf("bridge payload %s[%q] = %#v, want %#v", testCase.hook, key, value, want)
+					}
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("timed out waiting for bridged hook %s", testCase.hook)
 			}
-		case <-time.After(time.Second):
-			t.Fatalf("timed out waiting for bridged hook %s", testCase.hook)
-		}
+		})
 	}
 }
 
@@ -124,8 +124,6 @@ func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
 		return map[string]any{"mode": "pty", "cwd": "/workspace", "title": "Build"}
 	case hookspkg.HookTerminalClosed:
 		return map[string]any{"exit": map[string]any{"cause": "exited", "code": float64(0)}, "reason": "closed"}
-	case hookspkg.HookTerminalLeaseChanged:
-		return map[string]any{"from": "available", "to": "human_owned", "reason": "operator_close"}
 	case hookspkg.HookTerminalCommandStarted:
 		return map[string]any{"command_id": "cmd-a", "command": "pwd", "cwd": "/workspace", "detected_by": "marker"}
 	case hookspkg.HookTerminalCommandFinished:

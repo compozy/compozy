@@ -142,6 +142,7 @@ type ModelsDevSourceConfig struct {
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
 	Command         string                   `toml:"command"`
+	SteerCapability SteerCapability          `toml:"steer_capability,omitempty"`
 	DisplayName     string                   `toml:"display_name,omitempty"`
 	Models          ProviderModelsConfig     `toml:"models,omitempty"`
 	Harness         ProviderHarness          `toml:"harness,omitempty"`

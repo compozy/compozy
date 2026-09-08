@@ -3,7 +3,6 @@ package hooks
 const (
 	HookTerminalOpened            HookEvent = "terminal.opened"
 	HookTerminalClosed            HookEvent = "terminal.closed"
-	HookTerminalLeaseChanged      HookEvent = "terminal.lease_changed"
 	HookTerminalCommandStarted    HookEvent = "terminal.command_started"
 	HookTerminalCommandFinished   HookEvent = "terminal.command_finished"
 	HookTerminalInputRequested    HookEvent = "terminal.input_requested"
@@ -18,7 +17,6 @@ func terminalHookEventDefinitions() []hookEventDefinition {
 	return []hookEventDefinition{
 		{event: HookTerminalOpened, family: HookEventFamilyTerminal, syncEligible: false},
 		{event: HookTerminalClosed, family: HookEventFamilyTerminal, syncEligible: false},
-		{event: HookTerminalLeaseChanged, family: HookEventFamilyTerminal, syncEligible: false},
 		{event: HookTerminalCommandStarted, family: HookEventFamilyTerminal, syncEligible: false},
 		{event: HookTerminalCommandFinished, family: HookEventFamilyTerminal, syncEligible: false},
 		{event: HookTerminalInputRequested, family: HookEventFamilyTerminal, syncEligible: false},

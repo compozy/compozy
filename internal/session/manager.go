@@ -72,8 +72,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 		resumeLifecycle: sessionResumeLifecycle{
 			runs: make(map[string]*sessionResumeRun),
 		},
-		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
-		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
 		sessionHealthHookLast: make(map[string]time.Time),
 		streamEvents:          newSessionEventBroadcaster(),
@@ -132,6 +130,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 }
 
 func (m *Manager) initializeRuntime() error {
+	m.workSignals = NewWorkSignalRegistry(WorkSignalSource{
+		Kind: WorkSignalAgentProgress, Source: SignalSourceFunc(m.progressSignals),
+	})
 	m.waitRegistry = newSessionWaitRegistry(m.newWaitID, m.now, m.newWaitAfterFunc)
 	if err := compozyconfig.EnsureHomeLayout(m.homePaths); err != nil {
 		return fmt.Errorf("session: ensure home layout: %w", err)
@@ -410,7 +411,6 @@ func (m *Manager) remove(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 
-	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 	m.forgetSpawnWakeEvents(target)
 }
 
@@ -426,31 +426,4 @@ func (m *Manager) removeActive(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 	m.forgetSpawnWakeEvents(target)
-
-	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
-}
-
-func (m *Manager) takeQueuedSyntheticPrompts(sessionID string) []queuedSyntheticPrompt {
-	if m == nil {
-		return nil
-	}
-
-	target := strings.TrimSpace(sessionID)
-	if target == "" {
-		return nil
-	}
-
-	m.syntheticMu.Lock()
-	defer m.syntheticMu.Unlock()
-
-	queue := append([]queuedSyntheticPrompt(nil), m.syntheticQueues[target]...)
-	delete(m.syntheticQueues, target)
-	delete(m.syntheticDispatching, target)
-	return queue
-}
-
-func (m *Manager) emitDroppedSyntheticPrompts(items []queuedSyntheticPrompt, err error) {
-	for _, item := range items {
-		m.emitQueuedSyntheticDispatchError(item, err)
-	}
 }

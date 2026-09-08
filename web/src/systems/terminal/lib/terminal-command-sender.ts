@@ -12,9 +12,7 @@ import {
   encodeTerminalDetach,
   encodeTerminalInputFrames,
   encodeTerminalResize,
-  encodeTerminalRelease,
   encodeTerminalSignal,
-  encodeTerminalTakeover,
   type TerminalFrameBytes,
 } from "./terminal-wire";
 import type { TerminalSocket } from "../adapters/terminal-socket";
@@ -27,7 +25,7 @@ export interface TerminalCommandSenderPort {
 }
 
 export class TerminalCommandSender {
-  /** The size this viewer last voted for, carried into the next upgrade. */
+  /** The size this viewer last proposed, carried into the next connection. */
   private proposedSize: { cols: number; rows: number } | null = null;
   /** The vote the daemon has actually received — sent, or carried in a query. */
   private sentSize: { cols: number; rows: number } | null = null;
@@ -106,24 +104,14 @@ export class TerminalCommandSender {
     this.send(encodeTerminalSignal(signal), "The terminal could not send that signal.");
   }
 
-  /** Claims the write lease. `force` skips the human-vs-human confirmation. */
-  takeover(force: boolean): boolean {
-    return this.send(encodeTerminalTakeover(force), "The terminal could not ask for control.");
-  }
-
-  /** Explicitly returns control; unlike DETACH, this is a lease transition. */
-  release(message: string): boolean {
-    return this.send(encodeTerminalRelease(), message);
-  }
-
-  /** Politely closes this attachment without changing the lease directly. */
+  /** Politely closes this attachment without stopping the terminal. */
   detach(message: string): void {
     if (this.detached) return;
     if (!this.send(encodeTerminalDetach(), message)) return;
     this.detached = true;
   }
 
-  /** Teardown's own detach, sent only if releasing control did not already. */
+  /** Teardown's detach, sent at most once. */
   detachOnClose(socket: TerminalSocket): void {
     if (this.detached) return;
     try {

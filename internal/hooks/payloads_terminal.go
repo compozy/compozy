@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// TerminalContext carries the mandatory owner and correlation keys for terminal hooks.
+// TerminalContext carries the mandatory scope, actor, and correlation keys for terminal hooks.
 type TerminalContext struct {
 	WorkspaceID string    `json:"workspace_id"`
 	ProfileID   string    `json:"profile_id"`
@@ -42,14 +42,6 @@ type TerminalClosedPayload struct {
 	TerminalContext
 	Exit   TerminalExit `json:"exit"`
 	Reason string       `json:"reason"`
-}
-
-type TerminalLeaseChangedPayload struct {
-	PayloadBase
-	TerminalContext
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Reason string `json:"reason"`
 }
 
 type TerminalCommandStartedPayload struct {

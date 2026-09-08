@@ -15,6 +15,7 @@ const workspace = vi.hoisted(() => ({
   ],
 }));
 const loopRunPageBodySpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
+const quarantineSheetSpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
 const loopRunPageSpy = vi.hoisted(() => vi.fn());
 const pageRun = vi.hoisted(() => ({
   current: null as {
@@ -51,7 +52,7 @@ vi.mock("../use-loop-run-page", () => ({
       effectiveRun: {
         generation: 1,
         historical: pageRun.current?.historical ?? false,
-        status: "running",
+        status: pageRun.current?.status ?? "running",
         workspace_id: "ws_home",
       },
       goalTurnsQuery: {
@@ -111,13 +112,18 @@ vi.mock("../use-loop-run-timetravel", () => ({
   }),
 }));
 
-vi.mock("@/systems/loops", () => ({
+vi.mock("@/systems/loops", async () => ({
+  // The real status vocabulary: the route decides "ended" with it, and a stub
+  // that answered from a hand-written list would only test the list.
+  ...(await vi.importActual<typeof import("@/systems/loops/lib/loop-formatters")>(
+    "@/systems/loops/lib/loop-formatters"
+  )),
   LoopForkDialog: () => null,
   LoopNodeAmendDialog: () => null,
   LoopNodeControlDialog: () => null,
   LoopNodeRerunDialog: () => null,
   LoopNodeRowActions: () => null,
-  LoopQuarantineSheet: () => null,
+  LoopQuarantineSheet: (props: Record<string, unknown>) => quarantineSheetSpy(props),
   LoopRunControlDialog: () => null,
   LoopRunControls: () => null,
   LoopRunOverflowMenu: () => null,
@@ -143,6 +149,7 @@ describe("LoopRunDetailLocation", () => {
     workspace.activeWorkspace = { id: "ws_project", name: "Project workspace" };
     workspace.runtimeWorkspaceId = "ws_home";
     loopRunPageBodySpy.mockClear();
+    quarantineSheetSpy.mockClear();
     loopRunPageSpy.mockClear();
     pageRun.current = null;
     vi.mocked(useTopbarSlot).mockClear();
@@ -215,6 +222,28 @@ describe("LoopRunDetailLocation", () => {
     expect(slot?.actions).toBeUndefined();
     expect(loopRunPageBodySpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ renderNodeActions: undefined })
+    );
+  });
+
+  // The quarantine sheet offers requeue only while the daemon would accept it.
+  // The route owns that scoping, from the run's own status: live stays live.
+  it("Should keep the quarantine sheet live while the run is still running", () => {
+    pageRun.current = { loop_name: "implement-tasks", status: "running" };
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(quarantineSheetSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ runEnded: false })
+    );
+  });
+
+  it("Should mark the quarantine sheet ended once the run reaches a terminal status", () => {
+    pageRun.current = { loop_name: "implement-tasks", status: "failed" };
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(quarantineSheetSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ runEnded: true })
     );
   });
 });

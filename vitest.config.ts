@@ -19,7 +19,8 @@ export default defineConfig({
       "packages/site/vitest.config.ts",
       "sdk/typescript/vitest.config.ts",
       "sdk/react/vitest.config.ts",
-      "sdk/create-extension/vitest.config.ts",
+      "desktop/vitest.config.ts",
+      "lint-plugins/vitest.config.mjs",
     ],
   },
 });

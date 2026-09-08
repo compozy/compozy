@@ -59,8 +59,14 @@ func (d *Dispatcher) tryAcquire() bool {
 }
 
 func (d *Dispatcher) release() {
+	d.capacityMu.Lock()
+	defer d.capacityMu.Unlock()
 	select {
 	case <-d.gate:
+		if d.capacityChanged != nil {
+			close(d.capacityChanged)
+			d.capacityChanged = nil
+		}
 	default:
 	}
 }
@@ -139,4 +145,20 @@ func (r DispatchRequest) prompt() (string, error) {
 	}
 
 	return renderTriggerPrompt(source, r.Envelope)
+}
+
+// CapacityAvailable wakes existing schedule loops when the shared admission gate opens.
+func (d *Dispatcher) CapacityAvailable() <-chan struct{} {
+	d.capacityMu.Lock()
+	defer d.capacityMu.Unlock()
+	if d.capacityChanged == nil {
+		d.capacityChanged = make(chan struct{})
+	}
+	if len(d.gate) < cap(d.gate) {
+		ready := d.capacityChanged
+		close(ready)
+		d.capacityChanged = nil
+		return ready
+	}
+	return d.capacityChanged
 }

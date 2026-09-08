@@ -11,10 +11,13 @@ bug_ids: BUG-20260825-skill-source-agent-write-doc-mismatch
 fix_status: fixed
 retest_status: pass
 fix_commits: 2643f4aba
-evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/info-compozy.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
-last_report: docs/qa/reports/2026-08-25-skill-sources.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/qa/live-evidence.md; docs/qa/reports/2026-09-04-terminal-shared-control.md
+last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
 overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates; SITE-terminal-docs-truth
 ---
+
+QA impact 2026-09-04: the official terminal reference removed claim/yield and the special typing grant,
+and now teaches shared control. Reset to confirm every skill read plane serves the same nine-tool contract.
 
 Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: the bundled skill was read through CLI only; the scenario requires agreement across all listed surfaces.
 
@@ -66,3 +69,8 @@ platform facts, and safety rules agree with both the daemon and the public termi
 pass verdict predates the terminal reference, so this change resets the scenario to `untested`.
 `CH-terminal-docs-first-success` walks it alongside `SITE-terminal-docs-truth`, which owns the public
 pages so this file is not duplicated for them.
+
+QA walk 2026-09-04: passed. A fresh isolated runtime returned exactly one bundled `compozy` skill through
+CLI and `GET /api/skills`. `skill view compozy --file references/terminal.md` served the nine-tool
+terminal contract, concurrent same-workspace/profile interaction, and no claim/yield tool IDs or special
+typing grant. The public docs and live runtime catalogs agreed with that reference.

@@ -14,14 +14,7 @@ The first implementation used an overloaded infrastructure term and let it harde
 
 ## Fix / Rule
 
-Public runtime concepts need one canonical noun before they reach contracts. If the noun changes during greenfield alpha, perform one hard cut across every public and internal surface in the same change:
-
-- runtime packages, storage columns, config keys, generated contracts, CLI flags, hook names, Host API methods, logs, and tests
-- web routes, navigation, page copy, mocks, route tests, and generated client types
-- landing pages, docs navigation, runtime guides, generated CLI docs, and examples
-- `CLAUDE.md` / `AGENTS.md`, `.compozy/tasks/*` artifacts, glossary, and lessons
-
-Do not keep aliases, redirects, dual fields, or fallback parsing for the obsolete product noun. Generic operating-system terminology remains valid when it describes process environment variables or host context.
+Public runtime concepts need one canonical noun. Classify affected surfaces under SD-013: migrate persisted data losslessly, preserve published names through the deprecation window, and hard-cut internal consumers together. Update affected code, generated contracts, CLI/hooks, UI, docs, and glossary in the same feature change. Boundary aliases carry their removal release; internal code keeps one name. Generic operating-system terminology remains valid where it describes actual host/process context.
 
 ## Evidence
 

@@ -1,13 +1,13 @@
-import { Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";
-import { cn, Popover, PopoverContent } from "@compozy/ui";
+import { Popover, PopoverContent } from "@compozy/ui";
 
 import { ModelList } from "./model-list";
 import { ProviderChips } from "./provider-chips";
 import { RuntimeAdvancedOptions } from "./runtime-advanced-options";
 import { SelectorFooter } from "./selector-footer";
+import { SelectorSearch } from "./selector-search";
 import { RuntimeSelectorTrigger } from "./trigger";
 import { useRuntimeSelector } from "./use-runtime-selector";
 import { useRuntimeSelectorPopup } from "./use-runtime-selector-popup";
@@ -151,7 +151,6 @@ export function RuntimeSelector({
         sideOffset={6}
         anchor={popup.anchor}
         initialFocus={popup.resolveInitialFocus}
-        finalFocus={popup.finalFocus}
         aria-label="Runtime selector"
         className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-canvas p-0 shadow-overlay"
       >
@@ -160,69 +159,20 @@ export function RuntimeSelector({
           className="flex max-h-[inherit] flex-col"
           data-testid="runtime-selector-popup"
         >
-          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line-soft px-3">
-            {exactEntry ? (
-              <>
-                <Plus aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-                <label htmlFor={exactInputId} className="shrink-0 text-badge font-medium text-fg">
-                  {allowCustomProvider ? "Exact runtime ID" : "Exact model ID"}
-                </label>
-              </>
-            ) : (
-              <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-            )}
-            <input
-              ref={searchRef}
-              id={exactEntry ? exactInputId : undefined}
-              type="text"
-              role={exactEntry ? undefined : "combobox"}
-              aria-label={exactEntry ? undefined : "Search models and providers"}
-              aria-expanded={exactEntry ? undefined : true}
-              aria-controls={exactEntry ? undefined : popup.listId}
-              aria-autocomplete={exactEntry ? undefined : "list"}
-              aria-activedescendant={exactEntry ? undefined : popup.activeDescendant}
-              aria-keyshortcuts={exactEntry ? undefined : "Alt+F"}
-              value={controller.query}
-              onChange={event => controller.changeQuery(event.target.value)}
-              onKeyDown={popup.handleSearchKeyDown}
-              placeholder={
-                exactEntry && allowCustomProvider
-                  ? "provider/model"
-                  : exactEntry
-                    ? "composer-2.5"
-                    : "Search models, providers…"
-              }
-              autoComplete="off"
-              spellCheck={false}
-              data-testid="runtime-selector-search"
-              className="min-w-0 flex-1 bg-transparent text-small-body text-fg-strong outline-none placeholder:text-subtle"
-            />
-            {exactEntry ? (
-              <button
-                type="button"
-                aria-label="Return to model search"
-                onClick={handleCancelExactEntry}
-                className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <X aria-hidden="true" className="size-3.5" />
-              </button>
-            ) : onRefreshCatalog ? (
-              <button
-                type="button"
-                aria-label="Refresh model catalog"
-                title="Refresh catalog"
-                data-testid="runtime-selector-refresh"
-                disabled={refreshing}
-                onClick={() => onRefreshCatalog()}
-                className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
-              >
-                <RefreshCw
-                  aria-hidden="true"
-                  className={cn("size-3.5", refreshing && "animate-spin")}
-                />
-              </button>
-            ) : null}
-          </div>
+          <SelectorSearch
+            exactEntry={exactEntry}
+            allowCustomProvider={allowCustomProvider}
+            searchRef={searchRef}
+            exactInputId={exactInputId}
+            listId={popup.listId}
+            activeDescendant={popup.activeDescendant}
+            query={controller.query}
+            onQueryChange={controller.changeQuery}
+            onKeyDown={popup.handleSearchKeyDown}
+            onCancelExactEntry={handleCancelExactEntry}
+            onRefreshCatalog={onRefreshCatalog}
+            refreshing={refreshing}
+          />
           <ProviderChips
             providers={providers}
             railFilter={controller.railFilter}

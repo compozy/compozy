@@ -51,6 +51,11 @@ func (s *Scheduler) selectWakeTargets(
 		case CapacityWaiting, CapacityIndeterminate:
 			result.capacityWaiting = append(result.capacityWaiting, *work)
 			result.capacityWaitingReasons[work.Run.ID] = disposition.Reason
+			if disposition.Kind == CapacityWaiting && starved {
+				work.CapacityReason = disposition.Reason
+				result.starved = append(result.starved, *work)
+				result.convergenceCandidates = append(result.convergenceCandidates, *work)
+			}
 			continue
 		case CapacityUnmatched:
 			result.noMatch = append(result.noMatch, *work)
@@ -67,14 +72,7 @@ func (s *Scheduler) selectWakeTargets(
 
 		if starved {
 			result.convergenceCandidates = append(result.convergenceCandidates, *work)
-			for _, candidate := range disposition.Available {
-				occupied[strings.TrimSpace(candidate.ID)] = struct{}{}
-				result.targets = append(result.targets, WakeTarget{
-					Work:    *work,
-					Session: candidate,
-					Reason:  s.wakeReason,
-				})
-			}
+			s.appendStarvedWakeTargets(&result, work, disposition.Available, occupied)
 			if len(disposition.Available) > 0 {
 				result.starved = append(result.starved, *work)
 			} else {
@@ -86,6 +84,9 @@ func (s *Scheduler) selectWakeTargets(
 		chosen, ok := firstNotRecentlyWoken(now, s.wakeCooldown, state, work, disposition.Available)
 		if !ok {
 			result.recentlyNotified++
+			continue
+		}
+		if len(result.targets) >= s.sweepLimit {
 			continue
 		}
 		occupied[strings.TrimSpace(chosen.ID)] = struct{}{}
@@ -201,4 +202,20 @@ func runIDs(runs []RunSnapshot) []string {
 		}
 	}
 	return ids
+}
+
+func (s *Scheduler) appendStarvedWakeTargets(
+	result *selectionResult, work *RunSnapshot, available []SessionSnapshot, occupied map[string]struct{},
+) {
+	for _, candidate := range available[:min(len(available), 2)] {
+		if len(result.targets) >= s.sweepLimit {
+			break
+		}
+		occupied[strings.TrimSpace(candidate.ID)] = struct{}{}
+		result.targets = append(result.targets, WakeTarget{
+			Work:    *work,
+			Session: candidate,
+			Reason:  s.wakeReason,
+		})
+	}
 }

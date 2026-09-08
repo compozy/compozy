@@ -38,12 +38,6 @@ type processCheckpoint interface {
 
 type processRegister func(context.Context, toolruntime.RegisterConfig) (processCheckpoint, error)
 
-// TypingGrantAuthorizer evaluates the existing profile-scoped approval store
-// before an agent can deliver bytes to a terminal.
-type TypingGrantAuthorizer interface {
-	AuthorizeTerminalInput(context.Context, Actor, Info) error
-}
-
 // ExecAuthorizer obtains a caller-owned approval decision for an agent command.
 type ExecAuthorizer interface {
 	AuthorizeTerminalExec(context.Context, ExecRequest, CommandClassification) (string, error)
@@ -103,17 +97,6 @@ func WithProfileGuard(guard ProfileGuard) Option {
 			return errors.New("terminal: profile guard is required")
 		}
 		service.profiles = guard
-		return nil
-	}
-}
-
-// WithTypingGrantAuthorizer sets the agent input grant authority.
-func WithTypingGrantAuthorizer(authorizer TypingGrantAuthorizer) Option {
-	return func(service *Service) error {
-		if authorizer == nil {
-			return errors.New("terminal: typing grant authorizer is required")
-		}
-		service.typingGrants = authorizer
 		return nil
 	}
 }

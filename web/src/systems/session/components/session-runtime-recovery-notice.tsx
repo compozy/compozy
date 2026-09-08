@@ -20,7 +20,7 @@ export function SessionRuntimeRecoveryNotice({
   return (
     <Alert
       aria-live="polite"
-      className="mt-3 mb-1 w-full"
+      className="my-3 w-full"
       data-testid="session-runtime-recovery"
       role="status"
       variant="warning"

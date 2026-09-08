@@ -171,7 +171,7 @@ function AnswerControl({
 }: AnswerControlProps) {
   if (field.control.kind === "select" || field.control.kind === "boolean") {
     return (
-      <ChoiceList
+      <LoopRequestChoiceList
         describedBy={describedBy}
         disabled={disabled}
         invalid={invalid}
@@ -263,7 +263,7 @@ function AnswerControl({
   );
 }
 
-function ChoiceList({
+function LoopRequestChoiceList({
   name,
   options,
   value,

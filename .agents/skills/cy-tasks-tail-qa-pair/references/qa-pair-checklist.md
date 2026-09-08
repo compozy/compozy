@@ -1,19 +1,21 @@
 # QA Pair Append Checklist
 
-Run before exiting the skill.
+Use only when diagnosing an existing pair or uncertain graph/coverage.
+Normal authoring checks the changed contract once within the owning step.
 
 ## Structural
 
 - [ ] `_tasks.md` table column order is preserved.
 - [ ] Both new rows use sequential `task_NN` IDs.
-- [ ] No existing rows were modified.
+- [ ] Customized QA bodies and unrelated rows were preserved; any repair addresses a concrete gap.
 - [ ] No duplicate `qa-report` or `qa-execution` rows.
 
 ## Dependency wiring
 
-- [ ] `qa-report` depends on the last implementation task.
+- [ ] `qa-report` follows all implementation prerequisites (the last task suffices for a linear chain).
 - [ ] `qa-execution` depends on `qa-report`.
-- [ ] `qa-execution` relies on the last implementation task transitively through `qa-report`; do not duplicate the full implementation dependency chain.
+- [ ] `qa-execution` reaches implementation prerequisites transitively through `qa-report`; no redundant dependency chain is duplicated.
+- [ ] Graph nodes/edges, display table, and QA files agree.
 - [ ] No cyclic dependencies introduced.
 
 ## Skills & contract
@@ -25,15 +27,16 @@ Run before exiting the skill.
 
 ## Complexity
 
-- [ ] `qa-report`: complexity `high`.
-- [ ] `qa-execution`: complexity `critical`.
+- [ ] Both complexity values reflect actual risk; QA task types do not mandate `high`/`critical`.
 
-## E2E directives
+## Verification ownership
 
-- [ ] If UI-bearing: row body cites Playwright + `browser-use:browser` (fallback `agent-browser`).
-- [ ] If CLI/API/agent-manageability-bearing only: row body cites daemon E2E + CLI/HTTP/UDS cross-surface comparison.
+- [ ] The pair names remaining changed/integration journeys and visual rows, with valid task evidence reused.
+- [ ] If browser evidence is needed: body names the affected real scenario/flow and browser driver.
+- [ ] If CLI/API/agent evidence is needed: body names the affected real integration scenario/entry path; cross-surface comparisons follow actual risk.
 - [ ] If extensibility/config-bearing: row body cites extension/config lifecycle validation where applicable.
-- [ ] If neither: row body documents the no-UI rationale requirement.
+- [ ] Full suites/labs have a scope, risk, or policy reason; UI paths alone do not trigger them.
+- [ ] No-work/reuse closure cites evidence in workflow memory without inventing scenarios, sessions, or passing runs.
 
 ## MVP Boundary
 
@@ -43,4 +46,4 @@ Run before exiting the skill.
 ## Final
 
 - [ ] No existing review rounds, ADRs, or memory snapshots were touched.
-- [ ] Diff is printed to stdout for review.
+- [ ] The result identifies added/repaired tasks or confirms the existing pair is valid.

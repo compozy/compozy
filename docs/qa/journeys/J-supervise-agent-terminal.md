@@ -1,65 +1,62 @@
-# J-supervise-agent-terminal — Watch an agent work and take control only when needed
+# J-supervise-agent-terminal — Work alongside an agent in a shared terminal
 
-An operator approves an agent's terminal work, watches it without interfering, transfers control
-explicitly, and handles sensitive input without exposing the answer to the model or transcript.
+An operator and an authorized agent use the same terminal without negotiating ownership, while
+ordinary command approvals, profile isolation, actor attribution, and sensitive-input redaction stay
+truthful.
 
 ```mermaid
 flowchart TD
-  A1[Entry: pending terminal approval] --> B[Approve a bounded agent action]
-  A2[Entry: Terminal app] --> C[Attach as a read-only observer]
+  A1[Entry: pending terminal command approval] --> B[Approve a bounded agent command]
+  A2[Entry: Terminal app or interactive CLI attach] --> C[Attach to the running terminal]
   B --> C
-  C --> D[Observe output, presence, and current controller]
-  D --> E{Need human control?}
-  E -->|no| F[Agent continues through read, wait, signal, and close]
-  E -->|yes| G[Request or take the terminal lease explicitly]
-  G --> H[Side effect: lease and presence events name the new controller]
-  H --> I[Type under a terminal-scoped grant]
-  I --> J{Sensitive input requested?}
-  J -->|answer| K[Operator answers through the hidden-input path]
-  J -->|reject| L[Operator rejects with a reason]
-  K --> M[Only a redacted length marker reaches the stream]
-  L --> M
-  M --> N[Yield or release control]
-  N --> O[Side effect: agent may claim only an available terminal]
-  F --> Z[True end: command outcome, controller, approvals, and emitted terminal hooks agree]
-  O --> Z
-  B -.->|operator denies approval| X1[Abandon: no terminal mutation occurs and the refusal is visible to the agent]
-  G -.->|operator declines takeover| X2[Abandon: the current controller remains unchanged]
+  C --> D[Observe output and viewer presence]
+  D --> E[Operator and agent both submit input]
+  E --> F[Side effect: complete submissions reach the PTY atomically and journal rows name each actor]
+  F --> G{Sensitive input requested?}
+  G -->|answer| H[An interactive participant answers through the hidden-input path]
+  G -->|reject| I[An interactive participant rejects with a reason]
+  H --> J[Only a redacted length marker reaches the stream]
+  I --> J
+  G -->|no| K[Authorized participants may resize, signal, or close]
+  J --> K
+  K --> Z[True end: output, audit rows, native results, and supported hooks agree with one shared lifecycle]
+  B -.->|operator denies approval| X1[Abandon: no command mutation occurs and the refusal is visible to the agent]
+  C -.->|participant chooses an explicit read-only view| X2[Abandon: output remains readable and input is not accepted from that view]
 ```
 
 ```yaml
 journey:
   id: J-supervise-agent-terminal
-  name: "Watch an agent work and take control only when needed"
-  value_statement: "I can supervise agent terminal work, intervene deliberately, and provide secrets without leaking them."
+  name: "Work alongside an agent in a shared terminal"
+  value_statement: "I can intervene in agent terminal work immediately without a control handoff, while sensitive input and audit history remain safe."
   personas: [Marina, Dora]
   entry_points:
-    - url: "Pending approvals and the Terminal app"
+    - url: "Pending approvals, the Terminal app, and compozy terminal attach"
       origin: in-app-nav
-    - url: "compozy__terminal_exec, compozy__terminal_open, compozy__terminal_write, compozy__terminal_read, compozy__terminal_wait, compozy__terminal_signal, compozy__terminal_close, compozy__terminal_list, compozy__terminal_request_input, compozy__terminal_yield, compozy__terminal_claim"
+    - url: "compozy__terminal_exec, compozy__terminal_open, compozy__terminal_write, compozy__terminal_read, compozy__terminal_wait, compozy__terminal_signal, compozy__terminal_close, compozy__terminal_list, compozy__terminal_request_input"
       origin: agent
   actions:
     - step: 1
       verb: "Approve and observe an agent command"
-      expected_observable: "The approval states its scope and the observer receives output without holding the write lease."
+      expected_observable: "The approval states its command scope and every attached participant receives the same output."
     - step: 2
-      verb: "Take control and type"
-      expected_observable: "Presence and lease changes identify the controller, and typing permission applies to this terminal only."
+      verb: "Type while the agent is also active"
+      expected_observable: "Both submissions are accepted immediately, remain whole at the PTY boundary, and are attributed to the actors who sent them."
     - step: 3
       verb: "Answer or reject hidden input"
-      expected_observable: "The answer is never echoed into model-visible output; the stream carries only the redacted outcome."
+      expected_observable: "Any interactive participant can settle the current request once; the answer is absent from model-visible output and the stream carries only the redacted outcome."
     - step: 4
-      verb: "Yield control and let the agent continue"
-      expected_observable: "The agent can claim only an available terminal and every transition emits the matching terminal hook."
+      verb: "Resize, signal, or close from another authorized participant"
+      expected_observable: "The mutation succeeds without claim, yield, takeover, or typing-grant state, and every public surface converges on the result."
   goal:
-    observable: "Approval, presence, lease ownership, hidden input, native-tool results, and hook delivery describe one fenced terminal lifecycle."
-    side_effects: [approval-consumed, lease-changed, input-redacted, terminal-hook-dispatched]
-  true_end_state: "The terminal has one known controller, sensitive input is absent from agent-visible output, and native responses plus hook events match the final command state."
+    observable: "Shared input, viewer presence, ordinary command policy, hidden input, native-tool results, and supported hooks describe one coherent terminal lifecycle."
+    side_effects: [approval-consumed, input-attributed, input-redacted, terminal-hook-dispatched]
+  true_end_state: "No participant owns control, all authorized participants can act, sensitive input is absent from agent-visible output, and native responses plus audit history match the final terminal state."
   exit:
-    natural: "The operator returns the terminal to the agent or closes it after reviewing the outcome."
+    natural: "The operator detaches or closes the terminal after reviewing the shared work."
   abandonment:
     - at_step: 2
-      how: "Decline the takeover confirmation."
-      resume: "Continue watching read-only; the existing controller and typing grant remain unchanged."
-  crosses: [native-tools, approvals, lease, presence, hidden-input, hooks, terminal-stream]
+      how: "Attach through an explicit read-only presentation view instead of the interactive path."
+      resume: "Reconnect interactively and write immediately without requesting control."
+  crosses: [native-tools, approvals, shared-input, presence, hidden-input, hooks, terminal-stream]
 ```

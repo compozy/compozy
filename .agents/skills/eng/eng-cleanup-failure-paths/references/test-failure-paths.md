@@ -1,8 +1,7 @@
 # Testing Failure Paths
 
 Every behaviorally distinct cleanup invariant needs coverage in its canonical
-suite. Use `eng-consolidate-test-suites` first; multiple returns that exercise the
-same ownership failure mode share one test. Patterns below.
+suite. Reuse existing coverage; use `eng-consolidate-test-suites` if placement is unclear. Multiple returns that exercise the same ownership failure mode share one test. Read only the relevant patterns below.
 
 ## Pattern 1: Inject a failing dependency
 
@@ -77,4 +76,4 @@ For long-lived components (Manager, Scheduler, Coordinator), the canonical regre
 - Asserting only the error type without checking that resources released.
 - Using `time.Sleep` to "give cleanup a chance" — race-flake guaranteed. Use synchronization or assertion-with-timeout helpers.
 - Asserting only that a fake cleanup method was called instead of verifying the resource is actually released.
-- Skipping cleanup tests because "make verify already runs the leak detector" — `make verify` does NOT detect lease leaks or in-memory registry leaks; only `-race` catches certain classes.
+- Treating a green general gate or race detector as proof of resource release. Lease and registry leaks need behavior-level evidence in their owning suite.

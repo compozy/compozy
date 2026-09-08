@@ -8,6 +8,7 @@ import (
 
 	"fmt"
 	"io"
+	"os"
 
 	"os/exec"
 
@@ -19,7 +20,7 @@ import (
 )
 
 const (
-	version               = "compozy-daytona-launcher-sidecar-v1"
+	version               = "compozy-daytona-launcher-sidecar-v2"
 	serverStdoutFrame     = 0x01
 	serverStderrFrame     = 0x02
 	serverExitFrame       = 0x03
@@ -37,6 +38,7 @@ var errOutputBufferExceeded = errors.New("sidecar output buffer exceeded")
 
 type launchRequest struct {
 	Command string `json:"command"`
+	ID      string `json:"id,omitempty"`
 }
 
 type launchResponse struct {
@@ -123,13 +125,16 @@ type managedProcess struct {
 	cmd             *exec.Cmd
 	cancel          context.CancelFunc
 	stdin           io.WriteCloser
+	stdinMu         sync.Mutex
 	stdout          *chunkQueue
 	stderr          bytes.Buffer
 	stderrMu        sync.Mutex
 	stderrTruncated bool
 	done            chan struct{}
 	exitCode        int
-	stopOnce        sync.Once
+	exitVerified    bool
+	stopMu          sync.Mutex
+	stopRun         *managedStopRun
 	streamMu        sync.Mutex
 	streamClaimed   bool
 }
@@ -139,6 +144,10 @@ func newManagedProcess(command string) (*managedProcess, error) {
 	if err != nil {
 		return nil, err
 	}
+	return startManagedProcess(command, processID)
+}
+
+func startManagedProcess(command, processID string) (*managedProcess, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", command)
 	procutil.ConfigureCommandProcessGroup(cmd)
@@ -263,6 +272,8 @@ func (p *managedProcess) wait() {
 		if p.exitCode == 0 {
 			p.exitCode = 1
 		}
+	} else {
+		p.exitVerified = true
 	}
 }
 
@@ -270,58 +281,118 @@ func (p *managedProcess) WriteStdin(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	if p.stdin == nil {
+	p.stdinMu.Lock()
+	stdin := p.stdin
+	p.stdinMu.Unlock()
+	if stdin == nil {
 		return errors.New("stdin is closed")
 	}
-	if _, err := p.stdin.Write(data); err != nil {
+	if _, err := stdin.Write(data); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p *managedProcess) CloseStdin() error {
-	if p.stdin == nil {
+	p.stdinMu.Lock()
+	stdin := p.stdin
+	p.stdin = nil
+	p.stdinMu.Unlock()
+	if stdin == nil {
 		return nil
 	}
-	err := p.stdin.Close()
-	p.stdin = nil
+	err := stdin.Close()
+	// exec.Cmd.Wait also closes its stdin pipe; closing it again is already satisfied.
+	if errors.Is(err, os.ErrClosed) {
+		return nil
+	}
 	return err
 }
 
+type managedStopRun struct {
+	done chan struct{}
+	err  error
+}
+
 func (p *managedProcess) Stop() error {
-	var stopErr error
-	p.stopOnce.Do(func() {
-		if err := p.CloseStdin(); err != nil {
-			stopErr = errors.Join(stopErr, err)
+	p.stopMu.Lock()
+	run := p.stopRun
+	if run != nil && !p.canRetryStop(run) {
+		p.stopMu.Unlock()
+		<-run.done
+		return run.err
+	}
+	run = &managedStopRun{done: make(chan struct{})}
+	p.stopRun = run
+	p.stopMu.Unlock()
+	run.err = p.stopAttempt()
+	close(run.done)
+	return run.err
+}
+
+func (p *managedProcess) canRetryStop(run *managedStopRun) bool {
+	select {
+	case <-run.done:
+		if run.err == nil || p.cmd.Process == nil {
+			return false
 		}
-		if p.cmd.Process == nil {
-			if p.cancel != nil {
-				p.cancel()
-			}
-			return
+	default:
+		return false
+	}
+	select {
+	case <-p.done:
+		return false
+	default:
+		return true
+	}
+}
+
+func (p *managedProcess) stopAttempt() (stopErr error) {
+	if err := p.CloseStdin(); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+	select {
+	case <-p.done:
+		if !p.exitVerified {
+			stopErr = errors.Join(stopErr, errors.New("completed process group exit remains unverified"))
 		}
-		if err := procutil.SignalCommandProcessGroup(p.cmd, syscall.SIGTERM); err != nil {
-			stopErr = errors.Join(stopErr, err)
+		if p.cancel != nil {
+			p.cancel()
 		}
-		select {
-		case <-p.done:
-			if err := procutil.WaitForCommandProcessGroupExit(p.cmd, stopTimeout); err != nil {
-				stopErr = errors.Join(stopErr, err)
-			}
-			if p.cancel != nil {
-				p.cancel()
-			}
-			return
-		case <-time.After(stopTimeout):
+		return stopErr
+	default:
+	}
+	if p.cmd.Process == nil {
+		if p.cancel != nil {
+			p.cancel()
 		}
-		if err := procutil.KillCommandProcessGroupAndWait(p.cmd, stopTimeout); err != nil {
+		return stopErr
+	}
+	if err := procutil.SignalCommandProcessGroup(p.cmd, syscall.SIGTERM); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+	select {
+	case <-p.done:
+		if err := procutil.WaitForCommandProcessGroupExit(p.cmd, stopTimeout); err != nil {
 			stopErr = errors.Join(stopErr, err)
 		}
 		if p.cancel != nil {
 			p.cancel()
 		}
-		<-p.done
-	})
+		return stopErr
+	case <-time.After(stopTimeout):
+	}
+	if err := procutil.KillCommandProcessGroupAndWait(p.cmd, stopTimeout); err != nil {
+		stopErr = errors.Join(stopErr, err)
+	}
+	if p.cancel != nil {
+		p.cancel()
+	}
+	select {
+	case <-p.done:
+	case <-time.After(stopTimeout):
+		stopErr = errors.Join(stopErr, fmt.Errorf("wait for process exit observer: %w", context.DeadlineExceeded))
+	}
 	return stopErr
 }
 

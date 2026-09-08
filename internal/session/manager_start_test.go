@@ -10,7 +10,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -285,7 +284,7 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		meta := readMeta(t, live.MetaPath())
 		if meta.RuntimeStatus != RuntimeStatusUnbound ||
-			store.SessionRuntimeFailureValue(meta.RuntimeFailure) == "" {
+			meta.RuntimeFailureValue() == "" {
 			t.Fatalf("metadata runtime after failed initial bind = %#v, want unbound with failure", meta)
 		}
 		page, queryErr := h.manager.TranscriptPage(testutil.Context(t), created.ID, transcript.PageQuery{})

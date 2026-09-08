@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -417,6 +419,11 @@ func (m *Manager) validateConversationRewindStopTail(
 	if err != nil {
 		return fmt.Errorf("session: query conversation rewind stop tail: %w", err)
 	}
+	// The rewind's own stop rides the shared ladder, whose escalation records are
+	// part of that stop's footprint rather than a transcript change.
+	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool {
+		return event.Type == eventspkg.SessionStopEscalated
+	})
 	if len(events) != 1 {
 		return fmt.Errorf("%w: %s", ErrConversationRewindFenceConflict, sessionID)
 	}

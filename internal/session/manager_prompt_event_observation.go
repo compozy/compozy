@@ -27,6 +27,9 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
 	}
+	if m.discardStoppedPromptEvent(ctx, session, normalized.TurnID, normalized.Type) {
+		return errPromptEventDiscardedAfterStop
+	}
 	loop.fileMutations.Observe(normalized)
 	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)
@@ -40,7 +43,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
 	summary := firstTrimmedNonEmpty(event.Text, event.Error, runtimeActivityDetail(event.Runtime))
 	evidence := map[string]any{
-		"event_type": event.Type,
+		transcriptMarkerEvidenceEventTypeKey: event.Type,
 	}
 	switch {
 	case event.Type == acp.EventTypeError && event.Failure != nil:

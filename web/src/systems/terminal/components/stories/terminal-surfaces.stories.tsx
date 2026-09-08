@@ -47,8 +47,8 @@ const ONE_MINUTE_IN = Date.parse(PASSWORD_REQUEST.requested_at) + 60_000;
 /**
  * VC-08 — a redacted question, pinned to its terminal.
  *
- * The pin names the requester the daemon published. A watcher sees the same
- * question with no write row — take control lives on the header.
+ * The pin names the requester the daemon published. Read-only presentation
+ * surfaces show the same question without answer controls.
  */
 export const InputRequestRedacted: Story = {
   name: "VC-08 · Redacted question",
@@ -56,7 +56,6 @@ export const InputRequestRedacted: Story = {
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={ONE_MINUTE_IN}
         onAnswer={NOOP}
         onReject={NOOP}
@@ -73,7 +72,6 @@ export const InputRequestPlain: Story = {
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        canAnswerDirectly
         now={Date.parse(CONFIRMATION_REQUEST.requested_at) + 60_000}
         onAnswer={NOOP}
         onReject={NOOP}
@@ -83,14 +81,14 @@ export const InputRequestPlain: Story = {
   ),
 };
 
-/** A watcher still sees the question; the write row is absent. */
-export const InputRequestWatcher: Story = {
-  name: "Watcher — question only",
+/** A read-only aggregate still sees the question without answer controls. */
+export const InputRequestReadOnly: Story = {
+  name: "Read-only · question only",
   args: {},
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        canAnswerDirectly={false}
+        canAnswer={false}
         now={ONE_MINUTE_IN}
         onAnswer={NOOP}
         onReject={NOOP}
@@ -107,7 +105,6 @@ export const InputRequestStacked: Story = {
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestStack
-        canAnswerDirectly
         now={ONE_MINUTE_IN}
         onAnswer={NOOP}
         onReject={NOOP}
@@ -131,7 +128,7 @@ export const InputRequestResolved: Story = {
     <TerminalVisualStage>
       <TerminalInputResolvedRow request={ANSWERED_PASSWORD_REQUEST} />
       <TerminalInputResolvedRow request={REJECTED_PASSWORD_REQUEST} />
-      <TerminalInputResolvedRow request={SUPERSEDED_PASSWORD_REQUEST} supersededBy="Marina" />
+      <TerminalInputResolvedRow request={SUPERSEDED_PASSWORD_REQUEST} />
       <TerminalInputResolvedRow request={EXPIRED_PASSWORD_REQUEST} />
     </TerminalVisualStage>
   ),
@@ -184,28 +181,11 @@ export const IrreversibleApproval: Story = {
   ),
 };
 
-/** The typing detail on its own; VC-12a is captured from the dock. */
-export const TypingGrant: Story = {
-  name: "Typing permission — detail only",
-  render: () => (
-    <TerminalVisualStage>
-      <div className="px-3.5 py-3">
-        <TerminalApprovalDetail
-          detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null }}
-          terminalTitle={PSQL_TERMINAL.title}
-        />
-      </div>
-    </TerminalVisualStage>
-  ),
-};
-
 /**
  * VC-12b — what those permissions look like once remembered.
  *
- * The board labels these rows "Can type in psql" and "Always allowed: bun add
- * …". The daemon stores a digest of the exact tool input, never the input, the
- * terminal id, or the command. Rows say what the decision covers and show the
- * digest. Authorized runtime-truth delta.
+ * The daemon stores a digest of the exact command input, never the command.
+ * Rows say what the decision covers and show the digest.
  */
 export const GrantRows: Story = {
   name: "VC-12b · Remembered permissions",

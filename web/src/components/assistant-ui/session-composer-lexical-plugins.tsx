@@ -70,52 +70,42 @@ export function SessionComposerHandleBridge({
 /**
  * Busy-turn keyboard contract, registered above the library's submit handler
  * (which hard-blocks Enter while running and drops every Shift+Enter combo):
- * a plain Enter queues the draft, and Cmd/Ctrl+Shift+Enter steers the active
- * turn. The command popover still wins when open — its key plugin consumes
+ * a plain Enter performs the operator's follow-up default and Cmd/Ctrl+Enter
+ * performs the opposite for that one send (ADR-002). Shift+Enter still breaks
+ * the line. The command popover wins when open — its key plugin consumes
  * Enter first via the delegation pass.
  */
 export function SessionBusyEnterPlugin({
-  queueActive,
-  steerActive,
-  onQueue,
-  onSteer,
+  active,
+  onEnter,
 }: {
-  queueActive: boolean;
-  steerActive: boolean;
-  onQueue: () => void;
-  onSteer: () => void;
+  active: boolean;
+  onEnter: (variant: "default" | "opposite") => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const pluginRegistry = INTERNAL.useComposerInputPluginRegistryOptional();
-  const queue = useEffectEvent(onQueue);
-  const steer = useEffectEvent(onSteer);
+  const enter = useEffectEvent(onEnter);
 
   useEffect(() => {
-    if (!queueActive && !steerActive) return;
+    if (!active) return;
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       event => {
         if (!event || event.isComposing) return false;
-        if (event.shiftKey && (event.ctrlKey || event.metaKey)) {
-          if (!steerActive) return false;
-          event.preventDefault();
-          steer();
-          return true;
-        }
-        if (event.shiftKey || event.ctrlKey || event.metaKey) return false;
-        if (!queueActive) return false;
-        if (pluginRegistry) {
+        if (event.shiftKey) return false;
+        const opposite = event.ctrlKey || event.metaKey;
+        if (!opposite && pluginRegistry) {
           for (const plugin of pluginRegistry.getPlugins()) {
             if (plugin.handleKeyDown(event)) return true;
           }
         }
         event.preventDefault();
-        queue();
+        enter(opposite ? "opposite" : "default");
         return true;
       },
       COMMAND_PRIORITY_CRITICAL
     );
-  }, [editor, pluginRegistry, queueActive, steerActive]);
+  }, [editor, pluginRegistry, active]);
 
   return null;
 }

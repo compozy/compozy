@@ -171,6 +171,61 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expire both decision kinds after restart without allowing a late answer", func(t *testing.T) {
+		t.Parallel()
+		for _, kind := range []string{store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
+			t.Run("Should expire "+kind, func(t *testing.T) {
+				t.Parallel()
+				_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+					t,
+					kind,
+					store.PendingInteractionPayload{},
+				)
+				if _, err := catalog.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+					InteractionID:     "interaction-pending",
+					SessionID:         sessionID,
+					Kind:              kind,
+					ProviderRequestID: "request-pending",
+					TurnID:            "turn-lost",
+					Title:             "Pending decision",
+					CreatedAt:         restarted.now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+				count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID)
+				if err != nil || count != 2 {
+					t.Fatalf("expire = %d, %v", count, err)
+				}
+				rows, err := restarted.PendingInteractions(
+					t.Context(),
+					sessionID,
+					[]string{store.PendingInteractionStatusCanceled},
+				)
+				if err != nil || len(rows) != 2 {
+					t.Fatalf("expired decisions: %#v, %v", rows, err)
+				}
+				if rows[0].Resolution != "failed-by-restart" || rows[0].ResolvedBy != "system" ||
+					rows[0].ResolvedAt == nil {
+					t.Fatalf("restart attribution: %#v", rows[0])
+				}
+				late, err := restarted.transitionPendingInteraction(t.Context(), store.PendingInteractionTransition{
+					InteractionID: rows[0].InteractionID, Status: store.PendingInteractionStatusResolved,
+					Resolution: "allow", ResolvedBy: "operator", At: restarted.now(),
+				})
+				if err != nil || late.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+					late.Interaction.Status != store.PendingInteractionStatusCanceled {
+					t.Fatalf("late answer changed restart expiry: %#v, %v", late, err)
+				}
+				attention, err := catalog.GetSessionAttention(t.Context(), sessionID)
+				if err != nil || attention.PendingPermissionCount != 0 || attention.PendingClarifyCount != 0 {
+					t.Fatalf("expired attention: %#v, %v", attention, err)
+				}
+				if count, err := restarted.ExpireRestartInteractions(t.Context(), sessionID); err != nil || count != 0 {
+					t.Fatalf("repeated expiry: %d, %v", count, err)
+				}
+			})
+		}
+	})
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
 		t.Parallel()
 
@@ -476,7 +531,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			stoppingCatalog.ReasoningEffort != stoppingMeta.ReasoningEffort || stoppingCatalog.Speed != stoppingMeta.Speed ||
 			stoppingCatalog.RuntimeStatus != stoppingMeta.RuntimeStatus ||
 			stoppingCatalog.RuntimeTransition != stoppingMeta.RuntimeTransition ||
-			stoppingCatalog.RuntimeFailure != store.SessionRuntimeFailureValue(stoppingMeta.RuntimeFailure) {
+			stoppingCatalog.RuntimeFailure != stoppingMeta.RuntimeFailureValue() {
 			t.Fatalf(
 				"catalog runtime after request stop = %#v, want metadata runtime %#v",
 				stoppingCatalog,
@@ -782,7 +837,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("effective runtime after selection = %#v, want unchanged %#v", updated, before)
 		}
 		meta := readMeta(t, active.MetaPath())
-		selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+		selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 		catalogInfo, ok := catalog.get(active.ID)
 		if !ok || selectedRuntime == nil || catalogInfo.SelectedRuntime == nil ||
 			selectionRevision != 1 || catalogInfo.RuntimeSelectionRevision != 1 {
@@ -805,7 +860,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("ClearRuntimeSelection(active) info = %#v, want active clear at revision 2", cleared)
 		}
 		clearedMeta := readMeta(t, active.MetaPath())
-		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(clearedMeta.RuntimeSelection)
+		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(
+			clearedMeta.RuntimeSelectionValue(),
+		)
 		clearedCatalog, ok := catalog.get(active.ID)
 		if !ok || clearedSelection != nil || clearedCatalog.SelectedRuntime != nil ||
 			clearedRevision != 2 || clearedCatalog.RuntimeSelectionRevision != 2 {
@@ -877,7 +934,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("SetRuntimeSelection(alias) error = %v, want model_unavailable NegotiationError", err)
 		}
 		rejectedMeta := readMeta(t, active.MetaPath())
-		rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(rejectedMeta.RuntimeSelection)
+		rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(
+			rejectedMeta.RuntimeSelectionValue(),
+		)
 		if rejectedSelection != nil || rejectedRevision != 0 {
 			t.Fatalf(
 				"rejected Cursor selection = %#v at revision %d, want no persisted selection",
@@ -938,7 +997,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("ClearRuntimeSelection(stopped) info = %#v, want stopped clear at revision 2", cleared)
 		}
 		clearedMeta := readMeta(t, active.MetaPath())
-		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(clearedMeta.RuntimeSelection)
+		clearedSelection, clearedRevision := store.SessionRuntimeSelectionStateValues(
+			clearedMeta.RuntimeSelectionValue(),
+		)
 		clearedCatalog, ok := catalog.get(active.ID)
 		if !ok || clearedSelection != nil || clearedCatalog.SelectedRuntime != nil ||
 			clearedRevision != 2 || clearedCatalog.RuntimeSelectionRevision != 2 {
@@ -1377,12 +1438,12 @@ func (c *recordingSessionCatalog) AttachSession(
 	if current.State != string(StateActive) {
 		return store.SessionAttach{}, store.ErrSessionNotAttachable
 	}
-	if current.AttachedTo != "" && current.AttachExpiresAt != nil && current.AttachExpiresAt.After(normalized.Now) {
+	attachExpiresAt := current.AttachExpiresAtValue()
+	if current.AttachedToValue() != "" && attachExpiresAt != nil && attachExpiresAt.After(normalized.Now) {
 		return store.SessionAttach{}, store.ErrSessionAttachLocked
 	}
 	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
-	current.AttachedTo = normalized.AttachedTo
-	current.AttachExpiresAt = &expiresAt
+	current.SetAttach(normalized.AttachedTo, &expiresAt)
 	current.UpdatedAt = normalized.Now
 	c.sessions[normalized.SessionID] = current
 	return store.SessionAttach{
@@ -1475,11 +1536,11 @@ func assertRestoredResumeMeta(t *testing.T, after store.SessionMeta, before stor
 			derefString(before.ACPSessionID),
 		)
 	}
-	if sessionMetaStopReason(after) != sessionMetaStopReason(before) {
+	if sessionMetaStopReason(&after) != sessionMetaStopReason(&before) {
 		t.Fatalf(
 			"restored meta stop reason = %q, want %q",
-			sessionMetaStopReason(after),
-			sessionMetaStopReason(before),
+			sessionMetaStopReason(&after),
+			sessionMetaStopReason(&before),
 		)
 	}
 	assertSameSessionFailure(t, after.Failure, before.Failure, "restored meta")

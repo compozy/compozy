@@ -184,7 +184,7 @@ func (h *RuntimeHarness) StreamSessionRawHTTPUntil(
 	return h.streamSessionHTTPUntil(
 		ctx,
 		sessionID,
-		fmt.Sprintf("frames=%s", compozycontract.SessionStreamFrameRaw),
+		fmt.Sprintf("frames=%s&limit=200", compozycontract.SessionStreamFrameRaw),
 		predicate,
 	)
 }

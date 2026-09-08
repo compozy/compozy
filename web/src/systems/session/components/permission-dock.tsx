@@ -92,7 +92,6 @@ export function PermissionDock({
         terminalDetail={terminalDetail}
       />
       <PermissionDockBody
-        catalogTitle={catalogTitle}
         permission={permission}
         subject={subject}
         terminalDetail={terminalDetail}
@@ -140,19 +139,17 @@ function PermissionDockHead({
 }
 
 function PermissionDockBody({
-  catalogTitle,
   permission,
   subject,
   terminalDetail,
 }: Pick<PermissionDockProps, "permission"> & {
-  catalogTitle?: string;
   subject: string | null;
   terminalDetail: ReturnType<typeof terminalPermissionDetail>;
 }) {
   return (
     <Dock.Body>
       {terminalDetail ? (
-        <TerminalApprovalDetail detail={terminalDetail} terminalTitle={catalogTitle} />
+        <TerminalApprovalDetail detail={terminalDetail} />
       ) : subject ? (
         <Dock.Pre data-testid="permission-dock-subject">{subject}</Dock.Pre>
       ) : null}
@@ -181,8 +178,7 @@ function PermissionDockActions({
   terminalDetail: ReturnType<typeof terminalPermissionDetail>;
 }) {
   const offersRejectOnce = decisionOptions.includes("reject-once");
-  const offersRejectAlways =
-    decisionOptions.includes("reject-always") && terminalDetail?.kind !== "typing";
+  const offersRejectAlways = decisionOptions.includes("reject-always");
 
   return (
     <Dock.Actions>

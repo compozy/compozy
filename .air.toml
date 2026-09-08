@@ -5,7 +5,7 @@ tmp_dir = ".tmp/air"
 
 [build]
 cmd = "bash ./scripts/build-air.sh"
-entrypoint = ["bash", "./scripts/dev-daemon.sh", "./.tmp/air/compozy"]
+entrypoint = ["bash", "./scripts/dev-daemon.sh"]
 include_ext = ["go", "gz", "json", "md", "mjs", "sql", "sum", "tmpl", "toml", "yaml", "yml"]
 include_dir = ["cmd", "extensions", "internal", "skills"]
 include_file = ["go.mod", "go.sum"]

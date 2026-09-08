@@ -1,15 +1,33 @@
+// Tool-run derivation (ADR-006 rule 1). A settled run rests as one summary row;
+// the live tail run splits into the completed-tools group (collapsed sentence,
+// expandable) and exactly one live row for the calls still running — a parallel
+// run stays one row and counts. Running child agents are their own live rows.
+
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 
 import { workGroupId } from "./session-timeline-group-identity";
-import { MIN_COLLAPSIBLE_TOOL_GROUP_SIZE, summarizeToolGroup } from "./session-timeline-summary";
+import {
+  classifyToolSummaryCategory,
+  MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
+  summarizeToolGroup,
+} from "./session-timeline-summary";
 import type {
   DeriveSessionRowsOptions,
+  SessionLiveToolRow,
   SessionRow,
   SessionTimelineToolPart,
   SessionWorkRow,
 } from "./session-timeline.logic";
 
-const ACTIVE_WORK_VISIBLE_LIMIT = 4;
+/** A child agent (Task / Agent) — rendered as its own live row, never grouped or counted. */
+export function isAgentToolPart(part: SessionTimelineToolPart): boolean {
+  return classifyToolSummaryCategory(part) === "agent";
+}
+
+/** Stable identity of the turn's one live row so its motion survives tool swaps. */
+export function liveToolRowId(turnId: string | undefined): string {
+  return `live:${turnId ?? "none"}`;
+}
 
 export function workRowsFromCluster(
   tools: SessionTimelineToolPart[],
@@ -53,6 +71,10 @@ function splitTerminalSegments(
   return segments;
 }
 
+// The live tail: completed calls first (one group when 2+ summarize, otherwise
+// their own rows), then one live row per running child agent, then the single
+// live row for every other running call. Order inside the narrative reads
+// "what it already did, what it's doing".
 function liveWorkRows(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
@@ -60,51 +82,58 @@ function liveWorkRows(
 ): SessionRow[] {
   const first = tools[0];
   if (!first) return [];
-  const groupId = workGroupId(tools, { ...options, usedGroupIds });
-  usedGroupIds.add(groupId);
-  const grouped = tools.length > ACTIVE_WORK_VISIBLE_LIMIT;
-  const expanded = grouped ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false;
-  const workRow: SessionWorkRow = {
-    kind: "work",
-    id: groupId,
-    groupId,
-    turnId: first.turnId,
-    timestamp: first.timestamp,
-    entries: [...tools],
-    summary: null,
-    visibleCount: grouped ? ACTIVE_WORK_VISIBLE_LIMIT : tools.length,
-    grouped,
-    expanded,
-    active: true,
-  };
-  if (!grouped) {
-    return [workRow];
+  const completed = tools.filter(tool => tool.status !== "running");
+  const running = tools.filter(tool => tool.status === "running");
+  const rows: SessionRow[] = [];
+
+  if (completed.length > 0) {
+    for (const chunk of chunkSettled(completed)) {
+      const summary =
+        chunk.summarizable && chunk.entries.length >= MIN_COLLAPSIBLE_TOOL_GROUP_SIZE
+          ? summarizeToolGroup(chunk.entries)
+          : null;
+      const groupId = workGroupId(chunk.entries, { ...options, usedGroupIds });
+      usedGroupIds.add(groupId);
+      rows.push(settledWorkRow(chunk.entries, summary, groupId, options, true));
+    }
   }
-  return [
-    {
-      kind: "work-toggle",
-      id: `${groupId}:toggle`,
-      groupId,
+
+  const agents = running.filter(isAgentToolPart);
+  const parallel = running.filter(tool => !isAgentToolPart(tool));
+  for (const agent of agents) {
+    rows.push({
+      kind: "live-tool",
+      id: `live-agent:${agent.toolCallId.trim() || agent.id}`,
+      turnId: agent.turnId,
+      timestamp: agent.timestamp,
+      entries: [agent],
+      agent: true,
+      expanded: false,
+    });
+  }
+  if (parallel.length > 0) {
+    const id = liveToolRowId(first.turnId);
+    rows.push({
+      kind: "live-tool",
+      id,
       turnId: first.turnId,
-      timestamp: first.timestamp,
-      hiddenCount: tools.length - ACTIVE_WORK_VISIBLE_LIMIT,
-      expanded,
-    },
-    workRow,
-  ];
+      timestamp: parallel[0]?.timestamp,
+      entries: parallel,
+      agent: false,
+      expanded: parallel.length > 1 ? (options.expandedWorkGroupIds?.has(id) ?? false) : false,
+    } satisfies SessionLiveToolRow);
+  }
+  return rows;
 }
 
-function settledWorkRows(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  usedGroupIds: Set<string>
-): SessionRow[] {
+// Summarizable calls (settled, terminal blocks aside) and the rest (interrupted
+// calls stay visible one by one) alternate as chunks so order is preserved.
+function chunkSettled(
+  tools: SessionTimelineToolPart[]
+): { summarizable: boolean; entries: SessionTimelineToolPart[] }[] {
   const chunks: { summarizable: boolean; entries: SessionTimelineToolPart[] }[] = [];
   for (const tool of tools) {
-    const summarizable =
-      tool.isError !== true &&
-      tool.status !== "interrupted" &&
-      !isDeliberateTerminalTool(tool.toolName);
+    const summarizable = tool.status === "settled" && !isDeliberateTerminalTool(tool.toolName);
     const lastChunk = chunks.at(-1);
     if (lastChunk && lastChunk.summarizable === summarizable) {
       lastChunk.entries.push(tool);
@@ -112,7 +141,15 @@ function settledWorkRows(
       chunks.push({ summarizable, entries: [tool] });
     }
   }
-  return chunks.map(chunk => {
+  return chunks;
+}
+
+function settledWorkRows(
+  tools: SessionTimelineToolPart[],
+  options: DeriveSessionRowsOptions,
+  usedGroupIds: Set<string>
+): SessionRow[] {
+  return chunkSettled(tools).map(chunk => {
     const summary =
       chunk.summarizable && chunk.entries.length >= MIN_COLLAPSIBLE_TOOL_GROUP_SIZE
         ? summarizeToolGroup(chunk.entries)
@@ -139,17 +176,7 @@ function settledWorkRow(
     timestamp: first.timestamp,
     entries: [...entries],
     summary,
-    visibleCount: entries.length,
-    grouped: false,
     expanded: summary ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false,
     active,
   };
-}
-
-/** Trailing entries shown while the live tail is collapsed. */
-export function visibleWorkEntries(row: SessionWorkRow): SessionTimelineToolPart[] {
-  if (!row.grouped || row.expanded) {
-    return row.entries;
-  }
-  return row.entries.slice(-row.visibleCount);
 }

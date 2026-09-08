@@ -14,7 +14,7 @@ A prototype for an existing surface was treated as a fresh design space. Without
 
 ## Rule
 
-> A prototype of an implemented route starts from a transcription-grade anatomy report of the production component tree (exact px, tokens, class/icon names, default states, and what deliberately does NOT exist). Chrome is seeded verbatim from the approved final page of the same family. Every deviation is annotated in the artboard with its authority — `production`, `spec <id>`, or `authorized delta (user)` — and un-annotated divergence is a defect. Canonical primitives (timeline, selectors, meters, modals) are copied from the exported component, never approximated. Specs gate implementation scope, not what the user may preview: render out-of-scope surfaces the user asks to see, tagged as proposals.
+> A redesign of an implemented surface starts from its current anatomy and shipped component owners. Record the in-scope visual structure and authorized deltas at the detail needed to prevent reinterpretation; use a full anatomy report for a substantial redesign. A small change needs only its affected region and reference. Prototypes may show user-requested proposals, clearly labeled, without silently changing implementation scope.
 
 ## Anti-pattern
 

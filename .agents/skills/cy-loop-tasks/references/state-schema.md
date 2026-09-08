@@ -25,14 +25,14 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `tasks.completed` | list[string] | Stems (e.g., `task_01`) of completed entries, in completion order. |
 | `tasks.current` | string \| null | Stem of the task being worked on right now. Set via `update-state.py --task-current` at Phase B pick time; cleared automatically by `--task-completed`. Null between iterations. |
 | `tasks.pending` | list[string] | Stems still to do, in execution order. |
-| `progress.deliverables_complete` | bool | Set true by the LLM when it judges every spec acceptance criterion met. Used only in `mode=free`. Phase B exits when this flips to true. |
+| `progress.deliverables_complete` | bool | Set true once implementation criteria have completed checklist entries, with remaining integration verification assigned to Phase C. Used only in `mode=free`; it ends Phase B, not final delivery. |
 | `progress.checklist[]` | list[obj] | Free-form checklist the LLM maintains in `mode=free`. Each entry: `text` (string), `status` (`pending`\|`in_progress`\|`completed`), `iteration` (int — the iteration that last touched it). Items only get added or status-flipped, never deleted. |
-| `qa.report_done` | bool | True once the delegated `qa-report` worker's artifacts are verified. |
-| `qa.execution_done` | bool | True once `qa-execution` produced its dated report. |
+| `qa.report_done` | bool | True once scoped QA planning/evidence reconciliation is verified, locally or delegated. A no-work disposition cites evidence and applicability in QA memory. |
+| `qa.execution_done` | bool | True once selected QA obligations are resolved through a run report or documented reuse/no-work disposition. It does not assert a new session ran. |
 | `review.rounds` | int ≥ 0 | Count of closed `deep-review` rounds. Incremented by `update-state.py --review-round-done`. |
 | `review.last_verdict` | `SHIP` \| `FIX_BEFORE_SHIP` \| `REWORK` \| null | Verdict of the last closed round. |
 | `review.ship` | bool | True once a round closes with verdict `SHIP`. Phase E requires it. |
-| `verify.last_run` | RFC3339 \| null | Last local owning-scope verification observation (`make gate`). |
+| `verify.last_run` | RFC3339 \| null | Last owning-scope evidence assessment; checked inputs determine validity, not timestamp recency alone. |
 | `verify.last_status` | `PASS` \| `FAIL` \| null | Final local owning-scope result for a completed action or proven external blocker. Intermediate repair-loop failures are not written. |
 | `delivery.pr_urls` | list[string] | GitHub PR URLs in stack order; one entry in one-branch mode. |
 | `delivery.head_shas` | list[string] | Exact PR head SHAs paired by index with `pr_urls`; the final entry must equal the checkout HEAD before CI can pass. |

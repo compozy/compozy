@@ -147,6 +147,10 @@ type harness struct {
 	workspace     string
 	workspaceID   string
 	workspaceName string
+	// turnIDs survives manager restarts: turn identities are unique for the
+	// lifetime of a session, and the stop terminal event keys its idempotent
+	// identity on them.
+	turnIDs IDGenerator
 }
 
 func reportSessionStop(t *testing.T, h *harness, sessionID string) {
@@ -181,6 +185,7 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 		workspace:     workspace,
 		workspaceID:   "ws-primary",
 		workspaceName: "workspace",
+		turnIDs:       sequentialIDGenerator("turn"),
 	}
 	h.cfg.Providers = compozyconfig.CloneProviderConfigs(h.cfg.Providers)
 	builtinProviders := compozyconfig.BuiltinProviders()
@@ -289,7 +294,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		},
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
-		WithTurnIDGenerator(sequentialIDGenerator("turn")),
+		WithTurnIDGenerator(h.turnIDs),
 		WithSandboxRegistry(h.sandbox),
 		WithSandboxIDGenerator(sequentialIDGenerator("env")),
 		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
@@ -746,7 +751,9 @@ func (r *failingSinglePromptRecorder) RecordPersisted(
 ) (store.SessionEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.failed || event.Type == acp.EventTypeToolCall {
+	// Only the tool call fails to persist; the terminal stop event must still
+	// commit so the failure can settle as a verified, durable stop.
+	if event.Type == acp.EventTypeToolCall {
 		r.failed = true
 		return store.SessionEvent{}, r.failErr
 	}
@@ -805,6 +812,7 @@ type fakeDriver struct {
 	startCalls            []acp.StartOpts
 	promptCalls           []acp.PromptRequest
 	stopCalls             int
+	killCalls             int
 	cancelCalls           int
 	processes             map[*AgentProcess]*fakeProcess
 	lastProc              *fakeProcess
@@ -813,6 +821,8 @@ type fakeDriver struct {
 	cancelWithContextHook func(context.Context, *fakeProcess) error
 	approveHook           func(proc *fakeProcess, req acp.ApproveRequest) error
 	stopHook              func(proc *fakeProcess) error
+	verifyExitHook        func(*AgentProcess) (bool, error)
+	killHook              func(*fakeProcess) error
 	startHook             func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
 	startContextHook      func(context.Context, acp.StartOpts, int) (*fakeProcess, error)
 	interruptScopes       []toolruntime.InterruptScope
@@ -1377,6 +1387,16 @@ func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {
 	return nil
 }
 
+func (d *fakeDriver) VerifyExit(proc *AgentProcess) (bool, error) {
+	d.mu.Lock()
+	hook := d.verifyExitHook
+	d.mu.Unlock()
+	if hook != nil {
+		return hook(proc)
+	}
+	return isProcessDone(proc), nil
+}
+
 func (d *fakeDriver) lastProcess() *fakeProcess {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1593,4 +1613,20 @@ func waitForCondition(t *testing.T, label string, condition func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %s", label)
+}
+
+func (d *fakeDriver) Kill(_ context.Context, proc *AgentProcess) error {
+	d.mu.Lock()
+	fakeProc := d.processes[proc]
+	hook := d.killHook
+	d.killCalls++
+	d.mu.Unlock()
+	if fakeProc == nil {
+		return errors.New("test: unknown fake process")
+	}
+	if hook != nil {
+		return hook(fakeProc)
+	}
+	fakeProc.exit()
+	return nil
 }

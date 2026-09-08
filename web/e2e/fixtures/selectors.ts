@@ -39,7 +39,12 @@ export const sessionWindowTestIds = {
   composerClearButton: "composer-clear-button",
   composerDropOverlay: "composer-drop-overlay",
   composerQueuedAttachmentWell: "composer-queued-attachment-well",
+  composerEnterHint: "composer-enter-hint",
+  composerFeedbackNote: "composer-feedback-note",
+  composerInterruptButton: "composer-interrupt-button",
+  composerQueueButton: "composer-queue-button",
   composerSendButton: "composer-send-button",
+  composerSteerButton: "composer-steer-button",
   composerStopButton: "composer-stop-button",
   deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
@@ -71,8 +76,13 @@ export interface SessionWindowSelectors {
   composerAttachmentTile: Locator;
   composerClearButton: Locator;
   composerDropOverlay: Locator;
+  composerEnterHint: Locator;
+  composerFeedbackNote: Locator;
+  composerInterruptButton: Locator;
+  composerQueueButton: Locator;
   composerQueuedAttachmentWell: Locator;
   composerSendButton: Locator;
+  composerSteerButton: Locator;
   composerStopButton: Locator;
   composerTextarea: Locator;
   deleteButton: Locator;
@@ -609,6 +619,7 @@ export const settingsGeneralTestIds = {
   saveButton: "settings-page-general-save",
   resetButton: "settings-page-general-reset",
   sessionTimeoutInput: "settings-page-general-session-timeout-input",
+  followUpGroup: "settings-page-general-follow-up-group",
   restartNotice: "settings-page-general-restart-notice",
   restartTrigger: "settings-page-general-restart-trigger",
   restartDismiss: "settings-page-general-restart-dismiss",
@@ -712,6 +723,8 @@ interface SettingsGeneralSelectors {
   saveBar: Locator;
   saveButton: Locator;
   sessionTimeoutInput: Locator;
+  followUpGroup: Locator;
+  followUpOption(mode: "steer" | "queue"): Locator;
   updates: Locator;
   updateStatus: Locator;
   updateRetry: Locator;
@@ -1009,10 +1022,15 @@ export function sessionWindowSelectors(
     composerAttachmentTile: win.getByTestId(sessionWindowTestIds.composerAttachmentTile),
     composerClearButton: portalRoot.getByTestId(sessionWindowTestIds.composerClearButton),
     composerDropOverlay: win.getByTestId(sessionWindowTestIds.composerDropOverlay),
+    composerEnterHint: win.getByTestId(sessionWindowTestIds.composerEnterHint),
+    composerFeedbackNote: win.getByTestId(sessionWindowTestIds.composerFeedbackNote),
+    composerInterruptButton: win.getByTestId(sessionWindowTestIds.composerInterruptButton),
+    composerQueueButton: win.getByTestId(sessionWindowTestIds.composerQueueButton),
     composerQueuedAttachmentWell: win.getByTestId(
       sessionWindowTestIds.composerQueuedAttachmentWell
     ),
     composerSendButton: win.getByRole("button", { name: "Send message" }),
+    composerSteerButton: win.getByTestId(sessionWindowTestIds.composerSteerButton),
     composerStopButton: win.getByTestId(sessionWindowTestIds.composerStopButton),
     composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
     deleteButton: portalRoot.getByTestId(sessionWindowTestIds.deleteButton),
@@ -1545,6 +1563,9 @@ export function settingsOperatorSelectors(
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
       sessionTimeoutInput: page.getByTestId(settingsGeneralTestIds.sessionTimeoutInput),
+      followUpGroup: page.getByTestId(settingsGeneralTestIds.followUpGroup),
+      followUpOption: (mode: "steer" | "queue") =>
+        page.getByTestId(`settings-page-general-follow-up-${mode}`),
       updates: page.getByTestId(settingsGeneralTestIds.updates),
       updateStatus: page.getByTestId(settingsGeneralTestIds.updateStatus),
       updateRetry: page.getByTestId(settingsGeneralTestIds.updateRetry),

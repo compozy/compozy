@@ -83,7 +83,8 @@ const (
 	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.
 	ToolIDSessionRuntimeClear ToolID = "compozy__session_runtime_clear"
 	// ToolIDSessionInputsList lists durable pending session input in dispatch order.
-	ToolIDSessionInputsList ToolID = "compozy__session_inputs_list"
+	ToolIDSessionInputsList  ToolID = "compozy__session_inputs_list"
+	ToolIDSessionInputsClear ToolID = "compozy__session_inputs_clear"
 	// ToolIDSessionInputReplace atomically replaces one queued session input.
 	ToolIDSessionInputReplace ToolID = "compozy__session_input_replace"
 	// ToolIDSessionInputCancel cancels one queued session input.
@@ -96,6 +97,10 @@ const (
 	ToolIDSessionHistory ToolID = "compozy__session_history"
 	// ToolIDSessionEvents reads persisted events for one session.
 	ToolIDSessionEvents ToolID = "compozy__session_events"
+	// ToolIDSessionSearch searches retained projected messages.
+	ToolIDSessionSearch ToolID = "compozy__session_search"
+	// ToolIDSessionOutline reads the retained operator-message trail.
+	ToolIDSessionOutline ToolID = "compozy__session_outline"
 	// ToolIDSessionDescribe reads a composite read-only session description.
 	ToolIDSessionDescribe ToolID = "compozy__session_describe"
 	// ToolIDSessionWait waits for one bounded session badge transition.

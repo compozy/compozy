@@ -21,9 +21,6 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 
 // ExtractPromptInputWithAttachmentLimit validates prompt input against the effective attachment limit.
 func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments int) (PromptInput, error) {
-	if err := req.ValidateBusyInputFence(); err != nil {
-		return PromptInput{}, err
-	}
 	messageID := strings.TrimSpace(req.MessageID)
 	if messageID == "" {
 		return PromptInput{}, errors.New("message_id is required")
@@ -38,7 +35,7 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 	}
 	topLevelMessage := strings.TrimSpace(req.Message)
 	if len(req.Messages) == 0 {
-		if topLevelMessage == "" && len(attachments) == 0 {
+		if topLevelMessage == "" && len(attachments) == 0 && req.Mode != PromptModeInterrupt {
 			return PromptInput{}, errors.New("message is required")
 		}
 		return PromptInput{
@@ -57,7 +54,7 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 			return PromptInput{}, errors.New("latest user message id must equal message_id")
 		}
 		authored := promptUIMessageText(message)
-		if authored == "" && len(attachments) == 0 {
+		if authored == "" && len(attachments) == 0 && req.Mode != PromptModeInterrupt {
 			return PromptInput{}, errors.New("message is required")
 		}
 		if topLevelMessage != "" && topLevelMessage != authored {
@@ -71,17 +68,6 @@ func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments
 		}, nil
 	}
 	return PromptInput{}, errors.New("latest user message is required")
-}
-
-// ValidateBusyInputFence requires stale-action protection for commands that replace an active turn.
-func (r SendPromptRequest) ValidateBusyInputFence() error {
-	switch r.Mode {
-	case PromptModeSteer, PromptModeInterrupt:
-		if strings.TrimSpace(r.ExpectedTurnID) == "" {
-			return errors.New("expected_turn_id is required")
-		}
-	}
-	return nil
 }
 
 func promptUIMessageText(message PromptUIMessage) string {
@@ -112,9 +98,6 @@ func (r SteerPromptRequest) Validate() error {
 	if strings.TrimSpace(r.IdempotencyKey) == "" {
 		return errors.New("idempotency_key is required")
 	}
-	if strings.TrimSpace(r.ExpectedTurnID) == "" {
-		return errors.New("expected_turn_id is required")
-	}
 	return nil
 }
 
@@ -127,9 +110,6 @@ func (r ReplaceSessionInputRequest) Validate() error {
 func (r PromoteSessionInputRequest) Validate() error {
 	if err := validateSessionInputMutation(r.Text, r.MessageID, r.IdempotencyKey); err != nil {
 		return err
-	}
-	if strings.TrimSpace(r.ExpectedTurnID) == "" {
-		return errors.New("expected_turn_id is required")
 	}
 	return nil
 }

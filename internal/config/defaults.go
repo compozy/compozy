@@ -12,6 +12,7 @@ const DefaultMCPClientMetadataURL = "https://compozy.com/.well-known/mcp-client.
 // DefaultWithHome returns the built-in default configuration for the supplied Compozy home.
 func defaultSessionConfig() SessionConfig {
 	return SessionConfig{
+		Stop:        DefaultSessionStopConfig(),
 		Limits:      SessionLimitsConfig{},
 		Supervision: DefaultSessionSupervisionConfig(),
 		BusyInput:   DefaultSessionBusyInputConfig(),

@@ -81,20 +81,23 @@ func (s *promptActivitySupervisor) touchWithTool(
 	s.activity.LastActivityAt = &lastActivityAt
 	s.activity.LastActivityKind = strings.TrimSpace(kind)
 	s.activity.LastActivityDetail = strings.TrimSpace(detail)
+	if clearTool {
+		s.activity.CurrentTool = ""
+		s.activity.ToolCallID = ""
+	}
 	if strings.TrimSpace(currentTool) != "" {
 		s.activity.CurrentTool = strings.TrimSpace(currentTool)
 	}
 	if strings.TrimSpace(toolCallID) != "" {
 		s.activity.ToolCallID = strings.TrimSpace(toolCallID)
 	}
-	if clearTool {
-		s.activity.CurrentTool = ""
-		s.activity.ToolCallID = ""
-	}
 	s.activity.IdleSeconds = 0
 	activity := *store.CloneSessionActivityMeta(&s.activity)
 	s.mu.Unlock()
 
+	if kind != runtimeActivityKindPromptStarted && kind != runtimeActivityKindAgentWaiting {
+		s.manager.recordWorkProgress(s.session, now)
+	}
 	stallState, stallReason := s.session.observeRuntimeActivity(activity, now)
 	if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 		s.manager.sessionLogger(s.session).

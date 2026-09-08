@@ -275,6 +275,13 @@ func (m *Manager) stageSessionDelete(
 	if err != nil {
 		return stagedSessionDelete{}, err
 	}
+	if m.hasPendingStopSettlement(target) {
+		return stagedSessionDelete{}, fmt.Errorf(
+			"%w: recovered stop for %s has pending persistence",
+			ErrRecoveryPersistence,
+			target,
+		)
+	}
 	if m.isPending(target) {
 		return stagedSessionDelete{}, fmt.Errorf(
 			"session: stage %q: %w",
@@ -298,6 +305,13 @@ func (m *Manager) stageSessionDelete(
 			return stagedSessionDelete{}, fmt.Errorf("session: read %q after stop for delete: %w", target, err)
 		}
 	}
+	if info.State == StateStopping {
+		return stagedSessionDelete{}, fmt.Errorf(
+			"%w: cannot delete %s before process exit",
+			ErrStopVerificationFailed,
+			target,
+		)
+	}
 	return m.stageSessionDirectoryDelete(ctx, target, info)
 }
 
@@ -307,6 +321,13 @@ func (m *Manager) stageWorkspaceSessionDelete(
 ) (stagedSessionDelete, error) {
 	if info == nil {
 		return stagedSessionDelete{}, errors.New("session: workspace deletion info is required")
+	}
+	if m.hasPendingStopSettlement(info.ID) {
+		return stagedSessionDelete{}, fmt.Errorf(
+			"%w: recovered stop for %s has pending persistence",
+			ErrRecoveryPersistence,
+			info.ID,
+		)
 	}
 	return m.stageSessionDirectoryDeleteWithoutAttachments(ctx, info.ID, info)
 }

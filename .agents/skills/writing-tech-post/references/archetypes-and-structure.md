@@ -1,5 +1,7 @@
 # Archetypes and Structure
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The eight canonical archetypes of engineering blog posts, each with its 9-column contract, plus the decision tree for picking the right archetype and the rules for legitimate hybridisation.
 
 ## Contents
@@ -188,7 +190,7 @@ Archetype selection gates every other dimension: voice rules, abstraction-ladder
 
 ## Decision tree — pick the archetype
 
-Answer in order. The first "yes" wins.
+Choose the primary reader promise using these questions; order is not precedence. A post can combine genres without completing every genre's checklist.
 
 1. **Did a user-visible failure occur?** → Postmortem (incident or non-incident-response if preparedness avoided customer impact).
 2. **Is the artifact an architectural transition between two states with cutover discipline?** → Migration. Sub-decide: rewrite / decomposition / stack replacement / pipeline replacement / component modernization / maturity-level framework.

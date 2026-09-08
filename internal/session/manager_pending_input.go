@@ -1,13 +1,13 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/transcript"
 )
 
 // ListPendingInputs returns the daemon-owned current-generation input queue.
@@ -27,6 +27,9 @@ func (m *Manager) ListPendingInputs(ctx context.Context, id string) ([]PendingIn
 	}
 	entries, err := m.inputQueue.List(ctx, session.ID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.projectInputClearTraces(ctx, session); err != nil {
 		return nil, err
 	}
 	inputs := make([]PendingInput, 0, len(entries))
@@ -98,9 +101,6 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, err
 	}
 	targetTurnID := strings.TrimSpace(opts.ExpectedTurnID)
-	if targetTurnID == "" {
-		return SendPromptResult{}, errors.Join(ErrActiveTurnMismatch, errors.New("expected turn id is required"))
-	}
 	request := promptRequest{target: session.ID, authoredMessage: opts.Text}
 	if opts.AllowCommands {
 		if err := m.preparePromptSkillInvocations(ctx, &request); err != nil {
@@ -121,13 +121,15 @@ func (m *Manager) PromotePendingInputToSteer(
 		return SendPromptResult{}, err
 	}
 	if found {
-		return promotedInputResult(&replayed), nil
+		result := promotedInputResult(&replayed)
+		result.Replayed = true
+		return result, nil
 	}
 	targetTurnID, err = requireExpectedActiveTurn(session, targetTurnID)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	entry, created, err := m.inputQueue.PromoteToSteer(
+	entry, _, err := m.inputQueue.PromoteToSteer(
 		ctx,
 		session.ID,
 		strings.TrimSpace(entryID),
@@ -140,18 +142,8 @@ func (m *Manager) PromotePendingInputToSteer(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if err := m.ensureInterruptingInputActivated(ctx, session, &entry); err != nil {
+	if err := m.activateSteeringInput(ctx, session, &entry); err != nil {
 		return SendPromptResult{}, m.cleanupInterruptingInputActivationFailure(ctx, &entry, err)
-	}
-	if created {
-		m.emitTranscriptMarker(
-			ctx,
-			session,
-			targetTurnID,
-			transcript.MarkerPromptSteered,
-			"Queued input promoted to steering for the active turn.",
-			queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
-		)
 	}
 	return promotedInputResult(&entry), nil
 }
@@ -160,6 +152,8 @@ func promotedInputResult(entry *store.SessionInputQueueEntry) SendPromptResult {
 	return SendPromptResult{
 		Status:          store.SessionPromptResultStatusSteering,
 		Mode:            BusyInputModeSteer,
+		SteerDelivery:   entry.SteerDelivery,
+		PreviousTurnID:  entry.TargetTurnID,
 		Delivery:        entry.Delivery,
 		MessageID:       entry.MessageID,
 		IdempotencyKey:  entry.IdempotencyKey,
@@ -173,12 +167,15 @@ func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 	return PendingInput{
 		ID:               entry.ID,
 		SessionID:        entry.SessionID,
+		OwnerKind:        entry.OwnerKind,
+		OwnerID:          cmp.Or(entry.LoopRunID, entry.TaskRunID),
 		MessageID:        entry.MessageID,
 		IdempotencyKey:   entry.IdempotencyKey,
 		TargetTurnID:     entry.TargetTurnID,
 		Status:           entry.Status,
 		Mode:             BusyInputMode(entry.Mode),
 		Delivery:         entry.Delivery,
+		SteerDelivery:    entry.SteerDelivery,
 		Text:             entry.Text,
 		QueueGeneration:  entry.SessionGeneration,
 		EnqueuedAt:       entry.EnqueuedAt,

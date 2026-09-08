@@ -11,7 +11,14 @@ import type { SessionPromptDispatchStore } from "@/components/assistant-ui/sessi
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
-import { createSessionPromptChatTransport } from "../lib/session-prompt-chat-transport";
+import {
+  createSessionPromptChatTransport,
+  type SessionPromptRequestBody,
+} from "../lib/session-prompt-chat-transport";
+import {
+  isSendAcknowledgmentLost,
+  type SessionSendEnvelope,
+} from "../lib/session-unconfirmed-send";
 import { discardSessionTerminalQuote } from "../lib/session-terminal-quote";
 import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote-prompt";
 import { SessionPromptRecovery } from "../lib/session-prompt-recovery";
@@ -67,6 +74,30 @@ function completeWhenResponseBodySettles(response: Response, onComplete: () => v
   });
 }
 
+/**
+ * The identity and content of the prompt on the wire, retained so a POST that
+ * loses its acknowledgment mid-turn stays retryable by the same identity.
+ */
+function envelopeFromPromptBody(
+  body: SessionPromptRequestBody,
+  runtime: SessionPromptRuntimeSnapshot | null
+): SessionSendEnvelope {
+  const text: string[] = [];
+  for (const message of body.messages) {
+    for (const part of message.parts) {
+      if (part.type === "text" && part.text.length > 0) text.push(part.text);
+    }
+  }
+  return {
+    action: "prompt",
+    attachments: body.attachments ?? [],
+    expectedTurnId: null,
+    identity: { idempotencyKey: body.idempotency_key, messageId: body.message_id },
+    runtime,
+    text: text.join("\n"),
+  };
+}
+
 function buildSessionRuntimeConfig(
   queryClient: QueryClient,
   workspaceId: string,
@@ -113,7 +144,7 @@ function buildSessionRuntimeConfig(
     } else {
       upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
     }
-    promptDispatch.trigger.requestStarted({ controller });
+    promptDispatch.trigger.requestStarted({ at: Date.now(), controller });
     let responseOwnsCompletion = false;
     let requestCompleted = false;
     const completeRequest = () => {
@@ -134,6 +165,7 @@ function buildSessionRuntimeConfig(
       // authenticates it with a fresh single-use ticket like any other stream.
       const target = await authorizeStreamFetchInput(input, controller.signal);
       const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
+      promptDispatch.trigger.promptAnswered({ status: response.status });
       await reportGatewayResponse(response);
       if (response.ok) promptRecovery.acknowledge(recoveryScope);
       responseOwnsCompletion = true;
@@ -153,6 +185,9 @@ function buildSessionRuntimeConfig(
       ...(preparedUserMessages ? { preparedUserMessages } : {}),
       onPromptPrepared: request => {
         promptRecovery.stage(recoveryScope, request);
+        promptDispatch.trigger.promptPrepared({
+          envelope: envelopeFromPromptBody(request.body, getRuntimeSnapshot?.() ?? null),
+        });
         discardSessionTerminalQuote(sessionId);
       },
       prepareUserMessage: message => applyTerminalQuoteToPromptMessage(sessionId, message),
@@ -195,7 +230,25 @@ export function useSessionChatRuntime({
 
   return useChatRuntime({
     transport: runtimeConfig.transport,
-    onError: () => {
+    onError: error => {
+      // A POST with no authoritative answer — no response at all, or a 5xx that
+      // may have followed durable acceptance — may still have been recorded: the
+      // identity is retained as pending-ack and the tail reopens at once (Part II
+      // topology). A 2xx accepted the turn (it continues detached if the body
+      // breaks later; the draft was already consumed) and a 4xx refused it (the
+      // draft comes back): both are outcomes, never unconfirmed.
+      const prompt = promptDispatch.getSnapshot().context.prompt;
+      const answered = prompt?.answeredStatus ?? null;
+      const unconfirmed =
+        prompt !== null &&
+        (answered === null || answered >= 500) &&
+        isSendAcknowledgmentLost(error);
+      promptDispatch.trigger.promptFailed({ unconfirmed });
+      if (unconfirmed) {
+        promptRecovery.acknowledge(recoveryScope);
+        attachmentAdapter.acknowledgeSentFiles();
+        return;
+      }
       promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
     },
     onFinish: ({ isError }) => {

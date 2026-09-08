@@ -36,11 +36,12 @@ func (s *service) RequeueNode(
 	if err != nil {
 		return NodeRequeueResult{}, err
 	}
+	activationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), task.DefaultRunLeaseDuration)
+	defer cancel()
 	if s.coordinatorActivator != nil {
-		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), result.Coordinator)
+		s.coordinatorActivator.ActivateCoordinatorRun(activationCtx, result.Coordinator)
 	}
 	if s.workerRunActivator != nil {
-		activationCtx := context.WithoutCancel(ctx)
 		for _, worker := range result.Workers {
 			s.workerRunActivator.ActivateWorkerRun(activationCtx, worker)
 		}
@@ -98,8 +99,10 @@ func (s *service) ResumeNodeWait(
 	if err != nil {
 		return WaitResumeResult{}, err
 	}
+	activationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), task.DefaultRunLeaseDuration)
+	defer cancel()
 	if result.Coordinator != nil && s.coordinatorActivator != nil {
-		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), *result.Coordinator)
+		s.coordinatorActivator.ActivateCoordinatorRun(activationCtx, *result.Coordinator)
 	}
 	return result, nil
 }

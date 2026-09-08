@@ -3,6 +3,7 @@ package core_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -468,6 +469,73 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 
 func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 	t.Parallel()
+	t.Run("Should expose each live steering delivery through the shared busy envelope", func(t *testing.T) {
+		t.Parallel()
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
+			t.Run("Should return "+string(delivery), func(t *testing.T) {
+				t.Parallel()
+				manager := testutil.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
+					},
+					SendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+						if opts.ExpectedTurnID != "" || opts.Mode != session.BusyInputModeSteer {
+							t.Fatalf("canonical command = %#v", opts)
+						}
+						return session.SendPromptResult{
+							Status:         "steering",
+							Mode:           session.BusyInputModeSteer,
+							Delivery:       store.SessionInputDeliveryInterruptThenPrompt,
+							SteerDelivery:  delivery,
+							MessageID:      opts.MessageID,
+							IdempotencyKey: opts.IdempotencyKey,
+							PreviousTurnID: "turn-live",
+							QueueEntryID:   "steer-entry",
+						}, nil
+					},
+				}
+				fixture := newHandlerFixture(
+					t,
+					manager,
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+					nil,
+					nil,
+				)
+				fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
+					if dispatch, ok := fixture.Handlers.DispatchSessionPrompt(c); ok {
+						fixture.Handlers.RespondPromptV1(c, dispatch)
+					}
+				})
+				recorder := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-workspace/sessions/sess-1/prompt",
+					[]byte(
+						`{"message":"redirect","mode":"steer","message_id":"msg-steer","idempotency_key":"idem-steer"}`,
+					),
+				)
+				var body contract.SendPromptResultResponse
+				if recorder.Code != http.StatusAccepted {
+					t.Fatalf("status=%d, body=%s", recorder.Code, recorder.Body.String())
+				}
+				if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				got := body.Prompt
+				if got.Disposition != session.DispositionSteering || got.SteerDelivery != delivery ||
+					got.TurnID != "turn-live" ||
+					got.EntryID != "steer-entry" ||
+					got.MessageID != "msg-steer" ||
+					got.IdempotencyKey != "idem-steer" ||
+					got.QueuePosition != 0 ||
+					got.Replayed {
+					t.Fatalf("busy outcome=%#v", got)
+				}
+			})
+		}
+	})
 	t.Run("Should preserve canonical prompt admission semantics", func(t *testing.T) {
 		t.Parallel()
 

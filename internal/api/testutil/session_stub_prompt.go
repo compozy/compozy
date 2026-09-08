@@ -90,6 +90,17 @@ func (s StubSessionManager) ListPendingInputs(
 	return []session.PendingInput{}, nil
 }
 
+func (s StubSessionManager) ClearPendingInputs(
+	ctx context.Context,
+	id string,
+	caller session.PromptCaller,
+) (session.ClearPendingInputsResult, error) {
+	if s.ClearPendingInputsFn != nil {
+		return s.ClearPendingInputsFn(ctx, id, caller)
+	}
+	return session.ClearPendingInputsResult{}, nil
+}
+
 func (s StubSessionManager) ReplacePendingInput(
 	ctx context.Context,
 	id string,

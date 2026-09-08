@@ -1,6 +1,6 @@
 # Boundary Map
 
-Complete one row per changed list, metric, detail read, or stream before implementation.
+Use this map for a new or ambiguous read contract. Record changed decisions in the owning spec/task/impact audit; reuse existing mappings for unchanged fields. A focused bug fix need not produce a separate table.
 
 | Field | Required decision |
 | --- | --- |
@@ -18,14 +18,14 @@ Complete one row per changed list, metric, detail read, or stream before impleme
 
 ## Vertical trace
 
-For Web reads, record the concrete symbols for:
+For Web reads, trace the applicable symbols along:
 
 ```text
 route -> loader -> option factory -> key factory -> adapter -> generated contract
       -> transport -> core/service -> store/projection
 ```
 
-For live reads, also record:
+For live reads, also trace the affected portion of:
 
 ```text
 durable source -> projection cursor -> frame -> listener -> cache writer

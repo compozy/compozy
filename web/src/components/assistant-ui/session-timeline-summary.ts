@@ -1,9 +1,12 @@
-// Semantic summary of a settled tool run — the collapsed `.tgroup-sum` label
-// ("Ran 2 commands · Edited 3 files"). Port of synara's `toolCallGroup.logic.ts`
-// summarizer onto `SessionTimelineToolPart`: fixed category order, distinct-file
-// counts for Edited/Read, and a 2+ minimum before a run may fold. CompozyOS's data
-// layer stays authoritative — categories derive from the registered tool name,
-// file identity from the tool args the renderers already read.
+// Semantic summary of a settled tool run — the group sentence ("Ran 6 commands,
+// edited 2 files, read 3 files") that stands in for the rows behind a
+// completed-tools group (ADR-006) or a settled-turn fold. Fixed category order,
+// distinct-file counts for edits and reads, and a 2+ minimum before a run may
+// collapse. A failure the agent absorbed stays inside the group as information
+// ("· 1 failed", ADR-009): it is counted in its category and in `failedCount`,
+// never promoted to an alarm. CompozyOS's data layer stays authoritative —
+// categories derive from the registered tool name, file identity from the tool
+// args the renderers already read.
 
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
@@ -22,10 +25,12 @@ export interface SessionToolGroupSummaryPart {
 }
 
 export interface SessionToolGroupSummary {
-  /** Middle-dot–joined sentence, e.g. "Ran 2 commands · Edited 3 files". */
+  /** Comma-joined sentence, e.g. "Ran 2 commands, edited 3 files". */
   label: string;
   parts: SessionToolGroupSummaryPart[];
   entryCount: number;
+  /** Absorbed failures inside the group; the row appends "· N failed" in the same ink. */
+  failedCount: number;
 }
 
 const COMMAND_TOOLS = new Set(["Bash"]);
@@ -45,14 +50,18 @@ const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
 ];
 
 /**
- * Only a settled, non-failed call may disappear into a summary count. Failures
- * and interruptions stay individually visible (glyph + preview) and running
- * calls belong to the live tail — a summary must never hide either.
+ * Only a settled call may disappear into a summary count. Running calls belong
+ * to the live row, interrupted calls stay individually visible in the open
+ * turn, and deliberate terminal blocks are their own surface. A settled call
+ * that failed still counts: the agent kept going, so the group says so.
  */
 export function isSummarizableToolPart(part: SessionTimelineToolPart): boolean {
-  return (
-    part.status === "settled" && part.isError !== true && !isDeliberateTerminalTool(part.toolName)
-  );
+  return part.status === "settled" && !isDeliberateTerminalTool(part.toolName);
+}
+
+/** A settled call whose result was an error the turn absorbed (ADR-009 "absorbed failure"). */
+export function isAbsorbedToolFailure(part: SessionTimelineToolPart): boolean {
+  return part.status === "settled" && part.isError === true;
 }
 
 export function classifyToolSummaryCategory(
@@ -95,6 +104,14 @@ function summaryPartLabel(category: SessionToolSummaryCategory, count: number): 
     case "tool":
       return `Used ${count} ${pluralNoun(count, "tool")}`;
   }
+}
+
+// One sentence: the first label keeps its capital, the rest continue in lower
+// case, joined by commas — "Ran 6 commands, edited 2 files, read 3 files".
+function joinSummaryLabels(labels: readonly string[]): string {
+  return labels
+    .map((label, index) => (index === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
+    .join(", ");
 }
 
 /**
@@ -146,8 +163,15 @@ export function summarizeToolGroup(
   );
 
   return {
-    label: parts.map(part => part.label).join(" · "),
+    label: joinSummaryLabels(parts.map(part => part.label)),
     parts,
     entryCount: summarizable.length,
+    failedCount: summarizable.filter(isAbsorbedToolFailure).length,
   };
+}
+
+/** The "· N failed" suffix a group or fold appends after its sentence; `null` when nothing failed. */
+export function summaryFailureSuffix(summary: SessionToolGroupSummary | null): string | null {
+  if (!summary || summary.failedCount === 0) return null;
+  return `${summary.failedCount} failed`;
 }

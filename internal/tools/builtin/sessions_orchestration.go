@@ -21,7 +21,7 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
 			"Stop one same-workspace session other than the caller.",
-			sessionTargetInputSchema, sessionStopOutputSchema, toolspkg.RiskDestructive, false, true,
+			sessionStopInputSchema, sessionStopOutputSchema, toolspkg.RiskDestructive, false, true,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionApprove, "session_approve", "Session Approve",
@@ -79,7 +79,7 @@ const sessionWaitInputSchema = `{
 			"items":{
 				"type":"string",
 				"enum":[
-					"waiting-for-input","waiting-for-auth","idle","done","running",
+					"waiting-for-input","waiting-for-auth","needs-attention","idle","done","running",
 					"stopped","failed","hung","unhealthy"
 				]
 			},
@@ -136,11 +136,23 @@ const sessionSpawnOutputSchema = `{
 	"additionalProperties":false
 }`
 
+const sessionStopInputSchema = `{
+ "type":"object","required":["session_id"],
+ "properties":{"session_id":{"type":"string","minLength":1},"wait":{"type":"boolean"}},
+ "additionalProperties":false
+}`
+
 const sessionStopOutputSchema = `{
-	"type":"object",
-	"required":["session_id","state"],
-	"properties":{"session_id":{"type":"string"},"state":{"const":"stopped"},"outcome":{"const":"already-stopped"}},
-	"additionalProperties":false
+ "type":"object","required":["session_id","state"],
+ "properties":{
+  "session_id":{"type":"string"},"state":{"enum":["stopping","stopped"]},
+  "status":{"type":"string"},"outcome":{"const":"already-stopped"},
+  "verified":{"type":"boolean"},"escalated":{"type":"boolean"},
+  "stop_cause":{"type":"string"},"phase":{"enum":["cooperative","forced","killed"]},
+  "stopped_after":{"type":"string"},"attention":{"const":"stop_verification_failed"},
+  "deprecation":{"type":"string"}
+ },
+ "additionalProperties":false
 }`
 
 const sessionApproveInputSchema = `{

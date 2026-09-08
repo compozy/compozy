@@ -10,48 +10,13 @@ trigger: implicit
 
 # Cleanup Failure Paths
 
-Audit the complete acquisition/cleanup matrix of every touched function. This
-file owns the audit order; its references own canonical pairings and tests.
+Prove ownership across the affected function's acquisitions and exits. Account for the whole lifetime when a local edit changes cleanup; a matrix in working notes is useful for complex ownership, not a required report.
 
-## Procedures
+- Identify acquired resources, their owners, cleanup/error policy, shutdown order, and any explicit ownership transfer. Use the matching rows of `references/cleanup-table.md`; read the complete table when the ownership chain spans its rules.
+- Walk success, error, cancellation, and reachable recovery exits after each acquisition. Release or transfer every live resource. Preserve the primary error and handle secondary cleanup failures.
+- Keep responses and writers request-bound. Detached execution needs a bounded lifetime and cancel/stop surface; subprocess trees retain process-group parity and cancel-then-grace shutdown.
+- Repair affected exits together. Split ownership when it cannot be proved locally, not because a function crosses an arbitrary defer-count threshold. Leave unrelated cleanup debt outside the change.
 
-**Step 1: Build the Acquisition Matrix**
+Before changing coverage, name the invariant, owning layer, and existing suite. Use `eng-consolidate-test-suites` only if placement is unclear and `eng-test-conventions` for Go test shape. `references/test-failure-paths.md` supplies patterns for the distinct failure class being changed. Reuse coverage that already proves the invariant; multiple syntactic returns do not imply multiple tests.
 
-1. Read the target function and enumerate every "step" that allocates a resource: context creation, file open, listener bind, registry register, lease claim, goroutine spawn, subprocess start, HTTP request, mutex lock, transaction begin.
-2. Read `.agents/skills/eng/eng-cleanup-failure-paths/references/cleanup-table.md` in full and map each acquisition to its owner, cleanup action, cleanup-error handling, and shutdown order.
-3. Mark resources whose lifetime intentionally escapes the function and name the new owner and explicit cancel/stop surface.
-
-*Done when:* every acquired resource has one owner, one cleanup path, one error policy, and one bounded lifetime.
-
-**Step 2: Walk Every Exit**
-
-1. List success, error, cancellation, panic-recovery, and `runtime.Goexit` exits after each acquisition.
-2. Walk backward from every exit and account for all resources acquired above it.
-3. Handle cleanup failures according to the canonical reference; do not replace a primary error or silently discard a secondary cleanup error.
-4. Restructure the function when ownership cannot be proven locally instead of auditing only the branch being edited.
-
-*Done when:* every exit after every acquisition releases or transfers ownership of every live resource, including cleanup-error paths.
-
-**Step 3: Apply Lifetime and Shutdown Semantics**
-
-1. Apply every matching pairing, ordering, detached-lifetime, subprocess, transaction, and HTTP-drain rule from the cleanup table.
-2. Keep writer/response lifetimes request-bound while explicitly detached execution gets a deadline and cancel surface.
-3. Verify process-group parity and cancel-then-grace semantics for subprocess trees.
-
-*Done when:* cleanup order preserves public/private state invariants and every detached or spawned lifetime has an observable stop path.
-
-**Step 4: Prove Distinct Failure Modes**
-
-1. Activate `eng-consolidate-test-suites` and `eng-test-conventions` before changing Go tests.
-2. Read `.agents/skills/eng/eng-cleanup-failure-paths/references/test-failure-paths.md` in full.
-3. Add or extend canonical coverage for each behaviorally distinct cleanup invariant, not each syntactic return.
-4. Inject the failure through an interface or real boundary, then assert the resource is actually reusable, released, stopped, or closed; a mock-call count alone is insufficient.
-
-*Done when:* every distinct failure class that could leak ownership is proved by the canonical suite without duplicate invariants.
-
-## Error Handling
-
-- **Function is too large to audit completely:** split ownership into smaller helpers before changing behavior; completion still requires every exit in the touched function to be accounted for.
-- **Cleanup requires a resource not in scope:** the function is structured wrong — push the cleanup responsibility up to the caller via an opener-closer pair, or restructure into a helper that returns a `cleanup func()` callback.
-- **Existing function lacks error-path cleanup:** treat the touched function as one cleanup unit and repair every affected exit before completion.
-- **`defer` count exceeds reasonable bounds (e.g., >6 in one function):** the function is doing too much. Recommend splitting before adding more defers.
+Inject failures through an interface or real I/O boundary and assert actual release, reuse, closure, or termination. A mock-call count alone does not prove cleanup. Complete when affected ownership paths are sound and their owning checks pass; the enclosing workstream owns delivery gates.

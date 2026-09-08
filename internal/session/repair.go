@@ -199,7 +199,7 @@ func planSessionRepair(
 		})
 		return result, nil
 	}
-	stopReason := sessionMetaStopReason(meta)
+	stopReason := sessionMetaStopReason(&meta)
 	if !opts.Force && !repairDefaultStopReason(stopReason) {
 		result.Issues = append(result.Issues, RepairIssue{
 			Code:     RepairIssueStopReasonRequiresForce,

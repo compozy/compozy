@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
@@ -936,6 +937,7 @@ func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistor
 	h := newHarness(t)
 
 	session := createLiveNetworkSession(t, h)
+	enableSyntheticQueue(t, h, session)
 	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
 	if err != nil {
 		t.Fatalf("Prompt(user) error = %v", err)
@@ -1003,6 +1005,7 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 	h := newHarness(t)
 
 	session := createSession(t, h)
+	enableSyntheticQueue(t, h, session)
 
 	firstPromptEntered := make(chan struct{})
 	releaseFirstPrompt := make(chan struct{})
@@ -1097,155 +1100,156 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 	}
 }
 
-func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
-	tests := []struct {
-		name   string
-		remove func(*Manager, string)
-	}{
-		{
-			name: "Should purge synthetic state on remove",
-			remove: func(m *Manager, id string) {
-				m.remove(id)
-			},
-		},
-		{
-			name: "Should purge synthetic state on removeActive",
-			remove: func(m *Manager, id string) {
-				m.removeActive(id)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			eventsCh := make(chan acp.AgentEvent, 1)
-			finalizing := make(chan struct{})
-			manager := &Manager{
-				sessions: map[string]*Session{
-					"sess-synth": {ID: "sess-synth"},
-				},
-				pending: map[string]sessionReservation{
-					"sess-synth": {},
-				},
-				finalizing: map[string]*sessionFinalization{
-					"sess-synth": {done: finalizing},
-				},
-				syntheticQueues: map[string][]queuedSyntheticPrompt{
-					"sess-synth": {{
-						request: promptRequest{target: "sess-synth", turnID: "turn-synth"},
-						out:     eventsCh,
-					}},
-				},
-				syntheticDispatching: map[string]bool{
-					"sess-synth": true,
-				},
-			}
-
-			tc.remove(manager, "sess-synth")
-
-			manager.syntheticMu.Lock()
-			if got := len(manager.syntheticQueues["sess-synth"]); got != 0 {
-				manager.syntheticMu.Unlock()
-				t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want 0", got)
-			}
-			if manager.syntheticDispatching["sess-synth"] {
-				manager.syntheticMu.Unlock()
-				t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
-			}
-			manager.syntheticMu.Unlock()
-
-			event, ok := <-eventsCh
+func TestManagerIntegrationSyntheticQueueSurvivesRestart(t *testing.T) {
+	t.Run(
+		"Should resume accepted synthetic input once with its metadata after the manager and database restart",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			h := newHarness(t)
+			sess := createSession(t, h)
+			enableSyntheticQueue(t, h, sess)
+			database, ok := h.manager.inputQueueStore.(*globaldb.GlobalDB)
 			if !ok {
-				t.Fatal("queued synthetic output closed without error event")
+				t.Fatal("expected durable queue fixture")
 			}
-			if got, want := event.Type, acp.EventTypeError; got != want {
-				t.Fatalf("queued synthetic event type = %q, want %q", got, want)
+			if _, _, err := database.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: "cleared-before-restart", SessionID: sess.ID, Text: "removed before crash", QueueCap: 3,
+			}); err != nil {
+				t.Fatal(err)
 			}
-			if got, want := event.TurnID, "turn-synth"; got != want {
-				t.Fatalf("queued synthetic event turn id = %q, want %q", got, want)
+			if _, err := database.ClearSessionInputs(ctx, store.SessionInputClearRequest{
+				SessionID: sess.ID, TurnID: "clear-before-restart", ActorKind: "human", ActorID: "restarting-operator",
+			}); err != nil {
+				t.Fatal(err)
 			}
-			if !strings.Contains(event.Error, "synthetic prompt dropped") {
-				t.Fatalf("queued synthetic error = %q, want drop summary", event.Error)
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+			h.driver.cancelHook = func(*fakeProcess) error {
+				releaseOnce.Do(func() { close(release) })
+				return nil
 			}
-			if _, ok := <-eventsCh; ok {
-				t.Fatal("queued synthetic output channel left open after removal")
+			dispatched := make(chan acp.PromptRequest, 2)
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				if req.Message != "hold the active turn" {
+					dispatched <- req
+					return completedSyntheticPromptEvents(req.TurnID), nil
+				}
+				events := make(chan acp.AgentEvent, 1)
+				go func() {
+					<-release
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+					close(events)
+				}()
+				return events, nil
 			}
-		})
-	}
-}
-
-func TestManagerIntegrationSyntheticQueueStateTransitions(t *testing.T) {
-	t.Run("Should requeue a claimed synthetic prompt before clearing dispatch", func(t *testing.T) {
-		t.Parallel()
-
-		manager := &Manager{
-			syntheticQueues: map[string][]queuedSyntheticPrompt{
-				"sess-synth": {{
-					request: promptRequest{turnID: "turn-queued"},
-				}},
-			},
-			syntheticDispatching: map[string]bool{
-				"sess-synth": true,
-			},
-		}
-		claimed := queuedSyntheticPrompt{request: promptRequest{turnID: "turn-claimed"}}
-
-		manager.requeueSyntheticPromptFrontAndFinishDispatch("sess-synth", claimed)
-
-		manager.syntheticMu.Lock()
-		defer manager.syntheticMu.Unlock()
-
-		if manager.syntheticDispatching["sess-synth"] {
-			t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
-		}
-		queue := manager.syntheticQueues["sess-synth"]
-		if got, want := len(queue), 2; got != want {
-			t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want %d", got, want)
-		}
-		if got, want := queue[0].request.turnID, "turn-claimed"; got != want {
-			t.Fatalf("queue[0].request.turnID = %q, want %q", got, want)
-		}
-		if got, want := queue[1].request.turnID, "turn-queued"; got != want {
-			t.Fatalf("queue[1].request.turnID = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should drain queued synthetic prompts while clearing dispatch", func(t *testing.T) {
-		t.Parallel()
-
-		manager := &Manager{
-			syntheticQueues: map[string][]queuedSyntheticPrompt{
-				"sess-synth": {
-					{request: promptRequest{turnID: "turn-1"}},
-					{request: promptRequest{turnID: "turn-2"}},
+			active, err := h.manager.Prompt(ctx, sess.ID, "hold the active turn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			queuedOpts := SendPromptOpts{Message: "human follow-up", Mode: BusyInputModeQueue,
+				MessageID: "restart-human", IdempotencyKey: "restart-human-key"}
+			human, err := h.manager.SendPrompt(ctx, sess.ID, queuedOpts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			observed, err := h.manager.PromptSynthetic(ctx, sess.ID, SyntheticPromptOpts{
+				Message: "resume detached completion", TurnID: "synthetic-resume-turn",
+				Metadata: acp.PromptSyntheticMeta{
+					TaskRunID: "run-detached", CoordinatorSessionID: "coordinator", Reason: "task_run_completed",
 				},
-			},
-			syntheticDispatching: map[string]bool{
-				"sess-synth": true,
-			},
-		}
-
-		drained := manager.finishQueuedSyntheticDispatchAndDrain("sess-synth")
-
-		manager.syntheticMu.Lock()
-		defer manager.syntheticMu.Unlock()
-
-		if manager.syntheticDispatching["sess-synth"] {
-			t.Fatal("syntheticDispatching[\"sess-synth\"] = true, want cleared")
-		}
-		if got := len(manager.syntheticQueues["sess-synth"]); got != 0 {
-			t.Fatalf("len(syntheticQueues[\"sess-synth\"]) = %d, want 0", got)
-		}
-		if got, want := len(drained), 2; got != want {
-			t.Fatalf("len(drained) = %d, want %d", got, want)
-		}
-		if got, want := drained[0].request.turnID, "turn-1"; got != want {
-			t.Fatalf("drained[0].request.turnID = %q, want %q", got, want)
-		}
-		if got, want := drained[1].request.turnID, "turn-2"; got != want {
-			t.Fatalf("drained[1].request.turnID = %q, want %q", got, want)
-		}
-	})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			pending, err := h.manager.inputQueue.List(ctx, sess.ID)
+			if err != nil || len(pending) != 2 {
+				t.Fatalf("pending = %#v, %v", pending, err)
+			}
+			if pending[1].OwnerKind != store.SessionInputOwnerSynthetic ||
+				pending[1].Status != store.SessionInputQueueStatusQueued {
+				t.Fatalf("synthetic admission = %#v", pending[1])
+			}
+			if err := h.manager.Stop(ctx, sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Shutdown(ctx); err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, active)
+			collectEvents(t, observed)
+			if err := database.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			reopened, err := openSessionTestGlobalDB(ctx, database.Path())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reopened.Close(ctx); err != nil {
+					t.Error(err)
+				}
+			})
+			h.manager = newManagerWithHarness(t, h, WithSessionInputQueueStore(reopened))
+			cleanupTestManager(t, h.manager)
+			replayed, err := h.manager.SendPrompt(ctx, sess.ID, queuedOpts)
+			if err != nil || !replayed.Replayed || replayed.QueueEntryID != human.QueueEntryID {
+				t.Fatalf("replay after database restart = %#v, %v", replayed, err)
+			}
+			if _, err := h.manager.Resume(ctx, sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case req := <-dispatched:
+				if req.Message != "human follow-up" || req.Meta.Synthetic != nil {
+					t.Fatalf("first resumed input = %#v, want human FIFO head", req)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("human input did not dispatch after restart")
+			}
+			select {
+			case req := <-dispatched:
+				if req.TurnID != "synthetic-resume-turn" || req.Meta.Synthetic == nil ||
+					req.Meta.Synthetic.TaskRunID != "run-detached" || req.Meta.Synthetic.CoordinatorSessionID != "coordinator" {
+					t.Fatalf("resumed prompt = %#v", req)
+				}
+			case <-time.After(5 * time.Second):
+				entry, readErr := reopened.GetSessionInputQueueEntry(ctx, sess.ID, pending[1].ID)
+				t.Fatalf(
+					"resumed session did not dispatch durable synthetic input: entry=%#v, readErr=%v",
+					entry,
+					readErr,
+				)
+			}
+			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+				t.Fatal(err)
+			}
+			entry, err := reopened.GetSessionInputQueueEntry(ctx, sess.ID, pending[1].ID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusSent || entry.AttemptCount != 1 {
+				t.Fatalf("resumed queue receipt = %#v, %v", entry, err)
+			}
+			recoveredEvents, err := h.manager.Events(ctx, sess.ID, store.EventQuery{TurnID: "clear-before-restart"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if countEventType(recoveredEvents, eventspkg.TranscriptMarkerCreated) != 1 ||
+				countEventType(recoveredEvents, eventspkg.SessionQueueCleared) != 1 {
+				t.Fatalf("recovered clear footprint = %#v", recoveredEvents)
+			}
+			marker := requireTranscriptMarker(t, h.manager, sess.ID, transcript.MarkerQueueCleared)
+			if marker.Evidence["actor_id"] != "restarting-operator" {
+				t.Fatalf("recovered clear actor = %#v", marker.Evidence)
+			}
+			traces, err := reopened.ListPendingSessionInputClearTraces(ctx, sess.ID)
+			if err != nil || len(traces) != 0 {
+				t.Fatalf("pending clear traces after resume = %#v, %v", traces, err)
+			}
+			if got := len(managerPromptCalls(h)); got != 3 {
+				t.Fatalf("prompt calls = %d, want active user, queued human, then synthetic", got)
+			}
+		},
+	)
 }
 
 func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {

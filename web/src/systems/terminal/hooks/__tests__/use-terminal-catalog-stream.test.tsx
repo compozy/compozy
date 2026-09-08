@@ -27,6 +27,14 @@ import { useTerminalCatalogStream } from "../use-terminal-catalog-stream";
 
 const WORKSPACE = "ws-atlas";
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 /** A source a test can inspect and speak through. */
 function createFakeSource() {
   const listeners = new Map<string, Set<EventListener>>();
@@ -199,6 +207,42 @@ describe("useTerminalCatalogStream", () => {
     expect(catalog(client, "work")?.[0].title).toBe("dev server (staging)");
   });
 
+  it.each([false, true])(
+    "Should retain live exit state over a delayed REST response (aggregate=%s)",
+    async aggregate => {
+      const { opened, client } = aggregate ? renderAggregateStream() : renderStream("work");
+      const profileKey = aggregate ? "@all" : "work";
+      const queryKey = terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey });
+      const foreignKey = terminalKeys.catalog({ workspaceId: "ws-other", profileKey });
+      const personal = { ...PSQL_TERMINAL, profile_name: "personal" };
+      const initial = aggregate ? [DEV_SERVER_TERMINAL, personal] : [DEV_SERVER_TERMINAL];
+      client.setQueryData(queryKey, initial);
+      const staleRead = deferred<TerminalInfo[]>();
+      const foreignRead = deferred<TerminalInfo[]>();
+      const pending = client.fetchQuery({ queryKey, queryFn: () => staleRead.promise });
+      const foreignPending = client.fetchQuery({
+        queryKey: foreignKey,
+        queryFn: () => foreignRead.promise,
+      });
+      const source = opened.find(entry => entry.url.includes("profile=work"));
+      if (!source) throw new Error("expected the work profile stream");
+      const exit = { at: RECORDING_AT, cause: "exited", code: 0 };
+
+      source.fake.emit("terminal.closed", { terminal_id: DEV_SERVER_TERMINAL.id, exit });
+      staleRead.resolve(initial);
+      foreignRead.resolve([PSQL_TERMINAL]);
+      await Promise.all([pending, foreignPending]);
+
+      expect(catalog(client, profileKey)?.[0]).toMatchObject({ state: "exited", exit });
+      if (aggregate) expect(catalog(client, profileKey)?.[1]).toEqual(personal);
+      expect(client.getQueryData(foreignKey)).toEqual([PSQL_TERMINAL]);
+      expect(client.getQueryState(queryKey)).toMatchObject({
+        status: "success",
+        fetchStatus: "idle",
+      });
+    }
+  );
+
   it("Should close the previous source and open the next one on a profile switch", () => {
     const { opened, rerender } = renderStream("work");
 
@@ -274,39 +318,6 @@ describe("useTerminalCatalogStream", () => {
       "an unknown extra field",
       "terminal.title_changed",
       { terminal_id: DEV_SERVER_TERMINAL.id, title: "new title", extra: true },
-    ],
-    [
-      "an available lease with a controller",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "available",
-        controller_kind: "human",
-        controller_id: "viewer-1",
-        reason: "released",
-      },
-    ],
-    [
-      "human ownership without an actor",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "human_owned",
-        controller_kind: "",
-        controller_id: "",
-        reason: "claimed",
-      },
-    ],
-    [
-      "agent ownership with a human controller",
-      "terminal.lease_changed",
-      {
-        terminal_id: DEV_SERVER_TERMINAL.id,
-        lease: "agent_owned",
-        controller_kind: "human",
-        controller_id: "viewer-1",
-        reason: "claimed",
-      },
     ],
   ])("Should invalidate without merging %s", (_case, eventName, payload) => {
     const { opened, client } = renderStream("work");

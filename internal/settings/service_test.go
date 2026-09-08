@@ -3047,6 +3047,47 @@ id = "raw-model"
 func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should persist steer overrides and preserve them when an older client omits the field", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		service := testService(t, home, Dependencies{})
+		put := func(settings ProviderSettings) {
+			t.Helper()
+			if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{
+					Collection: CollectionProviders,
+				},
+				Name:     "codex",
+				Provider: &settings,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		put(ProviderSettings{SteerCapability: compozyconfig.SteerCapabilityConcurrentPrompt})
+		put(ProviderSettings{DisplayName: "Updated without capability"})
+		cfg, err := compozyconfig.LoadForHome(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Providers["codex"].SteerCapability != compozyconfig.SteerCapabilityConcurrentPrompt {
+			t.Fatalf("override lost: %#v", cfg.Providers["codex"])
+		}
+		put(ProviderSettings{SteerCapability: compozyconfig.SteerCapabilityNone})
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := mustFindProviderItem(
+			t,
+			envelope.Providers,
+			"codex",
+		).Settings.SteerCapability; got != compozyconfig.SteerCapabilityNone {
+			t.Fatalf("read capability=%q", got)
+		}
+	})
+
 	t.Run("Should accept native CLI Codex overlay from onboarding", func(t *testing.T) {
 		t.Parallel()
 

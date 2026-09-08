@@ -1,23 +1,25 @@
 # Depth and Abstraction
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The five-rung abstraction ladder, the five traversal patterns the corpus surfaces, the rung-whiplash diagnostic, the anchor-N rule, and the per-archetype default depth profile.
 
 ## Contents
 
 - [The five rungs](#the-five-rungs)
-- [The four-tuple commitment](#the-four-tuple-commitment)
+- [The optional depth sketch](#the-optional-depth-sketch)
 - [Traversal patterns](#traversal-patterns)
 - [Per-archetype default depth profile](#per-archetype-default-depth-profile)
 - [Rung-whiplash diagnostic](#rung-whiplash-diagnostic)
-- [The anchor obligation (empirical N)](#the-anchor-obligation-empirical-n)
+- [Re-anchoring heuristics](#re-anchoring-heuristics)
 - [Decision tree — pick the depth](#decision-tree--pick-the-depth)
 - [Vendor-name placement rule](#vendor-name-placement-rule)
 
 ## The five rungs
 
-Every paragraph of an engineering post lives at exactly one of these five rungs. Mixing rungs at the sentence level is rare and deliberate; mixing them inside a paragraph without a transition is a craft failure.
+These five rungs describe common levels of explanation. A paragraph can connect levels when the relationship is clear; the labels are a diagnostic aid, not a classification requirement.
 
-- **R1 — User experience.** What the reader feels when the system is good or bad. Voice is empathetic, often second-person. The only rung where addressing the reader directly is unambiguously appropriate.
+- **R1 — User experience.** What the reader feels when the system is good or bad. Voice is empathetic, often second-person. Direct address often fits experiential examples.
   - Exemplar: *"When you're working through a backlog—opening an issue, jumping to a linked thread, then back to the list—latency isn't just a metric. It's a context switch."* — GitHub Issues navigation (`raw/articles/017-…from-latency-to-instant…md:53`).
 - **R2 — Business / product framing.** Why the organisation invested engineering time. Headcount, fleet size, opportunity cost, lineage. Voice is institutional first-person plural.
   - Exemplar: *"When the code you ship serves more than 3 billion people, even a 0.1% performance regression can translate to significant additional power consumption."* — Meta capacity efficiency (`raw/articles/031-…capacity-efficiency…md:97`).
@@ -30,9 +32,9 @@ Every paragraph of an engineering post lives at exactly one of these five rungs.
 
 A post does not have to visit every rung, but the *opening rung* and the *closing rung* together encode its archetype: open R1 / close R5 reads as a deep-dive; open R1 / close R1 reads as strategic; live entirely at R5 is documentation; live entirely at R1–R2 is marketing.
 
-## The four-tuple commitment
+## The optional depth sketch
 
-Before writing prose, commit a tuple:
+When a draft needs a clearer depth plan, sketch:
 
 ```
 (opening rung, body residency band, closing rung, traversal pattern)
@@ -49,7 +51,7 @@ Examples:
 - AI/agent: `(R2 workload scale, R4 + R5, R1 in book-ended form, Yo-yo)`
 - Security: `(R2 threat framing, R5 dominant + thin R4, R2 forward posture, Anchor-and-dive into R5)`
 
-Writing to the tuple is the procedural move. The tuple replaces "discovering it mid-draft."
+Adapt or discard the sketch as the draft develops; an existing clear structure needs no preliminary tuple.
 
 ## Traversal patterns
 
@@ -87,7 +89,7 @@ The corpus surfaces five traversal patterns. Most elite posts braid two or more.
 - Strategic essay (R1/R2 only; sustained R1/R2; R2 product positioning; flat — no descent).
 - Customer story (R1 testimonial → R5 vendor product names with no R3 bridge → R1 testimonial; **whiplash** when sold as engineering).
 
-A migration post that opens R1 is suspect (the legacy-charity opener is the migration's load-bearing voice move). A tutorial that opens R1 with a user testimonial has misidentified its archetype.
+A user-experience opening can fit a migration or tutorial when it leads clearly into the technical problem. Choose by audience and argument, not the archetype table alone.
 
 ## Rung-whiplash diagnostic
 
@@ -99,37 +101,37 @@ The reader bounces between R1 and R5 inside a single section. A paragraph about 
 - **Premature R1 ascent in close.** "We rewrote the storage engine in Rust, which means our customers can sleep at night" — skips R2-R4. The strong move is graduated ascent: end R5, name R3 result, name R2 implication, only then close at R1.
 - **Vendor-name padding (publisher-specific whiplash).** Vendor product names appear at the R1/R2 *framing* rung instead of the R5 *implementation* rung. Repair: name the abstract capability first, then disclose the specific product.
 
-## The anchor obligation (empirical N)
+## Re-anchoring heuristics
 
 Cross-referencing the corpus for "how many paragraphs of R4/R5 a post can sustain before re-surfacing":
 
-- **Inside a single paragraph:** at most one rung-shift, and the shift must be motivated by a transition sentence or section break. Abrupt rung-shifts inside a paragraph are usually a craft failure — the reader has to recalibrate mid-sentence.
+- **Inside a single paragraph:** make transitions between user impact, architecture, and implementation understandable. Add a bridge only when the connection is unclear; do not count rung shifts.
 - **Inside a section:** ~3–5 paragraphs of R4/R5 before re-anchoring at R3 (a number) or R2 (a user/business referent).
 - **Across sections:** every section heading is itself an anchor checkpoint — the heading restates an R2 motivation, names an R3 result, or labels an R4 component. Pure-R5 sections without an anchor heading are rare and read as missing structure.
 - **Performance deep-dives** are the strictest — they re-measure (R3) *after every intervention*, making the spiral's anchor N effectively ≤ 2 paragraphs per loop.
 - **Architecture migrations** are the loosest — phased-plan structure lets them sustain R4 across 8–15 paragraphs between R2 anchors, because each phase heading is implicitly an R2 anchor.
 - **Research translations** are paradoxical — they often sustain R3 (eval tables) without ever surfacing to R1, because the audience expects academic-gloss residency.
 
-**Operational rule of thumb:** if a draft has more than four consecutive R4/R5 paragraphs without surfacing to R3 (a metric) or R2 (a user/business referent), the next paragraph must either re-anchor or open a new section with an anchored heading.
+**Operational rule of thumb:** if a draft has more than four consecutive R4/R5 paragraphs without surfacing to R3 (a metric) or R2 (a user/business referent), consider a short anchor or section break if the intended reader is losing context; four paragraphs is a diagnostic heuristic.
 
 ## Decision tree — pick the depth
 
-Run in order; the tree's output is the four-tuple.
+Use the relevant questions when choosing depth; no fixed order or recorded tuple is required.
 
-1. **Q1 — Audience.** Mixed-readership (engineers + decision-makers, public landing-page traffic) → mandatory R1 anchor in opener *and* closer. Peer-engineer only → R2 anchor sufficient; R1 optional.
-2. **Q2 — Publisher credibility on this topic.** Publisher established the *why* in prior posts → Anchor-and-dive licensed. Publisher never published on this topic → Staircase required to earn the descent.
+1. **Q1 — Audience.** Mixed-readership (engineers + decision-makers, public landing-page traffic) → an R1 anchor may help explain impact. Peer-engineer only → R2 anchor sufficient; R1 optional.
+2. **Q2 — Publisher credibility on this topic.** Publisher established the *why* in prior posts → Anchor-and-dive licensed. Publisher never published on this topic → Staircase may help establish the missing context.
 3. **Q3 — Work nature.** Investigative (no foreknowledge of destination) → Spiral. Teleological (planned outcome) → Staircase or Anchor-and-dive. Mixed → braided.
-4. **Q4 — Artifact obligation.** Owes user-perceived impact (perf, AI/agent) → R1 anchor mandatory in opener and closer; Yo-yo is the safest. Owes organisational-impact (capacity, scale, migration) → R2 anchor sufficient.
+4. **Q4 — Artifact obligation.** Owes user-perceived impact (perf, AI/agent) → connect the technical result to that impact where it helps; a book-ended structure is one option. Owes organisational-impact (capacity, scale, migration) → R2 anchor sufficient.
 5. **Q5 — Closing handoff.** Operational change (perf, postmortem, migration) → close at R2 status snapshot or R3 distribution result. Advertised capability (launch, research) → close at R2 roadmap or footnote. User-time recovery (AI/agent) → close at R1.
-6. **Q6 — Length budget.** ≤2,000 words → pick one rung band (R2–R3 or R4–R5) and stay; trying to traverse all five guarantees whiplash. 3,000–5,500 words → full staircase or spiral feasible. ≥5,000 words → braided patterns mandatory or the reader fatigues.
+6. **Q6 — Length budget.** ≤2,000 words → pick one rung band (R2–R3 or R4–R5) and stay; visiting all five can crowd the argument. 3,000–5,500 words → full staircase or spiral feasible. ≥5,000 words → braided patterns may help readers maintain context.
 
 ## Vendor-name placement rule
 
-**Vendor product names appear at R5 (implementation), never at R1/R2 (framing).** The rule separates engineering posts from customer stories.
+Name vendors where they identify the actual system, decision, or evidence. Explain the mechanism behind a vendor-related outcome so a product name does not substitute for engineering substance.
 
 **The "remove the vendor's name" test.** If removing the vendor's name from every sentence still leaves a coherent post, the post has engineering depth. If the post collapses without the vendor's name, it is marketing in engineering-blog clothing.
 
 - Engineering: "We selected a CDN with edge compute support; we use Vercel." (vendor name at R5; capability described first.)
 - Marketing: "Vercel's Preview Deployments enabled our designers to ship faster." (vendor name at R1/R2; capability collapses without it.)
 
-Apply the test as the **final pre-publish gate** for any post written from a vendor or hosted platform.
+Use this as an optional diagnostic when vendor mentions obscure the mechanism. A vendor-focused engineering post can legitimately depend on specific product names.

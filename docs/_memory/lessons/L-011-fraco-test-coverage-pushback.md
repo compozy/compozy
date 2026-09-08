@@ -21,19 +21,14 @@ LLMs default to a "good-enough" test density: 1-2 unit tests per behavior, somet
 
 ## Rule
 
-> When generating `_tasks.md`, count behaviors documented in the TechSpec (lease invariants, error paths, concurrency cases, security cases, observability events) and plan tests proportional to that count. Reject lists with 1-2 tests for many behaviors. Use `eng-test-conventions` to enforce shape; this lesson governs density.
-
-This lesson governs density only after a test is justified. It does not authorize tests per task, per file, or per implementation detail. Every proposed test must first name the invariant, owning layer, and canonical suite (`eng-consolidate-test-suites`). "No new automated test" is valid when an existing suite, lint rule, codegen check, typecheck, build, visual QA, or documented manual evidence already owns the invariant.
+> Plan tests from distinct observable invariants and failure modes. Name the owning layer and canonical suite before adding a case; existing tests or stronger gates can satisfy the contract without new coverage.
 
 ## Operationalization
 
-Before approving a generated `_tasks.md`:
-
-1. For each task, count the behaviors named in the TechSpec section it implements.
-2. For each behavior, name the invariant, owning layer, and existing canonical suite before adding test cases.
-3. Cross-check the proposed test count: at minimum 1 happy-path + 1 failure-path + 1 concurrency case (when relevant) + 1 contract/redaction case (when wire-affecting). Aim higher when the task is `critical` complexity.
-4. If the task body says only "unit tests for the new functions", expand to enumerated assertions or replace it with a no-new-test rationale.
-5. For QA-gating tasks (the trailing `qa-execution`): test cases enumerate every public surface touched, not a single smoke pass.
+- Identify which behavior could fail and which existing test/probe would expose it.
+- Add happy, error, concurrency, security, or wire cases when each represents a distinct relevant risk; no minimum test-count quota.
+- Replace vague "unit tests for functions" with concrete assertions or a brief explanation of the existing owning evidence.
+- QA covers affected public journeys and integration gaps; it reuses valid slice evidence rather than repeating every case.
 
 ## Anti-patterns
 

@@ -1,3 +1,17 @@
+CREATE TABLE session_input_clear_traces (
+    entry_id TEXT PRIMARY KEY REFERENCES session_input_queue(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    turn_id TEXT NOT NULL,
+    actor_kind TEXT NOT NULL CHECK (length(trim(actor_kind)) > 0),
+    actor_id TEXT NOT NULL CHECK (length(trim(actor_id)) > 0),
+    queue_generation INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    projected_at TEXT
+);
+
+CREATE INDEX idx_session_input_clear_traces_pending
+    ON session_input_clear_traces(session_id, created_at, entry_id) WHERE projected_at IS NULL;
+
 CREATE TABLE session_creation_profiles (
 		profile_ref TEXT PRIMARY KEY CHECK (length(trim(profile_ref)) > 0),
 		profile_json TEXT NOT NULL CHECK (json_valid(profile_json)),
@@ -66,7 +80,9 @@ CREATE TABLE session_health (
 			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer', 'interrupt')),
 			delivery TEXT NOT NULL DEFAULT 'after_turn'
 				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
+			steer_delivery TEXT CHECK (steer_delivery IN ('injected', 'pending_injection', 'interrupt_fallback')),
 			text TEXT NOT NULL,
+			synthetic_prompt_json TEXT CHECK (synthetic_prompt_json IS NULL OR json_valid(synthetic_prompt_json)),
 			skill_invocations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(skill_invocations_json)),
 			attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json)),
 			runtime_provider TEXT NOT NULL DEFAULT '',
@@ -123,6 +139,8 @@ CREATE TABLE sessions (
 		archived_at    TEXT,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
+		stop_escalated BOOLEAN NOT NULL DEFAULT FALSE CHECK (stop_escalated IN (0, 1)),
+		stop_verification_failed BOOLEAN NOT NULL DEFAULT FALSE CHECK (stop_verification_failed IN (0, 1)),
 		stop_detail    TEXT,
 		subprocess_pid INTEGER NOT NULL DEFAULT 0,
 		subprocess_started_at TEXT,

@@ -227,7 +227,7 @@ type testSSHServer struct {
 	errs        []error
 }
 
-func newTestSSHServer(t *testing.T, validUser string) *testSSHServer {
+func newTestSSHServer(t *testing.T, validUser string, forwarding ...func(ssh.NewChannel) error) *testSSHServer {
 	t.Helper()
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -274,7 +274,12 @@ func newTestSSHServer(t *testing.T, validUser string) *testSSHServer {
 			server.trackConnection(conn)
 			server.workers.Go(func() {
 				defer server.untrackConnection(conn)
-				if serveErr := handleTestSSHConn(conn, config); serveErr != nil && !errors.Is(serveErr, net.ErrClosed) {
+				if serveErr := handleTestSSHConn(
+					conn,
+					config,
+					forwarding,
+				); serveErr != nil &&
+					!errors.Is(serveErr, net.ErrClosed) {
 					server.recordError(serveErr)
 				}
 			})
@@ -334,7 +339,7 @@ func (s *testSSHServer) errors() []error {
 	return append([]error(nil), s.errs...)
 }
 
-func handleTestSSHConn(conn net.Conn, config *ssh.ServerConfig) (err error) {
+func handleTestSSHConn(conn net.Conn, config *ssh.ServerConfig, forwarding []func(ssh.NewChannel) error) (err error) {
 	server, chans, reqs, err := ssh.NewServerConn(conn, config)
 	if err != nil {
 		return nil
@@ -344,6 +349,12 @@ func handleTestSSHConn(conn net.Conn, config *ssh.ServerConfig) (err error) {
 	}()
 	go ssh.DiscardRequests(reqs)
 	for newChannel := range chans {
+		if newChannel.ChannelType() == "direct-tcpip" && len(forwarding) != 0 {
+			if err := forwarding[0](newChannel); err != nil {
+				return err
+			}
+			continue
+		}
 		if newChannel.ChannelType() != "session" {
 			if rejectErr := newChannel.Reject(ssh.UnknownChannelType, "unsupported"); rejectErr != nil {
 				return fmt.Errorf("reject unsupported SSH channel: %w", rejectErr)

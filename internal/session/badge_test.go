@@ -17,6 +17,20 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 		want  Badge
 	}{
 		{
+			name: "Should request attention for unverified stopping despite stale stopped health",
+			input: BadgeInputs{
+				State:                  StateStopping,
+				StopVerificationFailed: true,
+				HealthState:            heartbeat.SessionHealthStateStopped,
+			},
+			want: BadgeNeedsAttention,
+		},
+		{
+			name:  "Should preserve stopping when the health projection is stale",
+			input: BadgeInputs{State: StateStopping, HealthState: heartbeat.SessionHealthStateStopped},
+			want:  BadgeRunning,
+		},
+		{
 			name:  "Should surface a pending clarification",
 			input: BadgeInputs{State: StateActive, PendingClarify: true},
 			want:  BadgeWaitingForInput,
@@ -118,6 +132,7 @@ func TestClassForBadgeUsesCanonicalAttentionClasses(t *testing.T) {
 		want  AttentionClass
 	}{
 		{badge: BadgeWaitingForInput, want: AttentionNeedsYou},
+		{badge: BadgeNeedsAttention, want: AttentionNeedsYou},
 		{badge: BadgeWaitingForAuth, want: AttentionNeedsYou},
 		{badge: BadgeFailed, want: AttentionNeedsYou},
 		{badge: BadgeDone, want: AttentionFinished},

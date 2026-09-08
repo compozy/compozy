@@ -64,7 +64,7 @@ func (m *Manager) setArchived(
 			return nil, err
 		}
 	}
-	info := sessionInfoFromCatalog(stored)
+	info := sessionInfoFromCatalog(&stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil
 }

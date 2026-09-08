@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"strings"
 
@@ -155,12 +156,13 @@ func (m *Manager) triggerJob(ctx context.Context, id string, payload map[string]
 		return Run{}, err
 	}
 
-	dispatchCtx := context.WithoutCancel(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		var cancel context.CancelFunc
-		dispatchCtx, cancel = context.WithDeadline(dispatchCtx, deadline)
-		defer cancel()
+	// Detached manual runs remain bounded by the admission horizon when no caller budget exists.
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(168 * time.Hour)
 	}
+	dispatchCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
+	defer cancel()
 
 	run, err := m.dispatcher.Dispatch(dispatchCtx, DispatchRequest{
 		Kind:    DispatchKindManual,

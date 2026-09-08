@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture, sessionTranscriptFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
+import { invalidateSessionMutationQueries } from "../../lib/session-query-invalidation";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
   NormalizedSessionTranscriptResponse,
@@ -27,6 +28,7 @@ import {
   resetSessionDebugTelemetry,
   SESSION_DEBUG_EVENTS,
 } from "../../lib/session-observability";
+import { MAX_RECONNECT_ATTEMPTS } from "../session-live-tail-store-contract";
 import { useSessionLiveTail } from "../use-session-live-tail";
 import type { SessionStreamEventSource } from "../use-session-live-tail";
 
@@ -440,6 +442,71 @@ describe("useSessionLiveTail", () => {
         sessionKeys.transcript(WORKSPACE_ID, SESSION_ID)
       )?.pages
     ).toHaveLength(2);
+  });
+
+  // Invariant (BUG-20260906-promoted-turn-missing-live): a mutation's transcript reread
+  // (the detail-prefix invalidation every busy verb settles through) never drops entries
+  // the live stream already applied — the refetched head reconciles by start sequence and
+  // keeps the stream cursor; only a reread from another epoch/generation replaces the load.
+  // Owner: `sessionTranscriptOptions` over the live-tail cache. Boundary IN: REST page +
+  // SSE delta; boundary OUT: the thread's messages and the stream cursor.
+  it("Should keep live-applied entries when a mutation reread refetches the transcript", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([sessionTranscriptFixture[0]!, sessionTranscriptFixture[1]!], {
+        firstSequence: 1,
+      })
+    );
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          cursor: 3,
+          entries: [{ message: sessionTranscriptFixture[2]!, sequence: 3, start_sequence: 3 }],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 3,
+          session_id: SESSION_ID,
+        },
+        "3"
+      );
+    });
+    await waitFor(() => expect(result.current.messages).toHaveLength(3));
+
+    // The daemon answers the reread from before the delta materialized: the
+    // stream already carried entry 3 and will not carry it again.
+    await act(async () => {
+      await invalidateSessionMutationQueries(queryClient, WORKSPACE_ID, SESSION_ID);
+    });
+    await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(2));
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      sessionTranscriptFixture[0]?.id,
+      sessionTranscriptFixture[1]?.id,
+      sessionTranscriptFixture[2]?.id,
+    ]);
+    const head = queryClient.getQueryData<SessionTranscriptData>(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID)
+    )?.pages[0];
+    expect(head?.cursor).toBe(3);
+    expect(head?.max_sequence).toBe(3);
+
+    // A reread from another generation is a history rewrite and replaces the load.
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([sessionTranscriptFixture[3]!], { firstSequence: 1, generation: 2 })
+    );
+    await act(async () => {
+      await invalidateSessionMutationQueries(queryClient, WORKSPACE_ID, SESSION_ID);
+    });
+    await waitFor(() =>
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        sessionTranscriptFixture[3]?.id,
+      ])
+    );
   });
 
   it("Should not poll immutable older pages while the healthy SSE stream is open", async () => {
@@ -1129,5 +1196,250 @@ describe("useSessionLiveTail", () => {
     unmount();
 
     expect(sources[0]?.closed).toBe(true);
+  });
+
+  // Invariant: retries are bounded (US-018.AC-2). Past the cap the transport reads
+  // `failed` with the count, arms no timer, and only the operator's Try again rereads
+  // the transcript and reopens the stream from the durable cursor with a fresh budget.
+  it("Should give up visibly after the reconnect cap and reopen only on Try again", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+      seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    vi.mocked(fetchSessionTranscript).mockClear();
+
+    for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt += 1) {
+      act(() => sources.at(-1)?.onerror?.(new Event("error")));
+      expect(result.current.transport).toMatchObject({
+        phase: "waiting-reconnect",
+        reconnectAttempt: attempt,
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(4_000));
+    }
+    expect(sources).toHaveLength(MAX_RECONNECT_ATTEMPTS + 1);
+    expect(result.current.transport.phase).toBe("connecting");
+
+    // One more failure crosses the cap: no new source, no timer, a stated failure.
+    act(() => sources.at(-1)?.onerror?.(new Event("error")));
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(sources).toHaveLength(MAX_RECONNECT_ATTEMPTS + 1);
+    expect(sources.at(-1)?.closed).toBe(true);
+    expect(result.current.transport.phase).toBe("failed");
+    expect(result.current.transport.failure?.attempts).toBe(MAX_RECONNECT_ATTEMPTS);
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+
+    act(() => result.current.retry());
+    await act(async () => {
+      await vi.waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(sources).toHaveLength(MAX_RECONNECT_ATTEMPTS + 2));
+    });
+    expect(sources.at(-1)?.url).toBe(`${STREAM_URL}&after_sequence=1&epoch=1&generation=1`);
+    expect(result.current.transport.phase).toBe("connecting");
+    expect(result.current.transport.failure).toBeNull();
+  });
+
+  // Invariant: a reopen after a drop reads "catching up" until the replayed frames drain,
+  // then the live edge; the transport records when it was last live and when it degraded.
+  it("Should read catching up after a drop until the replay drains", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(100_000);
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    expect(result.current.transport.phase).toBe("connecting");
+    expect(result.current.transport.degradedAt).toBeGreaterThanOrEqual(100_000);
+
+    act(() =>
+      sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.phase).toBe("live"));
+    });
+    expect(result.current.transport.catchingUp).toBe(false);
+    expect(result.current.transport.degradedAt).toBeNull();
+    expect(result.current.transport.lastLiveAt).toBeGreaterThanOrEqual(100_000);
+
+    vi.setSystemTime(105_000);
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    expect(result.current.transport).toMatchObject({
+      degradedAt: 105_000,
+      phase: "waiting-reconnect",
+      reconnectAttempt: 1,
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(sources).toHaveLength(2);
+    expect(result.current.transport).toMatchObject({ catchingUp: true, phase: "connecting" });
+
+    act(() =>
+      sources[1]?.emit(
+        "transcript_delta",
+        {
+          ...clarifyDeltaFrame(textMessage("m-2", "two")),
+          cursor: 3,
+          max_sequence: 3,
+          entries: [{ message: textMessage("m-2", "two"), sequence: 3, start_sequence: 3 }],
+        },
+        "3"
+      )
+    );
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(result.current.messages.map(message => message.id)).toContain("m-2")
+      );
+    });
+    expect(result.current.transport).toMatchObject({
+      catchingUp: false,
+      phase: "live",
+      reconnectAttempt: 0,
+    });
+  });
+
+  // Invariant: a reset snapshot over loaded history of another generation is stated
+  // (US-017.AC-3): the view follows the daemon and names the generation it moved to.
+  it("Should state a history reset when a reset snapshot replaces another generation", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+      seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    expect(result.current.transport.historyReset).toBeNull();
+
+    act(() => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          entries: [{ message: sessionTranscriptFixture[2]!, sequence: 3, start_sequence: 3 }],
+          epoch: 1,
+          generation: 4,
+          has_older: false,
+          max_sequence: 3,
+          reason: "generation_mismatch",
+          reset: true,
+          session_id: SESSION_ID,
+        },
+        "3"
+      );
+    });
+    await waitFor(() =>
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        sessionTranscriptFixture[2]?.id,
+      ])
+    );
+    expect(result.current.transport.historyReset?.generation).toBe(4);
+  });
+
+  // Invariant (task_06 req. 2 client half): `stream.consumer_degraded` marks the view as
+  // catching up until an applied frame reaches `through_sequence` — an empty delta carrying
+  // the watermark counts; an unrelated empty apply queue does not end it. The event carries
+  // no SSE id and never moves the resume cursor.
+  it("Should read catching up from a shed marker until the replay reaches its watermark", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(sources).toHaveLength(1));
+    });
+    act(() =>
+      sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m-1", "one")), "2")
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.phase).toBe("live"));
+    });
+    expect(result.current.transport.catchingUp).toBe(false);
+
+    act(() =>
+      sources[0]?.emit("stream.consumer_degraded", {
+        after_sequence: 2,
+        refresh: true,
+        session_id: SESSION_ID,
+        through_sequence: 6,
+      })
+    );
+    expect(result.current.transport.catchingUp).toBe(true);
+    expect(result.current.transport.phase).toBe("live");
+
+    // A frame short of the watermark drains the queue but does not end the catch-up.
+    const frame = (id: string, sequence: number) => ({
+      ...clarifyDeltaFrame(textMessage(id, id)),
+      cursor: sequence,
+      entries: [{ message: textMessage(id, id), sequence, start_sequence: sequence }],
+      max_sequence: sequence,
+    });
+    act(() => sources[0]?.emit("transcript_delta", frame("m-4", 4), "4"));
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(result.current.messages.map(message => message.id)).toContain("m-4")
+      );
+    });
+    expect(result.current.transport.catchingUp).toBe(true);
+
+    // An empty delta carrying the watermark cursor ends it.
+    act(() =>
+      sources[0]?.emit(
+        "transcript_delta",
+        { ...frame("m-4", 4), cursor: 6, entries: [], max_sequence: 6 },
+        "6"
+      )
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.transport.catchingUp).toBe(false));
+    });
+    // The marker never advanced the resume cursor on its own: the reconnect resumes after 6, the last applied frame.
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=6&epoch=1&generation=1`);
+  });
+
+  // Invariant (US-017.EC-1): a reset in the SAME generation — retention erased the
+  // cursor the view held — is stated with the daemon's reason, not only a generation change.
+  it("Should state a same-generation reset with the daemon's reason", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
+      seededTranscriptData(transcriptPage([sessionTranscriptFixture[0]!], { firstSequence: 1 }))
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(sources).toHaveLength(1));
+
+    act(() => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          entries: [{ message: sessionTranscriptFixture[2]!, sequence: 40, start_sequence: 40 }],
+          epoch: 1,
+          generation: 1,
+          has_older: false,
+          max_sequence: 40,
+          reason: "cursor_expired",
+          reset: true,
+          session_id: SESSION_ID,
+        },
+        "40"
+      );
+    });
+    await waitFor(() =>
+      expect(result.current.messages.map(message => message.id)).toEqual([
+        sessionTranscriptFixture[2]?.id,
+      ])
+    );
+    expect(result.current.transport.historyReset).toMatchObject({
+      generation: 1,
+      reason: "cursor_expired",
+    });
   });
 });

@@ -136,3 +136,5 @@ If CompozyOS rejects the agent, inspect the name format, invalid permissions, em
 Provider aliases are small built-in conveniences, not user-configured compatibility keys. `claude-code` resolves to the canonical `claude` provider; aliases such as `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen` resolve before launch. Config files must still reference canonical provider IDs, and the removed `providers.<id>.aliases` key is rejected.
 
 Settings writes are governed by the config apply lifecycle. Provider model-only changes are live; provider command/auth changes remain restart-required. After config edits, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `compozy config apply-history -o json`.
+
+After native provider login, run `compozy provider auth status <provider> --remote` to probe through the daemon (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authenticated` result clears cached pre-start verdicts; retry session creation immediately. Each workspace/profile still probes its own credentials. HTTP and UDS never execute the login command.

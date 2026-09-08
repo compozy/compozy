@@ -11,10 +11,8 @@ import { z } from "zod";
 
 import type { TerminalInfo } from "../types";
 import {
-  terminalActorKindSchema,
   terminalExitSchema,
   terminalInfoSchema,
-  terminalLeaseStateSchema,
   terminalModeSchema,
 } from "./terminal-contract-schema";
 
@@ -23,7 +21,6 @@ export const TERMINAL_CATALOG_EVENTS = [
   "terminal.created",
   "terminal.closed",
   "terminal.title_changed",
-  "terminal.lease_changed",
   "terminal.mode_changed",
 ] as const;
 
@@ -56,43 +53,12 @@ const closedSchema = z.strictObject({
 });
 const titleChangedSchema = z.strictObject({ terminal_id: z.string(), title: z.string() });
 const modeChangedSchema = z.strictObject({ terminal_id: z.string(), mode: terminalModeSchema });
-const leaseChangedSchema = z.discriminatedUnion("lease", [
-  z.strictObject({
-    terminal_id: z.string(),
-    lease: z.literal(terminalLeaseStateSchema.enum.available),
-    controller_kind: z.literal(""),
-    controller_id: z.literal(""),
-    reason: z.string(),
-  }),
-  z.strictObject({
-    terminal_id: z.string(),
-    lease: z.literal(terminalLeaseStateSchema.enum.human_owned),
-    controller_kind: z.literal(terminalActorKindSchema.enum.human),
-    controller_id: z.string().min(1),
-    reason: z.string(),
-  }),
-  z.strictObject({
-    terminal_id: z.string(),
-    lease: z.literal(terminalLeaseStateSchema.enum.agent_owned),
-    controller_kind: z.literal(terminalActorKindSchema.enum.agent),
-    controller_id: z.string().min(1),
-    reason: z.string(),
-  }),
-]);
-
 export type TerminalCatalogEvent =
   | { name: "terminal.snapshot"; terminals: TerminalInfo[] }
   | { name: "terminal.created"; terminal: TerminalInfo }
   | { name: "terminal.closed"; terminalId: string; exit: TerminalInfo["exit"] }
   | { name: "terminal.title_changed"; terminalId: string; title: string }
-  | { name: "terminal.mode_changed"; terminalId: string; mode: TerminalInfo["mode"] }
-  | {
-      name: "terminal.lease_changed";
-      terminalId: string;
-      lease: TerminalInfo["lease"];
-      controller: TerminalInfo["controller"];
-      reason: string | null;
-    };
+  | { name: "terminal.mode_changed"; terminalId: string; mode: TerminalInfo["mode"] };
 
 /**
  * Parses a catalog list frame. Recording frames are subscribed on the same
@@ -119,20 +85,6 @@ export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalC
     case "terminal.mode_changed": {
       const parsed = parseKnownCatalogEvent(modeChangedSchema, raw);
       return { name, terminalId: parsed.terminal_id, mode: parsed.mode };
-    }
-    case "terminal.lease_changed": {
-      const parsed = parseKnownCatalogEvent(leaseChangedSchema, raw);
-      const controller =
-        parsed.lease === terminalLeaseStateSchema.enum.available
-          ? null
-          : { kind: parsed.controller_kind, id: parsed.controller_id };
-      return {
-        name,
-        terminalId: parsed.terminal_id,
-        lease: parsed.lease,
-        controller,
-        reason: parsed.reason || null,
-      };
     }
     default:
       return null;
@@ -185,12 +137,6 @@ export function reconcileTerminalCatalog(
       }));
     case "terminal.mode_changed":
       return patch(terminals, event.terminalId, terminal => ({ ...terminal, mode: event.mode }));
-    case "terminal.lease_changed":
-      return patch(terminals, event.terminalId, terminal => ({
-        ...terminal,
-        lease: event.lease,
-        controller: event.controller,
-      }));
   }
 }
 

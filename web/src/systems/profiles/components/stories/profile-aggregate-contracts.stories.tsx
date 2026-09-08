@@ -47,6 +47,7 @@ function session(
   >
 ): SessionPayload {
   return {
+    supervision: null,
     ...owner,
     id,
     name,

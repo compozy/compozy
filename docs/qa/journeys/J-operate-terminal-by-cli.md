@@ -8,8 +8,8 @@ flowchart TD
   A[Entry: compozy terminal] --> B[Open attached or detached, or execute a command]
   B --> C[List and inspect terminals]
   C --> D{Attach?}
-  D -->|watch| E[Read-only stream with detach chord]
-  D -->|control| F[Acquire the lease, pass through keys, then detach]
+  D -->|explicit read-only view| E[Read-only stream with detach chord]
+  D -->|interactive attach| F[Pass through keys immediately, then detach]
   D -->|terminal exited| D1[Refuse attachment with the typed terminal-state error]
   E --> G[Signal, answer input, record, and quote]
   F --> G
@@ -18,7 +18,7 @@ flowchart TD
   I --> J[Side effect: exit and retained journal state are persisted]
   J --> Z[True end: CLI, HTTP, UDS, catalog stream, and terminal stream agree]
   B -.->|operator detaches immediately| X1[Abandon: the terminal keeps running and remains discoverable by list]
-  F -.->|operator refuses takeover| X2[Abandon: controller remains unchanged and attach exits without input]
+  F -.->|operator detaches before typing| X2[Abandon: no input is sent and the terminal remains available]
 ```
 
 ```yaml
@@ -37,8 +37,8 @@ journey:
       verb: "Exercise all twelve terminal verbs"
       expected_observable: "Non-interactive commands return structured results; attached open and attach render only their interactive stream contract."
     - step: 2
-      verb: "Attach in watch and control modes"
-      expected_observable: "Banners, takeover confirmation, passthrough, detach, replay, and exited-terminal refusal match the documented mode."
+      verb: "Attach interactively or through an explicit read-only view"
+      expected_observable: "Interactive input works immediately without a handoff; read-only views remain passive; banners, detach, replay, and exited-terminal refusal match the documented mode."
     - step: 3
       verb: "Compare CLI reads and mutations with HTTP and UDS"
       expected_observable: "The same profile scope, terminal fields, error codes, journal rows, recordings, and artifacts appear on both transports."
@@ -54,6 +54,6 @@ journey:
   abandonment:
     - at_step: 2
       how: "Use the detach chord before the terminal exits."
-      resume: "List the terminal and attach again with an explicit watch or control mode."
+      resume: "List the terminal and attach again; interactive input is available immediately."
   crosses: [CLI, HTTP, UDS, catalog-SSE, terminal-WebSocket, profile-selection, recordings, journal]
 ```

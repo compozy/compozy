@@ -18,7 +18,7 @@ flowchart TD
   D -->|no| D1[Broken promise: page says one thing, daemon does another]
   D -->|yes| E[Reach a working terminal, answer its prompt, and read the result]
   E --> F[Check the linked pages against behaviour]
-  F --> F1[Agents and safety: approval ladder, typing grant, untrusted output]
+  F --> F1[Agents and safety: command policy, shared input, untrusted output]
   F --> F2[Journal and recordings: what is retained and for how long]
   F --> F3[Profile segmentation: ownership, switching, archive behaviour]
   F --> F4[Platform support: which workspaces can open an interactive terminal]
@@ -57,7 +57,7 @@ journey:
       expected_observable: "Every command runs as printed and every documented output shape matches what the daemon returns."
     - step: 3
       verb: "Check the safety, journal, profile, and platform pages against behaviour"
-      expected_observable: "Approval rules, retention windows, profile ownership, and interactive availability read the same on the page and from the daemon."
+      expected_observable: "Command approval, shared input, retention windows, profile ownership, and interactive availability read the same on the page and from the daemon."
     - step: 4
       verb: "Open the generated CLI reference"
       expected_observable: "It carries the complete verb and flag list, with no verb the CLI does not accept and no accepted verb missing."

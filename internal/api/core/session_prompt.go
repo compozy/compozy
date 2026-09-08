@@ -43,7 +43,12 @@ func RespondPromptResult(c *gin.Context, result session.SendPromptResult, maskIn
 
 // PromptResultPayloadFromSession converts runtime prompt admission state into the shared DTO.
 func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.SendPromptResultPayload, error) {
+	outcome := result.Outcome()
 	payload := contract.SendPromptResultPayload{
+		Disposition:           outcome.Disposition,
+		SteerDelivery:         outcome.Delivery,
+		TurnID:                outcome.TurnID,
+		EntryID:               outcome.EntryID,
 		Status:                strings.TrimSpace(result.Status),
 		Mode:                  contract.PromptMode(strings.TrimSpace(string(result.Mode))),
 		Delivery:              contract.PromptDelivery(strings.TrimSpace(result.Delivery)),

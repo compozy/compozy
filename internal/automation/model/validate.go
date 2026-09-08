@@ -308,6 +308,11 @@ func validateNonWebhookTriggerFields(t Trigger, path string) error {
 
 // Validate ensures the durable scheduler cursor is internally consistent.
 func (s SchedulerState) Validate(path string) error {
+	if s.DeferredUntil != nil &&
+		(s.DeferredUntil.IsZero() || s.LastScheduledAt == nil || s.LastScheduledAt.IsZero() ||
+			s.LastFireID == "" || s.ScheduleHash == "") {
+		return errors.New(nestedPath(path, "deferred_until") + " requires an identified scheduled fire")
+	}
 	if strings.TrimSpace(s.JobID) == "" {
 		return errors.New(nestedPath(path, "job_id") + " is required")
 	}

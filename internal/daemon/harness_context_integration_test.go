@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -796,6 +797,27 @@ type harnessIntegrationDriver struct {
 	startHook   func(acp.StartOpts, int) error
 	promptHook  func(context.Context, *session.AgentProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error)
 	cancelHook  func(context.Context, *session.AgentProcess) error
+	// exitedPID/exitedStartedAt name a real process that already exited, so the
+	// fake's recorded identity is provably dead wherever the daemon verifies exit
+	// from persisted liveness instead of the driver seam.
+	exitedPID       int
+	exitedStartedAt time.Time
+}
+
+// exitedHarnessProcessIdentity runs the test binary as an immediately exiting
+// helper and returns its identity; a placeholder PID would be unverifiable.
+func exitedHarnessProcessIdentity() (int, time.Time) {
+	startedAt := time.Now().UTC()
+	binary, err := os.Executable()
+	if err != nil {
+		return 1, startedAt
+	}
+	cmd := exec.Command(binary, "-test.run=^$")
+	cmd.Env = append(os.Environ(), "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER=1")
+	if err := cmd.Run(); err != nil || cmd.Process == nil {
+		return 1, startedAt
+	}
+	return cmd.Process.Pid, startedAt
 }
 
 type harnessIntegrationProcess struct {
@@ -805,8 +827,11 @@ type harnessIntegrationProcess struct {
 }
 
 func newHarnessIntegrationDriver() *harnessIntegrationDriver {
+	exitedPID, exitedStartedAt := exitedHarnessProcessIdentity()
 	return &harnessIntegrationDriver{
-		processes: make(map[*session.AgentProcess]*harnessIntegrationProcess),
+		processes:       make(map[*session.AgentProcess]*harnessIntegrationProcess),
+		exitedPID:       exitedPID,
+		exitedStartedAt: exitedStartedAt,
 	}
 }
 
@@ -831,7 +856,9 @@ func (d *harnessIntegrationDriver) Start(_ context.Context, opts acp.StartOpts) 
 		sessionID = copied.ResumeSessionID
 	}
 
-	proc := newHarnessIntegrationProcess(copied.AgentName, copied.Command, copied.Cwd, sessionID)
+	proc := newHarnessIntegrationProcess(
+		copied.AgentName, copied.Command, copied.Cwd, sessionID, d.exitedPID, d.exitedStartedAt,
+	)
 	d.processes[proc.handle] = proc
 	return proc.handle, nil
 }
@@ -904,17 +931,33 @@ func (d *harnessIntegrationDriver) Stop(_ context.Context, proc *session.AgentPr
 	return nil
 }
 
+// VerifyExit is the fake's OS-identity seam: the placeholder PID never maps to
+// a host process, so exit is proven by the done channel alone.
+func (d *harnessIntegrationDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return true, nil
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func newHarnessIntegrationProcess(
 	agentName string,
 	command string,
 	cwd string,
 	sessionID string,
+	pid int,
+	startedAt time.Time,
 ) *harnessIntegrationProcess {
 	proc := &harnessIntegrationProcess{
 		done: make(chan struct{}),
 	}
 	proc.handle = session.NewAgentProcess(session.AgentProcessOptions{
-		PID:       1,
+		PID:       pid,
 		AgentName: agentName,
 		Command:   command,
 		Cwd:       cwd,
@@ -923,7 +966,7 @@ func newHarnessIntegrationProcess(
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
 		},
-		StartedAt: time.Now().UTC(),
+		StartedAt: startedAt,
 		Done:      proc.done,
 		Wait: func() error {
 			<-proc.done

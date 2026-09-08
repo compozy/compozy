@@ -282,7 +282,7 @@ graph:
               ' "$f" || exit 1;
               done;
               for state in starting active stopping; do
-              sessions="$(compozy session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
+              sessions="$("$COMPOZY_BIN" session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
               if printf '%s\n' "$sessions" | grep -q '"id"[[:space:]]*:'; then exit 1; fi;
               done
         max_turns: 12

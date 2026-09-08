@@ -287,7 +287,6 @@ type Daemon struct {
 	udsFactory                   ServerFactory
 	gatewayTierFactory           GatewayTierServerFactory
 	gatewayProviderEffects       gateway.EffectDriver
-	listProcesses                func(context.Context) ([]processInfo, error)
 	signalProcess                func(int, syscall.Signal) error
 	processAlive                 func(int) bool
 	executable                   func() (string, error)
@@ -302,8 +301,6 @@ type Daemon struct {
 	readyClosed                  bool
 	booting                      bool
 	shutdown                     *daemonShutdownOperation
-	orphanGraceWait              time.Duration
-	orphanPollWait               time.Duration
 	config                       compozyconfig.Config
 	admission                    admission.Gate
 	providerPreStarter           *providers.PreStarter

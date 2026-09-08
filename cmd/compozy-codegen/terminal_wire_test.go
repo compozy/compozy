@@ -33,12 +33,21 @@ func TestTerminalWire(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(TypeScript terminal wire) error = %v", err)
 		}
+		docsContent, err := os.ReadFile(paths.docsOutput)
+		if err != nil {
+			t.Fatalf("ReadFile(terminal wire docs) error = %v", err)
+		}
 		for _, contract := range [][]byte{goContent, tsContent} {
-			if !bytes.Contains(contract, []byte("compozy.terminal.v2")) ||
+			if !bytes.Contains(contract, []byte("compozy.terminal.v3")) ||
 				!bytes.Contains(contract, []byte("RedactedInput")) &&
 					!bytes.Contains(contract, []byte("redactedInput")) {
 				t.Fatalf("generated terminal wire contract is incomplete: %s", contract)
 			}
+		}
+		if !bytes.Contains(docsContent, []byte("Earlier versions are rejected")) ||
+			bytes.Contains(docsContent, []byte("`RELEASE`")) ||
+			bytes.Contains(docsContent, []byte("write lease")) {
+			t.Fatalf("generated terminal wire docs describe an obsolete contract: %s", docsContent)
 		}
 		if err := os.WriteFile(paths.tsOutput, []byte("export const stale = true;\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(stale terminal wire) error = %v", err)

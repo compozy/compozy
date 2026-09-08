@@ -1,6 +1,6 @@
 ---
 name: skeeper
-description: Explains how to use skeeper to keep spec artifacts (SPEC.md, ADRs, RFCs, plan/PRD/TechSpec markdown, custom globs) next to the code they describe without polluting main-repo history. Covers strict hooks, the tracked skeeper.lock file, namespaces, Git-like status/pull/push/sync/restore workflows, track/untrack, repair, SKEEPER_SKIP, and the GitHub Action. Use when setting up skeeper, configuring a sidecar, syncing or checking a lockfile, recovering drift or failed syncs, auditing bypasses, or wiring CI. Do not use for general Git hook questions, repos with no .skeeper.yml and no intent to add one, or editing skeeper internals.
+description: "Set up or operate skeeper sidecar specs, hooks, locks, namespaces, sync, recovery, bypass audits, and CI. Excludes skeeper internals, general Git hooks, and repos with no skeeper setup intent."
 ---
 
 # Skeeper Reference Guide

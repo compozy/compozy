@@ -8,7 +8,7 @@
     "scripts": {
         "codegen": "bun run --cwd .. codegen",
         "codegen-check": "bun run --cwd .. codegen-check",
-        "dev": "bun run codegen && bun run dev:raw",
+        "dev": "bun run --cwd .. codegen-dev && bun run dev:raw",
         "dev:raw": "vite --port 3000",
         "build": "bun run build:raw",
         "build:raw": "vite build",

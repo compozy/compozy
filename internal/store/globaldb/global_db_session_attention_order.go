@@ -9,7 +9,8 @@ import (
 // The numeric branches match store.SessionCatalogAttentionRank. Needs-you rows
 // lead, followed by unseen finished rows and then sessions with no attention.
 const sessionCatalogAttentionRankExpression = `(CASE
-	WHEN pending_permission_count > 0
+	WHEN (stop_verification_failed = 1 AND state <> 'stopped')
+		OR pending_permission_count > 0
 		OR pending_clarify_count > 0
 		OR trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
 	string(store.FailureProviderAuth) + `')

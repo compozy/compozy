@@ -113,6 +113,7 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		AuthMode:        string(value.AuthMode),
 		EnvPolicy:       string(value.EnvPolicy),
 		HomePolicy:      string(value.HomePolicy),
+		SteerCapability: value.SteerCapability,
 		AuthStatusCmd:   strings.TrimSpace(value.AuthStatusCmd),
 		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}

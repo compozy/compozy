@@ -29,6 +29,8 @@ interface LoopQuarantineSheetProps {
   runId: string;
   open: boolean;
   isRequeuePending?: boolean;
+  /** The run reached a terminal status, so the daemon rejects requeue and cancel. */
+  runEnded?: boolean;
   onOpenChange: (open: boolean) => void;
   onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
   /** Slot for the requeue confirm dialog, nested inside the sheet. */
@@ -52,14 +54,16 @@ function countGist(attempts: number, episodes: number): string {
  *
  * Nothing is synthesized. If the entry carries no hint, no hint section renders;
  * if an attempt recorded no cause, its line is just the class and disposition.
- * Requeue disappears the moment refreshed truth says the node left quarantine,
- * so the sheet can never offer a verb the daemon would now reject.
+ * Requeue disappears the moment refreshed truth says the node left quarantine
+ * or the run ended, so the sheet can never offer a verb the daemon would now
+ * reject. The entry itself stays readable either way.
  */
 export function LoopQuarantineSheet({
   node,
   runId,
   open,
   isRequeuePending,
+  runEnded = false,
   onOpenChange,
   onVerb,
   children,
@@ -171,11 +175,13 @@ export function LoopQuarantineSheet({
               </div>
             </ScrollArea>
             <SheetFooter className="flex-row items-center justify-between gap-3 border-t border-line px-5 py-3">
-              <span className="text-small-body text-muted">
-                The run keeps working — quarantine never stops it by itself.
+              <span className="text-small-body text-muted" data-testid="loop-quarantine-foot">
+                {runEnded
+                  ? "This run has ended. The entry is kept as a record."
+                  : "The run keeps working — quarantine never stops it by itself."}
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                {node.quarantined ? (
+                {node.quarantined && !runEnded ? (
                   <>
                     <Button
                       data-testid="loop-quarantine-cancel"

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -724,6 +725,9 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 					http.StatusAccepted,
 					`{"prompt":{"status":"canceled","delivery":"none","message_id":"msg-2","idempotency_key":"idem-2","replayed":false,"queue_entry_id":"queue-1"}}`,
 				), nil
+			case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt/queue":
+				return newHTTPResponse(http.StatusOK,
+					`{"inputs":[{"id":"queue-1","status":"canceled"}],"cleared_count":1,"queue_generation":3}`), nil
 			default:
 				return nil, fmt.Errorf("unexpected request = %s %s", req.Method, req.URL.Path)
 			}
@@ -740,6 +744,14 @@ func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 		}
 		if len(inputs.Inputs) != 1 || inputs.Inputs[0].ID != "queue-1" || inputs.Inputs[0].QueueGeneration != 2 {
 			t.Fatalf("ListSessionInputs() = %#v", inputs)
+		}
+	})
+	t.Run("Should clear pending input in workspace session scope", func(t *testing.T) {
+		t.Parallel()
+		result, err := client.ClearSessionInputs(t.Context(), "sess-1")
+		if err != nil || result.ClearedCount != 1 || result.QueueGeneration != 3 ||
+			len(result.Inputs) != 1 || result.Inputs[0].Status != contract.SessionInputCanceled {
+			t.Fatalf("ClearSessionInputs() = %#v, %v", result, err)
 		}
 	})
 
@@ -2839,7 +2851,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"commands":[{"id":"builtin:goal","canonical_token":"/goal","display_name":"/goal","description":"Goal","lane":"builtin","source":{"kind":"builtin","scope":"session"},"placements":["standalone"]}],"revision":"rev-commands"}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/stop":
-					return newHTTPResponse(http.StatusNoContent, ``), nil
+					var input contract.StopSessionRequest
+					if err := json.NewDecoder(req.Body).Decode(&input); err != nil || input.Wait == nil || *input.Wait {
+						t.Fatalf("stop request = %#v, %v", input, err)
+					}
+					return newHTTPResponse(
+						http.StatusAccepted,
+						`{"session_id":"sess-1","status":"stopping","state":"stopping","verified":false,"escalated":false}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -3259,8 +3278,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListSessionCommands() = %#v, %v", commands, err)
 	}
 
-	if err := client.StopSession(ctx, "sess-1"); err != nil {
-		t.Fatalf("StopSession() error = %v", err)
+	if result, err := client.StopSession(ctx, "sess-1", false); err != nil || result.State != session.StateStopping {
+		t.Fatalf("StopSession() = %#v, %v", result, err)
 	}
 	t.Run("Should rename a session through the workspace route", func(t *testing.T) {
 		t.Parallel()

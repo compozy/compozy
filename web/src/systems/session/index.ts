@@ -6,6 +6,9 @@ export type {
   AnswerClarificationResult,
   ApproveSessionParams,
   ClarificationPending,
+  SessionInteractionRecord,
+  SessionInteractionStatus,
+  SessionInteractionsResponse,
   ClarifyEventView,
   ClarifyStatus,
   CreateSessionParams,
@@ -27,6 +30,10 @@ export type {
   SessionByIDResponse,
   SessionOwnerResponse,
   SessionPayload,
+  SessionSupervisionPayload,
+  SessionWorkSignalPayload,
+  SessionWorkSignalKind,
+  SessionQuietWarningPayload,
   SessionAttachment,
   SessionBusyInputDraft,
   SessionBusyInputHandler,
@@ -34,7 +41,10 @@ export type {
   SessionPromptPayload,
   SessionPromptRequest,
   SessionPromptResponse,
+  SessionStopResult,
+  SessionPromptDirectTurn,
   SessionPromptResult,
+  SessionPromptSendResult,
   PromoteSessionInputRequest,
   ReplaceSessionInputRequest,
   SessionGoalCommandResult,
@@ -85,14 +95,6 @@ export {
   type SessionPromptRuntimeProviderProps,
 } from "./contexts/session-prompt-runtime-context";
 export {
-  getSessionPromptRuntimeSnapshot,
-  useSessionPromptRuntime,
-} from "./hooks/use-session-prompt-runtime";
-export {
-  useOptionalSessionPromptRuntimeContext,
-  useSessionPromptRuntimeContext,
-} from "./hooks/use-session-prompt-runtime-context";
-export {
   SessionPromptRuntimeSelector,
   type SessionPromptRuntimeSelectorProps,
 } from "./components/session-prompt-runtime-selector";
@@ -102,10 +104,12 @@ export {
   approveSession,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
+  clearSessionInputs,
   clearSessionRuntime,
   ClarificationNotAnswerableError,
   createSession,
   fetchSessionClarifications,
+  fetchSessionInteractions,
   deleteSession,
   fetchSession,
   fetchSessionCommands,
@@ -130,45 +134,19 @@ export {
   SessionApiError,
   SessionLedgerUnavailableError,
   SessionNotFoundError,
-  steerSessionPrompt,
   stopSession,
   unarchiveSession,
 } from "./adapters/session-api";
 export type { SessionRewindRequest, SessionRewindResult } from "./adapters/session-api";
-export {
-  useSetSessionRuntime,
-  type SetSessionRuntimeVariables,
-} from "./hooks/use-session-runtime-selection";
 
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
-// Attachment surface — byte URLs, prompt parts, item shaping, cards (./attachments).
-export {
-  attachmentExtensionMark,
-  attachmentsFromPromptMessageParts,
-  consumeSubmittedComposerAttachment,
-  formatAttachmentBytes,
-  isImageMediaType,
-  retainSubmittedComposerAttachments,
-  sessionAttachmentBytesURL,
-  sessionAttachmentIdFromURI,
-  sessionAttachmentMediaType,
-  SessionAttachmentFileCard,
-  SessionAttachmentFrame,
-  SessionAttachmentGallery,
-  userMessageAttachmentItems,
-  userMessageHasAttachments,
-  userMessageHasText,
-  type SessionAttachmentFileCardProps,
-  type SessionAttachmentFileItem,
-  type SessionAttachmentFrameProps,
-  type SessionAttachmentGalleryProps,
-  type SessionAttachmentImageItem,
-  type SessionAttachmentItem,
-} from "./attachments";
+// Attachment surface — byte URLs, prompt parts, item shaping, cards; ./attachments is the public list.
+export * from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
-export { isClarifyEventData } from "./lib/clarify-event";
+export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
+export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list
 // preferences, presence lease. Grouped in ./attention; re-exported here.
@@ -216,12 +194,52 @@ export {
   type SessionListViewModel,
   type WorkspaceSessionGroup,
 } from "./attention";
-export { queuedPromptAttachmentSummary } from "./lib/queued-prompt";
+export {
+  isQueuedPromptMutable,
+  queueCapFromInputs,
+  queuedPromptAttachmentSummary,
+  queuedPromptOwner,
+  queuedPromptsFromInputs,
+  withCachedInputs,
+} from "./lib/queued-prompt";
 export type {
   QueuedPrompt,
   QueuedPromptAttachmentPreview,
   QueuedPromptAttachmentSummary,
+  QueuedPromptEditOutcome,
+  QueuedPromptOwner,
+  QueuedPromptStatus,
 } from "./lib/queued-prompt";
+export { queuedPromptPreview, type QueuedPromptPreview } from "./lib/queued-prompt-preview";
+export {
+  beginUnconfirmedRetry,
+  findUnconfirmedSend,
+  isSendAcknowledgmentLost,
+  markSendUnconfirmed,
+  resolveUnconfirmedSend,
+  type SessionSendEnvelope,
+  type SessionSendIdentity,
+  type UnconfirmedSend,
+} from "./lib/session-unconfirmed-send";
+export { SessionQueueStrip, type SessionQueueStripProps } from "./components/session-queue-strip";
+export {
+  isSessionTransportDisconnected,
+  SESSION_TRANSPORT_GRACE_MS,
+  SESSION_TRANSPORT_LIVE,
+  sessionTransportChip,
+  transportGraceElapsed,
+  type SessionTransportChipModel,
+  type SessionTransportFailure,
+  type SessionTransportHistoryReset,
+  type SessionTransportPhase,
+  type SessionTransportSnapshot,
+} from "./lib/session-transport";
+export type { SessionTransportState } from "./lib/session-transcript-thread-context-value";
+export { SessionTransportChip } from "./components/session-transport-chip";
+export {
+  SessionTransportFailureNotice,
+  SessionTransportHistoryResetNotice,
+} from "./components/session-transport-notices";
 export { sessionKeys } from "./lib/query-keys";
 export {
   cachedForeignSessionOwner,
@@ -244,6 +262,8 @@ export {
 export {
   sessionClarificationsOptions,
   sessionCommandsOptions,
+  sessionExpiredInteractionsOptions,
+  sessionResolvedInteractionsOptions,
   sessionInputsOptions,
   sessionAttentionSummaryOptions,
   sessionDetailOptions,
@@ -260,21 +280,6 @@ export {
   sessionsCompleteListOptions,
 } from "./lib/query-options";
 export {
-  sessionCommandMenuCatalog,
-  useSessionCommands,
-  type SessionCommandMenuCatalog,
-  type SessionCommandMenuItem,
-  type SessionCommandMenuSection,
-} from "./hooks/use-session-commands";
-export {
-  useCancelSessionInput,
-  usePromoteSessionInput,
-  useReplaceSessionInput,
-  useSessionInputs,
-  type PromoteSessionInputVariables,
-  type ReplaceSessionInputVariables,
-} from "./hooks/use-session-inputs";
-export {
   canPromptSession,
   hasUnrecoverableRuntime,
   hasRunningSession,
@@ -283,8 +288,11 @@ export {
   isUserControllableSession,
   runningAgentNames,
 } from "./lib/session-running";
+export { invalidateSessionMutationQueries } from "./lib/session-query-invalidation";
+// Busy-input surface — default mode, steer delivery, refusals, send outcome.
+// Grouped in ./busy-input; re-exported here.
+export * from "./busy-input";
 
-export { useSessionComposerDraft, useSessionGoalFeedback } from "./hooks/use-session-store";
 export type {
   SessionGoalFeedback,
   SessionStoreContext,
@@ -292,105 +300,11 @@ export type {
 } from "./stores/session-store";
 export { sessionStore } from "./stores/session-store";
 
-export {
-  useSession,
-  useSessionById,
-  useSessionLedger,
-  useSessionGoal,
-  useSessionRecap,
-  useSessionUsage,
-  useSessions,
-} from "./hooks/use-sessions";
-export {
-  useForeignProfileSession,
-  type ForeignProfileSessionState,
-} from "./hooks/use-foreign-profile-session";
-export {
-  useAnswerSessionClarification,
-  useSessionClarifications,
-  type AnswerClarificationVariables,
-} from "./hooks/use-session-clarifications";
-export { useSessionRuntimeRenderContext } from "./hooks/use-session-runtime-render-context";
-export {
-  useWorkspaceSessionActivity,
-  workspaceSessionActivityFromResults,
-  type WorkspaceSessionActivity,
-  type WorkspaceSessionActivityMap,
-  type WorkspaceSessionReturnTarget,
-} from "./hooks/use-workspace-session-activity";
-export {
-  sessionCatalogStreamURL,
-  useSessionCatalogStreams,
-  type SessionCatalogEventSource,
-  type SessionCatalogEventSourceFactory,
-  type SessionCatalogStreamStatus,
-} from "./hooks/use-session-catalog-streams";
-export {
-  useSessionTranscriptThreadMessages,
-  useSessionTranscriptThreadState,
-} from "./hooks/use-session-transcript-thread-messages";
-export { useSessionTopbarSlot } from "./hooks/use-session-topbar-slot";
-export {
-  useSessionInspectorState,
-  type UseSessionInspectorStateResult,
-} from "./hooks/use-session-inspector-state";
-export {
-  toggleSessionSidebar,
-  useSessionSidebarState,
-  type UseSessionSidebarStateResult,
-} from "./hooks/use-session-sidebar-state";
 export type {
   SessionTranscriptThreadState,
   SessionTranscriptThreadStatus,
 } from "./lib/session-transcript-thread-context-value";
-export {
-  useClearSessionConversation,
-  useArchiveSession,
-  useCancelQueuedSessionPrompt,
-  useCreateSession,
-  useDeleteSession,
-  useInterruptSessionPrompt,
-  useQueueSessionPrompt,
-  useRepairSession,
-  useRenameSession,
-  useResumeSession,
-  useSendSessionPrompt,
-  useSteerSessionPrompt,
-  useStopSession,
-  useUnarchiveSession,
-  type CancelQueuedSessionPromptParams,
-  type RepairSessionParams,
-  type RenameSessionParams,
-  type SendSessionPromptParams,
-  type SessionPromptActionParams,
-} from "./hooks/use-session-actions";
-export { useSessionRewind, type SessionRewindVariables } from "./hooks/use-session-rewind";
-export {
-  useSessionLifecycleActions,
-  type SessionDeleteConfirmation,
-  type SessionLifecycleAction,
-  type SessionLifecycleActionHandlers,
-  type SessionRenameConfirmation,
-  type UseSessionLifecycleActionsOptions,
-  type UseSessionLifecycleActionsResult,
-} from "./hooks/use-session-lifecycle-actions";
-export {
-  useSessionCreateDialogController,
-  useSessionCreateDialogViewModel,
-  type SessionCreateDialogApi,
-  type SessionCreateDialogController,
-  type SessionCreateDialogDraft,
-  type SessionCreateDialogState,
-} from "./hooks/use-session-create-dialog";
 export { SessionCreateProvider } from "./contexts/session-create-context";
-export {
-  useSessionCreateActions,
-  useSessionCreateHasActiveWorkspace,
-  useSessionCreateIsCreating,
-  useSessionCreatePendingAgentName,
-  useSessionCreateStore,
-} from "./hooks/use-session-create";
-export { useSessionPromptFallback } from "./hooks/use-session-prompt-fallback";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
 export {
@@ -408,6 +322,92 @@ export {
   SessionRuntimeRecoveryNotice,
   type SessionRuntimeRecoveryNoticeProps,
 } from "./components/session-runtime-recovery-notice";
+export {
+  SessionStopAttentionNotice,
+  type SessionStopAttentionNoticeProps,
+} from "./components/session-stop-attention-notice";
+export {
+  STOP_VERIFICATION_FAILED_ATTENTION,
+  sessionStopAttention,
+  type SessionStopAttention,
+} from "./lib/session-stop-attention";
+export {
+  SessionQuietWarningNotice,
+  type SessionQuietWarningNoticeProps,
+} from "./components/session-quiet-warning-notice";
+export {
+  SessionQuietStatusRow,
+  type SessionQuietStatusRowProps,
+} from "./components/session-quiet-status-row";
+export {
+  SessionThinkingRow,
+  type SessionThinkingRowProps,
+} from "./components/session-thinking-row";
+export {
+  agentCountLabel,
+  deriveWorkingStatus,
+  formatFrozenDuration,
+  formatWorkingElapsed,
+  type SessionLastTurn,
+  type SessionLastTurnCause,
+  type SessionWorkingStatus,
+  type SessionWorkingStatusInput,
+} from "./lib/session-working-status";
+export {
+  assistantMessageHasContent,
+  deriveThinkingState,
+  THINKING_FLICKER_GUARD_MS,
+  thinkingGuardRemainingMs,
+  type SessionThinkingState,
+} from "./lib/session-thinking-state";
+export {
+  liveToolLabel,
+  parallelToolLabel,
+  toolVisualKind,
+  toolVisualState,
+  toolVisualStatus,
+  type SessionToolKind,
+  type SessionToolVisualState,
+  type SessionToolVisualStatus,
+} from "./lib/session-tool-visual-state";
+export {
+  formatPayloadSize,
+  PAYLOAD_PREVIEW_MAX_LINES,
+  payloadTruncationNote,
+  truncatePayload,
+  type PayloadTruncation,
+} from "./lib/session-payload-truncation";
+export {
+  releaseFarTranscriptPages,
+  TRANSCRIPT_KEEP_PAGES,
+  transcriptPageIndexOf,
+} from "./lib/session-transcript-window";
+export { steerMarkerView, type SteerMarkerKind, type SteerMarkerView } from "./lib/steer-marker";
+export {
+  deriveSteerProvenance,
+  emptySteerProvenance,
+  type SteerMarkerRender,
+  type SteerProvenance,
+  type SteerProvenanceIndex,
+} from "./lib/steer-provenance";
+export { SteerProvenanceProvider } from "./lib/steer-provenance-context";
+export {
+  deriveTurnOutcomes,
+  emptyTurnOutcomes,
+  type SessionTurnOutcome,
+  type SessionTurnOutcomes,
+} from "./lib/session-turn-outcomes";
+export { SessionTurnOutcomesProvider } from "./lib/session-turn-outcomes-context";
+export {
+  formatQuietDuration,
+  formatQuietDurationWords,
+  sessionQuietWarning,
+  sessionQuietWarningClock,
+  sessionQuietWarningFacts,
+  type SessionQuietWarning,
+  type SessionQuietWarningClock,
+  type SessionQuietWarningFacts,
+} from "./lib/session-quiet-warning";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,
@@ -439,7 +439,9 @@ export {
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {
   PermissionDataPart,
+  PermissionExpiredReceipt,
   PermissionReceipt,
+  type PermissionExpiredReceiptProps,
   type PermissionReceiptProps,
 } from "./components/permission-data-part";
 export { PermissionDock, type PermissionDockProps } from "./components/permission-dock";
@@ -453,8 +455,10 @@ export {
   type SessionGoalHeadActionProps,
 } from "./components/goal/goal-head-action";
 export { SessionGoalStrip, type SessionGoalStripProps } from "./components/goal/session-goal-strip";
-export { useSessionGoalHeader } from "./hooks/use-session-goal-header";
-export { ClarificationReceipt } from "./components/clarification-receipt";
+export {
+  ClarificationReceipt,
+  type ClarificationReceiptProps,
+} from "./components/clarification-receipt";
 export {
   ClarificationDataPart,
   type ClarificationDataPartProps,
@@ -471,9 +475,7 @@ export { deriveFileReads, type InspectorFileEntry } from "./components/session-i
 
 // Environment surface — worktree binding, fork, target selection (./environment).
 export * from "./environment";
-export { findSessionCommand } from "./hooks/use-session-commands";
-export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
-export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
-export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";
 export * from "./quote";
+export type { SessionSendAction } from "./lib/session-busy-input";
+export * from "./hooks";

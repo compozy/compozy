@@ -63,3 +63,8 @@ export const TimedOut: Story = {
 export const Canceled: Story = {
   args: { view: view("canceled", null) },
 };
+
+/** Expired at a daemon restart — the durable interaction row, not the transcript, names the cause. */
+export const ExpiredByRestart: Story = {
+  args: { view: view("canceled", null), cause: "restart" },
+};

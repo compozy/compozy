@@ -26,7 +26,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Configure provider authentication or run provider authentication login                                                         | references/agent-definitions.md + references/native-tools.md       |
 | Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
-| Open, inspect, attach to, execute in, or control CompozyOS terminals; answer terminal input or audit terminal commands         | references/terminal.md + references/native-tools.md                |
+| Open, inspect, attach to, execute in, or interact with CompozyOS terminals; answer terminal input or audit terminal commands   | references/terminal.md + references/native-tools.md                |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                  | references/runtime-operations.md                                   |
 | Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
@@ -48,7 +48,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
-- references/terminal.md - deliberate terminal activation, native tool IDs, approval and control leases, input handoff, untrusted output, journal, profile, and platform rules.
+- references/terminal.md - deliberate terminal activation, native tool IDs, approval and shared input, input requests, untrusted output, journal, profile, and platform rules.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
@@ -75,7 +75,7 @@ If a required resource read fails, retry `compozy__skill_view` once with the exa
 `tool_not_found` or `tool_invalid_input` before retrying; retry `tool_backend_failed` once without
 changing the request. After a second failure, proceed only when one native call's live descriptor
 fully defines the requested operation, risk, and result handling. A visible `terminal_exec` qualifies
-for a one-command terminal demonstration; multi-step terminal control still requires
+for a one-command terminal demonstration; multi-step terminal interaction still requires
 `references/terminal.md`. Otherwise stop
 the affected operation and report the exact path. Preserve structured runtime errors, follow the
 diagnostic order in `references/runtime-operations.md`, and keep daemon-owned state authoritative.

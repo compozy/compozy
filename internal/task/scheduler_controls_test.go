@@ -476,3 +476,34 @@ func schedulerEventSummariesContain(summaries []storepkg.EventSummary, eventType
 	}
 	return false
 }
+
+// Invariant: scheduler status reads current ephemeral counters without treating
+// skipped attempts as delivered. Owner: scheduler-control status suite.
+func TestSchedulerStatusShouldExposeRuntimeCounters(t *testing.T) {
+	t.Parallel()
+	manager := newTaskManagerForTestWithOptions(t, newSchedulerControlTestStore())
+	status, err := manager.SchedulerStatus(t.Context(), validActorContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Counters != nil {
+		t.Fatal("unbound runtime advertised counters")
+	}
+	counters := SchedulerCounters{Cycles: 1, WakeAttempts: 3, WakeSkipped: 2, WakeSucceeded: 1, CapacityWaitingRuns: 4}
+	manager.SetSchedulerCountersReader(func() SchedulerCounters { return counters })
+	status, err = manager.SchedulerStatus(t.Context(), validActorContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Counters == nil || *status.Counters != counters {
+		t.Fatalf("counters = %+v", status.Counters)
+	}
+	counters.Cycles++
+	current, err := manager.SchedulerStatus(t.Context(), validActorContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Counters.Cycles != 2 || status.Counters.Cycles != 1 {
+		t.Fatal("status snapshot was stale or aliased")
+	}
+}

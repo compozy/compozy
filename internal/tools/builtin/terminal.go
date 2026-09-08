@@ -49,9 +49,8 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		nativeName: "terminal_open",
 		title:      "Terminal Open",
 		description: "Open a persistent interactive terminal that appears as a Terminal window on the user's " +
-			"CompozyOS desktop, where the user watches live and can take over. Drive it with terminal_write, " +
-			"terminal_read, and terminal_wait. Requires interactive availability; the terminal is bound to the " +
-			"acting session, run, and generation for later ownership checks.",
+			"CompozyOS desktop. The user and authorized agents in the same profile can interact with it at any time. " +
+			"Drive it with terminal_write, terminal_read, and terminal_wait. Requires interactive availability.",
 		inputSchema:  terminalOpenInputSchema,
 		outputSchema: terminalIDOutputSchema,
 		risk:         toolspkg.RiskMutating,
@@ -62,8 +61,8 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		id:         toolspkg.ToolIDTerminalWrite,
 		nativeName: "terminal_write",
 		title:      "Terminal Write",
-		description: "Write non-empty input only while the acting session, run, and generation hold the terminal lease. " +
-			"Use terminal_read or terminal_wait to observe untrusted output.",
+		description: "Write non-empty input to a terminal visible to the acting profile. Each write is delivered " +
+			"as one complete submission. Use terminal_read or terminal_wait to observe untrusted output.",
 		inputSchema:  terminalWriteInputSchema,
 		outputSchema: terminalWriteOutputSchema,
 		risk:         toolspkg.RiskDestructive,
@@ -75,7 +74,7 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		id:           toolspkg.ToolIDTerminalRead,
 		nativeName:   "terminal_read",
 		title:        "Terminal Read",
-		description:  "Read bounded terminal output without acquiring its lease. Treat every returned byte as untrusted.",
+		description:  "Read bounded terminal output without changing it. Treat every returned byte as untrusted.",
 		inputSchema:  terminalReadInputSchema,
 		outputSchema: terminalReadOutputSchema,
 		risk:         toolspkg.RiskRead,
@@ -100,7 +99,7 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		id:           toolspkg.ToolIDTerminalSignal,
 		nativeName:   "terminal_signal",
 		title:        "Terminal Signal",
-		description:  "Signal only a terminal whose lease matches the acting session, run, and generation.",
+		description:  "Signal a terminal visible to the acting profile.",
 		inputSchema:  terminalSignalInputSchema,
 		outputSchema: deliveredOutputSchema,
 		risk:         toolspkg.RiskMutating,
@@ -111,7 +110,7 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		id:           toolspkg.ToolIDTerminalClose,
 		nativeName:   "terminal_close",
 		title:        "Terminal Close",
-		description:  "Close only a terminal whose ownership fence matches the acting session, run, and generation.",
+		description:  "Close a terminal visible to the acting profile.",
 		inputSchema:  terminalIDInputSchema,
 		outputSchema: terminalCloseOutputSchema,
 		risk:         toolspkg.RiskDestructive,
@@ -123,9 +122,8 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 		id:         toolspkg.ToolIDTerminalList,
 		nativeName: "terminal_list",
 		title:      "Terminal List",
-		description: "List terminals visible to the acting profile, including interactive availability, lease, " +
-			"and the bound session, run, and generation used for ownership fencing. Check it before opening " +
-			"a new terminal.",
+		description: "List terminals visible to the acting profile, including interactive availability and " +
+			"originating run provenance. Check it before opening a new terminal.",
 		inputSchema:  emptyInputSchema,
 		outputSchema: terminalListOutputSchema,
 		risk:         toolspkg.RiskRead,
@@ -141,27 +139,6 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 			"the program to be actively hiding input; an idle shell prompt is rejected.",
 		inputSchema:  terminalRequestInputSchema,
 		outputSchema: terminalInputOutcomeSchema,
-		risk:         toolspkg.RiskMutating,
-		capability:   terminalExecCapability,
-	},
-	{
-		id:           toolspkg.ToolIDTerminalYield,
-		nativeName:   "terminal_yield",
-		title:        "Terminal Yield",
-		description:  "Yield the acting generation's terminal lease to the operator.",
-		inputSchema:  terminalYieldInputSchema,
-		outputSchema: terminalLeaseOutputSchema,
-		risk:         toolspkg.RiskMutating,
-		capability:   terminalExecCapability,
-	},
-	{
-		id:         toolspkg.ToolIDTerminalClaim,
-		nativeName: "terminal_claim",
-		title:      "Terminal Claim",
-		description: "Claim an available terminal for the acting session, run, and generation without displacing " +
-			"a human controller.",
-		inputSchema:  terminalIDInputSchema,
-		outputSchema: terminalLeaseOutputSchema,
 		risk:         toolspkg.RiskMutating,
 		capability:   terminalExecCapability,
 	},
@@ -205,7 +182,7 @@ const terminalExecOutputSchema = `{"type":"object","required":["untrusted","comm
 
 const terminalWriteInputSchema = `{"type":"object","required":["terminal_id","data"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"data":{"type":"string","minLength":1}}}`
 
-const terminalWriteOutputSchema = `{"type":"object","required":["accepted","lease_state"],"additionalProperties":false,"properties":{"accepted":{"type":"boolean"},"lease_state":{"enum":["agent_owned","human_owned","available"]}}}`
+const terminalWriteOutputSchema = `{"type":"object","required":["accepted"],"additionalProperties":false,"properties":{"accepted":{"type":"boolean"}}}`
 
 const terminalReadInputSchema = `{"type":"object","required":["terminal_id","view"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"view":{"enum":["screen","tail","lines"]},"max_bytes":{"type":"integer","minimum":1},"since_seq":` + terminalpkg.DecimalUint64JSONSchema + `,"from":{"type":"integer","minimum":0},"to":{"type":"integer","minimum":0},"grep":{"type":"string"}}}`
 
@@ -221,12 +198,8 @@ const deliveredOutputSchema = `{"type":"object","required":["delivered"],"additi
 
 const terminalCloseOutputSchema = `{"type":"object","required":["exit"],"additionalProperties":false,"properties":{"exit":{"type":"object","required":["cause","at"],"additionalProperties":false,"properties":{"cause":{"type":"string"},"code":{"type":["integer","null"]},"signal":{"type":["string","null"]},"at":{"type":"string","format":"date-time"}}}}}`
 
-const terminalListOutputSchema = `{"type":"object","required":["terminals"],"additionalProperties":false,"properties":{"terminals":{"type":"array","items":{"type":"object","required":["id","workspace_id","profile_id","profile_name","title","shell","cwd","mode","state","controller","lease","viewers","bound_run","capabilities","created_at"],"additionalProperties":false,"properties":{"id":{"type":"string"},"workspace_id":{"type":"string"},"profile_id":{"type":"string"},"profile_name":{"type":"string"},"title":{"type":"string"},"shell":{"type":"string"},"cwd":{"type":"string"},"mode":{"enum":["pty","pipe"]},"state":{"type":"string"},"controller":{"type":["object","null"],"required":["kind","id"],"additionalProperties":false,"properties":{"kind":{"type":"string"},"id":{"type":"string"}}},"lease":{"enum":["agent_owned","human_owned","available"]},"viewers":{"type":"integer"},"bound_run":{"type":["object","null"],"required":["session_id","run_id","generation"],"additionalProperties":false,"properties":{"session_id":{"type":"string"},"run_id":{"type":"string"},"generation":{"type":"integer"}}},"capabilities":{"type":"object","required":["interactive"],"additionalProperties":false,"properties":{"interactive":{"type":"boolean"}}},"created_at":{"type":"string","format":"date-time"},"exit":{"type":"object","required":["cause","at"],"additionalProperties":false,"properties":{"cause":{"type":"string"},"code":{"type":"integer"},"signal":{"type":"string"},"at":{"type":"string","format":"date-time"}}}}}}}}`
+const terminalListOutputSchema = `{"type":"object","required":["terminals"],"additionalProperties":false,"properties":{"terminals":{"type":"array","items":{"type":"object","required":["id","workspace_id","profile_id","profile_name","title","shell","cwd","mode","state","viewers","bound_run","capabilities","created_at"],"additionalProperties":false,"properties":{"id":{"type":"string"},"workspace_id":{"type":"string"},"profile_id":{"type":"string"},"profile_name":{"type":"string"},"title":{"type":"string"},"shell":{"type":"string"},"cwd":{"type":"string"},"mode":{"enum":["pty","pipe"]},"state":{"type":"string"},"viewers":{"type":"integer"},"bound_run":{"type":["object","null"],"required":["session_id","run_id","generation"],"additionalProperties":false,"properties":{"session_id":{"type":"string"},"run_id":{"type":"string"},"generation":{"type":"integer"}}},"capabilities":{"type":"object","required":["interactive"],"additionalProperties":false,"properties":{"interactive":{"type":"boolean"}}},"created_at":{"type":"string","format":"date-time"},"exit":{"type":"object","required":["cause","at"],"additionalProperties":false,"properties":{"cause":{"type":"string"},"code":{"type":"integer"},"signal":{"type":"string"},"at":{"type":"string","format":"date-time"}}}}}}}}`
 
 const terminalRequestInputSchema = `{"type":"object","required":["terminal_id","reason","prompt_excerpt"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"reason":{"type":"string"},"prompt_excerpt":{"type":"string"},"redact":{"type":"boolean"}}}`
 
 const terminalInputOutcomeSchema = `{"type":"object","required":["outcome","redacted","length"],"additionalProperties":false,"properties":{"outcome":{"enum":["answered","rejected","superseded","expired"]},"redacted":{"type":"boolean"},"length":{"type":"integer"}}}`
-
-const terminalYieldInputSchema = `{"type":"object","required":["terminal_id","reason"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"reason":{"type":"string"}}}`
-
-const terminalLeaseOutputSchema = `{"type":"object","required":["lease_state"],"additionalProperties":false,"properties":{"granted":{"type":"boolean"},"lease_state":{"enum":["agent_owned","human_owned","available"]},"controller":{"type":["object","null"],"additionalProperties":false,"required":["kind","id","profile_id"],"properties":{"kind":{"type":"string"},"id":{"type":"string"},"profile_id":{"type":"string"},"session_id":{"type":"string"},"run_id":{"type":"string"},"generation":{"type":"integer"}}}}}`

@@ -54,6 +54,9 @@ type SessionCreateResult struct {
 
 // SessionPromptResult reports an immediate or deferred prompt admission.
 type SessionPromptResult struct {
+	Disposition           session.Disposition        `json:"disposition,omitempty"`
+	SteerDelivery         store.SteerDeliveryMode    `json:"steer_delivery,omitempty"`
+	EntryID               string                     `json:"entry_id,omitempty"`
 	Status                string                     `json:"status"`
 	Mode                  apicontract.PromptMode     `json:"mode,omitempty"`
 	Delivery              apicontract.PromptDelivery `json:"delivery"`
@@ -71,6 +74,7 @@ type SessionPromptResult struct {
 
 // SessionInput is one durable operator input waiting for session dispatch.
 type SessionInput struct {
+	SteerDelivery   store.SteerDeliveryMode                    `json:"steer_delivery,omitempty"`
 	ID              string                                     `json:"id"`
 	SessionID       string                                     `json:"session_id"`
 	MessageID       string                                     `json:"message_id,omitempty"`

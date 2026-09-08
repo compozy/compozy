@@ -1,12 +1,14 @@
 # AI and Agent Posts (2026 wave)
 
+Applicability: corpus-derived structures, lengths, bylines, and narrative devices below are editorial options for the relevant task, not completion gates. Actual claims require appropriate evidence; applicable disclosure restrictions remain binding. Use `pre-publish-checklist.md` for publication requirements.
+
 The AI/agent specialty surface's contract: paper-link-first attribution, named-benchmark + ablation evidence, named-checker idiom, "AI handles the long tail" close motif, and the four sub-variants (research-translation, capability-launch, tooling-platform, strategic-essay).
 
 ## Contents
 
 - [Opening: capability claim + paper/repo link in first scroll](#opening-capability-claim--paperrepo-link-in-first-scroll)
-- [Nine-stage canonical section sequence](#nine-stage-canonical-section-sequence)
-- [Named-benchmark contract (mandatory evidence)](#named-benchmark-contract-mandatory-evidence)
+- [Optional structure for a research-style system post](#optional-structure-for-a-research-style-system-post)
+- [Evidence for capability comparisons](#evidence-for-capability-comparisons)
 - [Ablation as load-bearing credibility move](#ablation-as-load-bearing-credibility-move)
 - [Named guardrails (checkers as concrete artifacts)](#named-guardrails-checkers-as-concrete-artifacts)
 - [Closing move: open-source repo or "long tail" motif](#closing-move-open-source-repo-or-long-tail-motif)
@@ -25,7 +27,7 @@ Exemplars:
 
 **Paper-link-first attribution** is the cohort's load-bearing voice move. Pair the citation with a one-sentence summary of the load-bearing claim. Slop variant: name-drop the paper title without summarising the result.
 
-## Nine-stage canonical section sequence
+## Optional structure for a research-style system post
 
 1. **Capability claim** — one paragraph.
 2. **Paper / repo link** — first scroll.
@@ -37,16 +39,16 @@ Exemplars:
 8. **Lessons** — what we learned about the eval, the system, the failure modes.
 9. **"AI handles the long tail" close** — or open-source repo link.
 
-## Named-benchmark contract (mandatory evidence)
+## Evidence for capability comparisons
 
-Any AI/agent capability claim attaches to:
+Comparative capability or benchmark claims need the applicable evidence below. A launch describing demonstrated behavior can use operational evidence without claiming comparative superiority:
 
 - **Cited benchmark.** Public — MLE-Bench-Lite, BrowseComp-Plus, Finance-Agent, PlanCraft, Workbench, SWE-Bench. Or internal with documented composition — BewAIre's curated dataset of malicious + simulated + benign PRs, with weekly updates.
 - **Baseline.** MLE-STAR vs AIDE (25.8% → 63.6%). Scaling-agents single-agent baseline against centralised / independent / decentralised / hybrid architectures.
 - **Methodology disclosure.** Datadog's evaluation-platform regression — publishing an 11% pass-rate drop and a 35% label-count drop as deliberate short-term degradation in service of a more honest evaluation — is the corpus's standing example of how to disclose methodology shifts.
 - **Evaluation slice.** Task-specific reporting: scaling-agents reports *"+81% on parallelizable tasks (Finance-Agent), −70% on sequential tasks (PlanCraft)"* — the negative finding is published as a load-bearing result, not a buried caveat.
 
-Capability claims without a benchmark are **proof-of-concept**, not production. The skill rejects them at the pre-publish gate.
+A benchmark supports a particular measured claim; its absence does not classify deployment maturity. State what the evidence demonstrates and what remains unmeasured.
 
 ## Ablation as load-bearing credibility move
 
@@ -62,7 +64,7 @@ Scaling-agents publishes a five-architecture box-plot comparison with per-archit
 
 **Distinct obligation:** publish negative findings as load-bearing results, not buried caveats.
 
-**Requirement:** the skill refuses to mark an AI-cohort draft as complete until the H2 chain includes an "In-depth analysis" or "Ablation" section that names what fraction of the headline number each component contributed.
+Use ablations or another valid causal design when attributing measured gains to individual components. Without that evidence, describe observed system behavior and avoid causal contribution claims; no mandatory section title is needed.
 
 ## Named guardrails (checkers as concrete artifacts)
 
@@ -81,7 +83,7 @@ Two variants:
 - **Call-to-build** — open-source repo link. MLE-STAR closes with `google/adk-samples`; Google production-ready-agents closes with a fork link.
 - **"AI handles the long tail" motif** — Meta capacity-efficiency: *"the end goal is a self-sustaining efficiency engine where AI handles the long tail."* The motif is so consistent that its absence is itself diagnostic of a different sub-genre.
 
-**Slop:** bolted-on "AI handles the long tail" on non-AI posts. The trope has become so common it reads as performative when the AI work is not genuinely on the roadmap. If used, the forward-section must name at least two specific applications (build-health + conflict-resolution in Meta WebRTC).
+**Slop:** bolted-on "AI handles the long tail" on non-AI posts. The trope has become so common it reads as performative when the AI work is not genuinely on the roadmap. If used, the forward-section should describe the actual planned application, without a numeric quota (build-health + conflict-resolution in Meta WebRTC).
 
 ## Four sub-variants
 

@@ -9,9 +9,8 @@ Capture deterministic PNG evidence through the bundled CDP helper. The helper
 owns load/font settling and viewport emulation; the procedure owns target
 resolution, evidence checks, and process cleanup.
 
-When a task or spec names a trusted visual reference, **STOP and read
-`.agents/skills/eng/eng-ui-screenshot/references/visual-contract.md` in full
-before capture or implementation**. Its evidence bundle, not an
+When a task or spec names a trusted visual reference, read
+`.agents/skills/eng/eng-ui-screenshot/references/visual-contract.md` before the first capture or implementation; reuse its resolved contract while it remains current. Its evidence bundle, not an
 implementation-only screenshot, is the completion contract.
 
 ## Procedure
@@ -79,7 +78,7 @@ implementation-only screenshot, is the completion contract.
 
 ## Error Handling
 
-- **A capture exits non-zero:** read stderr and `.agents/skills/eng/eng-ui-screenshot/references/troubleshooting.md`; fix the failing target and rerun the whole requested set.
+- **A capture exits non-zero:** read stderr and `.agents/skills/eng/eng-ui-screenshot/references/troubleshooting.md`; fix the failing target and recapture affected targets. Repeat the set only if shared capture inputs changed; retain valid captures for unchanged inputs.
 - **A Storybook port is occupied but unhealthy:** identify the owner and report it. Reuse only a healthy `index.json`; never kill an unowned process to claim the port.
 - **The bootstrap workdir fails:** discard that unique temporary workdir and rerun the bootstrap into a new one; do not mutate repository dependencies.
 - **Chrome survives a crashed helper:** use the printed debug port to identify the exact headless Chrome PID, verify ownership from its command line, then terminate only that PID/process group. Never use a machine-wide `pkill`.

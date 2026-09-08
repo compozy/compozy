@@ -20,6 +20,7 @@ var (
 type daytonaLauncher struct {
 	transport transport
 	sandbox   sandboxInfo
+	processID string
 }
 
 func (l *daytonaLauncher) Launch(
@@ -32,7 +33,9 @@ func (l *daytonaLauncher) Launch(
 	if spec.ResolvedExecutable != "" && !path.IsAbs(spec.ResolvedExecutable) {
 		return nil, fmt.Errorf("sandbox/daytona: resolved launch executable must be absolute")
 	}
-	session, err := l.transport.Dial(ctx, l.sandbox, remoteLaunchCommand(spec))
+	info := l.sandbox
+	info.LauncherProcessID = l.processID
+	session, err := l.transport.Dial(ctx, info, remoteLaunchCommand(spec))
 	if err != nil {
 		return nil, fmt.Errorf("sandbox/daytona: launch agent in sandbox: %w", err)
 	}

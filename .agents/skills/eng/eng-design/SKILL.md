@@ -5,7 +5,7 @@ description: Compozy visual-design authority for production UI, static artifacts
 
 # Compozy Design
 
-Use the canonical visual authorities before making Compozy design decisions.
+Use the applicable canonical visual authorities for the design decision. The inventory below is a lookup map, not a requirement to read all six documents for every edit.
 
 ## Authority
 
@@ -82,6 +82,6 @@ bundle with zero unresolved blocking divergence.
 - **`DESIGN.md` and runtime tokens disagree:** treat `packages/ui/src/tokens.css` as source, run codegen, and inspect the regenerated spec rather than editing generated regions.
 - **No exported primitive fits:** decide whether the need is generic or domain-specific; add generic primitives to `packages/ui` and domain composites to the owning Web system.
 - **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.
-- **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and reconcile or explicitly authorize the reference delta before claiming parity.
+- **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and apply the already-authorized runtime/copy/brand differences. Ask only when a remaining design decision blocks correct implementation or an unsupported difference needs authorization before claiming parity.
 - **The reference shows placeholder art, demo data, or omits product content:** a prototype is lossy — keep the canonical owner (brand inventory, runtime truth, existing views), record the authorized difference, and never grow an `@compozy/ui` brand primitive or delete product content to match a mock.
 - **The reference hand-rolls a shipped component or redraws a live surface:** implement with the mapped `@compozy/ui`/domain component inside the live host surface, keep the reference's read through its variants and tokens, and record the delta as authorized — never fork the component or rebuild the host to match prototype markup.

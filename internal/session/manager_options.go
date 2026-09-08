@@ -385,6 +385,13 @@ func WithSessionSupervision(config compozyconfig.SessionSupervisionConfig) Optio
 	}
 }
 
+// WithSessionStopConfig sets the cooperative grace used before escalation.
+func WithSessionStopConfig(config compozyconfig.SessionStopConfig) Option {
+	return func(manager *Manager) {
+		manager.stopConfig = config
+	}
+}
+
 // WithSessionBusyInputConfig overrides busy-input queue behavior.
 func WithSessionBusyInputConfig(config compozyconfig.SessionBusyInputConfig) Option {
 	return func(manager *Manager) {

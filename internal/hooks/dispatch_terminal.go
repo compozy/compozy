@@ -29,13 +29,6 @@ func (h *Hooks) DispatchTerminalClosed(ctx context.Context, p TerminalClosedPayl
 	return dispatchTerminal(ctx, h, HookTerminalClosed, p)
 }
 
-func (h *Hooks) DispatchTerminalLeaseChanged(
-	ctx context.Context,
-	p TerminalLeaseChangedPayload,
-) (TerminalLeaseChangedPayload, error) {
-	return dispatchTerminal(ctx, h, HookTerminalLeaseChanged, p)
-}
-
 func (h *Hooks) DispatchTerminalCommandStarted(
 	ctx context.Context,
 	p TerminalCommandStartedPayload,

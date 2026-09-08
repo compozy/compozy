@@ -28,7 +28,7 @@ func ValidOpcode(direction Direction, opcode byte) bool {
 	case ServerToClient:
 		return opcode >= ServerOpOutput && opcode <= ServerOpRedactedInput
 	case ClientToServer:
-		return opcode >= ClientOpInput && opcode <= ClientOpRelease
+		return opcode >= ClientOpInput && opcode <= ClientOpDetach
 	default:
 		return false
 	}

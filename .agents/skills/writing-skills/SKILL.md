@@ -1,107 +1,38 @@
 ---
 name: writing-skills
-description: Author, refactor, and debug agent skills. Use when creating a new skill from scratch, pruning or restructuring a bloated SKILL.md, tightening a skill description's triggers, or diagnosing bundled references the agent ignores. Don't use for agent instruction files like CLAUDE.md or AGENTS.md (use writing-agents-md), general documentation, or READMEs.
+description: "Create, refactor, shorten, or debug skills, descriptions, and reference loading. Use writing-agents-md for AGENTS.md/CLAUDE.md; excludes general documentation and READMEs."
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
   credits: Doctrine adapted from writing-great-skills (mattpocock/skills)
 ---
+
 # Writing Skills
 
-A skill exists to wrangle determinism out of a stochastic system. **Predictability** — the agent taking the same _process_ every run, not producing the same output — is the root virtue; every lever below serves it.
+A skill supplies task-specific knowledge or a reliable operation the model would otherwise have to rediscover. Optimize for correct outcomes, useful evidence, and low overhead. Identical process on every run is useful only where ordering is part of the contract.
 
-**Bold terms** are defined in [`references/glossary.md`](references/glossary.md); look them up there for the full meaning.
+## Choose the Scope
 
-## Branches
+- Follow the user's requested outcome and existing authorization. A skill does not add approval steps or override repository policy.
+- Keep a rule only when it changes a relevant decision or prevents an evidenced failure. Delete generic advice, duplicated rules, obsolete model assumptions, and rhetorical pressure.
+- Name concrete triggers and exclusions in the description. Avoid firing on every code edit, every test, or every completion when the procedure is only needed for a narrower problem.
+- Distinguish shared guidance from repository-specific policy. Edit shared sources first; preserve local variants when synchronizing. Check whole-directory differences before an installer overwrites a skill.
 
-| When you are… | Do |
-| --- | --- |
-| Creating a new skill from scratch | Read `references/authoring-procedure.md` in full first — spec mechanics, directory layout, metadata validation. Then apply the doctrine below to every line of content you write. |
-| Improving an existing skill (bloat, drift, weak triggers) | Apply the doctrine below, section by section, until every rule that bears on the skill has been applied. |
-| Diagnosing a skill whose references or assets the agent ignores | Read `references/loading-diagnosis.md` in full before proposing any fix — symptoms, the pointer-strength ladder, and the fixes in order. |
+## Create or Revise
 
-Every branch ends the same way: a written audit, item by item. For create and improve, read `references/checklist.md` in full and mark each item Pass or Fail against the result; for diagnose, run the repair checklist in `references/loading-diagnosis.md`. Fix every Fail and re-audit — a skill that reads well but fails the audit is not done. The doctrine below is what Part A of that audit checks; it governs every line you write, not just the ones the procedure files mention.
+1. Identify the outcome, owning files, known failure, and existing instructions. Reuse the current conversation's evidence; recollect only missing or stale material.
+2. Keep the minimum common contract in `SKILL.md`; link branch-specific references with a condition and the section needed. Read a complete schema or tightly coupled procedure when its whole contract is necessary, not every reference by default.
+3. State required order only for dependencies, mutations, authorization, or cleanup. Let independent searches batch and let the agent choose routine implementation details.
+4. Define completion by the requested deliverable and its applicable checks. Reuse evidence for unchanged inputs. Do not add a mandatory report, subagent round, test suite, or confirmation merely because the skill is installed.
+5. Check changed triggers, links, metadata, and any affected helper behavior. For a small prose edit, summarize this review; for a new skill or broad rewrite, use `references/checklist.md`. Fix material failures at their source.
 
-## Invocation
+For a new package, read `references/authoring-procedure.md`; `assets/SKILL.template.md` is an optional skeleton. Resolve bundled helpers from the skill's actual directory. The read-only metadata helper is `python3 <writing-skills-dir>/scripts/validate-metadata.py --name "[name]" --description "[description]"`.
 
-Two choices, trading different costs:
+## Diagnose and Measure
 
-- A **model-invoked** skill keeps a **description**, so the agent can fire it autonomously _and_ other skills can reach it (you can still type its name too). It contributes to **context load** — the description sits in the window every turn. Mechanics: omit `disable-model-invocation`, and write a model-facing description with rich trigger phrasing ("Use when the user wants…, mentions…").
-- A **user-invoked** skill strips the description from the agent's reach: only you, typing its name, can invoke it — and no other skill can. Zero context load, but it spends **cognitive load**: _you_ are the index that must remember it exists. Mechanics: set `disable-model-invocation: true`; the `description` becomes human-facing — a one-line summary, trigger lists stripped.
+If a necessary reference was missed, use `references/loading-diagnosis.md` to distinguish a bad trigger, inaccessible path, conflicting rule, stale content, and model error. Strengthen the relevant pointer or fix the helper; extra emphasis is not the default repair.
 
-Pick model-invocation only when the agent must reach the skill on its own, or another skill must. If it only ever fires by hand, make it user-invoked and pay no context load.
+Evaluate behavior-changing guidance on representative tasks under the same model/harness when practical: correctness, rework, unnecessary questions, tool calls, and elapsed time. Include successful runs as controls. Count reference reads and skill invocations as costs or diagnostics, never success by themselves. State when only static review was performed; do not claim measured improvements without comparative runs.
 
-When user-invoked skills multiply past what you can remember, that piled-up cognitive load is cured by a **router skill**: one user-invoked skill that names the others and when to reach for each.
-
-## Writing the description
-
-A model-invoked **description** does two jobs — state what the skill is, and list the **branches** that should trigger it. Every word increases **context load**, so a description earns even harder pruning than the body:
-
-- **Front-load the skill's leading word** — the description is where it does its invocation work.
-- **One trigger per branch.** Synonyms that rename a single branch are **duplication** — "build features using TDD … asks for test-first development" is one branch written twice. Collapse them; keep only genuinely distinct branches.
-- **Cut identity that's already in the body.** Keep the description to triggers, plus any "when another skill needs…" reach clause.
-
-## Information hierarchy
-
-A skill is built from two content types — **steps** and **reference** — that mix freely: a skill can be all steps, all reference, or both. The core decision is which to use and where each sits on the **information hierarchy**, a ladder ranked by how immediately the agent needs the material:
-
-1. **In-skill step** — an ordered action in `SKILL.md`, the primary tier: what the agent does, in order. Each step ends on a **completion criterion**, the condition that tells the agent the work is done. Make it _checkable_ (can the agent tell done from not-done?) and, where it matters, _exhaustive_ ("every modified model accounted for", not "produce a change list") — a vague criterion invites **premature completion**.
-2. **In-skill reference** — a definition, rule, or fact in `SKILL.md`, consulted on demand. Often a legitimately flat peer-set (every rule of a review on one rung) — a fine arrangement, not a smell. _The doctrine in this file is all reference._
-3. **External reference** — reference pushed out of `SKILL.md` into a separate file, reached by a **context pointer**, loaded only when the pointer fires. (Spans _disclosed_ reference — a sibling file like `references/glossary.md`, still part of the skill — through fully **external reference** that lives outside the skill system and any skill can point at.)
-
-A demanding completion criterion drives thorough **legwork** — the digging the agent does within the work — whether the skill has steps or not, since "every rule applied" binds flat reference just as "every step done" binds a sequence.
-
-Push too little down and the top bloats; push too much and you hide material the agent actually needs. That tension is the whole decision.
-
-**Progressive disclosure** is the move down the ladder — out of `SKILL.md` into a linked file — so the top stays legible. Mechanics: a linked `.md` file in the skill folder, named for what it holds (this skill discloses its full definitions to `references/glossary.md`). Some skills are used in more than one way, and each distinct way is a **branch** — different runs taking different paths through the skill. Branching is the cleanest disclosure test: inline what every branch needs, and push behind a pointer what only some branches reach. A **context pointer**'s _wording_, not its target, decides when and how reliably the agent reaches the material.
-
-Where the ladder decides _how far down_ a piece sits, **co-location** decides _what sits beside it_ once there: keep a concept's definition, rules, and caveats under one heading rather than scattered, so reading one part brings its neighbours with it.
-
-## When to split
-
-**Granularity** is how finely you divide skills, and each cut spends one of the two loads, so split only when the cut earns it. Two cuts:
-
-- **By invocation** — split off a **model-invoked** skill when you have a distinct **leading word** that should trigger it on its own, or another skill must reach it. You pay **context load** for the new always-loaded **description**, so that independent reach has to be worth it.
-- **By sequence** — split a run of **steps** when the steps still ahead (a step's **post-completion steps**) tempt the agent to rush the one in front of it (**premature completion**). Keeping them out of view encourages the agent to do more **legwork** on the current task.
-
-## Pruning
-
-Keep each meaning in a **single source of truth**: one authoritative place, so changing the behaviour is a one-place edit.
-
-Check every line for **relevance**: does it still bear on what the skill does?
-
-Then hunt **no-ops** sentence by sentence, not just line by line: run the no-op test on each sentence in isolation, and when one fails, delete the whole sentence rather than trim words from it. Be aggressive — most prose that fails should go, not be rewritten.
-
-## Leading words
-
-A **leading word** is a compact concept already living in the model's pretraining that the agent thinks with while running the skill (e.g. _lesson_, _fog of war_, _tracer bullets_). Repeated throughout the text (though not necessarily - a strong leading word might only be needed once), it accumulates a distributed definition and anchors a whole region of behaviour in the fewest tokens, by recruiting priors the model already holds.
-
-It serves predictability twice. In the body it anchors _execution_: the agent reaches for the same behaviour every time the word appears. In the description it anchors _invocation_: when the same word lives in your prompts, docs, and code, the agent links that shared language to the skill and fires it more reliably.
-
-Hunt for opportunities to refactor skills to use leading words. A triad spelled out at three sites (**duplication**), a description spending a sentence to gesture at one idea — each is a passage begging to **collapse** into a single token. Examples include:
-
-- "fast, deterministic, low-overhead" -> _tight_ — one quality restated across a phase — into a single pretrained word (a _tight_ loop).
-- "a loop you believe in" -> _red_ — converts a fuzzy gate into a binary observable state (the loop goes _red_ on the bug, or it doesn't).
-
-You win twice over: fewer tokens, _and_ a sharper hook for the agent to hang its thinking on. Assume every skill is carrying restatements that leading words retire — go find them.
-
-## Failure modes
-
-Use these to diagnose issues the user may be having with the skill.
-
-- **Premature completion** — ending a step before it's genuinely done, attention slipping to _being done_. Defence, in order: sharpen the completion criterion first (cheap, local); only if it is irreducibly fuzzy _and_ you observe the rush, hide the post-completion steps by splitting (the sequence cut).
-- **Duplication** — the same meaning in more than one place. Costs maintenance and tokens, and inflates a meaning's prominence on the ladder past its real rank.
-- **Sediment** — stale layers that settle because adding feels safe and removing feels risky. The default fate of any skill without a pruning discipline.
-- **Sprawl** — a skill simply too long, even when every line is live and unique. Hurts readability and maintainability and wastes tokens. The cure is the ladder: disclose **reference** behind pointers, and split by **branch** or sequence so each path carries only what it needs.
-- **No-op** — a line the model already obeys by default, so you pay load to say nothing. The test: does it change behaviour versus the default? A weak leading word (_be thorough_ when the agent is already thorough-ish) is a no-op; the fix is a stronger word (_relentless_), not a different technique.
-- **Negation** — steering by prohibition backfires: _don't think of an elephant_ names the elephant and makes it more available, not less. Prompt the **positive** — state the target behaviour so the banned one is never spoken; keep a prohibition only as a hard guardrail you can't phrase positively, and even then pair it with what to do instead.
-
-## Bundled files
-
-- `references/glossary.md` — the full definition of every bold term; read the entry when a term's short gloss above is not enough.
-- `references/authoring-procedure.md` — spec mechanics for the create branch (metadata rules, directory layout, script conventions, validation).
-- `references/loading-diagnosis.md` — the diagnose branch: symptoms of ignored references, the pointer-strength ladder, fixes in order.
-- `references/checklist.md` — the exit audit for the create and improve branches: doctrine (Part A) plus spec compliance (Part B), marked Pass/Fail item by item.
-- `scripts/validate-metadata.py` — read-only helper; validates a `name`/`description` pair against the spec. Invoke as `python3 <writing-skills-dir>/scripts/validate-metadata.py --name "[name]" --description "[description]"`.
-- `assets/SKILL.template.md` — starting skeleton for a new SKILL.md.
+Terminology, when needed: `references/glossary.md`.

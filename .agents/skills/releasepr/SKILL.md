@@ -1,6 +1,6 @@
 ---
 name: releasepr
-description: "Guides adoption and use of pr-release in a consuming repository: installation, GitHub Actions wiring, configuration, conventional-commit release PRs, explicit beta/stable/legacy plans, custom notes, dry-runs, publication lifecycle, and troubleshooting. Use when a project depends on compozy/releasepr. Not for editing pr-release itself or general semantic-versioning advice."
+description: "Adopt, configure, run, or troubleshoot compozy/releasepr in a consuming repository, including Actions, beta/stable/legacy plans, notes, dry-runs, and publication. Excludes pr-release internals and general versioning advice."
 license: MIT
 metadata:
   domain: release-automation
@@ -33,6 +33,7 @@ output or running commands. They are load-bearing, not appendices.
 | Run or script a CLI command, choose flags                     | `references/commands.md`                                           |
 | Understand or debug the release lifecycle / CI behavior       | `references/release-workflow.md`                                   |
 | Write commit messages or add custom release notes             | `references/release-notes.md`                                      |
+| Correct notes for an already-published release                | `references/published-release-repair.md` + `references/release-workflow.md` |
 | A release step failed or behaved unexpectedly                 | `references/troubleshooting.md`                                    |
 
 ## Reference Index

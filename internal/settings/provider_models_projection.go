@@ -39,6 +39,7 @@ func providerSettingsBaseFromConfig(name string, provider compozyconfig.Provider
 	models.Curated = nil
 	return ProviderSettings{
 		Command:         provider.Command,
+		SteerCapability: provider.SteerCapability,
 		DisplayName:     provider.DisplayName,
 		Models:          models,
 		Harness:         provider.EffectiveHarness(),

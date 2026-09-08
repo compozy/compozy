@@ -27,6 +27,61 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should persist and apply follow-up preferences without restarting", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		service := testService(t, homePaths, Dependencies{ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)})
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		general := generalSettingsFromConfig(&cfg)
+		general.FollowUpMode = new("queue")
+		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Applied || result.Record.Lifecycle != lifecycle.Live || result.Record.Generation != 1 {
+			t.Fatalf("follow-up apply = %#v", result)
+		}
+		updated, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Session.BusyInput.DefaultMode != "queue" ||
+			updated.Session.BusyInput.QueueCap != cfg.Session.BusyInput.QueueCap {
+			t.Fatalf("persisted busy input = %#v", updated.Session.BusyInput)
+		}
+		// An older client omitting the new preference must preserve the persisted value.
+		general.FollowUpMode = nil
+		if _, err := service.UpdateSection(
+			ctx,
+			SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general},
+		); err != nil {
+			t.Fatal(err)
+		}
+		replayed, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replayed.Session.BusyInput.DefaultMode != "queue" {
+			t.Fatalf("legacy writer erased preference: %#v", replayed.Session.BusyInput)
+		}
+	})
+
 	t.Run("Should keep user and profile writes in one provenance timeline [IT-046]", func(t *testing.T) {
 		t.Parallel()
 

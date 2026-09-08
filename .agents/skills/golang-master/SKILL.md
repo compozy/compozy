@@ -1,6 +1,6 @@
 ---
 name: golang-master
-description: Go engineering doctrine for writing and reviewing production Go — errors, concurrency, safety, types, tests, performance. Use when wrapping or matching errors, spawning goroutines or picking channel vs mutex vs atomic, propagating context and cancellation, designing interfaces or generics, naming and structuring declarations, auditing nil/slice/map/numeric safety, shaping table-driven tests and benchmarks, chasing allocations with pprof, modernizing pre-1.21 idioms, or laying out a module. Don't use for a framework's or repo's own conventions (project skills own those), non-Go code, or fetching third-party library docs.
+description: "Write or review production Go: errors, concurrency, context, types, generics, safety, tests, benchmarks, profiling, modernization, and module structure. Project/framework conventions and third-party API lookup have separate owners."
 allowed-tools: Read, Grep, Glob, Bash(go:*)
 metadata:
   author: Pedro Nauck
@@ -13,7 +13,7 @@ metadata:
 
 Language-level doctrine for **Go 1.21+** (1.22–1.26 features flagged inline) in any Go codebase. This skill is the generic floor; a project's own guidelines skill overrides it wherever the two conflict, and this skill owns everything the project leaves unsaid.
 
-Match the task to one or more Branches rows and read every listed reference **in full** before producing output — the references are the contract; the floor and tripwires below apply to every branch.
+Use the matching reference sections for a concrete Go concern. Reuse current context; do not load every reference merely because Go appears in the task. Project conventions and supported Go versions govern applicability.
 
 ## The floor
 
@@ -24,10 +24,10 @@ Non-negotiables for every line of Go, regardless of branch:
 3. `ctx context.Context` is the first parameter of any function that does I/O, blocks, or crosses an API boundary, and the caller's ctx is propagated — never a fresh `context.Background()` mid-path.
 4. Every goroutine has an owner, an exit path, and a way to be waited on.
 5. `panic` is reserved for impossible states; expected failures return errors.
-6. Type assertions use comma-ok; maps and slices are initialized before use.
-7. Exported types implementing an interface carry `var _ Interface = (*Type)(nil)` beside the definition.
-8. Tests are table-driven with named subtests and run under `-race`.
-9. `gofmt`, `go vet ./...`, and the project's linter pass with zero findings before hand-off.
+6. Check uncertain type assertions. Initialize maps before writes; use nil/zero-value slices when their semantics fit the contract.
+7. Use compile-time interface assertions for an intentional implementation contract; do not invent interfaces just to add an assertion.
+8. Tests prove the owning invariant. Use tables for multiple cases and race checks for concurrency or when the project requires them.
+9. Apply gofmt and the project's owning lint/test gates; reuse current evidence instead of running repository-wide vet for every edit.
 10. Operational values (timeouts, limits, addresses) come from configuration or options — never hardcoded.
 
 ## Branches
@@ -45,11 +45,11 @@ Non-negotiables for every line of Go, regardless of branch:
 | Old-style patterns, deprecated APIs, Go version upgrades | [references/modernize.md](references/modernize.md) |
 | New module, directory layout, `cmd`/`internal`/`pkg`, workspaces | [references/layout.md](references/layout.md) |
 
-Concurrency work that cancels anything reads both `concurrency.md` and `context.md`. A review reads every reference whose subject appears in the diff.
+Concurrency work that cancels anything reads both `concurrency.md` and `context.md`. A review reads the relevant sections needed to assess the changed behavior.
 
 ## Tripwires
 
-Final self-check — each of these has shipped a real bug:
+Investigate these signals when they occur in the changed path; they are not categorical defects:
 
 - A goroutine spawned with no `ctx.Done()`, channel close, or `WaitGroup` path — it outlives its caller.
 - `time.After` inside a loop — a timer allocation per iteration; use `time.NewTimer` + `Reset`.
@@ -59,5 +59,5 @@ Final self-check — each of these has shipped a real bug:
 - A narrowing integer conversion without a bounds check — silent wraparound.
 - An error logged *and* returned — duplicate reports upstream; pick exactly one.
 - An interface returned from a constructor, or defined beside its implementation instead of its consumer.
-- Independent subtests without `t.Parallel()`, or a suite that has never run under `-race`.
+- Tests with unexplained shared mutable state or concurrency behavior without race coverage.
 - `any` where a type parameter or concrete type is known.

@@ -25,6 +25,9 @@ const (
 )
 
 var (
+	// ErrWakeSkipped reports an advisory wake that was not sent; it never arms cooldown.
+	ErrWakeSkipped = errors.New("scheduler: wake skipped")
+
 	// ErrStopped reports that a stopped scheduler cannot be restarted.
 	ErrStopped = errors.New("scheduler: stopped")
 	// ErrSpawnUnresolvable reports that no agent covers a starved run's required
@@ -174,8 +177,9 @@ type BatchWaker interface {
 
 // RunSnapshot joins a durable run with its owning task.
 type RunSnapshot struct {
-	Task taskpkg.Task
-	Run  taskpkg.Run
+	CapacityReason string
+	Task           taskpkg.Task
+	Run            taskpkg.Run
 }
 
 // SessionSnapshot is the scheduler's rebuildable view of one live session.
@@ -207,6 +211,7 @@ type CycleResult struct {
 	RecoveredLeases       int
 	ExpiredBlocks         int
 	WakeAttempts          int
+	WakeSkipped           int
 	WakeSucceeded         int
 	WakeFailed            int
 	NoMatchRuns           int
@@ -246,6 +251,7 @@ type Stats struct {
 	RecoveryErrors      int
 	ExpiryErrors        int
 	WakeAttempts        int
+	WakeSkipped         int
 	WakeSucceeded       int
 	WakeFailed          int
 	NoMatchRuns         int

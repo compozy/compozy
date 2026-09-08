@@ -10,7 +10,6 @@ type TerminalID string
 type TerminalActorKind string
 type TerminalMode string
 type TerminalSignal string
-type TerminalLeaseState string
 
 type TerminalCapabilitiesPayload struct {
 	Interactive bool `json:"interactive"`
@@ -25,11 +24,6 @@ type TerminalOutputShape struct {
 type TerminalSpillPayload struct {
 	ArtifactID string `json:"artifact_id"`
 	Bytes      int64  `json:"bytes"`
-}
-
-type TerminalControllerPayload struct {
-	Kind TerminalActorKind `json:"kind"`
-	ID   string            `json:"id"`
 }
 
 type TerminalRunPayload struct {
@@ -55,8 +49,6 @@ type TerminalInfoPayload struct {
 	Cwd          string                      `json:"cwd"`
 	Mode         TerminalMode                `json:"mode"`
 	State        TerminalState               `json:"state"`
-	Controller   *TerminalControllerPayload  `json:"controller"`
-	Lease        TerminalLeaseState          `json:"lease"`
 	Viewers      int                         `json:"viewers"`
 	BoundRun     *TerminalRunPayload         `json:"bound_run"`
 	Capabilities TerminalCapabilitiesPayload `json:"capabilities"`
@@ -75,18 +67,11 @@ func TerminalInfoPayloadFromDomain(info terminalpkg.Info, profileName string) Te
 		Cwd:         info.Cwd,
 		Mode:        TerminalMode(info.Mode),
 		State:       TerminalState(info.State),
-		Lease:       TerminalLeaseState(info.Lease),
 		Viewers:     info.Viewers,
 		Capabilities: TerminalCapabilitiesPayload{
 			Interactive: info.Capabilities.Interactive,
 		},
 		CreatedAt: info.CreatedAt,
-	}
-	if info.Controller != nil {
-		payload.Controller = &TerminalControllerPayload{
-			Kind: TerminalActorKind(info.Controller.Kind),
-			ID:   info.Controller.ID,
-		}
 	}
 	if info.BoundRun != nil {
 		payload.BoundRun = &TerminalRunPayload{

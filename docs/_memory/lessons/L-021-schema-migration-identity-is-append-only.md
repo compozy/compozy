@@ -48,18 +48,10 @@ then add observed-history reopen coverage.
 
 ## Operationalization
 
-- Before generating a migration, inspect the owning `schema/migrations/` directory, recent commits,
-  and relevant ledgers/tasks for concurrently landed migrations.
-- New schema work appends after the highest file version. Chronological neatness is not a
-  reason to insert into the middle.
-- Edit the owning declarative schema source, run `make codegen`, inspect the Atlas-planned SQL and sqlcheck result,
-  and commit the updated `atlas.sum` and sqlc output together.
-- Migration tests include fresh database coverage, upgrade/reopen coverage, ahead refusal,
-  integrity refusal, gap-free history, and migrations-to-declarative-schema equivalence.
-- Keep integrity mismatch failures strict. A mismatch means the binary and database disagree about
-  history; fixing that disagreement belongs in exact unpublished history or a new migration.
-- Any one-pass data transformation belongs in an ADR-backed appended Goose migration, never in
-  boot-time schema repair.
+- Inspect the owning migration head, declarative source, and relevant upgrade fixture; check concurrent migration work when concurrency is known.
+- Append after the highest version, regenerate with `make codegen`, and inspect the SQL/sqlcheck, `atlas.sum`, and sqlc changes together.
+- Extend the existing fresh/reopen/ahead/integrity/equivalence suites for the changed invariant and keep integrity checks strict.
+- Data transformations use an ADR-backed appended migration, never boot-time schema repair. Reuse current preflight evidence instead of rescanning all ledgers.
 
 ## Anti-pattern
 

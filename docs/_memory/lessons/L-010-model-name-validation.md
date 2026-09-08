@@ -16,14 +16,13 @@ Compozy launches a batch run without first validating the configured model again
 
 ## Rule
 
-> When launching a Compozy run in `pr-review` mode (or any mode that depends on a configured model), validate the model name against the IDE's actual model list at run start, BEFORE subprocess spawn. Otherwise an entire batch can be wasted on a typo or stale config.
+> Validate an explicitly selected model before launching an expensive external batch when the provider exposes authoritative availability information. Inherit the current configured model when no override is requested.
 
 ## Operationalization
 
-- At run start, query the configured IDE's `/v1/models` (or equivalent) endpoint and verify the requested model is present.
-- If absent, fail loudly with the available list — not a generic ACP error after subprocess startup.
-- Same check applies to provider keys, API base URLs, and any stale credential.
-- For internal (non-Compozy) tools: every wrapper that passes through model names should validate before spawn, never after.
+- Reuse a current provider catalog or a cheap supported availability check for explicit model selection; do not invent a `/v1/models` endpoint or require an extra lookup for harness-native inheritance.
+- An unavailable model or rejected credential is a configuration error, not an unchanged retry candidate. Report the specific failure without exposing secrets.
+- The model names in this incident are historical evidence, not current defaults.
 
 ## Detection signals
 

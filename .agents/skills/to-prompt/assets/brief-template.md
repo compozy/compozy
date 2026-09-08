@@ -21,13 +21,13 @@ source: <repo · branch · issue/PR refs, when they exist>
 
 ## Evidence
 
-<!-- Verbatim facts, nothing paraphrased.
-     bug-fix: exact reproduction steps; complete errors, logs, and stack traces; environment (OS, runtime, dependency versions, config); recent changes that may have introduced it.
+<!-- Cite concrete facts; use short verbatim excerpts only where exact wording matters.
+     bug-fix: exact reproduction steps; relevant error/log excerpts without credentials or unrelated private data; environment (OS, runtime, dependency versions, config); recent changes that may have introduced it.
      improvement / feature: measurements, examples, or reports that motivate the work. -->
 
 ## Requirements
 
-<!-- What must be true when the work is done — the "what", never the "how".
+<!-- What must be true when the work is done — preserve accepted implementation constraints and approved plans.
      bug-fix: the expected behavior, stated testably; regression coverage that pins the fix.
      improvement: success criteria — how to measure that the improvement landed.
      feature: user flows; edge cases and boundary conditions; new data or API needs stated as requirements, not designs. -->
@@ -38,7 +38,7 @@ source: <repo · branch · issue/PR refs, when they exist>
 
 ## Verification
 
-<!-- What needs unit / integration / E2E coverage, and how the receiver proves completion. -->
+<!-- Name the owning suite or probe for each changed invariant; reuse existing coverage and avoid duplicating it across levels. -->
 
 ## References
 

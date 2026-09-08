@@ -95,4 +95,6 @@ type RuntimeDeps struct {
 	GatewayChallenges   *gateway.ChallengeRegistry
 	GatewayAuthLimiter  *gateway.AuthFailureLimiter
 	StartedAt           time.Time
+
+	OnProviderAuthSuccess func()
 }

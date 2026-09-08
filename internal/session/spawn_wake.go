@@ -111,7 +111,7 @@ func spawnWakeReasonForBadge(badge Badge) (SpawnWakeReason, bool) {
 		return SpawnWakeReasonStopped, true
 	case BadgeFailed:
 		return SpawnWakeReasonFailed, true
-	case BadgeWaitingForAuth, BadgeWaitingForInput:
+	case BadgeWaitingForAuth, BadgeWaitingForInput, BadgeNeedsAttention:
 		return SpawnWakeReasonNeedsAttention, true
 	default:
 		return "", false
@@ -245,6 +245,8 @@ func spawnWakeDetail(info *Info, badge Badge) string {
 		return ""
 	}
 	switch badge {
+	case BadgeNeedsAttention:
+		return "Process exit could not be verified; retry stop."
 	case BadgeWaitingForInput:
 		for _, interaction := range info.PendingInteractions {
 			if title := strings.TrimSpace(interaction.Title); title != "" {

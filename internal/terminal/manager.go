@@ -46,7 +46,6 @@ type Service struct {
 	profileNames    ProfileNameResolver
 	settings        SettingsProvider
 	profiles        ProfileGuard
-	typingGrants    TypingGrantAuthorizer
 	execApprovals   ExecAuthorizer
 	registerProcess processRegister
 	events          *Notifier
@@ -412,12 +411,13 @@ func (m *Service) processRegistration(
 		return nil, nil
 	}
 	info := item.Info()
+	origin := item.origin
 	handle, err := m.registerProcess(ctx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceTerminal,
 		Owner: toolruntime.ProcessOwner{
-			SessionID:  info.ControllerSessionID(),
-			RunID:      info.ControllerRunID(),
-			Generation: info.ControllerGeneration(),
+			SessionID:  origin.SessionID,
+			RunID:      origin.RunID,
+			Generation: origin.Generation,
 			TerminalID: string(info.ID),
 		},
 		PID:            item.proc.PID(),
@@ -437,25 +437,4 @@ func (m *Service) processRegistration(
 		return nil, fmt.Errorf("terminal: register process %q: %w", info.ID, err)
 	}
 	return handle, nil
-}
-
-func (i Info) ControllerSessionID() string {
-	if i.Controller == nil {
-		return ""
-	}
-	return i.Controller.SessionID
-}
-
-func (i Info) ControllerRunID() string {
-	if i.Controller == nil {
-		return ""
-	}
-	return i.Controller.RunID
-}
-
-func (i Info) ControllerGeneration() int64 {
-	if i.Controller == nil {
-		return 0
-	}
-	return i.Controller.Generation
 }

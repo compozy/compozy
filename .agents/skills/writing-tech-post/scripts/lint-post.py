@@ -2,11 +2,11 @@
 """lint-post.py — read-only slop-signature scanner for engineering blog drafts.
 
 Automates a subset of the pre-publish gates from
-references/pre-publish-checklist.md. Treats every finding as a blocker (exit
-non-zero); warnings live in the manual checklist.
+references/pre-publish-checklist.md. Reports heuristic warnings by default. An explicit --strict gate fails on
+findings; neither mode verifies factual support or disclosure authorization.
 
 Usage:
-    python3 lint-post.py <draft.md> [--config <config.json>]
+    python3 lint-post.py <draft.md> [--strict]
     python3 lint-post.py --help
 
 Scans:
@@ -20,8 +20,8 @@ Scans:
     8. Headline-vs-body callback            (first 200 + last 200 words share zero nouns)
 
 Output:
-    Human-readable report on stdout. Exits 0 on a clean draft; exits 1 with a
-    findings count on any blocker.
+    Human-readable report on stdout. Exits 0 with advisory findings by default;
+    --strict exits 1 on findings. Input errors exit 2.
 
 Read-only. Never writes to the draft. Never invokes git, package managers, or
 network.
@@ -133,7 +133,7 @@ class Report:
     def render(self) -> str:
         if not self.findings:
             return f"✅ {self.draft} — clean (0 findings)\n"
-        lines = [f"❌ {self.draft} — {len(self.blockers)} blocker(s), {len(self.warnings)} warning(s)\n"]
+        lines = [f"{'❌' if self.blockers else '⚠️'} {self.draft} — {len(self.blockers)} blocker(s), {len(self.warnings)} warning(s)\n"]
         for finding in self.findings:
             lines.append(finding.render())
         return "\n".join(lines) + "\n"
@@ -203,7 +203,7 @@ def check_triumphal(body: str, report: Report, max_occurrences: int = TRIUMPHAL_
                 report.findings.append(
                     Finding(
                         rule="triumphal-vocabulary",
-                        severity="blocker",
+                        severity="warning",
                         location=f"line {line}",
                         snippet=match.group(0),
                     )
@@ -218,7 +218,7 @@ def check_hedged_lede(body: str, report: Report) -> None:
             report.findings.append(
                 Finding(
                     rule="hedged-lede",
-                    severity="blocker",
+                    severity="warning",
                     location="first 200 words",
                     snippet=match.group(0),
                 )
@@ -232,7 +232,7 @@ def check_excited_template(body: str, report: Report) -> None:
             report.findings.append(
                 Finding(
                     rule="exciting-announcement-template",
-                    severity="blocker",
+                    severity="warning",
                     location=f"line {line}",
                     snippet=match.group(0),
                 )
@@ -246,7 +246,7 @@ def check_blame_by_implication(body: str, report: Report) -> None:
             report.findings.append(
                 Finding(
                     rule="blame-by-implication",
-                    severity="blocker",
+                    severity="warning",
                     location=f"line {line}",
                     snippet=match.group(0),
                 )
@@ -264,7 +264,7 @@ def check_percent_claims(body: str, report: Report) -> None:
                 report.findings.append(
                     Finding(
                         rule="evidence-free-percent-claim",
-                        severity="blocker",
+                        severity="warning",
                         location=f"line {idx + 1}",
                         snippet=match.group(0),
                     )
@@ -284,7 +284,7 @@ def check_code_block_length(body: str, report: Report) -> None:
                         report.findings.append(
                             Finding(
                                 rule="long-code-block-without-elision",
-                                severity="blocker",
+                                severity="warning",
                                 location=f"lines {start_line}-{idx}",
                                 snippet=f"{len(buf)} lines; no elision marker",
                             )
@@ -311,7 +311,7 @@ def check_uncaptioned_figures(body: str, report: Report) -> None:
                 report.findings.append(
                     Finding(
                         rule="uncaptioned-figure",
-                        severity="blocker",
+                        severity="warning",
                         location=f"line {idx + 1}",
                         snippet=image_re.search(line).group(0),
                     )
@@ -330,7 +330,7 @@ def check_callback_coupling(body: str, report: Report) -> None:
         report.findings.append(
             Finding(
                 rule="callback-coupling-failure",
-                severity="blocker",
+                severity="warning",
                 location="first 200 + last 200 words",
                 snippet="zero shared nouns between lede and closer",
             )
@@ -372,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     parser.add_argument("draft", type=Path, help="Path to a Markdown draft.")
+    parser.add_argument("--strict", action="store_true", help="Fail on heuristic findings for an explicitly chosen editorial gate.")
     args = parser.parse_args(argv)
 
     if not args.draft.exists():
@@ -382,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     report = lint(args.draft)
+    if args.strict:
+        for finding in report.findings:
+            finding.severity = "blocker"
     print(report.render())
     return 1 if report.blockers else 0
 

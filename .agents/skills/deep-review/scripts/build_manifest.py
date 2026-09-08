@@ -127,7 +127,8 @@ def resolve_pr(repo_root: Path, pr: int):
         sys.stderr.write(
             f"PR head {head} is not local. Fetch it first:\n  git fetch origin pull/{pr}/head\n")
         sys.exit(1)
-    return data["baseRefOid"], head, data
+    base = run(["git", "merge-base", data["baseRefOid"], head], repo_root).stdout.strip()
+    return base, head, data
 
 
 def diff_spec(base, head, staged, worktree):

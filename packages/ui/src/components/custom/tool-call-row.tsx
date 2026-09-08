@@ -7,7 +7,20 @@ import { cn } from "../../lib/utils";
 import { ToolCallStatusIcon } from "./tool-call-status-icon";
 import { ToolCallRowSection, type ToolCallRowSectionProps } from "./tool-call-row-section";
 
-export type ToolCallStatus = "pending" | "running" | "failed" | "success" | "empty";
+/**
+ * `absorbed` is a failure the turn kept going past (subtle ×, the word carries
+ * it); `stopped` is the call that was running when the operator stopped the turn
+ * (no glyph — the word carries it). Both stay in the settled ink; only `failed`
+ * earns the danger hue.
+ */
+export type ToolCallStatus =
+  | "pending"
+  | "running"
+  | "failed"
+  | "absorbed"
+  | "stopped"
+  | "success"
+  | "empty";
 
 type ToolCallIconComponent = React.ComponentType<{
   className?: string;

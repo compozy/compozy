@@ -136,35 +136,6 @@ func (n *daemonNativeTools) sessionSpawn(
 	return structuredResult(payload, info.ID)
 }
 
-func (n *daemonNativeTools) sessionStop(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input nativeSessionTargetInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	payload := map[string]any{
-		watchEventsPayloadSessionIDKey: target,
-		nativePayloadStateKey:          session.StateStopped,
-	}
-	if info.State == session.StateStopped {
-		payload[nativePayloadOutcomeKey] = "already-stopped"
-		return structuredResult(payload, "already-stopped")
-	}
-	if err := n.deps.Sessions.StopWithCause(
-		ctx, target, session.CauseUserRequested, "native session_stop requested by "+strings.TrimSpace(scope.SessionID),
-	); err != nil {
-		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
-	}
-	return structuredResult(payload, "stopped")
-}
-
 func (n *daemonNativeTools) sessionApprove(
 	ctx context.Context,
 	scope toolspkg.Scope,

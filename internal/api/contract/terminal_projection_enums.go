@@ -6,14 +6,6 @@ func TerminalModeValues() []string {
 	return []string{string(terminalpkg.ModePTY), string(terminalpkg.ModePipe)}
 }
 
-func TerminalLeaseStateValues() []string {
-	return []string{
-		string(terminalpkg.LeaseHumanOwned),
-		string(terminalpkg.LeaseAgentOwned),
-		string(terminalpkg.LeaseAvailable),
-	}
-}
-
 func TerminalActorKindValues() []string {
 	return []string{
 		string(terminalpkg.ActorKindHuman),

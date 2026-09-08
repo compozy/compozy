@@ -311,6 +311,102 @@ func (q *Queries) ListTranscriptEntriesBefore(ctx context.Context, arg ListTrans
 	return items, nil
 }
 
+const listTranscriptOutlineCandidates = `-- name: ListTranscriptOutlineCandidates :many
+SELECT e.message_json, e.start_sequence, e.turn_id,
+       (SELECT r.message_json FROM transcript_entries AS r
+        WHERE r.kind = 'assistant' AND r.turn_id = e.turn_id AND r.message_json IS NOT NULL
+        ORDER BY r.start_sequence DESC LIMIT 1) AS reply_json,
+       CAST(COALESCE((SELECT v.timestamp FROM events AS v WHERE v.sequence = e.start_sequence), '') AS TEXT) AS at
+FROM transcript_entries AS e
+WHERE e.kind = 'user' AND e.message_json IS NOT NULL AND e.start_sequence > ?1
+ORDER BY e.start_sequence ASC
+LIMIT ?2
+`
+
+type ListTranscriptOutlineCandidatesParams struct {
+	AfterSequence int64 `json:"after_sequence"`
+	RowLimit      int64 `json:"row_limit"`
+}
+
+type ListTranscriptOutlineCandidatesRow struct {
+	MessageJson   sql.NullString `json:"message_json"`
+	StartSequence int64          `json:"start_sequence"`
+	TurnID        string         `json:"turn_id"`
+	ReplyJson     sql.NullString `json:"reply_json"`
+	At            string         `json:"at"`
+}
+
+func (q *Queries) ListTranscriptOutlineCandidates(ctx context.Context, arg ListTranscriptOutlineCandidatesParams) ([]ListTranscriptOutlineCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptOutlineCandidates, arg.AfterSequence, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptOutlineCandidatesRow{}
+	for rows.Next() {
+		var i ListTranscriptOutlineCandidatesRow
+		if err := rows.Scan(
+			&i.MessageJson,
+			&i.StartSequence,
+			&i.TurnID,
+			&i.ReplyJson,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranscriptSearchCandidates = `-- name: ListTranscriptSearchCandidates :many
+SELECT message_json, start_sequence, turn_id
+FROM transcript_entries
+WHERE message_json IS NOT NULL AND start_sequence > ?1
+ORDER BY start_sequence ASC
+LIMIT ?2
+`
+
+type ListTranscriptSearchCandidatesParams struct {
+	AfterSequence int64 `json:"after_sequence"`
+	RowLimit      int64 `json:"row_limit"`
+}
+
+type ListTranscriptSearchCandidatesRow struct {
+	MessageJson   sql.NullString `json:"message_json"`
+	StartSequence int64          `json:"start_sequence"`
+	TurnID        string         `json:"turn_id"`
+}
+
+func (q *Queries) ListTranscriptSearchCandidates(ctx context.Context, arg ListTranscriptSearchCandidatesParams) ([]ListTranscriptSearchCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptSearchCandidates, arg.AfterSequence, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptSearchCandidatesRow{}
+	for rows.Next() {
+		var i ListTranscriptSearchCandidatesRow
+		if err := rows.Scan(&i.MessageJson, &i.StartSequence, &i.TurnID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTranscriptProjectionState = `-- name: UpdateTranscriptProjectionState :exec
 UPDATE transcript_projection_state
 SET projection_version = ?1,

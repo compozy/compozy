@@ -81,16 +81,24 @@ func (s *Scheduler) runJobLoop(ctx context.Context, cancel context.CancelFunc, j
 		if !ok {
 			return
 		}
-		if registration.state.NextRunAt == nil || registration.state.NextRunAt.IsZero() {
+		if schedulerDueAt(registration.state) == nil {
 			return
 		}
 
-		delay := max(registration.state.NextRunAt.Sub(s.now()), 0)
+		delay := max(schedulerDueAt(registration.state).Sub(s.now()), 0)
+		var capacityAvailable <-chan struct{}
+		if registration.state.DeferredUntil != nil && registration.capacityWaiting {
+			if notifier, ok := s.dispatcher.(interface{ CapacityAvailable() <-chan struct{} }); ok {
+				capacityAvailable = notifier.CapacityAvailable()
+			}
+		}
 		timer := s.clock.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return
+		case <-capacityAvailable:
+			timer.Stop()
 		case <-timer.Chan():
 		}
 
@@ -108,11 +116,14 @@ func (s *Scheduler) registrationSnapshot(jobID string) (scheduledRegistration, b
 }
 
 func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	registration, ok := s.registrationSnapshot(jobID)
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrScheduledJobNotFound, jobID)
 	}
-	if registration.state.NextRunAt == nil || registration.state.NextRunAt.IsZero() {
+	if schedulerDueAt(registration.state) == nil {
 		return nil
 	}
 
@@ -126,6 +137,7 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		return err
 	}
 	if claimed.skipped {
+		s.updateRegistrationState(job.ID, claimed.state)
 		s.logScheduledSkip(job, claimed.claim, claimed.skipReason)
 		return nil
 	}
@@ -140,18 +152,32 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		CatchUp:       claimed.claim.CatchUp,
 		CatchUpPolicy: claimed.state.CatchUpPolicy,
 	})
+	if errors.Is(err, ErrConcurrencyLimitReached) || errors.Is(err, errScheduledAdmissionDeferred) {
+		s.setCapacityWaiting(job.ID, claimed.state.ScheduleHash, errors.Is(err, ErrConcurrencyLimitReached))
+		return s.setScheduledDeferral(ctx, claimed, timePointer(s.now().Add(time.Second)))
+	}
 	if fireLimitErr, ok := errors.AsType[*FireLimitError](err); ok {
 		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, claimed.state, fireLimitErr); adjustErr != nil {
 			return errors.Join(err, adjustErr)
 		}
 		return nil
 	}
+	if claimed.state.DeferredUntil != nil {
+		if clearErr := s.setScheduledDeferral(ctx, claimed, nil); clearErr != nil {
+			return errors.Join(err, clearErr)
+		}
+	}
+	if claimed.state.DeferredUntil == nil {
+		s.updateRegistrationState(job.ID, claimed.state)
+	}
 	if err != nil && s.store != nil {
 		runID := strings.TrimSpace(claimed.claim.RunID)
 		if run != nil && strings.TrimSpace(run.ID) != "" {
 			runID = run.ID
 		}
-		if _, recordErr := s.store.RecordRunDeliveryError(persistenceContext(ctx), runID, err); recordErr != nil {
+		persistCtx1, cancelPersist1 := persistenceContext(ctx)
+		defer cancelPersist1()
+		if _, recordErr := s.store.RecordRunDeliveryError(persistCtx1, runID, err); recordErr != nil {
 			err = errors.Join(err, recordErr)
 		}
 	}

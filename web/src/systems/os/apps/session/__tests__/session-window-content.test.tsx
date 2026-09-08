@@ -1,6 +1,10 @@
 // Suite: OS session-window content
-// Invariant: recovery preserves durable lineage and composer cancellation never stops the session.
-// Owning layer: the session-window recovery action.
+// Invariant: recovery preserves durable lineage, composer cancellation never
+// stops the session, and the window's notice slot surfaces the daemon's
+// runtime, stop, and supervision truth with the one action that exists for
+// each — actionable failures outrank the quiet warning, and the warning
+// exists only while the daemon reports it.
+// Owning layer: the session-window recovery, stop-attention, and quiet-warning actions.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,10 +13,24 @@ import type { SessionPayload } from "@/systems/session";
 
 const mocks = vi.hoisted(() => ({
   cancelPrompt: vi.fn(),
+  controls: {
+    canPrompt: false,
+    canRetryStop: true,
+    handleCancelPrompt: vi.fn(),
+    handleStop: vi.fn(),
+    isBusyInputPending: false,
+    isResuming: false,
+    isSessionRunning: false,
+    isStopping: false,
+    isStopRetrying: false,
+    queuedPrompts: [],
+    resumeFailure: null,
+    stopAttention: null as string | null,
+    stopCompletionNote: false,
+  },
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
   sessionThreadProps: vi.fn(),
-  stopSession: vi.fn(),
   toastError: vi.fn(),
 }));
 
@@ -30,16 +48,7 @@ vi.mock("../use-session-window-controller", () => ({
     clearDialog: { open: false },
     commandCatalog: [],
     commandCatalogStatus: "ready",
-    controls: {
-      canPrompt: false,
-      handleCancelPrompt: mocks.cancelPrompt,
-      handleStop: mocks.stopSession,
-      isBusyInputPending: false,
-      isResuming: false,
-      isSessionRunning: false,
-      queuedPrompts: [],
-      resumeFailure: null,
-    },
+    controls: mocks.controls,
     deleteDialog: { open: false },
     inspector: { open: false },
     inspectorMemory: {},
@@ -64,7 +73,12 @@ vi.mock("../use-session-window-controller", () => ({
   }),
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session", async () => ({
+  // The stop-attention and quiet-warning notices are under test here: the real
+  // composites and the quiet-warning read model, not stand-ins.
+  ...(await import("@/systems/session/components/session-stop-attention-notice")),
+  ...(await import("@/systems/session/components/session-quiet-warning-notice")),
+  ...(await import("@/systems/session/lib/session-quiet-warning")),
   hasUnrecoverableRuntime: (session: SessionPayload) =>
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
   SessionEnvironmentControl: () => null,
@@ -118,18 +132,89 @@ const deadSession: SessionPayload = {
   id: "sess-dead",
   runtime: { selection_revision: 0, status: "unbound" },
   state: "stopped",
+  supervision: null,
   updated_at: "2026-08-13T12:01:00Z",
   workspace_id: "ws-alpha",
 };
 
+const quietSupervision = {
+  quiet_warning: {
+    quiet_since: "2026-09-06T10:00:00Z",
+    stop_at: "2026-09-06T10:40:00Z",
+    warned_at: "2026-09-06T10:30:00Z",
+  },
+  sources: [],
+  work_signals: [],
+} satisfies SessionPayload["supervision"];
+
+const quietSession = {
+  ...deadSession,
+  badge: "idle",
+  failure: undefined,
+  health: undefined,
+  id: "sess-quiet",
+  runtime: { effective: { provider: "codex" }, selection_revision: 0, status: "ready" },
+  state: "active",
+  supervision: quietSupervision,
+} satisfies SessionPayload;
+
+function renderContent(session: SessionPayload) {
+  return (
+    <Suspense fallback={null}>
+      <SessionWindowContent
+        agentName="codex-agent"
+        liveDataEnabled={false}
+        onDeleteSuccess={vi.fn()}
+        session={session}
+        sessionId={session.id}
+        windowId={`session:${session.id}`}
+        workspaceId="ws-alpha"
+      />
+    </Suspense>
+  );
+}
+
+const unverifiedStopSession = {
+  ...deadSession,
+  attention: "stop_verification_failed",
+  badge: "needs-attention",
+  escalated: true,
+  failure: undefined,
+  health: undefined,
+  id: "sess-unverified",
+  runtime: { effective: { provider: "codex" }, selection_revision: 0, status: "ready" },
+  state: "stopping",
+} satisfies SessionPayload;
+
+function renderUnverifiedStop() {
+  return render(
+    <Suspense fallback={null}>
+      <SessionWindowContent
+        agentName="codex-agent"
+        liveDataEnabled={false}
+        onDeleteSuccess={vi.fn()}
+        session={unverifiedStopSession}
+        sessionId={unverifiedStopSession.id}
+        windowId={`session:${unverifiedStopSession.id}`}
+        workspaceId="ws-alpha"
+      />
+    </Suspense>
+  );
+}
+
 describe("SessionWindowContent", () => {
   beforeEach(() => {
     mocks.cancelPrompt.mockReset();
+    mocks.controls.canRetryStop = true;
+    mocks.controls.handleCancelPrompt = mocks.cancelPrompt;
+    mocks.controls.handleStop.mockReset();
+    mocks.controls.isStopping = false;
+    mocks.controls.isStopRetrying = false;
+    mocks.controls.stopAttention = null;
     mocks.forkMutation.isPending = false;
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
     mocks.sessionThreadProps.mockReset();
-    mocks.stopSession.mockReset();
     mocks.toastError.mockReset();
   });
 
@@ -163,11 +248,185 @@ describe("SessionWindowContent", () => {
     await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
     const props = mocks.sessionThreadProps.mock.lastCall?.[0] as {
       onCancelPrompt: () => void;
+      statusSession: unknown;
+      stopCompletionNote: boolean;
     };
     act(() => props.onCancelPrompt());
 
     expect(mocks.cancelPrompt).toHaveBeenCalledOnce();
-    expect(mocks.stopSession).not.toHaveBeenCalled();
+    expect(mocks.controls.handleStop).not.toHaveBeenCalled();
+    // The status row reads the session resource and the stop verdict from the controls.
+    expect(props.statusSession).toBe(session);
+    expect(props.stopCompletionNote).toBe(false);
+  });
+
+  // Invariant (US-009.AC-3, ADR-004 invariant 3): a stop the daemon could not
+  // verify surfaces in the notice slot as a warning that stays while the
+  // session reads stopping; Retry is the session stop action itself.
+  it("Should surface an unverified stop and retry it through the session stop action", async () => {
+    mocks.controls.stopAttention = "stop_verification_failed";
+
+    renderUnverifiedStop();
+
+    const notice = await screen.findByTestId("session-stop-attention");
+    expect(notice).toHaveAttribute("role", "alert");
+    expect(notice).toHaveAttribute("data-attention", "stop_verification_failed");
+    expect(screen.getByTestId("session-stop-attention-title")).toHaveTextContent(
+      "Couldn’t confirm the agent stopped."
+    );
+    expect(screen.getByTestId("session-stop-attention-meta")).toHaveTextContent(
+      "stop_verification_failed"
+    );
+    expect(screen.queryByRole("button", { name: "Fork into a new session" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry stop" }));
+
+    expect(mocks.controls.handleStop).toHaveBeenCalledOnce();
+    expect(mocks.cancelPrompt).not.toHaveBeenCalled();
+    // The thread still reads the stop in progress: the composer pill holds.
+    await waitFor(() =>
+      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sessionState: "stopping" })
+      )
+    );
+  });
+
+  it("Should hold Retry while a retry is landing and omit it for a managed session", async () => {
+    mocks.controls.stopAttention = "stop_verification_failed";
+    mocks.controls.isStopRetrying = true;
+
+    const { rerender } = renderUnverifiedStop();
+
+    // The button keeps its name while waiting: the spinner is decorative, the state is aria-busy.
+    const retry = await screen.findByRole("button", { name: "Retry stop" });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(retry);
+    expect(mocks.controls.handleStop).not.toHaveBeenCalled();
+
+    mocks.controls.isStopRetrying = false;
+    mocks.controls.canRetryStop = false;
+    rerender(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={{ ...unverifiedStopSession, type: "system" }}
+          sessionId={unverifiedStopSession.id}
+          windowId={`session:${unverifiedStopSession.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    expect(screen.getByTestId("session-stop-attention")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry stop" })).toBeNull();
+  });
+
+  // Invariant (US-014.AC-1, US-014.EC-2): the daemon's single quiet warning is
+  // visible on the open session itself — notice slot plus quiet status row —
+  // and its one action is the public session stop, never the prompt cancel.
+  it("Should surface the daemon quiet warning on the session and stop it through the session stop action", async () => {
+    render(renderContent(quietSession));
+
+    const notice = await screen.findByTestId("session-quiet-warning");
+    expect(notice).toHaveAttribute("role", "status");
+    expect(notice).toHaveAttribute("data-quiet-stop", "scheduled");
+    expect(screen.getByTestId("session-quiet-warning-title")).toHaveTextContent(
+      "Quiet for 30 minutes."
+    );
+    expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
+      "This session stops in 10 minutes unless the agent gets back to work."
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop now" }));
+
+    expect(mocks.controls.handleStop).toHaveBeenCalledOnce();
+    expect(mocks.cancelPrompt).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          quietWarning: {
+            quietSinceMs: Date.parse("2026-09-06T10:00:00Z"),
+            stopAtMs: Date.parse("2026-09-06T10:40:00Z"),
+            warnedAtMs: Date.parse("2026-09-06T10:30:00Z"),
+          },
+        })
+      )
+    );
+  });
+
+  // Invariant (US-014.AC-3): the warning exists only while the daemon reports
+  // it; a payload without `quiet_warning` clears both the notice and the row.
+  it("Should clear the quiet warning when the daemon clears it", async () => {
+    const { rerender } = render(renderContent(quietSession));
+    await screen.findByTestId("session-quiet-warning");
+
+    rerender(
+      renderContent({
+        ...quietSession,
+        supervision: { ...quietSupervision, quiet_warning: null },
+      })
+    );
+
+    expect(screen.queryByTestId("session-quiet-warning")).toBeNull();
+    await waitFor(() =>
+      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({ quietWarning: null })
+      )
+    );
+  });
+
+  it("Should state that automatic stop is off instead of promising a countdown", async () => {
+    render(
+      renderContent({
+        ...quietSession,
+        supervision: {
+          ...quietSupervision,
+          quiet_warning: { ...quietSupervision.quiet_warning, stop_at: null },
+        },
+      })
+    );
+
+    const notice = await screen.findByTestId("session-quiet-warning");
+    expect(notice).toHaveAttribute("data-quiet-stop", "off");
+    expect(screen.getByTestId("session-quiet-warning-message")).toHaveTextContent(
+      "Automatic stop is off, so this session keeps waiting until the agent gets back to work or you stop it."
+    );
+    expect(screen.getByTestId("session-quiet-warning-message")).not.toHaveTextContent("stops in");
+  });
+
+  it("Should hold Stop now while a stop lands, omit it for a managed session, and yield the slot to an unverified stop", async () => {
+    mocks.controls.isStopping = true;
+
+    const { rerender } = render(renderContent(quietSession));
+
+    const stop = await screen.findByRole("button", { name: "Stop now" });
+    expect(stop).toBeDisabled();
+    expect(stop).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(stop);
+    expect(mocks.controls.handleStop).not.toHaveBeenCalled();
+
+    mocks.controls.isStopping = false;
+    mocks.controls.canRetryStop = false;
+    rerender(renderContent({ ...quietSession, type: "system" }));
+    expect(screen.getByTestId("session-quiet-warning")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop now" })).toBeNull();
+
+    // Precedence: the actionable stop failure outranks the quiet warning in the one slot.
+    mocks.controls.canRetryStop = true;
+    mocks.controls.stopAttention = "stop_verification_failed";
+    rerender(
+      renderContent({
+        ...quietSession,
+        attention: "stop_verification_failed",
+        badge: "needs-attention",
+        state: "stopping",
+      })
+    );
+    expect(screen.getByTestId("session-stop-attention")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-quiet-warning")).toBeNull();
   });
 
   it("Should fork a dead session into its workspace and select the child", async () => {

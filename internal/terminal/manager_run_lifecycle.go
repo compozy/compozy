@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// RunEnded releases every terminal still controlled by the completed run and resolves its pending input.
+// RunEnded resolves pending input requests created by a completed run.
 func (m *Service) RunEnded(_ context.Context, workspaceID string, actor Actor) int {
 	if strings.TrimSpace(workspaceID) == "" || !validRunActor(actor) {
 		return 0
@@ -20,7 +20,7 @@ func (m *Service) RunEnded(_ context.Context, workspaceID string, actor Actor) i
 	return changed
 }
 
-// SessionRunEnded releases agent-controlled terminals for one completed session generation.
+// SessionRunEnded resolves pending input requests for one completed session generation.
 func (m *Service) SessionRunEnded(
 	_ context.Context,
 	workspaceID, profileID, sessionID, runID string,
@@ -34,18 +34,21 @@ func (m *Service) SessionRunEnded(
 	changed := 0
 	for _, item := range items {
 		info := item.Info()
-		if info.Controller == nil || info.Controller.Kind != ActorKindAgent || info.Controller.RunID != runID ||
-			info.Controller.Generation != generation {
+		if info.BoundRun == nil || info.BoundRun.RunID != runID || info.BoundRun.Generation != generation {
 			continue
 		}
-		if item.runEnded(*info.Controller) {
+		actor := Actor{
+			Kind: ActorKindAgent, ID: "runtime", ProfileID: profileID,
+			SessionID: sessionID, RunID: runID, Generation: generation,
+		}
+		if item.runEnded(actor) {
 			changed++
 		}
 	}
 	return changed
 }
 
-// RuntimeRecovered fences the previous generation and makes the replacement generation reclaimable.
+// RuntimeRecovered advances provenance to the replacement runtime generation.
 func (m *Service) RuntimeRecovered(_ context.Context, workspaceID string, previous, current Actor) int {
 	if !validRunActor(previous) || !validRunActor(current) || !sameRun(previous, current) ||
 		strings.TrimSpace(workspaceID) == "" || current.Generation <= previous.Generation {
@@ -59,26 +62,6 @@ func (m *Service) RuntimeRecovered(_ context.Context, workspaceID string, previo
 		}
 	}
 	return changed
-}
-
-// Claim grants an available or recovery-fenced terminal back to its bound agent generation.
-func (m *Service) Claim(
-	ctx context.Context,
-	workspaceID string,
-	id ID,
-	actor Actor,
-) error {
-	if err := requestContextError(ctx, "claim"); err != nil {
-		return err
-	}
-	if err := m.admit(ctx, workspaceID, actor); err != nil {
-		return err
-	}
-	item, err := m.lookup(terminalKey{workspaceID: workspaceID, profileID: actor.ProfileID, id: id})
-	if err != nil {
-		return err
-	}
-	return item.claim(actor)
 }
 
 func (m *Service) sessionsForRun(workspaceID, profileID, sessionID, runID string) []*session {

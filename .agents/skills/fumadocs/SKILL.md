@@ -1,6 +1,6 @@
 ---
 name: fumadocs
-description: Authoritative guide for the Fumadocs documentation framework — Core (headless), MDX (content loader), and UI (Tailwind v4 layouts and components). Use when scaffolding a Fumadocs project, editing source.config.ts, wiring loader() and meta.json conventions, picking a search adapter, composing DocsLayout/Notebook/Flux/Home layouts, customising the MDX component map, integrating OpenAPI specs, generating OG images, exporting PDF/EPUB/RSS, or configuring i18n across Next.js, React Router, TanStack Start, and Waku adapters. Surfaces canonical install snippets per adapter, decision tables for entry modes and content sources, and the most common pitfalls (Tailwind v3 silent failure, ESM-only config, .source/ generation, layout/page import mismatch, slug collisions, edge runtime ban). Don't use for generic MDX/Markdown questions outside Fumadocs, for unrelated React framework setup, or for projects that don't use fumadocs-core/fumadocs-mdx/fumadocs-ui.
+description: "Set up, customize, or troubleshoot Fumadocs Core/MDX/UI: adapters, loaders, navigation/layouts, search, MDX components, OpenAPI, OG images, exports, and i18n. Excludes generic Markdown, unrelated framework setup, and non-Fumadocs projects."
 ---
 
 # Fumadocs

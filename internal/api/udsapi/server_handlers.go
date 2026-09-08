@@ -23,7 +23,6 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 }
 
 func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
-	exposureDeps := core.ResolveSkillExposureDependencies(cfg.networkStore)
 	return &core.BaseHandlerConfig{
 		TransportName:                "udsapi",
 		MaskInternalErrors:           false,
@@ -58,6 +57,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		ApprovalCoordinator:          cfg.approvalCoordinator,
 		CmdPalette:                   cfg.cmdPalette,
 		Clarify:                      cfg.clarify,
+		OnProviderAuthSuccess:        cfg.onProviderAuthSuccess,
 		Settings:                     cfg.settings,
 		SettingsRestart:              cfg.settingsRestart,
 		SettingsUpdate:               cfg.settingsUpdate,
@@ -84,8 +84,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Roles:                        cfg.roles,
 		SkillsRegistry:               cfg.skillsRegistry,
 		SkillResources:               cfg.skillResources,
-		SkillExposures:               exposureDeps.Repository,
-		SkillExposureEvents:          exposureDeps.Events,
+		SkillExposures:               core.ResolveSkillExposureDependencies(cfg.networkStore).Repository,
+		SkillExposureEvents:          core.ResolveSkillExposureDependencies(cfg.networkStore).Events,
 		MemoryStore:                  cfg.memoryStore,
 		DreamTrigger:                 cfg.dreamTrigger,
 		MemoryExtractor:              cfg.memoryExtractor,

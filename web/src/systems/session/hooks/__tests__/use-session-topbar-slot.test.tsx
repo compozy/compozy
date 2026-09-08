@@ -5,7 +5,7 @@
 // Boundary OUT: daemon mutations and window manager behavior.
 
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
@@ -14,6 +14,12 @@ import type { SessionPayload } from "../../types";
 import { SessionRenameDialog } from "../../components/session-rename-dialog";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
+import { SessionTransportChip } from "../../components/session-transport-chip";
+import { SESSION_TRANSPORT_LIVE } from "../../lib/session-transport";
+import {
+  SessionTransportContext,
+  type SessionTransportState,
+} from "../../lib/session-transcript-thread-context-value";
 
 function SessionPublisher({
   onStop,
@@ -23,6 +29,7 @@ function SessionPublisher({
   onInspectorToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
+  transportChip,
 }: {
   onStop: () => void;
   onRename?: () => void;
@@ -31,9 +38,11 @@ function SessionPublisher({
   onInspectorToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
+  transportChip?: ReactNode;
 }) {
   useSessionTopbarSlot({
     session,
+    transportChip,
     isDeleting: false,
     isRenaming: false,
     isStopping: false,
@@ -239,5 +248,53 @@ describe("useSessionTopbarSlot", () => {
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Rename session" })).toBeNull();
     });
+  });
+
+  // Invariant (task_06 VC-01..05, integration): the transport chip the window
+  // publishes into the OS head reads the window's own transport — the slot
+  // consumer renders outside the session runtime provider, so the publisher
+  // must carry the snapshot with the node. Owning layer: the topbar slot
+  // publisher; canonical suite: this file (real Topbar slot consumer).
+  it("Should publish the transport chip with the window's own transport into the head", () => {
+    // The chip's grace has elapsed: the stream was last live five minutes ago.
+    const lostAt = Date.now() - 5 * 60_000;
+    const transport = (overrides: Partial<SessionTransportState>): SessionTransportState => ({
+      ...SESSION_TRANSPORT_LIVE,
+      lastLiveAt: lostAt,
+      retry: vi.fn(),
+      ...overrides,
+    });
+    const publisher = (state: SessionTransportState, windowLive = true) => (
+      <SessionTransportContext.Provider value={state}>
+        <SessionPublisher
+          onStop={vi.fn()}
+          transportChip={<SessionTransportChip windowLive={windowLive} />}
+        />
+      </SessionTransportContext.Provider>
+    );
+    const view = renderWithTopbar(
+      publisher(transport({ degradedAt: lostAt, phase: "waiting-reconnect", reconnectAttempt: 3 }))
+    );
+    const chip = screen.getByTestId("session-transport-chip");
+    expect(chip).toHaveTextContent(/Reconnecting/);
+    expect(screen.getByTestId("session-transport-chip-count")).toHaveTextContent("3");
+
+    view.rerender(
+      publisher(
+        transport({
+          degradedAt: lostAt,
+          failure: { at: lostAt + 30_000, attempts: 6 },
+          phase: "failed",
+        })
+      )
+    );
+    expect(screen.getByTestId("session-transport-chip")).toHaveTextContent(/Disconnected/);
+
+    // A background window is paused: its own last-live instant, never another window's.
+    view.rerender(publisher(transport({ phase: "disabled" }), false));
+    expect(screen.getByTestId("session-transport-chip")).toHaveTextContent(/Paused/);
+
+    view.rerender(publisher(transport({})));
+    expect(screen.queryByTestId("session-transport-chip")).not.toBeInTheDocument();
   });
 });

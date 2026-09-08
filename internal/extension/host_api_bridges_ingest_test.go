@@ -420,6 +420,19 @@ func (d *contractBridgePromptDriver) Prompt(
 	return events, nil
 }
 
+// VerifyExit is the fake's OS-identity seam: the process is gone once its done channel closed.
+func (d *contractBridgePromptDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return true, nil
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (d *contractBridgePromptDriver) Cancel(context.Context, *session.AgentProcess) error {
 	return nil
 }

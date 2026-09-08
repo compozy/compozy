@@ -239,12 +239,10 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 		if got, want := len(errs), 2; got != want {
 			t.Fatalf("WakeMany() errors = %d, want %d", got, want)
 		}
-		for idx, err := range errs {
-			if err != nil {
-				t.Fatalf("WakeMany() error[%d] = %v", idx, err)
-			}
+		if errs[0] != nil || !errors.Is(errs[1], schedulerpkg.ErrWakeSkipped) {
+			t.Fatalf("WakeMany outcomes = %v", errs)
 		}
-		if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		if got, want := sessions.syntheticPromptCount(), 2; got != want {
 			t.Fatalf("synthetic prompt count = %d, want %d", got, want)
 		}
 		assertDaemonHeartbeatWakeEventResults(

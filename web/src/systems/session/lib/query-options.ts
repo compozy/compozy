@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from "@tanstack/react-query";
 
 import {
   fetchSession,
@@ -6,39 +6,48 @@ import {
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionInputs,
+  fetchSessionInteractions,
   fetchSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
-  fetchSessionTranscript,
   fetchSessionUsage,
   fetchSessions,
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
 import { fetchSessionCommands } from "../adapters/session-command-api";
+import {
+  fetchSessionTranscriptOutline,
+  searchSessionTranscript,
+  SESSION_TRANSCRIPT_SEARCH_LIMIT,
+} from "../adapters/session-navigation-api";
 import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState, SessionsResponse } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
+import { normalizeTranscriptSearchQuery } from "./session-navigation";
+import { expiredInteractionsByRequest } from "./session-pending-interactions";
 import {
-  nextTranscriptPageParam,
-  transcriptPageFromResponse,
-  transcriptPageMatchesFence,
-  transcriptPageRequest,
-  type SessionTranscriptPageParam,
-} from "./session-transcript-query";
+  SESSION_TRANSCRIPT_STALE_TIME_MS,
+  SESSION_WARM_CACHE_POLICY,
+} from "./session-query-policy";
 import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/systems/profiles";
 
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
+
+/** True when `queryKey` starts with every element of `scope`, element by element. */
+function queryKeyHasScope(queryKey: readonly unknown[], scope: readonly unknown[]): boolean {
+  return (
+    scope.length <= queryKey.length && scope.every((element, index) => queryKey[index] === element)
+  );
+}
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 export const SESSION_OWNER_STALE_TIME_MS = 30_000;
-const SESSION_TRANSCRIPT_STALE_TIME_MS = 10_000;
-const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
 const TOOL_ARTIFACT_PAGE_BYTES = 64 * 1_024;
 
 /**
@@ -64,16 +73,6 @@ export function sessionOwnerOptions(sessionId: string) {
     enabled: !!sessionId,
   });
 }
-
-/**
- * Session detail + transcript are the hot return path for `/agents/:name/sessions/:id`.
- * Keep them inactive for 30 minutes so tab restores and cross-route returns render from
- * cache immediately. Session detail uses bounded live polling, while transcript freshness is
- * driven by its SSE tail and explicit recovery reads.
- */
-const SESSION_WARM_CACHE_POLICY = {
-  gcTime: SESSION_WARM_CACHE_GC_TIME_MS,
-} as const;
 
 /**
  * Live session states worth polling: while a session is `active|starting|stopping`, detail and
@@ -218,37 +217,119 @@ export function sessionClarificationsOptions(workspace: string, id: string, enab
   });
 }
 
+/**
+ * Decisions the daemon settled without the transcript recording an answer — today the
+ * pre-crash permission/clarification asks a daemon restart expires (`canceled`,
+ * resolution `failed-by-restart`). Read while the transcript shows an undecided ask; the
+ * live control cadence re-reads only while some undecided ask is still unknown to the
+ * settled map, so a transcript whose every open ask has a settled row keeps its cached
+ * receipts without polling, and a session with nothing undecided never asks.
+ */
+export function sessionExpiredInteractionsOptions(
+  workspace: string,
+  id: string,
+  options: { enabled?: boolean; undecidedRequestIds?: ReadonlySet<string> } = {}
+) {
+  const undecided = options.undecidedRequestIds ?? new Set<string>();
+  return queryOptions({
+    queryKey: sessionKeys.interactions(workspace, id, "canceled"),
+    queryFn: ({ signal }) =>
+      fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
+    refetchInterval: query => {
+      const rows = query.state.data;
+      if (!rows) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+      const settled = expiredInteractionsByRequest(rows);
+      for (const requestId of undecided) {
+        if (!settled.has(requestId)) return SESSION_LIVE_REFETCH_INTERVAL_MS;
+      }
+      return false;
+    },
+    staleTime: 5_000,
+    enabled: !!workspace && !!id && (options.enabled ?? true),
+  });
+}
+
+/**
+ * Decisions the daemon applied, read for who made them: the transcript's permission
+ * part records the decision but not the actor, and only the `resolved` interaction
+ * row carries `resolved_by`. The daemon settles the row before it writes the transcript
+ * part, so one read per newly decided ask is enough: the decided request ids fence the
+ * key, a new decision re-reads once, and the previous rows stay as placeholder while
+ * the re-read is in flight. A decision without a row (pre-attention history) reads
+ * neutral rather than polling for evidence that will never arrive.
+ */
+export function sessionResolvedInteractionsOptions(
+  workspace: string,
+  id: string,
+  options: { enabled?: boolean; decidedRequestIds?: ReadonlySet<string> } = {}
+) {
+  const fence = [...(options.decidedRequestIds ?? new Set<string>())].sort();
+  const scope = sessionKeys.interactions(workspace, id, "resolved");
+  return queryOptions({
+    queryKey: [...scope, fence] as const,
+    queryFn: ({ signal }) =>
+      fetchSessionInteractions(workspace, id, { status: "resolved", signal }),
+    // Previous rows bridge only a fence change inside the same workspace/session
+    // scope. Across scopes a reused provider request id would otherwise present
+    // the previous session's actor while the new read is still in flight.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery && queryKeyHasScope(previousQuery.queryKey, scope) ? previousData : undefined,
+    staleTime: SESSION_LIVE_REFETCH_INTERVAL_MS,
+    enabled: !!workspace && !!id && (options.enabled ?? true),
+  });
+}
+
+/** The queue list's own cadence while a session is watched; a prompt POST tightens it to 1s. */
+export const SESSION_INPUTS_REFETCH_INTERVAL_MS = SESSION_LIVE_REFETCH_INTERVAL_MS;
+
 /** Exact current-generation pending operator input, owned by the daemon. */
 export function sessionInputsOptions(workspace: string, id: string, enabled = true) {
   return queryOptions({
     queryKey: sessionKeys.inputQueue(workspace, id),
     queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
-    refetchInterval: SESSION_LIVE_REFETCH_INTERVAL_MS,
+    refetchInterval: SESSION_INPUTS_REFETCH_INTERVAL_MS,
     staleTime: 1_000,
     enabled: !!workspace && !!id && enabled,
   });
 }
 
-export function sessionTranscriptOptions(workspace: string, id: string) {
-  return infiniteQueryOptions({
-    queryKey: sessionKeys.transcript(workspace, id),
-    queryFn: async ({ pageParam, signal }) => {
-      const response = await fetchSessionTranscript(
-        workspace,
-        id,
-        transcriptPageRequest(pageParam),
-        signal
-      );
-      if (!transcriptPageMatchesFence(response, pageParam)) {
-        throw new Error("Session transcript changed while loading older messages");
-      }
-      return transcriptPageFromResponse(response);
-    },
-    initialPageParam: undefined as SessionTranscriptPageParam,
-    getNextPageParam: nextTranscriptPageParam,
-    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
-    ...SESSION_WARM_CACHE_POLICY,
-    enabled: !!workspace && !!id,
+export { sessionTranscriptOptions } from "./session-transcript-options";
+
+// Navigation reads (S8/S9) sit under the detail key: mutation invalidation
+// rereads them; the live-tail surface refresh (`exact` on detail) does not, so
+// the hooks refresh on the host's coalesced key instead.
+const SESSION_NAVIGATION_STALE_TIME_MS = 5_000;
+
+/**
+ * Full-history literal search. Each query string is its own cache entry, so a
+ * stale response for an earlier query can never overwrite the current one;
+ * `keepPreviousData` keeps the last list on screen while the next one loads.
+ */
+export function sessionTranscriptSearchOptions(
+  workspace: string,
+  id: string,
+  query: string,
+  limit = SESSION_TRANSCRIPT_SEARCH_LIMIT
+) {
+  const q = normalizeTranscriptSearchQuery(query);
+  return queryOptions({
+    queryKey: sessionKeys.transcriptSearch(workspace, id, q, limit),
+    queryFn: ({ signal }) => searchSessionTranscript(workspace, id, { limit, q }, signal),
+    enabled: !!workspace && !!id && q.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
+    retry: false,
+  });
+}
+
+/** The operator-message outline over full retained history — one row per sent message. */
+export function sessionTranscriptOutlineOptions(workspace: string, id: string, enabled = true) {
+  return queryOptions({
+    queryKey: sessionKeys.transcriptOutline(workspace, id),
+    queryFn: ({ signal }) => fetchSessionTranscriptOutline(workspace, id, signal),
+    enabled: !!workspace && !!id && enabled,
+    placeholderData: keepPreviousData,
+    staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
   });
 }
 

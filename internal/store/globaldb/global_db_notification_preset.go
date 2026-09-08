@@ -51,7 +51,7 @@ func (n *NotificationRepo) ListPresetsForProfile(
 	}
 	limit := ""
 	if normalized.Limit > 0 {
-		limit = " LIMIT ?"
+		limit = queryLimitClause
 		args = append(args, normalized.Limit)
 	}
 	// dynamic-sql: optional preset filters and the limit change the query structure.

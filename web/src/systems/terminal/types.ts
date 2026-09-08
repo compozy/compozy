@@ -14,13 +14,11 @@ type TerminalJournalResponse =
   operations["queryTerminalJournal"]["responses"][200]["content"]["application/json"];
 type TerminalReadQuery = NonNullable<operations["readTerminal"]["parameters"]["query"]>;
 
-export type TerminalLeaseState = TerminalInfo["lease"];
-export type TerminalActorKind = NonNullable<TerminalInfo["controller"]>["kind"];
+export type TerminalActorKind = TerminalJournalResponse["entries"][number]["actor"]["kind"];
 export type TerminalMode = TerminalInfo["mode"];
 export type TerminalRunState = TerminalInfo["state"];
 export type TerminalExitCause = NonNullable<TerminalInfo["exit"]>["cause"];
 export type TerminalSignal = TerminalSignalRequest["signal"];
-export type TerminalActor = NonNullable<TerminalInfo["controller"]>;
 export type TerminalBoundRun = NonNullable<TerminalInfo["bound_run"]>;
 export type TerminalExit = NonNullable<TerminalInfo["exit"]>;
 export type TerminalCapabilities = TerminalInfo["capabilities"];

@@ -8,6 +8,7 @@ import (
 )
 
 type sessionFinalization struct {
+	session   *Session
 	done      chan struct{}
 	err       error
 	claimable bool
@@ -88,7 +89,7 @@ func (m *Manager) claimFinalization(session *Session) (bool, *sessionFinalizatio
 		return false, nil
 	}
 
-	finalization := &sessionFinalization{done: make(chan struct{})}
+	finalization := &sessionFinalization{session: session, done: make(chan struct{})}
 	m.finalizing[session.ID] = finalization
 	return true, finalization
 }
@@ -111,7 +112,7 @@ func (m *Manager) observeFinalization(session *Session) *sessionFinalization {
 		return nil
 	}
 
-	finalization := &sessionFinalization{done: make(chan struct{}), claimable: true}
+	finalization := &sessionFinalization{session: session, done: make(chan struct{}), claimable: true}
 	m.finalizing[session.ID] = finalization
 	return finalization
 }

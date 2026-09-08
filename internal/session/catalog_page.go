@@ -122,15 +122,16 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 
 	candidates := make([]store.SessionInfo, 0, len(durable.Sessions)+len(activeMatches))
 	candidates = append(candidates, durable.Sessions...)
-	for _, info := range activeMatches {
+	for index := range activeMatches {
+		info := &activeMatches[index]
 		if after == nil || compareSessionCatalogPosition(sessionCatalogPosition(info, normalized.Sort), *after) > 0 {
-			candidates = append(candidates, info)
+			candidates = append(candidates, *info)
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		return compareSessionCatalogPosition(
-			sessionCatalogPosition(candidates[i], normalized.Sort),
-			sessionCatalogPosition(candidates[j], normalized.Sort),
+			sessionCatalogPosition(&candidates[i], normalized.Sort),
+			sessionCatalogPosition(&candidates[j], normalized.Sort),
 		) < 0
 	})
 
@@ -146,7 +147,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if page.HasMore && len(candidates) > 0 {
 		page.NextCursor, err = encodeSessionListCursor(
 			fingerprint,
-			sessionCatalogPosition(candidates[len(candidates)-1], normalized.Sort),
+			sessionCatalogPosition(&candidates[len(candidates)-1], normalized.Sort),
 		)
 		if err != nil {
 			return ListPage{}, err
@@ -408,7 +409,8 @@ func projectSessionCatalogPage(
 	activeByID map[string]*Info,
 ) []*Info {
 	infos := make([]*Info, 0, len(sessions))
-	for _, stored := range sessions {
+	for index := range sessions {
+		stored := &sessions[index]
 		if active := activeByID[stored.ID]; active != nil {
 			infos = append(infos, active)
 			continue
@@ -418,7 +420,7 @@ func projectSessionCatalogPage(
 	return infos
 }
 
-func sessionInfoFromCatalog(info store.SessionInfo) *Info {
+func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
 		ID:                       strings.TrimSpace(info.ID),
@@ -445,6 +447,8 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		Lineage:                  store.CloneSessionLineage(info.Lineage),
 		State:                    State(strings.TrimSpace(info.State)),
 		StopReason:               info.StopReason,
+		StopEscalated:            info.StopEscalated,
+		StopVerificationFailed:   info.StopVerificationFailed,
 		StopDetail:               strings.TrimSpace(info.StopDetail),
 		Failure:                  store.CloneSessionFailure(info.Failure),
 		ACPSessionID:             stringValue(info.ACPSessionID),
@@ -453,8 +457,8 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:               strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:          cloneTimePointer(info.AttachExpiresAt),
+		AttachedTo:               strings.TrimSpace(info.AttachedToValue()),
+		AttachExpiresAt:          cloneTimePointer(info.AttachExpiresAtValue()),
 		TranscriptEpoch:          info.TranscriptEpoch,
 		PendingPermissionCount:   attention.PendingPermissionCount,
 		PendingClarifyCount:      attention.PendingClarifyCount,

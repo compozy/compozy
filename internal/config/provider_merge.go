@@ -8,6 +8,9 @@ import (
 
 func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
+	if override.SteerCapability != "" {
+		merged.SteerCapability = override.SteerCapability
+	}
 	if strings.TrimSpace(override.Command) != "" {
 		merged.Command = override.Command
 	}

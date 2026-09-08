@@ -22,27 +22,34 @@ const (
 	BadgeStopped         Badge = "stopped"
 	BadgeFailed          Badge = "failed"
 	BadgeUnknown         Badge = "unknown"
+	BadgeNeedsAttention  Badge = "needs-attention"
 )
 
 // BadgeInputs are the runtime-truth fields used to compute a session badge.
 type BadgeInputs struct {
-	State               State
-	HealthState         heartbeat.SessionHealthState
-	Health              heartbeat.SessionHealthStatus
-	Failure             *store.SessionFailure
-	PendingAuth         bool
-	PendingClarify      bool
-	ActivePrompt        bool
-	Stalled             bool
-	Unseen              bool
-	IneligibilityReason string
+	State                  State
+	StopVerificationFailed bool
+	SupervisionAttention   bool
+	HealthState            heartbeat.SessionHealthState
+	Health                 heartbeat.SessionHealthStatus
+	Failure                *store.SessionFailure
+	PendingAuth            bool
+	PendingClarify         bool
+	ActivePrompt           bool
+	Stalled                bool
+	Unseen                 bool
+	IneligibilityReason    string
 }
 
 // CanonicalBadge collapses runtime state, health, and failure classification into
-// the stable ten-token badge vocabulary used by API, CLI, and web clients.
+// the stable badge vocabulary used by API, CLI, and web clients.
 func CanonicalBadge(input BadgeInputs) Badge {
+	if (input.StopVerificationFailed || input.SupervisionAttention) && input.State != StateStopped {
+		return BadgeNeedsAttention
+	}
 	failure := store.CloneSessionFailure(input.Failure)
-	terminal := input.State == StateStopped || input.HealthState == heartbeat.SessionHealthStateStopped
+	terminal := input.State == StateStopped ||
+		(input.State == "" && input.HealthState == heartbeat.SessionHealthStateStopped)
 	if terminal && terminalFailureKind(failure) {
 		return BadgeFailed
 	}
@@ -61,8 +68,7 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	if badge, ok := degradedHealthBadge(input); ok {
 		return badge
 	}
-	if input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
-		input.HealthState == heartbeat.SessionHealthStatePrompting {
+	if runningBadgeInput(input) {
 		return BadgeRunning
 	}
 	if idleEligibleBadgeInput(input) && input.Unseen {
@@ -101,9 +107,12 @@ func BadgeForInfo(info *Info) Badge {
 		return BadgeUnknown
 	}
 	return CanonicalBadge(BadgeInputs{
-		State:          info.State,
-		Failure:        info.Failure,
-		PendingAuth:    info.PendingPermission || info.PendingPermissionCount > 0 || infoFailureNeedsAuth(info.Failure),
+		State:                  info.State,
+		StopVerificationFailed: info.StopVerificationFailed,
+		SupervisionAttention:   supervisionNeedsAttention(info.Supervision),
+		Failure:                info.Failure,
+		PendingAuth: info.PendingPermission || info.PendingPermissionCount > 0 ||
+			infoFailureNeedsAuth(info.Failure),
 		PendingClarify: info.PendingClarifyCount > 0,
 		Stalled:        infoHasDetectedStall(info),
 		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
@@ -159,15 +168,17 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 	pendingClarify := info != nil && info.PendingClarifyCount > 0
 	unseen := info != nil && info.LastSettledRevision > info.LastSeenRevision
 	return CanonicalBadge(BadgeInputs{
-		State:               state,
-		HealthState:         health.State,
-		Health:              health.Health,
-		Failure:             failure,
-		PendingAuth:         pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
-		PendingClarify:      pendingClarify,
-		ActivePrompt:        health.ActivePrompt,
-		Unseen:              unseen,
-		IneligibilityReason: health.IneligibilityReason,
+		State:                  state,
+		StopVerificationFailed: info != nil && info.StopVerificationFailed,
+		SupervisionAttention:   info != nil && supervisionNeedsAttention(info.Supervision),
+		HealthState:            health.State,
+		Health:                 health.Health,
+		Failure:                failure,
+		PendingAuth:            pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
+		PendingClarify:         pendingClarify,
+		ActivePrompt:           health.ActivePrompt,
+		Unseen:                 unseen,
+		IneligibilityReason:    health.IneligibilityReason,
 	})
 }
 
@@ -186,4 +197,9 @@ func failureKindIsAuth(failure *store.SessionFailure) bool {
 
 func infoFailureNeedsAuth(failure *store.SessionFailure) bool {
 	return failureKindIsAuth(failure)
+}
+
+func runningBadgeInput(input BadgeInputs) bool {
+	return input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
+		input.HealthState == heartbeat.SessionHealthStatePrompting
 }

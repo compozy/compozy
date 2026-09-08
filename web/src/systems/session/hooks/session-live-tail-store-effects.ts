@@ -1,4 +1,5 @@
 import {
+  MAX_RECONNECT_ATTEMPTS,
   RECONNECT_BASE_DELAY_MS,
   RECONNECT_MAX_DELAY_MS,
   SURFACE_REFRESH_DELAY_MS,
@@ -60,13 +61,14 @@ export function openStream(
   try {
     handles.closeStream = handles.runtime.openStream({
       commandsChanged: () => trigger.commandsChanged({ generation }),
-      error: error => trigger.streamError({ error, generation }),
-      frame: frame => trigger.frameReceived({ frame, generation }),
+      degraded: throughSequence => trigger.degradedReceived({ generation, throughSequence }),
+      error: error => trigger.streamError({ at: Date.now(), error, generation }),
+      frame: frame => trigger.frameReceived({ at: Date.now(), frame, generation }),
       goalChanged: () => trigger.goalChanged({ generation }),
       terminal: (payload, sequence) => trigger.terminalReceived({ generation, payload, sequence }),
     });
   } catch (error) {
-    trigger.streamError({ error, generation });
+    trigger.streamError({ at: Date.now(), error, generation });
   }
 }
 
@@ -106,12 +108,39 @@ export function scheduleQueryRecovery(
   );
 }
 
+/**
+ * Retry on the backoff curve until the cap; past it the transport gives up
+ * visibly (US-018.AC-2): the stream closes, no timer is armed, and only the
+ * operator's Try again reopens it. `at` is when this failure was observed.
+ */
 export function reconnectAfter(
   context: SessionLiveTailContext,
   enqueue: SessionLiveTailEnqueue,
+  at: number,
   error?: unknown
 ): SessionLiveTailContext {
   const attempt = context.reconnectAttempt + 1;
+  const degradedAt = context.degradedAt ?? at;
+  if (attempt > MAX_RECONNECT_ATTEMPTS) {
+    enqueue.effect(({ trigger }) => {
+      const handles = handlesByTrigger.get(trigger);
+      if (!handles) return;
+      clearTimer(handles.reconnectTimer);
+      closeStream(handles, "retries-exhausted");
+      handles.runtime.recordReconnect(attempt, 0, error);
+    });
+    return {
+      ...context,
+      applyPhase: "idle",
+      catchUpThrough: null,
+      catchingUp: false,
+      degradedAt,
+      failure: { at, attempts: MAX_RECONNECT_ATTEMPTS },
+      overflowed: false,
+      pendingFrames: [],
+      transportPhase: "failed",
+    };
+  }
   const delayMs = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1), RECONNECT_MAX_DELAY_MS);
   enqueue.effect(({ trigger }) => {
     const handles = handlesByTrigger.get(trigger);
@@ -127,6 +156,9 @@ export function reconnectAfter(
   return {
     ...context,
     applyPhase: "idle",
+    catchUpThrough: null,
+    catchingUp: false,
+    degradedAt,
     overflowed: false,
     pendingFrames: [],
     reconnectAttempt: attempt,
@@ -142,6 +174,8 @@ export function scheduleBlockingRepair(
   return {
     ...context,
     applyPhase: "repair-scheduled",
+    catchUpThrough: null,
+    failure: null,
     overflowed: false,
     pendingFrames: [],
     transportPhase: "connecting",
@@ -176,6 +210,8 @@ export function completePendingTerminal(
   return {
     ...context,
     applyPhase: "idle",
+    catchUpThrough: null,
+    catchingUp: false,
     generation: context.generation + 1,
     overflowed: false,
     pendingFrames: [],
@@ -203,6 +239,8 @@ export function refreshBeforePendingTerminal(
   return {
     ...context,
     applyPhase: "terminal-refreshing",
+    catchUpThrough: null,
+    catchingUp: false,
     overflowed: false,
     pendingFrames: [],
     queryRecoveryPhase: "idle",

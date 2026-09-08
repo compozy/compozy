@@ -86,19 +86,28 @@ func (c *daemonClient) RefreshSessionSoul(
 	return response, nil
 }
 
-func (c *daemonClient) StopSession(ctx context.Context, id string) error {
+func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
 	path, err := c.sessionScopedPath(ctx, id, "/stop")
 	if err != nil {
-		return err
+		return SessionStopRecord{}, err
 	}
-	return c.doJSON(
+	client := c.httpClient
+	if wait {
+		client = c.streamHTTPClient()
+	}
+	var result SessionStopRecord
+	if err := c.doJSONWithClient(
 		ctx,
 		http.MethodPost,
 		path,
 		nil,
-		nil,
-		nil,
-	)
+		contract.StopSessionRequest{Wait: &wait},
+		&result,
+		client,
+	); err != nil {
+		return SessionStopRecord{}, err
+	}
+	return result, nil
 }
 
 func (c *daemonClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
@@ -331,78 +340,6 @@ func (c *daemonClient) SteerSessionPrompt(
 		return SessionPromptRecord{}, err
 	}
 	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
-}
-
-func (c *daemonClient) SessionEvents(
-	ctx context.Context,
-	id string,
-	query SessionEventQuery,
-) ([]SessionEventRecord, error) {
-	var response struct {
-		Events []SessionEventRecord `json:"events"`
-	}
-	path, err := c.sessionScopedPath(ctx, id, "/events")
-	if err != nil {
-		return nil, err
-	}
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		path,
-		sessionEventValues(query),
-		nil,
-		&response,
-	); err != nil {
-		return nil, err
-	}
-	return response.Events, nil
-}
-
-func (c *daemonClient) StreamSessionEvents(
-	ctx context.Context,
-	id string,
-	query SessionEventQuery,
-	lastEventID string,
-	handler SSEHandler,
-) error {
-	path, err := c.sessionScopedPath(ctx, id, "/stream")
-	if err != nil {
-		return err
-	}
-	values := sessionEventValues(query)
-	values.Set("frames", contract.SessionStreamFrameRaw)
-	return c.doSSE(
-		ctx,
-		path,
-		values,
-		lastEventID,
-		handler,
-	)
-}
-
-func (c *daemonClient) SessionHistory(
-	ctx context.Context,
-	id string,
-	query SessionEventQuery,
-) ([]TurnHistoryRecord, error) {
-	var response struct {
-		History []TurnHistoryRecord `json:"history"`
-	}
-	path, err := c.sessionScopedPath(ctx, id, "/history")
-	if err != nil {
-		return nil, err
-	}
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		path,
-		sessionEventValues(query),
-		nil,
-		&response,
-	); err != nil {
-		return nil, err
-	}
-	return response.History, nil
 }
 
 func (c *daemonClient) BindHostedMCP(

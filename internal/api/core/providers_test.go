@@ -21,6 +21,118 @@ import (
 func TestProviderAuthHandlers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should discard cached pre-start failure after successful reauthentication", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerAuthTestConfig(t)
+		provider := cfg.Providers["native"]
+		starter := authproviders.NewPreStarter()
+		authenticated := false
+		calls := 0
+		runner := func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
+			calls++
+			if authenticated {
+				return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
+			}
+			return authproviders.ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+		}
+		resolver := func(context.Context, string, []string, string) (string, error) {
+			return "/test/bin/provider-cli", nil
+		}
+		env := &authproviders.ProbeEnv{
+			ProviderName: "native",
+			PreStartScope: authproviders.PreStartScope{
+				WorkspaceID: "workspace", ProfileID: "profile", HomeIdentity: t.TempDir(),
+				SandboxID: "sandbox", SandboxBackend: "local", SandboxProfile: "default",
+			},
+			LookPath:       func(string) (string, error) { return "/test/bin/provider-cli", nil },
+			ResolveCommand: resolver,
+			RunCommand:     runner,
+		}
+		for range 2 {
+			report := starter.PreStart(t.Context(), provider, env)
+			if report.Cause != nil || report.Item == nil || report.Item.Code != contract.CodeProviderNotAuthenticated {
+				t.Fatalf("pre-start report = %#v, want cached authentication failure", report)
+			}
+		}
+		if calls != 1 {
+			t.Fatalf("initial probe calls = %d, want 1", calls)
+		}
+		authenticated = true
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config: cfg, ProviderAuthRunner: runner, ProviderAuthCommandResolver: resolver,
+			OnProviderAuthSuccess: starter.Clear,
+		})
+		router := gin.New()
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/providers/native/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, request)
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode probe response: %v", err)
+		}
+		if response.Code != http.StatusOK || payload.AuthStatus.State != contract.ProviderAuthStateAuthenticated {
+			t.Fatalf("probe status = %d, body = %s", response.Code, response.Body.String())
+		}
+		if report := starter.PreStart(t.Context(), provider, env); report.Cause != nil || report.Item != nil {
+			t.Fatalf("pre-start after reauthentication = %#v, want success", report)
+		}
+		if calls != 3 {
+			t.Fatalf("probe calls = %d, want original failure, live auth and refreshed pre-start", calls)
+		}
+	})
+
+	for _, tc := range []struct {
+		name        string
+		cancelProbe bool
+	}{
+		{name: "Should retain pre-start verdicts after a failed auth probe"},
+		{name: "Should retain pre-start verdicts after a canceled auth probe", cancelProbe: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			invalidated := false
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				Config: providerAuthTestConfig(t),
+				ProviderAuthCommandResolver: func(context.Context, string, []string, string) (string, error) {
+					return "/test/bin/provider-cli", nil
+				},
+				ProviderAuthRunner: func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
+					if tc.cancelProbe {
+						cancel()
+						return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
+					}
+					return authproviders.ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+				},
+				OnProviderAuthSuccess: func() { invalidated = true },
+			})
+			router := gin.New()
+			router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+			response := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/providers/native/auth/probe", http.NoBody)
+			router.ServeHTTP(response, request)
+			var payload contract.ProviderAuthProbeResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode probe response: %v", err)
+			}
+			if response.Code != http.StatusOK || payload.Provider != "native" {
+				t.Fatalf("probe status = %d, body = %s", response.Code, response.Body.String())
+			}
+			if invalidated {
+				t.Fatal("failed or canceled probe invalidated the pre-start cache")
+			}
+		})
+	}
+
 	t.Run("Should report explicit no auth provider state", func(t *testing.T) {
 		t.Parallel()
 

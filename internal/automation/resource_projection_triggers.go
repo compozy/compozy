@@ -63,12 +63,16 @@ func (m *Manager) createTriggerResource(
 	}
 	created, err := m.triggerResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), draft)
 	if err != nil {
-		return Trigger{}, errors.Join(err, restoreWebhookSecretStates(persistenceContext(ctx), m, secretState))
+		persistCtx1, cancelPersist1 := persistenceContext(ctx)
+		defer cancelPersist1()
+		return Trigger{}, errors.Join(err, restoreWebhookSecretStates(persistCtx1, m, secretState))
 	}
 	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+		persistCtx2, cancelPersist2 := persistenceContext(ctx)
+		defer cancelPersist2()
 		rollbackErr := errors.Join(
-			deleteResourceRecord(persistenceContext(ctx), m.triggerResources, m.resourceActor, created),
-			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+			deleteResourceRecord(persistCtx2, m.triggerResources, m.resourceActor, created),
+			restoreWebhookSecretStates(persistCtx2, m, secretState),
 		)
 		if rollbackErr != nil {
 			return Trigger{}, errors.Join(err, rollbackErr)
@@ -121,9 +125,11 @@ func (m *Manager) updateTriggerResource(
 		},
 	)
 	if err != nil {
+		persistCtx3, cancelPersist3 := persistenceContext(ctx)
+		defer cancelPersist3()
 		return Trigger{}, triggerMutationError(
 			err,
-			restoreWebhookSecretStates(persistenceContext(ctx), m, nextSecretState),
+			restoreWebhookSecretStates(persistCtx3, m, nextSecretState),
 		)
 	}
 	if err := m.deleteSupersededOwnedWebhookSecret(ctx, current.Spec, next); err != nil {
@@ -154,9 +160,11 @@ func (m *Manager) restoreUpdatedTriggerResource(
 	updated resources.Record[Trigger],
 	secretStates ...webhookSecretState,
 ) error {
+	persistCtx4, cancelPersist4 := persistenceContext(ctx)
+	defer cancelPersist4()
 	return errors.Join(
-		restoreUpdatedResourceRecord(persistenceContext(ctx), m.triggerResources, m.resourceActor, current, updated),
-		restoreWebhookSecretStates(persistenceContext(ctx), m, secretStates...),
+		restoreUpdatedResourceRecord(persistCtx4, m.triggerResources, m.resourceActor, current, updated),
+		restoreWebhookSecretStates(persistCtx4, m, secretStates...),
 	)
 }
 
@@ -217,8 +225,10 @@ func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
 		strings.TrimSpace(current.Spec.WebhookSecretRef) != "",
 	)
 	if err != nil {
+		persistCtx5, cancelPersist5 := persistenceContext(ctx)
+		defer cancelPersist5()
 		if rollbackErr := recreateDeletedResourceRecord(
-			persistenceContext(ctx),
+			persistCtx5,
 			m.triggerResources,
 			m.resourceActor,
 			current,
@@ -228,14 +238,16 @@ func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
 		return err
 	}
 	if err := m.deleteOwnedWebhookSecretIfPresent(ctx, current.Spec); err != nil {
+		persistCtx6, cancelPersist6 := persistenceContext(ctx)
+		defer cancelPersist6()
 		rollbackErr := errors.Join(
 			recreateDeletedResourceRecord(
-				persistenceContext(ctx),
+				persistCtx6,
 				m.triggerResources,
 				m.resourceActor,
 				current,
 			),
-			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+			restoreWebhookSecretStates(persistCtx6, m, secretState),
 		)
 		if rollbackErr != nil {
 			return errors.Join(err, rollbackErr)
@@ -243,14 +255,16 @@ func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
 		return err
 	}
 	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+		persistCtx7, cancelPersist7 := persistenceContext(ctx)
+		defer cancelPersist7()
 		rollbackErr := errors.Join(
 			recreateDeletedResourceRecord(
-				persistenceContext(ctx),
+				persistCtx7,
 				m.triggerResources,
 				m.resourceActor,
 				current,
 			),
-			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+			restoreWebhookSecretStates(persistCtx7, m, secretState),
 		)
 		if rollbackErr != nil {
 			return errors.Join(err, rollbackErr)

@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -414,73 +415,77 @@ func TestSubscribeSessionEventStreamMode(t *testing.T) {
 func TestTranscriptPushTreatsRawSequenceAsWakeOnly(t *testing.T) {
 	t.Parallel()
 
-	streamDone := make(chan struct{})
-	statusCalls := 0
-	pageCalls := 0
-	handlers := &BaseHandlers{
-		Sessions: sessionManagerStub{
-			status: func(_ context.Context, id string) (*session.Info, error) {
-				statusCalls++
-				info := streamTestSessionInfo(id)
-				info.TranscriptEpoch = 4
-				return info, nil
-			},
-			transcriptPage: func(
-				context.Context,
-				string,
-				transcript.PageQuery,
-			) (transcript.Page, error) {
-				pageCalls++
-				close(streamDone)
-				return transcript.Page{
-					Entries:     []transcript.Entry{{StartSequence: 1, Sequence: 1}},
-					Generation:  5,
-					MaxSequence: 1,
-				}, nil
-			},
-			transcriptChanges: func(
-				context.Context,
-				string,
-				transcript.ChangeQuery,
-			) (transcript.ChangePage, error) {
-				t.Fatal("TranscriptChanges() called before epoch reset snapshot")
-				return transcript.ChangePage{}, nil
-			},
-		},
-		PollInterval: time.Hour,
-	}
-	handlers.SetStreamDone(streamDone)
-	gin.SetMode(gin.TestMode)
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
-	eventWake := make(chan store.SessionEvent, 1)
-	eventWake <- store.SessionEvent{Sequence: 1}
-	writer := &streamTestFlushWriter{}
+	t.Run("Should use raw sequence only to wake transcript replay", func(t *testing.T) {
+		t.Parallel()
 
-	handlers.pushAndStreamSessionTranscript(
-		ctx,
-		writer,
-		"sess-a",
-		streamTestSessionInfo("sess-a"),
-		transcriptStreamState{cursor: 10, generation: 4, epoch: 3},
-		2,
-		sessionEventStreamSubscription{events: eventWake, cancel: func() {}},
-	)
-
-	if statusCalls != 1 || pageCalls != 1 {
-		t.Fatalf("status/page calls = %d/%d, want one refresh from lower raw sequence", statusCalls, pageCalls)
-	}
-	for _, fragment := range []string{
-		"event: transcript_snapshot",
-		`"epoch":4`,
-		`"generation":5`,
-		`"reset":true`,
-		`"reason":"epoch_mismatch"`,
-	} {
-		if !strings.Contains(writer.String(), fragment) {
-			t.Fatalf("stream body missing %q: %s", fragment, writer.String())
+		streamDone := make(chan struct{})
+		statusCalls := 0
+		pageCalls := 0
+		handlers := &BaseHandlers{
+			Sessions: sessionManagerStub{
+				status: func(_ context.Context, id string) (*session.Info, error) {
+					statusCalls++
+					info := streamTestSessionInfo(id)
+					info.TranscriptEpoch = 4
+					return info, nil
+				},
+				transcriptPage: func(
+					context.Context,
+					string,
+					transcript.PageQuery,
+				) (transcript.Page, error) {
+					pageCalls++
+					close(streamDone)
+					return transcript.Page{
+						Entries:     []transcript.Entry{{StartSequence: 1, Sequence: 1}},
+						Generation:  5,
+						MaxSequence: 1,
+					}, nil
+				},
+				transcriptChanges: func(
+					context.Context,
+					string,
+					transcript.ChangeQuery,
+				) (transcript.ChangePage, error) {
+					t.Fatal("TranscriptChanges() called before epoch reset snapshot")
+					return transcript.ChangePage{}, nil
+				},
+			},
+			PollInterval: time.Hour,
 		}
-	}
+		handlers.SetStreamDone(streamDone)
+		gin.SetMode(gin.TestMode)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		eventWake := make(chan store.SessionEvent, 1)
+		eventWake <- store.SessionEvent{Sequence: 1}
+		writer := &streamTestFlushWriter{}
+
+		handlers.pushAndStreamSessionTranscript(
+			ctx,
+			writer,
+			"sess-a",
+			streamTestSessionInfo("sess-a"),
+			transcriptStreamState{cursor: 10, generation: 4, epoch: 3},
+			2,
+			sessionEventStreamSubscription{events: eventWake, cancel: func() {}},
+		)
+
+		if statusCalls != 1 || pageCalls != 1 {
+			t.Fatalf("status/page calls = %d/%d, want one refresh from lower raw sequence", statusCalls, pageCalls)
+		}
+		for _, fragment := range []string{
+			"event: transcript_snapshot",
+			`"epoch":4`,
+			`"generation":5`,
+			`"reset":true`,
+			`"reason":"epoch_mismatch"`,
+		} {
+			if !strings.Contains(writer.String(), fragment) {
+				t.Fatalf("stream body missing %q: %s", fragment, writer.String())
+			}
+		}
+	})
 }
 
 func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
@@ -572,6 +577,59 @@ func TestTranscriptPushDrainsPersistedEventsBeforeStopping(t *testing.T) {
 	})
 }
 
+// Invariant UT-114 / IT-044: a buffered token wake burst produces one ordered
+// transcript delta at the durable watermark. Owner: the core streaming suite.
+func TestTranscriptPushCoalescesWakeWatermarks(t *testing.T) {
+	t.Run("Should coalesce buffered wakes through the durable watermark", func(t *testing.T) {
+		t.Parallel()
+		streamDone := make(chan struct{})
+		wakes := make(chan store.SessionEvent, 100)
+		for sequence := int64(2); sequence <= 101; sequence++ {
+			wakes <- store.SessionEvent{Sequence: sequence, Type: "agent_message"}
+		}
+		queries := 0
+		info := streamTestSessionInfo("sess-burst")
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			status: func(context.Context, string) (*session.Info, error) { return info, nil },
+			transcriptChanges: func(_ context.Context, _ string, query transcript.ChangeQuery) (transcript.ChangePage, error) {
+				queries++
+				if query.AfterSequence != 1 || query.Limit != 200 {
+					t.Fatalf("change query = %#v, want bounded replay after 1", query)
+				}
+				close(streamDone)
+				return transcript.ChangePage{
+					Generation: 4, MaxSequence: 101, NextAfter: 101,
+					Entries: []transcript.Entry{{StartSequence: 2, Sequence: 101,
+						Message: transcript.UIMessage{ID: "burst", Role: transcript.UIRoleAssistant}}},
+				}, nil
+			},
+		}}
+		handlers.SetStreamDone(streamDone)
+		gin.SetMode(gin.TestMode)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
+		writer := &streamTestFlushWriter{}
+		handlers.pushAndStreamSessionTranscript(ctx, writer, info.ID, info,
+			transcriptStreamState{cursor: 1, generation: 4, epoch: 3, commandCheckedAt: time.Now()},
+			200, sessionEventStreamSubscription{events: wakes, cancel: func() {}})
+		if queries != 1 || strings.Count(writer.String(), "event: transcript_delta") != 1 {
+			t.Fatalf("burst queries = %d, body = %s; want one coalesced delta", queries, writer.String())
+		}
+		for line := range strings.SplitSeq(writer.String(), "\n") {
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var payload contract.TranscriptDeltaPayload
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Cursor != 101 || len(payload.Entries) != 1 || payload.Entries[0].Sequence != 101 {
+				t.Fatalf("delta = %#v, want complete burst through 101", payload)
+			}
+		}
+	})
+}
+
 func TestTranscriptReconnectFence(t *testing.T) {
 	t.Parallel()
 
@@ -641,71 +699,122 @@ func TestTranscriptReconnectFence(t *testing.T) {
 	}
 }
 
-func TestInitializeTranscriptStreamResetsMismatchedReconnect(t *testing.T) {
+// Invariant: a reconnect with a rewritten or retired cursor receives a stated
+// bounded snapshot, never a partial delta. Owner: stream initialization suite.
+func TestInitializeTranscriptStream(t *testing.T) {
 	t.Parallel()
-
-	pageCalls := 0
-	changeCalls := 0
-	handlers := &BaseHandlers{Sessions: sessionManagerStub{
-		transcriptPage: func(
-			context.Context,
-			string,
-			transcript.PageQuery,
-		) (transcript.Page, error) {
-			pageCalls++
-			return transcript.Page{
-				Entries:     []transcript.Entry{{StartSequence: 7, Sequence: 7}},
-				Generation:  4,
-				MaxSequence: 7,
-			}, nil
-		},
-		transcriptChanges: func(
-			context.Context,
-			string,
-			transcript.ChangeQuery,
-		) (transcript.ChangePage, error) {
-			changeCalls++
-			return transcript.ChangePage{Generation: 4, MaxSequence: 7, NextAfter: 5}, nil
-		},
-	}}
-	writer := &streamTestFlushWriter{}
-	wantEpoch := int64(2)
-	wantGeneration := int64(4)
-
-	state, err := handlers.initializeTranscriptStream(
-		context.Background(),
-		writer,
-		"sess-a",
-		streamTestSessionInfo("sess-a"),
-		5,
-		2,
-		sessionStreamOptions{
-			expectedEpoch:      &wantEpoch,
-			expectedGeneration: &wantGeneration,
-		},
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("initializeTranscriptStream() error = %v", err)
-	}
-	if state.cursor != 7 || state.generation != 4 || state.epoch != 3 {
-		t.Fatalf("stream state = %#v, want cursor/generation/epoch 7/4/3", state)
-	}
-	if pageCalls != 1 || changeCalls != 1 {
-		t.Fatalf("page/change calls = %d/%d, want one fence read and one reset snapshot", pageCalls, changeCalls)
-	}
-	for _, fragment := range []string{
-		"event: transcript_snapshot",
-		"id: 7",
-		`"reset":true`,
-		`"reason":"epoch_mismatch"`,
-	} {
-		if !strings.Contains(writer.String(), fragment) {
-			t.Fatalf("stream body missing %q: %s", fragment, writer.String())
+	t.Run("Should confirm the current watermark when reconnecting without new entries", func(t *testing.T) {
+		t.Parallel()
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			transcriptChanges: func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error) {
+				return transcript.ChangePage{Generation: 4, MaxSequence: 7, NextAfter: 7}, nil
+			},
+		}}
+		writer := &streamTestFlushWriter{}
+		state, err := handlers.initializeTranscriptStream(t.Context(), writer, "sess-a",
+			streamTestSessionInfo("sess-a"), 7, 2,
+			sessionStreamOptions{expectedEpoch: new(int64(3)), expectedGeneration: new(int64(4))}, nil)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if strings.Contains(writer.String(), "event: transcript_delta") {
-		t.Fatalf("stream body contains a delta during reset: %s", writer.String())
+		if state.cursor != 7 || state.generation != 4 || state.epoch != 3 {
+			t.Fatalf("stream state = %#v, want unchanged watermark 7/4/3", state)
+		}
+		body := writer.String()
+		if strings.Count(body, "event: transcript_delta\n") != 1 || strings.Contains(body, "transcript_snapshot") {
+			t.Fatalf("initial stream = %q, want one delta confirming the existing watermark", body)
+		}
+		var payload contract.TranscriptDeltaPayload
+		for line := range strings.SplitSeq(body, "\n") {
+			if data, ok := strings.CutPrefix(line, "data: "); ok {
+				if err := json.Unmarshal([]byte(data), &payload); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if payload.Cursor != 7 || payload.MaxSequence != 7 || payload.Generation != 4 ||
+			payload.Epoch != 3 || payload.HasMore || payload.Entries == nil || len(payload.Entries) != 0 {
+			t.Fatalf("initial delta = %#v, want an empty caught-up frame at 7/4/3", payload)
+		}
+	})
+	for _, tc := range []struct {
+		name       string
+		epoch, min int64
+		reason     string
+	}{
+		{"epoch mismatch", 2, 0, contract.TranscriptSnapshotReasonEpochMismatch},
+		{"retention removed cursor", 3, 7, contract.TranscriptSnapshotReasonCursorExpired},
+	} {
+		t.Run("Should reset "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			pageCalls := 0
+			changeCalls := 0
+			handlers := &BaseHandlers{Sessions: sessionManagerStub{
+				transcriptPage: func(
+					context.Context,
+					string,
+					transcript.PageQuery,
+				) (transcript.Page, error) {
+					pageCalls++
+					return transcript.Page{
+						Entries:     []transcript.Entry{{StartSequence: 7, Sequence: 7}},
+						Generation:  4,
+						MaxSequence: 7,
+					}, nil
+				},
+				transcriptChanges: func(
+					context.Context,
+					string,
+					transcript.ChangeQuery,
+				) (transcript.ChangePage, error) {
+					changeCalls++
+					return transcript.ChangePage{Generation: 4, MinSequence: tc.min, MaxSequence: 7, NextAfter: 5}, nil
+				},
+			}}
+			writer := &streamTestFlushWriter{}
+			wantEpoch := tc.epoch
+			wantGeneration := int64(4)
+
+			state, err := handlers.initializeTranscriptStream(
+				context.Background(),
+				writer,
+				"sess-a",
+				streamTestSessionInfo("sess-a"),
+				5,
+				2,
+				sessionStreamOptions{
+					expectedEpoch:      &wantEpoch,
+					expectedGeneration: &wantGeneration,
+				},
+				nil,
+			)
+			if err != nil {
+				t.Fatalf("initializeTranscriptStream() error = %v", err)
+			}
+			if state.cursor != 7 || state.generation != 4 || state.epoch != 3 {
+				t.Fatalf("stream state = %#v, want cursor/generation/epoch 7/4/3", state)
+			}
+			if pageCalls != 1 || changeCalls != 1 {
+				t.Fatalf(
+					"page/change calls = %d/%d, want one fence read and one reset snapshot",
+					pageCalls,
+					changeCalls,
+				)
+			}
+			for _, fragment := range []string{
+				"event: transcript_snapshot",
+				"id: 7",
+				`"reset":true`,
+				`"reason":"` + tc.reason + `"`,
+			} {
+				if !strings.Contains(writer.String(), fragment) {
+					t.Fatalf("stream body missing %q: %s", fragment, writer.String())
+				}
+			}
+			if strings.Contains(writer.String(), "event: transcript_delta") {
+				t.Fatalf("stream body contains a delta during reset: %s", writer.String())
+			}
+		})
 	}
 }
 
@@ -745,14 +854,17 @@ func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
 
 		body := writer.String()
 		for _, fragment := range []string{
-			"id: 12",
 			"event: goal_snapshot_changed",
 			`data: {"run_id":"run-1","status":"running"}`,
 		} {
 			if !strings.Contains(body, fragment) {
 				t.Fatalf("Goal snapshot stream body missing %q: %s", fragment, body)
 			}
+		} // Invariant: an out-of-band Goal snapshot cannot skip an undelivered transcript gap.
+		if strings.Contains(body, "id:") {
+			t.Fatalf("Goal side signal advanced the transcript cursor: %s", body)
 		}
+
 		if strings.Contains(body, "event: transcript_delta") {
 			t.Fatalf("Goal snapshot signal was emitted as a transcript delta: %s", body)
 		}
@@ -930,7 +1042,6 @@ func TestWriteTranscriptChangePages(t *testing.T) {
 		}
 		for _, fragment := range []string{
 			"id: 9",
-			"id: 12",
 			`"start_sequence":2`,
 			`"entries":[]`,
 		} {

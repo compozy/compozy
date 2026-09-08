@@ -34,7 +34,7 @@ One report per run at `<qa-docs-path>/reports/<YYYY-MM-DD>-<scope>.md` (`scope` 
 - **Created the moment the session matrix exists** (Step 2) — scope, personas, flows, matrix all rows `Pending`. Not at the end.
 - **Updated incrementally**: after every session (row statuses, evidence, paper cuts) and after every fix (What Was Fixed, commit SHA). The on-disk report is the source of truth for resume — a run interrupted at session 3 of 7 restarts by reading the report, not by re-running sessions 1-2.
 - **Never overwritten across runs.** A new run on the same scope gets a new date-file; the old report is history.
-- **Final Status written last**, after the exit gate: ready / not ready / ready-with-blocked-items, with totals by impact tier and the gate result verbatim.
+- **Final Status written last**, after the exit gate: ready / not ready / ready-with-blocked-items, with totals by impact tier and a concise gate result/evidence link.
 
 ## Tracker write-back
 
@@ -52,10 +52,10 @@ Run before writing Final Status; every unmet item is either fixed or disclosed i
 1. **Matrix terminal** — zero `Pending` rows; every `Skipped` has reasoning; every Blocked row carries its human instructions or escalation.
 2. **Coverage honest** — every in-scope journey was walked by its assigned persona, or its absence is disclosed. No coverage claims without a session behind them.
 3. **Bugs consistent** — every `Fail`/`Fixed` row links a registered bug id; bug statuses match reality; no orphan bugs unlinked from the tracker.
-4. **Fixes proven** — every fix has commit SHA + regression test (or documented replay + backlog entry); impacted and adjacent journeys re-walked.
+4. **Fixes proven** — every fix links its patch/commit and owning-suite or replay evidence; impacted journeys and plausible propagation paths re-walked.
 5. **Tracker written** — every settled scenario's file carries the current verdict with valid enums; every session's debrief is in the report.
 6. **Evidence lean and linked** — checkpoints/failures captured, paths resolve, oversized evidence pruned per the layout policy.
-7. **Exit gate run** — local pre-push gate and exact-head PR CI status recorded verbatim.
+7. **Exit gate run** — required local gate evidence and, when delivering a PR, its current-head CI status recorded.
 8. **Parity disclosed** — any production-parity deviation (mocked service, missing extension set, wifi-only) stated, since it qualifies every verdict.
 9. **Fidelity clean** — no evaluator framing leaked into product surfaces; any violation disclosed with the re-run that replaced the tainted verdicts.
 10. **Final Status states the release readiness** in one sentence a non-reader can act on, with totals by user-impact tier.

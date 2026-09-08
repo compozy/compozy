@@ -69,6 +69,9 @@ max_concurrent_agents = 22
 [session.limits]
 timeout = "30m"
 
+[session.stop]
+cooperative_grace = "7s"
+
 [permissions]
 mode = "approve-all"
 
@@ -186,6 +189,9 @@ max_wakes = 80
 	}
 	if cfg.Defaults.Provider != "claude" {
 		t.Fatalf("Load() Defaults.Provider = %q, want %q", cfg.Defaults.Provider, "claude")
+	}
+	if cfg.Session.Stop.CooperativeGrace != 7*time.Second {
+		t.Fatalf("loaded cooperative grace = %s, want 7s", cfg.Session.Stop.CooperativeGrace)
 	}
 	if cfg.Agents.Soul.Enabled {
 		t.Fatal("Load() Agents.Soul.Enabled = true, want false")
@@ -1515,23 +1521,26 @@ func TestSessionCompactionConfigDefaultsAndValidation(t *testing.T) {
 	})
 }
 
-func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T) {
-	t.Run("Should reject warning threshold after timeout", func(t *testing.T) {
-		t.Parallel()
-
+// Invariant: quiet and grace are independent nonnegative durations. Owner: config decoder/validator; canonical config suite.
+func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {
+	for _, value := range []time.Duration{0, time.Second, 2 * time.Minute} {
 		cfg := DefaultSessionSupervisionConfig()
-		cfg.InactivityWarningAfter = 2 * time.Minute
-		cfg.InactivityTimeout = time.Minute
-
-		err := cfg.Validate()
-		if err == nil {
-			t.Fatal("SessionSupervisionConfig.Validate() error = nil, want non-nil")
+		cfg.QuietAfter, cfg.StopGrace = 2*time.Minute, value
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
 		}
-		if !strings.Contains(err.Error(), "session.supervision.inactivity_warning_after") ||
-			!strings.Contains(err.Error(), "session.supervision.inactivity_timeout") {
-			t.Fatalf("SessionSupervisionConfig.Validate() error = %v, want threshold context", err)
+	}
+	for _, field := range []string{"quiet_after", "stop_grace"} {
+		cfg := DefaultSessionSupervisionConfig()
+		if field == "quiet_after" {
+			cfg.QuietAfter = -time.Second
+		} else {
+			cfg.StopGrace = -time.Second
 		}
-	})
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), field) {
+			t.Fatalf("%s: %v", field, err)
+		}
+	}
 }
 
 func TestSessionSupervisionConfigValidateRejectsNegativePromptDeadline(t *testing.T) {
@@ -3154,4 +3163,67 @@ func unsetEnvForTest(t *testing.T, key string) {
 			t.Fatalf("restore env %q error = %v", key, err)
 		}
 	})
+}
+
+func TestSessionStopConfig(t *testing.T) {
+	t.Parallel()
+	t.Run("Should default to ten seconds and preserve an omitted override", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultSessionConfig()
+		sessionOverlay{}.Apply(&cfg)
+		if cfg.Stop.CooperativeGrace != 10*time.Second {
+			t.Fatalf("default grace=%s", cfg.Stop.CooperativeGrace)
+		}
+		grace := 7 * time.Second
+		sessionOverlay{Stop: sessionStopOverlay{CooperativeGrace: &grace}}.Apply(&cfg)
+		if cfg.Stop.CooperativeGrace != grace {
+			t.Fatalf("override grace=%s", cfg.Stop.CooperativeGrace)
+		}
+	})
+	t.Run("Should reject nonpositive cooperative grace", func(t *testing.T) {
+		t.Parallel()
+		for _, grace := range []time.Duration{0, -time.Second} {
+			cfg := defaultSessionConfig()
+			cfg.Stop.CooperativeGrace = grace
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "session.stop.cooperative_grace") {
+				t.Fatalf("Validate(%s)=%v", grace, err)
+			}
+		}
+	})
+}
+
+func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		value   string
+		want    string
+		invalid bool
+	}{
+		{name: "Should default omitted mode to steer", want: "steer"},
+		{name: "Should accept steer", value: "steer", want: "steer"},
+		{name: "Should accept queue", value: "queue", want: "queue"},
+		{name: "Should trim an explicit mode", value: " queue ", want: "queue"},
+		{name: "Should preserve legacy interrupt during its compatibility window", value: "interrupt", want: "interrupt"},
+		{name: "Should reject an unknown default mode", value: "automatic", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := SessionBusyInputConfig{DefaultMode: tc.value}
+			err := cfg.Validate()
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "session.busy_input.default_mode") ||
+					!strings.Contains(err.Error(), tc.value) {
+					t.Fatalf("Validate(%q) = %v, want field and rejected value", tc.value, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Normalize().DefaultMode; got != tc.want {
+				t.Fatalf("normalized mode = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

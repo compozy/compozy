@@ -70,7 +70,16 @@ describe("session prompt chat transport", () => {
     expect(first.idempotency_key).toBe(second.idempotency_key);
     expect(first).not.toHaveProperty("message");
     expect(first).not.toHaveProperty("messageId");
-    expect(onPromptPrepared).toHaveBeenLastCalledWith({ messages: [latest] });
+    // The prepared envelope handed to the runtime is byte-for-byte what left on
+    // the wire, on the retry too: the same message_id and the same retained key,
+    // so a lost acknowledgment can be replayed by the exact identity.
+    expect(onPromptPrepared).toHaveBeenCalledTimes(2);
+    expect(onPromptPrepared).toHaveBeenNthCalledWith(1, { body: first, messages: [latest] });
+    expect(onPromptPrepared).toHaveBeenLastCalledWith({ body: second, messages: [latest] });
+    expect(second).toMatchObject({
+      idempotency_key: first.idempotency_key,
+      message_id: "message-002",
+    });
   });
 
   it("mints a separate key for the next submitted user message and retains the runtime snapshot", async () => {

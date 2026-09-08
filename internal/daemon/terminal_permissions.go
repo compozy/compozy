@@ -22,7 +22,6 @@ type terminalPermissionBridge struct {
 	approval toolspkg.ApprovalBridge
 }
 
-var _ terminalpkg.TypingGrantAuthorizer = (*terminalPermissionBridge)(nil)
 var _ terminalpkg.ExecAuthorizer = (*terminalPermissionBridge)(nil)
 var _ terminalExecApprover = (*terminalPermissionBridge)(nil)
 
@@ -121,40 +120,6 @@ func terminalPermissionRisk(classification terminalpkg.CommandClassification) st
 
 func terminalApprovalMustBeForced(classification terminalpkg.CommandClassification) bool {
 	return classification.Reason == "irreversible" || classification.Reason == "unclassifiable"
-}
-
-func (b *terminalPermissionBridge) AuthorizeTerminalInput(
-	ctx context.Context,
-	actor terminalpkg.Actor,
-	info terminalpkg.Info,
-) error {
-	input, err := json.Marshal(map[string]any{
-		"terminal_id":      info.ID,
-		"grant_generation": info.TypingGeneration,
-	})
-	if err != nil {
-		return fmt.Errorf("prepare terminal typing grant: %w", err)
-	}
-	scope := toolspkg.Scope{
-		ProfileID: info.ProfileID, WorkspaceID: info.WS, SessionID: actor.SessionID,
-		RunID: actor.RunID, Generation: actor.Generation,
-		AgentName: actor.ID, ActorKind: string(actor.Kind),
-	}
-	call := toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDTerminalWrite, ProfileID: info.ProfileID, WorkspaceID: info.WS,
-		SessionID: actor.SessionID, RunID: actor.RunID, Generation: actor.Generation,
-		AgentName: actor.ID, ActorKind: string(actor.Kind), Input: input,
-	}
-	if _, err := b.ApproveTerminalExec(ctx, scope, call); err != nil {
-		if errors.Is(err, errToolApprovalRejected) {
-			return &terminalpkg.Error{
-				Code: terminalpkg.ErrorCodeTypingGrantRejected, Message: "terminal typing grant was rejected",
-				Err: terminalpkg.ErrTypingGrant,
-			}
-		}
-		return fmt.Errorf("terminal typing grant evaluation failed: %w", err)
-	}
-	return nil
 }
 
 func (b *terminalPermissionBridge) current() toolspkg.ApprovalBridge {

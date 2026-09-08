@@ -86,8 +86,9 @@ export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProp
         "flex items-start gap-2.5 border-t border-line-soft py-2.25 first:border-t-0",
         className
       )}
-      data-control={step.isControl ? "true" : undefined}
+      data-node-class={step.nodeClass ?? undefined}
       data-node-id={step.nodeId}
+      data-quiet={step.quiet ? "true" : undefined}
       data-testid={`loop-run-step-${step.nodeId}`}
       {...props}
     >

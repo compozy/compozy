@@ -27,8 +27,20 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 		return "", nil, err
 	}
 	if update.StopReasonSet {
-		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
-		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
+		assignments = append(
+			assignments,
+			"stop_reason = ?",
+			"stop_escalated = ?",
+			"stop_verification_failed = ?",
+			"stop_detail = ?",
+		)
+		args = append(
+			args,
+			store.NullableStringPointer(update.StopReason),
+			update.StopEscalated,
+			update.StopVerificationFailed,
+			store.NullableString(update.StopDetail),
+		)
 	}
 	if update.FailureSet {
 		assignments = append(assignments, "failure_kind = ?", "failure_summary = ?", "crash_bundle_path = ?")

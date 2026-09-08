@@ -216,7 +216,6 @@ export type HookEvent =
   | "worktree.removed"
   | "terminal.opened"
   | "terminal.closed"
-  | "terminal.lease_changed"
   | "terminal.command_started"
   | "terminal.command_finished"
   | "terminal.input_requested"
@@ -2313,6 +2312,8 @@ export interface HeartbeatWakeEventPayload {
   expires_at: ISODateTime;
 }
 
+export type State = "starting" | "active" | "stopping" | "stopped";
+
 export type SessionHealthState = "idle" | "prompting" | "stopped" | "detached";
 
 export type SessionHealthStatus = "healthy" | "degraded" | "stale" | "dead" | "unknown";
@@ -2327,6 +2328,10 @@ export type SessionHealthIneligibilityReason =
   | "session_health_unknown";
 
 export interface SessionHealthPayload {
+  lifecycle_state?: State;
+  verified?: boolean;
+  escalated?: boolean;
+  attention?: string;
   session_id: string;
   workspace_id: string;
   agent_name: string;
@@ -4769,6 +4774,8 @@ export interface SessionHealthUpdateAfterPayload {
   last_error?: string;
 }
 
+export type SteerDeliveryMode = "injected" | "pending_injection" | "interrupt_fallback";
+
 export type PromptMode = string;
 
 export type PromptDelivery = string;
@@ -4790,6 +4797,7 @@ export interface PromptRuntimeSelectionPayload {
 }
 
 export interface SessionInput {
+  steer_delivery?: SteerDeliveryMode;
   id: string;
   session_id: string;
   message_id?: string;
@@ -5065,7 +5073,12 @@ export interface SessionPreStopPayload {
   updated_at: ISODateTime;
 }
 
+export type Disposition = "direct" | "steering" | "queued" | "interrupting";
+
 export interface SessionPromptResult {
+  disposition?: Disposition;
+  steer_delivery?: SteerDeliveryMode;
+  entry_id?: string;
   status: string;
   mode?: PromptMode;
   delivery: PromptDelivery;
@@ -5247,8 +5260,6 @@ export interface SessionRuntimePayload {
   acp_caps?: ACPCapsPayload;
 }
 
-export type State = "starting" | "active" | "stopping" | "stopped";
-
 export type StopReason =
   | "completed"
   | "user_canceled"
@@ -5281,6 +5292,11 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface SessionQueueSummaryPayload {
+  entries: number;
+  cap: number;
+}
+
 export type Badge = string;
 
 export interface PendingInteractionPayload {
@@ -5300,6 +5316,11 @@ export interface PendingInteractionPayload {
 }
 
 export interface SessionStatusResponse {
+  queue?: SessionQueueSummaryPayload;
+  lifecycle_state?: State;
+  verified?: boolean;
+  escalated?: boolean;
+  attention?: string;
   session_id: string;
   workspace_id: string;
   agent_name: string;
@@ -7027,23 +7048,6 @@ export interface TerminalInputRequestedPayload {
   redacted: boolean;
 }
 
-export interface TerminalLeaseChangedPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  workspace_id: string;
-  profile_id: string;
-  terminal_id?: string;
-  actor_kind: string;
-  actor_id: string;
-  session_id?: string;
-  run_id?: string;
-  generation?: number;
-  at: ISODateTime;
-  from: string;
-  to: string;
-  reason: string;
-}
-
 export interface TerminalLimitRejectedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -7932,7 +7936,6 @@ export interface HookPayloadByEvent {
   "worktree.removed": WorktreeObservationPayload;
   "terminal.opened": TerminalOpenedPayload;
   "terminal.closed": TerminalClosedPayload;
-  "terminal.lease_changed": TerminalLeaseChangedPayload;
   "terminal.command_started": TerminalCommandStartedPayload;
   "terminal.command_finished": TerminalCommandFinishedPayload;
   "terminal.input_requested": TerminalInputRequestedPayload;
@@ -8050,7 +8053,6 @@ export interface HookPatchByEvent {
   "worktree.removed": WorktreeObservationPatch;
   "terminal.opened": TerminalObservationPatch;
   "terminal.closed": TerminalObservationPatch;
-  "terminal.lease_changed": TerminalObservationPatch;
   "terminal.command_started": TerminalObservationPatch;
   "terminal.command_finished": TerminalObservationPatch;
   "terminal.input_requested": TerminalObservationPatch;

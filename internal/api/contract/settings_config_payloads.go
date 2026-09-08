@@ -7,7 +7,12 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 )
 
+type SettingsBusyInputPayload struct {
+	DefaultMode string `json:"default_mode"`
+}
+
 type SettingsGeneralConfigPayload struct {
+	BusyInput      *SettingsBusyInputPayload  `json:"busy_input,omitempty"`
 	Limits         SettingsLimitsPayload      `json:"limits"`
 	Permissions    SettingsPermissionsPayload `json:"permissions"`
 	SessionTimeout string                     `json:"session_timeout"`

@@ -99,6 +99,9 @@ func (h *BaseHandlers) initializeTranscriptStream(
 		first.Generation,
 		first.MaxSequence,
 	)
+	if reason == "" && first.MinSequence > cursor {
+		reason = contract.TranscriptSnapshotReasonCursorExpired
+	}
 	if reason != "" {
 		snapshot, snapshotErr := h.writeTranscriptSnapshot(ctx, writer, sessionID, info, limit, true, reason)
 		return transcriptStreamState{
@@ -117,6 +120,9 @@ func (h *BaseHandlers) initializeTranscriptStream(
 		limit,
 		&first,
 	)
+	if err == nil && nextCursor == cursor && len(first.Entries) == 0 {
+		err = h.writeTranscriptDeltaPage(writer, sessionID, info, first, nextCursor)
+	}
 	return transcriptStreamState{
 		cursor:     nextCursor,
 		generation: generation,
@@ -175,6 +181,8 @@ func (h *BaseHandlers) refreshTranscriptStream(
 		resetReason = contract.TranscriptSnapshotReasonGenerationMismatch
 	case state.cursor > first.MaxSequence:
 		resetReason = contract.TranscriptSnapshotReasonSequenceReset
+	case state.cursor > 0 && first.MinSequence > state.cursor:
+		resetReason = contract.TranscriptSnapshotReasonCursorExpired
 	}
 	if resetReason != "" {
 		resetState, resetErr := h.resetTranscriptStream(ctx, writer, sessionID, info, limit, resetReason)
@@ -270,20 +278,29 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 }
 
 func (h *BaseHandlers) pushAndStreamSessionTranscript(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	state transcriptStreamState,
-	limit int,
-	subscription sessionEventStreamSubscription,
+	c *gin.Context, writer FlushWriter, sessionID string, info *session.Info,
+	state transcriptStreamState, limit int, subscription sessionEventStreamSubscription,
 ) {
 	keepAlive := time.NewTicker(sessionStreamKeepAliveInterval)
 	defer keepAlive.Stop()
 	commandRefresh := time.NewTicker(time.Second)
 	defer commandRefresh.Stop()
-
+	flushTimer := time.NewTimer(time.Hour)
+	flushTimer.Stop()
+	defer flushTimer.Stop()
+	var flush <-chan time.Time
+	var pending *store.SessionEvent
 	currentInfo := info
+	refresh := func() bool {
+		event := pending
+		pending = nil
+		flush = nil
+		var keepStreaming bool
+		state, currentInfo, keepStreaming = h.refreshTranscriptWake(
+			c.Request.Context(), writer, sessionID, currentInfo, state, limit, event,
+		)
+		return keepStreaming
+	}
 	for {
 		select {
 		case <-c.Request.Context().Done():
@@ -302,31 +319,91 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 				h.writeTranscriptStreamError(writer, err)
 				return
 			}
-			state.commandRevision = revision
-			state.commandCheckedAt = time.Now()
+			state.commandRevision, state.commandCheckedAt = revision, time.Now()
+		case <-flush:
+			if !refresh() {
+				return
+			}
 		case event, ok := <-subscription.events:
 			if !ok {
+				if pending != nil && !refresh() {
+					return
+				}
 				h.logSessionStreamSubscriptionClosed(
-					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameTranscript, state.cursor,
+					c.Request.Context(),
+					sessionID,
+					currentInfo,
+					contract.SessionStreamFrameTranscript,
+					state.cursor,
 				)
 				subscription.cancelIfActive()
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, state, limit)
 				return
 			}
-			var err error
-			state, currentInfo, err = h.refreshTranscriptStream(
-				c.Request.Context(), writer, sessionID, currentInfo, state, limit, []store.SessionEvent{event},
-			)
-			if err != nil {
-				h.writeTranscriptStreamError(writer, err)
-				return
+			if event.Type == contract.SessionStreamEventConsumerDegraded {
+				if err := h.writeConsumerDegraded(writer, sessionID, state.cursor, event); err != nil {
+					return
+				}
 			}
-			if event.Type == session.EventTypeSessionStopped {
-				h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, currentInfo))
-				return
+			pending = &event
+			if event.Type == session.EventTypeSessionStopped ||
+				event.Type == contract.SessionStreamEventConsumerDegraded {
+				flushTimer.Stop()
+				if !refresh() {
+					return
+				}
+			} else if flush == nil {
+				flushTimer.Reset(25 * time.Millisecond)
+				flush = flushTimer.C
 			}
 		}
 	}
+}
+
+func (h *BaseHandlers) refreshTranscriptWake(
+	ctx context.Context,
+	writer FlushWriter,
+	sessionID string,
+	info *session.Info,
+	state transcriptStreamState,
+	limit int,
+	event *store.SessionEvent,
+) (transcriptStreamState, *session.Info, bool) {
+	for {
+		previous := state
+		var err error
+		state, info, err = h.refreshTranscriptStream(
+			ctx,
+			writer,
+			sessionID,
+			info,
+			state,
+			limit,
+			nil,
+		)
+		if err != nil {
+			h.writeTranscriptStreamError(writer, err)
+			return state, info, false
+		}
+		if event == nil || state.cursor >= event.Sequence || state.generation != previous.generation ||
+			state.epoch != previous.epoch {
+			break
+		}
+		if state.cursor <= previous.cursor {
+			h.writeTranscriptStreamError(
+				writer,
+				fmt.Errorf("transcript did not reach durable wake watermark %d", event.Sequence),
+			)
+			return state, info, false
+		}
+	}
+
+	if (event != nil && event.Type == session.EventTypeSessionStopped) ||
+		(info != nil && info.State == session.StateStopped) {
+		h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, info))
+		return state, info, false
+	}
+	return state, info, true
 }
 
 func (h *BaseHandlers) writeTranscriptStreamError(writer FlushWriter, err error) {

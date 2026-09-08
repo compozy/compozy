@@ -53,19 +53,30 @@ export function parsePrimitiveNames(source) {
   return names;
 }
 
-function primitiveNames() {
-  if (cachedPrimitiveNames) return cachedPrimitiveNames;
+function collectPrimitiveNames(path, visited = new Set()) {
+  if (visited.has(path)) return new Set();
+  visited.add(path);
   let source;
   try {
-    source = readFileSync(UI_INDEX_PATH, "utf8");
+    source = readFileSync(path, "utf8");
   } catch (error) {
     throw new Error(
-      `compozy-ui-reuse: cannot read the @compozy/ui surface contract at ${UI_INDEX_PATH}. ` +
+      `compozy-ui-reuse: cannot read the @compozy/ui surface contract at ${path}. ` +
         "If the file moved, update lint-plugins/ui-primitive-reuse.mjs in the same change.",
       { cause: error }
     );
   }
-  cachedPrimitiveNames = parsePrimitiveNames(source);
+  const names = parsePrimitiveNames(source);
+  for (const match of source.matchAll(/export\s+\*\s+from\s+["'](\.[^"']+)["']/g)) {
+    const target = resolve(dirname(path), `${match[1]}.ts`);
+    for (const name of collectPrimitiveNames(target, visited)) names.add(name);
+  }
+  return names;
+}
+
+function primitiveNames() {
+  if (cachedPrimitiveNames) return cachedPrimitiveNames;
+  cachedPrimitiveNames = collectPrimitiveNames(UI_INDEX_PATH);
   return cachedPrimitiveNames;
 }
 

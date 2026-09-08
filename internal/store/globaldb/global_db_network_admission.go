@@ -369,7 +369,7 @@ func exhaustedNetworkWakeBudgetReason(
 	switch {
 	case budget.wakesUsed >= bounds.MaxWakes:
 		return networkWakeExhaustionMaxWakes
-	case budget.wallMSUsed+reservedWallMS > totalWallMS:
+	case totalWallMS > 0 && budget.wallMSUsed+reservedWallMS > totalWallMS:
 		return networkWakeExhaustionMaxTotalWallTime
 	case budget.inputTokensUsed >= bounds.MaxInputTokens:
 		return networkWakeExhaustionMaxInputTokens
