@@ -1,0 +1,139 @@
+[extension]
+name = "herdr-bridge"
+version = "0.3.3"
+description = "Reflete o estado dos agentes do CompozyOS como linhas de agente no herdr, com o log do agente colorido no pane."
+min_compozy_version = "0.3.0-beta.1"
+
+[capabilities]
+provides = []
+
+[permissions]
+requires = []
+
+[[resources.hooks]]
+name = "herdr.session_post_create"
+event = "session.post_create"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.turn_start"
+event = "turn.start"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.turn_end"
+event = "turn.end"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.permission_request"
+event = "permission.request"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.permission_denied"
+event = "permission.denied"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.permission_resolved"
+event = "permission.resolved"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.task_needs_attention"
+event = "task.needs_attention"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.session_attention_changed"
+event = "session.attention.changed"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_started"
+event = "loop.started"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_generation_post"
+event = "loop.generation.post"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_gate_post"
+event = "loop.gate.post"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_node_terminal"
+event = "loop.node.terminal"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_generation_pre"
+event = "loop.generation.pre"
+mode = "sync"
+required = false
+timeout = "3s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.coordinator_decision"
+event = "coordinator.decision"
+mode = "sync"
+required = false
+timeout = "3s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.loop_terminal"
+event = "loop.terminal"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.session_post_stop"
+event = "session.post_stop"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.agent_stopped"
+event = "agent.stopped"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
+
+[[resources.hooks]]
+name = "herdr.agent_crashed"
+event = "agent.crashed"
+mode = "async"
+timeout = "5s"
+executor = { kind = "subprocess", command = "{{config_dir}}/hook.sh" }
