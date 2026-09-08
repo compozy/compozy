@@ -56,7 +56,7 @@ func parseClaudeModelRows(
 		row := ModelRow{
 			ProviderID:        strings.TrimSpace(providerID),
 			ModelID:           modelID,
-			DisplayName:       claudeLiveDisplayName(modelID, value.Label, candidates),
+			DisplayName:       claudeLiveDisplayName(modelID, transportModelID, value.Label, candidates),
 			SourceID:          SourceKindProviderLiveID(providerID),
 			SourceKind:        SourceKindProviderLive,
 			Priority:          PriorityProviderLive,
@@ -143,11 +143,16 @@ func claudeLogicalModelID(
 
 func claudeLiveDisplayName(
 	modelID string,
+	transportModelID string,
 	label string,
 	candidates []claudeModelCandidate,
 ) string {
+	// The "default" transport alias carries whatever human-facing label Claude Code's own
+	// UI uses for it (e.g. "Default (recommended)") — that label describes Claude Code's
+	// picker, not CompozyOS's, so it is never trusted as this model's display name.
+	isDefaultAlias := strings.EqualFold(strings.TrimSpace(transportModelID), "default")
 	trimmedLabel := strings.TrimSpace(label)
-	if trimmedLabel != "" && !strings.EqualFold(trimmedLabel, "default") {
+	if trimmedLabel != "" && !isDefaultAlias {
 		return trimmedLabel
 	}
 	for _, candidate := range candidates {

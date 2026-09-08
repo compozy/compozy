@@ -2,7 +2,6 @@ package modelcatalog
 
 import (
 	"slices"
-	"strings"
 )
 
 func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOptions) {
@@ -65,13 +64,7 @@ func reasoningSourceForRow(row ModelRow) ReasoningSource {
 }
 
 func hasACPReasoningOption(options []ModelOptionDescriptor) bool {
-	for _, option := range options {
-		id := strings.TrimSpace(option.ID)
-		if id == "reasoning_effort" || id == "effort" || strings.TrimSpace(option.Category) == "thought_level" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(options, isReasoningOptionDescriptor)
 }
 
 func cloneBoolPtr(value *bool) *bool {

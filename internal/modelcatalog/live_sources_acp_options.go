@@ -7,15 +7,25 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 )
 
+// applyACPConfigOptions layers session config options discovered by one short-lived ACP
+// inspection onto the parsed model rows. The inspection session only ever has one model
+// active at a time, so its reasoning select reflects that model alone — attributing it to
+// every row would claim effort levels a model was never confirmed to support.
 func applyACPConfigOptions(rows []ModelRow, options []acp.SessionConfigOption) []ModelRow {
 	descriptors := acpModelOptionDescriptors(options)
+	sharedDescriptors := descriptorsExcludingReasoning(descriptors)
 	reasoningOption, hasReasoning := acp.ReasoningConfigOption(options)
 	efforts := acpReasoningEfforts(reasoningOption)
 	defaultEffort := acpDefaultReasoningEffort(reasoningOption, efforts)
+	activeIndex := activeModelRowIndex(rows, options)
 
 	for index := range rows {
-		rows[index].ConfigOptions = mergeModelOptionDescriptors(rows[index].ConfigOptions, descriptors)
-		if !hasReasoning {
+		merge := sharedDescriptors
+		if index == activeIndex {
+			merge = descriptors
+		}
+		rows[index].ConfigOptions = mergeModelOptionDescriptors(rows[index].ConfigOptions, merge)
+		if !hasReasoning || index != activeIndex {
 			continue
 		}
 		rows[index].ReasoningEfforts = slices.Clone(efforts)
@@ -26,6 +36,44 @@ func applyACPConfigOptions(rows []ModelRow, options []acp.SessionConfigOption) [
 		rows[index].SupportsReasoning = new(supportsReasoning)
 	}
 	return rows
+}
+
+// activeModelRowIndex finds the row matching the model transport id selected in this
+// inspection session, or -1 when the ACP session did not advertise a resolvable current
+// model. Only that row's reasoning descriptor is verified for the model it names.
+func activeModelRowIndex(rows []ModelRow, options []acp.SessionConfigOption) int {
+	modelOption, ok := acp.ModelConfigOption(options)
+	if !ok {
+		return -1
+	}
+	activeTransportID := strings.TrimSpace(modelOption.CurrentValueID)
+	if activeTransportID == "" {
+		return -1
+	}
+	for index, row := range rows {
+		for _, binding := range row.TransportBindings {
+			if strings.EqualFold(strings.TrimSpace(binding.TransportModelID), activeTransportID) {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+func descriptorsExcludingReasoning(descriptors []ModelOptionDescriptor) []ModelOptionDescriptor {
+	filtered := make([]ModelOptionDescriptor, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if isReasoningOptionDescriptor(descriptor) {
+			continue
+		}
+		filtered = append(filtered, descriptor)
+	}
+	return filtered
+}
+
+func isReasoningOptionDescriptor(descriptor ModelOptionDescriptor) bool {
+	id := strings.TrimSpace(descriptor.ID)
+	return id == "reasoning_effort" || id == "effort" || strings.TrimSpace(descriptor.Category) == "thought_level"
 }
 
 func acpModelOptionDescriptors(options []acp.SessionConfigOption) []ModelOptionDescriptor {
