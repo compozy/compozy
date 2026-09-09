@@ -17,6 +17,7 @@ type acceptedSessionStart struct {
 	persistFailure bool
 }
 
+// acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.
 func (m *Manager) acceptSessionStart(
 	acceptCtx context.Context,
 	runBaseCtx context.Context,

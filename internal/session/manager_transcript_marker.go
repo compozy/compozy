@@ -27,6 +27,7 @@ func (m *Manager) emitTranscriptMarker(
 	}
 }
 
+// recordTranscriptMarker correlates provider failures without persisting raw command credentials.
 func (m *Manager) recordTranscriptMarker(
 	ctx context.Context,
 	session *Session,

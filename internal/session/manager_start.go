@@ -110,6 +110,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	return accepted.session, nil
 }
 
+// startAgentProcess attributes launch failures to the attempted route rather than the previous binding.
 func (m *Manager) startAgentProcess(
 	ctx context.Context,
 	spec *sessionStartSpec,

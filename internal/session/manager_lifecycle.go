@@ -316,6 +316,7 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	}
 }
 
+// persistFailedStart retains failed sessions so asynchronous startup errors remain inspectable.
 func (m *Manager) persistFailedStart(
 	ctx context.Context,
 	session *Session,
@@ -359,6 +360,7 @@ func (m *Manager) notifyFailedStart(ctx context.Context, session *Session) {
 	m.notifier.OnSessionStopped(ctx, session)
 }
 
+// recordFailedStartEvents keeps recoverable ACP load negotiation out of the replay transcript.
 func (m *Manager) recordFailedStartEvents(
 	ctx context.Context,
 	session *Session,
@@ -397,8 +399,6 @@ func (m *Manager) recordFailedStartEvents(
 	); err != nil {
 		return err
 	}
-	// Unsupported or missing ACP sessions recover through the existing context replay path.
-	// Keep that negotiation failure out of the transcript being replayed.
 	if acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession) {
 		return nil
 	}

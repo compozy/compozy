@@ -174,6 +174,7 @@ func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now t
 	return m.driver.Stop(stopCtx, proc)
 }
 
+// sessionLogger identifies the bound route, which can differ from an attempted replacement route.
 func (m *Manager) sessionLogger(session *Session) *slog.Logger {
 	logger := m.logger
 	if logger == nil {

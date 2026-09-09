@@ -131,6 +131,7 @@ func (m *Manager) configurePromptRuntime(
 	return nil
 }
 
+// replacePromptRuntime keeps the previous route authoritative until the new binding commits.
 func (m *Manager) replacePromptRuntime(
 	ctx context.Context,
 	session *Session,
@@ -244,6 +245,7 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 	return nil
 }
 
+// preparePromptRuntimePlan leaves the running binding unchanged until the selected plan is applied.
 func (m *Manager) preparePromptRuntimePlan(
 	ctx context.Context,
 	session *Session,

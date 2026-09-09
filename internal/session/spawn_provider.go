@@ -50,6 +50,7 @@ func (m *Manager) resolveSpawnProviderCommand(
 	return resolved, nil
 }
 
+// creatorProviderRoute uses live state because configuration edits must not redirect a running creator.
 func (m *Manager) creatorProviderRoute(
 	ctx context.Context,
 	spec *sessionStartSpec,
@@ -102,6 +103,7 @@ func (m *Manager) creatorProviderRoute(
 	return m.resolveSpawnProviderCommand(ctx, &parentSpec, artifacts.Agent, parentRoute, visited)
 }
 
+// compatibleSpawnProviderRoute prevents commands from crossing authentication or isolation boundaries.
 func compatibleSpawnProviderRoute(parent, child compozyconfig.ResolvedAgent) bool {
 	return strings.TrimSpace(parent.Command) != "" && parent.Provider == child.Provider &&
 		parent.AuthMode == child.AuthMode && parent.HomePolicy == child.HomePolicy &&
@@ -111,18 +113,21 @@ func compatibleSpawnProviderRoute(parent, child compozyconfig.ResolvedAgent) boo
 		parent.AuthLoginCmd == child.AuthLoginCmd
 }
 
+// providerRoutingSnapshot preserves launch-time routing despite later configuration changes.
 func (s *Session) providerRoutingSnapshot() compozyconfig.ResolvedAgent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.providerRoute
 }
 
+// setProviderRouting must run only after the replacement binding is committed.
 func (s *Session) setProviderRouting(resolved compozyconfig.ResolvedAgent) {
 	s.mu.Lock()
 	s.providerRoute = resolved
 	s.mu.Unlock()
 }
 
+// providerCommandFingerprint correlates routes without exposing secret-bearing command text.
 func providerCommandFingerprint(command string) string {
 	if strings.TrimSpace(command) == "" {
 		return ""

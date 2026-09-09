@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+// resolveSessionStartRuntime fingerprints the configured command before adapter rewriting.
 func (m *Manager) resolveSessionStartRuntime(
 	ctx context.Context,
 	spec *sessionStartSpec,
@@ -152,6 +153,7 @@ func (s *sessionStartSpec) validateRuntimeOverrides() error {
 	return ValidateReasoningEffort(reasoningEffort)
 }
 
+// startLogger retains the attempted route even while an existing session holds its previous binding.
 func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 	logger := slog.Default()
 	if m != nil && m.logger != nil {
