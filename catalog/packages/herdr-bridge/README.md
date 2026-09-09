@@ -19,8 +19,8 @@ w1:pX  compozy  working  loop goal reviewer main   $cz_agent=reviewer
 - herdr running (the extension talks to `~/.config/herdr/herdr.sock`)
 - `python3` (stdlib only — no dependencies)
 
-If herdr is not running, every hook is a silent no-op. The bridge never fails a
-hook.
+If herdr is not running, hooks remain fail-open and existing row mappings are
+preserved. Unexpected errors are recorded in the bridge log.
 
 ## Install
 
@@ -66,13 +66,15 @@ python3 tail.py <workspace_id>/<agent_name>
 `tail.py` reads original session events from the local Compozy daemon and
 renders them with `colorize.py`. Unlike log summaries, original message text
 retains spaces, line breaks, indentation, and content beyond 240 characters.
-Fragments join exactly as received; changing session or turn starts a new line.
+Printable fragments retain their whitespace; changing session or turn starts a new
+line. Terminal control characters are escaped, while tabs and newlines remain intact.
 
 The reader discovers sessions from the bridge map, scoped to the row's
 workspace. It initially shows the latest 100 events per session, then polls
 once per second using sequence cursors. Reconnection resumes after the last
-rendered event. Tool output and infrastructure noise stay filtered; see
-[docs/log-noise.md](docs/log-noise.md).
+rendered event. Tool output and infrastructure noise stay filtered. Rows whose hook
+omits the workspace resolve each session through the daemon session-owner API
+before reading its workspace-scoped events; `no-ws` is never sent as a workspace ID.
 
 After updating, restart existing bridge viewers with
 `python3 ~/.compozy/extensions/herdr-bridge/bridge.py --refresh`.
@@ -91,11 +93,12 @@ The installed copy lives in `~/.compozy/extensions/herdr-bridge/`.
 
 ## Hooks
 
-Every hook runs `hook.sh`, a 16 ms shell shim that spools the payload and
+Every hook runs `hook.sh`, a short-lived shell shim that spools the payload and
 returns; `bridge.py --drain` then processes the spool in timestamp order in
-the background. The daemon dispatches an extension's hooks serially and drops
+the background. Ordering preserves RFC3339 nanoseconds and timezone offsets.
+The spool directory is private (0700), and new payloads are owner-only (0600). The daemon dispatches an extension's hooks serially and drops
 the queue when the run ends, so the hook entry point has to be faster than the
-events arrive — see [docs/compozy-hooks.md](docs/compozy-hooks.md).
+events arrive.
 
 ### Agent rows
 
@@ -163,7 +166,9 @@ until a terminal event arrives, so a quiet sibling does not lose its pane.
 If closing the pane fails, the map entry stays available for a subsequent stop
 event to retry.
 
-`--status` prunes rows whose pane no longer exists.
+`--status` prunes only confirmed missing panes. Unavailable sockets and RPC
+errors preserve mappings so subsequent hooks do not create duplicate tabs.
+State and spool files live under `${XDG_STATE_HOME:-$HOME/.local/state}/herdr-bridge`.
 
 ### Attention, and payloads not yet observed
 
@@ -174,12 +179,21 @@ question behind `compozy session clarify`. Anything outside the benign set marks
 the row `blocked` and logs the class, so an unknown reason errs toward being
 visible rather than silent.
 
-The `loop.*` family is wired but its payload was never captured here — those
-events only fire on generation boundaries. `loop_tokens()` reads the fields it
-recognizes and emits nothing when it recognizes none; unrecognized payloads land
-in `~/.local/state/herdr-bridge/bridge.log`. Nothing is guessed: a row pinned by
-a bad guess is worse than a row that says nothing. If you catch such a log line,
-open an issue with it.
+Unknown attention payload shapes are logged without changing row state.
+
+## Development validation
+
+From the repository root:
+
+```bash
+python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v
+go run ./cmd/compozy-catalog package ./catalog/packages/herdr-bridge ./catalog/artifacts/herdr-bridge-v0.3.3.tar.gz
+go run ./cmd/compozy-catalog digest ./catalog/artifacts/herdr-bridge-v0.3.3.tar.gz
+go run ./cmd/compozy-catalog validate ./catalog
+```
+
+Update the catalog digest after packaging. Validation installs the local artifact
+through the production installer; the Python suite covers runtime regressions.
 
 ## License
 

@@ -38,7 +38,7 @@
             "published_at": "2026-09-08T15:26:31Z",
             "install_slug": "AlexandreAkao/herdr-bridge-compozy",
             "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/herdr-bridge-v0.3.3.tar.gz",
-            "digest_sha256": "b7f15ca41db6c8f50d3c76c5684ff8ced2844548b26ed33eea42150ad0167645",
+            "digest_sha256": "f3e8fa6ab97a524f3d505b600f403047ea093ba7ddb0cfcce943be4e2863981d",
             "tier": "community",
             "format": "compozy",
             "author": "Alexandre Akira",

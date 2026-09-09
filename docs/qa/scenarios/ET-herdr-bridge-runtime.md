@@ -1,0 +1,27 @@
+---
+id: ET-herdr-bridge-runtime
+area: ET
+title: Follow Compozy sessions safely in herdr
+persona: Ada
+journey: J-extension-distribution
+expected: The catalog bridge installs, displays live agent rows, preserves rows through a herdr outage, renders safe message text, and closes only its own completed panes.
+entry_points: catalog validation CLI; hook.sh; bridge.py --status; herdr agent list
+qa_status: pass
+bug_ids:
+fix_status:
+retest_status: pass
+fix_commits:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-560-herdr-bridge-20260909-151549-489795-lab/qa-artifacts/qa/bridge-runtime.json
+last_report: docs/qa/reports/2026-09-09-pr-560-herdr-bridge.md
+---
+
+Install the packaged bridge through the catalog validator's production installer. Use isolated
+bridge state and send documented session lifecycle hook payloads into `hook.sh`. Confirm the
+row through herdr's public pane/agent API and `bridge.py --status`, then end the session and
+confirm only its pane closes. Repeat status with herdr unavailable: persisted mappings must
+remain. Feed message fragments containing terminal escapes through `colorize.py`; printable
+text, newlines, and tabs remain while controls are escaped. A missing workspace resolves the
+session owner before the scoped events request; a real workspace never changes scope.
+
+The owning Python suite covers nanosecond ordering, outage handling, safe rendering, private
+spool permissions, missing-workspace resolution, cursor continuity, and command diagnostics.

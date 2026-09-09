@@ -1,7 +1,7 @@
 [extension]
 name = "herdr-bridge"
 version = "0.3.3"
-description = "Reflete o estado dos agentes do CompozyOS como linhas de agente no herdr, com o log do agente colorido no pane."
+description = "Show CompozyOS agent state as herdr rows with colorized session events in each pane."
 min_compozy_version = "0.3.0-beta.1"
 
 [capabilities]

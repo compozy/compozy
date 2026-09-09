@@ -298,6 +298,10 @@ exit 0
 			path string
 			want string
 		}{
+			{path: "catalog/extensions.json", want: "catalog lanes"},
+			{path: "catalog/packages/herdr-bridge/README.md", want: "catalog lanes"},
+			{path: "catalog/packages/herdr-bridge/bridge.py", want: "catalog lanes"},
+			{path: "catalog/artifacts/herdr-bridge-v0.3.3.tar.gz", want: "catalog lanes"},
 			{path: "go.mod", want: "go scopes: ./..."},
 			{path: "bun.lock", want: "js lane: all workspaces"},
 			{path: "Makefile", want: "tooling lanes"},
@@ -456,7 +460,10 @@ func runGate(t *testing.T, repo string, extraEnv []string, mode string) (string,
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), "bash", "scripts/gate.sh", mode)
 	cmd.Dir = repo
-	cmd.Env = replaceEnv(os.Environ(), append([]string{"GATE_BASE=HEAD"}, extraEnv...)...)
+	cmd.Env = replaceEnv(os.Environ(), append([]string{
+		"GATE_BASE=HEAD",
+		"COMPOZY_GATE_SLOT_DIR=" + filepath.Join(repo, ".cache", "gate-test-slots"),
+	}, extraEnv...)...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
