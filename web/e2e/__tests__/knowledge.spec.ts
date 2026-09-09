@@ -108,6 +108,7 @@ interface TranscriptMessagePart {
 
 test.use({
   runtimeOptions: {
+    memoryEnabled: true,
     seed: {
       mockAgents: [
         {
