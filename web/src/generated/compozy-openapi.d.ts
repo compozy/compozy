@@ -94873,7 +94873,7 @@ export interface operations {
           };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -95874,7 +95874,7 @@ export interface operations {
           };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -96983,7 +96983,7 @@ export interface operations {
               };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -98129,7 +98129,7 @@ export interface operations {
               };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -99813,7 +99813,7 @@ export interface operations {
               };
         };
       };
-      /** @description Tool or profile conflict */
+      /** @description Tool conflict or profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -101302,7 +101302,7 @@ export interface operations {
           };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;
@@ -102267,7 +102267,7 @@ export interface operations {
               };
         };
       };
-      /** @description Profile selection conflict */
+      /** @description Profile archived or unavailable */
       409: {
         headers: {
           [name: string]: unknown;

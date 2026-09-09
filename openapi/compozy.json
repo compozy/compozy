@@ -236776,7 +236776,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
@@ -238469,7 +238469,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
@@ -240238,7 +240238,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
@@ -241952,7 +241952,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
@@ -244823,7 +244823,7 @@
                 }
               }
             },
-            "description": "Tool or profile conflict"
+            "description": "Tool conflict or profile archived or unavailable"
           },
           "422": {
             "content": {
@@ -246637,7 +246637,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
@@ -248091,7 +248091,7 @@
                 }
               }
             },
-            "description": "Profile selection conflict"
+            "description": "Profile archived or unavailable"
           },
           "500": {
             "content": {
