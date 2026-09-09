@@ -1027,3 +1027,99 @@ func waitForStubbornSessionPrompts(ctx context.Context, t *testing.T, path strin
 		}
 	}
 }
+
+func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
+	t.Parallel()
+	t.Run("Should launch inherited and explicit native routes and preserve routing on resume", func(t *testing.T) {
+		t.Parallel()
+		routes := t.TempDir()
+		commands := map[string]string{}
+		for _, account := range []string{"a", "b", "c"} {
+			directory := filepath.Join(routes, account)
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			wrapper := filepath.Join(directory, "provider")
+			script := "#!/bin/sh\n" + "touch " + shellquote.Join(
+				directory,
+			) + "/\"$COMPOZY_SESSION_ID\"\nexec " + sessionStopHelperCommand(
+				t,
+			) + "\n"
+			if err := os.WriteFile(wrapper, []byte(script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			commands[account] = shellquote.Join(wrapper)
+		}
+		h := newRealACPIntegrationHarness(t, commands["a"])
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := acpmock.ProviderConfig(commands["a"])
+		provider.AuthMode = compozyconfig.ProviderAuthModeNativeCLI
+		provider.NoneSecurity = ""
+		workspace.Config.Providers[acpmock.ProviderName] = provider
+		workspace.Agents = []compozyconfig.AgentDef{
+			{Name: "parent", Provider: acpmock.ProviderName, Command: commands["b"], Prompt: "Delegate."},
+			{Name: "child", Provider: acpmock.ProviderName, Prompt: "Review."},
+			{Name: "explicit", Provider: acpmock.ProviderName, Command: commands["c"], Prompt: "Review."},
+		}
+		h.resolver.upsert(&workspace)
+		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, parent.ID) })
+		workspace.Agents[0].Command = commands["c"]
+		h.resolver.upsert(&workspace)
+		child, err := h.manager.Spawn(
+			t.Context(),
+			SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, child.ID) })
+		explicit, err := h.manager.Spawn(
+			t.Context(),
+			SpawnOpts{ParentSessionID: parent.ID, AgentName: "explicit", TTL: time.Minute},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, explicit.ID) })
+		for _, route := range []struct{ sessionID, account string }{{parent.ID, "b"}, {child.ID, "b"}, {explicit.ID, "c"}} {
+			if _, err := os.Stat(filepath.Join(routes, route.account, route.sessionID)); err != nil {
+				t.Fatalf("provider route %s/%s was not executed: %v", route.account, route.sessionID, err)
+			}
+			if _, err := os.Stat(filepath.Join(routes, "a", route.sessionID)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("global route unexpectedly executed for %s: %v", route.sessionID, err)
+			}
+		}
+		if err := h.manager.Stop(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), child.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := resumed.providerRoutingSnapshot().Command; got != commands["b"] {
+			t.Fatalf("resumed command = %q, want creator launch snapshot", got)
+		}
+		if err := h.manager.Stop(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), parent.ID); err != nil {
+			t.Fatal(err)
+		}
+		workspace.Agents[0].Command = commands["b"]
+		h.resolver.upsert(&workspace)
+		resumed, err = h.manager.Resume(t.Context(), child.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := resumed.providerRoutingSnapshot().Command; got != commands["b"] {
+			t.Fatalf("resumed command = %q, want persisted creator route resolution", got)
+		}
+	})
+}

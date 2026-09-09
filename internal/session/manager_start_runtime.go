@@ -11,6 +11,7 @@ import (
 )
 
 func (m *Manager) resolveSessionStartRuntime(
+	ctx context.Context,
 	spec *sessionStartSpec,
 ) (sessionStartRuntime, error) {
 	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
@@ -23,6 +24,10 @@ func (m *Manager) resolveSessionStartRuntime(
 	})
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
+	}
+	resolved, err = m.resolveSpawnProviderCommand(ctx, spec, agentDef, resolved, map[string]bool{spec.sessionID: true})
+	if err != nil {
+		return sessionStartRuntime{}, err
 	}
 	resolved.ProfileName = strings.TrimSpace(spec.workspace.ProfileName)
 	if err := spec.validateRuntimeOverrides(); err != nil {
@@ -47,6 +52,7 @@ func (m *Manager) resolveSessionStartRuntime(
 			err,
 		)
 	}
+	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
 		agent:               resolved,
 		agentDef:            compozyconfig.CloneAgentDef(agentDef),
@@ -156,5 +162,6 @@ func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 		"agent_name", strings.TrimSpace(s.agentName),
 		"provider", strings.TrimSpace(s.provider),
 		"workspace_id", strings.TrimSpace(s.workspace.ID),
+		"provider_command_fingerprint", s.commandFingerprint,
 	)
 }

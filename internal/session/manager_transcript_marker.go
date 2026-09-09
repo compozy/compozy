@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/transcript"
@@ -34,6 +35,13 @@ func (m *Manager) recordTranscriptMarker(
 	summary string,
 	evidence map[string]any,
 ) error {
+	if kind == transcript.MarkerProviderFailure && session != nil {
+		evidence = maps.Clone(evidence)
+		if evidence == nil {
+			evidence = make(map[string]any)
+		}
+		evidence["provider_command_fingerprint"] = providerCommandFingerprint(session.providerRoutingSnapshot().Command)
+	}
 	marker, err := transcript.NewMarker(kind, summary, m.now(), evidence)
 	if err != nil {
 		return fmt.Errorf("session: build transcript marker %q: %w", kind, err)

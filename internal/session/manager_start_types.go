@@ -23,6 +23,7 @@ type sessionStartSpec struct {
 	sessionName              string
 	agentName                string
 	provider                 string
+	commandFingerprint       string
 	model                    string
 	transportModel           string
 	reasoningEffort          string

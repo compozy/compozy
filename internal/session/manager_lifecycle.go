@@ -344,7 +344,7 @@ func (m *Manager) persistFailedStart(
 	var errs []error
 	errs = appendLifecycleErr(errs, bundleErr)
 	errs = appendLifecycleErr(errs, m.persistSessionLifecycleState(ctx, session, true))
-	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, summary, stopReason))
+	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, startErr, stopReason))
 	if notify {
 		m.notifyFailedStart(ctx, session)
 	}
@@ -363,7 +363,7 @@ func (m *Manager) recordFailedStartEvents(
 	ctx context.Context,
 	session *Session,
 	failure *store.SessionFailure,
-	summary string,
+	startErr error,
 	stopReason store.StopReason,
 ) error {
 	turnID, err := m.newPromptTurnID()
@@ -374,6 +374,7 @@ func (m *Manager) recordFailedStartEvents(
 	if err != nil {
 		return err
 	}
+	summary := failureSummary(failure, startErr.Error())
 	now := m.now()
 	errorEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
 		Type:      acp.EventTypeError,
@@ -390,10 +391,21 @@ func (m *Manager) recordFailedStartEvents(
 		Error:      summary,
 		Failure:    store.CloneSessionFailure(failure),
 	})
-	return errors.Join(
+	if err := errors.Join(
 		m.recordEvent(ctx, session, errorEvent),
 		m.recordEvent(ctx, session, stopEvent),
-	)
+	); err != nil {
+		return err
+	}
+	// Unsupported or missing ACP sessions recover through the existing context replay path.
+	// Keep that negotiation failure out of the transcript being replayed.
+	if acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession) {
+		return nil
+	}
+	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(stopEvent); ok {
+		return m.recordTranscriptMarker(ctx, session, stopTurnID, kind, summary, evidence)
+	}
+	return nil
 }
 
 func (m *Manager) closeSessionRecorder(session *Session) error {

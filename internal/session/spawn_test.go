@@ -2,18 +2,23 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -1262,4 +1267,190 @@ func (h *recordingSessionSpawnHooks) DispatchSpawnReaped(
 	payload hookspkg.SpawnReapedPayload,
 ) (hookspkg.SpawnReapedPayload, error) {
 	return payload, nil
+}
+
+func TestSpawnProviderCommandPrecedence(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name             string
+		childCommand     string
+		childProvider    string
+		override         string
+		want             string
+		isolatedHome     bool
+		isolatedEnv      bool
+		foreignWorkspace bool
+	}{
+		{name: "Should inherit the resolved creator command for the same provider", childProvider: "claude", want: "account-b"},
+		{name: "Should preserve an explicit child command", childProvider: "claude", childCommand: "account-c", want: "account-c"},
+		{name: "Should preserve inheritance with an explicit same provider selection", childProvider: "claude", override: "claude", want: "account-b"},
+		{name: "Should use the selected different provider command", childProvider: "claude", override: "codex", want: "test-acp-driver"},
+		{name: "Should preserve a named child with a different provider", childProvider: "codex", want: "test-acp-driver"},
+		{name: "Should keep isolated child home routing", childProvider: "claude", isolatedHome: true, want: "account-a"},
+		{name: "Should keep changed child environment routing", childProvider: "claude", isolatedEnv: true, want: "account-a"},
+		{name: "Should keep an authorized foreign workspace routing", childProvider: "claude", foreignWorkspace: true, want: "account-a"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := workspace.Config.Providers["claude"]
+			provider.Command = "account-a"
+			workspace.Config.Providers["claude"] = provider
+			workspace.Agents = append(
+				workspace.Agents,
+				compozyconfig.AgentDef{
+					Name:     "parent",
+					Provider: "claude",
+					Command:  "account-b",
+					Prompt:   "Delegate work.",
+				},
+				compozyconfig.AgentDef{
+					Name:     "child",
+					Provider: tt.childProvider,
+					Command:  tt.childCommand,
+					Prompt:   "Review work.",
+				},
+			)
+			h.resolver.upsert(&workspace)
+			parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, parent.ID)
+			if tt.isolatedHome {
+				provider.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+			}
+			if tt.isolatedEnv {
+				provider.EnvPolicy = compozyconfig.ProviderEnvPolicyIsolated
+			}
+			workspace.Config.Providers["claude"] = provider
+			if tt.foreignWorkspace {
+				workspace.ID = "ws-foreign"
+				h.manager.SetWorkspaceAccessPolicy(
+					&recordingSpawnWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}},
+				)
+			}
+			h.resolver.upsert(&workspace)
+			child, err := h.manager.Spawn(
+				t.Context(),
+				SpawnOpts{
+					ParentSessionID: parent.ID,
+					AgentName:       "child",
+					Provider:        tt.override,
+					Workspace:       workspace.ID,
+					TTL:             time.Minute,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, child.ID)
+			if got := h.driver.startCalls[1].Command; got != tt.want {
+				t.Fatalf("spawn command = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSpawnProviderRouteDiagnostics(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should correlate startup failure and selected route without duplicate keys or raw commands",
+		func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "routing.jsonl")
+			logFile, err := os.Create(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := logFile.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			h := newHarness(t, WithLogger(slog.New(slog.NewJSONHandler(logFile, nil))))
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			command := "env ROUTING_TEST_SECRET=private-routing-value account-b"
+			workspace.Agents = append(workspace.Agents,
+				compozyconfig.AgentDef{Name: "parent", Provider: "claude", Command: command, Prompt: "Delegate."},
+				compozyconfig.AgentDef{Name: "child", Provider: "claude", Prompt: "Review."})
+			h.resolver.upsert(&workspace)
+			parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, h, parent.ID)
+			denied := errors.New("authentication required")
+			h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
+				return nil, acp.WrapFailure(store.FailureProviderAuth, "native authentication failed", denied)
+			}
+			if _, err := h.manager.Spawn(
+				t.Context(),
+				SpawnOpts{ParentSessionID: parent.ID, AgentName: "child", TTL: time.Minute},
+			); !errors.Is(
+				err,
+				denied,
+			) {
+				t.Fatalf("spawn error = %v, want authentication failure", err)
+			}
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			childID := ""
+			for _, info := range infos {
+				if info.AgentName == "child" {
+					childID = info.ID
+					if info.State != StateStopped || info.Failure == nil {
+						t.Fatalf("failed child = %#v", info)
+					}
+				}
+			}
+			if childID == "" {
+				t.Fatal("failed child was not retained for inspection")
+			}
+			fingerprint := providerCommandFingerprint(command)
+			marker := requireTranscriptMarker(t, h.manager, childID, transcript.MarkerProviderFailure)
+			if marker.Evidence["provider_command_fingerprint"] != fingerprint {
+				t.Fatalf("failure marker = %#v", marker)
+			}
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(contents), "private-routing-value") {
+				t.Fatal("raw routing command leaked to logs")
+			}
+			selected, failed := false, false
+			for line := range strings.SplitSeq(strings.TrimSpace(string(contents)), "\n") {
+				var record map[string]any
+				if err := json.Unmarshal([]byte(line), &record); err != nil {
+					t.Fatal(err)
+				}
+				if record["session_id"] != childID {
+					continue
+				}
+				message := record["msg"]
+				if message != "session.provider_route.selected" && message != "session.start.driver_start_failed" {
+					continue
+				}
+				if strings.Count(line, "\"provider_command_fingerprint\":") != 1 ||
+					record["provider_command_fingerprint"] != fingerprint {
+					t.Fatalf("ambiguous or incorrect route fingerprint: %s", line)
+				}
+				selected = selected || message == "session.provider_route.selected"
+				failed = failed || message == "session.start.driver_start_failed"
+			}
+			if !selected || !failed {
+				t.Fatalf("route logs selected=%t failed=%t", selected, failed)
+			}
+		},
+	)
 }

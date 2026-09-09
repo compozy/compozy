@@ -203,6 +203,7 @@ type Session struct {
 	creationProfile           *store.SessionCreationProfile
 	creationOptions           *store.SessionCreationOptions
 	creationIdentity          *store.SessionCreationIdentity
+	providerRoute             compozyconfig.ResolvedAgent
 	agentDef                  compozyconfig.AgentDef
 
 	sessionDir string

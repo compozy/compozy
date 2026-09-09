@@ -135,7 +135,8 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 	t.Run("Should preserve the prior binding and transcript when replacement startup fails", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		logs := newCaptureLogHandler()
+		h := newHarness(t, WithLogger(slog.New(logs)))
 		session := createSession(t, h)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -143,7 +144,17 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 			}
 		})
 
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := workspace.Config.Providers["codex"]
+		provider.Command = "replacement-route"
+		workspace.Config.Providers["codex"] = provider
+		h.resolver.upsert(&workspace)
+
 		previous := session.Info()
+		previousRoute := session.providerRoutingSnapshot().Command
 		previousProcess := session.processHandle()
 		if previousProcess == nil {
 			t.Fatal("initial runtime process = nil")
@@ -158,7 +169,7 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		}
 		h.driver.mu.Unlock()
 
-		_, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+		_, err = h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
 			Message: "This prompt must not become durable",
 			Runtime: &RuntimeSelection{Provider: "codex"},
 		})
@@ -171,6 +182,14 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		}
 		if got := session.processHandle(); got != previousProcess {
 			t.Fatalf("runtime process after failed replacement = %p, want %p", got, previousProcess)
+		}
+		record, ok := logs.FindByMessage("session.start.driver_start_failed")
+		if !ok {
+			t.Fatal("missing replacement failure route log")
+		}
+		assertCapturedLogAttr(t, record, "provider_command_fingerprint", providerCommandFingerprint(provider.Command))
+		if got := session.providerRoutingSnapshot().Command; got != previousRoute {
+			t.Fatalf("failed replacement changed bound route to %q", got)
 		}
 		restored := readMeta(t, session.MetaPath())
 		if restored.Provider != previous.Provider || restored.Model != previous.Model ||

@@ -176,6 +176,7 @@ func (m *Manager) replacePromptRuntime(
 		return nil, errors.Join(err, restoreErr, stopErr)
 	}
 
+	session.setProviderRouting(runtime.agent)
 	if plan.spec.resumeReplay {
 		m.stageResumeReplay(session.ID, plan.spec.resumeReplayBlock)
 	}
@@ -282,7 +283,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(&spec)
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
 	if err != nil {
 		return nil, err
 	}

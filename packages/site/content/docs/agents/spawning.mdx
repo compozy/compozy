@@ -57,6 +57,33 @@ The ACP driver validates these before launch:
 - An additional dir equal to the primary workspace root is skipped.
 - Permissions must be `deny-all`, `approve-reads`, or `approve-all`.
 
+## Delegated provider commands
+
+For governed children created by `compozy spawn` or `compozy__session_spawn`, an explicit child
+agent command remains authoritative. A runtime selection of a different provider resolves that
+provider's command instead of carrying a command from the original provider.
+
+A child without its own command inherits its creator's resolved command when both use the same
+native CLI provider, operator-home policy, compatible runtime/environment policies, workspace,
+and profile. For example, a parent pinned to account B delegates to B even when the global
+provider command points to account A. A child explicitly pinned to account C still uses C.
+Bound-secret and isolated-home providers keep their own configured authentication boundaries.
+
+A live runtime keeps its resolved command snapshot. After stop or daemon restart, resume resolves
+the creator lineage against current agent/provider configuration. If the creator was deleted, the
+child uses its own configuration and logs `session.provider_route.creator_unavailable`; no raw
+command or credential is persisted to preserve a deleted creator.
+
+Provider routing does not imply readiness. Spawn success confirms creation and ACP startup;
+authentication may still fail on a later prompt. Inspect the child's events and provider failure
+markers. A recoverable authentication error can leave the logical session active so it can accept
+another prompt after native login is repaired.
+
+The `session.provider_route.selected` log records a `provider_command_fingerprint` alongside the
+session and provider IDs. Provider failure markers carry the same fingerprint. Compare fingerprints
+to distinguish command routes without exposing raw commands or account-directory values. The
+fingerprint identifies command configuration, not an authenticated account or a profile.
+
 ## Launch
 
 CompozyOS parses the provider command with shell-style quoting:

@@ -184,7 +184,8 @@ func (m *Manager) sessionLogger(session *Session) *slog.Logger {
 	}
 
 	info := session.Info()
-	return logger.With("session_id", info.ID, "agent_name", info.AgentName, "provider", info.Provider)
+	return logger.With("session_id", info.ID, "agent_name", info.AgentName, "provider", info.Provider,
+		"provider_command_fingerprint", providerCommandFingerprint(session.providerRoutingSnapshot().Command))
 }
 
 func derefString(value *string) string {

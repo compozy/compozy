@@ -767,6 +767,11 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 			if err != nil || replayed.ProviderError == nil || replayed.ProviderError.Code != code {
 				t.Fatalf("replayed provider error = %#v, error = %v", replayed.ProviderError, err)
 			}
+			marker := requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerProviderFailure)
+			wantFingerprint := providerCommandFingerprint(h.driver.startCalls[0].Command)
+			if got := marker.Evidence["provider_command_fingerprint"]; got != wantFingerprint {
+				t.Fatalf("provider failure route = %v, want %s", got, wantFingerprint)
+			}
 		})
 	}
 	t.Run("Should keep generic prompt failures active", func(t *testing.T) {
