@@ -130,7 +130,11 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *testing.T) {
 	t.Parallel()
 
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Memory.Enabled = true
+		}},
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -187,6 +191,60 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *test
 		"Release plan covers durable release checklist and observability ownership.",
 		memcontract.ScopeWorkspace,
 	)
+
+	t.Run("Should recover a unique term with unknown words through CLI and HTTP", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		writeMemoryViaCLI(t, ctx, harness, harness.WorkspaceRoot, "sonda-zx00841.md",
+			memcontract.TypeProject, "Partition count", "A contagem distinta de kind na particao zx00841 e 29.",
+			memcontract.ScopeWorkspace)
+		for _, query := range []string{"zx00841", "zx00841 banana", "zx00841 banana laranja"} {
+			var cliResult, httpResult compozycontract.MemorySearchResponse
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&cliResult,
+				"memory",
+				"search",
+				query,
+				"--scope",
+				"workspace",
+				"--workspace",
+				harness.WorkspaceRoot,
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatalf("CLI search(%q): %v", query, err)
+			}
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				"/api/memory/search",
+				memorySearchRequest(
+					query,
+					memcontract.ScopeWorkspace,
+					harness.WorkspaceRoot,
+				),
+				&httpResult,
+			); err != nil {
+				t.Fatalf("HTTP search(%q): %v", query, err)
+			}
+			for _, result := range []compozycontract.MemorySearchResponse{cliResult, httpResult} {
+				if len(result.Results) != 1 ||
+					!containsSearchResult(result, "project_sonda_zx00841.md", memcontract.ScopeWorkspace) {
+					t.Fatalf("search(%q) = %#v, want unique partition fact", query, result)
+				}
+				if len(result.Recall.Blocks) != 1 || len(result.Recall.Blocks[0].Entries) != 1 ||
+					result.Recall.Blocks[0].Entries[0].Filename != "project_sonda_zx00841.md" {
+					t.Fatalf(
+						"search(%q) recall = %#v, want catalog recall rather than an explicit-search fallback",
+						query,
+						result.Recall,
+					)
+				}
+			}
+		}
+	})
 
 	t.Run("Should return matching CLI and HTTP search results while ignoring noncanonical paths", func(t *testing.T) {
 		var cliSearch compozycontract.MemorySearchResponse
@@ -369,6 +427,9 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 	t.Parallel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Memory.Enabled = true
+		}},
 		MockAgents: []e2etest.MockAgentSpec{
 			{
 				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
@@ -442,6 +503,35 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 		!strings.Contains(string(structured), `"operations"`) {
 		t.Fatalf("memory batch structuredContent = %s, want applied operations", structured)
 	}
+
+	t.Run("Should recover explicit native queries with unknown terms", func(t *testing.T) {
+		for _, query := range []string{"cobalt", "cobalt quuxnonexistent"} {
+			search, err := client.CallTool(ctx, &sdkmcp.CallToolParams{
+				Name:      toolspkg.ToolIDMemorySearch.String(),
+				Arguments: map[string]any{"query": query, "scope": "workspace", "limit": 1},
+			})
+			if err != nil {
+				t.Fatalf("native memory search(%q): %v", query, err)
+			}
+			if search == nil || search.IsError {
+				t.Fatalf("native memory search(%q) = %#v", query, search)
+			}
+			payload, err := json.Marshal(search.StructuredContent)
+			if err != nil {
+				t.Fatalf("Marshal(native search): %v", err)
+			}
+			var result struct {
+				Recall memcontract.Packaged `json:"recall"`
+			}
+			if err := json.Unmarshal(payload, &result); err != nil {
+				t.Fatalf("Unmarshal(native search): %v", err)
+			}
+			if len(result.Recall.Blocks) != 1 || len(result.Recall.Blocks[0].Entries) != 1 ||
+				result.Recall.Blocks[0].Entries[0].Filename != "project_atomic_batch.md" {
+				t.Fatalf("native search(%q) = %s, want committed batch fact", query, payload)
+			}
+		}
+	})
 
 	readerSession := createFixtureBackedSession(
 		t,

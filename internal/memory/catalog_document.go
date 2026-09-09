@@ -46,7 +46,8 @@ func buildCatalogMatchQuery(query string) (string, error) {
 	for _, term := range terms {
 		quoted = append(quoted, quoteCatalogMatchTerm(term))
 	}
-	return strings.Join(quoted, " AND "), nil
+	// BM25 ranks partial matches without letting an absent term discard useful candidates.
+	return strings.Join(quoted, " OR "), nil
 }
 
 func quoteCatalogMatchTerm(term string) string {

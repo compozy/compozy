@@ -82,6 +82,13 @@ Search deterministic Memory v2 recall before opening individual files:
     compozy memory search "auth sessions" --scope workspace -o json
     compozy memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system -o json
 
+Explicit CLI/API and `compozy__memory_search` queries accept a single term. Lexical retrieval
+matches any normalized query term, so adding an unknown word does not discard an exact match
+(for example, `zx00841 banana` can recover a note containing `zx00841`). BM25 orders the bounded
+candidate sets before recall combines Unicode, trigram, recency, and signal scores. Queries
+without a lexical match return no results. Punctuation separates terms; FTS operators are not
+accepted as query syntax. Automatic turn recall still skips trivial queries.
+
 The search path prefers the derived catalog and falls back to deterministic lexical search when needed. Rebuild derived indexes after large memory edits or suspected catalog drift:
 
     compozy memory reindex --scope workspace -o json
