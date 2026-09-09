@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { app, globalShortcut, ipcMain, session, shell, systemPreferences } from "electron";
 
 import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
+import { verifyRuntimeBundle } from "./bootstrap/bundle-integrity";
 import { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
 import { bootstrapSnapshot } from "./boot/bootstrap-state";
 import { isForwardedBootMethod } from "./boot/boot-contract";
@@ -261,6 +262,8 @@ async function start(): Promise<void> {
 
   async function runBootstrapAttempt(): Promise<void> {
     try {
+      await verifyRuntimeBundle(resources.bundle, resources.manifest);
+      startUpdateConsumer(statePublisher);
       const runtime = await runner.run(async event => {
         await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog));
       });
@@ -351,7 +354,6 @@ async function start(): Promise<void> {
     operationWatcher.start();
   }
 
-  startUpdateConsumer(statePublisher);
   await runBootstrap();
 }
 

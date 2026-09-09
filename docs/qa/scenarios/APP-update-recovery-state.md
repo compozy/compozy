@@ -32,3 +32,5 @@ OSes and records replacement retention plus the archived `failed` outcome. Overl
 APP-agent-cli-app-verbs owns the structured CLI readout of the same durable update result.
 
 Issue 559 re-walk: `docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md`.
+
+Staged recovery verifies the packaged runtime digest before any transition-client execution. The issue 559 packaged re-walk covers both a valid bundle with failing daemon boot and a tampered bundle that must never execute.

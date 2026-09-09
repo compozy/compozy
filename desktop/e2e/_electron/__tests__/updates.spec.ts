@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -441,4 +441,35 @@ test("A staged app update starts while runtime bootstrap is failing", async ({
       await feed.close();
     }
   }
+});
+
+test("A staged app update never executes an unverified runtime bundle", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const digest = await artifactDigest(fixture);
+  const desktop = await launchDesktop({
+    executablePath: packaged.executablePath,
+    prepare: async ({ home, bundleRuntimePath }) => {
+      await writeFile(
+        bundleRuntimePath,
+        '#!/bin/sh\nprintf executed > "$COMPOZY_HOME/unverified-runtime-executed"\nexit 1\n',
+        { mode: 0o700 }
+      );
+      await seedOperation(home, operation(fixture, digest));
+    },
+  });
+  await expect(async () => {
+    const record = await readAppRecord(desktop.home);
+    expect(record.state).toBe("error");
+    expect(record.error).toMatchObject({
+      safe_message: expect.stringContaining("integrity check"),
+    });
+  }).toPass({ timeout: 30_000 });
+  await desktop.closeShell();
+  await expect(access(join(desktop.home, "unverified-runtime-executed"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
 });

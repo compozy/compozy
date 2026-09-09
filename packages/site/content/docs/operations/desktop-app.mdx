@@ -110,6 +110,9 @@ After an external recovery reaches the failed update's target runtime version or
 `compozy update --check` no longer projects that historical rollback as the current failure. The
 history remains intact.
 
+Staged app recovery still requires a verified runtime bundle. If its integrity check fails, reinstall
+the current app package; a prepared update cannot bypass that check.
+
 ## Recover the desktop channel
 
 A release operator repairs a bad desktop channel through the GitHub-backed channel authority, not

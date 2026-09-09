@@ -46,6 +46,14 @@ Focused race suites passed for update lifecycle/projection/provenance, CLI wait/
 
 The first attempt exposed a read-before-publication race in the new assertion; the second reached both product conditions and exposed the fixture's assumption that every test has a running daemon during teardown. The existing fixture now verifies the lock PID has exited when no discovery record was published. The final run passed all assertions and cleanup. It neither changes launch-session environment nor performs a native installer relaunch. The existing installer/relaunch scenarios remain the owners of that unchanged behavior.
 
+## Review remediation: staged bundle integrity
+
+Greptile identified that the early update consumer could invoke its transition client before bootstrap verified the runtime bundle. The existing packaged update suite reproduced this with a substituted executable that wrote a marker: the marker existed on the initial implementation even though bootstrap rejected the bundle.
+
+Startup now verifies the bundle before starting the update consumer, while retaining BootstrapRunner's own verification at its execution boundary. A verified bundle can still process a staged app update when daemon boot fails. Rebuilt baseline/next packages and reran `bunx playwright test --config playwright.config.ts --grep 'A staged app update'` under the shared verification lock: both scenarios passed (13.3 seconds), including no execution marker for the tampered bundle and clean fixture teardown.
+
+The initial commit passed the full local affected gate and strict QA audit. Per the user's subsequent delivery direction, follow-up commits retain focused behavioral checks and hook validation while the full gates run in PR CI.
+
 ## Delivery tracking
 
 Runtime recovery and the packaged app recovery slice passed with the limits above. The pull request records the final local gate, checked head, required CI, and CodeRabbit/Greptile dispositions. The lab's machine-readable strict audit is finalized with local gate evidence before delivery; `teardown.json` records `clean: true`.
