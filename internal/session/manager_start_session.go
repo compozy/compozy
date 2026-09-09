@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// newStartingSession retains routing in memory so later configuration edits cannot redirect children.
 func (s *sessionStartSpec) newStartingSession(
 	resolved compozyconfig.ResolvedAgent,
 	agentDef compozyconfig.AgentDef,
@@ -43,6 +44,7 @@ func (s *sessionStartSpec) newStartingSession(
 		creationOptions:  cloneCreationOptions(s.creationOptions),
 		creationIdentity: cloneCreationIdentity(s.creationIdentity), sessionDir: storage.sessionDir,
 		metaPath: storage.metaPath, dbPath: storage.dbPath, recorder: storage.recorder,
+		providerRoute:        resolved,
 		agentDef:             compozyconfig.CloneAgentDef(agentDef),
 		sandboxDestroyOnStop: !s.sandboxDisabled && s.workspace.Sandbox.DestroyOnStop,
 	}

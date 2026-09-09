@@ -110,16 +110,19 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	return accepted.session, nil
 }
 
+// startAgentProcess attributes launch failures to the attempted route rather than the previous binding.
 func (m *Manager) startAgentProcess(
 	ctx context.Context,
 	spec *sessionStartSpec,
 	session *Session,
 	startOpts acp.StartOpts,
 ) (*AgentProcess, error) {
+	logger := spec.startLogger(m).With("resolved_provider", startOpts.ProviderName)
+	logger.Info("session.provider_route.selected", "phase", spec.startAction)
 	transportStarted := time.Now()
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
-		m.sessionLogger(session).Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
+		logger.Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
 		m.logSandboxTransport(session, sandboxEventTransportError, err, time.Since(transportStarted))
 		return proc, startupFailure(
 			"agent runtime startup failed",

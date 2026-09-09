@@ -30,3 +30,26 @@ cleanup. The focused lifecycle contract verifies one clean stopped wake; a provi
 public-surface walk remains blocked pending an isolated ACP provider and human verification.
 
 QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Playwright lane, and full Web E2E exercised cross-workspace landing, permission resolution, counts, channel suppression, task canary, catalog scope/order, finished presence clearing, and honest quiet/stale states. The lab browser exposed its real notification capability; deterministic granted and denied branches ran in the canonical browser suite.
+
+### Provider routing regression (issue #564)
+
+Use one isolated workspace with global native provider command A, creator command B, a commandless
+child, and an explicit child command C. Check that the actual ACP processes launch B/B/C, including
+when the creator definition changes after its process starts. Change the selected provider and
+confirm its own command wins. Change the child home/environment policy and confirm inheritance does
+not override that boundary. Resume the child with a live and a stopped creator.
+
+Spawn acceptance is not proof of future prompt authentication. Inject a provider authentication
+failure at the ACP boundary and inspect the durable error and provider failure marker. Its
+`provider_command_fingerprint` must match the selected route; the logical session remains available
+for a later recovery prompt. Raw commands and account-directory values must not appear in markers.
+
+Owning automated evidence: `TestSpawnProviderCommandPrecedence`,
+`TestManagerIntegrationSpawnProviderCommandRouting`, and
+`TestPromptGenericFailureKeepsSessionActive`. The integration case executes real ACP subprocesses
+with isolated routing wrappers and SQLite; the controlled routes are not live OAuth accounts.
+
+Routing-slice verification: [2026-09-09 issue #564 report](../reports/2026-09-09-issue-564-provider-routing.md).
+`TestSpawnProviderRouteDiagnostics` additionally verifies that a startup auth failure is stopped,
+retained for inspection, and correlated with exactly one fingerprint per selected/error JSON log.
+This slice does not replace the unrelated wake-delivery walkthroughs above.

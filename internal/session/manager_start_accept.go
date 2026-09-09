@@ -17,6 +17,7 @@ type acceptedSessionStart struct {
 	persistFailure bool
 }
 
+// acceptSessionStart resolves routing before persistence so invalid configuration cannot create sessions.
 func (m *Manager) acceptSessionStart(
 	acceptCtx context.Context,
 	runBaseCtx context.Context,
@@ -29,7 +30,7 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.New("session: start spec is required")
 	}
 
-	runtime, err := m.resolveSessionStartRuntime(spec)
+	runtime, err := m.resolveSessionStartRuntime(acceptCtx, spec)
 	if err != nil {
 		spec.startLogger(m).Warn(
 			"session.start.runtime_prepare_failed",

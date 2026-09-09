@@ -528,6 +528,13 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
+Governed children without an explicit agent command inherit the creator's resolved command only
+for the same native CLI provider, operator-home policy, compatible environment/runtime policies,
+workspace, and profile. Explicit child commands and different-provider selections retain their
+own routing. Spawn success does not guarantee authentication on subsequent prompts: inspect child
+error events and provider failure markers. `provider_command_fingerprint` in route logs and failure
+markers lets you compare selected commands without revealing credentials; it is not an account ID.
+
 `compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
 permission subsets. Both accept optional provider, model, reasoning-effort, and speed overrides for
 the child runtime. The parent receives one sanitized synthetic turn when an eligible child stops,

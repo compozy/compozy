@@ -131,6 +131,7 @@ func (m *Manager) configurePromptRuntime(
 	return nil
 }
 
+// replacePromptRuntime keeps the previous route authoritative until the new binding commits.
 func (m *Manager) replacePromptRuntime(
 	ctx context.Context,
 	session *Session,
@@ -176,6 +177,7 @@ func (m *Manager) replacePromptRuntime(
 		return nil, errors.Join(err, restoreErr, stopErr)
 	}
 
+	session.setProviderRouting(runtime.agent)
 	if plan.spec.resumeReplay {
 		m.stageResumeReplay(session.ID, plan.spec.resumeReplayBlock)
 	}
@@ -243,6 +245,7 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 	return nil
 }
 
+// preparePromptRuntimePlan leaves the running binding unchanged until the selected plan is applied.
 func (m *Manager) preparePromptRuntimePlan(
 	ctx context.Context,
 	session *Session,
@@ -282,7 +285,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
-	runtime, err := m.resolveSessionStartRuntime(&spec)
+	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
 	if err != nil {
 		return nil, err
 	}
