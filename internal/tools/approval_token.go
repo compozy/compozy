@@ -59,6 +59,7 @@ type ApprovalTokenStore struct {
 
 type approvalTokenRecord struct {
 	toolID      ToolID
+	profileID   string
 	sessionID   string
 	workspaceID string
 	agentName   string
@@ -161,6 +162,7 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 	now := s.now().UTC()
 	record := approvalTokenRecord{
 		toolID:      req.ToolID,
+		profileID:   strings.TrimSpace(scope.ProfileID),
 		sessionID:   strings.TrimSpace(req.SessionID),
 		workspaceID: strings.TrimSpace(req.WorkspaceID),
 		agentName:   strings.TrimSpace(req.AgentName),
@@ -222,7 +224,7 @@ func (s *ApprovalTokenStore) ConsumeToolApproval(ctx context.Context, scope Scop
 		delete(s.active, hash)
 		return approvalTokenError(call.ToolID, "tool approval token expired", ReasonApprovalTokenExpired)
 	}
-	if !approvalTokenRecordMatches(record, call, inputDigest) {
+	if !approvalTokenRecordMatches(record, scope, call, inputDigest) {
 		return approvalTokenError(
 			call.ToolID,
 			"tool approval token does not match this invocation",
@@ -301,8 +303,11 @@ func approvalTokenHash(token string) [sha256.Size]byte {
 	return sha256.Sum256([]byte(token))
 }
 
-func approvalTokenRecordMatches(record approvalTokenRecord, call CallRequest, inputDigest string) bool {
+func approvalTokenRecordMatches(record approvalTokenRecord, scope Scope, call CallRequest, inputDigest string) bool {
 	if record.toolID != call.ToolID {
+		return false
+	}
+	if strings.TrimSpace(record.profileID) != strings.TrimSpace(scope.ProfileID) {
 		return false
 	}
 	if strings.TrimSpace(record.sessionID) != strings.TrimSpace(call.SessionID) {

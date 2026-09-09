@@ -80,6 +80,16 @@ The registry gives those actions one shape:
 | Hosted MCP tools                       | Managed agent session               | Let an agent discover and invoke session-scoped tools without shell scraping. |
 | HTTP/UDS API                           | Web UI, integrations, local tooling | Share the same daemon handler contract behind CLI and browser surfaces.       |
 
+## Select a profile and workspace
+
+Use `--profile <name>` with the operator tool and toolset commands to select the owning profile.
+Use `--workspace <id>` to keep the workspace boundary explicit. HTTP and UDS tool and toolset
+routes accept the same selection through the `profile` query parameter. These routes require one
+profile and reject `all_profiles=true`.
+
+Keep the same profile when approving and invoking a tool. Approval tokens also bind the tool,
+session, workspace, agent, and input; a token from another profile cannot authorize the invocation.
+
 ## Default discovery tools
 
 The normal managed-agent path starts with discovery, not blind invocation. These canonical IDs help
