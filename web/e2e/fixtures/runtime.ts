@@ -80,8 +80,8 @@ export interface BrowserRuntimeOptions {
   extensionsAllowUnverified?: boolean;
   host?: string;
   modelsDevEnabled?: boolean;
-  networkEnabled?: boolean;
   memoryEnabled?: boolean;
+  networkEnabled?: boolean;
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
   seedDefaultWorkspace?: boolean;
@@ -199,9 +199,9 @@ export async function createBrowserRuntime(
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         modelsDevEnabled: options.modelsDevEnabled,
+        memoryEnabled: options.memoryEnabled,
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         networkEnabled: options.networkEnabled,
-        memoryEnabled: options.memoryEnabled,
         port: httpPort,
         skillsMarketplaceBaseURL: skillMarketplace?.baseURL,
         socketPath: paths.daemonSocket,

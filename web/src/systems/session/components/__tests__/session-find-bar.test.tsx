@@ -133,7 +133,8 @@ describe("SessionFindBar", () => {
     expect(input).toHaveFocus();
     expect(screen.queryByTestId("session-find-next")).not.toBeInTheDocument();
 
-    await user.type(input, "lifecycle");
+    // This case verifies a committed query; intermediate keystrokes may debounce separately.
+    await user.paste("lifecycle");
     await waitFor(() => expect(bar).toHaveAttribute("data-state", "matches"));
     expect(searchCalls.at(-1)?.searchParams.get("q")).toBe("lifecycle");
     expect(searchCalls.at(-1)?.searchParams.get("limit")).toBe("200");

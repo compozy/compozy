@@ -20,9 +20,9 @@ export interface RuntimeConfigInput {
   host: string;
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
+  memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
   networkEnabled?: boolean;
-  memoryEnabled?: boolean;
   port: number;
   skillsMarketplaceBaseURL?: string;
   socketPath: string;
