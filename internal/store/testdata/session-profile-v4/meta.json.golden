@@ -1,0 +1,52 @@
+{
+  "id": "sess-beta21",
+  "name": "Previous release history",
+  "agent_name": "worker",
+  "provider": "codex",
+  "model": "gpt-5",
+  "reasoning_effort": "high",
+  "runtime_status": "ready",
+  "profile_id": "00000000000000000000000000",
+  "workspace_id": "ws-primary",
+  "network_participation": {
+    "version": "network-participation/v1",
+    "mode": "local",
+    "source": "built_in_local"
+  },
+  "session_type": "user",
+  "state": "stopped",
+  "creation_profile": {
+    "version": 4,
+    "agent_name": "worker",
+    "provider": "codex",
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "speed": "normal",
+    "profile_id": "00000000000000000000000000",
+    "workspace_id": "ws-primary",
+    "cwd": "/workspace",
+    "sandbox_mode": "none",
+    "permissions": "approve-all",
+    "allowed_tools": [
+      "read",
+      "write"
+    ],
+    "prompt_overlay": "Preserve this historical policy."
+  },
+  "creation_options": {
+    "session_id": "sess-beta21",
+    "name": "Previous release history",
+    "network_owner_key": "session:sess-beta21",
+    "network_participation": {
+      "version": "network-participation/v1",
+      "mode": "local",
+      "source": "built_in_local"
+    },
+    "session_type": "user"
+  },
+  "creation_profile_ref": "profile:sha256:3f6ef5fd5e0608405cdffc56cde94737936edc27b9541f2455b73f35d4aaef54",
+  "policy_spec_digest": "policy:sha256:195c3d218f0a5854c9ac9f02414be6b4f13cfa0c574de97e0deaaec7f8f7c0e5",
+  "creation_digest": "creation:sha256:1d0de057537efd50edf000503b03dd57fc5b143b596a62ff40dbea81e86f35f7",
+  "created_at": "2026-09-01T12:00:00Z",
+  "updated_at": "2026-09-01T12:00:00Z"
+}

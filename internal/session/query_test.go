@@ -1,10 +1,12 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -2583,4 +2585,66 @@ func (s *queryRecorderStub) History(_ context.Context, query store.EventQuery) (
 func (s *queryRecorderStub) Close(context.Context) error {
 	s.closeCalls++
 	return nil
+}
+
+func TestManagerUnreadableMetadataWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bound repeated list warnings and report changed failures immediately", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+		h := newHarness(
+			t,
+			WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
+			WithNow(func() time.Time { return now }),
+		)
+		for i := range 8 {
+			dir := filepath.Join(h.homePaths.SessionsDir, fmt.Sprintf("bad-%d", i))
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(store.SessionMetaFile(dir), []byte("{"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		list := func() {
+			t.Helper()
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(infos) != 0 {
+				t.Fatal("unreadable sessions returned")
+			}
+		}
+		for range 12 {
+			list()
+		}
+		if count := strings.Count(logs.String(), "session: skip unreadable session metadata"); count != 1 {
+			t.Fatalf("warnings = %d, want 1", count)
+		}
+		checked, failures, err := h.manager.SessionMetadataHealth(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checked != 8 || failures.Count != 8 || len(failures.Samples) != 5 {
+			t.Fatalf("health = %d, %#v", checked, failures)
+		}
+		if err := os.WriteFile(
+			store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "bad-7")),
+			[]byte("[]"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		list()
+		if count := strings.Count(logs.String(), "session: skip unreadable session metadata"); count != 2 {
+			t.Fatalf("new failure warnings = %d, want 2", count)
+		}
+		now = now.Add(5 * time.Minute)
+		list()
+		if count := strings.Count(logs.String(), "session: skip unreadable session metadata"); count != 3 {
+			t.Fatalf("backoff warnings = %d, want 3", count)
+		}
+	})
 }

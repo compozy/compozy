@@ -1,0 +1,1 @@
+{"version":4,"agent_name":"worker","provider":"codex","model":"gpt-5","reasoning_effort":"high","speed":"normal","profile_id":"00000000000000000000000000","workspace_id":"ws-primary","cwd":"/workspace","sandbox_mode":"none","permissions":"approve-all","allowed_tools":["read","write"],"prompt_overlay":"Preserve this historical policy."}

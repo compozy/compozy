@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	loggerpkg "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -132,6 +133,7 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	metadataWarnings           loggerpkg.FailureWarnings
 	supervisionMu              sync.Mutex
 	workSignals                *WorkSignalRegistry
 	mu                         sync.RWMutex

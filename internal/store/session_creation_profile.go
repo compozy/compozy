@@ -87,8 +87,12 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 // Validate enforces the complete immutable profile contract.
 func (p SessionCreationProfile) Validate() error {
 	p = NormalizeSessionCreationProfile(p)
-	if p.Version != SessionCreationProfileVersion {
+	if p.Version != 4 && p.Version != SessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
+	}
+	// Version four witnesses retain their original hashes and cannot contain version five fields.
+	if p.Version == 4 && len(p.ACPOptions) != 0 {
+		return fmt.Errorf("store: session creation profile version 4 cannot contain ACP options")
 	}
 	if _, err := speedpkg.Parse(string(p.Speed)); err != nil {
 		return fmt.Errorf("store: session creation profile: %w", err)

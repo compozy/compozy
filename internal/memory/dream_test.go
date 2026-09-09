@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1664,4 +1665,47 @@ func (r *fakeDreamWorkspaceResolver) ResolveOrRegister(
 		return workspacepkg.ResolvedWorkspace{}, r.err
 	}
 	return r.resolved, nil
+}
+
+func TestServiceMetadataWarningRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deduplicate scan failures and warn after repair and recurrence", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		root := t.TempDir()
+		writeMalformedSessionMeta(t, root, "broken")
+		service := NewService(WithSessionsDir(root), WithLogger(slog.New(slog.NewJSONHandler(&logs, nil))))
+		for range 12 {
+			count, err := service.scanCompletedSessionsSince(time.Time{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatal("malformed session counted as completed")
+			}
+		}
+		if count := strings.Count(logs.String(), "memory: skip unreadable session metadata"); count != 1 {
+			t.Fatalf("warnings = %d, want 1", count)
+		}
+		writeSessionMeta(
+			t,
+			root,
+			"broken",
+			persistedSessionMetadata{State: "stopped", UpdatedAt: time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)},
+		)
+		count, err := service.scanCompletedSessionsSince(time.Time{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatal("repaired session was not counted")
+		}
+		writeMalformedSessionMeta(t, root, "broken")
+		if _, err := service.scanCompletedSessionsSince(time.Time{}); err != nil {
+			t.Fatal(err)
+		}
+		if count := strings.Count(logs.String(), "memory: skip unreadable session metadata"); count != 2 {
+			t.Fatalf("recurrence warnings = %d, want 2", count)
+		}
+	})
 }
