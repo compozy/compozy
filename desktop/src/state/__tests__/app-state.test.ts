@@ -251,7 +251,15 @@ describe("app state publisher", () => {
         boot_phase: "starting",
         started_at: "2026-08-16T00:00:00.000Z",
       });
+      const publication = recovered.publish({ state: "product" });
       await recovered.markCleanShutdown();
+      await publication;
+      await expect(access(marker)).rejects.toMatchObject({ code: "ENOENT" });
+      const cleanRecord = await readFile(path, "utf8");
+      await recovered.publish({ state: "disconnected" });
+      await recovered.setRuntime("0.3.1", true);
+      await recovered.setOperation(null);
+      expect(await readFile(path, "utf8")).toBe(cleanRecord);
       await expect(access(marker)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await rm(home, { recursive: true, force: true });

@@ -133,7 +133,9 @@ async function cleanup(): Promise<void> {
       }
     };
     try {
-      await attempt(async () => await bootstrapFlow);
+      await attempt(async () => {
+        await bootstrapFlow;
+      });
       await attempt(async () => await product?.flushState());
       await attempt(() => productBridge?.unregister());
       await attempt(() => operationWatcher?.stop());
