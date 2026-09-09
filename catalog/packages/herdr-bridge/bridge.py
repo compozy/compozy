@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reflect Compozy hook events into herdr rows; log failures without failing hooks."""
+"""Reflect CompozyOS hook events into herdr rows; log failures without failing hooks."""
 import calendar
 import datetime
 import json
@@ -200,12 +200,12 @@ def drain_spool():
                 try:
                     handle(payload)
                 except Exception as exc:
-                    log(f"error in {payload.get('event')}: {exc}")
-                finally:
-                    try:
-                        os.unlink(path)
-                    except Exception:
-                        pass
+                    log(f"error in {payload.get('event')}; retaining spool for retry: {exc}")
+                    return handled
+                try:
+                    os.unlink(path)
+                except FileNotFoundError:
+                    pass  # Another cleanup already removed this completed payload.
                 handled += 1
 
 
@@ -229,7 +229,7 @@ def cmd_status():
             print(f"       {sid:26} {info.get('state')}")
     res = herdr("agent.list", {})
     if res and "result" in res:
-        print("\nherdr agent list (Compozy rows):")
+        print("\nherdr agent list (CompozyOS rows):")
         for a in res["result"]["agents"]:
             if a.get("agent") == AGENT_ID:
                 print(f"  {a['pane_id']:8} {a.get('agent_status'):8} {a.get('title') or ''}")
@@ -295,4 +295,7 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         log(f"unexpected bridge failure: {exc}")
+        if len(sys.argv) > 1 and sys.argv[1] not in {"--drain", "--watch-loops"}:
+            print(f"bridge: {exc}", file=sys.stderr)
+            sys.exit(1)
     sys.exit(0)

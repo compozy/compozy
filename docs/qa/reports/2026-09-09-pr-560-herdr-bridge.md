@@ -38,3 +38,21 @@ Cross-surface impact and exact-head CI/merge evidence are recorded in
 
 Final status: PASS for the bounded runtime journey; PR delivery additionally requires
 the local gate and current-head CI to pass. Zero unresolved behavior findings.
+
+## Follow-up recovery walk
+
+Greptile follow-up findings 3970199538 and 3970199553 are fixed. Complete map saves
+now keep a recovery copy; an unreadable primary uses that copy. If both copies are
+unavailable, spool payloads remain queued and maintenance reports a nonzero error.
+Loop reconciliation saves state under lock, then publishes telemetry after release.
+The owning suite now has 11 passing cases, including a real flock availability probe.
+
+The second isolated real-herdr walk damaged a saved primary map, sent another hook,
+and observed the same pane ID recover to working before normal terminal cleanup.
+Result: PASS. Evidence: `/Users/pedronauck/dev/qa-labs/compozy-pr-560-recovery-20260909-153118-179491-lab/qa-artifacts/qa/recovery-runtime.json`.
+Strict audit and clean teardown are recorded alongside that evidence. This walk only
+exercises local recovery, with no daemon or provider inference needed. The initial
+daemon/owner API walk remains valid for the unchanged session-read boundary.
+
+CI failures on 848a7aedb were README formatting and retired product spelling in the
+new package; both were repaired using the repository formatter and language check.

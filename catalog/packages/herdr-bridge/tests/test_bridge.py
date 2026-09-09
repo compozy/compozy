@@ -156,9 +156,54 @@ class BridgeTests(unittest.TestCase):
         command = Path(__file__).resolve().parents[1] / 'bridge.py'
         result = subprocess.run([sys.executable, '-B', str(command), '--status'],
                                 env={**os.environ, 'XDG_STATE_HOME': self.temp.name}, capture_output=True)
-        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(b"cannot recover bridge map", result.stderr)
         self.assertEqual(map_path.read_text(), '{broken')
         self.assertIn('unexpected bridge failure:', (state / 'bridge.log').read_text())
+
+    def test_corrupt_primary_recovers_last_complete_save(self):
+        data = {'ws/agent': {'pane_id': 'p', 'tab_id': 't', 'sessions': {}}}
+        bridge_state.save_map(data)
+        Path(bridge_state.MAP_PATH).write_text('{broken')
+        self.assertEqual(bridge_state.load_map(), data)
+        bridge_state.save_map(data)
+        self.assertEqual(json.loads(Path(bridge_state.MAP_PATH).read_text()), data)
+
+    def test_unrecoverable_map_retains_spool_until_repaired(self):
+        map_path = Path(bridge_state.MAP_PATH)
+        map_path.write_text('{broken')
+        event = {'event': 'turn.start', 'session_type': 'user', 'agent_name': 'agent',
+                 'session_id': 'sid', 'workspace_id': 'ws'}
+        payload = self.spool / 'event.json'
+        payload.write_text(json.dumps(event))
+        self.assertEqual(bridge.drain_spool(), 0)
+        self.assertEqual(json.loads(payload.read_text()), event)
+        self.assertEqual(map_path.read_text(), '{broken')
+        bridge_state.save_map({'ws/agent': {'pane_id': 'p', 'tab_id': 't', 'sessions': {}}})
+        with patch.object(bridge_state, 'herdr', return_value={'result': {}}), patch.object(bridge, 'herdr'):
+            self.assertEqual(bridge.drain_spool(), 1)
+        self.assertFalse(payload.exists())
+        self.assertEqual(bridge_state.load_map()['ws/agent']['sessions']['sid']['state'], 'working')
+
+    def test_reconcile_telemetry_does_not_hold_the_map_lock(self):
+        import fcntl
+        data = {'loop/ws/loop': {'kind': 'loop', 'pane_id': 'p', 'tab_id': 't', 'loop': 'loop',
+                                'run_id': 'run1', 'sessions': {'run1': {'state': 'idle'}}}}
+        bridge_state.save_map(data)
+        methods = []
+
+        def rpc(method, params):
+            methods.append(method)
+            with (Path(bridge_state.STATE_DIR) / '.lock').open('w') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            return {'result': {}}
+
+        with patch.object(bridge_loops, 'query_loop_status', return_value='running'), \
+                patch.object(bridge_loops, 'herdr', side_effect=rpc):
+            self.assertEqual(bridge_loops.reconcile_loops(), [('loop/ws/loop', 'run1', 'running')])
+        self.assertEqual(methods, ['pane.report_agent', 'pane.report_metadata'])
+        self.assertEqual(bridge_state.load_map()['loop/ws/loop']['sessions']['run1']['state'], 'working')
 
 
 if __name__ == '__main__':

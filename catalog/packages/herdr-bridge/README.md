@@ -63,7 +63,7 @@ Each row owns a herdr tab running:
 python3 tail.py <workspace_id>/<agent_name>
 ```
 
-`tail.py` reads original session events from the local Compozy daemon and
+`tail.py` reads original session events from the local CompozyOS daemon and
 renders them with `colorize.py`. Unlike log summaries, original message text
 retains spaces, line breaks, indentation, and content beyond 240 characters.
 Printable fragments retain their whitespace; changing session or turn starts a new
@@ -82,12 +82,12 @@ New panes use the updated reader automatically.
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `bridge.py --status` | Shows the map, prunes dead panes, reconciles loop rows against the daemon |
+| Command                   | What it does                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `bridge.py --status`      | Shows the map, prunes dead panes, reconciles loop rows against the daemon            |
 | `bridge.py --watch-loops` | Monitors loop status until no loop rows remain; normally started by the hook drainer |
-| `bridge.py --refresh` | Restarts the tail in existing panes without closing tabs |
-| `bridge.py --reset` | Closes every tab the bridge opened and clears the map |
+| `bridge.py --refresh`     | Restarts the tail in existing panes without closing tabs                             |
+| `bridge.py --reset`       | Closes every tab the bridge opened and clears the map                                |
 
 The installed copy lives in `~/.compozy/extensions/herdr-bridge/`.
 
@@ -102,15 +102,15 @@ events arrive.
 
 ### Agent rows
 
-| Event | Row becomes |
-| --- | --- |
-| `session.post_create` | `idle` |
-| `turn.start` | `working` |
-| `turn.end` | `idle` |
-| `permission.request`, `permission.denied`, `task.needs_attention` | `blocked` |
-| `permission.resolved` | `working` |
-| `session.attention.changed` | `blocked` / `idle`, from the `class` field — see below |
-| `session.post_stop`, `agent.stopped`, `agent.crashed` | session leaves the row; the pane closes when the last session ends |
+| Event                                                             | Row becomes                                                        |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `session.post_create`                                             | `idle`                                                             |
+| `turn.start`                                                      | `working`                                                          |
+| `turn.end`                                                        | `idle`                                                             |
+| `permission.request`, `permission.denied`, `task.needs_attention` | `blocked`                                                          |
+| `permission.resolved`                                             | `working`                                                          |
+| `session.attention.changed`                                       | `blocked` / `idle`, from the `class` field — see below             |
+| `session.post_stop`, `agent.stopped`, `agent.crashed`             | session leaves the row; the pane closes when the last session ends |
 
 Only `user` and `system` sessions get a row. The daemon's own internals
 (`spawned` memory extractors, `dream` curators) are filtered out.
@@ -122,15 +122,15 @@ carry `loop_run_id` / `loop_name` / `generation`, never `agent_name`. So each
 loop gets its own row, keyed `loop/<workspace>/<loop_name>`, whose pane follows
 `compozy loop events <id> --follow --workspace <workspace_id>`.
 
-| Event | Mode | Row becomes |
-| --- | --- | --- |
-| `loop.started` | async | `working`, `$cz_run` |
-| `loop.generation.pre` | **sync** | `working`, `$cz_gen` |
-| `coordinator.decision` | **sync** | `working`, `$cz_node = review.0:loop_action` |
-| `loop.generation.post`, `loop.gate.post` | async | `working`, `$cz_gen` |
-| `loop.node.terminal` | async | `$cz_node = review.0:succeeded` |
-| `loop.terminal` with `status: blocked` | async | **`blocked`** — and it stays until you act |
-| `loop.terminal` with `done` / `no-op` / `failed` / `exhausted` / `stalled` / `canceled` | async | pane closes when the last run ends |
+| Event                                                                                   | Mode     | Row becomes                                  |
+| --------------------------------------------------------------------------------------- | -------- | -------------------------------------------- |
+| `loop.started`                                                                          | async    | `working`, `$cz_run`                         |
+| `loop.generation.pre`                                                                   | **sync** | `working`, `$cz_gen`                         |
+| `coordinator.decision`                                                                  | **sync** | `working`, `$cz_node = review.0:loop_action` |
+| `loop.generation.post`, `loop.gate.post`                                                | async    | `working`, `$cz_gen`                         |
+| `loop.node.terminal`                                                                    | async    | `$cz_node = review.0:succeeded`              |
+| `loop.terminal` with `status: blocked`                                                  | async    | **`blocked`** — and it stays until you act   |
+| `loop.terminal` with `done` / `no-op` / `failed` / `exhausted` / `stalled` / `canceled` | async    | pane closes when the last run ends           |
 
 The two **sync** hooks are the reliable ones: the daemon waits for them. The
 async ones are canceled whenever the emitting step's context ends — on a
@@ -138,7 +138,7 @@ zero-agent loop that finishes in 200 ms, nearly all of them; on a real loop,
 mostly `loop.terminal`, which fires as the run's context closes.
 
 After draining the spool, one detached process monitors loop rows through the
-Compozy daemon's local briefing API, with five seconds between passes. This
+CompozyOS daemon's local briefing API, with five seconds between passes. This
 recovers missing terminal hooks without needing another event or a manual
 status check. It stops when no loop rows remain. A file lock keeps only one
 monitor active, and daemon queries do not hold the map lock used by hooks.
@@ -151,6 +151,10 @@ For rows left open before upgrading, `bridge.py --status` also runs this
 reconciliation once. Normal hook delivery starts the automatic monitor.
 
 ### Rows are per agent, and they self-heal
+
+Each complete map save also updates `panes.json.bak`. A damaged primary map can
+recover from that copy; if neither is readable, hooks retain their spool files
+for retry and maintenance commands report an error.
 
 The map key is `(workspace_id, agent_name)`, so the same agent running in two
 workspaces gets two rows instead of fighting over one.
@@ -173,7 +177,7 @@ State and spool files live under `${XDG_STATE_HOME:-$HOME/.local/state}/herdr-br
 ### Attention, and payloads not yet observed
 
 `session.attention.changed` carries `from` / `to` (the session's activity) and
-`class` — *why* it wants you. Observed at runtime: `none` (nothing) and
+`class` — _why_ it wants you. Observed at runtime: `none` (nothing) and
 `finished` (it ended; informational). The daemon also knows `clarify`, the live
 question behind `compozy session clarify`. Anything outside the benign set marks
 the row `blocked` and logs the class, so an unknown reason errs toward being

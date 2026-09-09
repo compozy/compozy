@@ -248,8 +248,8 @@ def reconcile_loops():
                     continue
                 fixed.append((key, run_id, status))
             row_state, active = consolidate(runs)
-            report_loop_row(entry, row_state, active, "reconcile")
             save_map(data)
+        report_loop_row(entry, row_state, active, "reconcile")
     return fixed
 
 

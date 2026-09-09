@@ -79,22 +79,45 @@ class Locked:
         self.fh.close()
 
 
+def read_map(path):
+    """Read a persisted map without treating corrupt data as an empty map."""
+    with open(path) as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        raise ValueError("bridge map must be an object")
+    return data
+
+
 def load_map():
-    """Read persisted rows, or return an empty map before the first hook."""
+    """Recover a damaged primary from the last complete save when available."""
     try:
-        with open(MAP_PATH) as fh:
-            return json.load(fh)
+        return read_map(MAP_PATH)
     except FileNotFoundError:
-        return {}
+        if not os.path.exists(MAP_PATH + ".bak"):
+            return {}
+    except (ValueError, OSError) as exc:
+        log(f"cannot read primary map: {exc}; trying last complete save")
+    try:
+        data = read_map(MAP_PATH + ".bak")
+    except (ValueError, OSError) as exc:
+        raise OSError(f"cannot recover bridge map {MAP_PATH}; hook payloads retained: {exc}") from exc
+    log("recovered bridge map from last complete save")
+    return data
+
+
+def write_map(path, data):
+    """Atomically replace one map copy with complete JSON."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(data, fh, indent=1)
+    os.replace(tmp, path)
 
 
 def save_map(data):
-    """Atomically persist the row map."""
+    """Persist a recovery copy before replacing the primary map."""
     os.makedirs(STATE_DIR, exist_ok=True)
-    tmp = MAP_PATH + ".tmp"
-    with open(tmp, "w") as fh:
-        json.dump(data, fh, indent=1)
-    os.replace(tmp, MAP_PATH)
+    write_map(MAP_PATH + ".bak", data)
+    write_map(MAP_PATH, data)
 
 
 def close_row(data, key):

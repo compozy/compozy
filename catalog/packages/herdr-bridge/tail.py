@@ -26,7 +26,7 @@ def get_json(path):
         connection.request("GET", path)
         response = connection.getresponse()
         if response.status != 200:
-            raise OSError(f"Compozy HTTP {response.status}")
+            raise OSError(f"CompozyOS HTTP {response.status}")
         return json.loads(response.read())
     finally:
         connection.close()

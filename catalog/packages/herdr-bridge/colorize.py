@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render original Compozy session events and JSONL logs for herdr panes.
+"""Render original CompozyOS session events and JSONL logs for herdr panes.
 
 Preserve message whitespace while filtering infrastructure noise."""
 import json

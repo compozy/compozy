@@ -25,3 +25,8 @@ session owner before the scoped events request; a real workspace never changes s
 
 The owning Python suite covers nanosecond ordering, outage handling, safe rendering, private
 spool permissions, missing-workspace resolution, cursor continuity, and command diagnostics.
+
+Recovery follow-up: after a complete save, damage the primary map and send another
+hook. The last complete recovery copy must preserve pane identity. If no valid copy
+exists, queued hooks remain on disk, and maintenance emits a nonzero diagnostic.
+Reconciliation telemetry must leave the map lock available to incoming hooks.
