@@ -82,27 +82,30 @@ one:
 compozy skill view compozy --file references/network.md
 ```
 
-With tools enabled, startup includes the `compozy` router. The complete
+With tools and skills enabled, startup includes the `compozy` router. The complete
 `references/tools-and-skills.md` and `references/native-tools.md` manuals stay available through
 `compozy__skill_view`; they are loaded on demand before the matching operation. If a result is
 truncated, the router explains how to use `compozy__tool_artifact_read` in the same workspace and
 follow `next_offset` through `eof` to recover the complete retained result. Display redaction
 remains in effect; agents do not bypass a denied read through CLI or filesystem access.
 
-The daemon omits the tool router for memory extractor children, automatic title generation, and checkpoint summarization,
+When tools are enabled but skills are disabled, capable sessions keep both complete tool manuals
+inline. This preserves operational guidance without enabling the skill registry or changing tool
+authorization. The daemon omits all tool guidance for memory extractor children, automatic title generation, and checkpoint summarization,
 whose roles transform supplied input into output. This uses the persisted role, including an
 extractor created through `Spawn`, rather than excluding every `system`, `dream`, or `spawned`
 session. Task workers, coordinators, dream curators, interactive sessions, and unknown roles retain
-the router when tools are enabled. Older checkpoint sessions without an explicit role also retain
+the appropriate guidance when tools are enabled. Older checkpoint sessions without an explicit role also retain
 it. The role is preserved across resume and custom background-agent routing.
 
-| Context                      | Injected guidance                                    |
-| ---------------------------- | ---------------------------------------------------- |
-| Tool prompt section          | `compozy` router; matching references load on demand |
-| Network channel session      | Compact network response-register guidance           |
-| Task reviewer routing prompt | `references/tasks-and-orchestration.md`              |
+| Context                        | Injected guidance                                    |
+| ------------------------------ | ---------------------------------------------------- |
+| Tools and skills enabled       | `compozy` router; matching references load on demand |
+| Tools enabled, skills disabled | Both complete tool manuals inline                    |
+| Network channel session        | Compact network response-register guidance           |
+| Task reviewer routing prompt   | `references/tasks-and-orchestration.md`              |
 
-These selections change prompt guidance only. Tool registration, discovery, authorization, MCP,
+These selections provide contextual prompt help only. Tool registration, discovery, authorization, MCP,
 and the `tools.enabled` gateway switch keep their existing behavior. No additional configuration
 key or user-state migration is required.
 

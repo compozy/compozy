@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -33,8 +35,10 @@ const (
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
 	// Keep the router intact; reference manuals are loaded on demand.
-	startupToolsSectionBudget   = 16_000
-	startupNetworkSectionBudget = 512
+	startupToolsSectionBudget = 16_000
+	// Preserve complete operational guidance when the skill registry is disabled.
+	startupToolsReferenceSectionBudget = 64_000
+	startupNetworkSectionBudget        = 512
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -160,7 +164,22 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
 				return skillbundled.LoadContent(bundledCompozySkillName)
 			}),
-			Predicate: policyIncludesSection(HarnessPromptSectionTools),
+			Predicate: func(policy ResolvedHarnessPolicy) bool {
+				return containsHarnessSection(policy.IncludeSections, HarnessPromptSectionTools) &&
+					containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)
+			},
+		},
+		{
+			Name:           string(HarnessPromptSectionTools),
+			Position:       PromptSectionPositionAppend,
+			Order:          startupToolsSectionOrder,
+			Budget:         startupToolsReferenceSectionBudget,
+			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+			Provider:       promptSectionProviderFunc(bundledToolReferencesPromptSection),
+			Predicate: func(policy ResolvedHarnessPolicy) bool {
+				return containsHarnessSection(policy.IncludeSections, HarnessPromptSectionTools) &&
+					!containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)
+			},
 		},
 		{
 			Name:           string(HarnessPromptSectionNetwork),
@@ -230,4 +249,16 @@ func (fn promptSectionProviderFunc) PromptSection(
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, workspace)
+}
+
+func bundledToolReferencesPromptSection(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+	contents := make([]string, 0, 2)
+	for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
+		content, err := skillbundled.LoadResource(bundledCompozySkillName, path)
+		if err != nil {
+			return "", fmt.Errorf("daemon: load bundled tool guidance %q: %w", path, err)
+		}
+		contents = append(contents, strings.TrimSpace(content))
+	}
+	return strings.Join(contents, "\n\n"), nil
 }

@@ -2663,71 +2663,82 @@ func TestDaemonNativeTools(t *testing.T) {
 			{name: "Should recover references through workspace-scoped result pages", registry: boundedRegistry, scope: toolspkg.Scope{WorkspaceID: "ws-skills", SessionID: "sess-skills", AgentName: "coder"}, wantOffload: true},
 		} {
 			t.Run(target.name, func(t *testing.T) {
-				for _, resource := range []string{"references/memory.md", "references/tools-and-skills.md", "references/native-tools.md"} {
-					input, err := json.Marshal(map[string]string{"name": "compozy", "file": resource})
-					if err != nil {
-						t.Fatal(err)
-					}
-					viewResult, err := target.registry.Call(
-						t.Context(),
-						target.scope,
-						toolspkg.CallRequest{
-							ToolID: toolspkg.ToolIDSkillView,
-							Input:  input,
-						},
-					)
-					if err != nil {
-						t.Fatalf("Registry.Call(skill_view) error = %v", err)
-					}
-					if resource == "references/native-tools.md" && viewResult.Truncated != target.wantOffload {
-						t.Fatalf(
-							"skill_view(%s) truncated = %t, want %t",
-							resource,
-							viewResult.Truncated,
-							target.wantOffload,
+				for _, reference := range []struct {
+					path        string
+					wantOffload bool
+				}{
+					{path: "references/memory.md"},
+					{path: "references/tools-and-skills.md", wantOffload: true},
+					{path: "references/native-tools.md", wantOffload: true},
+				} {
+					t.Run("Should read the complete "+reference.path+" resource", func(t *testing.T) {
+						resource := reference.path
+						input, err := json.Marshal(map[string]string{"name": "compozy", "file": resource})
+						if err != nil {
+							t.Fatal(err)
+						}
+						viewResult, err := target.registry.Call(
+							t.Context(),
+							target.scope,
+							toolspkg.CallRequest{
+								ToolID: toolspkg.ToolIDSkillView,
+								Input:  input,
+							},
 						)
-					}
-					if viewResult.Truncated {
-						viewResult = readNativeRetainedResult(t, target.registry, target.scope, viewResult)
-					}
-					skill, ok := skillRegistry.Get("compozy")
-					if !ok {
-						t.Fatal("Registry.Get(compozy) found = false, want true")
-					}
-					expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, resource)
-					if err != nil {
-						t.Fatalf("Registry.LoadResource(%s) error = %v", resource, err)
-					}
-					var viewPayload struct {
-						Content string `json:"content"`
-					}
-					if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
-						t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
-					}
-					if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
-						viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
-						t.Fatalf(
-							"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
+						if err != nil {
+							t.Fatalf("Registry.Call(skill_view) error = %v", err)
+						}
+						wantTruncated := reference.wantOffload && target.wantOffload
+						if viewResult.Truncated != wantTruncated {
+							t.Fatalf(
+								"skill_view(%s) truncated = %t, want %t",
+								resource,
+								viewResult.Truncated,
+								wantTruncated,
+							)
+						}
+						if viewResult.Truncated {
+							viewResult = readNativeRetainedResult(t, target.registry, target.scope, viewResult)
+						}
+						skill, ok := skillRegistry.Get("compozy")
+						if !ok {
+							t.Fatal("Registry.Get(compozy) found = false, want true")
+						}
+						expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, resource)
+						if err != nil {
+							t.Fatalf("Registry.LoadResource(%s) error = %v", resource, err)
+						}
+						var viewPayload struct {
+							Content string `json:"content"`
+						}
+						if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+							t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
+						}
+						if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
+							viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
+							t.Fatalf(
+								"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
+								resource,
+								len(expectedContent),
+								len(viewPayload.Content),
+								len(viewResult.Content),
+								viewResult.Truncated,
+								len(viewResult.Artifacts),
+								viewResult.Redactions,
+							)
+						}
+						if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
+							t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
+						}
+						t.Logf(
+							"%s: full structured bytes=%d, display redactions=%d",
 							resource,
-							len(expectedContent),
 							len(viewPayload.Content),
-							len(viewResult.Content),
-							viewResult.Truncated,
-							len(viewResult.Artifacts),
-							viewResult.Redactions,
+							len(viewResult.Redactions),
 						)
-					}
-					if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
-						t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
-					}
-					t.Logf(
-						"%s: full structured bytes=%d, display redactions=%d",
-						resource,
-						len(viewPayload.Content),
-						len(viewResult.Redactions),
-					)
-					requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
-					requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
+						requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
+						requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
+					})
 				}
 			})
 		}

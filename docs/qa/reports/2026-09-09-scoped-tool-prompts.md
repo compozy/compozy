@@ -6,9 +6,13 @@ Issue: [#563](https://github.com/compozy/compozy/issues/563). Scenario: [ET-049]
 
 The composed startup prompt includes the bundled `compozy` router once for tools-enabled
 interactive sessions, system task workers, dream curators, coordinators, and ordinary spawned
-workers. It does not inline either tool reference manual. The native skill-view suite verifies
+workers when skills are enabled. In that configuration it does not inline either tool reference
+manual. When skills are disabled, capable sessions retain both complete manuals inline because the
+reference-reading tool is unavailable. The same role gate still omits all tool guidance for
+input-only routines. The native skill-view suite verifies
 that both complete manuals remain readable on demand through the existing registry, including
 workspace-scoped artifact continuations when the configured result budget offloads the envelope.
+The managed-session continuation is tested under the existing workspace authorization policy.
 Structured resource content remains complete; display text preserves intentional secret redaction.
 
 Memory extraction is tested through its actual `spawnExtractorSession` caller, using a custom
@@ -64,6 +68,18 @@ composed-assembler matrix.
 The integration suite uses the existing driver fixture with real session storage. It does not
 measure real-model compliance with reference reading or provider billing. The PR records the
 additional subprocess runtime check, pinned local gate, current-head CI, and review dispositions.
+
+## Review follow-up
+
+The review follow-up passed `go test -race -p=1 -parallel=4 -tags=integration ./internal/daemon
+-run '^TestHarnessContextIntegration|^TestDaemonNativeTools/Should_dispatch_skill_catalog_tools_through_the_real_skill_registry$'
+-count=1 -v` in 66.863 seconds. The existing creation/resume scenario now runs with skills enabled
+and disabled: capable sessions receive the router or both complete inline manuals respectively;
+extractors and checkpoint summaries omit either form. The same native resource suite verifies
+named cases and the expected truncation state for all three resources, including both tool
+manuals being offloaded under the 32 KiB fixture budget. Complete content and redaction assertions
+remain intact. The original local gate passed; final remediation gates run in CI at the author's
+request.
 
 ## Compatibility and scope
 

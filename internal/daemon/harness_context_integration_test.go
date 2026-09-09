@@ -523,137 +523,145 @@ func testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 }
 
 func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testing.T) {
-	t.Run(
-		"Should preserve capable sessions and omit input-only role guidance through creation and resume",
-		func(t *testing.T) {
-			homePaths := integrationHomePaths(t)
-			cfg := testConfig(t, homePaths)
-			cfg.Memory.Enabled = true
-			workspace := newHarnessIntegrationWorkspace(
-				t,
-				homePaths,
-				cfg,
-				filepath.Join(homePaths.HomeDir, "workspace"),
-			)
-			daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
-			t.Cleanup(func() {
-				if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-					t.Errorf("Shutdown: %v", err)
-				}
-			})
-			driver := newHarnessIntegrationDriver()
-			manager := newHarnessIntegrationManager(t, homePaths, deps, workspace, driver)
-			router, err := skillbundled.LoadContent(bundledCompozySkillName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			assertLatestPrompt := func(label string, wantRouter bool) {
-				t.Helper()
-				driver.mu.Lock()
-				prompt := driver.startCalls[len(driver.startCalls)-1].SystemPrompt
-				driver.mu.Unlock()
-				t.Logf("%s assembled startup bytes=%d router bytes=%d", label, len(prompt), len(router))
-				wantCount := 0
-				if wantRouter {
-					wantCount = 1
-				}
-				if count := strings.Count(prompt, router); count != wantCount {
-					t.Fatalf("%s router occurrences=%d want router=%t", label, count, wantRouter)
-				}
-				for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
-					manual, loadErr := skillbundled.LoadResource(bundledCompozySkillName, path)
-					if loadErr != nil {
-						t.Fatal(loadErr)
-					}
-					if strings.Contains(prompt, strings.TrimSpace(manual)) {
-						t.Fatalf("%s inlines %s", label, path)
-					}
-				}
-			}
-			stop := func(sess *session.Session) {
-				t.Helper()
+	for _, skillsEnabled := range []bool{true, false} {
+		t.Run(
+			fmt.Sprintf(
+				"Should preserve role guidance through creation and resume with skills enabled %t",
+				skillsEnabled,
+			),
+			func(t *testing.T) {
+				homePaths := integrationHomePaths(t)
+				cfg := testConfig(t, homePaths)
+				cfg.Memory.Enabled = true
+				cfg.Skills.Enabled = skillsEnabled
+				workspace := newHarnessIntegrationWorkspace(
+					t,
+					homePaths,
+					cfg,
+					filepath.Join(homePaths.HomeDir, "workspace"),
+				)
+				daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 				t.Cleanup(func() {
-					if err := manager.Stop(testutil.Context(t), sess.ID); err != nil {
-						t.Errorf("Stop(%s): %v", sess.ID, err)
+					if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+						t.Errorf("Shutdown: %v", err)
 					}
 				})
-			}
-			agentName := workspace.Agents[0].Name
-			parent, err := manager.Create(
-				t.Context(),
-				session.CreateOpts{AgentName: agentName, Workspace: workspace.ID},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			stop(parent)
-			assertLatestPrompt("interactive", true)
-			for _, sessionType := range []session.Type{session.SessionTypeSystem, session.SessionTypeDream} {
-				created, createErr := manager.Create(
-					t.Context(),
-					session.CreateOpts{AgentName: agentName, Workspace: workspace.ID, Type: sessionType},
-				)
-				if createErr != nil {
-					t.Fatal(createErr)
+				driver := newHarnessIntegrationDriver()
+				manager := newHarnessIntegrationManager(t, homePaths, deps, workspace, driver)
+				router, err := skillbundled.LoadContent(bundledCompozySkillName)
+				if err != nil {
+					t.Fatal(err)
 				}
-				stop(created)
-				assertLatestPrompt(string(sessionType), true)
-			}
-			worker, err := manager.Spawn(
-				t.Context(),
-				session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			stop(worker)
-			assertLatestPrompt("spawned worker", true)
-			extractor := &forkedMemoryExtractor{sessions: manager, deadline: time.Minute}
-			child, err := extractor.spawnExtractorSession(
-				t.Context(),
-				ResolvedRole{Enabled: true, AgentName: agentName},
-				roleInvocationCorrelation{},
-				memcontract.TurnRecord{SessionID: parent.ID},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if child.Info().Type != session.SessionTypeSpawned {
-				t.Fatal("extractor must exercise Spawn")
-			}
-			assertLatestPrompt("spawned extractor", false)
-			if err := manager.Stop(t.Context(), child.ID); err != nil {
-				t.Fatal(err)
-			}
-			resumed, err := manager.Resume(t.Context(), child.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			stop(resumed)
-			assertLatestPrompt("resumed extractor", false)
-			resolved, err := daemonInstance.harnessResolver.ResolvePrompt(
-				resumed.Info(),
-				session.TurnSourceUser,
-				acp.PromptMeta{},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionTools) {
-				t.Fatal("resume lost extractor role")
-			}
-			summarizer := newDaemonCheckpointSummarizer(
-				manager,
-				resolvedRoleResolver(ResolvedRole{Enabled: true, AgentName: agentName}),
-			)
-			request := checkpointSummaryRequestFixture()
-			request.WorkspaceID, request.WorkspaceRoot, request.SessionID = workspace.ID, workspace.RootDir, parent.ID
-			if _, err := summarizer.Summarize(t.Context(), request); err != nil {
-				t.Fatal(err)
-			}
-			assertLatestPrompt("checkpoint summary", false)
-		},
-	)
+				router = strings.TrimSpace(router)
+				assertLatestPrompt := func(label string, wantRouter bool) {
+					t.Helper()
+					driver.mu.Lock()
+					prompt := driver.startCalls[len(driver.startCalls)-1].SystemPrompt
+					driver.mu.Unlock()
+					t.Logf("%s assembled startup bytes=%d router bytes=%d", label, len(prompt), len(router))
+					wantCount := 0
+					if wantRouter && skillsEnabled {
+						wantCount = 1
+					}
+					if count := strings.Count(prompt, router); count != wantCount {
+						t.Fatalf("%s router occurrences=%d want router=%t", label, count, wantRouter)
+					}
+					for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
+						manual, loadErr := skillbundled.LoadResource(bundledCompozySkillName, path)
+						if loadErr != nil {
+							t.Fatal(loadErr)
+						}
+						wantManual := wantRouter && !skillsEnabled
+						if strings.Contains(prompt, strings.TrimSpace(manual)) != wantManual {
+							t.Fatalf("%s inline %s presence differs from expected %t", label, path, wantManual)
+						}
+					}
+				}
+				stop := func(sess *session.Session) {
+					t.Helper()
+					t.Cleanup(func() {
+						if err := manager.Stop(testutil.Context(t), sess.ID); err != nil {
+							t.Errorf("Stop(%s): %v", sess.ID, err)
+						}
+					})
+				}
+				agentName := workspace.Agents[0].Name
+				parent, err := manager.Create(
+					t.Context(),
+					session.CreateOpts{AgentName: agentName, Workspace: workspace.ID},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stop(parent)
+				assertLatestPrompt("interactive", true)
+				for _, sessionType := range []session.Type{session.SessionTypeSystem, session.SessionTypeDream} {
+					created, createErr := manager.Create(
+						t.Context(),
+						session.CreateOpts{AgentName: agentName, Workspace: workspace.ID, Type: sessionType},
+					)
+					if createErr != nil {
+						t.Fatal(createErr)
+					}
+					stop(created)
+					assertLatestPrompt(string(sessionType), true)
+				}
+				worker, err := manager.Spawn(
+					t.Context(),
+					session.SpawnOpts{ParentSessionID: parent.ID, AgentName: agentName, TTL: time.Minute},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stop(worker)
+				assertLatestPrompt("spawned worker", true)
+				extractor := &forkedMemoryExtractor{sessions: manager, deadline: time.Minute}
+				child, err := extractor.spawnExtractorSession(
+					t.Context(),
+					ResolvedRole{Enabled: true, AgentName: agentName},
+					roleInvocationCorrelation{},
+					memcontract.TurnRecord{SessionID: parent.ID},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if child.Info().Type != session.SessionTypeSpawned {
+					t.Fatal("extractor must exercise Spawn")
+				}
+				assertLatestPrompt("spawned extractor", false)
+				if err := manager.Stop(t.Context(), child.ID); err != nil {
+					t.Fatal(err)
+				}
+				resumed, err := manager.Resume(t.Context(), child.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stop(resumed)
+				assertLatestPrompt("resumed extractor", false)
+				resolved, err := daemonInstance.harnessResolver.ResolvePrompt(
+					resumed.Info(),
+					session.TurnSourceUser,
+					acp.PromptMeta{},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionTools) {
+					t.Fatal("resume lost extractor role")
+				}
+				summarizer := newDaemonCheckpointSummarizer(
+					manager,
+					resolvedRoleResolver(ResolvedRole{Enabled: true, AgentName: agentName}),
+				)
+				request := checkpointSummaryRequestFixture()
+				request.WorkspaceID, request.WorkspaceRoot, request.SessionID = workspace.ID, workspace.RootDir, parent.ID
+				if _, err := summarizer.Summarize(t.Context(), request); err != nil {
+					t.Fatal(err)
+				}
+				assertLatestPrompt("checkpoint summary", false)
+			},
+		)
+	}
 }
 
 func seedHarnessSituationTaskRun(

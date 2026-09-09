@@ -11,7 +11,7 @@ metadata:
 
 # CompozyOS
 
-This body routes to the matching reference. Startup includes this router, not the full reference manuals. Daemon-owned memory extraction, title generation, and checkpoint summarization omit the tool router because their role consumes supplied input and returns output; other tools-enabled sessions retain it.
+This body routes to the matching reference. When tools and skills are enabled, startup includes this router, not the full reference manuals. With tools enabled and skills disabled, capable sessions retain the two complete tool manuals inline because native skill reads are unavailable. Daemon-owned memory extraction, title generation, and checkpoint summarization omit the tool router because their role consumes supplied input and returns output; other tools-enabled sessions retain the appropriate guidance.
 
 To read a reference in a managed session, resolve `compozy__skill_view` through the active harness and call the returned tool reference with `{"name":"compozy","file":"references/<file>.md"}` using the exact path below. Tool discovery, descriptor reads, skill reads, and retained-result reads needed to load these references are the bootstrap exception to the reading prerequisite. Inspect the live descriptor before calling other tools; discover capabilities with `compozy__tool_search`. Keep existing tool authorization: missing guidance does not grant or revoke access, and a denied skill read is not permission to bypass policy through CLI or filesystem access.
 

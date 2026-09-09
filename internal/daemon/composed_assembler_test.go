@@ -643,11 +643,13 @@ func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *
 func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name        string
-		sessionType session.Type
-		role        string
-		disabled    bool
-		wantRouter  bool
+		name           string
+		sessionType    session.Type
+		role           string
+		disabled       bool
+		wantRouter     bool
+		skillsDisabled bool
+		wantManuals    bool
 	}{
 		{name: "Should retain discovery for interactive sessions", sessionType: session.SessionTypeUser, wantRouter: true},
 		{name: "Should retain discovery for system task workers", sessionType: session.SessionTypeSystem, wantRouter: true},
@@ -660,10 +662,19 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 		{name: "Should normalize internal role metadata", sessionType: session.SessionTypeSpawned, role: " MEMORY-EXTRACTOR "},
 		{name: "Should preserve guidance for unknown roles", sessionType: session.SessionTypeSystem, role: "custom-role", wantRouter: true},
 		{name: "Should respect disabled tools", sessionType: session.SessionTypeUser, disabled: true},
+		{name: "Should preserve complete manuals when skills are disabled", sessionType: session.SessionTypeUser, skillsDisabled: true, wantManuals: true},
+		{name: "Should omit extractor guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor, skillsDisabled: true},
+		{name: "Should omit title guidance when skills are disabled", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle, skillsDisabled: true},
+		{name: "Should omit summary guidance when skills are disabled", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary, skillsDisabled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{ToolsPromptSectionEnabled: !tc.disabled})
+			resolver := NewHarnessContextResolver(
+				HarnessRuntimeSignals{
+					ToolsPromptSectionEnabled:  !tc.disabled,
+					SkillsPromptSectionEnabled: !tc.skillsDisabled,
+				},
+			)
 			assembler := NewComposedAssembler(
 				WithSectionSelector(NewSectionSelector(resolver, nil)),
 				WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
@@ -683,7 +694,7 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 			if count := strings.Count(got, strings.TrimSpace(router)); count != wantCount {
 				t.Fatalf("router occurrences=%d want router=%t", count, tc.wantRouter)
 			}
-			if !tc.wantRouter && got != "Base prompt." {
+			if !tc.wantRouter && !tc.wantManuals && got != "Base prompt." {
 				t.Fatal("input-only startup contains unexpected guidance")
 			}
 			for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
@@ -691,8 +702,8 @@ func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *t
 				if err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(got, strings.TrimSpace(manual)) {
-					t.Fatalf("startup inlines reference %s", path)
+				if strings.Contains(got, strings.TrimSpace(manual)) != tc.wantManuals {
+					t.Fatalf("startup reference %s presence differs from expected %t", path, tc.wantManuals)
 				}
 			}
 		})

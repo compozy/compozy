@@ -6351,12 +6351,19 @@ func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	if wantSkills {
 		fragments = append(fragments, "<available-skills>", "compozy")
 	}
-	fragments = append(fragments, "# CompozyOS")
+	if wantSkills {
+		fragments = append(fragments, "# CompozyOS")
+	} else {
+		fragments = append(fragments, "# Tools And Skills", "# Native Tools")
+	}
 	return fragments
 }
 
 func excludedFragments(wantMemory bool, wantSkills bool) []string {
-	fragments := []string{"# Tools And Skills", "# Native Tools"}
+	fragments := []string{"# CompozyOS"}
+	if wantSkills {
+		fragments = []string{"# Tools And Skills", "# Native Tools"}
+	}
 	if !wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}
