@@ -154,7 +154,7 @@ function LoopEditorReady({
         ref={editorRoot}
       >
         <LoopEditorToolbar
-          addNodeDisabled={editor.busy || readOnly}
+          addNodeDisabled={editor.saving || readOnly}
           busy={editor.busy}
           onAddNode={addNode}
           positionsDirty={editor.positionsDirty}
@@ -183,7 +183,7 @@ function LoopEditorReady({
           )}
         >
           {chrome.paletteMode === "expanded" ? (
-            <LoopEditorPalette onAddNode={addNode} disabled={editor.busy || readOnly} />
+            <LoopEditorPalette onAddNode={addNode} disabled={editor.saving || readOnly} />
           ) : null}
 
           <section className="relative flex min-h-0 flex-col bg-canvas">
@@ -234,9 +234,9 @@ function LoopEditorReady({
           {chrome.inspectorOpen ? (
             <LoopEditorSidebar
               contract={definition.contract}
-              contractDisabled={editor.busy || readOnly}
+              contractDisabled={editor.saving || readOnly}
               gitBacked={gitBacked}
-              inspectorDisabled={editor.busy || readOnly}
+              inspectorDisabled={editor.saving || readOnly}
               lintByNode={editor.lint.byNode}
               loopDefaultEnvironment={loopDefaultEnvironment}
               node={editor.selectedNode}

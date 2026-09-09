@@ -26,4 +26,6 @@ evidence-seed: visual-contract bundles at .compozy/tasks/loop-node-lifecycle/evi
 
 acceptance-walk: Use the Playwright-backed browser driver to author the full lifecycle envelope on a real custom Loop, publish it, start a run, and confirm the run page reflects the authored contract. Exercise the read-only fork path, wait-mode exclusivity, warning-versus-error gating, and a real daemon 422; verify the saved definition through a fresh HTTP read rather than a mock.
 
+background-validation: Keep authoring controls enabled while validation is pending. Type retry attempts and backoff during that request, then publish and verify both values through a fresh daemon read. Saving and read-only ownership still disable authoring. Regression evidence: [main CI integration](../reports/2026-09-09-main-ci-integration.md).
+
 src: .compozy/tasks/loop-node-lifecycle/task_09.md

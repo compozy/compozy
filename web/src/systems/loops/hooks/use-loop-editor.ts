@@ -53,6 +53,7 @@ export interface UseLoopEditorResult {
   validateFailed: boolean;
   publishDisabled: boolean;
   busy: boolean;
+  saving: boolean;
   publishError: string | null;
   /** Discriminator for `publishError`: a 422 validation rejection vs a transport/unknown failure. */
   publishFailureKind: "rejected" | "transport" | null;
@@ -111,6 +112,7 @@ export function useLoopEditor(
     pasteNodes,
     baseDefinition,
     busy,
+    saving,
     edges,
     initializedSourceKey,
     isDirty,
@@ -298,6 +300,7 @@ export function useLoopEditor(
     // and returns a 422 the editor maps onto nodes — no invalid definition can ship.
     publishDisabled: viewModel.publishDisabled,
     busy,
+    saving,
     publishError,
     publishFailureKind,
     publishRejectedIssues,

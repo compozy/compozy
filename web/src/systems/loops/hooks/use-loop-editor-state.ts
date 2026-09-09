@@ -23,6 +23,8 @@ export function useLoopEditorState() {
       context.pendingPositionsGeneration !== null ||
       context.pendingPublishGeneration !== null ||
       context.pendingValidationGeneration !== null,
+    saving:
+      context.pendingPositionsGeneration !== null || context.pendingPublishGeneration !== null,
     edges: context.edges,
     isDirty: context.isDirty,
     initializedSourceKey: context.initializedSourceKey,

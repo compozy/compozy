@@ -534,6 +534,46 @@ describe("LoopEditor", () => {
     });
   });
 
+  it("Should preserve field edits while automatic validation is pending", async () => {
+    // Invariant: background validation never disables authoring or loses typed fields.
+    // Owner: editor interaction. Canonical suite: this component suite.
+    let releaseValidation!: () => void;
+    const validationPending = new Promise<void>(resolve => {
+      releaseValidation = resolve;
+    });
+    const validationStarted = vi.fn();
+    const validateHandler = http.post(
+      "/api/workspaces/:workspaceId/loops/:name/validate",
+      async () => {
+        validationStarted();
+        await validationPending;
+        return HttpResponse.json({ valid: true, errors: [] });
+      }
+    );
+    const { captured, handler } = capturePublish();
+    renderEditor("quality-gate-demo", [validateHandler, handler]);
+    try {
+      await screen.findByTestId("loop-editor");
+      fireEvent.click(nodeCard("execute_task"));
+      await waitFor(() => expect(validationStarted).toHaveBeenCalled());
+      const attempts = screen.getByTestId("loop-field-max_attempts");
+      expect(attempts).not.toBeDisabled();
+      fireEvent.change(attempts, { target: { value: "3" } });
+      fireEvent.change(screen.getByTestId("loop-field-backoff_base"), {
+        target: { value: "20s" },
+      });
+      expect(attempts).toHaveValue(3);
+    } finally {
+      releaseValidation();
+    }
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+    await waitFor(() => expect(captured.definition).not.toBeNull());
+    expect(publishedNode(captured, "execute_task")).toMatchObject({
+      retry: { max_attempts: 3, backoff: { base: "20s" } },
+    });
+  });
+
   it("WT-005: carries the whole Spec 1 grammar through edit → PATCH → reopen unchanged", async () => {
     const { captured, handler } = capturePublish();
     renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);
