@@ -25,7 +25,7 @@ var (
 	importTasksOutputSchema = json.RawMessage(`{
 		"type":"object",
 		"additionalProperties":false,
-		"required":["tasks","count"],
+		"required":["tasks","count","passed"],
 		"properties":{
 			"tasks":{
 				"type":"array",
@@ -48,7 +48,8 @@ var (
 					}
 				}
 			},
-			"count":{"type":"integer","minimum":0}
+			"count":{"type":"integer","minimum":0},
+			"passed":{"type":"boolean"}
 		}
 	}`)
 )

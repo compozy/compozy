@@ -1,6 +1,6 @@
 # Task Metadata Schemas
 
-Task metadata is parsed from YAML frontmatter by CompozyOS's `ParseTaskFile()` function in `internal/core/tasks/parser.go`.
+Task metadata is parsed from YAML frontmatter by the spec-cycle task importer in `extensions/spec-cycle/import_tasks_parser.go`.
 Parallel task execution also reads the canonical `_tasks.md` graph manifest.
 
 ## `_tasks.md` Graph Manifest
@@ -50,8 +50,14 @@ Valid `status` values:
 - `pending` - task has not been started.
 - `in_progress` - task is currently being worked on.
 - `completed` - task is finished and verified.
+- `complete` - treated as completed.
 - `done` - treated as completed.
 - `finished` - treated as completed.
+
+Write `completed` for verified completion. The importer normalizes surrounding whitespace and letter
+case, and the Loop completion judge calls that same importer. Unknown or missing status values
+fail validation before any task is dispatched; they do not become pending work. The Goal JSON
+result uses `complete|blocked` separately from task frontmatter.
 
 ## File Naming
 
@@ -70,4 +76,4 @@ The leading underscore prefix is reserved for meta documents:
 
 ## Parser Compatibility
 
-CompozyOS reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for `ParseTaskFile()` to read the metadata.
+CompozyOS reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for the task importer to read the metadata.

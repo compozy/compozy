@@ -32,6 +32,7 @@ func (f toolCallerFunc) Call(ctx context.Context, scope tools.Scope, req tools.C
 	return f(ctx, scope, req)
 }
 
+// TestEvaluatorEvaluateCriteriaMapping checks criterion results, tool scope, and extension verdict mapping.
 func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 	t.Parallel()
 
@@ -283,6 +284,9 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				if req.ToolID != "ext__quality__gate" {
 					t.Fatalf("CallRequest.ToolID = %q, want ext__quality__gate", req.ToolID)
 				}
+				if req.TrustedWorkspaceRoot != "/worktrees/verified" {
+					t.Fatalf("TrustedWorkspaceRoot = %q, want execution worktree", req.TrustedWorkspaceRoot)
+				}
 				return tools.ToolResult{
 					Structured: []byte(
 						`{"verdict":"revise","blocking_issues":[{"id":"coverage_gap","note":"missing branch"}]}`,
@@ -299,7 +303,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				Tool:   "ext__quality__gate",
 				Inputs: map[string]any{"path": "internal/loop"},
 			}},
-		}, GateInput{Placement: PlacementInBody})
+		}, GateInput{Placement: PlacementInBody, TrustedWorkspaceRoot: "/worktrees/verified"})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}

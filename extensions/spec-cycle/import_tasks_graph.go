@@ -146,12 +146,27 @@ func pathBaseSlash(path string) string {
 	return normalized
 }
 
-func compozyTaskStatusCompleted(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case compozyTaskStatusCompletedValue, "done", "finished":
-		return true
+type taskStatusError struct {
+	Status string
+}
+
+// Error lists supported task statuses so invalid frontmatter can be corrected before dispatch.
+func (e *taskStatusError) Error() string {
+	return fmt.Sprintf(
+		"unknown task status %q; use pending, in_progress, or completed (completion aliases: complete, done, finished)",
+		e.Status,
+	)
+}
+
+// normalizeCompozyTaskStatus normalizes boundary aliases while rejecting undocumented task states.
+func normalizeCompozyTaskStatus(status string) (string, error) {
+	switch normalized := strings.ToLower(strings.TrimSpace(status)); normalized {
+	case compozyTaskStatusCompletedValue, "complete", "done", "finished":
+		return compozyTaskStatusCompletedValue, nil
+	case "", "pending", "in_progress":
+		return normalized, nil
 	default:
-		return false
+		return "", &taskStatusError{Status: status}
 	}
 }
 

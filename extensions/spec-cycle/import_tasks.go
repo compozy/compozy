@@ -15,8 +15,9 @@ type importTasksInput struct {
 }
 
 type importTasksOutput struct {
-	Tasks []markdownTaskPayload `json:"tasks"`
-	Count int                   `json:"count"`
+	Tasks  []markdownTaskPayload `json:"tasks"`
+	Count  int                   `json:"count"`
+	Passed bool                  `json:"passed"`
 }
 
 type taskSetNotFoundError struct {
@@ -27,6 +28,7 @@ func (e *taskSetNotFoundError) Error() string {
 	return "spec-cycle: task set not found"
 }
 
+// importTasks returns the unfinished queue and its completion verdict from one validated task set.
 func importTasks(input importTasksInput) (importTasksOutput, error) {
 	pattern := strings.TrimSpace(input.Pattern)
 	if pattern == "" {
@@ -37,15 +39,21 @@ func importTasks(input importTasksInput) (importTasksOutput, error) {
 		return importTasksOutput{}, err
 	}
 	return importTasksOutput{
-		Tasks: result.Tasks,
-		Count: len(result.Tasks),
+		Tasks:  result.Tasks,
+		Count:  len(result.Tasks),
+		Passed: len(result.Tasks) == 0,
 	}, nil
 }
 
+// importTasksToolError translates import failures into operator-facing causes and recovery steps.
 func importTasksToolError(id toolspkg.ToolID, input importTasksInput, err error) error {
 	pattern := operatorTaskPattern(input.Pattern)
 	cause := fmt.Sprintf("The task set for %s could not be imported.", pattern)
 	recovery := "Correct the task manifest and matching task files, then retry the run."
+	if statusErr, ok := errors.AsType[*taskStatusError](err); ok {
+		cause = fmt.Sprintf("The task set for %s has an %s.", pattern, statusErr.Error())
+		recovery = "Correct the named status in the task frontmatter, then retry; no tasks were dispatched."
+	}
 	reason := toolspkg.ReasonSchemaInvalid
 	if strings.TrimSpace(input.Pattern) == "" {
 		cause = "The task import pattern is required."

@@ -12,6 +12,8 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
+// TestImportMarkdownTasksShouldLoadCompozyTaskManifest
+// Covers task ordering, completion filtering, and invalid input rejection.
 func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +81,40 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 			t.Fatalf("len(tasks) = %d, want 0 pending tasks", len(result.Tasks))
 		}
 	})
+
+	for _, status := range []string{"completed", "done", "finished", "complete", "  CoMpLeTe  "} {
+		t.Run("Should skip finished tasks with status "+status, func(t *testing.T) {
+			t.Parallel()
+			tasksDir := t.TempDir()
+			writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+			writeImportTaskFile(t, tasksDir, "task_01.md", status, "Finished", "# Finished\n")
+			writeImportTaskFile(t, tasksDir, "task_02.md", "pending", "Pending", "# Pending\n")
+			writeImportTaskFile(t, tasksDir, "task_03.md", "in_progress", "Started", "# Started\n")
+			result, err := importTasks(importTasksInput{Pattern: filepath.Join(tasksDir, "task_*.md")})
+			if err != nil {
+				t.Fatalf("importTasks() error = %v", err)
+			}
+			if result.Count != 2 || result.Tasks[0].ID != "task_02" || result.Tasks[1].ID != "task_03" {
+				t.Fatalf("importTasks() = %#v, want only pending and in_progress tasks", result)
+			}
+		})
+	}
+
+	for _, status := range []string{"compeleted", "blocked", "unknown"} {
+		t.Run("Should reject unknown task status "+status, func(t *testing.T) {
+			t.Parallel()
+			tasksDir := t.TempDir()
+			writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+			writeImportTaskFile(t, tasksDir, "task_01.md", status, "Invalid", "# Invalid\n")
+			writeImportTaskFile(t, tasksDir, "task_02.md", "pending", "Pending", "# Pending\n")
+			writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Finished", "# Finished\n")
+			_, err := importTasks(importTasksInput{Pattern: filepath.Join(tasksDir, "task_*.md")})
+			if !errors.Is(err, looppkg.ErrValidation) || !strings.Contains(err.Error(), "task_01.md") ||
+				!strings.Contains(err.Error(), status) {
+				t.Fatalf("importTasks() error = %v, want file-scoped status validation", err)
+			}
+		})
+	}
 
 	t.Run("Should publish task type complexity and runtime frontmatter", func(t *testing.T) {
 		t.Parallel()
@@ -502,6 +538,7 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 	})
 }
 
+// TestImportTasksToolShouldReturnStructuredPayload checks the serialized queue and completion verdict contract.
 func TestImportTasksToolShouldReturnStructuredPayload(t *testing.T) {
 	t.Parallel()
 
@@ -529,7 +566,7 @@ func TestImportTasksToolShouldReturnStructuredPayload(t *testing.T) {
 		want := fmt.Sprintf(
 			`{"tasks":[{"id":"task_01","number":1,"title":"First task",`+
 				`"type":"","complexity":"",`+
-				`"path":%q,"body_ref":%q,"blocks":[]}],"count":1}`,
+				`"path":%q,"body_ref":%q,"blocks":[]}],"count":1,"passed":false}`,
 			task.Path,
 			task.BodyRef,
 		)

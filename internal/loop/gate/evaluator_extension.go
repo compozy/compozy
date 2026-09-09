@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+// evaluateExtension calls an extension in the supplied scope and maps its structured output to a verdict.
 func (e *Evaluator) evaluateExtension(
 	ctx context.Context,
 	gate Gate,
@@ -44,6 +45,7 @@ func (e *Evaluator) evaluateExtension(
 		input = []byte("{}")
 	}
 	req := tools.CallRequest{
+		TrustedWorkspaceRoot: in.TrustedWorkspaceRoot,
 		ToolID:               tools.ToolID(extensionToolID(criterion)),
 		ToolCallID:           fmt.Sprintf("%s:%s", gate.ID, criterion.ID),
 		SessionID:            in.ToolScope.SessionID,

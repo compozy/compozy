@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
+// newBootLoopActionRegistry wires Loop actions to daemon-owned sessions, judges, and worktree leases.
 func newBootLoopActionRegistry(
 	store taskStore,
 	state *bootState,
@@ -57,6 +58,7 @@ func newBootLoopActionRegistry(
 			goalRuntime,
 			gateEvaluator,
 			judgeExecutions,
+			&loopActionToolWorkspaceRootResolver{worktrees: worktrees},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: compose Goal executor: %w", err)

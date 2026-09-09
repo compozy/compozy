@@ -165,6 +165,8 @@ func TestUsageTrackerShouldFailClosedOnOverflow(t *testing.T) {
 	})
 }
 
+// TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects
+// Covers one-pass parameter resolution before session and judge effects.
 func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 	t.Run("Should resolve Goal prompts and judge inputs without re-rendering input values", func(t *testing.T) {
 		t.Parallel()
@@ -217,6 +219,13 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		defer judge.mu.Unlock()
 		if len(judge.calls) != 1 {
 			t.Fatalf("judge calls = %d, want 1", len(judge.calls))
+		}
+		if judge.calls[0].Environment != binder.binds[0].EnvironmentValue() {
+			t.Fatalf(
+				"judge environment = %#v, want the materialized session environment %#v",
+				judge.calls[0].Environment,
+				binder.binds[0].EnvironmentValue(),
+			)
 		}
 		payload, ok := judge.calls[0].Criteria[0].Inputs["payload"].(map[string]any)
 		if !ok || payload["completed"] != true {

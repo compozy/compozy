@@ -35,7 +35,7 @@
                 "output_schema": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["tasks", "count"],
+                    "required": ["tasks", "count", "passed"],
                     "properties": {
                         "tasks": {
                             "type": "array",
@@ -76,7 +76,8 @@
                                 }
                             }
                         },
-                        "count": { "type": "integer", "minimum": 0 }
+                        "count": { "type": "integer", "minimum": 0 },
+                        "passed": { "type": "boolean" }
                     }
                 },
                 "backend": {

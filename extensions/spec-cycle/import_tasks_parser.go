@@ -78,6 +78,7 @@ type compozyTaskFrontmatter struct {
 	Dependencies []string         `yaml:"dependencies"`
 }
 
+// importMarkdownTasks validates manifest topology and task metadata before selecting unfinished work.
 func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -114,7 +115,7 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	payloads := make([]markdownTaskPayload, 0, len(ordered))
 	blocksByTarget := compozyTaskBlocksByTarget(manifest.Graph.Edges)
 	for _, taskFile := range ordered {
-		if compozyTaskStatusCompleted(taskFile.Meta.Status) {
+		if taskFile.Meta.Status == compozyTaskStatusCompletedValue {
 			continue
 		}
 		payloads = append(payloads, markdownTaskPayload{
@@ -373,6 +374,7 @@ func resolvedCompozyPath(tasksDir string, relativePath string, subject string) (
 	return resolvedPath, nil
 }
 
+// parseCompozyTaskFile decodes YAML frontmatter and canonicalizes task status before graph validation.
 func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error) {
 	parts, err := frontmatter.Split(content)
 	if err != nil {
@@ -382,7 +384,10 @@ func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error
 	if err := yaml.Unmarshal(parts.Metadata, &meta); err != nil {
 		return compozyTaskFrontmatter{}, "", err
 	}
-	meta.Status = strings.TrimSpace(meta.Status)
+	meta.Status, err = normalizeCompozyTaskStatus(meta.Status)
+	if err != nil {
+		return compozyTaskFrontmatter{}, "", err
+	}
 	meta.Title = strings.TrimSpace(meta.Title)
 	meta.Type = strings.TrimSpace(meta.Type)
 	meta.Complexity = strings.TrimSpace(meta.Complexity)

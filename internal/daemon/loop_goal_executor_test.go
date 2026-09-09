@@ -24,6 +24,8 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary
+// Checks Goal composition through the parent action registry.
 func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *testing.T) {
 	t.Run("Should resolve the child executor without a parent package import", func(t *testing.T) {
 		t.Parallel()
@@ -42,6 +44,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			inertLoopGoalRuntime{},
 			inertGateEvaluator{},
 			newLoopJudgeExecutionRegistry(),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor() error = %v", err)
@@ -96,6 +99,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			runtime,
 			inertGateEvaluator{},
 			newLoopJudgeExecutionRegistry(),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor(real Manager) error = %v", err)

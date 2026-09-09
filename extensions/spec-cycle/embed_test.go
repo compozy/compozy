@@ -1,7 +1,9 @@
 package speccycle
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -16,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/gate"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -77,6 +80,8 @@ func TestEmbeddedLoopsShouldCompileWithSpecCycleToolSchemas(t *testing.T) {
 	}
 }
 
+// TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests
+// Pins tool schemas and read-only permission policy together.
 func TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 	t.Run("Should pin managed tool schema digests and policies", func(t *testing.T) {
 		t.Parallel()
@@ -89,7 +94,7 @@ func TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 		}{
 			toolImportTasks: {
 				inputDigest:  "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832",
-				outputDigest: "ed61017d14c6e0cdea1846d9e418369696ccf198a37c02baa3389247f1fba4f7",
+				outputDigest: "09d75b848fbb7a6f115072d61194ebd1511a20b64581667d382990adf8d0fa62",
 				readOnly:     true,
 				risk:         toolspkg.RiskRead,
 			},
@@ -548,6 +553,8 @@ func TestSpecCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T)
 	}
 }
 
+// TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts
+// Checks the shipped Loop graph, prompts, and executable judge contract.
 func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 	t.Run("Should keep the internal review source and clean round termination contract", func(t *testing.T) {
 		t.Parallel()
@@ -1059,20 +1066,12 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if strings.Contains(customObjective, "spawn one bounded `code_implementer`") {
 			t.Fatalf("rendered custom objective prescribes default worker Agent: %q", customObjective)
 		}
-		judge := requireOrchestrateJudgeForTest(t, orchestrate)
-		if got, want := judge["type"], string(dsl.CriterionCommand); got != want {
-			t.Fatalf("orchestrate judge type = %#v, want %q", got, want)
+		judges := requireOrchestrateJudgesForTest(t, orchestrate)
+		if judges[0].Type != dsl.CriterionExtension || judges[0].Tool != "ext__spec_cycle__import_tasks" {
+			t.Fatalf("task judge = %#v, want the authoritative importer", judges[0])
 		}
-		check, ok := judge["check"].(string)
-		if !ok {
-			t.Fatalf("orchestrate judge check = %#v, want string", judge["check"])
-		}
-		if !strings.Contains(check, `task_dir=".compozy/tasks/$slug"`) ||
-			!strings.Contains(check, `"$task_dir"/task_*.md`) {
-			t.Fatalf("orchestrate judge check = %q, want a workspace-relative task glob", check)
-		}
-		if strings.Contains(check, "cd /") || strings.Contains(check, "$HOME") {
-			t.Fatalf("orchestrate judge check = %q, want no absolute or home-anchored path", check)
+		if judges[1].Type != dsl.CriterionCommand {
+			t.Fatalf("worker judge = %#v, want command", judges[1])
 		}
 		cases := []struct {
 			name         string
@@ -1108,11 +1107,25 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 				activeWorker: true,
 			},
 		}
+		for _, status := range []string{"done", "finished", "complete", "' CoMpLeTe '", "completed # verified"} {
+			cases = append(cases, struct {
+				name         string
+				tasks        []orchestrateJudgeTaskFile
+				activeWorker bool
+				wantSuccess  bool
+			}{
+				name: "Should accept completion status " + status,
+				tasks: []orchestrateJudgeTaskFile{
+					{name: "task_01.md", content: "---\nstatus: " + status + "\n---\nDone.\n"},
+				},
+				wantSuccess: true,
+			})
+		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				output, err := runOrchestrateJudgeForTest(t, check, tc.tasks, tc.activeWorker)
+				output, err := runOrchestrateJudgeForTest(t, judges, tc.tasks, tc.activeWorker)
 				if tc.wantSuccess && err != nil {
 					t.Fatalf("judge command error = %v, output = %s", err, output)
 				}
@@ -1139,9 +1152,10 @@ type orchestrateJudgeTaskFile struct {
 	content string
 }
 
+// runOrchestrateJudgeForTest evaluates the shipped importer criterion before checking worker settlement.
 func runOrchestrateJudgeForTest(
 	t *testing.T,
-	check string,
+	judges []dsl.GateCriterion,
 	tasks []orchestrateJudgeTaskFile,
 	activeWorker bool,
 ) ([]byte, error) {
@@ -1156,6 +1170,37 @@ func runOrchestrateJudgeForTest(
 		if err := os.WriteFile(filepath.Join(taskDir, task.name), []byte(task.content), 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", task.name, err)
 		}
+	}
+	manifest := "---\nschema_version: compozy.tasks/v2\nworkflow: review-fixture\ngraph:\n  nodes:\n"
+	for _, task := range tasks {
+		manifest += fmt.Sprintf("    - id: %s\n      file: %s\n", strings.TrimSuffix(task.name, ".md"), task.name)
+	}
+	manifest += "  edges: []\n---\n"
+	if err := os.WriteFile(filepath.Join(taskDir, "_tasks.md"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("WriteFile(manifest) error = %v", err)
+	}
+	criterion := judges[0]
+	patternTemplate, ok := criterion.Inputs["pattern"].(string)
+	if !ok {
+		t.Fatalf("task judge pattern = %#v, want a workspace-relative template", criterion.Inputs["pattern"])
+	}
+	pattern, err := refs.RenderTemplateString("task-judge.pattern", patternTemplate,
+		map[string]any{"inputs": map[string]any{"slug": "review-fixture"}})
+	if err != nil {
+		t.Fatalf("RenderTemplateString(pattern) error = %v", err)
+	}
+	criterion.Inputs = map[string]any{"pattern": filepath.Join(workspace, pattern)}
+	evaluator := gate.NewEvaluator(gate.WithToolCaller(importTaskJudgeCaller{provider: newRuntimeProvider()}))
+	verdict, err := evaluator.Evaluate(
+		t.Context(),
+		gate.GateFromGoalJudge("orchestrate", []dsl.GateCriterion{criterion}),
+		gate.GateInput{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if verdict.Outcome != gate.VerdictOutcomeApproved {
+		return nil, fmt.Errorf("task judge rejected: %#v", verdict)
 	}
 	fakeBin := filepath.Join(workspace, "bin")
 	if err := os.MkdirAll(fakeBin, 0o755); err != nil {
@@ -1176,7 +1221,7 @@ printf '{"type":"list_page","page":{"total":0}}\n'
 	}
 	rendered, err := refs.RenderTemplateString(
 		"implement-tasks.orchestrate.tasks_completed.check",
-		check,
+		judges[1].Check,
 		map[string]any{"inputs": map[string]any{"slug": "review-fixture"}},
 	)
 	if err != nil {
@@ -1194,22 +1239,36 @@ printf '{"type":"list_page","page":{"total":0}}\n'
 	return command.CombinedOutput()
 }
 
-func requireOrchestrateJudgeForTest(t *testing.T, node dsl.Node) map[string]any {
-	t.Helper()
+type importTaskJudgeCaller struct {
+	provider *runtimeProvider
+}
 
-	raw, ok := node.Params["judge"].([]any)
-	if !ok || len(raw) != 1 {
-		t.Fatalf("orchestrate params.judge = %#v, want exactly one criterion", node.Params["judge"])
+// Call routes evaluator requests through the production spec-cycle tool handler.
+func (c importTaskJudgeCaller) Call(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	return c.provider.CallTool(ctx, toolspkg.ExtensionToolCallRequest{
+		ToolID: req.ToolID, Handler: strings.TrimPrefix(string(req.ToolID), "ext__spec_cycle__"), Input: req.Input,
+	})
+}
+
+// requireOrchestrateJudgesForTest decodes the shipped completion and worker-settlement criteria.
+func requireOrchestrateJudgesForTest(t *testing.T, node dsl.Node) []dsl.GateCriterion {
+	t.Helper()
+	encoded, err := json.Marshal(node.Params["judge"])
+	if err != nil {
+		t.Fatalf("Marshal(judge) error = %v", err)
 	}
-	switch criterion := raw[0].(type) {
-	case dsl.NodeParams:
-		return map[string]any(criterion)
-	case map[string]any:
-		return criterion
-	default:
-		t.Fatalf("orchestrate judge[0] = %#v, want object", raw[0])
-		return nil
+	var judges []dsl.GateCriterion
+	if err := json.Unmarshal(encoded, &judges); err != nil {
+		t.Fatalf("Unmarshal(judge) error = %v", err)
 	}
+	if len(judges) != 2 {
+		t.Fatalf("judges = %#v, want task completion and worker settlement", judges)
+	}
+	return judges
 }
 
 func renderImplementTasksPromptForTest(

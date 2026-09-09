@@ -18,7 +18,9 @@ Operating contract:
   and reuse it only for that task's single corrective turn.
 - `code_implementer` is the Loop input default, not a conductor override.
 - Preserve the selected category runtime by passing every non-empty provider, model, reasoning effort, and speed field at spawn time.
-- Treat `status: completed` in the task file as the only proof that a worker finished its task.
+- Require completion on disk plus verification evidence. Workers write `status: completed`; the
+  importer also recognizes `complete`, `done`, and `finished`, ignoring case and surrounding whitespace.
+- Never dispatch a recognized completed task. Unknown task statuses require correction before dispatch.
 - Stop every worker on every terminal path before advancing or returning.
 
 Return the Goal's requested structured result. Use `complete` only when every queued task is completed on disk and no conductor-created worker remains active; use `blocked` only with concrete evidence.

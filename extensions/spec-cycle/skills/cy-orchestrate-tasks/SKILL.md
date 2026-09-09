@@ -23,7 +23,9 @@ This session is the **conductor** of the spec: it conducts, it does not play. Ev
 
 Read `.compozy/tasks/<slug>/_tasks.md` and derive the execution order from `graph.edges`. Read the
 frontmatter of every `task_NN.md`. Queue only tasks whose `status` is `pending` or `in_progress`,
-in graph order.
+in graph order. Treat `completed`, `complete`, `done`, and `finished` as already completed, ignoring
+case and surrounding whitespace. Stop on unknown or missing statuses before spawning workers;
+report the task file and invalid value instead of guessing.
 
 _Done when:_ the queue lists the id, `title`, and `status` of every queued task, in execution order.
 
@@ -92,16 +94,18 @@ _Done when:_ the command has returned and its outcome is recorded, including a f
 
 ### 4. Check the proof
 
-Re-read the task file frontmatter. `status: completed` on disk is the accepted completion state; the
+Re-read the task file frontmatter. Workers write `status: completed`; the importer also accepts
+`complete`, `done`, and `finished` (ignoring case and surrounding whitespace). The
 worker's closing message alone never completes a task. Check the referenced verification evidence
 against the task contract and current inputs; a status label is not proof that checks passed.
 Reuse valid worker evidence instead of rerunning the same suite.
 
-If the status is anything else, send one corrective prompt in the **same** session, using the same
+If the status is not a recognized completion state, send one corrective prompt in the **same** session, using the same
 blocking form, naming exactly what is missing. A second failure produces a `blocked` result citing
 `.compozy/tasks/<slug>/logs/<task_id>.jsonl` as evidence.
 
-_Done when:_ the task reads `completed` on disk, or it is marked blocked with the log path cited.
+_Done when:_ the task has a recognized completion state on disk and verified evidence, or the
+Goal result is blocked with the log path cited. Do not write Goal result statuses into task files.
 
 ### 5. Stop the worker session
 

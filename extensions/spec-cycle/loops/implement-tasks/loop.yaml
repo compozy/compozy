@@ -157,7 +157,7 @@ graph:
           - Report exact commands and outcomes in the structured output.
 
           Tracking and commits:
-          - Update task checkboxes and status in {{ .item.path }} only after implementation,
+          - Write `status: completed` and update task checkboxes in {{ .item.path }} only after implementation,
             verification evidence, and self-review are complete.
           - Update .compozy/tasks/{{ .inputs.slug }}/_tasks.md only when this task is complete.
           - Keep tracking-only files out of automatic commits.
@@ -219,7 +219,7 @@ graph:
       class: control
       kind: route
       routes:
-        - when: "inputs.mode == 'orchestrated'"
+        - when: "inputs.mode == 'orchestrated' && size(nodes.load_tasks.output.tasks) > 0"
           to: orchestrate
       default: per_task_done
 
@@ -262,25 +262,24 @@ graph:
           - default: {{ json .inputs.default_runtime }}
 
           Return `status`, `summary`, and `tasks`, naming each task with the worker session id that
-          executed it. Use `complete` only when every task file carries `status: completed` in its
-          frontmatter and no conductor-created worker is starting, active, or stopping. If any
-          worker cannot be stopped, return `blocked`.
+          executed it. Task files must use `status: completed` after verification. Existing completion
+          aliases `complete`, `done`, and `finished` are also recognized by the task importer and
+          judge; do not dispatch those tasks again. Only `pending` and `in_progress` need work;
+          an unknown status requires correction before dispatch.
+
+          The Goal JSON result is separate from task frontmatter: return `{"status":"complete"}`
+          only after the task importer reports no pending tasks and no conductor-created worker
+          is starting, active, or stopping. If any worker cannot be stopped, return `blocked`.
         judge:
           - id: tasks_completed
+            type: extension
+            tool: ext__spec_cycle__import_tasks
+            inputs:
+              pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
+          - id: workers_stopped
             type: command
             check: >-
               slug={{ .inputs.slug | shellQuote }};
-              task_dir=".compozy/tasks/$slug";
-              set -- "$task_dir"/task_*.md;
-              [ -e "$1" ] || exit 1;
-              for f in "$@"; do
-              awk '
-              NR == 1 { if ($0 != "---") exit 1; frontmatter = 1; next }
-              frontmatter && $0 == "---" { frontmatter = 0; found_end = 1; next }
-              frontmatter && /^status:/ { status_count++; completed = ($0 == "status: completed") }
-              END { if (!found_end || status_count != 1 || !completed) exit 1 }
-              ' "$f" || exit 1;
-              done;
               for state in starting active stopping; do
               sessions="$("$COMPOZY_BIN" session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
               if printf '%s\n' "$sessions" | grep -q '"id"[[:space:]]*:'; then exit 1; fi;
