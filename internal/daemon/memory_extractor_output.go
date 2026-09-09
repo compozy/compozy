@@ -78,17 +78,26 @@ func collectMemoryExtractorOutput(ctx context.Context, events <-chan acp.AgentEv
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("daemon: collect memory extractor output: %w", ctx.Err())
+			return output.String(), fmt.Errorf("daemon: collect memory extractor output: %w", ctx.Err())
 		case event, ok := <-events:
 			if !ok {
-				return output.String(), nil
+				return output.String(), errors.New("daemon: memory extractor stream closed without a terminal event")
 			}
 			switch event.Type {
 			case acp.EventTypeAgentMessage:
 				// Agent messages are stream chunks; inserting separators can corrupt JSONL.
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", fmt.Errorf("daemon: memory extractor agent error: %s", strings.TrimSpace(event.Error))
+				return output.String(), fmt.Errorf(
+					"daemon: memory extractor agent error: %s",
+					strings.TrimSpace(event.Error),
+				)
+			case acp.EventTypeDone:
+				reason := firstNonEmptyString(string(event.PromptStopReason), event.StopReason)
+				if reason != "" && reason != string(acp.PromptStopReasonEndTurn) {
+					return output.String(), fmt.Errorf("daemon: memory extractor stopped before completion: %s", reason)
+				}
+				return output.String(), nil
 			}
 		}
 	}

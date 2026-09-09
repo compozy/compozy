@@ -635,6 +635,7 @@ func newTestMemoryHandlers(
 
 	homePaths := newTestHomePaths(t)
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	cfg.Memory.Enabled = true
 
 	return newHandlers(&handlerConfig{
 		sessions:     manager,

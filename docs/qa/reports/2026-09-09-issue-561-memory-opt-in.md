@@ -54,3 +54,9 @@ provider reliability or timeout frequency.
 The initial test setup failures were corrected without changing the production contract: bind the checkpoint role to the fixture agent; use automatic recovery instead of attaching a deliberately stopped terminal session; count interrupted protocol attempts separately from completed prompt diagnostics. Summary failures observed during setup left the source events unarchived.
 
 The pressure re-walk also passed the unchanged crash-safe compaction suite and the three default/opt-in extractor cases. Canonical test-convention checks passed. Pressure lab `/private/tmp/compozyqa-232d0fe5b103` completed targeted teardown with `clean: true`; logs and provider/event artifacts are retained in its QA output. No live-provider reliability claim is made.
+
+## Review remediation
+
+Greptile identified terminal-less extractor success and raw role status. The collector now requires a successful semantic terminal, retains partial diagnostic output on errors, and refuses candidate admission after interruption. Background role projections and invocations share the effective daemon/workspace memory gate; pressure summaries retain their internal exception. Existing unit suites cover these boundaries, and the memory E2E suite adds interrupted-output and public-role-status assertions. CI health fixtures now opt in explicitly where their invariant requires active memory; assertions remain unchanged. The scoped runtime test added in this round is pending the next CI head.
+
+Review regression checks passed with `-race -p=1 -parallel=4`: daemon roles/extractor/checkpoints 6.990 s; API core memory health 13.388 s; UDS health 1.299 s; HTTP health 1.288 s; settings 1.071 s. The read-only test-shape checker reports existing direct-test shapes in untouched test bodies; comparison against the prior head found zero new findings.

@@ -41,6 +41,65 @@ func TestRoleStatusProjection(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name                        string
+		memoryEnabled, rolesEnabled bool
+	}{
+		{name: "Should project memory master suppression", rolesEnabled: true},
+		{name: "Should project deliberate memory opt-in", memoryEnabled: true, rolesEnabled: true},
+		{name: "Should retain explicit role opt-out", memoryEnabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := roleResolverConfig()
+			cfg.Roles.Coordinator.Enabled = true
+			cfg.Memory.Enabled = tc.memoryEnabled
+			cfg.Roles.Dream.Enabled = tc.rolesEnabled
+			cfg.Roles.MemoryExtractor.Enabled = tc.rolesEnabled
+			cfg.Roles.MemoryController.Enabled = tc.rolesEnabled
+			cfg.Roles.CheckpointSummary.Enabled = tc.rolesEnabled
+			resolver := newRoleResolver(&cfg, nil, nil)
+			statuses, err := resolver.RoleStatuses(t.Context(), "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, status := range statuses {
+				want := true
+				switch compozyconfig.RoleName(status.Role) {
+				case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor,
+					compozyconfig.RoleMemoryController, compozyconfig.RoleCheckpointSummary:
+					want = tc.memoryEnabled && tc.rolesEnabled
+				}
+				if status.Enabled != want {
+					t.Fatalf("role %s enabled=%t, want %t", status.Role, status.Enabled, want)
+				}
+				single, err := resolver.RoleStatus(t.Context(), "", status.Role)
+				if err != nil || single.Enabled != status.Enabled {
+					t.Fatalf("single role=%#v error=%v", single, err)
+				}
+			}
+		})
+	}
+
+	t.Run("Should keep workspace opt-in behind the daemon memory master", func(t *testing.T) {
+		t.Parallel()
+		global := roleResolverConfig()
+		global.Memory.Enabled = false
+		workspace := roleResolverConfig()
+		workspace.Memory.Enabled = true
+		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
+			"ws-memory": workspace,
+		}}, nil)
+		status, err := resolver.RoleStatus(t.Context(), "ws-memory", string(compozyconfig.RoleMemoryExtractor))
+		if err != nil || status.Enabled {
+			t.Fatalf("workspace status=%#v error=%v", status, err)
+		}
+		resolved, err := resolver.Resolve(t.Context(), "ws-memory", compozyconfig.RoleMemoryExtractor)
+		if err != nil || resolved.Enabled {
+			t.Fatalf("workspace invocation=%#v error=%v", resolved, err)
+		}
+	})
+
 	t.Run("Should report a missing catalog agent without failing projection", func(t *testing.T) {
 		t.Parallel()
 

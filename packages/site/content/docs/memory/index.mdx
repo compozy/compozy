@@ -26,7 +26,6 @@ enough that one project does not leak into another.
   memories short and verifiable.
 </OperatorNote>
 
-
 Session pressure compaction remains independently controlled by `session.compaction.enabled`.
 It reuses checkpoint coverage and may launch a summary child when an active session reaches the
 pressure threshold, even with persistent memory disabled. Idle sessions and session-end memory
@@ -65,3 +64,5 @@ uncovered events unarchived.
     meta="Authoring"
   />
 </RouteList>
+
+Background role status reflects the daemon memory master switch as well as effective role settings. Pressure compaction still uses `session.compaction.enabled` and the checkpoint role switch independently. An interrupted extractor stream is a failure even when its partial text looks like valid JSON; the diagnostic retains that text without admitting it as a candidate.

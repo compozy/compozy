@@ -1011,6 +1011,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			&stubDreamTrigger{EnabledFn: true, LastErr: errors.New("dream status failed")},
 		)
 
+		fixture.Handlers.Config.Memory.Enabled = true
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf(

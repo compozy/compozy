@@ -38,7 +38,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+"\n[roles.dream]\nenabled = true\n")
 
 	service := testService(t, homePaths, Dependencies{
 		GeneralRuntime: fakeGeneralRuntimeProvider{

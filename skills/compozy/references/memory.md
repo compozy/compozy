@@ -177,3 +177,5 @@ Do not write memory for raw transcripts, secrets, claim tokens, OAuth material, 
 Memory v2 tool IDs (`compozy__memory_*`), operation or event IDs (`memory.*`), and scanner rule IDs (`policy_memory_*`) are operational state. The controller rejects candidates that include them.
 
 Memory should reduce future ambiguity. It should not become another source of stale context.
+
+Background role status reflects the daemon memory master switch as well as effective role settings. Pressure compaction still uses `session.compaction.enabled` and the checkpoint role switch independently. An interrupted extractor stream is a failure even when its partial text looks like valid JSON; the diagnostic retains that text without admitting it as a candidate.

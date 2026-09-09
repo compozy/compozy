@@ -723,6 +723,7 @@ func newTestMemoryHandlers(
 
 	homePaths := newTestHomePaths(t)
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	cfg.Memory.Enabled = true
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 

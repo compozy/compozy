@@ -62,9 +62,10 @@ func (r *roleResolver) projectRoleStatus(
 	if err != nil {
 		return contract.RoleStatus{}, err
 	}
+	memoryEnabled := r.config.Memory.Enabled && effective.Memory.Enabled
 	status := contract.RoleStatus{
 		Role:            string(role),
-		Enabled:         common.Enabled,
+		Enabled:         effectiveRoleEnabled(role, common.Enabled, memoryEnabled, false),
 		ResolutionMode:  mode,
 		Agent:           agent,
 		Provider:        roleStatusString(common.Provider),

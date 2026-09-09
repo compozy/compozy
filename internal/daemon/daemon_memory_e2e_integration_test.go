@@ -36,12 +36,14 @@ const (
 func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, output    string
-		enabled, failed bool
+		name, output                string
+		enabled, failed, disconnect bool
+		decisions                   int
 	}{
 		{name: "Should keep factory memory idle through a managed turn", output: `{"no_candidates":true}`},
 		{name: "Should complete an opted-in no-candidate extraction without dreaming", enabled: true, output: `{"no_candidates":true}`},
-		{name: "Should persist valid candidates and expose malformed output", enabled: true, failed: true, output: `{"type":"user","content":"Pedro prefers concise updates.","evidence":"seq=1"}` + "\n{broken"},
+		{name: "Should persist valid candidates and expose malformed output", enabled: true, failed: true, decisions: 1, output: `{"type":"user","content":"Pedro prefers concise updates.","evidence":"seq=1"}` + "\n{broken"},
+		{name: "Should fail interrupted extraction without persisting partial candidates", enabled: true, failed: true, disconnect: true, output: `{"type":"user","content":"Pedro prefers concise updates.","evidence":"seq=1"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -53,6 +55,12 @@ func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 			for i := range fixture.Agents[0].Turns {
 				if fixture.Agents[0].Turns[i].Match.TurnSource == "synthetic" {
 					fixture.Agents[0].Turns[i].Steps[0].Text = tc.output
+					if tc.disconnect {
+						fixture.Agents[0].Turns[i].Steps = append(fixture.Agents[0].Turns[i].Steps, acpmock.Step{
+							Kind:          acpmock.StepKindDriverControl,
+							DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDisconnect},
+						})
+					}
 				}
 			}
 			data, err := json.Marshal(fixture)
@@ -81,6 +89,16 @@ func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 			})
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
+			var roles compozycontract.RolesResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/roles", nil, &roles); err != nil {
+				t.Fatal(err)
+			}
+			for _, role := range roles.Roles {
+				if role.Role == string(compozyconfig.RoleMemoryExtractor) && role.Enabled != tc.enabled {
+					t.Fatalf("public extractor enabled=%t, want %t", role.Enabled, tc.enabled)
+				}
+			}
+
 			root := createFixtureBackedSession(t, ctx, harness, "opt-in-agent", "")
 			if _, err := harness.PromptSession(ctx, root.ID, "Record the extractor routing decision"); err != nil {
 				t.Fatal(err)
@@ -172,8 +190,8 @@ func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 					Scan(&decisions); err != nil {
 					t.Fatal(err)
 				}
-				if decisions != 1 {
-					t.Fatalf("preserved candidate decisions=%d, want 1", decisions)
+				if decisions != tc.decisions {
+					t.Fatalf("preserved candidate decisions=%d, want %d", decisions, tc.decisions)
 				}
 			} else if tc.enabled && (completed != 1 || failed != 0) {
 				t.Fatalf("empty extraction completed=%d failed=%d", completed, failed)
