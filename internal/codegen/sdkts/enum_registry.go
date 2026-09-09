@@ -53,7 +53,6 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),
 	reflect.TypeFor[memcontract.Type]():                             memoryTypeValues(),
 	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
-	reflect.TypeFor[modelcatalog.ReasoningEffort]():                 modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():                 modelcatalog.ReasoningSourceValues(),
 	reflect.TypeFor[modelcatalog.CostStatus]():                      modelcatalog.CostStatusValues(),
 	reflect.TypeFor[modelcatalog.CostSource]():                      modelcatalog.CostSourceValues(),

@@ -3158,7 +3158,7 @@ export interface ModelSourceListParams {
   include_stale?: boolean;
 }
 
-export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ReasoningEffort = string;
 
 export type ModelSourceOptionKind = string;
 

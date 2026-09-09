@@ -6,6 +6,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
+import { SessionPromptRuntimeProvider } from "../../contexts/session-prompt-runtime-context";
+import { useSessionPromptRuntimeContext } from "../use-session-prompt-runtime-context";
+import { getSessionPromptRuntimeSnapshot } from "../use-session-prompt-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeSelectionMutation = vi.hoisted(() => ({
@@ -200,8 +203,34 @@ describe("useSessionPromptRuntime", () => {
     );
     const signal = runtimeSelectionMutation.mutate.mock.calls[0]?.[0].signal as AbortSignal;
     expect(signal.aborted).toBe(false);
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-6-astra",
+        reasoning_effort: "ultra",
+      });
+    });
+    expect(runtimeSelectionMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(signal.aborted).toBe(false);
+    const callbacks = runtimeSelectionMutation.mutate.mock.calls[0]![1];
+    act(() => {
+      callbacks.onSuccess({
+        runtime: {
+          selection_revision: 1,
+          selected: { provider: "claude", model: "claude-fable-5", reasoning_effort: "max" },
+        },
+      });
+      callbacks.onSettled();
+    });
+    expect(runtimeSelectionMutation.mutate).toHaveBeenCalledTimes(2);
+    expect(runtimeSelectionMutation.mutate.mock.calls[1]![0].request).toMatchObject({
+      expected_revision: 1,
+      runtime: { provider: "codex", model: "gpt-6-astra", reasoning_effort: "ultra" },
+    });
+    expect(result.current.value.reasoning_effort).toBe("ultra");
+    const pendingSignal = runtimeSelectionMutation.mutate.mock.calls[1]![0].signal as AbortSignal;
     unmount();
-    expect(signal.aborted).toBe(true);
+    expect(pendingSignal.aborted).toBe(true);
   });
 
   it("Should inherit the agent speed before the first runtime bind", async () => {
@@ -263,5 +292,40 @@ describe("useSessionPromptRuntime", () => {
       reasoning_effort: "high",
       speed: "fast",
     });
+  });
+});
+
+describe("SessionPromptRuntimeProvider hydration", () => {
+  it("Should preserve selected ACP options when mounting and refetching a session", () => {
+    const selected = {
+      provider: "cursor",
+      model: "grok-4.6",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    };
+    let session = {
+      ...primarySessionFixture,
+      runtime: { ...primarySessionFixture.runtime, selected, selection_revision: 1 },
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionPromptRuntimeProvider session={session} canPrompt>
+        {children}
+      </SessionPromptRuntimeProvider>
+    );
+    const { result, rerender } = renderHook(() => useSessionPromptRuntimeContext(), { wrapper });
+    expect(getSessionPromptRuntimeSnapshot(result.current)?.acp_options).toEqual(
+      selected.acp_options
+    );
+    session = {
+      ...session,
+      runtime: {
+        ...session.runtime,
+        selection_revision: 2,
+        selected: { ...selected, acp_options: [{ id: "thinking", bool_value: false }] },
+      },
+    };
+    rerender();
+    expect(getSessionPromptRuntimeSnapshot(result.current)?.acp_options).toEqual([
+      { id: "thinking", bool_value: false },
+    ]);
   });
 });

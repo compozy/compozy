@@ -144,6 +144,8 @@ searched.
 
 ## Session CLI
 
+Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning.
+
 Use structured output when agents need to inspect or route results.
 
 Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,

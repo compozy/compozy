@@ -146,9 +146,9 @@ func TestProviderConfigSources(t *testing.T) {
 		}{
 			{
 				name:       "a non-canonical selectable effort",
-				efforts:    []string{"ultra"},
+				efforts:    []string{"invalid effort"},
 				wantField:  "reasoning_efforts[0]",
-				wantEffort: "ultra",
+				wantEffort: "invalid effort",
 			},
 			{
 				name:          "a default effort outside the selectable profile",

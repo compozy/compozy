@@ -1201,7 +1201,7 @@ provider: claude
 		_, err := ParseAgentDef([]byte(`---
 name: coder
 provider: claude
-reasoning_effort: ultra
+reasoning_effort: invalid effort
 ---
 
 prompt`))
@@ -1210,8 +1210,8 @@ prompt`))
 		if !invalidMatched {
 			t.Fatalf("ParseAgentDef() error = %T %v, want *reasoning.InvalidEffortError", err, err)
 		}
-		if invalid.Path != "agent.reasoning_effort" || invalid.Value != "ultra" {
-			t.Fatalf("InvalidEffortError = %#v, want agent reasoning path and ultra value", invalid)
+		if invalid.Path != "agent.reasoning_effort" || invalid.Value != "invalid effort" {
+			t.Fatalf("InvalidEffortError = %#v, want agent reasoning path and invalid effort value", invalid)
 		}
 	})
 

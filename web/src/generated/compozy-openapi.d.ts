@@ -13932,8 +13932,7 @@ export interface operations {
           };
           prompt_overlay?: string;
           provider?: string;
-          /** @enum {string} */
-          reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+          reasoning_effort?: string;
           spawn_role: string;
           /** @enum {string} */
           speed?: "normal" | "fast";
@@ -14211,15 +14210,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                     speed_resolution?: {
@@ -14259,15 +14250,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                   } | null;
@@ -16873,8 +16856,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -16912,8 +16894,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -16988,8 +16969,7 @@ export interface operations {
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt: string;
             provider?: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             skills?: {
               disabled?: string[];
             } | null;
@@ -17035,8 +17015,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -17074,8 +17053,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -17359,15 +17337,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   sources: {
                     model?: string;
                     provider: string;
@@ -17405,8 +17375,7 @@ export interface operations {
                 permissions?: string;
                 prompt: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 shadows?: {
                   layer: string;
                   path: string;
@@ -17643,8 +17612,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -17682,8 +17650,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -17791,8 +17758,7 @@ export interface operations {
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt: string;
             provider?: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             skills?: {
               disabled?: string[];
             } | null;
@@ -17837,8 +17803,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -17876,8 +17841,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -18289,8 +18253,7 @@ export interface operations {
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt?: string;
             provider?: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             skills?: {
               disabled?: string[];
             } | null;
@@ -18336,8 +18299,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -18375,8 +18337,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -46561,16 +46522,7 @@ export interface operations {
               }[];
               configurations?: {
                 fast?: boolean | null;
-                /** @enum {string|null} */
-                reasoning_effort?:
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                  | null;
+                reasoning_effort?: string | null;
                 thinking?: boolean | null;
               }[];
               /** Format: int64 */
@@ -46588,16 +46540,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
-              /** @enum {string|null} */
-              default_reasoning_effort?:
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-                | null;
+              default_reasoning_effort?: string | null;
               deprecated: boolean;
               display_name?: string;
               featured: boolean;
@@ -46609,15 +46552,7 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
-              reasoning_efforts?: (
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-              )[];
+              reasoning_efforts?: string[];
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
@@ -46966,16 +46901,7 @@ export interface operations {
               }[];
               configurations?: {
                 fast?: boolean | null;
-                /** @enum {string|null} */
-                reasoning_effort?:
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                  | null;
+                reasoning_effort?: string | null;
                 thinking?: boolean | null;
               }[];
               /** Format: int64 */
@@ -46993,16 +46919,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
-              /** @enum {string|null} */
-              default_reasoning_effort?:
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-                | null;
+              default_reasoning_effort?: string | null;
               deprecated: boolean;
               display_name?: string;
               featured: boolean;
@@ -47014,15 +46931,7 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
-              reasoning_efforts?: (
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-              )[];
+              reasoning_efforts?: string[];
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
@@ -47178,8 +47087,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          /** @enum {string|null} */
-          default_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | null;
+          default_effort?: string | null;
           /** @enum {string|null} */
           default_speed?: "normal" | "fast" | null;
           deprecated?: boolean | null;
@@ -47292,16 +47200,7 @@ export interface operations {
               }[];
               configurations?: {
                 fast?: boolean | null;
-                /** @enum {string|null} */
-                reasoning_effort?:
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                  | null;
+                reasoning_effort?: string | null;
                 thinking?: boolean | null;
               }[];
               /** Format: int64 */
@@ -47319,16 +47218,7 @@ export interface operations {
                 reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
-              /** @enum {string|null} */
-              default_reasoning_effort?:
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-                | null;
+              default_reasoning_effort?: string | null;
               deprecated: boolean;
               display_name?: string;
               featured: boolean;
@@ -47340,15 +47230,7 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
-              reasoning_efforts?: (
-                | "none"
-                | "minimal"
-                | "low"
-                | "medium"
-                | "high"
-                | "xhigh"
-                | "max"
-              )[];
+              reasoning_efforts?: string[];
               /** @enum {string} */
               reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
@@ -50372,16 +50254,7 @@ export interface operations {
                   /** Format: double */
                   reasoning_per_million?: number | null;
                 } | null;
-                /** @enum {string|null} */
-                default_reasoning_effort?:
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                  | null;
+                default_reasoning_effort?: string | null;
                 display_name?: string;
                 last_error?: string;
                 /** Format: int64 */
@@ -50390,15 +50263,7 @@ export interface operations {
                 max_output_tokens?: number | null;
                 model_id: string;
                 provider_id: string;
-                reasoning_efforts?: (
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                )[];
+                reasoning_efforts?: string[];
                 refreshed_at?: string;
                 sources: string[];
                 stale: boolean;
@@ -58507,15 +58372,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -58555,15 +58412,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -59119,15 +58968,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -59167,15 +59008,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -59902,15 +59735,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -59950,15 +59775,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -67340,15 +67157,7 @@ export interface operations {
                       cost_output_per_million?: number | null;
                       /** Format: double */
                       cost_reasoning_per_million?: number | null;
-                      /** @enum {string} */
-                      default_reasoning_effort?:
-                        | "none"
-                        | "minimal"
-                        | "low"
-                        | "medium"
-                        | "high"
-                        | "xhigh"
-                        | "max";
+                      default_reasoning_effort?: string;
                       /** @enum {string} */
                       default_speed?: "normal" | "fast";
                       deprecated?: boolean | null;
@@ -67360,15 +67169,7 @@ export interface operations {
                       max_input_tokens?: number | null;
                       /** Format: int64 */
                       max_output_tokens?: number | null;
-                      reasoning_efforts?: (
-                        | "none"
-                        | "minimal"
-                        | "low"
-                        | "medium"
-                        | "high"
-                        | "xhigh"
-                        | "max"
-                      )[];
+                      reasoning_efforts?: string[];
                       release_date?: string;
                       supports_reasoning?: boolean | null;
                       supports_tools?: boolean | null;
@@ -67443,15 +67244,7 @@ export interface operations {
                     cost_output_per_million?: number | null;
                     /** Format: double */
                     cost_reasoning_per_million?: number | null;
-                    /** @enum {string} */
-                    default_reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    default_reasoning_effort?: string;
                     /** @enum {string} */
                     default_speed?: "normal" | "fast";
                     deprecated?: boolean | null;
@@ -67463,15 +67256,7 @@ export interface operations {
                     max_input_tokens?: number | null;
                     /** Format: int64 */
                     max_output_tokens?: number | null;
-                    reasoning_efforts?: (
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max"
-                    )[];
+                    reasoning_efforts?: string[];
                     release_date?: string;
                     supports_reasoning?: boolean | null;
                     supports_tools?: boolean | null;
@@ -67669,15 +67454,7 @@ export interface operations {
                       cost_output_per_million?: number | null;
                       /** Format: double */
                       cost_reasoning_per_million?: number | null;
-                      /** @enum {string} */
-                      default_reasoning_effort?:
-                        | "none"
-                        | "minimal"
-                        | "low"
-                        | "medium"
-                        | "high"
-                        | "xhigh"
-                        | "max";
+                      default_reasoning_effort?: string;
                       /** @enum {string} */
                       default_speed?: "normal" | "fast";
                       deprecated?: boolean | null;
@@ -67689,15 +67466,7 @@ export interface operations {
                       max_input_tokens?: number | null;
                       /** Format: int64 */
                       max_output_tokens?: number | null;
-                      reasoning_efforts?: (
-                        | "none"
-                        | "minimal"
-                        | "low"
-                        | "medium"
-                        | "high"
-                        | "xhigh"
-                        | "max"
-                      )[];
+                      reasoning_efforts?: string[];
                       release_date?: string;
                       supports_reasoning?: boolean | null;
                       supports_tools?: boolean | null;
@@ -67772,15 +67541,7 @@ export interface operations {
                     cost_output_per_million?: number | null;
                     /** Format: double */
                     cost_reasoning_per_million?: number | null;
-                    /** @enum {string} */
-                    default_reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    default_reasoning_effort?: string;
                     /** @enum {string} */
                     default_speed?: "normal" | "fast";
                     deprecated?: boolean | null;
@@ -67792,15 +67553,7 @@ export interface operations {
                     max_input_tokens?: number | null;
                     /** Format: int64 */
                     max_output_tokens?: number | null;
-                    reasoning_efforts?: (
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max"
-                    )[];
+                    reasoning_efforts?: string[];
                     release_date?: string;
                     supports_reasoning?: boolean | null;
                     supports_tools?: boolean | null;
@@ -67954,16 +67707,7 @@ export interface operations {
       content: {
         "application/json": {
           model_curation?: {
-            /** @enum {string|null} */
-            default_effort?:
-              | "none"
-              | "minimal"
-              | "low"
-              | "medium"
-              | "high"
-              | "xhigh"
-              | "max"
-              | null;
+            default_effort?: string | null;
             /** @enum {string|null} */
             default_speed?: "normal" | "fast" | null;
             deprecated?: boolean | null;
@@ -68008,15 +67752,7 @@ export interface operations {
                 cost_output_per_million?: number | null;
                 /** Format: double */
                 cost_reasoning_per_million?: number | null;
-                /** @enum {string} */
-                default_reasoning_effort?:
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max";
+                default_reasoning_effort?: string;
                 /** @enum {string} */
                 default_speed?: "normal" | "fast";
                 deprecated?: boolean | null;
@@ -68028,15 +67764,7 @@ export interface operations {
                 max_input_tokens?: number | null;
                 /** Format: int64 */
                 max_output_tokens?: number | null;
-                reasoning_efforts?: (
-                  | "none"
-                  | "minimal"
-                  | "low"
-                  | "medium"
-                  | "high"
-                  | "xhigh"
-                  | "max"
-                )[];
+                reasoning_efforts?: string[];
                 release_date?: string;
                 supports_reasoning?: boolean | null;
                 supports_tools?: boolean | null;
@@ -104453,8 +104181,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 sources: {
                   model?: string;
                   provider: string;
@@ -104492,8 +104219,7 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              reasoning_effort?: string;
               shadows?: {
                 layer: string;
                 path: string;
@@ -104750,15 +104476,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -104798,15 +104516,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -124646,15 +124356,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                     speed_resolution?: {
@@ -124694,15 +124396,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                   } | null;
@@ -125216,15 +124910,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                     speed_resolution?: {
@@ -125264,15 +124950,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                   } | null;
@@ -125793,15 +125471,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                     speed_resolution?: {
@@ -125841,15 +125511,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                   } | null;
@@ -129484,15 +129146,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -129532,15 +129186,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -130023,15 +129669,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -130071,15 +129709,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -130662,15 +130292,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -130710,15 +130332,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -131187,15 +130801,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -131235,15 +130841,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -132501,15 +132099,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -132549,15 +132139,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -133380,8 +132962,7 @@ export interface operations {
             }[];
             model?: string;
             provider: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             /** @enum {string} */
             speed?: "normal" | "fast";
           } | null;
@@ -135450,8 +135031,7 @@ export interface operations {
             }[];
             model?: string;
             provider: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             /** @enum {string} */
             speed?: "normal" | "fast";
           } | null;
@@ -136711,8 +136291,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
@@ -136860,8 +136439,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
@@ -137047,8 +136625,7 @@ export interface operations {
                 }[];
                 model?: string;
                 provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                reasoning_effort?: string;
                 /** @enum {string} */
                 speed?: "normal" | "fast";
               } | null;
@@ -138193,15 +137770,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                     speed_resolution?: {
@@ -138241,15 +137810,7 @@ export interface operations {
                     }[];
                     model?: string;
                     provider: string;
-                    /** @enum {string} */
-                    reasoning_effort?:
-                      | "none"
-                      | "minimal"
-                      | "low"
-                      | "medium"
-                      | "high"
-                      | "xhigh"
-                      | "max";
+                    reasoning_effort?: string;
                     /** @enum {string} */
                     speed?: "normal" | "fast";
                   } | null;
@@ -138855,15 +138416,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -138903,15 +138456,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -139173,8 +138718,7 @@ export interface operations {
             }[];
             model?: string;
             provider: string;
-            /** @enum {string} */
-            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            reasoning_effort?: string;
             /** @enum {string} */
             speed?: "normal" | "fast";
           };
@@ -139415,15 +138959,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -139463,15 +138999,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -139927,15 +139455,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -139975,15 +139495,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -143721,15 +143233,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -143769,15 +143273,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;
@@ -144571,15 +144067,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                   speed_resolution?: {
@@ -144619,15 +144107,7 @@ export interface operations {
                   }[];
                   model?: string;
                   provider: string;
-                  /** @enum {string} */
-                  reasoning_effort?:
-                    | "none"
-                    | "minimal"
-                    | "low"
-                    | "medium"
-                    | "high"
-                    | "xhigh"
-                    | "max";
+                  reasoning_effort?: string;
                   /** @enum {string} */
                   speed?: "normal" | "fast";
                 } | null;

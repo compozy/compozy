@@ -1,10 +1,13 @@
 package modelcatalog
 
 import (
+	"bytes"
 	"context"
-
+	"errors"
 	"fmt"
-
+	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -114,4 +117,60 @@ func firstNonEmptyLine(text string) string {
 		}
 	}
 	return ""
+}
+
+// RunDiscoveryCommand runs one subprocess with the caller-supplied deadline.
+func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
+	ctx context.Context,
+	req DiscoveryCommandRequest,
+) (_ DiscoveryCommandResult, err error) {
+	if ctx == nil {
+		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command context is required")
+	}
+	if strings.TrimSpace(req.Command) == "" {
+		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command is required")
+	}
+	// #nosec G204 -- discovery commands come from validated provider model discovery config.
+	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
+	cmd.Dir = strings.TrimSpace(req.Dir)
+	cmd.Env = append([]string(nil), req.Env...)
+	// Use a regular file for stdout. Native CLIs can exit before asynchronous
+	// pipe writes drain (observed with large OpenCode --verbose catalogs).
+	// A file descriptor avoids publishing a successful but truncated generation.
+	stdout, err := os.CreateTemp("", "compozy-model-discovery-*")
+	if err != nil {
+		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: create discovery capture: %w", err)
+	}
+	defer func() { err = errors.Join(err, stdout.Close(), os.Remove(stdout.Name())) }()
+	var stderr bytes.Buffer
+	cmd.Stdout = stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+	if _, seekErr := stdout.Seek(0, io.SeekStart); seekErr != nil {
+		return DiscoveryCommandResult{}, errors.Join(runErr, seekErr)
+	}
+	output, readErr := io.ReadAll(io.LimitReader(stdout, maxLiveDiscoveryPayloadSize+1))
+	if readErr != nil {
+		return DiscoveryCommandResult{}, errors.Join(runErr, readErr)
+	}
+	if len(output) > maxLiveDiscoveryPayloadSize {
+		return DiscoveryCommandResult{}, fmt.Errorf(
+			"model catalog: discovery output exceeds %d bytes",
+			maxLiveDiscoveryPayloadSize,
+		)
+	}
+	result := DiscoveryCommandResult{
+		Stdout: strings.TrimSpace(string(output)),
+		Stderr: strings.TrimSpace(stderr.String()),
+	}
+	if cmd.ProcessState != nil {
+		result.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	if runErr != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return result, fmt.Errorf("model catalog: discovery command timed out after %s: %w", req.Timeout, ctx.Err())
+		}
+		return result, fmt.Errorf("model catalog: discovery command failed: %w", runErr)
+	}
+	return result, nil
 }

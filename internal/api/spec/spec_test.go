@@ -1213,17 +1213,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertParameter(t, curate, "provider_id", openapi3.ParameterInPath, true)
 				assertRequired(t, jsonRequestSchema(t, curate), "model_id")
-				assertEnumValues(
-					t,
-					propertySchema(t, jsonRequestSchema(t, curate), "default_effort"),
-					"none",
-					"minimal",
-					"low",
-					"medium",
-					"high",
-					"xhigh",
-					"max",
-				)
+				effortSchema := propertySchema(t, jsonRequestSchema(t, curate), "default_effort")
+				assertSchemaIncludesType(t, effortSchema, openapi3.TypeString)
+				if err := effortSchema.VisitJSON("provider-next"); err != nil {
+					t.Fatalf("provider effort rejected by wire schema: %v", err)
+				}
+
 				assertResponseStatus(t, curate, 422)
 				assertResponseStatus(t, curate, 503)
 

@@ -33,6 +33,7 @@ var builtinProviders = map[string]ProviderConfig{
 		DisplayName:  "OpenCode",
 		Harness:      ProviderHarnessACP,
 		AuthLoginCmd: "opencode auth login",
+		Models:       ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
 	},
 	providerBlackboxKey: {
 		Command:     "blackbox --experimental-acp",

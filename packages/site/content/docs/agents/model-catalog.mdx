@@ -413,8 +413,8 @@ a recorded source status (with redacted error) instead of corrupting the project
 - Refreshes for different providers can run concurrently.
 - The daemon joins outstanding refresh workers during shutdown.
 
-Claude, Codex, and Hermes use short-lived ACP inspection so catalog values match the runtime transport.
-Cursor uses `cursor-agent models`, configured discovery uses its declared command or endpoint, and
+Codex uses the installed native CLI app server’s `model/list` endpoint to discover each model’s supported reasoning levels, default, and visibility across all result pages. This includes new models without adding their names to the built-in catalog. Explicit discovery commands retain their configured behavior. Claude and Hermes use short-lived ACP inspection so catalog values match the runtime transport.
+Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels, and new advertised values survive discovery, persistence, and selection without a release. The active provider validates membership. OpenCode discovery reads `opencode models --verbose` to retain each model's capabilities and effort variants. Configured discovery uses its declared command or endpoint, and
 extension sources call their `models/list` capability. Dynamic sources fail closed by recording source
 status; an explicit Cursor model is accepted only when a fresh Cursor catalog row advertises its logical
 identity. Stale rows remain visible as fallback metadata but cannot authorize that explicit selection.

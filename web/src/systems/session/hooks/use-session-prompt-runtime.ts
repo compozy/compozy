@@ -88,6 +88,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
   const runtimeSelection = useSetSessionRuntime(input.workspaceId);
   const runtimeSelectionController = useRef<AbortController | null>(null);
+  const queuedSelection = useRef<{ value: RuntimeSelectorValue; speed: RuntimeSpeed } | null>(null);
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
@@ -116,6 +117,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     () => () => {
       runtimeSelectionController.current?.abort();
       runtimeSelectionController.current = null;
+      queuedSelection.current = null;
     },
     []
   );
@@ -148,8 +150,10 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     providers.length > 0;
 
   const persistRuntimeSelection = (nextValue: RuntimeSelectorValue, nextSpeed: RuntimeSpeed) => {
-    runtimeSelectionController.current?.abort();
-    runtimeSelectionController.current = null;
+    if (runtimeSelectionController.current) {
+      queuedSelection.current = { value: nextValue, speed: nextSpeed };
+      return;
+    }
 
     const runtime = snapshotFromSelection(nextValue, nextSpeed);
     if (!runtime) {
@@ -166,7 +170,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       {
         id: input.sessionId,
         request: {
-          expected_revision: input.selectionRevision,
+          expected_revision: store.getSnapshot().context.input.selectionRevision,
           runtime,
         },
         signal: controller.signal,
@@ -180,6 +184,11 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
             sessionId: input.sessionId,
             workspaceId: input.workspaceId,
           });
+          const queued = queuedSelection.current;
+          if (queued) {
+            store.trigger.runtimeSelected({ value: queued.value });
+            store.trigger.speedSelected({ speed: queued.speed });
+          }
         },
         onError: error => {
           if (controller.signal.aborted) return;
@@ -196,6 +205,11 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
         onSettled: () => {
           if (runtimeSelectionController.current === controller) {
             runtimeSelectionController.current = null;
+            const queued = queuedSelection.current;
+            queuedSelection.current = null;
+            if (queued && !controller.signal.aborted) {
+              persistRuntimeSelection(queued.value, queued.speed);
+            }
           }
         },
       }

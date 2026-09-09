@@ -1,7 +1,10 @@
 package modelcatalog
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -388,6 +391,13 @@ func TestLiveProviderSources(t *testing.T) {
 		if got, want := len(grok46.TransportBindings), 8; got != want {
 			t.Fatalf("Grok 4.6 transport bindings = %d, want %d", got, want)
 		}
+		// Launch-argument providers apply effort through the discovered transport binding.
+		projected := MergeRows(rows, MergeOptions{})
+		for _, model := range projected {
+			if model.ModelID == "grok-4.6" {
+				requireReasoningProfile(t, model, true, grok46.ReasoningEfforts, ReasoningEffortHigh)
+			}
+		}
 
 		if !source.BootstrapOnList() {
 			t.Fatal("BootstrapOnList() = false, want true")
@@ -519,6 +529,51 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 		if got := envValue(req.Env, "OPENCODE_CONFIG_DIR"); got == "" {
 			t.Fatal("OPENCODE_CONFIG_DIR is empty, want isolated OpenCode config dir")
+		}
+	})
+
+	t.Run("Should preserve OpenCode verbose capabilities and advertised custom variants", func(t *testing.T) {
+		t.Parallel()
+		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{Stdout: `openrouter/x-ai/grok-4.6
+{"name":"Grok 4.6","capabilities":{"reasoning":true},"variants":{"low":{},"medium":{},"high":{},"xhigh":{},"provider-next":{}}}
+opencode/provider-managed
+{"capabilities":{"reasoning":true},"variants":{}}
+`}}
+		source := newLiveSourceForTest(
+			t,
+			"opencode",
+			compozyconfig.BuiltinProviders()["opencode"],
+			&LiveProviderSourcesConfig{CommandExecutor: executor},
+		)
+		rows, err := source.ListModels(t.Context(), ListOptions{Now: testTime(0)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := executor.singleRequest(t)
+		if !slices.Equal(req.Args, []string{"models", "--verbose"}) {
+			t.Fatalf("args = %#v", req.Args)
+		}
+		models := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"opencode": true}})
+		for _, model := range models {
+			if model.SupportsReasoning == nil || !*model.SupportsReasoning || model.DefaultReasoningEffort != nil {
+				t.Fatalf("profile = %#v", model)
+			}
+			if model.ModelID == "openrouter/x-ai/grok-4.6" {
+				if !slices.Equal(
+					model.ReasoningEfforts,
+					[]ReasoningEffort{"low", "medium", "high", "xhigh", "provider-next"},
+				) {
+					t.Fatalf("efforts = %#v", model.ReasoningEfforts)
+				}
+			} else {
+				if len(model.ReasoningEfforts) != 0 {
+					t.Fatalf("invented efforts = %#v", model.ReasoningEfforts)
+				}
+			}
+		}
+		_, err = parseOpenCodeModelRows("opencode", "provider/model\n{broken json", testTime(0))
+		if err == nil {
+			t.Fatal("malformed metadata published as a capability-free row")
 		}
 	})
 
@@ -1012,7 +1067,7 @@ func TestLiveProviderParsingHelpers(t *testing.T) {
 				`{"model-a":{"display_name":"Model A","supports_tools":true,"pricing":{"cache_read":0.0000005,"cache_write":0.000003,"reasoning":0.000004}},`+
 					`"model-b":{`+
 					`"name":"Model B",`+
-					`"reasoning_efforts":["minimal","unknown","high"],`+
+					`"reasoning_efforts":["minimal","invalid effort","high"],`+
 					`"default_reasoning_effort":"high"`+
 					`}}`,
 			),
@@ -1159,14 +1214,39 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 			t.Fatalf("Stdout = %q, want helper model JSON", result.Stdout)
 		}
 	})
+	t.Run("Should capture a large native catalog without truncating its final record", func(t *testing.T) {
+		t.Parallel()
+		result, err := (ExecDiscoveryCommandExecutor{}).RunDiscoveryCommand(
+			t.Context(),
+			DiscoveryCommandRequest{
+				ProviderID: "helper",
+				Command:    os.Args[0],
+				Args:       []string{"-test.run=TestLiveDiscoveryHelperProcess"},
+				Env:        append(os.Environ(), "COMPOZY_LIVE_DISCOVERY_HELPER=large"),
+				Timeout:    time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := `[{"id":"` + strings.Repeat("x", 600000) + `"}]`
+		if result.Stdout != want || result.ExitCode != 0 {
+			t.Fatalf("captured %d bytes, want %d, exit %d", len(result.Stdout), len(want), result.ExitCode)
+		}
+	})
 }
 
 func TestLiveDiscoveryHelperProcess(t *testing.T) {
 	t.Run("Should emit the subprocess discovery fixture", func(t *testing.T) {
-		if os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER") != "1" {
+		mode := os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER")
+		if mode != "1" && mode != "large" {
 			return
 		}
-		if _, err := fmt.Fprint(os.Stdout, `[{"id":"helper-model"}]`); err != nil {
+		payload := `[{"id":"helper-model"}]`
+		if mode == "large" {
+			payload = `[{"id":"` + strings.Repeat("x", 600000) + `"}]`
+		}
+		if _, err := fmt.Fprint(os.Stdout, payload); err != nil {
 			t.Fatalf("Fprint(stdout) error = %v", err)
 		}
 		os.Exit(0)
@@ -1464,4 +1544,121 @@ func assertModelCatalogErrorContains(t *testing.T, err error, want string) {
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("error = %v, want error containing %q", err, want)
 	}
+}
+
+func TestCodexCatalogProtocol(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve per-model efforts and follow every native catalog page", func(t *testing.T) {
+		t.Parallel()
+		responses := `{"method":"model/updated"}
+{"id":1,"result":{"data":[{"id":"gpt-6-astra","model":"gpt-6-astra","displayName":"GPT-6 Astra","isDefault":true,"supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"high"},{"reasoningEffort":"xhigh"},{"reasoningEffort":"max"},{"reasoningEffort":"ultra"}],"defaultReasoningEffort":"medium"}],"nextCursor":"page-2"}}
+{"id":"2","result":{"data":[{"id":"gpt-5.6-luna","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"max"}],"defaultReasoningEffort":"medium"}],"nextCursor":null}}
+`
+		var requests bytes.Buffer
+		client := codexCatalogClient{
+			writer: json.NewEncoder(&requests),
+			reader: bufio.NewScanner(strings.NewReader(responses)),
+		}
+		metadata, err := client.listModels()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(metadata) != 2 || metadata[0].DefaultReasoningEffort != "medium" ||
+			len(metadata[0].SupportedReasoningEfforts) != 6 ||
+			len(metadata[1].SupportedReasoningEfforts) != 3 {
+			t.Fatalf("metadata = %#v", metadata)
+		}
+		if !strings.Contains(requests.String(), `"cursor":"page-2"`) {
+			t.Fatalf("requests did not follow page: %s", requests.String())
+		}
+		source := newLiveSourceForTest(
+			t,
+			"codex",
+			compozyconfig.BuiltinProviders()["codex"],
+			&LiveProviderSourcesConfig{CodexProbe: fixedCodexProbe{models: metadata}},
+		)
+		rows, err := source.listCodex(t.Context(), nil, time.Second, testTime(0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		models := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"codex": true}})
+		for _, model := range models {
+			if model.ModelID == "gpt-6-astra" {
+				requireReasoningProfile(
+					t,
+					model,
+					true,
+					[]ReasoningEffort{
+						ReasoningEffortLow,
+						ReasoningEffortMedium,
+						ReasoningEffortHigh,
+						ReasoningEffortXHigh,
+						ReasoningEffortMax,
+						ReasoningEffortUltra,
+					},
+					ReasoningEffortMedium,
+				)
+				if !model.Curated || !model.Featured {
+					t.Fatalf("new native default missing from browse: %#v", model)
+				}
+			}
+		}
+	})
+	t.Run("Should retain future provider effort identifiers exactly", func(t *testing.T) {
+		t.Parallel()
+		var models []CodexModelMetadata
+		if err := json.Unmarshal(
+			[]byte(
+				`[{"model":"future-model","supportedReasoningEfforts":[{"reasoningEffort":"Super-High"}],"defaultReasoningEffort":"Super-High"}]`,
+			),
+			&models,
+		); err != nil {
+			t.Fatal(err)
+		}
+		source := newLiveSourceForTest(
+			t,
+			"codex",
+			compozyconfig.BuiltinProviders()["codex"],
+			&LiveProviderSourcesConfig{CodexProbe: fixedCodexProbe{models: models}},
+		)
+		rows, err := source.listCodex(t.Context(), nil, time.Second, testTime(0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		merged := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{"codex": true}})
+		requireReasoningProfile(t, requireSingleModel(t, merged), true, []ReasoningEffort{"Super-High"}, "Super-High")
+	})
+	t.Run("Should fail unexpected server requests without waiting for an unanswered request", func(t *testing.T) {
+		t.Parallel()
+		var requests bytes.Buffer
+		client := codexCatalogClient{
+			writer: json.NewEncoder(&requests),
+			reader: bufio.NewScanner(strings.NewReader(`{"id":"server-1","method":"permission/request"}`)),
+		}
+		_, err := client.listModels()
+		if err == nil || !strings.Contains(err.Error(), "unexpected Codex server request") {
+			t.Fatalf("listModels() error = %v", err)
+		}
+	})
+	t.Run("Should fail incomplete pagination instead of publishing a partial catalog", func(t *testing.T) {
+		t.Parallel()
+		responses := `{"id":1,"result":{"data":[{"id":"first"}],"nextCursor":"repeat"}}
+{"id":2,"result":{"data":[],"nextCursor":"repeat"}}
+`
+		var requests bytes.Buffer
+		client := codexCatalogClient{
+			writer: json.NewEncoder(&requests),
+			reader: bufio.NewScanner(strings.NewReader(responses)),
+		}
+		models, err := client.listModels()
+		if err == nil || models != nil {
+			t.Fatalf("listModels() = %#v, %v", models, err)
+		}
+	})
+}
+
+type fixedCodexProbe struct{ models []CodexModelMetadata }
+
+func (p fixedCodexProbe) InspectCodexModels(context.Context, DiscoveryCommandRequest) ([]CodexModelMetadata, error) {
+	return p.models, nil
 }

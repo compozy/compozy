@@ -148,7 +148,11 @@ func TestParseLoopRuntimeFlagsShouldRejectInvalidGrammar(t *testing.T) {
 			name: "Should reject a match value containing a colon", value: "type=front:end:claude/opus",
 			want: "rule match must contain one selector value without ':'",
 		},
-		{name: "Should reject invalid reasoning", value: "worker=claude/opus@ultra", want: "invalid reasoning suffix"},
+		{
+			name:  "Should reject invalid reasoning",
+			value: "worker=claude/opus@invalid effort",
+			want:  "invalid reasoning suffix",
+		},
 		{name: "Should reject invalid speed", value: "worker=claude/opus:speed=turbo", want: "invalid speed suffix"},
 		{
 			name:  "Should reject duplicate speed",

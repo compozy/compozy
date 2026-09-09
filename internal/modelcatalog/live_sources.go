@@ -1,14 +1,12 @@
 package modelcatalog
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"os"
-	"os/exec"
 	"reflect"
 	"slices"
 	"strings"
@@ -105,42 +103,6 @@ type ExecDiscoveryCommandExecutor struct{}
 
 var _ DiscoveryCommandExecutor = ExecDiscoveryCommandExecutor{}
 
-// RunDiscoveryCommand runs one subprocess with the caller-supplied deadline.
-func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
-	ctx context.Context,
-	req DiscoveryCommandRequest,
-) (DiscoveryCommandResult, error) {
-	if ctx == nil {
-		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command context is required")
-	}
-	if strings.TrimSpace(req.Command) == "" {
-		return DiscoveryCommandResult{}, fmt.Errorf("model catalog: discovery command is required")
-	}
-	// #nosec G204 -- discovery commands come from validated provider model discovery config.
-	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
-	cmd.Dir = strings.TrimSpace(req.Dir)
-	cmd.Env = append([]string(nil), req.Env...)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	result := DiscoveryCommandResult{
-		Stdout: strings.TrimSpace(stdout.String()),
-		Stderr: strings.TrimSpace(stderr.String()),
-	}
-	if cmd.ProcessState != nil {
-		result.ExitCode = cmd.ProcessState.ExitCode()
-	}
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return result, fmt.Errorf("model catalog: discovery command timed out after %s: %w", req.Timeout, ctx.Err())
-		}
-		return result, fmt.Errorf("model catalog: discovery command failed: %w", err)
-	}
-	return result, nil
-}
-
 // LiveProviderSourcesConfig configures built-in provider live discovery sources.
 type LiveProviderSourcesConfig struct {
 	Providers       map[string]compozyconfig.ProviderConfig
@@ -150,6 +112,7 @@ type LiveProviderSourcesConfig struct {
 	HTTPClient      *http.Client
 	CommandExecutor DiscoveryCommandExecutor
 	ACPProbe        ACPModelProbe
+	CodexProbe      CodexModelProbe
 	DefaultTimeout  time.Duration
 	RefreshTTL      time.Duration
 	WorkingDir      string
@@ -220,6 +183,10 @@ func NewLiveProviderSource(
 	if acpProbe == nil {
 		acpProbe = SessionACPModelProbe{}
 	}
+	codexProbe := cfg.CodexProbe
+	if codexProbe == nil {
+		codexProbe = AppServerCodexModelProbe{}
+	}
 	secretResolver := cfg.SecretResolver
 	if secretResolver == nil {
 		secretResolver = EnvSecretResolver{}
@@ -243,6 +210,7 @@ func NewLiveProviderSource(
 		httpClient:      cfg.HTTPClient,
 		commandExecutor: executor,
 		acpProbe:        acpProbe,
+		codexProbe:      codexProbe,
 		defaultTimeout:  timeout,
 		refreshTTL:      refreshTTL,
 		workingDir:      workingDir,
@@ -265,6 +233,7 @@ type LiveProviderSource struct {
 	httpClient      *http.Client
 	commandExecutor DiscoveryCommandExecutor
 	acpProbe        ACPModelProbe
+	codexProbe      CodexModelProbe
 	defaultTimeout  time.Duration
 	refreshTTL      time.Duration
 	workingDir      string
@@ -335,6 +304,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 		HTTPClient:      s.httpClient,
 		CommandExecutor: s.commandExecutor,
 		ACPProbe:        s.acpProbe,
+		CodexProbe:      s.codexProbe,
 		DefaultTimeout:  s.defaultTimeout,
 		RefreshTTL:      s.refreshTTL,
 		WorkingDir:      s.workingDir,

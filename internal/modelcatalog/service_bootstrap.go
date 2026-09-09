@@ -56,16 +56,17 @@ func (s *CatalogService) bootstrapSourcesOnList(
 				executionContext,
 				func(retry bool) ([]SourceStatus, error) {
 					if !retry {
-						attempted, statusErr := s.sourceRefreshAttempted(
+						fresh, statusErr := s.sourceRefreshFresh(
 							ctx,
 							source.ID(),
 							providerID,
 							executionContext,
+							now,
 						)
 						if statusErr != nil {
 							return nil, statusErr
 						}
-						if attempted {
+						if fresh {
 							return nil, nil
 						}
 					}
@@ -152,11 +153,12 @@ func waitForBootstrapRetry(ctx context.Context) error {
 	}
 }
 
-func (s *CatalogService) sourceRefreshAttempted(
+func (s *CatalogService) sourceRefreshFresh(
 	ctx context.Context,
 	sourceID string,
 	providerID string,
 	executionContext CatalogExecutionContext,
+	now time.Time,
 ) (bool, error) {
 	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
 		ProviderID:       providerID,
@@ -175,7 +177,7 @@ func (s *CatalogService) sourceRefreshAttempted(
 	}
 	for _, status := range statuses {
 		if status.SourceID == sourceID {
-			return true, nil
+			return status.NextRefresh.IsZero() || status.NextRefresh.After(now), nil
 		}
 	}
 	return false, nil

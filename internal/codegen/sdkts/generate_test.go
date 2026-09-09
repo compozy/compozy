@@ -68,7 +68,7 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 			"reply_to_text?: string;",
 			"reply_to_author_id?: string;",
 			"reply_to_author_name?: string;",
-			`export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";`,
+			`export type ReasoningEffort = string;`,
 			`export type CostStatus = "actual" | "estimated" | "included" | "unknown";`,
 			`export type CostSource = "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";`,
 			`export type ToolProgressPhase = "started" | "completed" | "failed";`,

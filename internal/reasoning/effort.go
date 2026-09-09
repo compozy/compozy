@@ -4,9 +4,10 @@ package reasoning
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
-// Effort identifies one canonical model reasoning level.
+// Effort identifies one provider-advertised model reasoning level.
 type Effort string
 
 const (
@@ -17,9 +18,10 @@ const (
 	EffortHigh    Effort = "high"
 	EffortXHigh   Effort = "xhigh"
 	EffortMax     Effort = "max"
+	EffortUltra   Effort = "ultra"
 )
 
-// InvalidEffortError reports a value outside the canonical effort vocabulary.
+// InvalidEffortError reports a malformed reasoning effort identifier.
 type InvalidEffortError struct {
 	Path  string
 	Value string
@@ -30,10 +32,8 @@ func (e *InvalidEffortError) Error() string {
 		return "invalid reasoning effort"
 	}
 	return fmt.Sprintf(
-		"%s %q is invalid; expected %s",
-		e.Path,
-		strings.TrimSpace(e.Value),
-		strings.Join(Values(), ", "),
+		"%s %q is invalid; expected a non-empty identifier without whitespace or control characters",
+		e.Path, strings.TrimSpace(e.Value),
 	)
 }
 
@@ -47,15 +47,15 @@ func Values() []string {
 		string(EffortHigh),
 		string(EffortXHigh),
 		string(EffortMax),
+		string(EffortUltra),
 	}
 }
 
-// IsValid reports whether value is one canonical explicit effort.
+// IsValid validates the wire identifier, not a model's capability. Providers may
+// introduce new values; the active model's advertised options own membership.
 func IsValid(value string) bool {
-	switch Effort(strings.TrimSpace(value)) {
-	case EffortNone, EffortMinimal, EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax:
-		return true
-	default:
-		return false
-	}
+	value = strings.TrimSpace(value)
+	return value != "" && !strings.ContainsFunc(value, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	})
 }

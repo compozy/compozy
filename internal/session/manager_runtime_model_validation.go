@@ -201,7 +201,7 @@ func selectCursorTransportBinding(
 	wantFast := selection.Speed == speedpkg.SpeedFast
 	wantedOptions, err := cursorModelOptionSelections(model, selection.ACPOptions)
 	if err != nil {
-		return modelcatalog.ModelTransportBinding{}, err
+		return modelcatalog.ModelTransportBinding{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
 	}
 	matches := make([]modelcatalog.ModelTransportBinding, 0, 1)
 	for _, binding := range model.TransportBindings {
@@ -211,13 +211,17 @@ func selectCursorTransportBinding(
 		matches = append(matches, binding)
 	}
 	if len(matches) != 1 {
-		return modelcatalog.ModelTransportBinding{}, fmt.Errorf(
+		err := fmt.Errorf(
 			"session: Cursor model %q has %d live transport bindings for reasoning %q and fast=%t",
 			model.ModelID,
 			len(matches),
 			effort,
 			wantFast,
 		)
+		if len(matches) == 0 {
+			return modelcatalog.ModelTransportBinding{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+		}
+		return modelcatalog.ModelTransportBinding{}, err
 	}
 	return matches[0], nil
 }

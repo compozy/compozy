@@ -502,7 +502,8 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 
 		second := modelCatalogRow("config", "codex", "gpt-5.5", modelcatalog.SourceKindConfig, 120)
 		second.ExplicitlyCurated = true
-		second.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortMinimal}
+		second.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortMinimal, "Provider-Next"}
+		second.DefaultReasoningEffort = new(modelcatalog.ReasoningEffort("Provider-Next"))
 		replaceModelCatalogRows(
 			t,
 			globalDB,
@@ -524,7 +525,8 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			t.Fatalf("len(rows) = %d, want %d: %#v", got, want, rows)
 		}
 		if rows[0].ModelID != "gpt-5.5" || !rows[0].ExplicitlyCurated ||
-			!slices.Equal(rows[0].ReasoningEfforts, second.ReasoningEfforts) {
+			!slices.Equal(rows[0].ReasoningEfforts, second.ReasoningEfforts) ||
+			rows[0].DefaultReasoningEffort == nil || *rows[0].DefaultReasoningEffort != "Provider-Next" {
 			t.Fatalf("rows[0] = %#v, want replacement row with minimal effort", rows[0])
 		}
 
