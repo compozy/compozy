@@ -15,8 +15,9 @@ import (
 // ComposedAssembler assembles selected startup prompt sections around the base
 // agent prompt.
 type ComposedAssembler struct {
-	selector    *SectionSelector
-	descriptors []PromptSectionDescriptor
+	selector           *SectionSelector
+	descriptors        []PromptSectionDescriptor
+	resumeOnlyProvider session.ResumeContextProvider
 }
 
 // ComposedAssemblerOption customizes the prompt section chain for a
@@ -207,7 +208,16 @@ func (a *ComposedAssembler) ResumeContextSection(
 	if err != nil {
 		return "", err
 	}
-	sections := make([]string, 0, len(selected))
+	sections := make([]string, 0, len(selected)+1)
+	if a.resumeOnlyProvider != nil {
+		section, err := a.resumeOnlyProvider.ResumeContextSection(ctx, startup)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resume compaction coverage: %w", err)
+		}
+		if trimmed := strings.TrimSpace(section); trimmed != "" {
+			sections = append(sections, trimmed)
+		}
+	}
 	for _, descriptor := range selected {
 		provider, ok := descriptor.Provider.(session.ResumeContextProvider)
 		if !ok || provider == nil {

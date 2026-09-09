@@ -70,6 +70,7 @@ type bootState struct {
 	memoryExtractor        *daemonMemoryExtractor
 	runtimeWorkers         daemonRuntimeWorkers
 	checkpointRuntime      *checkpointSummaryRuntime
+	checkpointStore        *memory.Store
 	ledgerMaterializer     session.LedgerMaterializer
 	skillsRegistry         *skills.Registry
 	mcpResolver            *skills.MCPResolver

@@ -369,5 +369,8 @@ func (s roleWorkspaceResolverStub) ResolveOrRegister(
 }
 
 func roleResolverConfig() compozyconfig.Config {
-	return compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+	cfg.Memory.Enabled = true
+	cfg.Roles.Dream.Enabled = true
+	return cfg
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // bootMemoryCatalog applies the shared memory stream on every boot while
-// retaining a long-lived catalog only when the memory runtime is enabled.
+// retaining private checkpoint storage when session compaction needs it.
 func (d *Daemon) bootMemoryCatalog(
 	ctx context.Context,
 	state *bootState,
@@ -25,11 +25,17 @@ func (d *Daemon) bootMemoryCatalog(
 	}
 
 	migrationStore := memory.NewStore(
-		d.homePaths.MemoryDir,
+		firstNonEmptyString(state.cfg.Memory.GlobalDir, d.homePaths.MemoryDir),
 		memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
+		memory.WithFileLimits(state.cfg.Memory.File),
 	)
 	if err := migrationStore.OpenCatalog(ctx); err != nil {
 		return fmt.Errorf("daemon: migrate disabled memory catalog database %q: %w", d.homePaths.DatabaseFile, err)
+	}
+	if state.cfg.Session.Compaction.Enabled {
+		state.checkpointStore = migrationStore
+		cleanup.add(migrationStore.CloseCatalog)
+		return nil
 	}
 	if err := migrationStore.CloseCatalog(ctx); err != nil {
 		return fmt.Errorf("daemon: close disabled memory catalog database %q: %w", d.homePaths.DatabaseFile, err)

@@ -52,9 +52,10 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		return "", errors.New("daemon: checkpoint summary role resolver is not configured")
 	}
 	correlation := roleInvocationCorrelation{
-		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
-		SessionID:   strings.TrimSpace(request.SessionID),
-		AgentName:   strings.TrimSpace(request.AgentName),
+		SessionCompaction: request.Compaction,
+		WorkspaceID:       strings.TrimSpace(request.WorkspaceID),
+		SessionID:         strings.TrimSpace(request.SessionID),
+		AgentName:         strings.TrimSpace(request.AgentName),
 	}
 	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
 	role, err := s.roles.Resolve(roleCtx, request.WorkspaceID, compozyconfig.RoleCheckpointSummary)

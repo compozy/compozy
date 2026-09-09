@@ -50,8 +50,8 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 			{name: RoleMemoryExtractor, role: got.MemoryExtractor},
 			{name: RoleAutoTitle, role: got.AutoTitle},
 		} {
-			if !item.role.Enabled {
-				t.Errorf("DefaultRolesConfig().%s.Enabled = false, want true", item.name)
+			if want := item.name != RoleDream; item.role.Enabled != want {
+				t.Errorf("DefaultRolesConfig().%s.Enabled = %t, want %t", item.name, item.role.Enabled, want)
 			}
 			if item.role.Agent != "" {
 				t.Errorf("DefaultRolesConfig().%s.Agent = %q, want empty", item.name, item.role.Agent)

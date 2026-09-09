@@ -200,6 +200,46 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 	})
 }
 
+func TestMemoryExtractorOutputContract(t *testing.T) {
+	t.Parallel()
+	candidate := `{"type":"user","content":"Pedro prefers concise updates."}`
+	for _, tc := range []struct {
+		name, output string
+		count        int
+		failure      bool
+	}{
+		{name: "Should accept explicit no candidates", output: `{"no_candidates":true}`},
+		{name: "Should accept an empty array", output: `[]`},
+		{name: "Should accept conventional no memory prose", output: "No memories to save."},
+		{name: "Should accept parenthesized none", output: "(none)"},
+		{name: "Should accept fenced candidates", output: "```jsonl\n" + candidate + "\n```", count: 1},
+		{name: "Should preserve candidates around invalid JSON", output: candidate + "\n{broken\n" + candidate, count: 2, failure: true},
+		{name: "Should preserve candidates around unknown prose", output: "Here are the candidates:\n" + candidate, count: 1, failure: true},
+		{name: "Should reject unknown prose alone", output: "Unable to determine memories", failure: true},
+		{name: "Should reject invalid candidate fields", output: `{"type":"user","content":""}`, failure: true},
+		{name: "Should reject null", output: `null`, failure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			candidates, err := parseMemoryExtractorCandidates(
+				tc.output,
+				memcontract.TurnRecord{SessionID: "parent"},
+				"",
+				time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC),
+			)
+			if len(candidates) != tc.count || (err != nil) != tc.failure {
+				t.Fatalf(
+					"parse = %d candidates, %v; want %d candidates, failure=%t",
+					len(candidates),
+					err,
+					tc.count,
+					tc.failure,
+				)
+			}
+		})
+	}
+}
+
 func TestDaemonMemoryProviderService(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +281,64 @@ func TestForkedMemoryExtractor(t *testing.T) {
 			t.Fatalf("Extract() = %#v with %d spawn calls, want skipped", candidates, sessions.spawnCalls)
 		}
 	})
+
+	for _, tc := range []struct {
+		name, output string
+		cause        session.StopCause
+		count        int
+		promptErr    error
+	}{
+		{name: "Should stop a parsed empty child without a failure report", output: `{"no_candidates":true}`, cause: session.CauseCompleted},
+		{name: "Should preserve partial output and expose its failure", output: `{"type":"user","content":"Pedro prefers concise updates."}` + "\n{broken", cause: session.CauseFailed, count: 1},
+		{name: "Should classify deadline failure separately from parsing", cause: session.CauseTimeout, promptErr: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			failuresDir := t.TempDir()
+			sessions := &recordingMemoryExtractorSessions{output: tc.output, promptErr: tc.promptErr}
+			extractor := &forkedMemoryExtractor{
+				sessions:    sessions,
+				roles:       resolvedRoleResolver(ResolvedRole{Enabled: true}),
+				deadline:    time.Second,
+				failuresDir: failuresDir,
+			}
+			candidates, err := extractor.Extract(
+				t.Context(),
+				memcontract.TurnRecord{SessionID: "parent", WorkspaceID: "workspace", AgentID: "agent"},
+			)
+			if (err != nil) != (tc.cause != session.CauseCompleted) || len(candidates) != tc.count {
+				t.Fatalf("Extract=%#v, %v", candidates, err)
+			}
+			if sessions.stopCause != tc.cause || strings.Contains(sessions.stopDetail, "extractor completed") {
+				t.Fatalf("stop=%v %q", sessions.stopCause, sessions.stopDetail)
+			}
+			inspector := &daemonMemoryExtractor{failuresDir: failuresDir}
+			failures, listErr := inspector.ListFailures(t.Context())
+			if listErr != nil {
+				t.Fatal(listErr)
+			}
+			if err == nil {
+				if len(failures) != 0 {
+					t.Fatalf("unexpected failures: %#v", failures)
+				}
+				return
+			}
+			if len(failures) != 1 || failures[0].SessionID != "parent" || failures[0].WorkspaceID != "workspace" ||
+				failures[0].AgentName != "agent" {
+				t.Fatalf("failures=%#v", failures)
+			}
+			failure, readErr := readExtractorFailure(failures[0].Path)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if _, decodeErr := failure.Candidates(); decodeErr == nil {
+				t.Fatal("raw extraction failure must not replay as normalized candidates")
+			}
+			if tc.promptErr != nil && !errors.Is(err, tc.promptErr) {
+				t.Fatalf("error lost deadline identity: %v", err)
+			}
+		})
+	}
 
 	t.Run("Should pass the configured model to the extractor child spawn", func(t *testing.T) {
 		t.Parallel()
@@ -308,6 +406,10 @@ type recordingMemoryExtractorSessions struct {
 	spawnCalls int
 	spawnOpts  session.SpawnOpts
 	stoppedID  string
+	output     string
+	promptErr  error
+	stopCause  session.StopCause
+	stopDetail string
 }
 
 func (s *recordingMemoryExtractorSessions) Spawn(
@@ -324,7 +426,11 @@ func (s *recordingMemoryExtractorSessions) PromptSynthetic(
 	_ string,
 	_ session.SyntheticPromptOpts,
 ) (<-chan acp.AgentEvent, error) {
-	events := make(chan acp.AgentEvent)
+	if s.promptErr != nil {
+		return nil, s.promptErr
+	}
+	events := make(chan acp.AgentEvent, 1)
+	events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: s.output}
 	close(events)
 	return events, nil
 }
@@ -332,9 +438,10 @@ func (s *recordingMemoryExtractorSessions) PromptSynthetic(
 func (s *recordingMemoryExtractorSessions) StopWithCause(
 	_ context.Context,
 	id string,
-	_ session.StopCause,
-	_ string,
+	cause session.StopCause,
+	detail string,
 ) error {
 	s.stoppedID = id
+	s.stopCause, s.stopDetail = cause, detail
 	return nil
 }

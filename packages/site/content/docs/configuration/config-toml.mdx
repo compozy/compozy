@@ -39,7 +39,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
-| `[roles.dream]`                      | Dream-session routing.                                                               | enabled, builtin `dreaming-curator`                                                                   |
+| `[roles.dream]`                      | Dream-session routing.                                                               | disabled, builtin `dreaming-curator`                                                                  |
 | `[roles.checkpoint_summary]`         | Checkpoint-summary session routing.                                                  | enabled, builtin `dreaming-curator`                                                                   |
 | `[roles.memory_extractor]`           | Memory-extractor session routing.                                                    | enabled, inherits the invoking agent                                                                  |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                     | enabled, inherits the invoking agent                                                                  |
@@ -66,7 +66,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
 | `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                         |
 | `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                      |
-| `[memory]`                           | Persistent memory runtime and profile memory directory.                              | enabled, `$COMPOZY_HOME/profiles/default/memory`                                                      |
+| `[memory]`                           | Persistent memory runtime and profile memory directory.                              | disabled, `$COMPOZY_HOME/profiles/default/memory`                                                     |
 | `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                                  |
 | `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                      |
 | `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                      |
@@ -236,8 +236,8 @@ max_children = 5
 max_active_sessions_per_workspace = 5
 
 [roles.dream]
-# Route dreaming work to a custom authored curator instead of the builtin dreaming-curator.
-enabled = true
+# Explicitly enable background dreaming after enabling memory.
+enabled = false
 agent = "memory-curator"
 
 [roles.checkpoint_summary]
@@ -504,7 +504,7 @@ compress_backups = false
 enabled = true
 
 [memory]
-enabled = true
+enabled = false
 global_dir = "~/.compozy/profiles/default/memory"
 
 [memory.controller]
@@ -1870,11 +1870,22 @@ process.
 The `[memory]` tree is the Memory v2 runtime configuration. Memory v2 is the only memory subsystem;
 there is no `[memory.v2] enabled` flag and no parallel compatibility namespace. Disabling
 `[memory] enabled` short-circuits prompt assembly, the controller, recall, dreaming, the extractor,
-and the bundled local provider.
+and the bundled local provider. Memory and `roles.dream.enabled` both default to `false`:
+CompozyOS is a control plane, so persistent memory and background consolidation require deliberate
+opt-in. Set `memory.enabled = true` in the daemon configuration and restart to activate memory.
+Enable `roles.dream.enabled = true` separately to allow dreaming. Explicit saved values and stored
+memory files are preserved; omitted settings take the disabled defaults. Profile/workspace role
+overlays retain their normal precedence when the daemon memory runtime is enabled.
+
+Session pressure compaction remains controlled separately by `session.compaction.enabled`. It can
+create a checkpoint summary child on actual context pressure while memory is disabled, without
+registering a public memory provider, extractor, dream scheduler, or session-end memory worker.
+An explicit `roles.checkpoint_summary.enabled = false` prevents new summaries and leaves uncovered
+events unarchived.
 
 | Field        | Type        | Default                                 | Valid values                              | Description                                                                                       |
 | ------------ | ----------- | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `enabled`    | boolean     | `true`                                  | `true` or `false`                         | Master switch for the Memory v2 runtime.                                                          |
+| `enabled`    | boolean     | `false`                                 | `true` or `false`                         | Master switch for the Memory v2 runtime.                                                          |
 | `global_dir` | string path | `$COMPOZY_HOME/profiles/default/memory` | Non-empty path when set. `~` is expanded. | The `default` profile's memory directory. Blank overlays are ignored and keep the previous value. |
 
 ## `[memory.controller]`

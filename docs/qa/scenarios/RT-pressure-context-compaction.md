@@ -39,3 +39,13 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   work), and a `pressure_threshold = 0` run with zero hook dispatch.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-004-compaction-under-pressure-crash-safe
+
+QA impact 2026-09-09 (#561): factory memory is now opt-in, while pressure compaction remains under
+`session.compaction.enabled`. The factory-boot E2E must cover pressure, checkpoint WAL/coverage,
+archive preservation, and degraded resume without idle extraction/dream or session-end memory work.
+A disabled checkpoint role must not authorize archiving an uncovered span. Verification:
+`docs/qa/reports/2026-09-09-issue-561-memory-opt-in.md`.
+
+### Issue #561 factory-default verification (2026-09-09)
+
+PASS: the real daemon/ACP `TestDaemonE2EFactoryPressureCompaction` exercised pressure with persistent memory and dreaming disabled. Checkpoint coverage preceded archive; retained history survived runtime disconnect/recovery without replaying archived raw facts. Only one pressure summary child was created. The canonical crash-safe compaction integration also passed. See [the scoped report](../reports/2026-09-09-issue-561-memory-opt-in.md).

@@ -178,7 +178,7 @@ func DefaultResolvedCoordinatorRole() ResolvedCoordinatorRole {
 	}
 }
 
-// DefaultRolesConfig preserves the effective routing defaults from the pre-roles config.
+// DefaultRolesConfig returns routing defaults with background dreaming disabled.
 func DefaultRolesConfig() RolesConfig {
 	return RolesConfig{
 		Coordinator: CoordinatorRoleConfig{
@@ -187,7 +187,7 @@ func DefaultRolesConfig() RolesConfig {
 			MaxChildren:                   DefaultCoordinatorMaxChildren,
 			MaxActiveSessionsPerWorkspace: DefaultCoordinatorMaxActiveSessionsPerWorkspace,
 		},
-		Dream:             RoleConfig{Enabled: true},
+		Dream:             RoleConfig{Enabled: false},
 		CheckpointSummary: RoleConfig{Enabled: true},
 		MemoryExtractor:   RoleConfig{Enabled: true},
 		AutoTitle:         RoleConfig{Enabled: true},

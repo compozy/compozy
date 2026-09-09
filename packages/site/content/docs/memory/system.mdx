@@ -391,6 +391,19 @@ Every controller decision and recall outcome is observable.
 `memory.extractor.completed`, `memory.provider.collision`, etc.). They are queryable through the
 event store and feed `compozy memory health` and the web Memory inspector.
 
+The extractor requests `{"no_candidates":true}` for an empty result. It also accepts an empty
+response, `[]`, Markdown JSON/JSONL fences, and conventional empty replies such as `(none)` or
+`No memories to save.`. Unknown prose, malformed JSON, and invalid candidate fields remain failures
+with line-number diagnostics. Valid candidates in a mixed batch still reach the controller, while
+that batch records `memory.extractor.failed` rather than `memory.extractor.completed`.
+
+Extraction failures, including provider errors and timeouts, appear in the configured extractor DLQ
+and `list-failures` with session/workspace identity. A timeout means the child did not finish within
+its deadline; it is distinct from a parse failure. Extraction-stage reports require a new extraction;
+the retry surface only replays normalized candidate inbox failures and does not treat raw model
+output as validated candidates. Child-stop details describe child completion separately from the
+runtime's successful extraction-and-inbox event.
+
 Skipped empty extractor turns are recorded as `memory.extractor.dropped` with
 `metadata.reason = "empty_snapshot"` and redaction-safe counters only. Extractor completion events
 carry `candidate_count`, and controller write decisions remain under `memory.write.*`.

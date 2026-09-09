@@ -35,6 +35,36 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name                               string
+		compaction, roleEnabled, wantChild bool
+	}{
+		{name: "Should suppress session-end work with factory memory settings", roleEnabled: true},
+		{name: "Should allow pressure compaction independently of memory opt-in", compaction: true, roleEnabled: true, wantChild: true},
+		{name: "Should honor checkpoint role opt-out during pressure compaction", compaction: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
+			cfg.Roles.CheckpointSummary.Enabled = tc.roleEnabled
+			manager := &checkpointSummarySessionManagerStub{
+				events: []acp.AgentEvent{{Type: acp.EventTypeAgentMessage, Text: "pressure summary"}},
+			}
+			summarizer := newDaemonCheckpointSummarizer(manager, newRoleResolver(&cfg, nil, nil))
+			request := checkpointSummaryRequestFixture()
+			request.WorkspaceID = ""
+			request.Compaction = tc.compaction
+			_, err := summarizer.Summarize(testutil.Context(t), request)
+			if tc.wantChild {
+				if err != nil || manager.createCalls != 1 {
+					t.Fatalf("pressure summary error=%v children=%d, want one child", err, manager.createCalls)
+				}
+			} else if !errors.Is(err, memory.ErrCheckpointSummaryDisabled) || manager.createCalls != 0 {
+				t.Fatalf("disabled summary error=%v children=%d, want no child", err, manager.createCalls)
+			}
+		})
+	}
+
 	t.Run("Should collect agent output and stop the internal dream session", func(t *testing.T) {
 		t.Parallel()
 

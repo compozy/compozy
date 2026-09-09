@@ -134,6 +134,12 @@ func (r *roleResolver) resolveEffective(
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
 	}
+	compaction := roleInvocationCorrelationFromContext(ctx, workspaceID).SessionCompaction
+	if role == compozyconfig.RoleDream || role == compozyconfig.RoleMemoryExtractor ||
+		(role == compozyconfig.RoleCheckpointSummary && !compaction) ||
+		role == compozyconfig.RoleMemoryController {
+		resolved.Enabled = resolved.Enabled && effectiveConfig.Memory.Enabled
+	}
 	resolved.setRuntime(speedpkg.Speed(strings.TrimSpace(string(common.Speed))), common.ACPOptions)
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)

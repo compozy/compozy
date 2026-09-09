@@ -25,14 +25,15 @@ type roleEventSummaryWriter interface {
 }
 
 type roleInvocationCorrelation struct {
-	ProfileID       string
-	WorkspaceID     string
-	SessionID       string
-	AgentName       string
-	ParentSessionID string
-	RootSessionID   string
-	SpawnDepth      int
-	Event           store.EventCorrelation
+	SessionCompaction bool
+	ProfileID         string
+	WorkspaceID       string
+	SessionID         string
+	AgentName         string
+	ParentSessionID   string
+	RootSessionID     string
+	SpawnDepth        int
+	Event             store.EventCorrelation
 }
 
 type roleInvocationCorrelationContextKey struct{}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
-	t.Run("Should expose approved Slice 1 defaults", func(t *testing.T) {
+	t.Run("Should default to opt-in memory while preserving its configuration", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -19,8 +19,11 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 		cfg := DefaultWithHome(homePaths)
 		memory := cfg.Memory
 
-		if !memory.Enabled || memory.GlobalDir != homePaths.MemoryDir {
-			t.Fatalf("DefaultWithHome() Memory = %#v, want enabled global memory dir", memory)
+		if memory.Enabled || cfg.Roles.Dream.Enabled || memory.GlobalDir != homePaths.MemoryDir {
+			t.Fatalf(
+				"DefaultWithHome() Memory = %#v, want disabled memory and dreaming with retained memory directory",
+				memory,
+			)
 		}
 		if memory.Controller.Mode != "hybrid" ||
 			memory.Controller.MaxLatency != 300*time.Millisecond ||
@@ -226,6 +229,55 @@ auto_create = false
 			t.Fatalf("Load() normalized paths = %q/%q", memory.Extractor.InboxPath, memory.Session.LedgerRoot)
 		}
 	})
+}
+
+func TestMemoryOptInLayering(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, content string
+		memory, dream bool
+	}{
+		{name: "Should keep omitted switches disabled", content: "[memory.dream]\nmin_sessions = 7\n"},
+		{name: "Should enable memory independently", content: "[memory]\nenabled = true\n", memory: true},
+		{name: "Should preserve both explicit opt-ins", content: "[memory]\nenabled = true\n[roles.dream]\nenabled = true\n", memory: true, dream: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			home, err := ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, home.ConfigFile, tc.content)
+			cfg, err := LoadForHome(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Memory.Enabled != tc.memory || cfg.Roles.Dream.Enabled != tc.dream {
+				t.Fatalf(
+					"switches = %t/%t, want %t/%t",
+					cfg.Memory.Enabled,
+					cfg.Roles.Dream.Enabled,
+					tc.memory,
+					tc.dream,
+				)
+			}
+			path := filepath.Join(t.TempDir(), "overlay.toml")
+			writeFile(t, path, "[memory]\nenabled = true\n[roles.dream]\nenabled = false\n")
+			if err := applyProfileConfigOverlayFile(path, &cfg, "profile"); err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.Memory.Enabled || cfg.Roles.Dream.Enabled {
+				t.Fatal("profile switches were not applied")
+			}
+			writeFile(t, path, "[roles.dream]\nenabled = true\n")
+			if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.Memory.Enabled || !cfg.Roles.Dream.Enabled {
+				t.Fatal("workspace opt-in was not applied")
+			}
+		})
+	}
 }
 
 func TestMemoryV2ConfigValidationRejectsInvalidValues(t *testing.T) {

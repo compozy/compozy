@@ -297,7 +297,7 @@ func (r *checkpointSummaryRuntime) CompactSessionContext(
 	if ctx == nil {
 		return session.CompactionResult{}, errors.New("daemon: checkpoint compaction context is required")
 	}
-	if r.providers == nil || r.lifecycle == nil {
+	if r.lifecycle == nil {
 		return session.CompactionResult{}, errors.New("daemon: checkpoint compaction lifecycle is unavailable")
 	}
 	if strings.TrimSpace(request.WorkspaceID) == "" || strings.TrimSpace(request.SessionID) == "" {
@@ -317,9 +317,12 @@ func (r *checkpointSummaryRuntime) CompactSessionContext(
 	if len(snapshot.Messages) == 0 {
 		return session.CompactionResult{}, errors.New("daemon: checkpoint compaction snapshot is empty")
 	}
-	registration, err := r.providers.Select(ctx, request.WorkspaceID, "")
-	if err != nil {
-		return session.CompactionResult{}, fmt.Errorf("daemon: select compaction provider: %w", err)
+	registration := extensionpkg.MemoryProviderRegistration{Bundled: true}
+	if r.providers != nil {
+		registration, err = r.providers.Select(ctx, request.WorkspaceID, "")
+		if err != nil {
+			return session.CompactionResult{}, fmt.Errorf("daemon: select compaction provider: %w", err)
+		}
 	}
 	timeout := r.providerTimeout
 	if registration.Bundled {
@@ -339,11 +342,14 @@ func (r *checkpointSummaryRuntime) CompactSessionContext(
 		Snapshot:     snapshot,
 	}
 	var canonicalHint memcontract.PreCompressHint
-	if !registration.Bundled {
+	if !registration.Bundled || r.providers == nil {
 		canonicalHint, err = r.lifecycle.OnPreCompress(compactCtx, providerRequest)
 		if err != nil {
 			return session.CompactionResult{}, fmt.Errorf("daemon: update canonical compaction checkpoint: %w", err)
 		}
+	}
+	if r.providers == nil {
+		return session.CompactionResult{Summary: canonicalHint.Markdown}, nil
 	}
 	providerHint, err := registration.Provider.OnPreCompress(compactCtx, providerRequest)
 	if err != nil {

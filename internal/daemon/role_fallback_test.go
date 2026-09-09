@@ -252,6 +252,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		t.Parallel()
 
 		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		cfg.Memory.Enabled = true
+		cfg.Roles.Dream.Enabled = true
 		cfg.Roles.Dream.Agent = "missing-curator"
 		recorder := &roleEventRecorder{}
 		resolver := newRoleResolver(&cfg, nil, nil, recorder)

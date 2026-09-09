@@ -84,6 +84,7 @@ func newDaemonMemoryExtractor(
 		logger:         state.logger,
 		now:            now,
 		workspaceRoots: workspaceRoots,
+		failuresDir:    extractorFailureDir(state),
 	}
 	runtime, err := extractorpkg.NewRuntime(
 		context.WithoutCancel(ctx),
@@ -376,11 +377,14 @@ type extractorFailure struct {
 }
 
 type extractorFailureReport struct {
-	Stage      string `json:"stage"`
-	Source     string `json:"source"`
-	Error      string `json:"error"`
-	Content    string `json:"content"`
-	RecordedAt string `json:"recorded_at"`
+	SessionID   string `json:"session_id,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Stage       string `json:"stage"`
+	Source      string `json:"source"`
+	Error       string `json:"error"`
+	Content     string `json:"content"`
+	RecordedAt  string `json:"recorded_at"`
 }
 
 func readExtractorFailure(path string) (extractorFailure, error) {
@@ -405,9 +409,9 @@ func readExtractorFailure(path string) (extractorFailure, error) {
 	return extractorFailure{
 		Payload: contract.MemoryExtractorFailurePayload{
 			ID:          strings.TrimSuffix(filepath.Base(path), ".json"),
-			SessionID:   sessionID,
-			WorkspaceID: workspaceID,
-			AgentName:   agentName,
+			SessionID:   firstNonEmptyString(report.SessionID, sessionID),
+			WorkspaceID: firstNonEmptyString(report.WorkspaceID, workspaceID),
+			AgentName:   firstNonEmptyString(report.AgentName, agentName),
 			Reason:      firstNonEmptyString(report.Error, report.Stage),
 			Path:        path,
 			CreatedAt:   createdAt,
@@ -417,6 +421,11 @@ func readExtractorFailure(path string) (extractorFailure, error) {
 }
 
 func (f extractorFailure) Candidates() ([]memcontract.Candidate, error) {
+	if f.Report.Stage == "extract" {
+		return nil, errors.New(
+			"daemon: extraction failures require a new extraction; raw output is not a candidate inbox",
+		)
+	}
 	scanner := bufio.NewScanner(strings.NewReader(f.Report.Content))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	candidates := make([]memcontract.Candidate, 0)

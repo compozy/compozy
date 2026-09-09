@@ -2,7 +2,8 @@
 
 You are extracting candidate Compozy Memory v2 facts from a completed assistant turn.
 
-Return JSONL. Each line is one candidate with:
+Return JSONL. If there are no durable candidates, return exactly `{"no_candidates":true}`.
+Do not describe the empty result in prose. Each candidate line has:
 
 ```json
 {"type":"user|feedback|project|reference","scope":"global|workspace|agent","agent_tier":"","content":"","evidence":"","entity":"","attribute":""}
