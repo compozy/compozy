@@ -34,3 +34,7 @@ Reconciliation telemetry must leave the map lock available to incoming hooks.
 Private-state follow-up: invoke maintenance and stdin hooks under umask 022 with an
 existing 0755 state directory and 0644 map. The directory must become 0700 and state
 files, locks, and logs must be 0600 before writing.
+
+Renderer diagnostics: send malformed JSON followed by a valid message through the
+real renderer CLI. It must emit an escaped stderr diagnostic and display the next
+message successfully. Closing the output pipe remains a normal shutdown.

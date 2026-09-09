@@ -71,3 +71,10 @@ umask 022 confirmed 0700 directory and 0600 map/lock/log modes, with automatic
 temporary-directory cleanup. Evidence:
 `/tmp/compozy-pr-551-560-herdr-20260909/pr-560-private-state-cli.json`.
 Earlier lifecycle, session-owner and recovery evidence remains valid.
+
+## Renderer diagnostic follow-up
+
+Greptile finding 3970376241 is fixed. Per-event failures now emit terminal-safe
+stderr diagnostics while subsequent events continue. Broken output pipes retain
+normal shutdown handling. The existing renderer case invokes the real CLI with
+malformed JSON followed by a valid message; the 12-case suite passed.

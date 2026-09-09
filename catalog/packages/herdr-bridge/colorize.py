@@ -213,8 +213,11 @@ def main():
             continue
         try:
             r.feed(json.loads(line))
-        except Exception:
-            pass
+        except BrokenPipeError:
+            raise
+        except Exception as exc:
+            diagnostic = terminal_safe(f"herdr-bridge: cannot render event: {type(exc).__name__}: {exc}")
+            print(diagnostic, file=sys.stderr, flush=True)
     r.close_stream()
 
 

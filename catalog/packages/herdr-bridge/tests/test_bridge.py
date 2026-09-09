@@ -125,6 +125,12 @@ class BridgeTests(unittest.TestCase):
             colorize.main()
         self.assertIn('fallback\\x1b]52;c;x\\x07', out.getvalue())
 
+        result = subprocess.run([sys.executable, '-B', str(Path(colorize.__file__))],
+                                input='{broken\n' + json.dumps({'type': 'agent_message', 'summary': 'next event'}) + '\n',
+                                capture_output=True, text=True, check=True)
+        self.assertIn('cannot render event: JSONDecodeError', result.stderr)
+        self.assertIn('next event', result.stdout)
+
     def test_hook_spool_is_private_and_xdg_drainer_consumes_it(self):
         root = Path(__file__).resolve().parents[1]
         xdg = Path(self.temp.name) / 'xdg'
