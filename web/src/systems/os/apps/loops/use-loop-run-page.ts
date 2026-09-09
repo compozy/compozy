@@ -1,3 +1,4 @@
+import { useProfileReadScope } from "@/systems/profiles";
 import { useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
@@ -92,7 +93,8 @@ export function useLoopRunPage(
   runId: string,
   { liveDataEnabled = true }: { liveDataEnabled?: boolean } = {}
 ) {
-  const bindingKey = `${workspaceId}\u0000${runId}`;
+  const { key: profileKey } = useProfileReadScope();
+  const bindingKey = JSON.stringify([profileKey, workspaceId, runId]);
   const { store: runPageStore } = useStoreBinding(bindingKey, () =>
     loopRunPageLogic.createStore({ workspaceId, runId })
   );

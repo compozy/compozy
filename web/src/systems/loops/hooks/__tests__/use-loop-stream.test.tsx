@@ -144,7 +144,7 @@ describe("useLoopStream", () => {
 
     expect(factory).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledWith(
-      "/api/workspaces/ws_1/loop-runs/looprun_1/events?after_sequence=14"
+      "/api/workspaces/ws_1/loop-runs/looprun_1/events?profile=default&after_sequence=14"
     );
     for (const kind of LOOP_EVENT_KINDS) {
       expect(eventSource.hasListener(kind)).toBe(true);
@@ -424,11 +424,11 @@ describe("useLoopStream", () => {
     );
 
     expect(factory).toHaveBeenCalledWith(
-      "/api/workspaces/ws_1/loop-runs/looprun_1/events?after_sequence=0"
+      "/api/workspaces/ws_1/loop-runs/looprun_1/events?profile=default&after_sequence=0"
     );
   });
 
-  it("Should omit the query string when no after_sequence is provided", () => {
+  it("Should retain the Profile when no after_sequence is provided", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const factory = vi.fn(() => new FakeLoopStreamEventSource());
 
@@ -436,7 +436,9 @@ describe("useLoopStream", () => {
       wrapper: createWrapper(queryClient),
     });
 
-    expect(factory).toHaveBeenCalledWith("/api/workspaces/ws_1/loop-runs/looprun_1/events");
+    expect(factory).toHaveBeenCalledWith(
+      "/api/workspaces/ws_1/loop-runs/looprun_1/events?profile=default"
+    );
   });
 
   it("Should still parse defensive unnamed message frames via onmessage", async () => {

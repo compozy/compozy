@@ -1,3 +1,4 @@
+import type { ProfileScopeParams } from "@/systems/profiles";
 import { apiClient, apiRequestFailed, defaultApiErrorMessage } from "@/lib/api-client";
 
 import {
@@ -107,12 +108,13 @@ function readData<T>(data: T | undefined, response: Response, fallback: string):
 export async function getLoopRunBriefing(
   workspaceId: string,
   runId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopBriefing> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       signal,
     }
   );
@@ -128,7 +130,8 @@ export async function getLoopRunRoster(
   workspaceId: string,
   runId: string,
   filters: LoopRosterRequestFilter = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopRunRosterPage> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
@@ -136,6 +139,7 @@ export async function getLoopRunRoster(
       params: {
         path: { workspace_id: workspaceId, run_id: runId },
         query: {
+          ...scope,
           state: rosterStateFilter(filters.state),
           generation: filters.generation,
           cursor: normalizeOptionalText(filters.cursor),
@@ -157,7 +161,8 @@ export async function getLoopRunTimeline(
   workspaceId: string,
   runId: string,
   filters: LoopTimelineRequestFilter = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopTimelinePage> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
@@ -165,6 +170,7 @@ export async function getLoopRunTimeline(
       params: {
         path: { workspace_id: workspaceId, run_id: runId },
         query: {
+          ...scope,
           view: timelineViewFilter(filters.view),
           // Backward paging is the opaque cursor only; it binds
           // {run, view, fixed head, before} so appends never shift a page set.

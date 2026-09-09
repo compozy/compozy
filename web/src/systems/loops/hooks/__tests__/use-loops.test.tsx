@@ -1,3 +1,5 @@
+import { http, HttpResponse } from "msw";
+import { loopRunDetailByRunId } from "../../mocks/fixtures";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -16,6 +18,11 @@ import {
 } from "@/systems/loops";
 
 const WS = "ws_1";
+const selection = vi.hoisted(() => ({ profile: "default" }));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => ({ params: { profile: selection.profile }, key: selection.profile }),
+}));
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -25,6 +32,7 @@ function createWrapper() {
 
 describe("loop read hooks", () => {
   beforeEach(() => {
+    selection.profile = "default";
     vi.stubGlobal(
       "fetch",
       createMswFetch(() => handlers)
@@ -96,5 +104,42 @@ describe("loop read hooks", () => {
       wrapper: createWrapper(),
     });
     expect(result.current.isLoading).toBe(false);
+  });
+  it("Should read a completed run only in its selected Profile and isolate cached results on switch", async () => {
+    const fixture = loopRunDetailByRunId.get("looprun_running");
+    if (!fixture) throw new Error("run fixture missing");
+    selection.profile = "engineering";
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => [
+        http.get("*/api/workspaces/:workspace/loop-runs/:run", ({ request }) => {
+          if (new URL(request.url).searchParams.get("profile") !== "engineering") {
+            return new HttpResponse(null, { status: 404 });
+          }
+          return HttpResponse.json({
+            ...fixture,
+            run: {
+              ...fixture.run,
+              status: "done",
+              profile_id: "profile-engineering",
+              profile_name: "engineering",
+            },
+          });
+        }),
+        ...handlers,
+      ])
+    );
+    const { result, rerender } = renderHook(() => useLoopRun(WS, "looprun_running"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.run.status).toBe("done");
+    selection.profile = "default";
+    rerender();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    selection.profile = "engineering";
+    rerender();
+    await waitFor(() => expect(result.current.data?.run.profile_name).toBe("engineering"));
   });
 });

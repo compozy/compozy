@@ -12,14 +12,14 @@ func loopRunNodesOperation() OperationSpec {
 		"getLoopRunNodes",
 		"Get the computed Loop run node roster",
 		nil,
-		[]ParameterSpec{
+		withProfileScope(
 			workspaceIDParam(),
 			loopRunIDParam(),
 			enumQueryParam("state", "Filter by roster state", looppkg.NodeStateFilterValues()),
 			intQueryParam("generation", "Filter by generation"),
 			queryParam("cursor", "Opaque roster cursor", false),
 			intQueryParam("limit", "Maximum rows to return"),
-		},
+		),
 		[]ResponseSpec{
 			ok(contract.LoopRunNodesResponse{}),
 			badRequest(),
@@ -37,7 +37,7 @@ func loopRunBriefingOperation() OperationSpec {
 		"getLoopRunBriefing",
 		"Explain the current Loop run state",
 		nil,
-		[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
+		withProfileScope(workspaceIDParam(), loopRunIDParam()),
 		[]ResponseSpec{
 			ok(contract.LoopBriefingResponse{}),
 			notFound(specLoopRunNotFound),
@@ -54,7 +54,7 @@ func loopRunTimelineOperation() OperationSpec {
 		"getLoopRunTimeline",
 		"Read the durable Loop run timeline",
 		nil,
-		[]ParameterSpec{
+		withProfileScope(
 			workspaceIDParam(),
 			loopRunIDParam(),
 			enumQueryParam("view", "Timeline view: notable or all", []string{
@@ -63,7 +63,7 @@ func loopRunTimelineOperation() OperationSpec {
 			queryParam("cursor", "Opaque snapshot-fenced cursor", false),
 			intQueryParam("limit", "Maximum entries to return"),
 			afterSequenceQueryParam("Return entries after this per-run sequence"),
-		},
+		),
 		[]ResponseSpec{
 			ok(contract.LoopTimelineResponse{}),
 			badRequest(),

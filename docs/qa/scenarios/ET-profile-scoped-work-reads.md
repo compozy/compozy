@@ -28,3 +28,9 @@ Walk:
 
 Expected evidence: paired structured CLI responses, HTTP and UDS payloads, native-tool results, and the
 foreign-detail error body.
+
+Regression #573: open a Loop run owned by a non-default Profile and verify its detail, briefing,
+roster, timeline, requests, and event stream load. Switch to another Profile and confirm the run
+and cached content disappear; direct reads of the three projections must return not found.
+From All Profiles, invoke a run control and verify it targets the run owner. This adds a QA check,
+not a completed browser verdict.

@@ -1,3 +1,4 @@
+import { useProfileReadScope } from "@/systems/profiles";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { loopNodeInventoryOptions } from "../lib/query-options";
@@ -34,7 +35,10 @@ export function useLoopNodeInventory(
   filters: LoopNodeInventoryStableFilter,
   enabled = true
 ): LoopNodeInventoryView {
-  const query = useInfiniteQuery(loopNodeInventoryOptions(workspaceId, filters, enabled));
+  const { params } = useProfileReadScope();
+  const query = useInfiniteQuery(
+    loopNodeInventoryOptions(workspaceId, { ...filters, ...params }, enabled)
+  );
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
   return {
     items,

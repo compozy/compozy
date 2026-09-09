@@ -48,23 +48,25 @@ const WS = "ws_1";
 describe("buildLoopStreamUrl", () => {
   it("Should build a workspace-scoped stream URL with after_sequence when a seed is provided", () => {
     expect(buildLoopStreamUrl(WS, "run_1", { after_sequence: "14" })).toBe(
-      "/api/workspaces/ws_1/loop-runs/run_1/events?after_sequence=14"
+      "/api/workspaces/ws_1/loop-runs/run_1/events?profile=default&after_sequence=14"
     );
   });
 
   it("Should keep after_sequence=0 for deterministic Last-Event-ID:0 precedence", () => {
     expect(buildLoopStreamUrl(WS, "run_1", { after_sequence: "0" })).toBe(
-      "/api/workspaces/ws_1/loop-runs/run_1/events?after_sequence=0"
+      "/api/workspaces/ws_1/loop-runs/run_1/events?profile=default&after_sequence=0"
     );
   });
 
-  it("Should omit the query string when no seed is provided", () => {
-    expect(buildLoopStreamUrl(WS, "run_1")).toBe("/api/workspaces/ws_1/loop-runs/run_1/events");
+  it("Should retain Profile scope when no stream seed is provided", () => {
+    expect(buildLoopStreamUrl(WS, "run_1")).toBe(
+      "/api/workspaces/ws_1/loop-runs/run_1/events?profile=default"
+    );
   });
 
   it("Should encode unsafe characters in both the workspace and run segments", () => {
     expect(buildLoopStreamUrl("ws a", "run/1", { after_sequence: "1" })).toBe(
-      "/api/workspaces/ws%20a/loop-runs/run%2F1/events?after_sequence=1"
+      "/api/workspaces/ws%20a/loop-runs/run%2F1/events?profile=default&after_sequence=1"
     );
   });
 
@@ -223,12 +225,15 @@ describe("loops-api (request construction + error mapping)", () => {
   it("Should GET a single run and POST run controls to the scoped endpoints", async () => {
     mockJsonResponse({ run: { id: "run_1" } });
     await getLoopRun(WS, "run_1");
-    await expectFetchRequest({ path: "/api/workspaces/ws_1/loop-runs/run_1", method: "GET" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1?profile=default",
+      method: "GET",
+    });
 
     mockJsonResponse({ ok: true });
     await pauseLoopRun(WS, "run_1");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/pause",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/pause?profile=default",
       method: "POST",
       body: {},
       callIndex: 1,
@@ -237,7 +242,7 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ ok: true });
     await resumeLoopRun(WS, "run_1");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/resume",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/resume?profile=default",
       method: "POST",
       callIndex: 2,
     });
@@ -245,7 +250,7 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ ok: true, run_id: "run_1" });
     await cancelLoopRun(WS, "run_1");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/cancel",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/cancel?profile=default",
       method: "POST",
       callIndex: 3,
     });
@@ -253,7 +258,7 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ ok: true });
     await approveLoopRun(WS, "run_1", { decision: "approve", gate_id: "gate_1" });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/approve",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/approve?profile=default",
       method: "POST",
       body: { decision: "approve", gate_id: "gate_1" },
       callIndex: 4,
@@ -366,7 +371,7 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ run_id: "r-1", status: "running" });
     await getLoopRunBriefing(WS, "r-1");
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/r-1/briefing",
+      path: "/api/workspaces/ws_1/loop-runs/r-1/briefing?profile=default",
       method: "GET",
     });
 
@@ -394,7 +399,7 @@ describe("loops-api (request construction + error mapping)", () => {
     });
     // A blank cursor is an absent cursor, exactly as elsewhere in the adapters.
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/r-1/nodes?state=running&generation=2&limit=200",
+      path: "/api/workspaces/ws_1/loop-runs/r-1/nodes?profile=default&state=running&generation=2&limit=200",
       method: "GET",
     });
 
@@ -438,7 +443,7 @@ describe("loops-api (request construction + error mapping)", () => {
     mockJsonResponse({ run_id: "r-1", head_seq: 12, entries: [] });
     await getLoopRunTimeline(WS, "r-1", { view: " all ", cursor: " tok-1 ", after_sequence: 0 });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/r-1/timeline?view=all&cursor=tok-1&after_sequence=0",
+      path: "/api/workspaces/ws_1/loop-runs/r-1/timeline?profile=default&view=all&cursor=tok-1&after_sequence=0",
       method: "GET",
     });
 
@@ -706,7 +711,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
       itemIndex: 2,
     });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/pick_envs/request?generation=3&item_index=2",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/pick_envs/request?profile=default&generation=3&item_index=2",
       method: "GET",
       callIndex: 1,
     });
@@ -721,7 +726,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
     mockJsonResponse({ ok: true });
     await respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, body);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/publish/respond",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/publish/respond?profile=default",
       method: "POST",
       body,
       callIndex: 2,
@@ -735,7 +740,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
       { generation: 1, against_generation: 2 }
     );
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/diff?generation=1&against_generation=2",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/diff?generation=1&against_generation=2&profile=default",
       method: "GET",
     });
 
@@ -743,7 +748,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
     mockJsonResponse({ run_id: "run_1", generation: 3 });
     await rerunLoopRun({ workspaceId: WS, runId: "run_1" }, rerunBody);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/rerun",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/rerun?profile=default",
       method: "POST",
       body: rerunBody,
       callIndex: 1,
@@ -753,7 +758,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
     mockJsonResponse({ run: { id: "run_2" } }, { status: 201 });
     await forkLoopRun({ workspaceId: WS, runId: "run_1" }, forkBody);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/fork",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/fork?profile=default",
       method: "POST",
       body: forkBody,
       callIndex: 2,
@@ -763,7 +768,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
     mockJsonResponse({ ok: true, amendment: {} });
     await amendLoopNode({ workspaceId: WS, runId: "run_1", nodeId: "classify" }, amendBody);
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/classify/amend",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/classify/amend?profile=default",
       method: "POST",
       body: amendBody,
       callIndex: 3,

@@ -1,3 +1,5 @@
+import { useLoopRunOwner } from "./use-loop-run-owner";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { forkLoopRun, rerunLoopRun } from "../adapters/loops-api";
@@ -46,14 +48,16 @@ export function useLoopRunDiff(
   query: LoopDiffQuery = {},
   enabled = true
 ) {
-  return useQuery(loopRunDiffOptions(workspaceId, runId, query, enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(loopRunDiffOptions(workspaceId, runId, query, enabled, params));
 }
 
 export function useRerunLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, data }: RerunParams) =>
-      rerunLoopRun({ workspaceId, runId }, data),
+    mutationFn: async ({ workspaceId, runId, data }: RerunParams) =>
+      rerunLoopRun({ workspaceId, runId }, data, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateTimetravel(queryClient, workspaceId, [runId]),
   });
@@ -61,9 +65,10 @@ export function useRerunLoopRun() {
 
 export function useForkLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, data }: ForkParams) =>
-      forkLoopRun({ workspaceId, runId }, data),
+    mutationFn: async ({ workspaceId, runId, data }: ForkParams) =>
+      forkLoopRun({ workspaceId, runId }, data, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (result, _error, { workspaceId, runId }) =>
       invalidateTimetravel(queryClient, workspaceId, [runId, result?.run.id ?? ""]),
   });

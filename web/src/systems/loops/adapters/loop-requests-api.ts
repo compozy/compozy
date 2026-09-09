@@ -1,3 +1,5 @@
+import type { ProfileMutationScopeParams } from "@/systems/profiles";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import {
   apiClient,
   apiRequestFailed,
@@ -77,14 +79,19 @@ export async function listLoopRequests(
 
 export async function getLoopRequest(
   { workspaceId, runId, generation, nodeId, itemIndex }: RequestDetailPath,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopRequestDetail> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request",
     {
       params: {
         path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId },
-        query: { generation, ...(itemIndex === undefined ? {} : { item_index: itemIndex }) },
+        query: {
+          ...scope,
+          generation,
+          ...(itemIndex === undefined ? {} : { item_index: itemIndex }),
+        },
       },
       signal,
     }
@@ -104,12 +111,13 @@ export async function getLoopRequest(
 export async function respondLoopRequest(
   { workspaceId, runId, nodeId }: RequestPath,
   body: LoopRespondRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRespondResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }

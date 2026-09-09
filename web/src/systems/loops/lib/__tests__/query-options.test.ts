@@ -39,6 +39,7 @@ describe("loop query-options", () => {
       "run-detail",
       "ws_a",
       "run_1",
+      { profile: "default" },
     ]);
   });
 
@@ -72,7 +73,7 @@ describe("loop query-options", () => {
 
   it("Should default the request inventory to pending and page by cursor", () => {
     const options = loopRequestsOptions("ws_a");
-    expect(options.queryKey).toEqual(["loops", "requests", "ws_a", "pending", "", "50"]);
+    expect(options.queryKey).toEqual(["loops", "requests", "ws_a", "pending", "", "50", ""]);
     expect(options.initialPageParam).toBeUndefined();
     expect(options.enabled).toBe(true);
     expect(loopRequestsOptions("").enabled).toBe(false);
@@ -109,6 +110,7 @@ describe("loop query-options", () => {
       3,
       "ask_node",
       "1",
+      { profile: "default" },
     ]);
     expect(loopRequestDetailOptions("", "run_1", 3, "ask_node").enabled).toBe(false);
     expect(loopRequestDetailOptions("ws_a", "", 3, "ask_node").enabled).toBe(false);
@@ -133,6 +135,7 @@ describe("loop query-options", () => {
       "notable",
       "50",
       "",
+      { profile: "default" },
     ]);
   });
 
@@ -151,7 +154,14 @@ describe("loop query-options", () => {
   });
   it("Should stop polling the briefing once the run is terminal", () => {
     const options = loopRunBriefingOptions("ws_a", "run_1");
-    expect(options.queryKey).toEqual(["loops", "run-reads", "ws_a", "run_1", "briefing"]);
+    expect(options.queryKey).toEqual([
+      "loops",
+      "run-reads",
+      "ws_a",
+      "run_1",
+      "briefing",
+      { profile: "default" },
+    ]);
     const asFn = options.refetchInterval as (query: {
       state: { data?: { status: string } };
     }) => number | false;
@@ -177,6 +187,7 @@ describe("loop query-options", () => {
       "failed",
       "",
       "200",
+      { profile: "default" },
     ]);
     expect(options.initialPageParam).toBeUndefined();
     // Continuation is the daemon's opaque cursor, never a client-computed offset.

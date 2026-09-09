@@ -964,7 +964,8 @@ describe("route query preloading", () => {
     expect(adapterMocks.getLoopRun).toHaveBeenCalledWith(
       targetWorkspaceId,
       "run-1",
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      { profile: "default" }
     );
     expect(adapterMocks.getLoop).toHaveBeenCalledWith(
       targetWorkspaceId,
@@ -1154,6 +1155,29 @@ describe("route query preloading", () => {
       queryClient.clear();
     }
   );
+
+  it("Should preload a Loop run within the selected Profile and reuse it on mount", async () => {
+    const queryClient = createQueryClient();
+    setProfileView(
+      { scope: "workspace", workspaceId: workspace.id },
+      { kind: "profile", profile: "marketing" }
+    );
+    await invokeLoader(LoopRunDetailRoute, {
+      ...context(queryClient),
+      deps: { workspace: workspace.id },
+      params: { runId: "run-1" },
+    });
+    expect(adapterMocks.getLoopRun).toHaveBeenCalledWith(
+      workspace.id,
+      "run-1",
+      expect.any(AbortSignal),
+      { profile: "marketing" }
+    );
+    const unmount = mountQueries(queryClient, () => useLoopRun(workspace.id, "run-1"));
+    await waitFor(() => expect(adapterMocks.getLoopRun).toHaveBeenCalledTimes(1));
+    unmount();
+    queryClient.clear();
+  });
 
   it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();

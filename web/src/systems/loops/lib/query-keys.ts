@@ -138,6 +138,7 @@ export const loopsKeys = {
       normalizeText(filters.loop),
       normalizeText(filters.run_id),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
   // Existence probe (`limit: 1`) — a distinct key so the inventory infinite
   // query never shares a cache entry with the attention-bell presence check.
@@ -155,6 +156,7 @@ export const loopsKeys = {
       normalizeText(filters.state),
       normalizeText(filters.run_id),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
 
   requestDetail: (

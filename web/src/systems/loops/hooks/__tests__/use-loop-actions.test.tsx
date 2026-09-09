@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +26,15 @@ import {
   GRAPH_ENG_RUN_ID,
 } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 
+const selection = vi.hoisted(() => ({ profile: "default" }));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => ({
+    params: selection.profile === "@all" ? { all_profiles: true } : { profile: selection.profile },
+    key: selection.profile,
+  }),
+}));
+
 const WS = "ws_1";
 
 function createWrapper(queryClient: QueryClient) {
@@ -42,6 +51,7 @@ function setup() {
 
 describe("loop mutation hooks", () => {
   beforeEach(() => {
+    selection.profile = "default";
     vi.stubGlobal(
       "fetch",
       createMswFetch(() => handlers)
@@ -51,6 +61,52 @@ describe("loop mutation hooks", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it.each(["engineering", "@all"])("Should target the run owner from %s", async profile => {
+    selection.profile = profile;
+    const controls: URL[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => [
+        http.get("*/api/workspaces/ws_1/loop-runs/owned", ({ request }) => {
+          const query = new URL(request.url).searchParams;
+          expect(query.get(profile === "@all" ? "all_profiles" : "profile")).toBe(
+            profile === "@all" ? "true" : "engineering"
+          );
+          return HttpResponse.json({ run: { profile_name: "engineering" } });
+        }),
+        http.post("*/api/workspaces/ws_1/loop-runs/owned/pause", ({ request }) => {
+          controls.push(new URL(request.url));
+          return HttpResponse.json({ ok: true, run_id: "owned" });
+        }),
+      ])
+    );
+    const { wrapper } = setup();
+    const { result } = renderHook(() => usePauseLoopRun(), { wrapper });
+    await result.current.mutateAsync({ workspaceId: WS, runId: "owned" });
+    expect(controls).toHaveLength(1);
+    expect(controls[0]?.searchParams.get("profile")).toBe("engineering");
+    expect(controls[0]?.searchParams.has("all_profiles")).toBe(false);
+  });
+
+  it("Should refuse a control when the run is outside the selected Profile", async () => {
+    const control = vi.fn(() => HttpResponse.json({ ok: true }));
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => [
+        http.get("*/api/workspaces/ws_1/loop-runs/foreign", () =>
+          HttpResponse.json({ error: "Loop run not found" }, { status: 404 })
+        ),
+        http.post("*/api/workspaces/ws_1/loop-runs/foreign/pause", control),
+      ])
+    );
+    const { wrapper } = setup();
+    const { result } = renderHook(() => usePauseLoopRun(), { wrapper });
+    await expect(
+      result.current.mutateAsync({ workspaceId: WS, runId: "foreign" })
+    ).rejects.toMatchObject({ status: 404 });
+    expect(control).not.toHaveBeenCalled();
   });
 
   it("Should invalidate the catalog + created loop after useCreateLoop", async () => {

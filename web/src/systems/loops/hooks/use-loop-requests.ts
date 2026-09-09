@@ -1,3 +1,4 @@
+import { useProfileReadScope } from "@/systems/profiles";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { loopRequestDetailOptions, loopRequestsOptions } from "../lib/query-options";
@@ -8,7 +9,10 @@ export function useLoopRequests(
   filters: LoopRequestStableFilter = {},
   enabled = true
 ) {
-  const query = useInfiniteQuery(loopRequestsOptions(workspaceId, filters, enabled));
+  const { params } = useProfileReadScope();
+  const query = useInfiniteQuery(
+    loopRequestsOptions(workspaceId, { ...filters, ...params }, enabled)
+  );
   const requests: LoopRequest[] = (query.data?.pages ?? []).flatMap(page => page.items);
   return {
     ...query,
@@ -26,7 +30,8 @@ export function useLoopRequestDetail(
   itemIndex?: number,
   enabled = true
 ) {
+  const { params } = useProfileReadScope();
   return useQuery(
-    loopRequestDetailOptions(workspaceId, runId, generation, nodeId, itemIndex, enabled)
+    loopRequestDetailOptions(workspaceId, runId, generation, nodeId, itemIndex, enabled, params)
   );
 }
