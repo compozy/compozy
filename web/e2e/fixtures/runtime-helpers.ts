@@ -20,6 +20,7 @@ export interface RuntimeConfigInput {
   host: string;
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
+  memoryEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
   networkEnabled?: boolean;
   port: number;
@@ -73,6 +74,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           `enabled = ${input.modelsDevEnabled ? "true" : "false"}`,
           "",
         ]),
+    ...(input.memoryEnabled === undefined
+      ? []
+      : ["[memory]", `enabled = ${input.memoryEnabled ? "true" : "false"}`, ""]),
     ...(input.networkEnabled === undefined
       ? []
       : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),

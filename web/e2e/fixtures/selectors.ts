@@ -1228,28 +1228,29 @@ export function networkOperatorSelectors(
 }
 
 export function knowledgeOperatorSelectors(
-  page: Pick<Page, "getByTestId">
+  page: Pick<Page, "getByTestId">,
+  portalRoot: Pick<Page, "getByTestId"> = page
 ): KnowledgeOperatorSelectors {
   return {
     osDesktop: page.getByTestId(knowledgeOperatorTestIds.osDesktop),
-    cancelCreateMemory: page.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
-    confirmCreateMemory: page.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
-    confirmDeleteMemory: page.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
-    confirmEditMemory: page.getByTestId(knowledgeOperatorTestIds.confirmEditMemory),
+    cancelCreateMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
+    confirmCreateMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
+    confirmDeleteMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
+    confirmEditMemory: portalRoot.getByTestId(knowledgeOperatorTestIds.confirmEditMemory),
     contentPreview: page.getByTestId(knowledgeOperatorTestIds.contentPreview),
     createButton: page.getByTestId(knowledgeOperatorTestIds.createButton),
-    createContent: page.getByTestId(knowledgeOperatorTestIds.createContent),
-    createDescription: page.getByTestId(knowledgeOperatorTestIds.createDescription),
-    createDialog: page.getByTestId(knowledgeOperatorTestIds.createDialog),
-    createName: page.getByTestId(knowledgeOperatorTestIds.createName),
-    createType: page.getByTestId(knowledgeOperatorTestIds.createType),
+    createContent: portalRoot.getByTestId(knowledgeOperatorTestIds.createContent),
+    createDescription: portalRoot.getByTestId(knowledgeOperatorTestIds.createDescription),
+    createDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.createDialog),
+    createName: portalRoot.getByTestId(knowledgeOperatorTestIds.createName),
+    createType: portalRoot.getByTestId(knowledgeOperatorTestIds.createType),
     deleteButton: page.getByTestId(knowledgeOperatorTestIds.deleteButton),
-    deleteDialog: page.getByTestId(knowledgeOperatorTestIds.deleteDialog),
+    deleteDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.deleteDialog),
     detailPanel: page.getByTestId(knowledgeOperatorTestIds.detailPanel),
     editButton: page.getByTestId(knowledgeOperatorTestIds.editButton),
-    editContent: page.getByTestId(knowledgeOperatorTestIds.editContent),
-    editDescription: page.getByTestId(knowledgeOperatorTestIds.editDescription),
-    editDialog: page.getByTestId(knowledgeOperatorTestIds.editDialog),
+    editContent: portalRoot.getByTestId(knowledgeOperatorTestIds.editContent),
+    editDescription: portalRoot.getByTestId(knowledgeOperatorTestIds.editDescription),
+    editDialog: portalRoot.getByTestId(knowledgeOperatorTestIds.editDialog),
     guard: page.getByTestId(knowledgeOperatorTestIds.guard),
     item: (memoryKey: string) => page.getByTestId(`memory-item-${memoryKey}`),
     listPanel: page.getByTestId(knowledgeOperatorTestIds.listPanel),

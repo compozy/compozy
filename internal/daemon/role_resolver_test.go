@@ -411,8 +411,13 @@ func TestRoleResolverProfile(t *testing.T) {
 			t.Context(),
 			roleInvocationCorrelation{ProfileID: "profile-missing", AgentName: "profile-worker"},
 		)
-		if _, err := resolver.Resolve(ctx, "ws-loop", compozyconfig.RoleMemoryExtractor); err == nil {
-			t.Fatal("unknown Profile must fail")
+		if _, err := resolver.Resolve(
+			ctx,
+			"ws-loop",
+			compozyconfig.RoleMemoryExtractor,
+		); err == nil ||
+			!strings.Contains(err.Error(), "profile not found") {
+			t.Fatalf("error = %v, want profile not found", err)
 		}
 	})
 }

@@ -75,8 +75,8 @@ func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
 		if _, _, err := sink.targetStore(
 			t.Context(),
 			memcontract.Candidate{ProfileID: "missing", Scope: memcontract.ScopeProfile},
-		); err == nil {
-			t.Fatal("unknown Profile must fail")
+		); err == nil || !strings.Contains(err.Error(), "unknown profile") {
+			t.Fatalf("error = %v, want unknown profile", err)
 		}
 	})
 
@@ -218,6 +218,10 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 			events <- tc.terminal
 			close(events)
 			output, err := collectMemoryExtractorOutput(t.Context(), events)
+			if tc.terminal.StopReason == string(acp.PromptStopReasonCancelled) &&
+				(err == nil || !strings.Contains(err.Error(), string(acp.PromptStopReasonCancelled))) {
+				t.Fatalf("error = %v, want cancellation reason", err)
+			}
 			if err == nil || output != "partial output" {
 				t.Fatalf("collected=%q error=%v, want diagnostic output and failure", output, err)
 			}

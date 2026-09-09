@@ -2134,8 +2134,14 @@ func TestLoopSessionPolicyProfile(t *testing.T) {
 			profileNames: loopProfileNameResolverStub{},
 		}
 		opts := session.CreateOpts{ProfileID: "profile-missing", Workspace: "ws-loop"}
-		if _, err := gate.applyResolved(t.Context(), &opts, "profile-worker", nil); err == nil {
-			t.Fatal("missing Profile must not use global Agent")
+		if _, err := gate.applyResolved(
+			t.Context(),
+			&opts,
+			"profile-worker",
+			nil,
+		); err == nil ||
+			!strings.Contains(err.Error(), "profile not found") {
+			t.Fatalf("error = %v, want profile not found", err)
 		}
 	})
 }
