@@ -48,3 +48,9 @@ Expected evidence: paired per-profile catalog, search, and recall output on ever
 refused aggregate response; workspace-tier and agent-tier reads from both profiles; the scope
 vocabulary as printed by CLI and API; the pending-move refusal and the post-move success; the
 migrated entry read under default; and the delete preview beside the delete result with entry counts.
+
+Background extraction regression (#571): complete a root session using a Profile-scoped Agent in
+each of two Profiles. Verify queued turns, extractor role resolution, profile-tier proposals, and
+diagnostic events retain the source Profile. A missing Profile must refuse extraction/storage;
+it must not resolve the other Profile's Agent or write into default memory. Keep Workspace memory
+shared as specified above. Repeat after replaying the durable extractor inbox.

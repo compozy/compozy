@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -77,6 +78,7 @@ type RoleResolver interface {
 }
 
 type roleResolver struct {
+	profileNames      session.ProfileNameResolver
 	config            *compozyconfig.Config
 	workspaceResolver workspacepkg.RuntimeResolver
 	agents            coordinatorAgentResolver
@@ -209,7 +211,13 @@ func (r *roleResolver) effectiveRoleConfig(
 	if r.workspaceResolver == nil {
 		return nil, nil, errors.New("daemon: workspace resolver is required for workspace role resolution")
 	}
-	resolved, err := r.workspaceResolver.Resolve(ctx, target)
+	resolved, err := resolveRuntimeProfileWorkspace(
+		ctx,
+		r.workspaceResolver,
+		r.profileNames,
+		target,
+		roleInvocationCorrelationFromContext(ctx, workspaceID).ProfileID,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve role workspace %q: %w", target, err)
 	}

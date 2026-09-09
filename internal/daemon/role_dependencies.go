@@ -19,4 +19,5 @@ func initializeRoleResolver(state *bootState) {
 		}),
 		state.registry,
 	)
+	state.roleResolver.profileNames = bootProfileNameResolver{state: state}
 }

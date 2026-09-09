@@ -209,6 +209,7 @@ type LLMCall struct {
 
 // Candidate carries one fact proposed for the curated layer.
 type Candidate struct {
+	ProfileID         string            `json:"profile_id,omitempty"`
 	WorkspaceID       string            `json:"workspace_id,omitempty"`
 	Scope             Scope             `json:"scope"`
 	AgentName         string            `json:"agent_name,omitempty"`
@@ -320,6 +321,7 @@ type TranscriptSnapshot struct {
 
 // TurnRecord describes the message range inspected by the extractor.
 type TurnRecord struct {
+	ProfileID       string             `json:"profile_id,omitempty"`
 	SessionID       string             `json:"session_id"`
 	RootSessionID   string             `json:"root_session_id"`
 	ParentSessionID string             `json:"parent_session_id,omitempty"`

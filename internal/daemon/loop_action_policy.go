@@ -19,6 +19,7 @@ type loopSessionAgentResolver interface {
 }
 
 type loopSessionPolicyGate struct {
+	profileNames      session.ProfileNameResolver
 	workspaceResolver workspacepkg.RuntimeResolver
 	agentResolver     loopSessionAgentResolver
 }
@@ -153,7 +154,13 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
 	if workspaceID := strings.TrimSpace(opts.Workspace); workspaceID != "" {
-		resolved, err := g.workspaceResolver.Resolve(ctx, workspaceID)
+		resolved, err := resolveRuntimeProfileWorkspace(
+			ctx,
+			g.workspaceResolver,
+			g.profileNames,
+			workspaceID,
+			opts.ProfileID,
+		)
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
 				"daemon: resolve loop session workspace %q: %w",
@@ -167,7 +174,13 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 	if workspacePath == "" {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop session workspace is required")
 	}
-	resolved, err := g.workspaceResolver.Resolve(ctx, workspacePath)
+	resolved, err := resolveRuntimeProfileWorkspace(
+		ctx,
+		g.workspaceResolver,
+		g.profileNames,
+		workspacePath,
+		opts.ProfileID,
+	)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
 			"daemon: resolve loop session workspace path %q: %w",

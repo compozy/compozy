@@ -44,6 +44,8 @@ func failureCandidateMetadata(content string) (sessionID string, workspaceID str
 }
 
 type daemonMemoryProposalSink struct {
+	sessionProfile    func(context.Context, string) (string, error)
+	profileStores     memory.RecallStoreResolver
 	base              *memory.Store
 	workspaceResolver workspacepkg.RuntimeResolver
 }
@@ -66,6 +68,27 @@ func (s *daemonMemoryProposalSink) targetStore(
 	ctx context.Context,
 	candidate memcontract.Candidate,
 ) (*memory.Store, memcontract.Candidate, error) {
+	base := s.base
+	if candidate.ProfileID == "" && candidate.Metadata["session_id"] != "" && s.sessionProfile != nil {
+		var err error
+		candidate.ProfileID, err = s.sessionProfile(ctx, candidate.Metadata["session_id"])
+		if err != nil {
+			return nil, candidate, err
+		}
+		if candidate.ProfileID == "" {
+			return nil, candidate, errors.New("daemon: memory candidate source profile is required")
+		}
+	}
+	if candidate.ProfileID != "" {
+		if s.profileStores == nil {
+			return nil, candidate, errors.New("daemon: memory candidate profile resolver is unavailable")
+		}
+		var err error
+		base, err = s.profileStores(ctx, candidate.ProfileID)
+		if err != nil {
+			return nil, candidate, err
+		}
+	}
 	scope := candidate.Scope.Normalize()
 	if scope == "" {
 		scope = candidate.Frontmatter.Scope.Normalize()
@@ -74,7 +97,7 @@ func (s *daemonMemoryProposalSink) targetStore(
 	case "", memcontract.ScopeProfile:
 		candidate.Scope = memcontract.ScopeProfile
 		candidate.Frontmatter.Scope = memcontract.ScopeProfile
-		return s.base, candidate, nil
+		return base, candidate, nil
 	case memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		workspaceRoot, workspaceID, err := s.resolveWorkspace(ctx, candidate)
 		if err != nil {
@@ -83,7 +106,7 @@ func (s *daemonMemoryProposalSink) targetStore(
 		candidate.WorkspaceID = workspaceID
 		candidate.Scope = scope
 		candidate.Frontmatter.Scope = scope
-		store := s.base.ForWorkspace(workspaceRoot)
+		store := base.ForWorkspace(workspaceRoot)
 		if scope == memcontract.ScopeAgent {
 			tier := candidate.AgentTier.Normalize()
 			if tier == "" {
@@ -157,6 +180,7 @@ func (e *forkedMemoryExtractor) Extract(
 		}
 	}()
 	correlation := roleInvocationCorrelation{
+		ProfileID:       turn.ProfileID,
 		WorkspaceID:     strings.TrimSpace(turn.WorkspaceID),
 		SessionID:       strings.TrimSpace(turn.SessionID),
 		AgentName:       strings.TrimSpace(turn.AgentID),

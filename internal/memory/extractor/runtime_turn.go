@@ -18,6 +18,7 @@ func normalizeTurn(turn memcontract.TurnRecord, now func() time.Time) (memcontra
 			return time.Now().UTC()
 		}
 	}
+	turn.ProfileID = strings.TrimSpace(turn.ProfileID)
 	turn.SessionID = strings.TrimSpace(turn.SessionID)
 	turn.RootSessionID = firstNonEmpty(turn.RootSessionID, turn.SessionID)
 	turn.ParentSessionID = strings.TrimSpace(turn.ParentSessionID)
@@ -85,6 +86,7 @@ func enrichCandidate(
 			return time.Now().UTC()
 		}
 	}
+	candidate.ProfileID = turn.ProfileID
 	candidate.WorkspaceID = firstNonEmpty(candidate.WorkspaceID, turn.WorkspaceID)
 	candidate.Origin = candidate.Origin.Normalize()
 	if candidate.Origin == "" {

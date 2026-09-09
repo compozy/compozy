@@ -280,6 +280,7 @@ func newBootLoopCoordinatorRuntime(
 		return state.deps.ToolRegistry
 	}}
 	policyGate := &loopSessionPolicyGate{
+		profileNames:      bootProfileNameResolver{state: state},
 		workspaceResolver: workspaceResolver,
 		agentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,

@@ -123,7 +123,9 @@ func (t *daemonMemoryControllerTiebreaker) prepareCall(
 	roles := t.roles
 	if t.configSnapshot != nil {
 		cfg := t.configSnapshot()
-		roles = newRoleResolver(&cfg, t.roles.workspaceResolver, t.roles.agents, t.roles.events)
+		snapshot := *t.roles
+		snapshot.config = &cfg
+		roles = &snapshot
 	}
 	options, err := roles.resolveMemoryControllerCallOptions(ctx, request.Candidate.WorkspaceID)
 	if err != nil {

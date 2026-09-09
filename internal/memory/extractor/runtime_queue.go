@@ -46,6 +46,7 @@ func (r *Runtime) HandleSessionMessagePersisted(
 	rootSessionID := firstNonEmpty(payload.RootSessionID, sessionID)
 	actorKind := firstNonEmpty(payload.ActorKind, actorKindRoot)
 	turn := memcontract.TurnRecord{
+		ProfileID:       payload.ProfileID,
 		SessionID:       sessionID,
 		RootSessionID:   rootSessionID,
 		AgentID:         firstNonEmpty(payload.AgentName, payload.ActorID, sessionID),

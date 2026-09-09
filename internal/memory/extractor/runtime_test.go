@@ -37,6 +37,7 @@ func TestRuntime(t *testing.T) {
 				Timestamp: time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC),
 			},
 			SessionContext: hooks.SessionContext{
+				ProfileID:   "profile-engineering",
 				SessionID:   "sess-root",
 				WorkspaceID: "ws-1",
 			},
@@ -72,7 +73,8 @@ func TestRuntime(t *testing.T) {
 			t.Fatalf("extracted turns = %d, want 1 root turn", len(turns))
 		}
 		got := turns[0]
-		if got.SessionID != "sess-root" || got.UntilMessageSeq != 7 || got.Trigger != memcontract.TriggerPostMessage {
+		if got.ProfileID != "profile-engineering" || got.SessionID != "sess-root" || got.UntilMessageSeq != 7 ||
+			got.Trigger != memcontract.TriggerPostMessage {
 			t.Fatalf("turn = %#v, want root persisted message turn", got)
 		}
 		if len(got.Snapshot.Messages) != 1 || got.Snapshot.Messages[0].Content != rootPayload.Text {

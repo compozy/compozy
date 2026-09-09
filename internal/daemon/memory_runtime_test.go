@@ -49,6 +49,37 @@ func TestDaemonMemoryExtractorSkipsSubagentWorkspaceRootCache(t *testing.T) {
 func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should route profile candidates without falling back on missing owners", func(t *testing.T) {
+		t.Parallel()
+		base := memory.NewStore(t.TempDir())
+		scoped := base.ForProfile("profile-engineering", t.TempDir())
+		sink := daemonMemoryProposalSink{
+			base: base,
+			profileStores: func(_ context.Context, id string) (*memory.Store, error) {
+				if id != "profile-engineering" {
+					return nil, errors.New("unknown profile")
+				}
+				return scoped, nil
+			},
+		}
+		target, _, err := sink.targetStore(
+			t.Context(),
+			memcontract.Candidate{ProfileID: "profile-engineering", Scope: memcontract.ScopeProfile},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target != scoped {
+			t.Fatal("candidate selected another Profile store")
+		}
+		if _, _, err := sink.targetStore(
+			t.Context(),
+			memcontract.Candidate{ProfileID: "missing", Scope: memcontract.ScopeProfile},
+		); err == nil {
+			t.Fatal("unknown Profile must fail")
+		}
+	})
+
 	t.Run("Should normalize workspace-root candidates to the stable workspace identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -177,7 +208,7 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 		terminal acp.AgentEvent
 	}{
 		{name: "Should retain output on provider error", terminal: acp.AgentEvent{Type: acp.EventTypeError, Error: "disconnected"}},
-		{name: "Should reject a cancelled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "cancelled"}},
+		{name: "Should reject a canceled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: string(acp.PromptStopReasonCancelled)}},
 		{name: "Should reject a truncated terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "max_tokens"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -286,6 +317,30 @@ func TestDaemonMemoryProviderService(t *testing.T) {
 
 func TestForkedMemoryExtractor(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retain the source Profile in background role resolution", func(t *testing.T) {
+		t.Parallel()
+		extractor := &forkedMemoryExtractor{
+			sessions: &recordingMemoryExtractorSessions{},
+			roles: roleResolverFunc(
+				func(ctx context.Context, workspaceID string, _ compozyconfig.RoleName) (ResolvedRole, error) {
+					if got := roleInvocationCorrelationFromContext(
+						ctx,
+						workspaceID,
+					).ProfileID; got != "profile-engineering" {
+						t.Errorf("ProfileID = %q", got)
+					}
+					return ResolvedRole{Enabled: false}, nil
+				},
+			),
+		}
+		if _, err := extractor.Extract(
+			t.Context(),
+			memcontract.TurnRecord{ProfileID: "profile-engineering", SessionID: "source", WorkspaceID: "ws-test"},
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	t.Run("Should skip the child session when the role is disabled", func(t *testing.T) {
 		t.Parallel()

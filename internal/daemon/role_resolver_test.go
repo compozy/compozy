@@ -374,3 +374,61 @@ func roleResolverConfig() compozyconfig.Config {
 	cfg.Roles.Dream.Enabled = true
 	return cfg
 }
+
+func TestRoleResolverProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should inherit the Agent from the source Profile", func(t *testing.T) {
+		t.Parallel()
+		cfg := roleResolverConfig()
+		scoped := loopActionBinderWorkspace(
+			t,
+			[]compozyconfig.AgentDef{{Name: "profile-worker", Provider: "mock", Model: "scoped-model", Prompt: "Work"}},
+		)
+		scoped.ProfileID = "profile-engineering"
+		scoped.Config.Memory.Enabled = true
+		resolver := newRoleResolver(
+			&cfg,
+			&loopPolicyProfileWorkspaceResolver{scoped: scoped},
+			profileRoleAgentResolver{},
+		)
+		resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
+		ctx := withRoleInvocationCorrelation(
+			t.Context(),
+			roleInvocationCorrelation{
+				ProfileID: "profile-engineering",
+				AgentName: "profile-worker",
+				SessionID: "session-worker",
+			},
+		)
+		role, err := resolver.Resolve(ctx, "ws-loop", compozyconfig.RoleMemoryExtractor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if role.AgentName != "profile-worker" || role.Model != "scoped-model" {
+			t.Fatalf("wrong role: %#v", role)
+		}
+		ctx = withRoleInvocationCorrelation(
+			t.Context(),
+			roleInvocationCorrelation{ProfileID: "profile-missing", AgentName: "profile-worker"},
+		)
+		if _, err := resolver.Resolve(ctx, "ws-loop", compozyconfig.RoleMemoryExtractor); err == nil {
+			t.Fatal("unknown Profile must fail")
+		}
+	})
+}
+
+type profileRoleAgentResolver struct{}
+
+func (profileRoleAgentResolver) ResolveAgent(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	if resolved != nil && resolved.ProfileID == "profile-engineering" {
+		for _, agent := range resolved.Agents {
+			if agent.Name == name {
+				return agent, nil
+			}
+		}
+	}
+	return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+}
