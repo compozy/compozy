@@ -345,7 +345,9 @@ func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *tes
 		deps.startTimeout = 5 * time.Millisecond
 		deps.processAlive = func(int) bool { return true }
 
-		_, err := waitForDaemonStart(testutil.Context(t), deps, child)
+		ctx, cancel := context.WithTimeout(testutil.Context(t), deps.startTimeout)
+		defer cancel()
+		_, err := waitForDaemonStart(ctx, deps, child)
 		child.complete(nil)
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("waitForDaemonStart() error = %v, want context.DeadlineExceeded", err)

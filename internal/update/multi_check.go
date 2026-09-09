@@ -55,6 +55,10 @@ func applyArchivedRuntimeOutcome(runtime *State, archived *Operation) {
 		archived.Runtime.Phase != PhaseRolledBack {
 		return
 	}
+	comparison, err := compareVersions(runtime.CurrentVersion, archived.Runtime.ToVersion)
+	if err == nil && comparison >= 0 {
+		return
+	}
 	runtime.Status = StatusFailed
 	runtime.RestoredVersion = strings.TrimSpace(archived.Runtime.FromVersion)
 	runtime.DaemonRestarted = archived.Runtime.DaemonRestarted

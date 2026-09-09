@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState) (returnErr error) {
@@ -87,7 +88,7 @@ func (c *Coordinator) restartAndVerify(
 		return err
 	}
 	if err := c.runtime.RestartDaemon(ctx); err != nil {
-		return c.rollback(ctx, state, applied, err)
+		return c.retainRuntime(ctx, state, err)
 	}
 	if _, err := state.transition(ctx, Transition{
 		Kind: TransitionPhase, Actor: updated.Holder.Surface, Target: TargetRuntime,
@@ -107,13 +108,13 @@ func (c *Coordinator) healthAndFinalize(
 		return err
 	}
 	if err := c.runtime.HealthCheck(ctx); err != nil {
-		return c.rollback(ctx, state, applied, err)
+		return c.retainRuntime(ctx, state, err)
 	}
 	if err := state.fence(ctx); err != nil {
 		return err
 	}
 	if err := c.binaryManager.Finalize(applied); err != nil {
-		return c.rollback(ctx, state, applied, err)
+		return c.retainRuntime(ctx, state, err)
 	}
 	operation := state.snapshot()
 	_, err := state.transition(ctx, Transition{
@@ -123,24 +124,16 @@ func (c *Coordinator) healthAndFinalize(
 	return err
 }
 
-func (c *Coordinator) rollback(
-	ctx context.Context,
-	state *coordinatorState,
-	applied AppliedBinary,
-	cause error,
-) error {
-	if err := state.fence(ctx); err != nil {
-		return errors.Join(cause, err)
-	}
-	if err := c.binaryManager.Restore(applied); err != nil {
-		return c.failRuntime(ctx, state, errors.Join(cause, err))
-	}
-	operation := state.snapshot()
-	_, transitionErr := state.transition(ctx, Transition{
-		Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetRuntime,
-		Phase: PhaseRolledBack, Percent: -1, LastError: cause.Error(), Outcome: operationOutcomeRolledBack,
-	})
-	return errors.Join(cause, transitionErr)
+func (c *Coordinator) retainRuntime(ctx context.Context, state *coordinatorState, cause error) error {
+	// A replacement may migrate any persisted stream before it reports readiness.
+	return c.failRuntime(
+		ctx,
+		state,
+		fmt.Errorf(
+			"update: keeping the replacement runtime because persisted state may already have migrated; inspect daemon logs and retry `compozy daemon start`; if the runtime cannot launch, reinstall the target release or newer: %w",
+			cause,
+		),
+	)
 }
 
 func (c *Coordinator) failRuntime(ctx context.Context, state *coordinatorState, cause error) error {

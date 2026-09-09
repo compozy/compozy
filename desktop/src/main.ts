@@ -266,7 +266,6 @@ async function start(): Promise<void> {
       });
       applyDefaultDenyPermissions(session.defaultSession, runtime.origin);
       await statePublisher.setRuntime(runtime.version, runtime.owned);
-      startUpdateConsumer(statePublisher);
       runtimeMonitor?.stop();
       product = new ProductWindow({
         origin: runtime.origin,
@@ -352,6 +351,7 @@ async function start(): Promise<void> {
     operationWatcher.start();
   }
 
+  startUpdateConsumer(statePublisher);
   await runBootstrap();
 }
 

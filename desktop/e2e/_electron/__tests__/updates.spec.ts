@@ -399,3 +399,46 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
     await closeFixture(feed, restoreEnvironment);
   }
 });
+
+test("A staged app update starts while runtime bootstrap is failing", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const feed = await startMockFeed(fixture, { holdAsset: true });
+  let desktop: DesktopInstance | undefined;
+  try {
+    await configureFeed(packaged, feed.url);
+    const digest = await artifactDigest(fixture);
+    desktop = await launchDesktop({
+      executablePath: packaged.executablePath,
+      environment: await updaterEnvironment(fixture, packaged),
+      prepare: async ({ home }) => {
+        await mkdir(join(home, "compozy.db"));
+        await seedOperation(home, operation(fixture, digest));
+      },
+    });
+    const home = desktop.home;
+    await expect(async () => {
+      expect((await readAppRecord(home)).state).toBe("error");
+    }).toPass({ timeout: 30_000 });
+    await expect
+      .poll(async () => {
+        const active = JSON.parse(await readFile(join(home, "update-operation.json"), "utf8")) as {
+          app: { phase: string };
+        };
+        return active.app.phase;
+      })
+      .toBe("applying");
+    await desktop.boot.screenshot({
+      path: test.info().outputPath("update-during-bootstrap-failure.png"),
+    });
+  } finally {
+    try {
+      await desktop?.closeShell();
+    } finally {
+      await feed.close();
+    }
+  }
+});

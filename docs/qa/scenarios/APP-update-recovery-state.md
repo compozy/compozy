@@ -4,15 +4,15 @@ area: APP
 title: A failed update never strands me silently
 persona: Dora
 journey: J-desktop-update-moment
-expected: A forced app apply failure leaves the installed app intact and launchable with the failure reported and a manual-download path; a post-swap runtime health failure restores the previous runtime, archives the operation as `rolled-back` with the typed failure, and allows retry only from a newly verified candidate.
-entry_points: update surface after a forced app apply failure; compozy update -o json; update-history.jsonl after a runtime rollback
+expected: A forced app apply failure leaves the installed app intact and launchable with the failure reported and a manual-download path; a post-swap runtime failure retains the replacement and backup, archives the operation as `failed` with recovery guidance, and preserves migrated user state. A live slow boot remains in progress until ready or actual exit. Recovery to the target version or newer clears historical rollback from the live projection without editing history.
+entry_points: update surface after a forced app apply failure; compozy update -o json; update-history.jsonl after a runtime failure
 qa_status: pass
 bug_ids: BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: pass
 fix_commits: f081a1e
 evidence: docs/qa/reports/2026-08-17-electron-shell.md
-last_report: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md
 overlaps: APP-agent-cli-app-verbs
 ---
 
@@ -28,5 +28,7 @@ clamped to `0700` (or the platform ACL equivalent) by the failed apply.
 Per-OS evidence: E2E-017 runs on macOS and Linux with the locked-dir fixture — capture the failed-
 update report, the opened release page, a fresh OS-level app launch, and the install-path
 permission listing before/after. E2E-018 forces a runtime post-swap health failure on both release
-OSes and records byte-identical restoration plus the archived `rolled-back` outcome. Overlap:
+OSes and records replacement retention plus the archived `failed` outcome. Overlap:
 APP-agent-cli-app-verbs owns the structured CLI readout of the same durable update result.
+
+Issue 559 re-walk: `docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md`.

@@ -36,6 +36,29 @@ func RuntimeOwnedByDesktopApp(paths compozyconfig.HomePaths, binaryPath string) 
 	return isDesktopAppInstall(paths.HomeDir, binaryPath, runtime.GOOS)
 }
 
+// DesktopRuntimeNewerThanBundle preserves a verified runtime installed by a newer release.
+func DesktopRuntimeNewerThanBundle(
+	paths compozyconfig.HomePaths,
+	binaryPath string,
+	bundleVersion string,
+) (bool, error) {
+	if !RuntimeOwnedByDesktopApp(paths, binaryPath) {
+		return false, nil
+	}
+	marker, err := readDesktopProvenance(desktopProvenancePath(paths, binaryPath))
+	if err != nil {
+		return false, err
+	}
+	if isDevVersion(marker.RuntimeVersion) || isDevVersion(bundleVersion) {
+		return false, nil
+	}
+	comparison, err := compareVersions(marker.RuntimeVersion, bundleVersion)
+	if err != nil {
+		return false, err
+	}
+	return comparison > 0, nil
+}
+
 // DesktopRuntimeMatchesBundle verifies the installed bytes and release identity against a bundle.
 func DesktopRuntimeMatchesBundle(
 	paths compozyconfig.HomePaths,

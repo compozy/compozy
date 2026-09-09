@@ -166,7 +166,15 @@ func (e *bootstrapExecution) resolveAndStart() error {
 				e.cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, matchErr,
 			)
 		}
-		if !matches {
+		newer, versionErr := compozyupdate.DesktopRuntimeNewerThanBundle(
+			e.homePaths,
+			runtimePath,
+			e.provenance().RuntimeVersion,
+		)
+		if versionErr != nil {
+			return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, versionErr)
+		}
+		if !matches && !newer {
 			resolution = bootstrapResolutionProvision
 		}
 	}
@@ -230,7 +238,7 @@ func (e *bootstrapExecution) start(resolution bootstrapResolution, runtimePath s
 		if lastErr == nil {
 			return e.writeStarted(status, resolution, attempt, owned)
 		}
-		if bootstrapShouldGiveUp(attempt) {
+		if e.cmd.Context().Err() != nil || bootstrapShouldGiveUp(attempt) {
 			break
 		}
 		delay := bootstrapBackoff(attempt)
@@ -389,27 +397,7 @@ func runBootstrapDaemonDetached(
 	if err != nil {
 		return DaemonStatus{}, err
 	}
-	return waitForBootstrapDaemonStart(ctx, deps, child)
-}
-
-func waitForBootstrapDaemonStart(
-	ctx context.Context,
-	deps commandDeps,
-	child daemonProcess,
-) (DaemonStatus, error) {
-	status, waitErr := waitForDaemonStart(ctx, deps, child)
-	if waitErr == nil {
-		return status, nil
-	}
-	terminateErr := child.Terminate()
-	reapErr := child.Wait()
-	if terminateErr != nil {
-		terminateErr = fmt.Errorf("cli: terminate unready detached daemon: %w", terminateErr)
-	}
-	if reapErr != nil {
-		reapErr = fmt.Errorf("cli: reap unready detached daemon: %w", reapErr)
-	}
-	return DaemonStatus{}, errors.Join(waitErr, terminateErr, reapErr)
+	return waitForDaemonStart(ctx, deps, child)
 }
 
 func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, appVersion string) error {

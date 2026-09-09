@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -806,4 +807,52 @@ func newReleaseFixtureServer(
 		},
 	}
 	return release, archiveName, server
+}
+
+func TestDesktopRuntimeNewerThanBundle(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, installed, bundled string
+		tamper, want             bool
+	}{
+		{name: "Should preserve a verified newer installed runtime", installed: "0.3.0-beta.23", bundled: "0.3.0-beta.22", want: true},
+		{name: "Should permit upgrade from an older runtime", installed: "0.3.0-beta.22", bundled: "0.3.0-beta.23"},
+		{name: "Should reject a modified ownership marker binary", installed: "0.3.0-beta.23", bundled: "0.3.0-beta.22", tamper: true},
+		{name: "Should retain development bundle provisioning", installed: "0.3.0-beta.23", bundled: "dev"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(paths.BinDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			binaryName := compozyBinaryName
+			if runtime.GOOS == runtimeOSWindows {
+				binaryName = compozyWindowsBinaryName
+			}
+			binary := filepath.Join(paths.BinDir, binaryName)
+			if err := os.WriteFile(binary, []byte("installed-runtime"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := WriteDesktopProvenance(
+				paths,
+				binary,
+				DesktopProvenanceMetadata{AppVersion: "0.3.0-beta.22", Channel: "beta", RuntimeVersion: test.installed},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if test.tamper {
+				if err := os.WriteFile(binary, []byte("different-runtime"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := DesktopRuntimeNewerThanBundle(paths, binary, test.bundled)
+			if err != nil || got != test.want {
+				t.Fatalf("DesktopRuntimeNewerThanBundle() = %t, %v; want %t", got, err, test.want)
+			}
+		})
+	}
 }

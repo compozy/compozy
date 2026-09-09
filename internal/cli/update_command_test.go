@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
@@ -447,5 +448,54 @@ func assertOrderedSubstrings(t *testing.T, output string, values []string) {
 			t.Fatalf("output %q does not contain %q after byte %d", output, value, position)
 		}
 		position += index + len(value)
+	}
+}
+
+func TestLocalRestartStatusDuringBoot(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []compozydaemon.RestartStatus{compozydaemon.RestartStatusStarting, compozydaemon.RestartStatusFailed, compozydaemon.RestartStatusReady} {
+		t.Run("Should read durable "+string(phase)+" while the API is unavailable", func(t *testing.T) {
+			t.Parallel()
+			paths := mustTestHomePaths(t)
+			if err := os.MkdirAll(paths.RestartsDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			record := compozydaemon.RestartOperation{
+				OperationID:   "offline-restart",
+				Status:        phase,
+				OldPID:        1,
+				OldStartedAt:  fixedTestNow,
+				OldSocketPath: paths.DaemonSocket,
+				StartedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}
+			if phase == compozydaemon.RestartStatusFailed {
+				record.FailureReason = "replacement exited"
+				completed := fixedTestNow
+				record.CompletedAt = &completed
+			}
+			if phase == compozydaemon.RestartStatusReady {
+				record.NewPID = 2
+				completed := fixedTestNow
+				record.CompletedAt = &completed
+			}
+			data, err := json.Marshal(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(paths.RestartsDir, record.OperationID+".json"),
+				data,
+				0o600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			client := localRestartStatusClient{homePaths: paths, remote: &stubClient{}}
+			got, err := client.GetSettingsRestartStatus(t.Context(), record.OperationID)
+			if err != nil || string(got.Status) != string(phase) || got.FailureReason != record.FailureReason ||
+				got.NewPID != record.NewPID {
+				t.Fatalf("local restart status = %#v, %v", got, err)
+			}
+		})
 	}
 }

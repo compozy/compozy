@@ -52,29 +52,39 @@ func TestCoordinatorRuntimeLifecycle(t *testing.T) {
 		})
 	})
 
-	t.Run("Should restore and archive when the replacement daemon fails health", func(t *testing.T) {
-		t.Parallel()
-
-		store, paths, _ := newOperationTestStore(t)
-		request := operationTestRequest(testOperationNow)
-		request.Targets = []Target{TargetRuntime}
-		request.App = nil
-		operation, err := store.Acquire(t.Context(), request)
-		if err != nil {
-			t.Fatalf("Acquire() error = %v", err)
-		}
-		manager := &coordinatorManagerStub{}
-		runtime := &coordinatorRuntimeStub{healthErr: errors.New("replacement is unhealthy")}
-		coordinator := newCoordinatorForTest(t, store, manager, runtime)
-		err = coordinator.Run(t.Context(), operation.ID, "generation-1")
-		if err == nil || !errors.Is(err, runtime.healthErr) {
-			t.Fatalf("Run() error = %v, want health failure", err)
-		}
-		if manager.restoreCalls != 1 || manager.finalizeCalls != 0 {
-			t.Fatalf("manager restore/finalize = %d/%d, want 1/0", manager.restoreCalls, manager.finalizeCalls)
-		}
-		assertArchivedOperationPhase(t, paths.UpdateHistoryFile, operation.ID, PhaseRolledBack)
-	})
+	for _, stage := range []string{"restart", "health", "finalize"} {
+		t.Run("Should retain the replacement after "+stage+" failure", func(t *testing.T) {
+			t.Parallel()
+			store, paths, _ := newOperationTestStore(t)
+			request := operationTestRequest(testOperationNow)
+			request.Targets = []Target{TargetRuntime}
+			request.App = nil
+			operation, err := store.Acquire(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cause := errors.New("replacement failure")
+			manager := &coordinatorManagerStub{}
+			runtime := &coordinatorRuntimeStub{}
+			switch stage {
+			case "restart":
+				runtime.restartErr = cause
+			case "health":
+				runtime.healthErr = cause
+			case "finalize":
+				manager.finalizeErr = cause
+			}
+			coordinator := newCoordinatorForTest(t, store, manager, runtime)
+			err = coordinator.Run(t.Context(), operation.ID, "generation-1")
+			if !errors.Is(err, cause) || !strings.Contains(err.Error(), "persisted state may already have migrated") {
+				t.Fatalf("Run() = %v", err)
+			}
+			if manager.restoreCalls != 0 {
+				t.Fatalf("restored incompatible backup %d times", manager.restoreCalls)
+			}
+			assertArchivedOperationPhase(t, paths.UpdateHistoryFile, operation.ID, PhaseFailed)
+		})
+	}
 
 	t.Run("Should refuse a runtime-only compatibility violation before acquiring the swap lock", func(t *testing.T) {
 		t.Parallel()
@@ -106,16 +116,16 @@ func TestCoordinatorRuntimeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		for _, test := range []struct {
-			name           string
-			phase          OperationPhase
-			backupPresent  bool
-			wantRestore    int
-			wantRestart    int
-			wantHealth     int
-			wantFinalized  bool
-			wantRolledBack bool
+			name          string
+			phase         OperationPhase
+			backupPresent bool
+			wantRestore   int
+			wantRestart   int
+			wantHealth    int
+			wantFinalized bool
+			wantRetained  bool
 		}{
-			{name: "swap with backup", phase: PhaseSwapping, backupPresent: true, wantRestore: 1, wantRolledBack: true},
+			{name: "swap with backup", phase: PhaseSwapping, backupPresent: true, wantRetained: true},
 			{name: "swap without backup", phase: PhaseSwapping, wantRestart: 1, wantHealth: 1, wantFinalized: true},
 			{name: "daemon restart", phase: PhaseRestarting, backupPresent: true, wantRestart: 1, wantHealth: 1, wantFinalized: true},
 			{name: "health check", phase: PhaseHealthChecking, backupPresent: true, wantHealth: 1, wantFinalized: true},
@@ -142,11 +152,11 @@ func TestCoordinatorRuntimeLifecycle(t *testing.T) {
 				runtime := &coordinatorRuntimeStub{}
 				coordinator := newCoordinatorForTest(t, store, manager, runtime)
 				runErr := coordinator.Run(t.Context(), operation.ID, "generation-1")
-				if test.wantRolledBack {
+				if test.wantRetained {
 					if runErr == nil || !strings.Contains(runErr.Error(), "interrupted runtime swap") {
-						t.Fatalf("Run() error = %v, want interrupted-swap rollback", runErr)
+						t.Fatalf("Run() error = %v, want interrupted-swap recovery guidance", runErr)
 					}
-					assertArchivedOperationPhase(t, paths.UpdateHistoryFile, operation.ID, PhaseRolledBack)
+					assertArchivedOperationPhase(t, paths.UpdateHistoryFile, operation.ID, PhaseFailed)
 				} else if runErr != nil {
 					t.Fatalf("Run() error = %v", runErr)
 				}
@@ -175,6 +185,7 @@ type coordinatorManagerStub struct {
 	swapStarted   bool
 	restoreCalls  int
 	finalizeCalls int
+	finalizeErr   error
 	restored      AppliedBinary
 }
 
@@ -215,7 +226,7 @@ func (s *coordinatorManagerStub) Restore(applied AppliedBinary) error {
 
 func (s *coordinatorManagerStub) Finalize(AppliedBinary) error {
 	s.finalizeCalls++
-	return nil
+	return s.finalizeErr
 }
 
 type coordinatorRuntimeStub struct {

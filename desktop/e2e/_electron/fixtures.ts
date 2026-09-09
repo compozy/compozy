@@ -191,8 +191,19 @@ async function terminateRuntime(home: string, environment: NodeJS.ProcessEnv): P
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
   }
-  await command(runtime, ["daemon", "stop"], environment);
-  if (pid !== null) await waitForProcessExit(pid);
+  if (pid === null) {
+    // A failed boot may exit before publishing daemon.json. Still verify its lock PID exited.
+    const lockName = process.platform === "win32" ? "daemon.lock.pid" : "daemon.lock";
+    try {
+      const lockPID = Number((await readFile(join(home, lockName), "utf8")).trim());
+      if (Number.isSafeInteger(lockPID) && lockPID > 0) await waitForProcessExit(lockPID);
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+  } else {
+    await command(runtime, ["daemon", "stop"], environment);
+    await waitForProcessExit(pid);
+  }
   await waitForPathRemoval(join(home, "daemon.sock"));
 }
 

@@ -221,15 +221,44 @@ func TestBootMarksRestartOperationReadyAfterFreshDaemonInfo(t *testing.T) {
 			return os.Getenv(key)
 		}
 
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths, OperationID: operation.OperationID,
+			PollInterval: time.Millisecond, ReadyTimeout: time.Millisecond, ExitDrainWait: time.Millisecond})
+		childExit := make(chan struct{})
+		observed := make(chan error, 1)
+		go func() {
+			observed <- helper.waitForReady(t.Context(), store, operation.OperationID, restartProcessStub{
+				pid: 9393, wait: func() error { <-childExit; return nil },
+			})
+		}()
+		t.Cleanup(func() { close(childExit) })
+		timer := time.NewTimer(15 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case err := <-observed:
+			t.Fatalf("restart stopped observing a live boot: %v", err)
+		case <-timer.C:
+		}
+		pending, err := store.Get(operation.OperationID)
+		if err != nil || pending.Status != RestartStatusStarting {
+			t.Fatalf("pre-boot status = %#v, %v", pending, err)
+		}
 		if err := d.boot(testutil.Context(t)); err != nil {
 			t.Fatalf("boot() error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := d.Shutdown(testutil.Context(t)); err != nil {
-				t.Fatalf("Shutdown() error = %v", err)
+				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
 
+		select {
+		case err := <-observed:
+			if err != nil {
+				t.Fatalf("observe completed boot: %v", err)
+			}
+		case <-t.Context().Done():
+			t.Fatal("restart observer did not complete")
+		}
 		persisted, err := store.Get(operation.OperationID)
 		if err != nil {
 			t.Fatalf("store.Get() error = %v", err)

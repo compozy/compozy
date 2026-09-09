@@ -102,6 +102,14 @@ When an update reports `failed`, do not start another mutation. Run `compozy app
 preserve the reported error code and report, follow its recovery action, then run
 `compozy app retry`. Confirm the result with `compozy app status -o json`.
 
+A post-swap runtime failure keeps the replacement binary because databases may already have
+migrated. Preserve both binary copies and all databases; inspect the runtime log, resolve the
+reported cause, and retry `compozy daemon start`. A live boot continues across readiness polling
+windows; interrupting the CLI only stops observation. Confirm readiness with structured status.
+An older app preserves a newer compatible runtime, and staged app updates can run before runtime
+bootstrap succeeds. Historical rollback failures clear from live update status after recovery to
+the target runtime version or newer; do not edit the history to clear them.
+
 Automatic repair is limited to disposable desktop metadata and a runtime process proven to be
 desktop-owned. Never stop an operator-managed runtime or delete `compozy.db`, `config.toml`,
 credentials, sessions, or the full home as a recovery step. The desktop has no native-tool

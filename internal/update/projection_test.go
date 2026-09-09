@@ -142,3 +142,20 @@ func TestOperationPhaseToUIPhase(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoveredRuntimeProjection(t *testing.T) {
+	t.Parallel()
+	for _, current := range []string{"v1.1.0", "1.2.0"} {
+		t.Run("Should clear historical rollback after recovery to "+current, func(t *testing.T) {
+			t.Parallel()
+			state := State{Status: StatusUpToDate, CurrentVersion: current, Message: "current"}
+			archived := &Operation{LastError: "old failure", Runtime: &RuntimeOperationState{
+				ArtifactIdentity: ArtifactIdentity{FromVersion: "v1.0.0", ToVersion: "v1.1.0"}, Phase: PhaseRolledBack,
+			}}
+			applyArchivedRuntimeOutcome(&state, archived)
+			if state.Status != StatusUpToDate || state.LastError != "" || state.RestoredVersion != "" {
+				t.Fatalf("recovered projection = %#v", state)
+			}
+		})
+	}
+}

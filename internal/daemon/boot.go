@@ -201,10 +201,10 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.publishDaemonInfo(state, cleanup); err != nil {
 		return err
 	}
-	if err := d.markRestartReadyIfRequested(state.info); err != nil {
+	if err := d.startBackgroundUpdates(ctx, state, cleanup); err != nil {
 		return err
 	}
-	if err := d.startBackgroundUpdates(ctx, state, cleanup); err != nil {
+	if err := d.markRestartReadyIfRequested(state.info); err != nil {
 		return err
 	}
 
