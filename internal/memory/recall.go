@@ -69,13 +69,14 @@ func NewProfileRecallAugmenter(
 			target = target.ForWorkspace(workspaceRoot)
 		}
 
-		packaged, err := target.Recall(ctx, memcontract.Query{
+		// Automatic prompt injection requires all terms to avoid surfacing incidental matches.
+		packaged, err := target.recall(ctx, memcontract.Query{
 			AgentName: sAgentName(target),
 			QueryText: query,
 		}, memcontract.RecallOptions{
 			TopK:          maxRecallResults,
 			RawCandidates: 20,
-		})
+		}, true)
 		if err != nil {
 			return message, err
 		}

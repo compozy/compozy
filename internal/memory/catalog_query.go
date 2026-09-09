@@ -159,7 +159,7 @@ func (c *catalog) search(
 		return nil, nil
 	}
 
-	match, err := buildCatalogMatchQuery(query)
+	match, err := buildCatalogMatchQuery(query, false)
 	if err != nil {
 		return nil, err
 	}

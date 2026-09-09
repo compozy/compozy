@@ -131,15 +131,11 @@ func groupBlocks(ranked []rankedCandidate, now time.Time) []memcontract.Block {
 
 	blocks := make([]memcontract.Block, 0, len(order))
 	for _, key := range order {
-		entries := groups[key]
-		sort.SliceStable(entries, func(i, j int) bool {
-			return entries[i].ID < entries[j].ID
-		})
 		meta := blockMeta[key]
 		blocks = append(blocks, memcontract.Block{
 			Scope:     meta.scope,
 			AgentTier: meta.tier,
-			Entries:   entries,
+			Entries:   groups[key],
 		})
 	}
 	return blocks

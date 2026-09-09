@@ -165,7 +165,8 @@ func (n *daemonNativeTools) memorySearch(
 		AgentName:   location.AgentName,
 		QueryText:   queryText,
 	}, memcontract.RecallOptions{
-		TopK: input.Limit,
+		TopK:              input.Limit,
+		AllowTrivialQuery: true,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)

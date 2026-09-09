@@ -89,6 +89,18 @@ func TestNewRecallAugmenter(t *testing.T) {
 		if strings.Contains(got, "User message:") {
 			t.Fatalf("Augment() = %q, want no legacy user message marker", got)
 		}
+
+		t.Run("Should leave partial matches out of automatic recall", func(t *testing.T) {
+			query := "auth sessions quuxnonexistent"
+			got, err := augmenter(t.Context(),
+				&session.Session{Type: session.SessionTypeUser, Workspace: workspaceRoot}, query)
+			if err != nil {
+				t.Fatalf("Augment(partial query) error = %v", err)
+			}
+			if got != query {
+				t.Fatalf("Augment(partial query) = %q, want unchanged user message", got)
+			}
+		})
 	})
 
 	t.Run("Should resolve durable recall from the session profile", func(t *testing.T) {
@@ -188,6 +200,93 @@ func TestBuildPackagedRecallBlock(t *testing.T) {
 
 func TestStoreRecall(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retrieve partial lexical matches with ranked bounded and isolated results", func(t *testing.T) {
+		t.Parallel()
+		baseDir := t.TempDir()
+		store := newOpenTestStore(t, filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
+		).ForWorkspace(filepath.Join(baseDir, "workspace"))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		for _, fixture := range []struct{ filename, body string }{
+			{"strong.md", "A contagem distinta de kind na particao zx00841 e 29."},
+			{"partial.md", "A contagem de kind e 10."},
+			{"unrelated.md", "Orchids bloom in spring."},
+		} {
+			if err := store.Write(
+				t.Context(),
+				memcontract.ScopeWorkspace,
+				fixture.filename,
+				mustMemoryContent(
+					t,
+					testMemoryMeta{Name: fixture.filename, Type: memcontract.TypeProject},
+					fixture.body,
+				),
+			); err != nil {
+				t.Fatalf("Write(%s) error = %v", fixture.filename, err)
+			}
+		}
+		other := store.ForWorkspace(filepath.Join(baseDir, "other"))
+		if err := other.EnsureDirs(); err != nil {
+			t.Fatalf("other.EnsureDirs() error = %v", err)
+		}
+		if err := other.Write(
+			t.Context(),
+			memcontract.ScopeWorkspace,
+			"hidden.md",
+			mustMemoryContent(
+				t,
+				testMemoryMeta{Name: "Hidden", Type: memcontract.TypeProject},
+				"zx00841 banana kind",
+			),
+		); err != nil {
+			t.Fatalf("other.Write() error = %v", err)
+		}
+		closeRecallRecorders(t, store)
+		for _, test := range []struct {
+			name, query string
+			wantCount   int
+		}{
+			{"Should match a unique term", "zx00841", 1},
+			{"Should tolerate an unknown term", "zx00841 banana", 1},
+			{"Should tolerate multiple unknown terms", "zx00841 banana laranja", 1},
+			{"Should rank more relevant matches first", "kind zx00841", 2},
+			{"Should tolerate natural language", "kind distinct count zx00841", 2},
+			{"Should tokenize FTS syntax as literal words", `"zx00841" OR (banana*) -NEAR:unknown`, 1},
+			{"Should normalize repeated mixed case terms", "ZX00841 zx00841 banana", 1},
+			{"Should return nothing without a lexical match", "quuxnonexistent banana", 0},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				for range 2 {
+					packaged, err := store.Recall(t.Context(), memcontract.Query{QueryText: test.query},
+						memcontract.RecallOptions{TopK: 5, AllowTrivialQuery: true})
+					if err != nil {
+						t.Fatalf("Recall(%q) error = %v", test.query, err)
+					}
+					entries := packagedRecallEntries(packaged)
+					if len(entries) != test.wantCount {
+						t.Fatalf("Recall(%q) = %#v, want %d entries", test.query, entries, test.wantCount)
+					}
+					if len(entries) > 0 && entries[0].Filename != "strong.md" {
+						t.Fatalf("Recall(%q) = %#v, want strong.md first", test.query, entries)
+					}
+					limited, err := store.Recall(t.Context(), memcontract.Query{QueryText: test.query},
+						memcontract.RecallOptions{TopK: 1, RawCandidates: 1, AllowTrivialQuery: true})
+					if err != nil {
+						t.Fatalf("bounded Recall(%q) error = %v", test.query, err)
+					}
+					bounded := packagedRecallEntries(limited)
+					if len(bounded) != min(1, test.wantCount) ||
+						(len(bounded) > 0 && bounded[0].Filename != "strong.md") {
+						t.Fatalf("bounded Recall(%q) = %#v", test.query, bounded)
+					}
+				}
+			})
+		}
+	})
 
 	t.Run("Should isolate profile recall while sharing workspace memory IT-058 IT-074", func(t *testing.T) {
 		t.Parallel()
