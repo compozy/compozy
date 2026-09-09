@@ -12,6 +12,8 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
+// TestImportMarkdownTasksShouldLoadCompozyTaskManifest
+// Covers task ordering, completion filtering, and invalid input rejection.
 func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 	t.Parallel()
 
@@ -536,6 +538,7 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 	})
 }
 
+// TestImportTasksToolShouldReturnStructuredPayload checks the serialized queue and completion verdict contract.
 func TestImportTasksToolShouldReturnStructuredPayload(t *testing.T) {
 	t.Parallel()
 

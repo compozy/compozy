@@ -165,6 +165,8 @@ func TestUsageTrackerShouldFailClosedOnOverflow(t *testing.T) {
 	})
 }
 
+// TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects
+// Covers one-pass parameter resolution before session and judge effects.
 func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 	t.Run("Should resolve Goal prompts and judge inputs without re-rendering input values", func(t *testing.T) {
 		t.Parallel()

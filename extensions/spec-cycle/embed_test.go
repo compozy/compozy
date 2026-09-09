@@ -80,6 +80,8 @@ func TestEmbeddedLoopsShouldCompileWithSpecCycleToolSchemas(t *testing.T) {
 	}
 }
 
+// TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests
+// Pins tool schemas and read-only permission policy together.
 func TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 	t.Run("Should pin managed tool schema digests and policies", func(t *testing.T) {
 		t.Parallel()
@@ -551,6 +553,8 @@ func TestSpecCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T)
 	}
 }
 
+// TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts
+// Checks the shipped Loop graph, prompts, and executable judge contract.
 func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 	t.Run("Should keep the internal review source and clean round termination contract", func(t *testing.T) {
 		t.Parallel()
@@ -1148,6 +1152,7 @@ type orchestrateJudgeTaskFile struct {
 	content string
 }
 
+// runOrchestrateJudgeForTest evaluates the shipped importer criterion before checking worker settlement.
 func runOrchestrateJudgeForTest(
 	t *testing.T,
 	judges []dsl.GateCriterion,
@@ -1238,6 +1243,7 @@ type importTaskJudgeCaller struct {
 	provider *runtimeProvider
 }
 
+// Call routes evaluator requests through the production spec-cycle tool handler.
 func (c importTaskJudgeCaller) Call(
 	ctx context.Context,
 	_ toolspkg.Scope,
@@ -1248,6 +1254,7 @@ func (c importTaskJudgeCaller) Call(
 	})
 }
 
+// requireOrchestrateJudgesForTest decodes the shipped completion and worker-settlement criteria.
 func requireOrchestrateJudgesForTest(t *testing.T, node dsl.Node) []dsl.GateCriterion {
 	t.Helper()
 	encoded, err := json.Marshal(node.Params["judge"])

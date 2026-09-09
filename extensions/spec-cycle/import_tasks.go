@@ -28,6 +28,7 @@ func (e *taskSetNotFoundError) Error() string {
 	return "spec-cycle: task set not found"
 }
 
+// importTasks returns the unfinished queue and its completion verdict from one validated task set.
 func importTasks(input importTasksInput) (importTasksOutput, error) {
 	pattern := strings.TrimSpace(input.Pattern)
 	if pattern == "" {
@@ -44,6 +45,7 @@ func importTasks(input importTasksInput) (importTasksOutput, error) {
 	}, nil
 }
 
+// importTasksToolError translates import failures into operator-facing causes and recovery steps.
 func importTasksToolError(id toolspkg.ToolID, input importTasksInput, err error) error {
 	pattern := operatorTaskPattern(input.Pattern)
 	cause := fmt.Sprintf("The task set for %s could not be imported.", pattern)

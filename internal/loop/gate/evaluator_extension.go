@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+// evaluateExtension calls an extension in the supplied scope and maps its structured output to a verdict.
 func (e *Evaluator) evaluateExtension(
 	ctx context.Context,
 	gate Gate,

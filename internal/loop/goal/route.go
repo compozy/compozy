@@ -76,6 +76,7 @@ func (e *Executor) judgeWorkTurn(
 	return e.executeJudgeAttempt(ctx, segment, result, attempt, operationBase)
 }
 
+// executeJudgeAttempt recovers or evaluates a durable attempt and records its sanitized verdict and usage.
 func (e *Executor) executeJudgeAttempt(
 	ctx context.Context,
 	segment *segmentState,

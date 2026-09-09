@@ -150,6 +150,7 @@ type taskStatusError struct {
 	Status string
 }
 
+// Error lists supported task statuses so invalid frontmatter can be corrected before dispatch.
 func (e *taskStatusError) Error() string {
 	return fmt.Sprintf(
 		"unknown task status %q; use pending, in_progress, or completed (completion aliases: complete, done, finished)",
@@ -157,6 +158,7 @@ func (e *taskStatusError) Error() string {
 	)
 }
 
+// normalizeCompozyTaskStatus normalizes boundary aliases while rejecting undocumented task states.
 func normalizeCompozyTaskStatus(status string) (string, error) {
 	switch normalized := strings.ToLower(strings.TrimSpace(status)); normalized {
 	case compozyTaskStatusCompletedValue, "complete", "done", "finished":

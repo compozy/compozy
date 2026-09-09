@@ -15,6 +15,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// TestRPCServerShouldCallImportTasksTool covers task import results and actionable errors through RPC.
 func TestRPCServerShouldCallImportTasksTool(t *testing.T) {
 	t.Run("Should return structured import tasks payload over tools call", func(t *testing.T) {
 		t.Parallel()

@@ -78,6 +78,7 @@ type compozyTaskFrontmatter struct {
 	Dependencies []string         `yaml:"dependencies"`
 }
 
+// importMarkdownTasks validates manifest topology and task metadata before selecting unfinished work.
 func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -373,6 +374,7 @@ func resolvedCompozyPath(tasksDir string, relativePath string, subject string) (
 	return resolvedPath, nil
 }
 
+// parseCompozyTaskFile decodes YAML frontmatter and canonicalizes task status before graph validation.
 func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error) {
 	parts, err := frontmatter.Split(content)
 	if err != nil {

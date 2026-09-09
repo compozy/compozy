@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type loopGoalRuntimePorts interface {
@@ -47,6 +48,7 @@ type loopManagedInputLifecycleInstaller interface {
 	SetManagedInputLifecycle(session.ManagedInputLifecycle)
 }
 
+// composeLoopGoalExecutor adapts daemon runtime ports into the Loop Goal executor.
 func composeLoopGoalExecutor(
 	store loopGoalExecutorStore,
 	runtime loopGoalRuntimePorts,
@@ -80,6 +82,7 @@ type loopGoalJudgeEvaluator struct {
 	executions     *loopJudgeExecutionRegistry
 }
 
+// EvaluateGoal evaluates pinned criteria with the Goal environment, usage accounting, and scoped tool identity.
 func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	ctx context.Context,
 	req goalpkg.JudgeRequest,
@@ -113,7 +116,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	}
 	trustedRoot, releaseRoot, err := e.acquireJudgeWorkspaceRoot(
 		ctx,
-		run.WorkspaceID,
+		req.Key,
 		req.Environment,
 	)
 	if err != nil {
@@ -154,11 +157,24 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	}, nil
 }
 
+// acquireJudgeWorkspaceRoot leases the explicit or per-run worktree for the caller to hold during judging.
 func (e *loopGoalJudgeEvaluator) acquireJudgeWorkspaceRoot(
 	ctx context.Context,
-	workspaceID looppkg.WorkspaceID,
+	key goalpkg.TurnKey,
 	environment dsl.EnvironmentSpec,
 ) (string, func(), error) {
+	if environment.Mode == dsl.EnvironmentPerRun {
+		// Reuse the binder's run identity to lease the existing tree; judging never materializes one.
+		binding := looppkg.ActionSessionBindRequest{
+			LoopRunID: key.LoopRunID, Generation: key.Generation, NodeID: key.NodeID, ItemIndex: key.ItemIndex,
+		}
+		environment = dsl.EnvironmentSpec{
+			Mode: dsl.EnvironmentWorktree,
+			WorktreeRef: worktree.RunWorktreeName(
+				loopActionWorktreeSlug(binding), loopActionWorktreeRunID(binding),
+			),
+		}
+	}
 	if environment.Mode != dsl.EnvironmentWorktree {
 		return "", nil, nil
 	}
@@ -169,7 +185,7 @@ func (e *loopGoalJudgeEvaluator) acquireJudgeWorkspaceRoot(
 		)
 	}
 	root, release, err := e.workspaceRoots.AcquireActionToolWorkspaceRoot(ctx, looppkg.ActionToolWorkspaceRootRequest{
-		WorkspaceID: workspaceID, Environment: environment,
+		WorkspaceID: key.WorkspaceID, Environment: environment,
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("daemon: acquire Goal judge worktree: %w", err)

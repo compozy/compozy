@@ -36,6 +36,8 @@ const (
 	implementTasksEngineerSkill = "PROFILE_ENGINEER_SENTINEL_V1"
 )
 
+// TestDaemonE2EImplementTasksShouldCompleteTaskJourney
+// Owns dispatch, rerun, and execution-root behavior through the real daemon.
 func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
 
@@ -127,16 +129,24 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		})
 		// Opposite states prove the extension reads the selected root on every evaluation.
 		for index, scenario := range []struct {
-			nodeEnvironment  map[string]any
-			mainStatuses     []string
-			worktreeStatuses []string
-			wantStatus       contract.LoopRunStatus
-			wantVerdict      string
+			committedStatuses []string
+			nodeEnvironment   map[string]any
+			mainStatuses      []string
+			worktreeStatuses  []string
+			wantStatus        contract.LoopRunStatus
+			wantVerdict       string
 		}{
-			{nil, []string{"pending", "in_progress", "pending"}, []string{"complete", "done", "finished"}, contract.LoopRunStatusDone, "approved"},
-			{nil, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusExhausted, "rejected"},
-			{map[string]any{"mode": "root"}, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusDone, "approved"},
+			{nil, nil, []string{"pending", "in_progress", "pending"}, []string{"complete", "done", "finished"}, contract.LoopRunStatusDone, "approved"},
+			{nil, nil, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusExhausted, "rejected"},
+			{nil, map[string]any{"mode": "root"}, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusDone, "approved"},
+			{[]string{"complete", "done", "finished"}, map[string]any{"mode": "per_run"}, []string{"pending", "in_progress", "pending"}, nil, contract.LoopRunStatusDone, "approved"},
+			{[]string{"pending", "in_progress", "pending"}, map[string]any{"mode": "per_run"}, []string{"complete", "done", "finished"}, nil, contract.LoopRunStatusExhausted, "rejected"},
 		} {
+			if scenario.committedStatuses != nil {
+				setImplementTasksStatuses(t, workspaceRoot, scenario.committedStatuses)
+				runWorktreeE2EGit(t, ctx, workspaceRoot, "add", ".compozy/tasks")
+				runWorktreeE2EGit(t, ctx, workspaceRoot, "commit", "-m", "seed per-run completion states")
+			}
 			definition := implementTasksCompletionJudgeDefinition()
 			definition.Meta.Name += "-" + strconv.Itoa(index)
 			if scenario.nodeEnvironment != nil {
@@ -998,6 +1008,7 @@ func unsupportedSpeedResolution(requested speed.Speed) *contract.SpeedResolution
 	}
 }
 
+// setImplementTasksStatuses changes only fixture task statuses, preserving their manifest and metadata.
 func setImplementTasksStatuses(t testing.TB, root string, statuses []string) {
 	t.Helper()
 	for index, status := range statuses {
@@ -1025,6 +1036,7 @@ func setImplementTasksStatuses(t testing.TB, root string, statuses []string) {
 	}
 }
 
+// assertImplementTasksExecutedNodes distinguishes executed workers from skipped route outputs.
 func assertImplementTasksExecutedNodes(t testing.TB, detail contract.LoopRunResponse, want []string) {
 	t.Helper()
 	var got []string
@@ -1040,6 +1052,7 @@ func assertImplementTasksExecutedNodes(t testing.TB, detail contract.LoopRunResp
 	}
 }
 
+// implementTasksCompletionJudgeDefinition isolates real extension judging from worker terminal actions.
 func implementTasksCompletionJudgeDefinition() contract.LoopDefinitionDocument {
 	return contract.LoopDefinitionDocument{
 		APIVersion: dsl.APIVersion, Kind: dsl.KindLoop,

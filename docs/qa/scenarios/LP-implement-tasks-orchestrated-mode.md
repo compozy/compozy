@@ -88,3 +88,13 @@ primary workspace authorized. Those paths are unchanged by #565. Reproduction: e
 worktree-only journey with `mode=orchestrated` after its per-task run, using the same selected worktree
 and conductor fixture. That broader journey is **not verified** by this change. Evidence is retained
 in `.cache/issue-565/e2e-round3.log` and the isolated round-3 daemon artifacts; its teardown was clean.
+
+Review remediation 2026-09-09 (#565): the selected-root scenario now also creates `per_run`
+worktrees from committed task statuses while leaving opposite statuses in the primary workspace.
+Before the fix, the completed per-run pack incorrectly reached `exhausted` instead of `done`
+(`.cache/issue-565/e2e-per-run-red.log`, run `looprun-a62e45b5be9aa535`). The judge now leases the
+existing per-run worktree using the same run/generation/node/item identity as the session binder;
+it never materializes another tree. The unchanged assertions passed all five selected-root and
+precedence combinations (31.057s, `-race -p=1 -parallel=4`), including per-run approval and rejection.
+Evidence: `.cache/issue-565/e2e-per-run-green.log`; targeted teardown reported `clean: true` with
+no survivors at `2026-09-09T17:12:37Z`. The broader terminal-path limitation above remains separate.

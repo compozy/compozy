@@ -32,6 +32,7 @@ func (f toolCallerFunc) Call(ctx context.Context, scope tools.Scope, req tools.C
 	return f(ctx, scope, req)
 }
 
+// TestEvaluatorEvaluateCriteriaMapping checks criterion results, tool scope, and extension verdict mapping.
 func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 	t.Parallel()
 
