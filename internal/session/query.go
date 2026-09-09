@@ -8,6 +8,7 @@ import (
 
 	"strings"
 
+	loggerpkg "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -64,6 +65,7 @@ func (m *Manager) mergePersistedSessionInfos(
 ) ([]*Info, map[string]struct{}, error) {
 	infos := make([]*Info, 0, len(entries)+len(activeByID))
 	seen := make(map[string]struct{}, len(entries))
+	var failures loggerpkg.FailureSummary
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, fmt.Errorf("session: list sessions canceled: %w", err)
@@ -83,7 +85,7 @@ func (m *Manager) mergePersistedSessionInfos(
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
 			}
-			m.logger.Warn("session: skip unreadable session metadata", "session_id", id, "error", err)
+			failures.Add(id, err)
 			if info := activeByID[id]; info != nil {
 				infos = append(infos, info)
 				seen[id] = struct{}{}
@@ -99,6 +101,7 @@ func (m *Manager) mergePersistedSessionInfos(
 		infos = append(infos, info)
 		seen[id] = struct{}{}
 	}
+	m.metadataWarnings.Warn(m.logger, "session: skip unreadable session metadata", failures, m.now())
 	return infos, seen, nil
 }
 

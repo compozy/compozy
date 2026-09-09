@@ -12,6 +12,33 @@ import (
 func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve the previous release canonical profile and its identity", func(t *testing.T) {
+		t.Parallel()
+		const payload = `{"version":4,"agent_name":"worker","provider":"codex","speed":"normal","profile_id":"00000000000000000000000000","workspace_id":"workspace:test","cwd":"/workspace","sandbox_mode":"none","permissions":"approve-all"}`
+		var profile SessionCreationProfile
+		if err := json.Unmarshal([]byte(payload), &profile); err != nil {
+			t.Fatal(err)
+		}
+		canonical, err := profile.CanonicalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(canonical) != payload {
+			t.Fatalf("canonical profile = %s, want unchanged previous release payload", canonical)
+		}
+		ref, err := profile.Ref()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ref != "profile:sha256:"+sha256Hex([]byte(payload)) {
+			t.Fatalf("reference = %s, want original content address", ref)
+		}
+		profile.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		if _, err := profile.CanonicalJSON(); err == nil {
+			t.Fatal("version four accepted a field absent from its schema")
+		}
+	})
+
 	t.Run("Should persist typed runtime defaults in the canonical version five profile", func(t *testing.T) {
 		t.Parallel()
 

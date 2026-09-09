@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -269,4 +270,63 @@ func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
 			t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
 		}
 	})
+}
+
+func TestSessionMetaPreviousReleaseWitness(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		old         string
+		replacement string
+		valid       bool
+	}{
+		{name: "Should reopen the beta 21 witness without rewriting it", valid: true},
+		{name: "Should reject a tampered policy", old: "Preserve this historical policy.", replacement: "Tampered policy"},
+		{name: "Should reject an unknown future version", old: `"version": 4`, replacement: `"version": 6`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload, err := os.ReadFile("testdata/session-profile-v4/meta.json.golden")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.old != "" {
+				payload = bytes.ReplaceAll(payload, []byte(tc.old), []byte(tc.replacement))
+			}
+			path := filepath.Join(t.TempDir(), SessionMetaName)
+			if err := os.WriteFile(path, payload, 0600); err != nil {
+				t.Fatal(err)
+			}
+			meta, err := ReadSessionMeta(path)
+			if !tc.valid {
+				if err == nil {
+					t.Fatal("accepted invalid historical witness")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(payload, after) {
+				t.Fatal("read rewrote historical metadata")
+			}
+			if err := WriteSessionMeta(path, meta); err != nil {
+				t.Fatal(err)
+			}
+			reopened, err := ReadSessionMeta(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reopened.CreationProfileRef != meta.CreationProfileRef ||
+				reopened.CreationDigest != meta.CreationDigest ||
+				reopened.PolicySpecDigest != meta.PolicySpecDigest ||
+				reopened.CreationProfile.PromptOverlay != meta.CreationProfile.PromptOverlay {
+				t.Fatal("metadata rewrite changed the historical witness")
+			}
+		})
+	}
 }

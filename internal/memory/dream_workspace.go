@@ -12,6 +12,7 @@ import (
 
 	"time"
 
+	loggerpkg "github.com/compozy/compozy/internal/logger"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
@@ -95,6 +96,7 @@ func (s *Service) scanCompletedSessionsSince(lastConsolidatedAt time.Time) (int,
 	}
 
 	count := 0
+	var failures loggerpkg.FailureSummary
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -106,13 +108,13 @@ func (s *Service) scanCompletedSessionsSince(lastConsolidatedAt time.Time) (int,
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
-			s.logger.Warn("memory: skip unreadable session metadata", "path", path, "error", err)
+			failures.Add(entry.Name(), err)
 			continue
 		}
 
 		var meta persistedSessionMetadata
 		if err := json.Unmarshal(payload, &meta); err != nil {
-			s.logger.Warn("memory: skip malformed session metadata", "path", path, "error", err)
+			failures.Add(entry.Name(), err)
 			continue
 		}
 
@@ -127,6 +129,7 @@ func (s *Service) scanCompletedSessionsSince(lastConsolidatedAt time.Time) (int,
 		count++
 	}
 
+	s.metadataWarnings.Warn(s.logger, "memory: skip unreadable session metadata", failures, s.now())
 	return count, nil
 }
 

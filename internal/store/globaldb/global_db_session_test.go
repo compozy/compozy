@@ -1567,3 +1567,72 @@ func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
 		}
 	}
 }
+
+func TestGlobalDBPreviousReleaseCreationProfile(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		old         string
+		replacement string
+		valid       bool
+	}{
+		{name: "Should reopen the beta 21 catalog profile without changing its content address", valid: true},
+		{name: "Should reject a tampered catalog profile", old: "historical policy", replacement: "tampered policy"},
+		{name: "Should reject a future catalog profile", old: `"version":4`, replacement: `"version":6`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			payload, err := os.ReadFile("../testdata/session-profile-v4/profile.json.golden")
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta, err := store.ReadSessionMeta("../testdata/session-profile-v4/meta.json.golden")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.old != "" {
+				payload = []byte(strings.ReplaceAll(string(payload), tc.old, tc.replacement))
+			}
+			db := openTestGlobalDB(t)
+			if _, err := db.db.ExecContext(
+				ctx,
+				`INSERT INTO session_creation_profiles(profile_ref,profile_json,created_at) VALUES(?,?,?)`,
+				meta.CreationProfileRef,
+				string(payload),
+				store.FormatTimestamp(meta.CreatedAt),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			reopened := openGlobalDBForTest(t, db.path)
+			profile, err := reopened.GetSessionCreationProfile(ctx, meta.CreationProfileRef)
+			if !tc.valid {
+				if err == nil {
+					t.Fatal("accepted invalid catalog profile")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref, err := reopened.PutSessionCreationProfile(ctx, profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ref != meta.CreationProfileRef {
+				t.Fatal("idempotent write changed historical reference")
+			}
+			var stored string
+			if err := reopened.db.QueryRowContext(ctx, `SELECT profile_json FROM session_creation_profiles WHERE profile_ref=?`, ref).
+				Scan(&stored); err != nil {
+				t.Fatal(err)
+			}
+			if stored != string(payload) {
+				t.Fatal("catalog lookup rewrote historical bytes")
+			}
+		})
+	}
+}

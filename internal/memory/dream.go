@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	loggerpkg "github.com/compozy/compozy/internal/logger"
 	storepkg "github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -47,15 +48,16 @@ type consolidationLocker interface {
 
 // Service evaluates consolidation gates and runs the dream worker when the lock and thresholds allow it.
 type Service struct {
-	memStore    *Store
-	sessionsDir string
-	lockPath    string
-	minHours    float64
-	minSessions int
-	logger      *slog.Logger
-	goal        string
-	prompt      string
-	dreamGate   DreamGateConfig
+	metadataWarnings loggerpkg.FailureWarnings
+	memStore         *Store
+	sessionsDir      string
+	lockPath         string
+	minHours         float64
+	minSessions      int
+	logger           *slog.Logger
+	goal             string
+	prompt           string
+	dreamGate        DreamGateConfig
 
 	lock               consolidationLocker
 	now                func() time.Time

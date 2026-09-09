@@ -85,6 +85,25 @@ reader separately. Do not copy legacy tables or session directories into the fre
 original home in place and use a newer compatible binary instead of this state-discarding path. See
 [Database Operations](/docs/operations/database) for cold and live backup rules.
 
+## Sessions disappear after an upgrade or metadata warnings repeat
+
+Run `compozy doctor --only runtime.session_metadata -o json`. The diagnostic reports
+`checked_count`, `unreadable_count`, up to five session/error samples, and
+`omitted_count`. It reads metadata and catalog creation witnesses without repairing
+them. A probe timeout or scan error is reported explicitly rather than as a healthy result.
+
+Creation-profile versions 4 (including 0.3.0-beta.21) and 5 are supported. Version 4
+has no ACP selections; its original profile reference, policy digest, and creation
+digest remain intact. Upgrading requires no reset or manual database edit. Unknown
+versions and corrupt witnesses remain unreadable and unchanged: preserve the full
+home and inspect the sampled errors before choosing a repair or compatible binary.
+
+Session listing and memory scanning each log a summary with at most five examples.
+An unchanged failure set repeats at most once every five minutes; changed failures
+are reported on the next scan. Doctor remains available between warnings. Its scan
+checks metadata and creation witnesses, not every session event database; verify
+history separately with `compozy session history <id> -o json`.
+
 ## Unix socket cannot be created or opened
 
 | Field      | What to check                                                                                                                                      |

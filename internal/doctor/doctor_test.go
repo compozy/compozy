@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	loggerpkg "github.com/compozy/compozy/internal/logger"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -615,4 +618,58 @@ func (s *bridgeProbeSourceStub) CheckBridge(
 		return bridgepkg.BridgeCheckResponse{}, errors.New("unexpected bridge check request")
 	}
 	return s.response, nil
+}
+
+func TestSessionMetadataProbe(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		count        int
+		wantSeverity string
+	}{
+		{name: "Should report readable persisted metadata", wantSeverity: contract.SeverityOK},
+		{name: "Should report unreadable counts with a bounded evidence sample", count: 8, wantSeverity: contract.SeverityWarn},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var failures loggerpkg.FailureSummary
+			for i := range tc.count {
+				failures.Add(fmt.Sprintf("session-%d", i), errors.New("invalid creation witness"))
+			}
+			registry := NewRegistry()
+			if err := registry.Register(
+				&SessionMetadataProbe{Source: metadataHealthSourceStub{failures: failures}},
+			); err != nil {
+				t.Fatal(err)
+			}
+			items, err := NewRunner(registry).Run(t.Context(), RunOptions{Only: []string{SessionMetadataProbeID}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(items) != 1 || items[0].Severity != tc.wantSeverity ||
+				items[0].Evidence["unreadable_count"] != tc.count {
+				t.Fatalf("items = %#v", items)
+			}
+			encoded, err := json.Marshal(items[0].Evidence)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var evidence struct {
+				Samples []loggerpkg.FailureSample `json:"samples"`
+				Omitted int                       `json:"omitted_count"`
+			}
+			if err := json.Unmarshal(encoded, &evidence); err != nil {
+				t.Fatal(err)
+			}
+			if len(evidence.Samples) != min(tc.count, 5) || evidence.Omitted != max(tc.count-5, 0) {
+				t.Fatalf("evidence = %#v", evidence)
+			}
+		})
+	}
+}
+
+type metadataHealthSourceStub struct{ failures loggerpkg.FailureSummary }
+
+func (s metadataHealthSourceStub) SessionMetadataHealth(context.Context) (int, loggerpkg.FailureSummary, error) {
+	return 10, s.failures, nil
 }

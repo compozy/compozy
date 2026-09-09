@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	loggerpkg "github.com/compozy/compozy/internal/logger"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -5151,4 +5153,39 @@ func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestDoctorSessionMetadataProbe(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose unreadable session metadata through the operator doctor endpoint", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Sessions = metadataDoctorSessions{}
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=runtime.session_metadata", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.DoctorPayload
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if len(payload.Items) != 1 || payload.Items[0].ID != "runtime.session_metadata" ||
+			payload.Items[0].Severity != contract.SeverityWarn ||
+			payload.Items[0].Evidence["unreadable_count"] != float64(1) {
+			t.Fatalf("doctor payload = %#v", payload)
+		}
+	})
+}
+
+type metadataDoctorSessions struct{ testutil.StubSessionManager }
+
+func (metadataDoctorSessions) SessionMetadataHealth(context.Context) (int, loggerpkg.FailureSummary, error) {
+	var failures loggerpkg.FailureSummary
+	failures.Add("session-unreadable", errors.New("unsupported session creation profile version 6"))
+	return 1, failures, nil
 }

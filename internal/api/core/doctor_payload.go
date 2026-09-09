@@ -55,6 +55,9 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			return contract.DoctorPayload{}, err
 		}
 	}
+	if err := h.registerSessionMetadataDoctorProbe(registry); err != nil {
+		return contract.DoctorPayload{}, err
+	}
 	if h.DeadEntities != nil && h.Workspaces != nil {
 		for _, kind := range []store.DeadEntityKind{
 			store.DeadEntityKindMCPSidecar,
@@ -85,4 +88,11 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 		Summary:       doctorSummary(items),
 		Items:         items,
 	}, nil
+}
+
+func (h *BaseHandlers) registerSessionMetadataDoctorProbe(registry *doctor.Registry) error {
+	if source, ok := h.Sessions.(doctor.SessionMetadataHealthSource); ok {
+		return registry.Register(&doctor.SessionMetadataProbe{Source: source})
+	}
+	return nil
 }
