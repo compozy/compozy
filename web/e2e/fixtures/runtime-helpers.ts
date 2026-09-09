@@ -22,6 +22,7 @@ export interface RuntimeConfigInput {
   modelsDevEnabled?: boolean;
   marketplaceCatalogBaseURL?: string;
   networkEnabled?: boolean;
+  memoryEnabled?: boolean;
   port: number;
   skillsMarketplaceBaseURL?: string;
   socketPath: string;
@@ -73,6 +74,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           `enabled = ${input.modelsDevEnabled ? "true" : "false"}`,
           "",
         ]),
+    ...(input.memoryEnabled === undefined
+      ? []
+      : ["[memory]", `enabled = ${input.memoryEnabled ? "true" : "false"}`, ""]),
     ...(input.networkEnabled === undefined
       ? []
       : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),

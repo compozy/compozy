@@ -81,6 +81,7 @@ export interface BrowserRuntimeOptions {
   host?: string;
   modelsDevEnabled?: boolean;
   networkEnabled?: boolean;
+  memoryEnabled?: boolean;
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
   seedDefaultWorkspace?: boolean;
@@ -200,6 +201,7 @@ export async function createBrowserRuntime(
         modelsDevEnabled: options.modelsDevEnabled,
         marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         networkEnabled: options.networkEnabled,
+        memoryEnabled: options.memoryEnabled,
         port: httpPort,
         skillsMarketplaceBaseURL: skillMarketplace?.baseURL,
         socketPath: paths.daemonSocket,
