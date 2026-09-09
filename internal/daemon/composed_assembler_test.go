@@ -642,53 +642,61 @@ func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *
 
 func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should render tools guide only when tools section is selected", func(t *testing.T) {
-		t.Parallel()
-
-		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-			ToolsPromptSectionEnabled: true,
+	for _, tc := range []struct {
+		name        string
+		sessionType session.Type
+		role        string
+		disabled    bool
+		wantRouter  bool
+	}{
+		{name: "Should retain discovery for interactive sessions", sessionType: session.SessionTypeUser, wantRouter: true},
+		{name: "Should retain discovery for system task workers", sessionType: session.SessionTypeSystem, wantRouter: true},
+		{name: "Should retain discovery for dream curators", sessionType: session.SessionTypeDream, wantRouter: true},
+		{name: "Should retain discovery for coordinators", sessionType: session.SessionTypeCoordinator, wantRouter: true},
+		{name: "Should retain discovery for spawned workers", sessionType: session.SessionTypeSpawned, role: session.DefaultSpawnRole, wantRouter: true},
+		{name: "Should omit discovery for extractor children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleMemoryExtractor},
+		{name: "Should omit discovery for checkpoint summaries", sessionType: session.SessionTypeDream, role: session.SpawnRoleCheckpointSummary},
+		{name: "Should omit discovery for title generator children", sessionType: session.SessionTypeSpawned, role: session.SpawnRoleAutoTitle},
+		{name: "Should normalize internal role metadata", sessionType: session.SessionTypeSpawned, role: " MEMORY-EXTRACTOR "},
+		{name: "Should preserve guidance for unknown roles", sessionType: session.SessionTypeSystem, role: "custom-role", wantRouter: true},
+		{name: "Should respect disabled tools", sessionType: session.SessionTypeUser, disabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{ToolsPromptSectionEnabled: !tc.disabled})
+			assembler := NewComposedAssembler(
+				WithSectionSelector(NewSectionSelector(resolver, nil)),
+				WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
+			)
+			got := assembleStartupPrompt(t, assembler, session.StartupPromptContext{
+				SessionType: tc.sessionType, SpawnRole: tc.role,
+			}, testPromptAgent("Base prompt."), t.TempDir())
+			router, err := skillbundled.LoadContent(bundledCompozySkillName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("assembled startup bytes=%d router bytes=%d", len(got), len(router))
+			wantCount := 0
+			if tc.wantRouter {
+				wantCount = 1
+			}
+			if count := strings.Count(got, strings.TrimSpace(router)); count != wantCount {
+				t.Fatalf("router occurrences=%d want router=%t", count, tc.wantRouter)
+			}
+			if !tc.wantRouter && got != "Base prompt." {
+				t.Fatal("input-only startup contains unexpected guidance")
+			}
+			for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
+				manual, err := skillbundled.LoadResource(bundledCompozySkillName, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(got, strings.TrimSpace(manual)) {
+					t.Fatalf("startup inlines reference %s", path)
+				}
+			}
 		})
-		assembler := NewComposedAssembler(
-			WithSectionSelector(NewSectionSelector(resolver, nil)),
-			WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
-		)
-
-		got := assembleStartupPrompt(
-			t,
-			assembler,
-			session.StartupPromptContext{
-				SessionType: session.SessionTypeUser,
-			},
-			testPromptAgent("Base prompt."),
-			t.TempDir(),
-		)
-
-		toolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledToolsReference)
-		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledToolsReference, err)
-		}
-		toolsGuide = strings.TrimSpace(toolsGuide)
-		nativeToolsGuide, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNativeToolsReference)
-		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
-		}
-		nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-		networkSkill, err := skillbundled.LoadResource(bundledCompozySkillName, bundledNetworkReference)
-		if err != nil {
-			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
-		}
-		networkSkill = strings.TrimSpace(networkSkill)
-		if !strings.Contains(got, toolsGuide) {
-			t.Fatalf("AssembleStartup() = %q, want bundled tools guide content", got)
-		}
-		if !strings.Contains(got, nativeToolsGuide) {
-			t.Fatalf("AssembleStartup() = %q, want bundled native tools guide content", got)
-		}
-		if strings.Contains(got, networkSkill) {
-			t.Fatalf("AssembleStartup() = %q, want no bundled network content without channel", got)
-		}
-	})
+	}
 }
 
 type recordingPromptProvider struct {

@@ -1,5 +1,7 @@
 package daemon
 
+import "github.com/compozy/compozy/internal/session"
+
 func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContext) []HarnessPromptSection {
 	sections := make([]HarnessPromptSection, 0, 6)
 	if r.runtime.RuntimeIdentityPromptSectionEnabled {
@@ -14,7 +16,7 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	if r.runtime.SkillsPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionSkills)
 	}
-	if r.runtime.ToolsPromptSectionEnabled {
+	if r.runtime.ToolsPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionTools)
 	}
 	if sessionCtx.NetworkLive {
@@ -73,4 +75,13 @@ func (r *HarnessContextResolver) resolveDetachedRunMode(
 		return DetachedRunModeTaskRuntime
 	}
 	return DetachedRunModeNone
+}
+
+func inputOnlyHarnessRole(role string) bool {
+	switch role {
+	case session.SpawnRoleMemoryExtractor, session.SpawnRoleCheckpointSummary, session.SpawnRoleAutoTitle:
+		return true
+	default:
+		return false
+	}
 }

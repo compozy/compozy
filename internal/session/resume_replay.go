@@ -70,6 +70,7 @@ func (m *Manager) buildResumeReplay(
 			Workspace:            info.Workspace,
 			NetworkParticipation: info.NetworkParticipation,
 			SessionType:          info.Type,
+			SpawnRole:            store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
 			CreatedAt:            info.CreatedAt,
 			UpdatedAt:            info.UpdatedAt,
 		})

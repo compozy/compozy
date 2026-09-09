@@ -2,9 +2,7 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -34,8 +32,8 @@ const (
 	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
-	// Keep enough headroom to avoid truncating canonical tool guidance.
-	startupToolsSectionBudget   = 64_000
+	// Keep the router intact; reference manuals are loaded on demand.
+	startupToolsSectionBudget   = 16_000
 	startupNetworkSectionBudget = 512
 )
 
@@ -159,11 +157,9 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 			Order:          startupToolsSectionOrder,
 			Budget:         startupToolsSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider: bundledReferencesPromptSectionProvider(
-				bundledCompozySkillName,
-				bundledToolsReference,
-				bundledNativeToolsReference,
-			),
+			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+				return skillbundled.LoadContent(bundledCompozySkillName)
+			}),
 			Predicate: policyIncludesSection(HarnessPromptSectionTools),
 		},
 		{
@@ -234,23 +230,4 @@ func (fn promptSectionProviderFunc) PromptSection(
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, workspace)
-}
-
-func bundledReferencesPromptSectionProvider(name string, referencePaths ...string) session.PromptProvider {
-	return promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
-		contents := make([]string, 0, len(referencePaths))
-		for _, referencePath := range referencePaths {
-			content, err := skillbundled.LoadResource(strings.TrimSpace(name), strings.TrimSpace(referencePath))
-			if err != nil {
-				return "", fmt.Errorf(
-					"daemon: load bundled startup section %q file %q: %w",
-					name,
-					referencePath,
-					err,
-				)
-			}
-			contents = append(contents, strings.TrimSpace(content))
-		}
-		return strings.Join(contents, "\n\n"), nil
-	})
 }

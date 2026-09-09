@@ -5348,28 +5348,28 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 		wantSkills    bool
 	}{
 		{
-			name:          "memory on and skills on",
+			name:          "Should compose startup with memory on and skills on",
 			memoryEnabled: true,
 			skillsEnabled: true,
 			wantMemory:    true,
 			wantSkills:    true,
 		},
 		{
-			name:          "memory on and skills off",
+			name:          "Should compose startup with memory on and skills off",
 			memoryEnabled: true,
 			skillsEnabled: false,
 			wantMemory:    true,
 			wantSkills:    false,
 		},
 		{
-			name:          "memory off and skills on",
+			name:          "Should compose startup with memory off and skills on",
 			memoryEnabled: false,
 			skillsEnabled: true,
 			wantMemory:    false,
 			wantSkills:    true,
 		},
 		{
-			name:          "memory off and skills off",
+			name:          "Should compose startup with memory off and skills off",
 			memoryEnabled: false,
 			skillsEnabled: false,
 			wantMemory:    false,
@@ -6351,12 +6351,12 @@ func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	if wantSkills {
 		fragments = append(fragments, "<available-skills>", "compozy")
 	}
-	fragments = append(fragments, "# Tools And Skills", "# Native Tools")
+	fragments = append(fragments, "# CompozyOS")
 	return fragments
 }
 
 func excludedFragments(wantMemory bool, wantSkills bool) []string {
-	fragments := make([]string, 0, 2)
+	fragments := []string{"# Tools And Skills", "# Native Tools"}
 	if !wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}

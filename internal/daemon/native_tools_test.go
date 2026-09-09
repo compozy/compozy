@@ -2639,37 +2639,98 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
 		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
-		viewResult, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{Operator: true},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDSkillView,
-				Input:  json.RawMessage(`{"name":"compozy","file":"references/memory.md"}`),
-			},
+		artifactStore := openDaemonTestToolArtifactStore(t)
+		workspaceResolver := nativeNetworkTestWorkspaceService(t)
+		const reducedBudget = 32 << 10
+		sessions := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-skills"),
+			agent:              testPromptAgent("Read the requested skill resource."),
+		}
+		boundedRegistry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Skills: skillRegistry, HomePaths: homePaths, ToolArtifacts: artifactStore, Sessions: sessions,
+			Workspaces: workspaceResolver, WorkspaceResolver: workspaceResolver,
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), nil,
+			toolspkg.WithDefaultMaxResultBytes(reducedBudget),
+			toolspkg.WithResultProcessor(toolspkg.NewResultProcessor(reducedBudget, artifactStore)),
 		)
-		if err != nil {
-			t.Fatalf("Registry.Call(skill_view) error = %v", err)
+		for _, target := range []struct {
+			name        string
+			registry    *toolspkg.RuntimeRegistry
+			scope       toolspkg.Scope
+			wantOffload bool
+		}{
+			{name: "Should read references with the default result budget", registry: registry, scope: toolspkg.Scope{Operator: true}},
+			{name: "Should recover references through workspace-scoped result pages", registry: boundedRegistry, scope: toolspkg.Scope{WorkspaceID: "ws-skills", SessionID: "sess-skills", AgentName: "coder"}, wantOffload: true},
+		} {
+			t.Run(target.name, func(t *testing.T) {
+				for _, resource := range []string{"references/memory.md", "references/tools-and-skills.md", "references/native-tools.md"} {
+					input, err := json.Marshal(map[string]string{"name": "compozy", "file": resource})
+					if err != nil {
+						t.Fatal(err)
+					}
+					viewResult, err := target.registry.Call(
+						t.Context(),
+						target.scope,
+						toolspkg.CallRequest{
+							ToolID: toolspkg.ToolIDSkillView,
+							Input:  input,
+						},
+					)
+					if err != nil {
+						t.Fatalf("Registry.Call(skill_view) error = %v", err)
+					}
+					if resource == "references/native-tools.md" && viewResult.Truncated != target.wantOffload {
+						t.Fatalf(
+							"skill_view(%s) truncated = %t, want %t",
+							resource,
+							viewResult.Truncated,
+							target.wantOffload,
+						)
+					}
+					if viewResult.Truncated {
+						viewResult = readNativeRetainedResult(t, target.registry, target.scope, viewResult)
+					}
+					skill, ok := skillRegistry.Get("compozy")
+					if !ok {
+						t.Fatal("Registry.Get(compozy) found = false, want true")
+					}
+					expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, resource)
+					if err != nil {
+						t.Fatalf("Registry.LoadResource(%s) error = %v", resource, err)
+					}
+					var viewPayload struct {
+						Content string `json:"content"`
+					}
+					if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+						t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
+					}
+					if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
+						viewResult.Content[0].Text != diagnostics.Redact(expectedContent) {
+						t.Fatalf(
+							"skill_view(%s) resource mismatch: expected=%d structured=%d text_blocks=%d truncated=%t artifacts=%d redactions=%v",
+							resource,
+							len(expectedContent),
+							len(viewPayload.Content),
+							len(viewResult.Content),
+							viewResult.Truncated,
+							len(viewResult.Artifacts),
+							viewResult.Redactions,
+						)
+					}
+					if diagnostics.Redact(expectedContent) != expectedContent && len(viewResult.Redactions) == 0 {
+						t.Fatalf("skill_view(%s) omitted display redaction metadata", resource)
+					}
+					t.Logf(
+						"%s: full structured bytes=%d, display redactions=%d",
+						resource,
+						len(viewPayload.Content),
+						len(viewResult.Redactions),
+					)
+					requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
+					requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
+				}
+			})
 		}
-		skill, ok := skillRegistry.Get("compozy")
-		if !ok {
-			t.Fatal("Registry.Get(compozy) found = false, want true")
-		}
-		expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, "references/memory.md")
-		if err != nil {
-			t.Fatalf("Registry.LoadResource(memory) error = %v", err)
-		}
-		var viewPayload struct {
-			Content string `json:"content"`
-		}
-		if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
-			t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
-		}
-		if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
-			viewResult.Content[0].Text != expectedContent {
-			t.Fatalf("skill_view did not return the resolved bundled resource")
-		}
-		requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
-		requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
 	})
 
 	t.Run("Should classify skill resource lookup failures", func(t *testing.T) {
@@ -11956,6 +12017,60 @@ func (p *recordingNativeWorkspaceAccessPolicy) Authorize(
 	return p.decision, p.err
 }
 
+func readNativeRetainedResult(
+	t *testing.T,
+	registry *toolspkg.RuntimeRegistry,
+	scope toolspkg.Scope,
+	result toolspkg.ToolResult,
+) toolspkg.ToolResult {
+	t.Helper()
+	if len(result.Artifacts) != 1 {
+		t.Fatalf("truncated result has %d artifacts, want one retained envelope", len(result.Artifacts))
+	}
+	var retained []byte
+	for offset := int64(0); ; {
+		input, err := json.Marshal(nativeToolArtifactReadInput{
+			ArtifactURI: result.Artifacts[0].URI, Offset: offset, Limit: 4096,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pageResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolArtifactRead, Input: input,
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(tool_artifact_read) error = %v", err)
+		}
+		if pageResult.Truncated {
+			t.Fatal("bounded artifact page was truncated")
+		}
+		var page toolspkg.ToolArtifactPage
+		if err := json.Unmarshal(pageResult.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		retained = append(retained, decoded...)
+		if page.EOF {
+			if int64(len(retained)) != page.TotalBytes {
+				t.Fatalf("retained bytes = %d, want complete envelope of %d bytes", len(retained), page.TotalBytes)
+			}
+			break
+		}
+		if page.NextOffset <= offset {
+			t.Fatal("artifact continuation made no progress")
+		}
+		offset = page.NextOffset
+	}
+	var full toolspkg.ToolResult
+	if err := json.Unmarshal(retained, &full); err != nil {
+		t.Fatalf("decode retained result: %v", err)
+	}
+	return full
+}
+
 func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
 	t.Helper()
 	store, err := toolspkg.OpenFilesystemToolArtifactStore(
@@ -12869,6 +12984,7 @@ func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
 	deps *daemonNativeToolsDeps,
 	resolver toolspkg.PolicyInputResolver,
 	workspaceAccess workspaceaccess.Policy,
+	options ...toolspkg.RegistryOption,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
 
@@ -12888,7 +13004,7 @@ func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
 		t.Fatalf("builtin.ToolsetCatalog() error = %v", err)
 	}
 	workspaceBinder := newNativeWorkspaceInputBinder(deps.Workspaces, deps.Sessions, workspaceAccess, nil)
-	registry, err = toolspkg.NewRegistry(
+	registryOptions := []toolspkg.RegistryOption{
 		toolspkg.WithProviders(provider),
 		toolspkg.WithPolicyInputResolver(resolver, toolsets),
 		toolspkg.WithCallInputBinder(workspaceBinder),
@@ -12898,7 +13014,8 @@ func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
 			compozyconfig.DefaultToolsMaxResultBytes,
 			openDaemonTestToolArtifactStore(t),
 		)),
-	)
+	}
+	registry, err = toolspkg.NewRegistry(append(registryOptions, options...)...)
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
