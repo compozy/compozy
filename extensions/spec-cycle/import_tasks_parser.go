@@ -114,7 +114,7 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	payloads := make([]markdownTaskPayload, 0, len(ordered))
 	blocksByTarget := compozyTaskBlocksByTarget(manifest.Graph.Edges)
 	for _, taskFile := range ordered {
-		if compozyTaskStatusCompleted(taskFile.Meta.Status) {
+		if taskFile.Meta.Status == compozyTaskStatusCompletedValue {
 			continue
 		}
 		payloads = append(payloads, markdownTaskPayload{
@@ -382,7 +382,10 @@ func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error
 	if err := yaml.Unmarshal(parts.Metadata, &meta); err != nil {
 		return compozyTaskFrontmatter{}, "", err
 	}
-	meta.Status = strings.TrimSpace(meta.Status)
+	meta.Status, err = normalizeCompozyTaskStatus(meta.Status)
+	if err != nil {
+		return compozyTaskFrontmatter{}, "", err
+	}
 	meta.Title = strings.TrimSpace(meta.Title)
 	meta.Type = strings.TrimSpace(meta.Type)
 	meta.Complexity = strings.TrimSpace(meta.Complexity)

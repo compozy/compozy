@@ -52,6 +52,46 @@ func TestRPCServerShouldCallImportTasksTool(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return a passing completion verdict over tools call", func(t *testing.T) {
+		t.Parallel()
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+		for index, status := range []string{"complete", "done", "finished"} {
+			writeImportTaskFile(t, tasksDir, fmt.Sprintf("task_%02d.md", index+1), status, "Finished", "# Finished\n")
+		}
+		response := runToolRPC(
+			t,
+			toolImportTasks,
+			json.RawMessage(fmt.Sprintf(`{"pattern":%q}`, filepath.Join(tasksDir, "task_*.md"))),
+			nil,
+		)
+		if response.Error != nil {
+			t.Fatalf("tools/call error = %#v", response.Error)
+		}
+		if got := string(response.Result.Result.Structured); got != `{"tasks":[],"count":0,"passed":true}` {
+			t.Fatalf("tools/call output = %s, want empty tasks and passing verdict", got)
+		}
+	})
+
+	t.Run("Should report unknown status before dispatch over tools call", func(t *testing.T) {
+		t.Parallel()
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+		writeImportTaskFile(t, tasksDir, "task_01.md", "compeleted", "Invalid", "# Invalid\n")
+		writeImportTaskFile(t, tasksDir, "task_02.md", "pending", "Pending", "# Pending\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Finished", "# Finished\n")
+		response := runToolRPC(
+			t,
+			toolImportTasks,
+			json.RawMessage(fmt.Sprintf(`{"pattern":%q}`, filepath.Join(tasksDir, "task_*.md"))),
+			nil,
+		)
+		if response.Error == nil || !strings.Contains(response.Error.Message, `unknown task status "compeleted"`) {
+			t.Fatalf("tools/call error = %#v, want visible unknown status", response.Error)
+		}
+		assertInvalidInputToolError(t, response.Error.Data)
+	})
+
 	t.Run("Should surface missing pattern validation over tools call", func(t *testing.T) {
 		t.Parallel()
 

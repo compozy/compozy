@@ -44,6 +44,7 @@ func (e *Evaluator) evaluateExtension(
 		input = []byte("{}")
 	}
 	req := tools.CallRequest{
+		TrustedWorkspaceRoot: in.TrustedWorkspaceRoot,
 		ToolID:               tools.ToolID(extensionToolID(criterion)),
 		ToolCallID:           fmt.Sprintf("%s:%s", gate.ID, criterion.ID),
 		SessionID:            in.ToolScope.SessionID,

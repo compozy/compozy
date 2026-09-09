@@ -67,11 +67,12 @@ type MarkJudgeAmbiguousRequest struct {
 
 // JudgeRequest carries the pinned criteria for one evaluator operation.
 type JudgeRequest struct {
-	AttemptID string
-	Key       TurnKey
-	Turn      int
-	Criteria  []dsl.GateCriterion
-	Result    loop.ActionPromptResult
+	Environment dsl.EnvironmentSpec
+	AttemptID   string
+	Key         TurnKey
+	Turn        int
+	Criteria    []dsl.GateCriterion
+	Result      loop.ActionPromptResult
 }
 
 // JudgeResult carries the evaluator verdict and nullable-token truth.

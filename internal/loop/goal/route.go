@@ -102,12 +102,17 @@ func (e *Executor) executeJudgeAttempt(
 	if attempt.Status != judgeAttemptStatusRunning {
 		return nil, fmt.Errorf("%w: Goal judge attempt status %q cannot execute", loop.ErrValidation, attempt.Status)
 	}
+	environment, err := loop.ResolveActionEnvironment(segment.params.Environment, segment.input.EnvironmentValue())
+	if err != nil {
+		return nil, fmt.Errorf("resolve Goal judge environment: %w", err)
+	}
 	judgeResult, evaluateErr := e.judge.EvaluateGoal(ctx, JudgeRequest{
-		AttemptID: attempt.AttemptID,
-		Key:       segment.key,
-		Turn:      attempt.Turn,
-		Criteria:  append([]dsl.GateCriterion(nil), segment.params.Judge...),
-		Result:    result,
+		Environment: environment,
+		AttemptID:   attempt.AttemptID,
+		Key:         segment.key,
+		Turn:        attempt.Turn,
+		Criteria:    append([]dsl.GateCriterion(nil), segment.params.Judge...),
+		Result:      result,
 	})
 	if evaluateErr != nil {
 		judgeResult = brokenJudgeResult(evaluateErr)

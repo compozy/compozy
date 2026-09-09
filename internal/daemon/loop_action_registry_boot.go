@@ -57,6 +57,7 @@ func newBootLoopActionRegistry(
 			goalRuntime,
 			gateEvaluator,
 			judgeExecutions,
+			&loopActionToolWorkspaceRootResolver{worktrees: worktrees},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: compose Goal executor: %w", err)

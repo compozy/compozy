@@ -218,6 +218,13 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		if len(judge.calls) != 1 {
 			t.Fatalf("judge calls = %d, want 1", len(judge.calls))
 		}
+		if judge.calls[0].Environment != binder.binds[0].EnvironmentValue() {
+			t.Fatalf(
+				"judge environment = %#v, want the materialized session environment %#v",
+				judge.calls[0].Environment,
+				binder.binds[0].EnvironmentValue(),
+			)
+		}
 		payload, ok := judge.calls[0].Criteria[0].Inputs["payload"].(map[string]any)
 		if !ok || payload["completed"] != true {
 			t.Fatalf("judge payload = %#v, want typed JSON object", judge.calls[0].Criteria[0].Inputs)

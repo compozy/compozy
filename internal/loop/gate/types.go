@@ -104,6 +104,7 @@ type GateInput struct {
 	BrokenJudgeStreakLimit   int
 	BestScore                *float64
 	HumanDecisions           map[string]HumanDecision
+	TrustedWorkspaceRoot     string
 	ToolScope                tools.Scope
 	ToolCallCorrelationID    string
 	ToolSensitiveInputFields []string

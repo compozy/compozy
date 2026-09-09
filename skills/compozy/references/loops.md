@@ -663,7 +663,7 @@ The `implementer` input selects the worker Agent for both paths and defaults to 
 The default path imports the task graph and runs one isolated action with that Agent per task. The
 orchestrated path runs the bundled `orchestrator` Agent continuously and instructs it to follow
 `cy-orchestrate-tasks`: start one bounded worker with the selected Agent per task, dispatch a
-blocking prompt, accept only `status: completed` on disk, and stop the worker on every path.
+blocking prompt, verify completion on disk and its evidence, and stop the worker on every path.
 
 Four optional runtime inputs select `orchestrator_runtime`, `backend_runtime`, `frontend_runtime`,
 and `default_runtime`. The category match uses exact task frontmatter type; all other types use the
@@ -671,9 +671,16 @@ default. Empty inputs fall through to agent and config defaults. Task frontmatte
 the category input field by field. The conductor passes every supplied provider, model, reasoning,
 and speed value through `compozy spawn`.
 
-A command judge passes only when every `.compozy/tasks/<slug>/task_*.md` carries
-`status: completed` and no conductor-created worker survives. The Goal's result uses status
-`complete|blocked`; task frontmatter continues to use `completed`.
+The task importer and extension completion judge share one YAML parser over the manifest's task
+files. Write `status: completed`; existing `complete`, `done`, and `finished` values also count as
+completed, ignoring case and surrounding whitespace. Only `pending` and `in_progress` are queued.
+Unknown or missing states fail validation before dispatch. Importing reads files without rewriting
+them, and rerunning a finished task set dispatches no task workers.
+
+`ext__spec_cycle__import_tasks` returns `tasks`, `count`, and `passed`; `passed` is true exactly when
+the valid task set contains no unfinished tasks. The Goal's extension judge consumes that verdict;
+a separate command judge checks that no conductor-created worker survives. The Goal JSON result
+uses `complete|blocked`, independently of task frontmatter.
 
 ## Agent-Authored Review and Fix
 

@@ -42,6 +42,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			inertLoopGoalRuntime{},
 			inertGateEvaluator{},
 			newLoopJudgeExecutionRegistry(),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor() error = %v", err)
@@ -96,6 +97,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			runtime,
 			inertGateEvaluator{},
 			newLoopJudgeExecutionRegistry(),
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor(real Manager) error = %v", err)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -54,6 +55,17 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		})
 		assertImplementTasksPerTaskRuntimes(t, detail)
 		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
+	})
+
+	t.Run("Should dispatch unfinished tasks once and skip completed aliases on rerun", func(t *testing.T) {
+		t.Parallel()
+		harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
+		setImplementTasksStatuses(t, harness.WorkspaceRoot, []string{"done", "complete", "in_progress"})
+		detail := runImplementTasksE2E(t, ctx, harness, nil)
+		assertImplementTasksExecutedNodes(t, detail, []string{"execute_backend"})
+		setImplementTasksStatuses(t, harness.WorkspaceRoot, []string{"done", "complete", "finished"})
+		rerun := runImplementTasksE2E(t, ctx, harness, nil)
+		assertImplementTasksExecutedNodes(t, rerun, nil)
 	})
 
 	t.Run("Should import a worktree-only task pack and bind its workers to that worktree", func(t *testing.T) {
@@ -100,6 +112,61 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		assertImplementTasksWorkerWorktree(t, ctx, harness, detail, ready.Worktree.ID)
 	})
 
+	t.Run("Should judge task completion in the selected worktree instead of the main workspace", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := initWorktreeE2ERepository(t)
+		harness, ctx := startImplementTasksE2EHarnessAt(t, implementTasksImplementer, workspaceRoot)
+		runWorktreeE2EGit(t, ctx, workspaceRoot, "add", ".")
+		runWorktreeE2EGit(t, ctx, workspaceRoot, "commit", "-m", "seed task completion judge pack")
+		created := createWorktreeE2E(t, ctx, harness, harness.WorkspaceID, "Completion Judge")
+		ready := waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, created.ID, worktreepkg.StateReady)
+		configureExtensionAgentFixture(t, ctx, harness, extensionAgentFixtureConfig{
+			DriverPath: acpmock.RequireDriver(t), FixturePath: mockFixturePath(t, "goal_command_fixture.json"),
+			FixtureAgentName: "goal_rejections", ExtensionAgentName: implementTasksOrchestrator,
+			DiagnosticsPath: filepath.Join(harness.HomePaths.LogsDir, "completion-judge.jsonl"),
+		})
+		// Opposite states prove the extension reads the selected root on every evaluation.
+		for index, scenario := range []struct {
+			nodeEnvironment  map[string]any
+			mainStatuses     []string
+			worktreeStatuses []string
+			wantStatus       contract.LoopRunStatus
+			wantVerdict      string
+		}{
+			{nil, []string{"pending", "in_progress", "pending"}, []string{"complete", "done", "finished"}, contract.LoopRunStatusDone, "approved"},
+			{nil, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusExhausted, "rejected"},
+			{map[string]any{"mode": "root"}, []string{"complete", "done", "finished"}, []string{"pending", "in_progress", "pending"}, contract.LoopRunStatusDone, "approved"},
+		} {
+			definition := implementTasksCompletionJudgeDefinition()
+			definition.Meta.Name += "-" + strconv.Itoa(index)
+			if scenario.nodeEnvironment != nil {
+				definition.Graph.Nodes[0].Params["environment"] = scenario.nodeEnvironment
+			}
+			createLoopViaHTTP(t, ctx, harness, definition)
+			setImplementTasksStatuses(t, workspaceRoot, scenario.mainStatuses)
+			setImplementTasksStatuses(t, ready.Worktree.Path, scenario.worktreeStatuses)
+			var response contract.RunLoopResponse
+			path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops/" + definition.Meta.Name + "/run"
+			request := contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{
+				Environment: &contract.LoopEnvironment{
+					Mode:        contract.LoopEnvironmentModeWorktree,
+					WorktreeRef: ready.Worktree.ID,
+				},
+			}}
+			if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
+				t.Fatalf("HTTP run completion judge error = %v", err)
+			}
+			if response.Run == nil {
+				t.Fatal("completion judge returned no run")
+			}
+			waitForLoopRunStatus(t, ctx, harness, response.Run.ID, scenario.wantStatus)
+			turns := waitForGoalTurns(ctx, t, harness, response.Run.ID, func(page contract.GoalTurnPage) bool {
+				return len(page.Turns) == 1 && page.Turns[0].ResultStatus != nil
+			})
+			assertGoalJudgeOutcomes(t, turns, []string{scenario.wantVerdict})
+		}
+	})
+
 	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
 		t.Parallel()
 
@@ -107,6 +174,11 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		detail := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
 		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
 		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
+		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksImplementer)
+		setImplementTasksStatuses(t, harness.WorkspaceRoot, []string{"complete", "done", "finished"})
+		rerun := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
+		assertImplementTasksExecutedNodes(t, rerun, nil)
+		assertImplementTasksRoute(t, rerun, "orchestrate", "route_not_taken:select_delivery")
 		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksImplementer)
 	})
 
@@ -923,5 +995,76 @@ func unsupportedSpeedResolution(requested speed.Speed) *contract.SpeedResolution
 		Requested: requested,
 		Status:    speed.ResolutionUnsupported,
 		Reason:    speed.ReasonCapabilityAbsent,
+	}
+}
+
+func setImplementTasksStatuses(t testing.TB, root string, statuses []string) {
+	t.Helper()
+	for index, status := range statuses {
+		path := filepath.Join(
+			root,
+			".compozy",
+			"tasks",
+			implementTasksE2ESlug,
+			fmt.Sprintf("task_%02d.md", index+1),
+		)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(task) error = %v", err)
+		}
+		lines := strings.Split(string(content), "\n")
+		for line := range lines {
+			if strings.HasPrefix(lines[line], "status:") {
+				lines[line] = "status: " + status
+				break
+			}
+		}
+		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+			t.Fatalf("WriteFile(task) error = %v", err)
+		}
+	}
+}
+
+func assertImplementTasksExecutedNodes(t testing.TB, detail contract.LoopRunResponse, want []string) {
+	t.Helper()
+	var got []string
+	for _, generation := range detail.Generations {
+		for _, output := range generation.Outputs {
+			if strings.HasPrefix(output.NodeID, "execute_") && output.ResolvedRuntime != nil {
+				got = append(got, output.NodeID)
+			}
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("executed task nodes = %v, want %v", got, want)
+	}
+}
+
+func implementTasksCompletionJudgeDefinition() contract.LoopDefinitionDocument {
+	return contract.LoopDefinitionDocument{
+		APIVersion: dsl.APIVersion, Kind: dsl.KindLoop,
+		Meta: dsl.Meta{Name: "task-completion-judge", Version: 1},
+		Contract: dsl.Contract{
+			Goal: "Judge the selected task pack", DefinitionOfDone: "The selected pack is complete",
+			IterationCap: 1, NoProgress: dsl.NoProgress{Window: 1},
+			Budget: dsl.Budget{WallClockSec: 60, OnExceeded: dsl.BudgetExceededHalt},
+		},
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "completion", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal),
+			Session: &dsl.SessionSpec{Mode: dsl.SessionModeContinuous},
+			Params: dsl.NodeParams{
+				"agent": implementTasksOrchestrator, "objective": "Report task completion for independent validation",
+				"max_turns": 1, "on_exhausted": dsl.GoalOnExhaustedHalt,
+				"judge": []any{map[string]any{
+					"id": "tasks_completed", "type": "extension", "tool": "ext__spec_cycle__import_tasks",
+					"inputs": map[string]any{"pattern": ".compozy/tasks/implement-tasks/task_*.md"},
+				}},
+				"output_schema": map[string]any{
+					"type": "object", "required": []any{"status"},
+					"properties": map[string]any{"status": map[string]any{"enum": []any{"complete", "blocked"}}},
+				},
+			},
+		}}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{Start: []dsl.StartBinding{{Kind: "http"}}},
 	}
 }
