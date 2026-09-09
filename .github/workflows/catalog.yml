@@ -24,5 +24,8 @@ jobs:
         with:
           go-version: "1.26.4"
 
+      - name: Test herdr bridge runtime
+        run: python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v
+
       - name: Validate catalog documents
         run: go run ./cmd/compozy-catalog validate ./catalog

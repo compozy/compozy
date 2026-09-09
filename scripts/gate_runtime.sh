@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Machine-capacity and content-fingerprint support for gate.sh.
+# Machine-capacity, fingerprint, and classification output support for gate.sh.
 # Sourced after gate.sh defines log, die, and GATE_SLOT.
 
 gate_slot_root() {
@@ -100,3 +100,33 @@ lane_fingerprint() (
     fi
   } | git hash-object --stdin
 )
+
+print_classification() {
+  log "changed files: $CHANGED_COUNT (base: $(resolve_base))"
+	if [ -n "$CI_FULL_REASONS" ]; then
+		log "changes requiring the full PR CI gate:"
+		printf '%s' "$CI_FULL_REASONS" | sort -u | sed 's/^/[gate]   /'
+  fi
+	if [ -n "$GO_SCOPES" ]; then
+		log "go scopes: $(normalized_go_scopes | tr '\n' ' ')"
+  fi
+  if [ "$SDK_GO" -eq 1 ]; then
+    log "sdk/go lane: separate module (go -C sdk/go)"
+  fi
+	if [ -n "$JS_FILTERS" ]; then
+		log "js filters: $(printf '%s' "$JS_FILTERS" | sort -u | tr '\n' ' ')"
+	fi
+	if [ "$JS_ALL" -eq 1 ]; then
+		log "js lane: all workspaces"
+	fi
+	if [ "$CODEGEN_CHECK" -eq 1 ]; then
+		log "codegen lane: make codegen-check"
+	fi
+	if [ "$TOOLING_TEST" -eq 1 ]; then
+		log "tooling lanes: gate integration + mage tests"
+	fi
+  if [ "$CATALOG_CHECK" -eq 1 ]; then log "catalog lanes: production installer + bridge runtime tests"; fi
+  if [ "$NO_LANE_COUNT" -gt 0 ]; then
+    log "no-lane (docs/instructions/CI): $NO_LANE_COUNT files"
+  fi
+}

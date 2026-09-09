@@ -30,6 +30,7 @@ JS_FILTERS=""
 JS_ALL=0
 CODEGEN_CHECK=0
 TOOLING_TEST=0
+CATALOG_CHECK=0
 BASE_UNUSABLE=0
 UNCLASSIFIED_COUNT=0
 NO_LANE_COUNT=0
@@ -97,7 +98,7 @@ is_ci_full_trigger() {
 # Docs and agent instructions exercise no verify lane; extension and skill resource manifests do.
 is_no_lane() {
   case "$1" in
-    extensions/* | skills/*) return 1 ;;
+    catalog/* | extensions/* | skills/*) return 1 ;;
     */*.test) return 1 ;;
     *.test) [ ! -e "$1" ] && return 0; return 1 ;;
 		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
@@ -131,6 +132,7 @@ classify() {
     return
   fi
   case "$path" in
+    catalog/*) CATALOG_CHECK=1 ;;
     internal/*/*)
       pkg="${path#internal/}"
       GO_SCOPES="${GO_SCOPES}./internal/${pkg%%/*}/..."$'\n'
@@ -327,6 +329,10 @@ run_js_lanes() {
 }
 
 run_support_lanes() {
+	if [ "$CATALOG_CHECK" -eq 1 ]; then
+		run_lane catalog-validate go run ./cmd/compozy-catalog validate ./catalog
+		run_lane catalog-bridge-test python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v
+	fi
 	if [ "$CODEGEN_CHECK" -eq 1 ]; then
 		run_lane codegen-check make codegen-check
 		export COMPOZY_CODEGEN_CHECKED=1
@@ -337,34 +343,6 @@ run_support_lanes() {
 	fi
 }
 
-print_classification() {
-  log "changed files: $CHANGED_COUNT (base: $(resolve_base))"
-	if [ -n "$CI_FULL_REASONS" ]; then
-		log "changes requiring the full PR CI gate:"
-		printf '%s' "$CI_FULL_REASONS" | sort -u | sed 's/^/[gate]   /'
-  fi
-	if [ -n "$GO_SCOPES" ]; then
-		log "go scopes: $(normalized_go_scopes | tr '\n' ' ')"
-  fi
-  if [ "$SDK_GO" -eq 1 ]; then
-    log "sdk/go lane: separate module (go -C sdk/go)"
-  fi
-	if [ -n "$JS_FILTERS" ]; then
-		log "js filters: $(printf '%s' "$JS_FILTERS" | sort -u | tr '\n' ' ')"
-	fi
-	if [ "$JS_ALL" -eq 1 ]; then
-		log "js lane: all workspaces"
-	fi
-	if [ "$CODEGEN_CHECK" -eq 1 ]; then
-		log "codegen lane: make codegen-check"
-	fi
-	if [ "$TOOLING_TEST" -eq 1 ]; then
-		log "tooling lanes: gate integration + mage tests"
-	fi
-  if [ "$NO_LANE_COUNT" -gt 0 ]; then
-    log "no-lane (docs/instructions/CI): $NO_LANE_COUNT files"
-  fi
-}
 
 cmd_auto() {
 	classify_all
@@ -379,11 +357,11 @@ cmd_auto() {
 	if [ "$UNCLASSIFIED_COUNT" -gt 0 ]; then
 		die "cannot safely classify $UNCLASSIFIED_COUNT changed path(s); add an affected-lane mapping"
 	fi
-	if [ -n "$GO_SCOPES" ] || [ -n "$JS_FILTERS" ] || [ "$JS_ALL" -eq 1 ] || [ "$SDK_GO" -eq 1 ] || [ "$CODEGEN_CHECK" -eq 1 ] || [ "$TOOLING_TEST" -eq 1 ]; then
+	if [ -n "$GO_SCOPES" ] || [ -n "$JS_FILTERS" ] || [ "$JS_ALL" -eq 1 ] || [ "$SDK_GO" -eq 1 ] || [ "$CODEGEN_CHECK" -eq 1 ] || [ "$TOOLING_TEST" -eq 1 ] || [ "$CATALOG_CHECK" -eq 1 ]; then
 		acquire_gate_slot
 	fi
 	run_support_lanes
-	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ]; then
+	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
 		log "docs/instructions only — no gate required"
 		return 0
   fi
@@ -424,6 +402,10 @@ cmd_plan() {
 		log "would stop: add affected-lane mappings for unclassified paths"
 		return 0
 	fi
+	if [ "$CATALOG_CHECK" -eq 1 ]; then
+		log "would run: go run ./cmd/compozy-catalog validate ./catalog"
+		log "would run: python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v"
+	fi
 	if [ "$CODEGEN_CHECK" -eq 1 ]; then
 		log "would run: make codegen-check"
 	fi
@@ -448,7 +430,7 @@ cmd_plan() {
       log "would run: TURBO_CONCURRENCY=$(turbo_concurrency) bunx turbo run lint typecheck test --filter=$filter"
     done
   fi
-	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ]; then
+	if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$JS_ALL" -eq 0 ] && [ "$SDK_GO" -eq 0 ] && [ "$CODEGEN_CHECK" -eq 0 ] && [ "$TOOLING_TEST" -eq 0 ] && [ "$CATALOG_CHECK" -eq 0 ]; then
     log "would run: nothing (docs/instructions only)"
   fi
 }

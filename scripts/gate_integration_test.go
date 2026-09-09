@@ -298,6 +298,10 @@ exit 0
 			path string
 			want string
 		}{
+			{path: "catalog/extensions.json", want: "catalog lanes"},
+			{path: "catalog/packages/herdr-bridge/README.md", want: "catalog lanes"},
+			{path: "catalog/packages/herdr-bridge/bridge.py", want: "catalog lanes"},
+			{path: "catalog/artifacts/herdr-bridge-v0.3.3.tar.gz", want: "catalog lanes"},
 			{path: "go.mod", want: "go scopes: ./..."},
 			{path: "bun.lock", want: "js lane: all workspaces"},
 			{path: "Makefile", want: "tooling lanes"},
@@ -335,6 +339,16 @@ exit 0
 				}
 				if strings.Contains(output, "make verify") {
 					t.Fatalf("sensitive path planned local full verification:\n%s", output)
+				}
+				if strings.HasPrefix(tc.path, "catalog/") {
+					for _, command := range []string{
+						"would run: go run ./cmd/compozy-catalog validate ./catalog",
+						"would run: python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v",
+					} {
+						if !strings.Contains(output, command) {
+							t.Fatalf("catalog plan omitted %q:\n%s", command, output)
+						}
+					}
 				}
 				if !strings.Contains(output, tc.want) {
 					t.Fatalf("expected %q for %s, got:\n%s", tc.want, tc.path, output)
@@ -456,7 +470,10 @@ func runGate(t *testing.T, repo string, extraEnv []string, mode string) (string,
 	t.Helper()
 	cmd := exec.CommandContext(t.Context(), "bash", "scripts/gate.sh", mode)
 	cmd.Dir = repo
-	cmd.Env = replaceEnv(os.Environ(), append([]string{"GATE_BASE=HEAD"}, extraEnv...)...)
+	cmd.Env = replaceEnv(os.Environ(), append([]string{
+		"GATE_BASE=HEAD",
+		"COMPOZY_GATE_SLOT_DIR=" + filepath.Join(repo, ".cache", "gate-test-slots"),
+	}, extraEnv...)...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }

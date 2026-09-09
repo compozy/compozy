@@ -1,6 +1,6 @@
 {
     "manifest_version": 2,
-    "generated_at": "2026-08-19T01:14:05Z",
+    "generated_at": "2026-09-08T23:01:18Z",
     "entries": [
         {
             "entry_id": "repository-orientation",
@@ -29,6 +29,20 @@
             "format": "compozy",
             "author": "Francisross Soares de Oliveira",
             "repository": "https://github.com/franciscpd/batuta-compozy"
+        },
+        {
+            "entry_id": "herdr-bridge",
+            "name": "herdr bridge",
+            "description": "Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup",
+            "version": "0.3.3",
+            "published_at": "2026-09-08T15:26:31Z",
+            "install_slug": "AlexandreAkao/herdr-bridge-compozy",
+            "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/herdr-bridge-v0.3.3.tar.gz",
+            "digest_sha256": "79fcf4123cddff61046f073d155130327ad55fdcd5c6dc82368b0fb559a2b687",
+            "tier": "community",
+            "format": "compozy",
+            "author": "Alexandre Akira",
+            "repository": "https://github.com/AlexandreAkao/herdr-bridge-compozy"
         }
     ]
 }
