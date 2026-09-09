@@ -31,3 +31,8 @@ Phase C planning 2026-07-19: persona normalized to Théo and linked to J-11; com
 the in-place summary update with both source sessions in provenance, the byte-identical file after
 an injected provider failure, the decision-WAL revert restoring prior content, and the
 workspace-isolation probe.
+
+Regression #577: with memory explicitly enabled, queue multiple checkpoint summaries and block the
+active summary provider. Stop the daemon and verify cancellation stops pending summaries while
+leaving time for the memory provider and required resources to close before the outer deadline.
+Primary transcripts must remain readable after restart. This adds a QA check, not a completed verdict.

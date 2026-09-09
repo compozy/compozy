@@ -177,7 +177,7 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 		terminal acp.AgentEvent
 	}{
 		{name: "Should retain output on provider error", terminal: acp.AgentEvent{Type: acp.EventTypeError, Error: "disconnected"}},
-		{name: "Should reject a cancelled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "cancelled"}},
+		{name: "Should reject a canceled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: string(acp.PromptStopReasonCancelled)}},
 		{name: "Should reject a truncated terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "max_tokens"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
