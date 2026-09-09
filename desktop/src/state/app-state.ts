@@ -136,6 +136,7 @@ export class AppStatePublisher {
   #runtimeVersion: string | null = null;
   #runtimeOwned: boolean | null = null;
   #publication = Promise.resolve();
+  #closed = false;
 
   constructor(options: {
     path: string;
@@ -191,22 +192,27 @@ export class AppStatePublisher {
   }
 
   async publish(snapshot: ShellSnapshot): Promise<void> {
+    if (this.#closed) return;
     this.#snapshot = snapshot;
     await this.#persist();
   }
 
   async setRuntime(version: string | null, owned: boolean): Promise<void> {
+    if (this.#closed) return;
     this.#runtimeVersion = version;
     this.#runtimeOwned = owned;
     await this.#persist();
   }
 
   async setOperation(operation: UpdateOperation | null): Promise<void> {
+    if (this.#closed) return;
     this.#operation = operation;
     await this.#persist();
   }
 
   async markCleanShutdown(): Promise<void> {
+    this.#closed = true;
+    await this.#publication;
     if (this.#startupMarker) await removeStartupMarker(this.#startupMarker);
   }
 

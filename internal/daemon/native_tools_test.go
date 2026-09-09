@@ -2667,7 +2667,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					path        string
 					wantOffload bool
 				}{
-					{path: "references/memory.md"},
+					{path: "references/memory.md", wantOffload: true},
 					{path: "references/tools-and-skills.md", wantOffload: true},
 					{path: "references/native-tools.md", wantOffload: true},
 				} {

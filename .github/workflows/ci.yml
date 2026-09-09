@@ -161,8 +161,12 @@ jobs:
 
       - name: Install ripgrep
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes ripgrep
+          # Only Ubuntu supplies this dependency; unrelated runner repositories
+          # must not block preflight when their indexes are inconsistent.
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install --yes ripgrep
           rg --version
 
       - name: Set up Go

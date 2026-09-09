@@ -788,8 +788,10 @@ async function startBlockingTurn(
   sessionID: string,
   prompt = "block until canceled"
 ): Promise<void> {
+  const acceptedResponse = promptResponse(ui.composerTextarea.page(), workspaceID, sessionID);
   await ui.composerTextarea.fill(prompt);
   await ui.composerTextarea.press("Enter");
+  expect((await acceptedResponse).status()).toBe(200);
   await expect(ui.chatView).toContainText(prompt);
   await expect(ui.composerStopButton).toBeVisible();
   await expect

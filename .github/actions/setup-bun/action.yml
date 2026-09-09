@@ -61,6 +61,18 @@ runs:
         restore-keys: |
           ${{ runner.os }}-playwright-
 
+    - name: Select Ubuntu system dependency sources
+      if: inputs.install-playwright == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        # Playwright downloads its own Chromium. System libraries and Openbox
+        # come from Ubuntu, without depending on the runner's Chrome repository.
+        test -f /etc/apt/sources.list.d/ubuntu.sources
+        sudo tee /etc/apt/apt.conf.d/99compozy-sources >/dev/null <<'EOF'
+        Dir::Etc::sourcelist "sources.list.d/ubuntu.sources";
+        Dir::Etc::sourceparts "-";
+        EOF
+
     - name: Install Playwright browsers
       if: inputs.install-playwright == 'true'
       shell: bash

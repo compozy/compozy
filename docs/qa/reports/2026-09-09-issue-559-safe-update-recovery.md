@@ -72,3 +72,9 @@ The follow-up CLI race test passed (2.391 seconds); the final daemon boot integr
 
 
 Final packaged follow-up: the owner `build:e2e-update` generator completed, then Playwright ran under the shared machine verification lock. Four scenarios passed in 25.9 seconds: bootstrap quit preserving the daemon (2.7s), packaged security/DevTools (11.0s), staged update during boot failure (10.9s), and rejected unverified runtime execution (0.9s). All fixture teardown completed. The preceding Linux CI head had passed 27/28 desktop scenarios but lost the Electron debugging connection in E2E-034; its job log and artifact were inspected. The same security scenario passed locally on macOS, so Linux current-head CI remains required rather than claiming a proven cross-platform fix for that isolated failure.
+
+## Main integration follow-up
+
+The merged publisher regression failed on Linux: `markCleanShutdown()` removed the startup marker while a queued publication could recreate it. The publisher now closes admission to new publications, drains its existing serialization chain, and then removes the marker. Existing assertions remain unchanged, including preservation of the final state record after late callbacks. Root Turborepo desktop test/typecheck/lint passed (137 tests, zero lint warnings/errors).
+
+This updates the cross-surface audit above: only host-local desktop publication lifetime changes. Native tools, HTTP/UDS, extension/hooks/config, workspace data, official skill instructions, and Web product behavior retain their existing contracts. No persistence shape or migration changes. The rebuilt macOS Electron package passed both existing shutdown/relaunch scenarios under the shared verification lock (2 tests, 18.7 seconds), including fixture teardown. Consolidated CI is tracked by the main delivery commit.

@@ -39,3 +39,5 @@ Staged recovery verifies the packaged runtime digest before any transition-clien
 ### Bootstrap shutdown coordination
 
 A staged app installer can run before runtime readiness, after bundle verification. Before installer handoff or shell shutdown, the desktop cancels and awaits its bootstrap observer, preserves the detached daemon, and prevents late product-window publication. A later successful daemon startup reconciles superseded `starting` restart observations without changing the current restart operation or restoring an older binary. Verified by the issue #559 shell and daemon boot integration evidence in `../reports/2026-09-09-issue-559-safe-update-recovery.md`.
+
+Clean shell shutdown drains already queued app-state publications before removing the startup marker. Later runtime/update callbacks cannot rewrite the state record or recreate the marker. The existing desktop app-state publisher suite owns the concurrent-publication regression; the packaged bootstrap-quit and relaunch scenarios verify the shutdown integration.

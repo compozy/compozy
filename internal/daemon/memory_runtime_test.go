@@ -26,24 +26,28 @@ import (
 func TestDaemonMemoryExtractorSkipsSubagentWorkspaceRootCache(t *testing.T) {
 	t.Parallel()
 
-	workspaceRoots := &sync.Map{}
-	extractor := &daemonMemoryExtractor{
-		runtime:        &extractorpkg.Runtime{},
-		workspaceRoots: workspaceRoots,
-	}
-	payload := hookspkg.SessionMessagePersistedPayload{
-		SessionContext: hookspkg.SessionContext{
-			SessionID: "sess-auto-title", Workspace: t.TempDir(), WorkspaceID: "ws-1",
-		},
-		ParentSessionID: "sess-parent",
-		ActorKind:       "agent_subagent",
-	}
-	if err := extractor.HandleSessionMessagePersisted(testutil.Context(t), payload); err != nil {
-		t.Fatalf("HandleSessionMessagePersisted() error = %v", err)
-	}
-	if _, loaded := workspaceRoots.Load(payload.SessionID); loaded {
-		t.Fatalf("workspaceRoots[%q] retained a subagent entry", payload.SessionID)
-	}
+	t.Run("Should skip subagent workspace root caching", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoots := &sync.Map{}
+		extractor := &daemonMemoryExtractor{
+			runtime:        &extractorpkg.Runtime{},
+			workspaceRoots: workspaceRoots,
+		}
+		payload := hookspkg.SessionMessagePersistedPayload{
+			SessionContext: hookspkg.SessionContext{
+				SessionID: "sess-auto-title", Workspace: t.TempDir(), WorkspaceID: "ws-1",
+			},
+			ParentSessionID: "sess-parent",
+			ActorKind:       "agent_subagent",
+		}
+		if err := extractor.HandleSessionMessagePersisted(testutil.Context(t), payload); err != nil {
+			t.Fatalf("HandleSessionMessagePersisted() error = %v", err)
+		}
+		if _, loaded := workspaceRoots.Load(payload.SessionID); loaded {
+			t.Fatalf("workspaceRoots[%q] retained a subagent entry", payload.SessionID)
+		}
+	})
 }
 
 func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
@@ -177,7 +181,7 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 		terminal acp.AgentEvent
 	}{
 		{name: "Should retain output on provider error", terminal: acp.AgentEvent{Type: acp.EventTypeError, Error: "disconnected"}},
-		{name: "Should reject a cancelled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "cancelled"}},
+		{name: "Should reject a canceled terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: string(acp.PromptStopReasonCancelled)}},
 		{name: "Should reject a truncated terminal", terminal: acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "max_tokens"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
