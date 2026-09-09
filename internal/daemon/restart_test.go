@@ -1084,91 +1084,98 @@ func TestWaitForReadyReturnsFailureContextWhenPollingReadBreaks(t *testing.T) {
 	}
 }
 
+// TestWaitForReadyPreservesCancellationCause verifies canceling an observer does not claim the replacement failed.
 func TestWaitForReadyPreservesCancellationCause(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	store := newRestartStore(homePaths, sequentialTime([]time.Time{
-		time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
-		time.Date(2026, 4, 17, 12, 2, 0, 0, time.UTC),
-		time.Date(2026, 4, 17, 12, 3, 0, 0, time.UTC),
-		time.Date(2026, 4, 17, 12, 4, 0, 0, time.UTC),
-	}))
-	operation, err := store.Create(RestartOperation{
-		OperationID:        "restart-ready-canceled",
-		Status:             RestartStatusPending,
-		OldPID:             4242,
-		OldStartedAt:       time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
-		OldSocketPath:      homePaths.DaemonSocket,
-		ActiveSessionCount: 1,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	for _, status := range []RestartStatus{
-		RestartStatusStopping,
-		RestartStatusWaitingRelease,
-		RestartStatusStarting,
-	} {
-		operation, err = store.Transition(operation.OperationID, restartTransition{status: status})
+	t.Run("Should preserve cancellation without failing a live replacement", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		store := newRestartStore(homePaths, sequentialTime([]time.Time{
+			time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
+			time.Date(2026, 4, 17, 12, 2, 0, 0, time.UTC),
+			time.Date(2026, 4, 17, 12, 3, 0, 0, time.UTC),
+			time.Date(2026, 4, 17, 12, 4, 0, 0, time.UTC),
+		}))
+		operation, err := store.Create(RestartOperation{
+			OperationID:        "restart-ready-canceled",
+			Status:             RestartStatusPending,
+			OldPID:             4242,
+			OldStartedAt:       time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+			OldSocketPath:      homePaths.DaemonSocket,
+			ActiveSessionCount: 1,
+		})
 		if err != nil {
-			t.Fatalf("Transition(%s) error = %v", status, err)
+			t.Fatalf("Create() error = %v", err)
 		}
-	}
+		for _, status := range []RestartStatus{
+			RestartStatusStopping,
+			RestartStatusWaitingRelease,
+			RestartStatusStarting,
+		} {
+			operation, err = store.Transition(operation.OperationID, restartTransition{status: status})
+			if err != nil {
+				t.Fatalf("Transition(%s) error = %v", status, err)
+			}
+		}
 
-	waitBlocked := make(chan struct{})
-	helper := newRelaunchHelper(&RelaunchHelperConfig{
-		HomePaths:     homePaths,
-		OperationID:   operation.OperationID,
-		PollInterval:  5 * time.Millisecond,
-		ReadyTimeout:  time.Second,
-		ExitDrainWait: 50 * time.Millisecond,
+		waitBlocked := make(chan struct{})
+		helper := newRelaunchHelper(&RelaunchHelperConfig{
+			HomePaths:     homePaths,
+			OperationID:   operation.OperationID,
+			PollInterval:  5 * time.Millisecond,
+			ReadyTimeout:  time.Second,
+			ExitDrainWait: 50 * time.Millisecond,
+		})
+		var missingContext context.Context
+		if err := helper.waitForReady(missingContext, store, operation.OperationID, restartProcessStub{
+			pid: 9393,
+			wait: func() error {
+				return errors.New("replacement should not be observed without context")
+			},
+		}); err == nil || !strings.Contains(err.Error(), "context is required") {
+			t.Fatalf("waitForReady(nil context) error = %v", err)
+		}
+		ctx, cancel := context.WithCancelCause(testutil.Context(t))
+		cancel(errors.New("operator canceled restart"))
+
+		err = helper.waitForReady(ctx, store, operation.OperationID, restartProcessStub{
+			pid: 9393,
+			wait: func() error {
+				<-waitBlocked
+				return nil
+			},
+		})
+		close(waitBlocked)
+
+		if err == nil {
+			t.Fatal("waitForReady(canceled) error = nil, want cancellation error")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("waitForReady(canceled) error = %v, want context.Canceled", err)
+		}
+		if !strings.Contains(err.Error(), "operator canceled restart") ||
+			!strings.Contains(err.Error(), "replacement daemon readiness canceled") {
+			t.Fatalf("waitForReady(canceled) error = %v, want cancellation cause", err)
+		}
+		if strings.Contains(err.Error(), "did not become ready before timeout") {
+			t.Fatalf("waitForReady(canceled) error = %v, want cancellation instead of timeout", err)
+		}
+
+		persisted, err := store.Get(operation.OperationID)
+		if err != nil {
+			t.Fatalf("store.Get() error = %v", err)
+		}
+		if got, want := persisted.Status, RestartStatusStarting; got != want {
+			t.Fatalf("persisted.Status = %q, want %q", got, want)
+		}
+		if persisted.FailureReason != "" {
+			t.Fatalf(
+				"persisted.FailureReason = %q, want no persisted failure for an observation cancellation",
+				persisted.FailureReason,
+			)
+		}
 	})
-	var missingContext context.Context
-	if err := helper.waitForReady(missingContext, store, operation.OperationID, restartProcessStub{
-		pid: 9393,
-		wait: func() error {
-			return errors.New("replacement should not be observed without context")
-		},
-	}); err == nil || !strings.Contains(err.Error(), "context is required") {
-		t.Fatalf("waitForReady(nil context) error = %v", err)
-	}
-	ctx, cancel := context.WithCancelCause(testutil.Context(t))
-	cancel(errors.New("operator canceled restart"))
-
-	err = helper.waitForReady(ctx, store, operation.OperationID, restartProcessStub{
-		pid: 9393,
-		wait: func() error {
-			<-waitBlocked
-			return nil
-		},
-	})
-	close(waitBlocked)
-
-	if err == nil {
-		t.Fatal("waitForReady(canceled) error = nil, want cancellation error")
-	}
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("waitForReady(canceled) error = %v, want context.Canceled", err)
-	}
-	if !strings.Contains(err.Error(), "operator canceled restart") ||
-		!strings.Contains(err.Error(), "replacement daemon readiness canceled") {
-		t.Fatalf("waitForReady(canceled) error = %v, want cancellation cause", err)
-	}
-	if strings.Contains(err.Error(), "did not become ready before timeout") {
-		t.Fatalf("waitForReady(canceled) error = %v, want cancellation instead of timeout", err)
-	}
-
-	persisted, err := store.Get(operation.OperationID)
-	if err != nil {
-		t.Fatalf("store.Get() error = %v", err)
-	}
-	if got, want := persisted.Status, RestartStatusFailed; got != want {
-		t.Fatalf("persisted.Status = %q, want %q", got, want)
-	}
-	if !strings.Contains(persisted.FailureReason, "operator canceled restart") {
-		t.Fatalf("persisted.FailureReason = %q, want cancellation cause", persisted.FailureReason)
-	}
 }
 
 func TestRestartOperationFreshInfoCheck(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -156,6 +157,7 @@ func TestRelaunchHelperFailurePersistsAfterOldDaemonExit(t *testing.T) {
 	}
 }
 
+// TestBootMarksRestartOperationReadyAfterFreshDaemonInfo verifies real boot completes before readiness and reconciles abandoned restarts.
 func TestBootMarksRestartOperationReadyAfterFreshDaemonInfo(t *testing.T) {
 	t.Parallel()
 
@@ -198,6 +200,20 @@ func TestBootMarksRestartOperationReadyAfterFreshDaemonInfo(t *testing.T) {
 			}
 		}
 
+		abandoned := operation
+		abandoned.OperationID = "restart-abandoned-observer"
+		if _, err := store.Create(abandoned); err != nil {
+			t.Fatalf("create abandoned observation: %v", err)
+		}
+		// Unreadable historical metadata must not prevent recovery of valid observations or boot.
+		if err := os.WriteFile(
+			filepath.Join(homePaths.RestartsDir, "corrupt-history.json"),
+			[]byte("{"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+
 		d, err := New(
 			WithHomePaths(homePaths),
 			WithConfig(&cfg),
@@ -221,14 +237,50 @@ func TestBootMarksRestartOperationReadyAfterFreshDaemonInfo(t *testing.T) {
 			return os.Getenv(key)
 		}
 
+		helper := newRelaunchHelper(&RelaunchHelperConfig{HomePaths: homePaths, OperationID: operation.OperationID,
+			PollInterval: time.Millisecond, ReadyTimeout: time.Millisecond, ExitDrainWait: time.Millisecond})
+		childExit := make(chan struct{})
+		observed := make(chan error, 1)
+		go func() {
+			observed <- helper.waitForReady(t.Context(), store, operation.OperationID, restartProcessStub{
+				pid: 9393, wait: func() error { <-childExit; return nil },
+			})
+		}()
+		t.Cleanup(func() { close(childExit) })
+		timer := time.NewTimer(15 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case err := <-observed:
+			t.Fatalf("restart stopped observing a live boot: %v", err)
+		case <-timer.C:
+		}
+		pending, err := store.Get(operation.OperationID)
+		if err != nil || pending.Status != RestartStatusStarting {
+			t.Fatalf("pre-boot status = %#v, %v", pending, err)
+		}
 		if err := d.boot(testutil.Context(t)); err != nil {
 			t.Fatalf("boot() error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := d.Shutdown(testutil.Context(t)); err != nil {
-				t.Fatalf("Shutdown() error = %v", err)
+				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
+
+		completion := time.NewTimer(10 * time.Second)
+		defer completion.Stop()
+		select {
+		case err := <-observed:
+			if err != nil {
+				t.Fatalf("observe completed boot: %v", err)
+			}
+		case <-completion.C:
+			t.Fatal("restart observer did not complete")
+		}
+		reconciled, err := store.Get(abandoned.OperationID)
+		if err != nil || reconciled.Status != RestartStatusFailed || reconciled.CompletedAt == nil {
+			t.Fatalf("superseded restart = %#v, %v", reconciled, err)
+		}
 
 		persisted, err := store.Get(operation.OperationID)
 		if err != nil {

@@ -2,17 +2,14 @@ package daemon
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
-
 	"strings"
-
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	"github.com/compozy/compozy/internal/procutil"
 )
 
@@ -232,6 +229,8 @@ func (h *relaunchHelper) releaseConditionsMet(operation RestartOperation) (bool,
 	}
 }
 
+// waitForReady observes the replacement until readiness, process exit, or observer cancellation.
+// ReadyTimeout is a diagnostic window, not a migration deadline or progress watchdog.
 func (h *relaunchHelper) waitForReady(
 	ctx context.Context,
 	store *restartStore,
@@ -241,8 +240,8 @@ func (h *relaunchHelper) waitForReady(
 	if ctx == nil {
 		return errors.New("daemon: restart readiness context is required")
 	}
-	waitCtx, cancel := withTimeoutCap(ctx, h.cfg.ReadyTimeout)
-	defer cancel()
+	readinessWindow := time.NewTimer(h.cfg.ReadyTimeout)
+	defer readinessWindow.Stop()
 
 	processErrCh := make(chan error, 1)
 	go func() {
@@ -267,8 +266,21 @@ func (h *relaunchHelper) waitForReady(
 				operationID,
 				errReplacementDaemonExitedBeforeReady,
 			)
-		case <-waitCtx.Done():
-			return h.handleReadyWaitDone(ctx, waitCtx, store, operationID, processErrCh)
+		case <-ctx.Done():
+			return h.handleReadyWaitDone(ctx, store, operationID, processErrCh)
+		case <-readinessWindow.C:
+			if err := h.handleReadyWaitDone(ctx, store, operationID, processErrCh); err != nil {
+				return err
+			}
+			slog.InfoContext(
+				ctx,
+				"daemon: replacement is still starting; continuing readiness observation",
+				"operation_id",
+				operationID,
+				"pid",
+				process.PID(),
+			)
+			readinessWindow.Reset(h.cfg.ReadyTimeout)
 		case <-ticker.C:
 			operation, err := store.Get(operationID)
 			if err != nil {
@@ -288,15 +300,18 @@ func (h *relaunchHelper) waitForReady(
 	}
 }
 
+// handleReadyWaitDone preserves cancellation and records observed process exits without inferring failure from time.
 func (h *relaunchHelper) handleReadyWaitDone(
 	ctx context.Context,
-	waitCtx context.Context,
 	store *restartStore,
 	operationID string,
 	processErrCh <-chan error,
 ) error {
-	if err := replacementReadinessCanceledError(waitCtx); err != nil {
-		return h.fail(store, operationID, err)
+	if err := replacementReadinessCanceledError(ctx); err != nil {
+		return err
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	exited, err := waitForProcessExitAfterReadyTimeout(ctx, processErrCh, h.cfg.ExitDrainWait)
 	if exited {
@@ -311,7 +326,10 @@ func (h *relaunchHelper) handleReadyWaitDone(
 	}
 	if err != nil {
 		if cancelErr := replacementReadinessCanceledError(ctx); cancelErr != nil {
-			return h.fail(store, operationID, cancelErr)
+			return cancelErr
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		return h.fail(
 			store,
@@ -319,7 +337,7 @@ func (h *relaunchHelper) handleReadyWaitDone(
 			fmt.Errorf("daemon: wait for replacement daemon exit after readiness timeout: %w", err),
 		)
 	}
-	return h.fail(store, operationID, errors.New("daemon: replacement daemon did not become ready before timeout"))
+	return nil
 }
 
 func replacementReadinessCanceledError(ctx context.Context) error {

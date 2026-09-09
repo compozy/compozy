@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/procutil"
@@ -55,6 +56,8 @@ func (r *cliUpdateRuntime) AcquireMutationLock(context.Context) (compozyupdate.M
 	return lock, nil
 }
 
+// RestartDaemon observes the durable restart operation while the replacement API is unavailable.
+// The caller owns cancellation; elapsed polling windows do not establish boot failure.
 func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 	_, running, err := daemonInfo(r.homePaths, r.deps)
 	if err != nil {
@@ -72,8 +75,61 @@ func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = waitForSettingsRestart(ctx, r.deps, client, action.OperationID)
-	return err
+	for {
+		_, err = waitForSettingsRestart(
+			ctx,
+			r.deps,
+			localRestartStatusClient{homePaths: r.homePaths, remote: client},
+			action.OperationID,
+		)
+		if !errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+			return err
+		}
+		operation, readErr := compozydaemon.ReadRestartOperation(r.homePaths, action.OperationID)
+		if readErr != nil {
+			return errors.Join(err, readErr)
+		}
+		switch operation.Status {
+		case compozydaemon.RestartStatusReady:
+			return nil
+		case compozydaemon.RestartStatusFailed:
+			return errors.New(operation.FailureReason)
+		}
+	}
+}
+
+type localRestartStatusClient struct {
+	homePaths compozyconfig.HomePaths
+	remote    settingsRestartStatusClient
+}
+
+var _ settingsRestartStatusClient = localRestartStatusClient{}
+
+// GetSettingsRestartStatus reads the local validated journal and falls back remotely only when it is absent.
+func (c localRestartStatusClient) GetSettingsRestartStatus(
+	ctx context.Context,
+	operationID string,
+) (SettingsRestartStatusRecord, error) {
+	operation, err := compozydaemon.ReadRestartOperation(c.homePaths, operationID)
+	if errors.Is(err, compozydaemon.ErrRestartOperationNotFound) {
+		return c.remote.GetSettingsRestartStatus(ctx, operationID)
+	}
+	if err != nil {
+		return SettingsRestartStatusRecord{}, err
+	}
+	return SettingsRestartStatusRecord{
+		OperationID:        operation.OperationID,
+		Status:             contract.RestartOperationStatus(operation.Status),
+		OldPID:             operation.OldPID,
+		OldStartedAt:       operation.OldStartedAt,
+		OldSocketPath:      operation.OldSocketPath,
+		NewPID:             operation.NewPID,
+		ActiveSessionCount: operation.ActiveSessionCount,
+		FailureReason:      operation.FailureReason,
+		StartedAt:          operation.StartedAt,
+		UpdatedAt:          operation.UpdatedAt,
+		CompletedAt:        operation.CompletedAt,
+	}, nil
 }
 
 func (r *cliUpdateRuntime) HealthCheck(ctx context.Context) error {

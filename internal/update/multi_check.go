@@ -50,9 +50,14 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 	return ProjectMultiState(runtimeState, app, operation), release, checkErr
 }
 
+// applyArchivedRuntimeOutcome projects historical failures only until the installed runtime reaches their target.
 func applyArchivedRuntimeOutcome(runtime *State, archived *Operation) {
 	if runtime == nil || archived == nil || archived.Runtime == nil ||
 		archived.Runtime.Phase != PhaseRolledBack {
+		return
+	}
+	comparison, err := compareVersions(runtime.CurrentVersion, archived.Runtime.ToVersion)
+	if err == nil && comparison >= 0 {
 		return
 	}
 	runtime.Status = StatusFailed

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -398,4 +398,83 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
   } finally {
     await closeFixture(feed, restoreEnvironment);
   }
+});
+
+test("A staged app update starts while runtime bootstrap is failing", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const feed = await startMockFeed(fixture, { holdAsset: true });
+  let desktop: DesktopInstance | undefined;
+  try {
+    await configureFeed(packaged, feed.url);
+    const digest = await artifactDigest(fixture);
+    desktop = await launchDesktop({
+      executablePath: packaged.executablePath,
+      environment: await updaterEnvironment(fixture, packaged),
+      prepare: async ({ home }) => {
+        await mkdir(join(home, "compozy.db"));
+        await seedOperation(home, operation(fixture, digest));
+      },
+    });
+    const home = desktop.home;
+    await expect(async () => {
+      expect((await readAppRecord(home)).state).toBe("error");
+    }).toPass({ timeout: 30_000 });
+    await expect
+      .poll(
+        async () => {
+          const active = JSON.parse(
+            await readFile(join(home, "update-operation.json"), "utf8")
+          ) as {
+            app: { phase: string };
+          };
+          return active.app.phase;
+        },
+        { timeout: 30_000 }
+      )
+      .toBe("applying");
+    await desktop.boot.screenshot({
+      path: test.info().outputPath("update-during-bootstrap-failure.png"),
+    });
+  } finally {
+    try {
+      await desktop?.closeShell();
+    } finally {
+      await feed.close();
+    }
+  }
+});
+
+test("A staged app update never executes an unverified runtime bundle", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const digest = await artifactDigest(fixture);
+  const desktop = await launchDesktop({
+    executablePath: packaged.executablePath,
+    prepare: async ({ home, bundleRuntimePath }) => {
+      await writeFile(
+        bundleRuntimePath,
+        '#!/bin/sh\nprintf executed > "$COMPOZY_HOME/unverified-runtime-executed"\nexit 1\n',
+        { mode: 0o700 }
+      );
+      await seedOperation(home, operation(fixture, digest));
+    },
+  });
+  await expect(async () => {
+    const record = await readAppRecord(desktop.home);
+    expect(record.state).toBe("error");
+    expect(record.error).toMatchObject({
+      safe_message: expect.stringContaining("integrity check"),
+    });
+  }).toPass({ timeout: 30_000 });
+  await desktop.closeShell();
+  await expect(access(join(desktop.home, "unverified-runtime-executed"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
 });

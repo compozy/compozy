@@ -629,3 +629,24 @@ func TestBootstrapRemovesOnlyStaleDaemonRecords(t *testing.T) {
 		}
 	})
 }
+
+// TestBootstrapRuntimeVersionPolicy verifies that desktop bootstrap preserves compatible newer runtimes.
+func TestBootstrapRuntimeVersionPolicy(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, running, bundled string
+		newer                  bool
+	}{
+		{"Should preserve a newer prerelease daemon", "v0.3.0-beta.23", "0.3.0-beta.22", true},
+		{"Should preserve a newer stable daemon", "1.2.0", "1.1.0", true},
+		{"Should allow upgrading an older daemon", "0.3.0-beta.22", "0.3.0-beta.23", false},
+		{"Should compare equal versions without the tag prefix", "v1.0.0", "1.0.0", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := bootstrapRuntimeIsNewer(test.running, test.bundled); got != test.newer {
+				t.Fatalf("newer = %t, want %t", got, test.newer)
+			}
+		})
+	}
+}

@@ -49,6 +49,11 @@ func newRestartStore(homePaths compozyconfig.HomePaths, now func() time.Time) *r
 	}
 }
 
+// ReadRestartOperation reads restart progress without requiring a ready daemon.
+func ReadRestartOperation(homePaths compozyconfig.HomePaths, operationID string) (RestartOperation, error) {
+	return newRestartStore(homePaths, nil).Get(operationID)
+}
+
 func (s *restartStore) Create(operation RestartOperation) (RestartOperation, error) {
 	now := s.now().UTC()
 	if operation.Status == "" {

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"os"
@@ -67,6 +68,45 @@ func (d *Daemon) markRestartReadyIfRequested(info Info) error {
 		return fmt.Errorf("daemon: mark restart operation %q ready: %w", operationID, err)
 	}
 	return nil
+}
+
+// reconcileSupersededRestarts closes abandoned observations once another daemon owns
+// this home's lock and has completed boot. It never infers failure from elapsed time.
+func (d *Daemon) reconcileSupersededRestarts() error {
+	entries, err := os.ReadDir(d.homePaths.RestartsDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("daemon: list restart operations for recovery: %w", err)
+	}
+	currentID := restartOperationIDFromEnv(d.getenv)
+	store := newRestartStore(d.homePaths, d.now)
+	var failures []error
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		operationID := strings.TrimSuffix(entry.Name(), ".json")
+		if operationID == currentID {
+			continue
+		}
+		operation, err := store.Get(operationID)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if operation.Status != RestartStatusStarting {
+			continue
+		}
+		if _, err := store.Transition(operationID, restartTransition{
+			status:        RestartStatusFailed,
+			failureReason: "restart observation was superseded by another daemon startup; the installed runtime was retained",
+		}); err != nil {
+			failures = append(failures, fmt.Errorf("daemon: reconcile superseded restart %q: %w", operationID, err))
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func restartOperationIDFromEnv(getenv func(string) string) string {

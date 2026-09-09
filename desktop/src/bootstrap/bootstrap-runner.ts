@@ -48,9 +48,13 @@ export class BootstrapRunner {
     this.#environment = options.environment ?? process.env;
   }
 
-  async run(onEvent: (event: BootstrapEvent) => Promise<void>): Promise<BootstrapResult> {
+  /** Observes one bootstrap attempt; aborting stops the observer without stopping its detached daemon. */
+  async run(
+    onEvent: (event: BootstrapEvent) => Promise<void>,
+    signal?: AbortSignal
+  ): Promise<BootstrapResult> {
     if (this.#running) return await this.#running;
-    const attempt = this.#execute(onEvent);
+    const attempt = this.#execute(onEvent, signal);
     this.#running = attempt;
     try {
       return await attempt;
@@ -59,7 +63,10 @@ export class BootstrapRunner {
     }
   }
 
-  async #execute(onEvent: (event: BootstrapEvent) => Promise<void>): Promise<BootstrapResult> {
+  async #execute(
+    onEvent: (event: BootstrapEvent) => Promise<void>,
+    signal?: AbortSignal
+  ): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
     await ensurePrivateDirectory(dirname(this.#logPath));
     const child = spawn(
@@ -82,6 +89,8 @@ export class BootstrapRunner {
         env: this.#environment,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
+        // This child observes bootstrap; the runtime daemon is detached and remains alive.
+        signal,
       }
     );
     if (!child.stdout || !child.stderr)
@@ -90,6 +99,8 @@ export class BootstrapRunner {
       child.once("error", reject);
       child.once("close", resolve);
     });
+    // Observe spawn/abort rejection immediately while stdout is still being drained.
+    void exit.catch(() => undefined);
     let ready: BootstrapResult | null = null;
     let stderr = "";
     child.stderr.setEncoding("utf8");

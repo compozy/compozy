@@ -580,6 +580,30 @@ test("E2E-004: launch bursts reuse one window and deliver the last deep link", a
   ).toBe(true);
 });
 
+test("E2E-007: quitting during bootstrap completes cleanup and preserves the daemon", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({
+    prepare: async ({ home, environment }) => {
+      environment.COMPOZY_DESKTOP_E2E_READY_FILE = join(home, "withheld-product-ready");
+    },
+  });
+  await expect(async () => {
+    expect((await bootstrapEvents(desktop.home)).at(-1)?.phase).toBe("ready");
+  }).toPass({ timeout: 30_000 });
+  const initial = await jsonCommand(desktop, ["status", "-o", "json"]);
+  const initialDaemon = initial.daemon as Record<string, unknown>;
+  await desktop.closeShell();
+  expect(desktop.shellProcess.signalCode).toBeNull();
+  const alive = await jsonCommand(desktop, ["status", "-o", "json"]);
+  expect(alive).toMatchObject({ daemon: { status: "running", pid: initialDaemon.pid } });
+  const record = JSON.parse(await readFile(join(desktop.home, "app.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+  expect(record.state).not.toBe("product");
+});
+
 test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell quit leaves it alive", async ({
   launchDesktop,
 }) => {

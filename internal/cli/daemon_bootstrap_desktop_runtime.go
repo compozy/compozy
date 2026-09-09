@@ -8,12 +8,18 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Masterminds/semver/v3"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	compozyversion "github.com/compozy/compozy/internal/version"
 )
 
+// replaceOutdatedDesktopRuntime replaces an older desktop runtime while preserving compatible newer versions.
 func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) (bool, error) {
+	if bootstrapRuntimeIsNewer(status.Version, e.provenance().RuntimeVersion) {
+		return false, nil
+	}
 	if !regularFileExists(e.installedPath) ||
 		!compozyupdate.RuntimeOwnedByDesktopApp(e.homePaths, e.installedPath) {
 		return false, nil
@@ -37,6 +43,13 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 		return false, err
 	}
 	return true, nil
+}
+
+// bootstrapRuntimeIsNewer compares release versions without treating development builds as newer.
+func bootstrapRuntimeIsNewer(runningVersion, bundledVersion string) bool {
+	running, runningErr := semver.NewVersion(normalizedBootstrapVersion(runningVersion))
+	bundled, bundledErr := semver.NewVersion(normalizedBootstrapVersion(bundledVersion))
+	return runningErr == nil && bundledErr == nil && running.GreaterThan(bundled)
 }
 
 func (e *bootstrapExecution) provenance() compozyupdate.DesktopProvenanceMetadata {

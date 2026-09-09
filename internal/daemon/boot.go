@@ -178,6 +178,7 @@ type daemonMCPToolProvider interface {
 	ForgetWorkspace(workspaceID string)
 }
 
+// boot completes migrations, required services, and restart reconciliation before publishing readiness.
 func (d *Daemon) boot(ctx context.Context) (err error) {
 	if ctx == nil {
 		return errors.New("daemon: boot context is required")
@@ -201,10 +202,13 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.publishDaemonInfo(state, cleanup); err != nil {
 		return err
 	}
-	if err := d.markRestartReadyIfRequested(state.info); err != nil {
+	if err := d.startBackgroundUpdates(ctx, state, cleanup); err != nil {
 		return err
 	}
-	if err := d.startBackgroundUpdates(ctx, state, cleanup); err != nil {
+	if err := d.reconcileSupersededRestarts(); err != nil {
+		state.logger.WarnContext(ctx, "daemon: reconcile abandoned restart observations", "error", err)
+	}
+	if err := d.markRestartReadyIfRequested(state.info); err != nil {
 		return err
 	}
 

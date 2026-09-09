@@ -69,15 +69,49 @@ compozy update --check -o json
 
 ## Recover a runtime update
 
+After a runtime binary has been swapped, CompozyOS keeps the replacement if restart, health
+checking, or finalization fails. Startup may already have migrated databases, so automatically
+restoring an older binary could make the home unreadable. The backup is retained for diagnosis;
+do not restore it over the replacement or delete any database.
+If an interrupted swap left the executable missing or unable to launch, reinstall the target
+release or a newer compatible release into the same home; keep the databases and backup intact.
+
+A live daemon can take longer than a readiness polling window to finish required boot work.
+`compozy daemon start` and update restart observation keep waiting while it boots. Interrupting the
+CLI stops the wait and leaves the detached daemon running. Read `compozy status -o json` and the
+runtime log before retrying. Readiness is reported only after required boot work completes.
+
+These waits observe process liveness, not migration progress. A stalled but living process keeps
+the observation open; repeated log messages say it is still starting. Cancel the CLI observation
+with Ctrl+C to release any startup mutation lock without killing the process. Provisioning finishes
+before startup, and the updater releases the swap lock before restart observation. Bootstrap's
+in-process attempt guard also releases when the caller cancels. Inspect the
+reported PID and runtime log before stopping a stalled daemon deliberately. The detached restart
+helper holds no update/provisioning lock while observing; it exits on readiness or process exit,
+and records an actual pre-readiness exit as a restart failure. Canceling the CLI does not cancel
+that detached helper or claim that the daemon has failed.
+
 When an update operation reports `failed`:
 
 1. Save the reported error code from `compozy app diagnose -o json`.
 2. Follow the reported action without deleting the active runtime, staging directory, or home data.
-3. Run `compozy app retry` after resolving the cause.
+3. Retry `compozy daemon start` after resolving the cause, then run `compozy app retry`.
 4. Confirm healthy state with `compozy app status -o json`.
 
 For an operator-managed runtime, use the package-manager command in the update result. The app never
 replaces a Homebrew, npm, Go, Linux package, or other externally managed install.
+
+An older desktop app attaches to a newer runtime when their declared versions are compatible.
+It preserves a verified newer installed runtime. Incompatible app/runtime versions report the
+required upgrade instead of downgrading the running runtime. A staged app update can be consumed
+even when runtime bootstrap has not reached readiness.
+
+After an external recovery reaches the failed update's target runtime version or a newer version,
+`compozy update --check` no longer projects that historical rollback as the current failure. The
+history remains intact.
+
+Staged app recovery still requires a verified runtime bundle. If its integrity check fails, reinstall
+the current app package; a prepared update cannot bypass that check.
 
 ## Recover the desktop channel
 
