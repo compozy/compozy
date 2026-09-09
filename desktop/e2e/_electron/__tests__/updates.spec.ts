@@ -424,12 +424,17 @@ test("A staged app update starts while runtime bootstrap is failing", async ({
       expect((await readAppRecord(home)).state).toBe("error");
     }).toPass({ timeout: 30_000 });
     await expect
-      .poll(async () => {
-        const active = JSON.parse(await readFile(join(home, "update-operation.json"), "utf8")) as {
-          app: { phase: string };
-        };
-        return active.app.phase;
-      })
+      .poll(
+        async () => {
+          const active = JSON.parse(
+            await readFile(join(home, "update-operation.json"), "utf8")
+          ) as {
+            app: { phase: string };
+          };
+          return active.app.phase;
+        },
+        { timeout: 30_000 }
+      )
       .toBe("applying");
     await desktop.boot.screenshot({
       path: test.info().outputPath("update-during-bootstrap-failure.png"),

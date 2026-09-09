@@ -451,8 +451,31 @@ func assertOrderedSubstrings(t *testing.T, output string, values []string) {
 	}
 }
 
+// TestLocalRestartStatusDuringBoot verifies offline journal status and the missing-record remote fallback.
 func TestLocalRestartStatusDuringBoot(t *testing.T) {
 	t.Parallel()
+	t.Run("Should use remote status when the local record is missing", func(t *testing.T) {
+		t.Parallel()
+		want := SettingsRestartStatusRecord{
+			OperationID: "remote-restart",
+			Status:      "ready",
+			NewPID:      42,
+		}
+		called := false
+		client := localRestartStatusClient{homePaths: mustTestHomePaths(t), remote: &stubClient{
+			getSettingsRestartStatusFn: func(_ context.Context, operationID string) (SettingsRestartStatusRecord, error) {
+				called = true
+				if operationID != want.OperationID {
+					t.Fatalf("remote operation ID = %q, want %q", operationID, want.OperationID)
+				}
+				return want, nil
+			},
+		}}
+		got, err := client.GetSettingsRestartStatus(t.Context(), want.OperationID)
+		if err != nil || !called || got != want {
+			t.Fatalf("remote restart status = %#v, %v, called = %v", got, err, called)
+		}
+	})
 	for _, phase := range []compozydaemon.RestartStatus{compozydaemon.RestartStatusStarting, compozydaemon.RestartStatusFailed, compozydaemon.RestartStatusReady} {
 		t.Run("Should read durable "+string(phase)+" while the API is unavailable", func(t *testing.T) {
 			t.Parallel()

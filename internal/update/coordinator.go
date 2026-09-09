@@ -93,6 +93,7 @@ func (c *Coordinator) runRuntime(ctx context.Context, state *coordinatorState) e
 	}
 }
 
+// recoverSwap retains an interrupted replacement whenever persisted state may already have migrated.
 func (c *Coordinator) recoverSwap(ctx context.Context, state *coordinatorState) error {
 	operation := state.snapshot()
 	backupPath := strings.TrimSpace(operation.Runtime.BackupPath)

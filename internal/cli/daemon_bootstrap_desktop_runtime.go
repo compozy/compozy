@@ -15,6 +15,7 @@ import (
 	compozyversion "github.com/compozy/compozy/internal/version"
 )
 
+// replaceOutdatedDesktopRuntime replaces an older desktop runtime while preserving compatible newer versions.
 func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) (bool, error) {
 	if bootstrapRuntimeIsNewer(status.Version, e.provenance().RuntimeVersion) {
 		return false, nil
@@ -44,6 +45,7 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 	return true, nil
 }
 
+// bootstrapRuntimeIsNewer compares release versions without treating development builds as newer.
 func bootstrapRuntimeIsNewer(runningVersion, bundledVersion string) bool {
 	running, runningErr := semver.NewVersion(normalizedBootstrapVersion(runningVersion))
 	bundled, bundledErr := semver.NewVersion(normalizedBootstrapVersion(bundledVersion))

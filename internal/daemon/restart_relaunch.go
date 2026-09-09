@@ -229,6 +229,8 @@ func (h *relaunchHelper) releaseConditionsMet(operation RestartOperation) (bool,
 	}
 }
 
+// waitForReady observes the replacement until readiness, process exit, or observer cancellation.
+// ReadyTimeout is a diagnostic window, not a migration deadline or progress watchdog.
 func (h *relaunchHelper) waitForReady(
 	ctx context.Context,
 	store *restartStore,
@@ -298,6 +300,7 @@ func (h *relaunchHelper) waitForReady(
 	}
 }
 
+// handleReadyWaitDone preserves cancellation and records observed process exits without inferring failure from time.
 func (h *relaunchHelper) handleReadyWaitDone(
 	ctx context.Context,
 	store *restartStore,

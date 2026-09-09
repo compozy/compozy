@@ -809,6 +809,7 @@ func newReleaseFixtureServer(
 	return release, archiveName, server
 }
 
+// TestDesktopRuntimeNewerThanBundle verifies that only a hash-verified newer desktop runtime is preserved.
 func TestDesktopRuntimeNewerThanBundle(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {

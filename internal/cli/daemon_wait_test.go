@@ -329,6 +329,7 @@ func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
 	})
 }
 
+// TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires verifies the caller deadline remains authoritative.
 func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *testing.T) {
 	t.Parallel()
 

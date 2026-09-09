@@ -50,6 +50,7 @@ func (p *timeoutDaemonProcess) complete(err error) {
 	close(p.done)
 }
 
+// TestWaitForDaemonStartReadiness covers readiness, actual exit, and cancellation across polling windows.
 func TestWaitForDaemonStartReadiness(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +161,7 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 	})
 }
 
+// TestStalledDaemonObservationReleasesMutationLock verifies cancellation releases ownership without killing the child.
 func TestStalledDaemonObservationReleasesMutationLock(t *testing.T) {
 	t.Parallel()
 	t.Run("Should release the startup lock on cancellation without terminating the live daemon", func(t *testing.T) {

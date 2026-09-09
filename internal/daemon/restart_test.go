@@ -1084,6 +1084,7 @@ func TestWaitForReadyReturnsFailureContextWhenPollingReadBreaks(t *testing.T) {
 	}
 }
 
+// TestWaitForReadyPreservesCancellationCause verifies canceling an observer does not claim the replacement failed.
 func TestWaitForReadyPreservesCancellationCause(t *testing.T) {
 	t.Parallel()
 

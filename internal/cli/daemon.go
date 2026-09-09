@@ -361,6 +361,8 @@ func acquireDaemonStartUpdateLock(path string) (*compozydaemon.UpdateLock, error
 	return lock, nil
 }
 
+// waitForDaemonStart observes readiness until success, actual exit, or caller cancellation.
+// Polling windows report slow startup without killing a possibly migrating daemon.
 func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {
 	for {
 		status, err := waitForDaemonStartWindow(ctx, deps, child)
@@ -383,6 +385,7 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 	}
 }
 
+// waitForDaemonStartWindow checks process exit and daemon readiness within one polling window.
 func waitForDaemonStartWindow(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {
 	if err := requirePollingContext(ctx); err != nil {
 		return DaemonStatus{}, err

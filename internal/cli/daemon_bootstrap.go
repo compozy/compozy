@@ -137,6 +137,7 @@ type bootstrapExecution struct {
 	installedPath string
 }
 
+// resolveAndStart attaches to a compatible daemon or provisions and starts the selected runtime.
 func (e *bootstrapExecution) resolveAndStart() error {
 	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
 	if err == nil && running {
@@ -224,6 +225,7 @@ func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status
 	})
 }
 
+// start retries actual launch failures while preserving live daemons across readiness windows.
 func (e *bootstrapExecution) start(resolution bootstrapResolution, runtimePath string, owned bool) error {
 	var lastErr error
 	for attempt := 1; attempt <= bootstrapMaximumAttempts; attempt++ {
@@ -369,6 +371,7 @@ func probeBootstrapDaemon(
 	return status, true, nil
 }
 
+// runBootstrapDaemonDetached owns the startup mutation lock until readiness, exit, or cancellation.
 func runBootstrapDaemonDetached(
 	ctx context.Context,
 	deps commandDeps,

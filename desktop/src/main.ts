@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
+import { setTimeout as delay } from "node:timers/promises";
 import { join, resolve } from "node:path";
 
 import { app, globalShortcut, ipcMain, session, shell, systemPreferences } from "electron";
@@ -63,19 +64,22 @@ let publisher: AppStatePublisher | null = null;
 let productBridge: ProductBridgeController | null = null;
 let cleanupPromise: Promise<void> | null = null;
 let cleanupComplete = false;
+const bootstrapAbort = new AbortController();
+let bootstrapFlow: Promise<void> | null = null;
 
 async function waitForE2EProductReady(): Promise<void> {
   const readyPath = process.env.COMPOZY_DESKTOP_E2E_READY_FILE?.trim();
   if (process.env.COMPOZY_DESKTOP_E2E !== "1" || !readyPath) return;
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
+    bootstrapAbort.signal.throwIfAborted();
     try {
       await access(readyPath);
       return;
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
-    await new Promise(resolveDelay => setTimeout(resolveDelay, 25));
+    await delay(25, undefined, { signal: bootstrapAbort.signal });
   }
   throw new Error("The desktop E2E product-ready gate timed out.");
 }
@@ -115,9 +119,11 @@ function resourcePaths(): {
   };
 }
 
+/** Cancels and drains bootstrap before releasing shell resources for quit or installer handoff. */
 async function cleanup(): Promise<void> {
   if (cleanupPromise) return await cleanupPromise;
   cleanupPromise = (async () => {
+    bootstrapAbort.abort();
     const errors: Error[] = [];
     const attempt = async (step: () => void | Promise<void>): Promise<void> => {
       try {
@@ -127,6 +133,7 @@ async function cleanup(): Promise<void> {
       }
     };
     try {
+      await attempt(async () => await bootstrapFlow);
       await attempt(async () => await product?.flushState());
       await attempt(() => productBridge?.unregister());
       await attempt(() => operationWatcher?.stop());
@@ -156,6 +163,7 @@ async function quitCleanly(): Promise<void> {
   app.quit();
 }
 
+/** Initializes the shell and permits verified staged updates before runtime readiness. */
 async function start(): Promise<void> {
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   const resources = resourcePaths();
@@ -249,8 +257,9 @@ async function start(): Promise<void> {
     channel: __COMPOZY_RELEASE_CHANNEL__,
     bootId,
   });
-  let bootstrapFlow: Promise<void> | null = null;
+  /** Serializes bootstrap attempts and prevents new work after shutdown begins. */
   async function runBootstrap(): Promise<void> {
+    if (bootstrapAbort.signal.aborted) return;
     if (bootstrapFlow) return await bootstrapFlow;
     bootstrapFlow = runBootstrapAttempt();
     try {
@@ -260,15 +269,20 @@ async function start(): Promise<void> {
     }
   }
 
+  /** Verifies the bundle, observes runtime boot, and publishes a window only while the shell is active. */
   async function runBootstrapAttempt(): Promise<void> {
     try {
       await verifyRuntimeBundle(resources.bundle, resources.manifest);
+      if (bootstrapAbort.signal.aborted) return;
       startUpdateConsumer(statePublisher);
       const runtime = await runner.run(async event => {
+        if (bootstrapAbort.signal.aborted) return;
         await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog));
-      });
+      }, bootstrapAbort.signal);
+      if (bootstrapAbort.signal.aborted) return;
       applyDefaultDenyPermissions(session.defaultSession, runtime.origin);
       await statePublisher.setRuntime(runtime.version, runtime.owned);
+      if (bootstrapAbort.signal.aborted) return;
       runtimeMonitor?.stop();
       product = new ProductWindow({
         origin: runtime.origin,
@@ -277,11 +291,13 @@ async function start(): Promise<void> {
         presentation: windowPresentation,
         links,
         onReady: async () => {
+          if (bootstrapAbort.signal.aborted) return;
           await statePublisher.publish({
             state: "product",
             origin: runtime.origin,
             owned: runtime.owned,
           });
+          if (bootstrapAbort.signal.aborted) return;
           runtimeMonitor = new RuntimeHealthMonitor({
             origin: runtime.origin,
             onDisconnected: async () => {
@@ -295,6 +311,7 @@ async function start(): Promise<void> {
           boot?.close();
         },
         onLoadFailure: async error => {
+          if (bootstrapAbort.signal.aborted) return;
           await statePublisher.publish({
             state: "error",
             error: {
@@ -308,8 +325,10 @@ async function start(): Promise<void> {
         onError: error => logger.error("product window", error),
       });
       await waitForE2EProductReady();
+      if (bootstrapAbort.signal.aborted) return;
       await product.create();
     } catch (error) {
+      if (bootstrapAbort.signal.aborted) return;
       logger.error("bootstrap runtime", error);
       const terminal = statePublisher.snapshot();
       if (terminal.state !== "error" && terminal.state !== "skew") {
@@ -329,6 +348,7 @@ async function start(): Promise<void> {
     }
   }
 
+  /** Starts one staged-update watcher after packaged runtime integrity has been established. */
   function startUpdateConsumer(state: AppStatePublisher): void {
     if (operationWatcher) return;
     updateConsumer = new AppUpdateConsumer({

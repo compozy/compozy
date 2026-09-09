@@ -143,6 +143,7 @@ func TestOperationPhaseToUIPhase(t *testing.T) {
 	}
 }
 
+// TestRecoveredRuntimeProjection verifies recovered versions clear obsolete rollback presentation without rewriting history.
 func TestRecoveredRuntimeProjection(t *testing.T) {
 	t.Parallel()
 	for _, current := range []string{"v1.1.0", "1.2.0"} {

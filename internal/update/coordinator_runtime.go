@@ -67,6 +67,7 @@ func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState)
 	return c.restartAndVerify(ctx, state, applied)
 }
 
+// restartAndVerify restarts the installed replacement and retains it if restart observation fails.
 func (c *Coordinator) restartAndVerify(
 	ctx context.Context,
 	state *coordinatorState,
@@ -99,6 +100,7 @@ func (c *Coordinator) restartAndVerify(
 	return c.healthAndFinalize(ctx, state, applied)
 }
 
+// healthAndFinalize verifies the replacement before completing the update and never restores an older schema owner.
 func (c *Coordinator) healthAndFinalize(
 	ctx context.Context,
 	state *coordinatorState,
@@ -124,6 +126,7 @@ func (c *Coordinator) healthAndFinalize(
 	return err
 }
 
+// retainRuntime archives an actionable failure while keeping the replacement and its backup for safe recovery.
 func (c *Coordinator) retainRuntime(ctx context.Context, state *coordinatorState, cause error) error {
 	// A replacement may migrate any persisted stream before it reports readiness.
 	return c.failRuntime(

@@ -630,6 +630,7 @@ func TestBootstrapRemovesOnlyStaleDaemonRecords(t *testing.T) {
 	})
 }
 
+// TestBootstrapRuntimeVersionPolicy verifies that desktop bootstrap preserves compatible newer runtimes.
 func TestBootstrapRuntimeVersionPolicy(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {

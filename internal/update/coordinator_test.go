@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// TestCoordinatorRuntimeLifecycle verifies update completion and data-safe recovery at each failure boundary.
 func TestCoordinatorRuntimeLifecycle(t *testing.T) {
 	t.Run("Should run runtime first then leave the app staged and dormant", func(t *testing.T) {
 		t.Parallel()

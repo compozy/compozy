@@ -56,6 +56,8 @@ func (r *cliUpdateRuntime) AcquireMutationLock(context.Context) (compozyupdate.M
 	return lock, nil
 }
 
+// RestartDaemon observes the durable restart operation while the replacement API is unavailable.
+// The caller owns cancellation; elapsed polling windows do not establish boot failure.
 func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 	_, running, err := daemonInfo(r.homePaths, r.deps)
 	if err != nil {
@@ -103,6 +105,7 @@ type localRestartStatusClient struct {
 
 var _ settingsRestartStatusClient = localRestartStatusClient{}
 
+// GetSettingsRestartStatus reads the local validated journal and falls back remotely only when it is absent.
 func (c localRestartStatusClient) GetSettingsRestartStatus(
 	ctx context.Context,
 	operationID string,

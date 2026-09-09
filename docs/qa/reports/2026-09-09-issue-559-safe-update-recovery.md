@@ -57,3 +57,18 @@ The initial commit passed the full local affected gate and strict QA audit. Per 
 ## Delivery tracking
 
 Runtime recovery and the packaged app recovery slice passed with the limits above. The pull request records the final local gate, checked head, required CI, and CodeRabbit/Greptile dispositions. The lab's machine-readable strict audit is finalized with local gate evidence before delivery; `teardown.json` records `clean: true`.
+
+
+## CodeRabbit follow-up
+
+Desktop shutdown and installer handoff now cancel and await the bootstrap observer before cleanup. The detached runtime remains alive, and canceled bootstrap callbacks cannot publish a product window after cleanup. The existing shell E2E covers quitting during an unfinished bootstrap flow and verifies the same daemon PID remains running. Staged-update polling uses an explicit 30-second bound, and failed-boot fixture cleanup signals the isolated lab's lock PID before verifying exit.
+
+The CLI journal suite also covers the missing-local-record remote fallback. The restart integration's final observer wait has a 10-second deadline. A subsequent fully booted daemon reconciles older `starting` restart observations under its exclusive home lock, while preserving its own current restart operation. Cancellation alone still does not declare a live replacement failed. No schema, migration numbering, or public restart DTO changes were needed.
+
+The requested global readiness deadlines were not adopted: readiness windows are intentionally diagnostic, with caller cancellation and actual exit as termination boundaries. This behavior and lock/helper lifetimes were explicitly reviewed with the controller before publication. An elapsed deadline cannot establish migration failure; a stalled live process remains pending with PID diagnostics. The retain-runtime failure policy remains independent of this observation contract.
+
+
+The follow-up CLI race test passed (2.391 seconds); the final daemon boot integration passed with `-race -tags integration -p=1 -parallel=4` (6.120 seconds), including reconciliation of a valid abandoned restart despite corrupt historical metadata. Corrupt history is reported without blocking boot or deleting the record. CodeRabbit withdrew and resolved both deadline findings after reviewing the documented contract and existing cancellation/exit/lock evidence.
+
+
+Final packaged follow-up: the owner `build:e2e-update` generator completed, then Playwright ran under the shared machine verification lock. Four scenarios passed in 25.9 seconds: bootstrap quit preserving the daemon (2.7s), packaged security/DevTools (11.0s), staged update during boot failure (10.9s), and rejected unverified runtime execution (0.9s). All fixture teardown completed. The preceding Linux CI head had passed 27/28 desktop scenarios but lost the Electron debugging connection in E2E-034; its job log and artifact were inspected. The same security scenario passed locally on macOS, so Linux current-head CI remains required rather than claiming a proven cross-platform fix for that isolated failure.

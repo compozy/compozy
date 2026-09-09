@@ -34,3 +34,8 @@ APP-agent-cli-app-verbs owns the structured CLI readout of the same durable upda
 Issue 559 re-walk: `docs/qa/reports/2026-09-09-issue-559-safe-update-recovery.md`.
 
 Staged recovery verifies the packaged runtime digest before any transition-client execution. The issue 559 packaged re-walk covers both a valid bundle with failing daemon boot and a tampered bundle that must never execute.
+
+
+### Bootstrap shutdown coordination
+
+A staged app installer can run before runtime readiness, after bundle verification. Before installer handoff or shell shutdown, the desktop cancels and awaits its bootstrap observer, preserves the detached daemon, and prevents late product-window publication. A later successful daemon startup reconciles superseded `starting` restart observations without changing the current restart operation or restoring an older binary. Verified by the issue #559 shell and daemon boot integration evidence in `../reports/2026-09-09-issue-559-safe-update-recovery.md`.
