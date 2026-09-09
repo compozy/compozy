@@ -1179,6 +1179,30 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
+  it("Should preload a cross-workspace run using the destination Profile lens", async () => {
+    const queryClient = createQueryClient();
+    setProfileView(
+      { scope: "workspace", workspaceId: workspace.id },
+      { kind: "profile", profile: "source" }
+    );
+    setProfileView(
+      { scope: "workspace", workspaceId: "ws-destination" },
+      { kind: "profile", profile: "destination" }
+    );
+    await invokeLoader(LoopRunDetailRoute, {
+      ...context(queryClient),
+      deps: { workspace: "ws-destination" },
+      params: { runId: "run-1" },
+    });
+    expect(adapterMocks.getLoopRun).toHaveBeenCalledWith(
+      "ws-destination",
+      "run-1",
+      expect.any(AbortSignal),
+      { profile: "destination" }
+    );
+    queryClient.clear();
+  });
+
   it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();
     const scope = { scope: "workspace" as const, workspace: workspace.id };

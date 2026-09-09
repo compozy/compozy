@@ -2724,6 +2724,9 @@ func TestLoopReadProfileScope(t *testing.T) {
 			path := "/workspaces/ws-1/loop-runs/run-1/" + endpoint
 			foreign := performRequest(t, engine, http.MethodGet, path+"?profile=default", nil)
 			assertLoopStatus(t, foreign.Code, http.StatusNotFound, foreign.Body.String())
+			if !strings.Contains(foreign.Body.String(), `"code":"loop_run_not_found"`) {
+				t.Fatalf("wrong error contract: %s", foreign.Body.String())
+			}
 			if reads != 0 {
 				t.Fatal("foreign Profile reached the projection")
 			}

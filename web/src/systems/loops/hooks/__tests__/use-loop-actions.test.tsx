@@ -35,6 +35,8 @@ vi.mock("@/systems/profiles", async importOriginal => ({
   }),
 }));
 
+import { loopRunDetailOptions } from "../../lib/query-options";
+
 const WS = "ws_1";
 
 function createWrapper(queryClient: QueryClient) {
@@ -88,6 +90,30 @@ describe("loop mutation hooks", () => {
     expect(controls).toHaveLength(1);
     expect(controls[0]?.searchParams.get("profile")).toBe("engineering");
     expect(controls[0]?.searchParams.has("all_profiles")).toBe(false);
+  });
+
+  it("Should refresh a cached owner before controlling a renamed Profile run", async () => {
+    selection.profile = "@all";
+    let owner = "engineering";
+    const controls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => [
+        http.get("*/api/workspaces/ws_1/loop-runs/owned", () =>
+          HttpResponse.json({ run: { profile_name: owner } })
+        ),
+        http.post("*/api/workspaces/ws_1/loop-runs/owned/pause", ({ request }) => {
+          controls.push(new URL(request.url).searchParams.get("profile") ?? "");
+          return HttpResponse.json({ ok: true });
+        }),
+      ])
+    );
+    const { queryClient, wrapper } = setup();
+    await queryClient.fetchQuery(loopRunDetailOptions(WS, "owned", true, { all_profiles: true }));
+    owner = "renamed-engineering";
+    const { result } = renderHook(() => usePauseLoopRun(), { wrapper });
+    await result.current.mutateAsync({ workspaceId: WS, runId: "owned" });
+    expect(controls).toEqual(["renamed-engineering"]);
   });
 
   it("Should refuse a control when the run is outside the selected Profile", async () => {

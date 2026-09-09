@@ -71,7 +71,9 @@ test.describe("Human requests on the run page", () => {
     await expect(card.getByTestId("loop-request-field-decision")).toBeVisible();
     await card.getByRole("radio", { name: "approve" }).click();
     const responsePromise = page.waitForResponse(
-      response => response.request().method() === "POST" && response.url().endsWith("/respond")
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/respond")
     );
     await card.getByTestId("loop-request-submit").click();
     const response = await responsePromise;
@@ -123,7 +125,9 @@ test.describe("Human requests on the run page", () => {
     const submit = card.getByTestId("loop-request-submit");
     await expect(submit).toBeEnabled();
     const responsePromise = page.waitForResponse(
-      response => response.request().method() === "POST" && response.url().endsWith("/respond")
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/respond")
     );
     await submit.click();
     const response = await responsePromise;

@@ -8,9 +8,10 @@ export function useLoopRunOwner() {
   const queryClient = useQueryClient();
   const { params } = useProfileReadScope();
   return async (workspaceId: string, runId: string): Promise<ProfileMutationScopeParams> => {
-    const detail = await queryClient.fetchQuery(
-      loopRunDetailOptions(workspaceId, runId, true, params)
-    );
+    const detail = await queryClient.fetchQuery({
+      ...loopRunDetailOptions(workspaceId, runId, true, params),
+      staleTime: 0,
+    });
     if (!detail.run.profile_name) throw new Error("The run's Profile is unavailable");
     return { profile: detail.run.profile_name };
   };

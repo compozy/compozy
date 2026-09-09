@@ -48,9 +48,9 @@ export async function preloadLoopDetailRoute(
   name: string,
   routeWorkspaceId?: string
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
   if (!workspaceId) return;
+  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
   await settleRouteQueries([
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
     queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
@@ -100,11 +100,11 @@ export async function preloadLoopRunDetailRoute(
   runId: string,
   routeWorkspaceId?: string
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
   if (!workspaceId) {
     return;
   }
+  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
 
   const [result] = await Promise.allSettled([
     queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId, true, profileScope)),
@@ -126,11 +126,11 @@ export async function preloadLoopRunDiffRoute(
   runId: string,
   search: LoopRunDiffRouteSearch
 ): Promise<void> {
-  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveRouteWorkspaceId(queryClient, search.workspace);
   if (!workspaceId) {
     return;
   }
+  const profileScope = readProfileScopeParams(queryClient, { scope: "workspace", workspaceId });
   await settleRouteQueries([
     queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId, true, profileScope)),
   ]);

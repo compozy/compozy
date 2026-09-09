@@ -108,6 +108,7 @@ interface TranscriptMessagePart {
 
 test.use({
   runtimeOptions: {
+    memoryEnabled: true,
     seed: {
       mockAgents: [
         {
@@ -139,7 +140,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
   const kWin = appWindow(appPage, "knowledge");
   await expect(kWin).toBeVisible();
-  const knowledgeUI = knowledgeOperatorSelectors(kWin);
+  const knowledgeUI = knowledgeOperatorSelectors(kWin, appPage);
   await expect(knowledgeUI.shell).toBeVisible();
   await expect(knowledgeUI.tabProfile).toHaveAttribute("aria-pressed", "true");
   await knowledgeUI.tabWorkspace.click();
