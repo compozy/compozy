@@ -17,9 +17,8 @@ func ValidateReasoningEffort(value string) error {
 	}
 	validChoices := modelcatalog.ReasoningEffortValues()
 	cause := fmt.Errorf(
-		"%w: reasoning_effort must be one of %s",
+		"%w: reasoning_effort must be a non-empty identifier without whitespace or control characters",
 		ErrInvalidRuntimeOverride,
-		strings.Join(validChoices, ", "),
 	)
 	item := diagnostics.NewItem(diagnostics.ItemSpec{
 		ID:            "provider.negotiation." + diagnosticcontract.CodeReasoningEffortUnsupported,

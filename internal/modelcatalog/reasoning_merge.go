@@ -25,10 +25,17 @@ func applyEffectiveReasoningProfile(model *Model, rows []ModelRow, opts MergeOpt
 		model.ReasoningEfforts = nil
 		model.DefaultReasoningEffort = nil
 	}
-	if !opts.canApplyReasoning(model.ProviderID) {
+	if !opts.canApplyReasoning(model.ProviderID) && !hasReasoningTransportBindings(model) {
 		model.ReasoningEfforts = nil
 		model.DefaultReasoningEffort = nil
 	}
+}
+
+func hasReasoningTransportBindings(model *Model) bool {
+	return len(model.ReasoningEfforts) > 0 && len(model.TransportBindings) > 0 &&
+		slices.ContainsFunc(model.TransportBindings, func(binding ModelTransportBinding) bool {
+			return binding.ReasoningEffort != nil && slices.Contains(model.ReasoningEfforts, *binding.ReasoningEffort)
+		})
 }
 
 func explicitReasoningProfileRow(rows []ModelRow) (ModelRow, bool) {

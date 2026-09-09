@@ -2996,7 +2996,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 					Agent: contract.CreateAgentPayload{
 						Name:            "bad_reasoning",
 						Provider:        "codex",
-						ReasoningEffort: "ultra",
+						ReasoningEffort: "invalid effort",
 						Prompt:          "Prompt.",
 					},
 				},

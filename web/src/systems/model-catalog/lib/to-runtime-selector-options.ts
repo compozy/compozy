@@ -141,9 +141,9 @@ export function toRuntimeModelOptions(
     const disabled = needsAuth || availability === "unavailable";
     const configurations = normalizeConfigurations(model.configurations);
     const acpOptions = normalizeConfigOptions(model.config_options);
-    // Only canonical efforts survive, and the default is accepted ONLY when it is
+    // Only well-formed provider identifiers survive, and the default is accepted ONLY when it is
     // canonical AND inside that filtered subset. An off-contract default (e.g.
-    // "ultra") or a canonical-but-out-of-subset default (e.g. "max" for
+    // "unknown") or a canonical-but-out-of-subset default (e.g. "max" for
     // ["low","high"]) collapses to "" — provider default — never a level the UI
     // would render as selected while the model can't honor it.
     const efforts = modelEfforts(model.reasoning_efforts, configurations);

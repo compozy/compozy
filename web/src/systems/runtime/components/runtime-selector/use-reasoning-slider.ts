@@ -66,7 +66,9 @@ export function useReasoningSlider({
   // Continuous 0..1 position while dragging; null when resting on a stop.
   const [dragP, setDragP] = useState<number | null>(null);
 
-  const stops = [...levels].sort((a, b) => reasoningEffortPosition(a) - reasoningEffortPosition(b));
+  const stops = [...levels].sort(
+    (a, b) => (reasoningEffortPosition(a) || Infinity) - (reasoningEffortPosition(b) || Infinity)
+  );
   const last = stops.length - 1;
   const active = value !== "" && stops.includes(value) ? value : defaultEffort;
   const activeIndex = active === "" ? -1 : stops.indexOf(active);

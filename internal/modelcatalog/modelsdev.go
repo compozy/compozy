@@ -309,6 +309,9 @@ func modelsDevRow(providerID string, modelKey string, raw modelsDevRawModel, now
 	if modelID == "" {
 		return ModelRow{}, false
 	}
+	if providerID == liveSourcesOpencodeKey && !strings.HasPrefix(modelID, "opencode/") {
+		modelID = "opencode/" + modelID
+	}
 	releaseDate, releaseDateErr := NormalizeReleaseDate(raw.ReleaseDate)
 	if releaseDateErr != nil {
 		releaseDate = nil

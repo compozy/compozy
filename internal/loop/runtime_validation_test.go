@@ -106,11 +106,11 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 		t.Parallel()
 
 		definition := dsl.Definition{Contract: dsl.Contract{RuntimeDefaults: &dsl.RuntimeDefaults{
-			Worker: dsl.RuntimeSpec{Reasoning: "ultra"},
+			Worker: dsl.RuntimeSpec{Reasoning: "invalid effort"},
 		}}}
 		err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
 		assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
-			Field: "reasoning", Value: "ultra", Reason: "unsupported_reasoning",
+			Field: "reasoning", Value: "invalid effort", Reason: "unsupported_reasoning",
 		})
 	})
 

@@ -257,7 +257,7 @@ func normalizedDefaultReasoningEffort(raw string) *ReasoningEffort {
 }
 
 func normalizeReasoningEffort(raw string) (ReasoningEffort, bool) {
-	normalized := strings.ToLower(strings.TrimSpace(raw))
+	normalized := strings.TrimSpace(raw)
 	if !IsValidEffort(normalized) {
 		return "", false
 	}

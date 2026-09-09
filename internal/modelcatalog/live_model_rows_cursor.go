@@ -130,7 +130,8 @@ func parseCursorTransportSuffixes(transportModelID string) cursorTransportSuffix
 		if len(parts) == 0 {
 			break
 		}
-		parsed, ok := normalizeReasoningEffort(parts[len(parts)-1])
+		parsed := ReasoningEffort(strings.ToLower(parts[len(parts)-1]))
+		ok := slices.Contains(cursorReasoningEffortValues, parsed)
 		if !ok {
 			break
 		}
@@ -172,7 +173,7 @@ func cursorModelRow(
 		seenEfforts[*variant.reasoningEffort] = struct{}{}
 		efforts = append(efforts, *variant.reasoningEffort)
 	}
-	slices.SortFunc(efforts, cursorReasoningEffortOrder)
+	slices.SortFunc(efforts, compareReasoningEfforts)
 
 	bindings := cursorModelBindings(variants, hasFast, hasThinking)
 	displayName := cursorLogicalDisplayName(logicalID, variants)
@@ -285,7 +286,7 @@ func trimCursorDisplayVariants(label string) string {
 	for len(parts) > 0 {
 		last := strings.ToLower(parts[len(parts)-1])
 		switch last {
-		case "fast", "thinking", "none", "minimal", "low", "medium", "max":
+		case "fast", "thinking", "none", "minimal", "low", "medium", "max", "ultra":
 			parts = parts[:len(parts)-1]
 		case "high":
 			if len(parts) >= 2 && strings.EqualFold(parts[len(parts)-2], "extra") {
@@ -300,15 +301,6 @@ func trimCursorDisplayVariants(label string) string {
 	return strings.Join(parts, " ")
 }
 
-func cursorReasoningEffortOrder(left ReasoningEffort, right ReasoningEffort) int {
-	leftIndex := slices.Index(cursorReasoningEffortValues, left)
-	rightIndex := slices.Index(cursorReasoningEffortValues, right)
-	if leftIndex != rightIndex {
-		return cmp.Compare(leftIndex, rightIndex)
-	}
-	return cmp.Compare(left, right)
-}
-
 var cursorReasoningEffortValues = []ReasoningEffort{
 	ReasoningEffortNone,
 	ReasoningEffortMinimal,
@@ -317,4 +309,5 @@ var cursorReasoningEffortValues = []ReasoningEffort{
 	ReasoningEffortHigh,
 	ReasoningEffortXHigh,
 	ReasoningEffortMax,
+	ReasoningEffortUltra,
 }

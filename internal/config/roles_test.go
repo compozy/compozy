@@ -205,10 +205,10 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		t.Parallel()
 
 		cfg := DefaultRolesConfig()
-		cfg.MemoryExtractor.ReasoningEffort = "extreme"
+		cfg.MemoryExtractor.ReasoningEffort = "invalid effort"
 		err := cfg.Validate("roles", &Config{})
 		assertErrorContains(t, err, "roles.memory_extractor.reasoning_effort")
-		assertErrorContains(t, err, "extreme")
+		assertErrorContains(t, err, "invalid effort")
 	})
 
 	t.Run("Should reject an invalid role speed", func(t *testing.T) {

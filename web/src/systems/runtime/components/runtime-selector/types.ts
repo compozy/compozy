@@ -15,6 +15,7 @@ export const REASONING_EFFORT_ORDER = [
   "high",
   "xhigh",
   "max",
+  "ultra",
 ] as const satisfies readonly ReasoningEffort[];
 
 export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
@@ -25,9 +26,10 @@ export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
   high: "High",
   xhigh: "Extra high",
   max: "Max",
+  ultra: "Ultra",
 };
 
-/** 1-based canonical position (1..7) used to fill the intensity meter. */
+/** 1-based canonical position used to fill the intensity meter. */
 export function reasoningEffortPosition(effort: string): number {
   const index = (REASONING_EFFORT_ORDER as readonly string[]).indexOf(effort);
   return index < 0 ? 0 : index + 1;
@@ -40,9 +42,8 @@ export function reasoningEffortLabel(effort: string): string {
 /**
  * Emitted wire value. Empty `model`/`reasoning_effort` mean "use provider
  * default" and are omitted from POST bodies by each surface's submit mapper
- * (existing convention, `_spec.md` §7.9). `reasoning_effort` is constrained to
- * the canonical enum (or `""`) so no surface can ever emit an off-contract value
- * such as `ultra`; the selector only ever produces these values.
+ * (existing convention, `_spec.md` §7.9). `reasoning_effort` preserves the provider identifier; the selector only emits
+ * values advertised by the selected model. Known levels receive friendly labels.
  */
 export interface RuntimeSelectorValue {
   provider: string;

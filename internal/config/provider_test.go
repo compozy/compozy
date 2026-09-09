@@ -2116,7 +2116,7 @@ cost_reasoning_per_million = nan
 		writeFile(t, homePaths.ConfigFile, `
 [[providers.codex.models.curated]]
 id = "gpt-5.4"
-reasoning_efforts = ["ultra"]
+reasoning_efforts = ["invalid effort"]
 `)
 
 		_, err = LoadForHome(homePaths, withoutDotEnv())
@@ -2126,8 +2126,8 @@ reasoning_efforts = ["ultra"]
 			t.Fatalf("LoadForHome() error = %T %v, want *reasoning.InvalidEffortError", err, err)
 		}
 		if invalid.Path != "providers.codex.models.curated[0].reasoning_efforts[0]" ||
-			invalid.Value != "ultra" {
-			t.Fatalf("InvalidEffortError = %#v, want curated effort path and ultra value", invalid)
+			invalid.Value != "invalid effort" {
+			t.Fatalf("InvalidEffortError = %#v, want curated effort path and invalid effort value", invalid)
 		}
 	})
 }

@@ -69,6 +69,9 @@ func (s *LiveProviderSource) listACP(
 	if err != nil {
 		return nil, err
 	}
+	if s.usesNativeCodexDiscovery(provider) {
+		return s.listCodex(ctx, env, timeout, now)
+	}
 	options, err := s.acpProbe.InspectModels(ctx, ACPModelProbeRequest{
 		ProviderID: s.providerID,
 		Command:    strings.TrimSpace(provider.Command),
@@ -160,4 +163,9 @@ func acpModelRows(
 	}
 	sortModelRowsByID(rows)
 	return rows
+}
+
+func (s *LiveProviderSource) usesNativeCodexDiscovery(provider compozyconfig.ProviderConfig) bool {
+	return s.providerID == liveSourcesCodexKey && strings.TrimSpace(provider.Models.Discovery.Command) == "" &&
+		providerexec.StrategyFor(provider).NativeCLI.Command == "codex"
 }

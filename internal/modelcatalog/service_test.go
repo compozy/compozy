@@ -1234,6 +1234,54 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh expired persisted discovery on the first list after restart", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryStore()
+		source := &fakeSource{
+			id:            "provider_live:codex",
+			kind:          SourceKindProviderLive,
+			priority:      PriorityProviderLive,
+			providers:     []string{"codex"},
+			bootstrapList: true,
+			ttl:           time.Hour,
+			rows: []ModelRow{
+				testRow(
+					"provider_live:codex",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"old-model",
+					testTime(0),
+					nil,
+				),
+			},
+		}
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.ListModels(
+			t.Context(),
+			ListOptions{ProviderID: "codex", Now: testTime(1), View: CatalogViewAll},
+		); err != nil {
+			t.Fatal(err)
+		}
+		source.rows = []ModelRow{
+			testRow(source.id, source.kind, source.priority, "codex", "new-model", testTime(0), nil),
+		}
+		restarted := newTestService(t, store, []Source{source})
+		models, err := restarted.ListModels(
+			t.Context(),
+			ListOptions{ProviderID: "codex", Now: testTime(1).Add(24 * time.Hour), View: CatalogViewAll},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := modelKeys(models); !slices.Equal(got, []string{"codex/new-model"}) {
+			t.Fatalf("models after restart = %#v", got)
+		}
+		if source.calls != 2 {
+			t.Fatalf("discovery calls = %d, want 2", source.calls)
+		}
+	})
+
 	t.Run("Should claim one bootstrap attempt across concurrent first lists", func(t *testing.T) {
 		t.Parallel()
 

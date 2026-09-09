@@ -737,6 +737,28 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should classify an unsupported Cursor combination as invalid input", func(t *testing.T) {
+		t.Parallel()
+		model := modelcatalog.Model{
+			ModelID:                "grok-4.6",
+			DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+			TransportBindings: []modelcatalog.ModelTransportBinding{
+				{TransportModelID: "cursor-grok-4.6-high", ReasoningEffort: new(modelcatalog.ReasoningEffortHigh)},
+			},
+		}
+		_, err := selectCursorTransportBinding(
+			model,
+			RuntimeSelection{Provider: "cursor", Model: model.ModelID, ReasoningEffort: "ultra"},
+		)
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("selection error = %v, want invalid override", err)
+		}
+		binding, err := selectCursorTransportBinding(model, RuntimeSelection{Provider: "cursor", Model: model.ModelID})
+		if err != nil || binding.TransportModelID != "cursor-grok-4.6-high" {
+			t.Fatalf("default binding = %#v, %v", binding, err)
+		}
+	})
+
 	t.Run("Should resolve a logical Claude model to its live transport alias at start", func(t *testing.T) {
 		t.Parallel()
 

@@ -27,7 +27,9 @@ function runtimeInputFromValues(
   selectedModel: SessionRuntimeSelection["model"] | undefined,
   selectedReasoningEffort: SessionRuntimeSelection["reasoning_effort"] | undefined,
   selectedSpeed: SessionRuntimeSelection["speed"] | undefined,
-  selectionRevision: number
+  selectionRevision: number,
+  effectiveACPOptions: SessionRuntimeEffective["acp_options"],
+  selectedACPOptions: SessionRuntimeSelection["acp_options"]
 ) {
   return sessionPromptRuntimeInput({
     agentName,
@@ -40,6 +42,7 @@ function runtimeInputFromValues(
             ...(model === undefined ? {} : { model }),
             ...(reasoningEffort === undefined ? {} : { reasoning_effort: reasoningEffort }),
             ...(speed === undefined ? {} : { speed }),
+            ...(effectiveACPOptions ? { acp_options: effectiveACPOptions } : {}),
           },
     selectedRuntime:
       selectedProvider === undefined
@@ -51,6 +54,7 @@ function runtimeInputFromValues(
               ? {}
               : { reasoning_effort: selectedReasoningEffort }),
             ...(selectedSpeed === undefined ? {} : { speed: selectedSpeed }),
+            ...(selectedACPOptions ? { acp_options: selectedACPOptions } : {}),
           },
     selectionRevision,
     sessionId,
@@ -72,6 +76,8 @@ export function SessionPromptRuntimeProvider({
   const selectedReasoningEffort = session.runtime?.selected?.reasoning_effort;
   const selectedSpeed = session.runtime?.selected?.speed;
   const selectionRevision = session.runtime.selection_revision;
+  const effectiveACPOptions = session.runtime?.effective?.acp_options;
+  const selectedACPOptions = session.runtime?.selected?.acp_options;
   const { store } = useStoreBinding(session.id, () =>
     sessionPromptRuntimeStoreLogic.createStore(
       runtimeInputFromValues(
@@ -87,7 +93,9 @@ export function SessionPromptRuntimeProvider({
         selectedModel,
         selectedReasoningEffort,
         selectedSpeed,
-        selectionRevision
+        selectionRevision,
+        effectiveACPOptions,
+        selectedACPOptions
       )
     )
   );
@@ -107,7 +115,9 @@ export function SessionPromptRuntimeProvider({
         selectedModel,
         selectedReasoningEffort,
         selectedSpeed,
-        selectionRevision
+        selectionRevision,
+        effectiveACPOptions,
+        selectedACPOptions
       )
     );
   }, [
@@ -121,6 +131,8 @@ export function SessionPromptRuntimeProvider({
     selectedReasoningEffort,
     selectedSpeed,
     selectionRevision,
+    effectiveACPOptions,
+    selectedACPOptions,
     session.agent_name,
     session.id,
     session.workspace_id,

@@ -2341,7 +2341,7 @@ describe("RuntimeSelector provider settings action order", () => {
 
 describe("IntensityMeter + reasoningEffortPosition", () => {
   it("Should map each canonical effort to its 1-based position", () => {
-    expect(REASONING_EFFORT_ORDER.map(reasoningEffortPosition)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(REASONING_EFFORT_ORDER.map(reasoningEffortPosition)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(reasoningEffortPosition("")).toBe(0);
     expect(reasoningEffortPosition("nonsense")).toBe(0);
   });

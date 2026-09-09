@@ -119,8 +119,10 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultEndpoint: "http://localhost:11434/api/tags",
 	},
 	liveSourcesOpencodeKey: {
-		defaultKind:    liveDiscoveryCommand,
-		defaultCommand: "opencode models",
+		defaultKind:      liveDiscoveryCommand,
+		defaultCommand:   "opencode models --verbose",
+		bootstrapOnList:  true,
+		parseCommandRows: parseOpenCodeModelRows,
 	},
 	liveSourcesCursorKey: {
 		defaultKind:      liveDiscoveryCommand,
@@ -247,6 +249,9 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 		if parseErr == nil {
 			command = strings.Join(append([]string{bin}, args...), "\x1f")
 		}
+	}
+	if target.kind == liveDiscoveryACP && s.usesNativeCodexDiscovery(provider) {
+		command += "\x1fnative-model/list-v1"
 	}
 	credentialShape := make([]string, 0, len(provider.EffectiveCredentialSlots()))
 	for _, slot := range provider.EffectiveCredentialSlots() {

@@ -91,7 +91,7 @@ describe("agent-create-draft reasoning effort validation", () => {
   });
 
   it("Should flag an off-contract reasoning effort as a runtime-step field error", () => {
-    const validation = validateAgentCreateDraft(baseDraft("ultra"), context);
+    const validation = validateAgentCreateDraft(baseDraft("invalid effort"), context);
 
     expect(validation.fields.reasoningEffort).toBe("Choose a valid reasoning effort.");
     expect(validation.simpleValid).toBe(false);
@@ -99,7 +99,7 @@ describe("agent-create-draft reasoning effort validation", () => {
   });
 
   it("Should return null from buildCreateAgentParams for an off-contract reasoning effort", () => {
-    expect(buildCreateAgentParams(baseDraft("ultra"), null, context)).toBeNull();
+    expect(buildCreateAgentParams(baseDraft("invalid effort"), null, context)).toBeNull();
   });
 
   it("Should accept the canonical empty effort as provider default and omit it from the request", () => {

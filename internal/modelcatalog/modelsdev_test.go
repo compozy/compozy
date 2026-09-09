@@ -19,6 +19,17 @@ import (
 func TestModelsDevSource(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should qualify OpenCode Zen metadata with its native provider namespace", func(t *testing.T) {
+		t.Parallel()
+		row, ok := modelsDevRow("opencode", "grok-4.6", modelsDevRawModel{Name: "Grok 4.6"}, testTime(0))
+		if !ok || row.ModelID != "opencode/grok-4.6" {
+			t.Fatalf("row = %#v, ok=%t", row, ok)
+		}
+		row, ok = modelsDevRow("opencode", "opencode/grok-4.6", modelsDevRawModel{}, testTime(0))
+		if !ok || row.ModelID != "opencode/grok-4.6" {
+			t.Fatalf("qualified row = %#v, ok=%t", row, ok)
+		}
+	})
 	t.Run("Should parse current models dev fields", func(t *testing.T) {
 		t.Parallel()
 

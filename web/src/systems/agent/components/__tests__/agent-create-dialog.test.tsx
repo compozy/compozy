@@ -250,7 +250,7 @@ describe("AgentCreateDialog", () => {
     renderStatefulDialog({
       draft: validDraft({
         model: "gpt-5.6-sol",
-        reasoningEffort: "ultra" as AgentCreateDialogDraft["reasoningEffort"],
+        reasoningEffort: "invalid effort" as AgentCreateDialogDraft["reasoningEffort"],
       }),
     });
 

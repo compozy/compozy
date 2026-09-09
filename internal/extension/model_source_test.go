@@ -458,9 +458,9 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				SourceID:         sourceID,
 				ProviderID:       "codex",
 				ModelID:          "model",
-				ReasoningEfforts: []apicontract.ReasoningEffort{"turbo"},
+				ReasoningEfforts: []apicontract.ReasoningEffort{"invalid effort"},
 			},
-			wantErr: `reasoning effort "turbo" is not supported`,
+			wantErr: `reasoning effort "invalid effort" is not supported`,
 		},
 		{
 			name: "Should reject duplicate reasoning efforts",

@@ -84,22 +84,22 @@ describe("toRuntimeModelOptions", () => {
     expect(result.every(option => option.disabled_reason === "Sign in")).toBe(true);
   });
 
-  it("Should filter reasoning efforts down to canonical enum members", () => {
+  it("Should preserve provider effort identifiers and reject malformed values", () => {
     const [option] = toRuntimeModelOptions([
       payload({
         model_id: "gpt",
         reasoning_efforts: [
           "low",
-          "bogus",
+          "Provider-Next",
           "high",
-          "ultra",
+          "invalid effort",
         ] as ProviderModelPayload["reasoning_efforts"],
         default_reasoning_effort: "high",
         reasoning_source: "acp",
       }),
     ]);
 
-    expect(option.efforts).toEqual(["low", "high"]);
+    expect(option.efforts).toEqual(["low", "Provider-Next", "high"]);
     expect(option.default_effort).toBe("high");
     expect(option.reasoning_source).toBe("acp");
   });
@@ -109,8 +109,9 @@ describe("toRuntimeModelOptions", () => {
       payload({
         model_id: "gpt",
         reasoning_efforts: ["low", "high"],
-        // "ultra" is not a canonical effort — it must never survive as a default.
-        default_reasoning_effort: "ultra" as ProviderModelPayload["default_reasoning_effort"],
+        // "invalid effort" is not a canonical effort — it must never survive as a default.
+        default_reasoning_effort:
+          "invalid effort" as ProviderModelPayload["default_reasoning_effort"],
       }),
     ]);
 
@@ -142,7 +143,7 @@ describe("toRuntimeModelOptions", () => {
           { reasoning_effort: "high", fast: true, thinking: true },
           { reasoning_effort: "high", fast: true, thinking: true },
           {
-            reasoning_effort: "ultra" as NonNullable<
+            reasoning_effort: "invalid effort" as NonNullable<
               ProviderModelPayload["configurations"]
             >[number]["reasoning_effort"],
             fast: true,

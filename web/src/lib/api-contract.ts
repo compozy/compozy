@@ -79,18 +79,9 @@ export type ReasoningEffort = NonNullable<PromptRuntimeSelection["reasoning_effo
  */
 export type RuntimeSpeed = NonNullable<PromptRuntimeSelection["speed"]>;
 
-const reasoningEffortMembership = {
-  none: true,
-  minimal: true,
-  low: true,
-  medium: true,
-  high: true,
-  xhigh: true,
-  max: true,
-} satisfies Record<ReasoningEffort, true>;
-
+/** Validate the wire identifier; the selected model owns the allowed values. */
 export function isReasoningEffort(value: string): value is ReasoningEffort {
-  return Object.hasOwn(reasoningEffortMembership, value);
+  return value.length > 0 && !/[\s\p{Cc}]/u.test(value);
 }
 
 export type OperationQuery<Id extends OperationId> = OperationQueryFor<compozyOperations, Id>;

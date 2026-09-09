@@ -255,7 +255,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[bridgepkg.BridgeDiagnosticSeverity](): bridgeDiagnosticSeverityValues(),
 		reflect.TypeFor[bridgepkg.BridgeCheckStatus]():        bridgeCheckStatusValues(),
 		reflect.TypeFor[bridgepkg.DeliveryMode]():             deliveryModeValues(),
-		reflect.TypeFor[modelcatalog.ReasoningEffort]():       modelcatalog.ReasoningEffortValues(),
 		reflect.TypeFor[modelcatalog.ReasoningSource]():       modelcatalog.ReasoningSourceValues(),
 		reflect.TypeFor[speedpkg.Speed]():                     speedpkg.Values(),
 		reflect.TypeFor[speedpkg.ResolutionStatus]():          speedpkg.ResolutionStatusValues(),

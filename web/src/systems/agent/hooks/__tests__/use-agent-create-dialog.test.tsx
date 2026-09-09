@@ -288,7 +288,7 @@ describe("useAgentCreateDialog", () => {
       name: "release-captain",
       provider: "codex",
       prompt: "Own release readiness.",
-      reasoningEffort: "ultra",
+      reasoningEffort: "invalid effort",
     };
     act(() => {
       result.current.openDialog();
