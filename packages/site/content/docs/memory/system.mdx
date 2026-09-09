@@ -247,7 +247,8 @@ Search matches any normalized term and ranks candidates with BM25 before recall 
 Unicode, trigram, recency, and signal scores. Results remain bounded by the requested limit and
 the caller's visible memory scopes. Queries with no lexical match return no results. Punctuation
 separates terms; query text is not an FTS expression. Automatic turn recall retains its trivial-query
-filter to avoid injecting memory for short conversational messages.
+filter and requires all normalized terms to match. This keeps short conversational messages and
+incidental partial matches from injecting memory into prompts.
 
 ## Frozen snapshot and recall
 

@@ -87,7 +87,8 @@ matches any normalized query term, so adding an unknown word does not discard an
 (for example, `zx00841 banana` can recover a note containing `zx00841`). BM25 orders the bounded
 candidate sets before recall combines Unicode, trigram, recency, and signal scores. Queries
 without a lexical match return no results. Punctuation separates terms; FTS operators are not
-accepted as query syntax. Automatic turn recall still skips trivial queries.
+accepted as query syntax. Automatic turn recall still skips trivial queries and requires all
+normalized terms before injecting a memory, so incidental partial matches do not enter prompts.
 
 The search path prefers the derived catalog and falls back to deterministic lexical search when needed. Rebuild derived indexes after large memory edits or suspected catalog drift:
 

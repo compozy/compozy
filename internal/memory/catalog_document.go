@@ -37,7 +37,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func buildCatalogMatchQuery(query string) (string, error) {
+func buildCatalogMatchQuery(query string, matchAllTerms bool) (string, error) {
 	terms, err := searchQueryTerms(query)
 	if err != nil {
 		return "", err
@@ -45,6 +45,9 @@ func buildCatalogMatchQuery(query string) (string, error) {
 	quoted := make([]string, 0, len(terms))
 	for _, term := range terms {
 		quoted = append(quoted, quoteCatalogMatchTerm(term))
+	}
+	if matchAllTerms {
+		return strings.Join(quoted, " AND "), nil
 	}
 	// BM25 ranks partial matches without letting an absent term discard useful candidates.
 	return strings.Join(quoted, " OR "), nil

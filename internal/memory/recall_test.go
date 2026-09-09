@@ -89,6 +89,18 @@ func TestNewRecallAugmenter(t *testing.T) {
 		if strings.Contains(got, "User message:") {
 			t.Fatalf("Augment() = %q, want no legacy user message marker", got)
 		}
+
+		t.Run("Should leave partial matches out of automatic recall", func(t *testing.T) {
+			query := "auth sessions quuxnonexistent"
+			got, err := augmenter(t.Context(),
+				&session.Session{Type: session.SessionTypeUser, Workspace: workspaceRoot}, query)
+			if err != nil {
+				t.Fatalf("Augment(partial query) error = %v", err)
+			}
+			if got != query {
+				t.Fatalf("Augment(partial query) = %q, want unchanged user message", got)
+			}
+		})
 	})
 
 	t.Run("Should resolve durable recall from the session profile", func(t *testing.T) {

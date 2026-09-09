@@ -27,6 +27,15 @@ func (s *Store) Recall(
 	query memcontract.Query,
 	opts memcontract.RecallOptions,
 ) (memcontract.Packaged, error) {
+	return s.recall(ctx, query, opts, false)
+}
+
+func (s *Store) recall(
+	ctx context.Context,
+	query memcontract.Query,
+	opts memcontract.RecallOptions,
+	matchAllTerms bool,
+) (memcontract.Packaged, error) {
 	if ctx == nil {
 		return memcontract.Packaged{}, errors.New("memory: recall context is required")
 	}
@@ -56,7 +65,7 @@ func (s *Store) Recall(
 		defer lease.Release()
 		options = append(options, memoryrecall.WithSignalRecorder(lease))
 	}
-	recaller := memoryrecall.New(s, options...)
+	recaller := memoryrecall.New(catalogRecallSource{Store: s, matchAllTerms: matchAllTerms}, options...)
 	return recaller.Recall(ctx, query, opts)
 }
 
@@ -145,11 +154,33 @@ func (s *Store) ensureRecallCatalogReady(ctx context.Context, query memcontract.
 	return nil
 }
 
+type catalogRecallSource struct {
+	*Store
+	matchAllTerms bool
+}
+
+func (s catalogRecallSource) Candidates(
+	ctx context.Context,
+	query memcontract.Query,
+	opts memcontract.RecallOptions,
+) ([]memoryrecall.Candidate, error) {
+	return s.Store.recallCandidates(ctx, query, opts, s.matchAllTerms)
+}
+
 // Candidates implements recall.Source on top of the derived chunk catalog.
 func (s *Store) Candidates(
 	ctx context.Context,
 	query memcontract.Query,
 	opts memcontract.RecallOptions,
+) ([]memoryrecall.Candidate, error) {
+	return s.recallCandidates(ctx, query, opts, false)
+}
+
+func (s *Store) recallCandidates(
+	ctx context.Context,
+	query memcontract.Query,
+	opts memcontract.RecallOptions,
+	matchAllTerms bool,
 ) ([]memoryrecall.Candidate, error) {
 	if s.catalog == nil {
 		return nil, nil
@@ -161,7 +192,7 @@ func (s *Store) Candidates(
 	if db == nil {
 		return nil, nil
 	}
-	match, err := buildCatalogMatchQuery(query.QueryText)
+	match, err := buildCatalogMatchQuery(query.QueryText, matchAllTerms)
 	if err != nil {
 		return nil, err
 	}

@@ -10332,24 +10332,26 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, workspaceReadResult, []byte(rawClaim))
 
 		for _, query := range []string{"workspace memory body", "workspace", "workspace zx00841unknown"} {
-			searchResult, err := registry.Call(
-				t.Context(),
-				toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
-				toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDMemorySearch,
-					Input:  json.RawMessage(`{"query":"` + query + `","workspace":"` + stableWorkspaceID + `"}`),
-				},
-			)
-			if err != nil {
-				t.Fatalf("Registry.Call(memory_search) error = %v", err)
-			}
-			requireNativeStructuredContains(t, searchResult, []byte(`workspace memory body`))
-			requireNativeStructuredContains(
-				t,
-				searchResult,
-				[]byte(`workspace::`+stableWorkspaceID+`::workspace.md::chunk:0001`),
-			)
-			requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
+			t.Run("Should recall query "+query, func(t *testing.T) {
+				searchResult, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDMemorySearch,
+						Input:  json.RawMessage(`{"query":"` + query + `","workspace":"` + stableWorkspaceID + `"}`),
+					},
+				)
+				if err != nil {
+					t.Fatalf("Registry.Call(memory_search) error = %v", err)
+				}
+				requireNativeStructuredContains(t, searchResult, []byte(`workspace memory body`))
+				requireNativeStructuredContains(
+					t,
+					searchResult,
+					[]byte(`workspace::`+stableWorkspaceID+`::workspace.md::chunk:0001`),
+				)
+				requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
+			})
 		}
 		if err := memoryStore.ForWorkspace(workspaceRoot).Write(t.Context(),
 			memcontract.ScopeWorkspace,
