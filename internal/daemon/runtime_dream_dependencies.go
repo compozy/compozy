@@ -38,6 +38,7 @@ func (d *Daemon) initializeDreamRuntime(state *bootState, sessions SessionManage
 		func() (time.Time, error) {
 			return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
 		},
+		consolidation.WithEligibility(dreamRoleEligibility(sessions, roles)),
 	)
 }
 
@@ -79,5 +80,37 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 				})
 			},
 		}, nil
+	}
+}
+
+func dreamRoleEligibility(sessions SessionManager, roles RoleResolver) func(context.Context, string) (bool, error) {
+	return func(ctx context.Context, workspace string) (bool, error) {
+		role, err := roles.Resolve(ctx, workspace, compozyconfig.RoleDream)
+		if err != nil {
+			return false, err
+		}
+		if strings.TrimSpace(workspace) != "" || role.Enabled {
+			return role.Enabled, nil
+		}
+		infos, err := sessions.ListAll(ctx)
+		if err != nil {
+			return false, err
+		}
+		seen := make(map[string]bool)
+		for _, info := range infos {
+			if info == nil || info.Type == session.SessionTypeDream || info.WorkspaceID == "" ||
+				seen[info.WorkspaceID] {
+				continue
+			}
+			seen[info.WorkspaceID] = true
+			role, err := roles.Resolve(ctx, info.WorkspaceID, compozyconfig.RoleDream)
+			if err != nil {
+				return false, err
+			}
+			if role.Enabled {
+				return true, nil
+			}
+		}
+		return false, nil
 	}
 }

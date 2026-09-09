@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// DefaultMemoryConfig returns the approved Memory v2 Slice 1 defaults.
+// DefaultMemoryConfig returns opt-in persistent memory defaults.
 func DefaultMemoryConfig(homePaths HomePaths) MemoryConfig {
 	return MemoryConfig{
-		Enabled:    true,
+		Enabled:    false,
 		GlobalDir:  homePaths.MemoryDir,
 		Controller: defaultMemoryControllerConfig(),
 		Recall:     defaultMemoryRecallConfig(),

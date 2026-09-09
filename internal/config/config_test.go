@@ -2726,36 +2726,38 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 }
 
 func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
-	t.Setenv("COMPOZY_HOME", "")
+	t.Run("Should resolve factory defaults from the operator home", func(t *testing.T) {
+		t.Setenv("COMPOZY_HOME", "")
 
-	cfg, err := defaultConfig()
-	if err != nil {
-		t.Fatalf("defaultConfig() error = %v", err)
-	}
-	if cfg.HTTP.Port != 2123 || cfg.Defaults.Agent != DefaultAgentName {
-		t.Fatalf("defaultConfig() = %#v", cfg)
-	}
-	if cfg.Permissions.Mode != PermissionModeApproveAll {
-		t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
-	}
-	if !cfg.Roles.Dream.Enabled || cfg.Roles.Dream.Agent != "" {
-		t.Fatalf("defaultConfig() Roles.Dream = %#v, want enabled builtin routing", cfg.Roles.Dream)
-	}
-	if !cfg.Skills.Enabled {
-		t.Fatal("defaultConfig() Skills.Enabled = false, want true")
-	}
-	if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
-		t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
-	}
-	if !cfg.Network.Enabled {
-		t.Fatal("defaultConfig() Network.Enabled = false, want true")
-	}
-	if got, want := cfg.Network.Live.Defaults.MaxWakes, 8; got != want {
-		t.Fatalf("defaultConfig() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.Live.Limits.MaxWakes, 64; got != want {
-		t.Fatalf("defaultConfig() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
-	}
+		cfg, err := defaultConfig()
+		if err != nil {
+			t.Fatalf("defaultConfig() error = %v", err)
+		}
+		if cfg.HTTP.Port != 2123 || cfg.Defaults.Agent != DefaultAgentName {
+			t.Fatalf("defaultConfig() = %#v", cfg)
+		}
+		if cfg.Permissions.Mode != PermissionModeApproveAll {
+			t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
+		}
+		if cfg.Roles.Dream.Enabled || cfg.Roles.Dream.Agent != "" {
+			t.Fatalf("defaultConfig() Roles.Dream = %#v, want disabled builtin routing", cfg.Roles.Dream)
+		}
+		if !cfg.Skills.Enabled {
+			t.Fatal("defaultConfig() Skills.Enabled = false, want true")
+		}
+		if got, want := cfg.Skills.PollInterval, 3*time.Second; got != want {
+			t.Fatalf("defaultConfig() Skills.PollInterval = %s, want %s", got, want)
+		}
+		if !cfg.Network.Enabled {
+			t.Fatal("defaultConfig() Network.Enabled = false, want true")
+		}
+		if got, want := cfg.Network.Live.Defaults.MaxWakes, 8; got != want {
+			t.Fatalf("defaultConfig() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.Live.Limits.MaxWakes, 64; got != want {
+			t.Fatalf("defaultConfig() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestLoadRespectsExplicitNetworkDisable(t *testing.T) {

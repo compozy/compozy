@@ -28,6 +28,15 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 		return false, "dream consolidation is disabled", nil
 	}
 
+	if r.eligible != nil {
+		eligible, err := r.eligible(ctx, workspace)
+		if err != nil {
+			return false, "", err
+		}
+		if !eligible {
+			return false, "dream role is disabled", nil
+		}
+	}
 	shouldRun, err := r.service.ShouldRun()
 	if err != nil {
 		return false, "", err
@@ -49,4 +58,12 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 	}
 
 	return true, "", nil
+}
+
+// RuntimeOption customizes dream scheduling before it starts.
+type RuntimeOption func(*Runtime)
+
+// WithEligibility gates both scheduled and manual work before consolidation touches state.
+func WithEligibility(eligible func(context.Context, string) (bool, error)) RuntimeOption {
+	return func(r *Runtime) { r.eligible = eligible }
 }

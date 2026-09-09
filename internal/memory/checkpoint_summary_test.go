@@ -286,52 +286,55 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve the existing hint when the workspace role is disabled", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should preserve the existing hint but reject uncovered compaction when the workspace role is disabled",
+		func(t *testing.T) {
+			t.Parallel()
 
-		env := newCheckpointSummaryTestEnv(t)
-		seedService := NewCheckpointSummaryService(
-			env.store,
-			env.resolver,
-			&checkpointSummarizerStub{outputs: []string{
-				checkpointSummaryFixture("Stable checkpoint fact."),
-			}},
-		)
-		if _, err := seedService.Update(
-			testutil.Context(t),
-			env.sessionEndRecord("sess-prior", "stable"),
-		); err != nil {
-			t.Fatalf("Update(prior) error = %v", err)
-		}
-		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-		before, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
-		if err != nil {
-			t.Fatalf("Read(before disabled compaction) error = %v", err)
-		}
+			env := newCheckpointSummaryTestEnv(t)
+			seedService := NewCheckpointSummaryService(
+				env.store,
+				env.resolver,
+				&checkpointSummarizerStub{outputs: []string{
+					checkpointSummaryFixture("Stable checkpoint fact."),
+				}},
+			)
+			if _, err := seedService.Update(
+				testutil.Context(t),
+				env.sessionEndRecord("sess-prior", "stable"),
+			); err != nil {
+				t.Fatalf("Update(prior) error = %v", err)
+			}
+			workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
+			before, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+			if err != nil {
+				t.Fatalf("Read(before disabled compaction) error = %v", err)
+			}
 
-		service := NewCheckpointSummaryService(
-			env.store,
-			env.resolver,
-			&checkpointSummarizerStub{errAt: map[int]error{0: ErrCheckpointSummaryDisabled}},
-		)
-		result, err := service.Compact(
-			testutil.Context(t),
-			env.preCompressRequest("sess-disabled", 1, 4, "must not persist"),
-		)
-		if err != nil {
-			t.Fatalf("Compact(disabled role) error = %v", err)
-		}
-		if result.Decision.Applied || !strings.Contains(result.Hint.Markdown, "Stable checkpoint fact.") {
-			t.Fatalf("Compact(disabled role) = %#v, want prior hint and no decision", result)
-		}
-		after, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
-		if err != nil {
-			t.Fatalf("Read(after disabled compaction) error = %v", err)
-		}
-		if !bytes.Equal(after, before) {
-			t.Fatalf("disabled compaction changed checkpoint\nbefore:\n%s\nafter:\n%s", before, after)
-		}
-	})
+			service := NewCheckpointSummaryService(
+				env.store,
+				env.resolver,
+				&checkpointSummarizerStub{errAt: map[int]error{0: ErrCheckpointSummaryDisabled}},
+			)
+			result, err := service.Compact(
+				testutil.Context(t),
+				env.preCompressRequest("sess-disabled", 1, 4, "must not persist"),
+			)
+			if !errors.Is(err, ErrCheckpointSummaryDisabled) {
+				t.Fatalf("Compact(disabled role) error = %v, want disabled sentinel to prevent archive", err)
+			}
+			if result.Decision.Applied || !strings.Contains(result.Hint.Markdown, "Stable checkpoint fact.") {
+				t.Fatalf("Compact(disabled role) = %#v, want prior hint and no decision", result)
+			}
+			after, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+			if err != nil {
+				t.Fatalf("Read(after disabled compaction) error = %v", err)
+			}
+			if !bytes.Equal(after, before) {
+				t.Fatalf("disabled compaction changed checkpoint\nbefore:\n%s\nafter:\n%s", before, after)
+			}
+		},
+	)
 
 	t.Run("Should record one idempotent covered range before archive", func(t *testing.T) {
 		t.Parallel()

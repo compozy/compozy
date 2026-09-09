@@ -33,6 +33,183 @@ const (
 	roleDreamModel        = "routed-dream-model"
 )
 
+func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, output                string
+		enabled, failed, disconnect bool
+		decisions                   int
+	}{
+		{name: "Should keep factory memory idle through a managed turn", output: `{"no_candidates":true}`},
+		{name: "Should complete an opted-in no-candidate extraction without dreaming", enabled: true, output: `{"no_candidates":true}`},
+		{name: "Should persist valid candidates and expose malformed output", enabled: true, failed: true, decisions: 1, output: `{"type":"user","content":"Pedro prefers concise updates.","evidence":"seq=1"}` + "\n{broken"},
+		{name: "Should fail interrupted extraction without persisting partial candidates", enabled: true, failed: true, disconnect: true, output: `{"type":"user","content":"Pedro prefers concise updates.","evidence":"seq=1"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			acpmock.RequireDriver(t)
+			fixture, err := acpmock.LoadFixture(mockFixturePath(t, "agent_roles_fixture.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range fixture.Agents[0].Turns {
+				if fixture.Agents[0].Turns[i].Match.TurnSource == "synthetic" {
+					fixture.Agents[0].Turns[i].Steps[0].Text = tc.output
+					if tc.disconnect {
+						fixture.Agents[0].Turns[i].Steps = append(fixture.Agents[0].Turns[i].Steps, acpmock.Step{
+							Kind:          acpmock.StepKindDriverControl,
+							DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDisconnect},
+						})
+					}
+				}
+			}
+			data, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixturePath := filepath.Join(t.TempDir(), "extractor.json")
+			if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Memory.Enabled = compozyconfig.DefaultMemoryConfig(compozyconfig.HomePaths{}).Enabled
+					if tc.enabled {
+						cfg.Memory.Enabled = true
+					}
+					cfg.Roles.Dream.Enabled = compozyconfig.DefaultRolesConfig().Dream.Enabled
+					cfg.Roles.AutoTitle.Enabled = false
+					cfg.Roles.CheckpointSummary.Enabled = false
+					cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
+					cfg.Roles.MemoryExtractor.Provider = acpmock.ProviderName
+				}},
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: fixturePath, FixtureAgent: "role-agent", AgentName: "opt-in-agent"},
+				},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+			var roles compozycontract.RolesResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/roles", nil, &roles); err != nil {
+				t.Fatal(err)
+			}
+			for _, role := range roles.Roles {
+				if role.Role == string(compozyconfig.RoleMemoryExtractor) && role.Enabled != tc.enabled {
+					t.Fatalf("public extractor enabled=%t, want %t", role.Enabled, tc.enabled)
+				}
+			}
+
+			root := createFixtureBackedSession(t, ctx, harness, "opt-in-agent", "")
+			if _, err := harness.PromptSession(ctx, root.ID, "Record the extractor routing decision"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.enabled {
+				var drain compozycontract.MemoryExtractorDrainResponse
+				if err := harness.UDSJSON(
+					ctx,
+					http.MethodPost,
+					"/api/memory/extractor/drain",
+					nil,
+					&drain,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if drain.Remaining != 0 {
+					t.Fatalf("drain=%#v", drain)
+				}
+			}
+			var status compozycontract.MemoryExtractorStatusResponse
+			if err := harness.CLI.RunJSON(ctx, &status, "memory", "extractor", "status", "-o", "json"); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.enabled && status.Extractor.Status != compozycontract.MemoryExtractorStateStopped {
+				t.Fatalf("status=%#v", status)
+			}
+			var failures compozycontract.MemoryExtractorFailuresResponse
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodGet,
+				"/api/memory/extractor/failures",
+				nil,
+				&failures,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if (len(failures.Failures) > 0) != tc.failed {
+				t.Fatalf("failures=%#v", failures)
+			}
+			if tc.failed && failures.Failures[0].SessionID != root.ID {
+				t.Fatalf("failure lost parent identity: %#v", failures)
+			}
+			var dream compozycontract.MemoryDreamTriggerResponse
+			if err := harness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				"/api/memory/dreams/trigger",
+				compozycontract.MemoryDreamTriggerRequest{WorkspaceID: harness.WorkspaceID},
+				&dream,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if dream.Triggered || !strings.Contains(dream.Reason, "disabled") {
+				t.Fatalf("dream=%#v, want explicitly disabled", dream)
+			}
+			children := 0
+			for _, info := range readWorkspaceRoleSessions(t, ctx, harness) {
+				if info.SessionType == "dream" {
+					t.Fatalf("unexpected dream session: %#v", info)
+				}
+				if info.Lineage != nil && info.Lineage.SpawnRole == sessionpkg.SpawnRoleMemoryExtractor {
+					children++
+				}
+			}
+			db, err := sql.Open("sqlite", harness.HomePaths.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			var completed, failed int
+			if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM memory_events WHERE session_id = ? AND op = 'memory.extractor.completed'", root.ID).
+				Scan(&completed); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM memory_events WHERE session_id = ? AND op = 'memory.extractor.failed'", root.ID).
+				Scan(&failed); err != nil {
+				t.Fatal(err)
+			}
+			if tc.failed {
+				if failed != 1 || completed != 0 {
+					t.Fatalf("events completed=%d failed=%d", completed, failed)
+				}
+				var decisions int
+				if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM memory_decisions WHERE post_content LIKE ?", "%Pedro prefers concise updates.%").
+					Scan(&decisions); err != nil {
+					t.Fatal(err)
+				}
+				if decisions != tc.decisions {
+					t.Fatalf("preserved candidate decisions=%d, want %d", decisions, tc.decisions)
+				}
+			} else if tc.enabled && (completed != 1 || failed != 0) {
+				t.Fatalf("empty extraction completed=%d failed=%d", completed, failed)
+			}
+			if !tc.enabled && (completed != 0 || failed != 0) {
+				t.Fatalf("disabled extraction ran: completed=%d failed=%d", completed, failed)
+			}
+			wantChildren := 0
+			if tc.enabled {
+				wantChildren = 1
+			}
+			if children != wantChildren {
+				t.Fatalf("extractor children=%d, want %d", children, wantChildren)
+			}
+		})
+	}
+}
+
 func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 	t.Parallel()
 

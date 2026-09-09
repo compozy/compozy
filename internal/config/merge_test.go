@@ -601,8 +601,8 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Roles.Dream.Model != "model-x" || !cfg.Roles.Dream.Enabled {
-			t.Fatalf("Roles.Dream = %#v, want model override with enabled default", cfg.Roles.Dream)
+		if cfg.Roles.Dream.Model != "model-x" || cfg.Roles.Dream.Enabled {
+			t.Fatalf("Roles.Dream = %#v, want model override with disabled default", cfg.Roles.Dream)
 		}
 		if !reflect.DeepEqual(cfg.Roles.CheckpointSummary, DefaultRolesConfig().CheckpointSummary) {
 			t.Fatalf("Roles.CheckpointSummary = %#v, want defaults", cfg.Roles.CheckpointSummary)
@@ -618,8 +618,8 @@ func TestRolesOverlayPreservesLayeredMergeSemantics(t *testing.T) {
 		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if !cfg.Roles.Dream.Enabled {
-			t.Fatal("Roles.Dream.Enabled = false, want default true")
+		if cfg.Roles.Dream.Enabled {
+			t.Fatal("Roles.Dream.Enabled = true, want default false")
 		}
 	})
 

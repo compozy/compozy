@@ -332,7 +332,7 @@ type TurnRecord struct {
 	Trigger         Trigger            `json:"trigger"`
 }
 
-// Extractor produces memory candidates from transcript turns.
+// Extractor may return valid partial candidates with an error diagnosing the rejected output.
 type Extractor interface {
 	Extract(ctx context.Context, turn TurnRecord) ([]Candidate, error)
 	Drain(ctx context.Context) error

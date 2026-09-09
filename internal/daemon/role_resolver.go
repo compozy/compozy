@@ -134,6 +134,9 @@ func (r *roleResolver) resolveEffective(
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
 	}
+	compaction := roleInvocationCorrelationFromContext(ctx, workspaceID).SessionCompaction
+	memoryEnabled := r.config.Memory.Enabled && effectiveConfig.Memory.Enabled
+	resolved.Enabled = effectiveRoleEnabled(role, common.Enabled, memoryEnabled, compaction)
 	resolved.setRuntime(speedpkg.Speed(strings.TrimSpace(string(common.Speed))), common.ACPOptions)
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)
@@ -374,4 +377,20 @@ func firstRoleValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// effectiveRoleEnabled keeps background status and invocation under the same memory gate.
+// Pressure summaries belong to the session lifecycle and use their explicit role switch.
+func effectiveRoleEnabled(role compozyconfig.RoleName, enabled, memoryEnabled, compaction bool) bool {
+	if !enabled {
+		return false
+	}
+	switch role {
+	case compozyconfig.RoleDream, compozyconfig.RoleMemoryExtractor, compozyconfig.RoleMemoryController:
+		return memoryEnabled
+	case compozyconfig.RoleCheckpointSummary:
+		return memoryEnabled || compaction
+	default:
+		return true
+	}
 }

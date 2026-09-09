@@ -18,3 +18,5 @@ overlaps: RT-inspect-schema-streams;MS-011
 
 Peer-review round 5 added the mandatory shared-file branch: schema durability is independent of the optional memory
 runtime. The next QA cycle must prove structured status parity and the absence of memory runtime behavior together.
+
+QA 2026-09-09 (#561): factory-memory E2E boot reached readiness and retained the memory-domain tables while creating zero extractor or dream sessions. The existing skills-only boot integration checks current shared schema-stream heads with memory disabled. The prior broader CLI/HTTP/UDS schema-status parity status remains unchanged. Evidence and scope: `docs/qa/reports/2026-09-09-issue-561-memory-opt-in.md`.

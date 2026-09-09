@@ -68,6 +68,7 @@ func memoryExtractorOverlay() string {
 	return strings.TrimSpace(`
 You are an Compozy internal Memory v2 extractor child session.
 Return only JSONL candidates that match the requested schema.
+If there are no candidates, return exactly {"no_candidates":true}.
 Do not modify files, run commands, or include commentary outside JSONL.
 `)
 }
@@ -77,30 +78,40 @@ func collectMemoryExtractorOutput(ctx context.Context, events <-chan acp.AgentEv
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("daemon: collect memory extractor output: %w", ctx.Err())
+			return output.String(), fmt.Errorf("daemon: collect memory extractor output: %w", ctx.Err())
 		case event, ok := <-events:
 			if !ok {
-				return output.String(), nil
+				return output.String(), errors.New("daemon: memory extractor stream closed without a terminal event")
 			}
 			switch event.Type {
 			case acp.EventTypeAgentMessage:
 				// Agent messages are stream chunks; inserting separators can corrupt JSONL.
 				output.WriteString(event.Text)
 			case acp.EventTypeError:
-				return "", fmt.Errorf("daemon: memory extractor agent error: %s", strings.TrimSpace(event.Error))
+				return output.String(), fmt.Errorf(
+					"daemon: memory extractor agent error: %s",
+					strings.TrimSpace(event.Error),
+				)
+			case acp.EventTypeDone:
+				reason := firstNonEmptyString(string(event.PromptStopReason), event.StopReason)
+				if reason != "" && reason != string(acp.PromptStopReasonEndTurn) {
+					return output.String(), fmt.Errorf("daemon: memory extractor stopped before completion: %s", reason)
+				}
+				return output.String(), nil
 			}
 		}
 	}
 }
 
 type extractedMemoryLine struct {
-	Type      string `json:"type"`
-	Scope     string `json:"scope"`
-	AgentTier string `json:"agent_tier"`
-	Content   string `json:"content"`
-	Evidence  string `json:"evidence"`
-	Entity    string `json:"entity"`
-	Attribute string `json:"attribute"`
+	NoCandidates bool   `json:"no_candidates"`
+	Type         string `json:"type"`
+	Scope        string `json:"scope"`
+	AgentTier    string `json:"agent_tier"`
+	Content      string `json:"content"`
+	Evidence     string `json:"evidence"`
+	Entity       string `json:"entity"`
+	Attribute    string `json:"attribute"`
 }
 
 func parseMemoryExtractorCandidates(
@@ -113,6 +124,7 @@ func parseMemoryExtractorCandidates(
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	candidates := make([]memcontract.Candidate, 0)
 	lineNumber := 0
+	var failures []error
 	for scanner.Scan() {
 		lineNumber++
 		raw := normalizeExtractorJSONLLine(scanner.Text())
@@ -121,24 +133,41 @@ func parseMemoryExtractorCandidates(
 		}
 		var line extractedMemoryLine
 		if err := json.Unmarshal([]byte(raw), &line); err != nil {
-			return nil, fmt.Errorf("daemon: decode memory extractor line %d: %w", lineNumber, err)
+			failures = append(failures, fmt.Errorf("daemon: decode memory extractor line %d: %w", lineNumber, err))
+			continue
+		}
+		if line.NoCandidates {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(raw), &fields); err != nil {
+				return candidates, err
+			}
+			if len(fields) == 1 {
+				continue
+			}
+			failures = append(
+				failures,
+				fmt.Errorf("daemon: memory extractor line %d mixes no_candidates with candidate fields", lineNumber),
+			)
+			continue
 		}
 		candidate, err := candidateFromExtractedLine(line, turn, workspaceRoot, submittedAt)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: normalize memory extractor line %d: %w", lineNumber, err)
+			failures = append(failures, fmt.Errorf("daemon: normalize memory extractor line %d: %w", lineNumber, err))
+			continue
 		}
 		candidates = append(candidates, candidate)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("daemon: scan memory extractor output: %w", err)
+		failures = append(failures, fmt.Errorf("daemon: scan memory extractor output: %w", err))
 	}
-	return candidates, nil
+	return candidates, errors.Join(failures...)
 }
 
 func normalizeExtractorJSONLLine(raw string) string {
 	line := strings.TrimSpace(raw)
-	switch line {
-	case "", "```", "```json", "```jsonl":
+	switch strings.ToLower(line) {
+	case "", "```", "```json", "```jsonl", "[]", "(none)", "none", "no memories", "no memories.",
+		"no memories to save", "no memories to save.", "no candidates", "no candidates.":
 		return ""
 	default:
 		return line

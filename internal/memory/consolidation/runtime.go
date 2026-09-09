@@ -39,6 +39,7 @@ type SessionManager interface {
 // Runtime owns dream scheduling, trigger behavior, and session spawning.
 type Runtime struct {
 	enabled            func() bool
+	eligible           func(context.Context, string) (bool, error)
 	service            Service
 	spawner            memory.SessionSpawner
 	logger             *slog.Logger
@@ -86,11 +87,12 @@ func NewRuntime(
 	interval time.Duration,
 	logger *slog.Logger,
 	lastConsolidatedAt func() (time.Time, error),
+	options ...RuntimeOption,
 ) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Runtime{
+	runtime := &Runtime{
 		enabled:            enabled,
 		service:            service,
 		spawner:            spawner,
@@ -98,6 +100,10 @@ func NewRuntime(
 		interval:           interval,
 		lastConsolidatedAt: lastConsolidatedAt,
 	}
+	for _, option := range options {
+		option(runtime)
+	}
+	return runtime
 }
 
 // Start launches the background dream check loop when the runtime is configured.
@@ -200,6 +206,16 @@ func (r *Runtime) runCheck(
 		logger = slog.Default()
 	}
 
+	if r.eligible != nil {
+		eligible, err := r.eligible(ctx, workspaceRef)
+		if err != nil {
+			logger.Warn("daemon: resolve dream enablement failed", "workspace_ref", workspaceRef, "error", err)
+			return
+		}
+		if !eligible {
+			return
+		}
+	}
 	logger.Debug("daemon: evaluating dream consolidation gates", "reason", reason, "workspace_ref", workspaceRef)
 	shouldRun, err := service.ShouldRun()
 	if err != nil {

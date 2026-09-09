@@ -134,18 +134,28 @@ type forkedMemoryExtractor struct {
 	logger         *slog.Logger
 	now            func() time.Time
 	workspaceRoots *sync.Map
+	failuresDir    string
 }
 
 func (e *forkedMemoryExtractor) Extract(
 	ctx context.Context,
 	turn memcontract.TurnRecord,
-) ([]memcontract.Candidate, error) {
+) (candidates []memcontract.Candidate, resultErr error) {
 	if e == nil || e.sessions == nil {
 		return nil, errors.New("daemon: memory extractor sessions are not configured")
 	}
 	if e.roles == nil {
 		return nil, errors.New("daemon: memory extractor role resolver is not configured")
 	}
+	if e.workspaceRoots != nil {
+		defer e.workspaceRoots.Delete(turn.SessionID)
+	}
+	var output string
+	defer func() {
+		if resultErr != nil {
+			resultErr = errors.Join(resultErr, e.recordExtractionFailure(turn, output, resultErr))
+		}
+	}()
 	correlation := roleInvocationCorrelation{
 		WorkspaceID:     strings.TrimSpace(turn.WorkspaceID),
 		SessionID:       strings.TrimSpace(turn.SessionID),
@@ -176,7 +186,7 @@ func (e *forkedMemoryExtractor) Extract(
 	}
 	child, err := e.spawnExtractorSession(runCtx, role, correlation, turn)
 	if child != nil {
-		defer e.stopChild(ctx, child.ID)
+		defer func() { e.stopChild(ctx, child.ID, resultErr) }()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("daemon: spawn memory extractor session: %w", err)
@@ -193,15 +203,11 @@ func (e *forkedMemoryExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: prompt memory extractor session: %w", err)
 	}
-	output, err := collectMemoryExtractorOutput(runCtx, events)
+	output, err = collectMemoryExtractorOutput(runCtx, events)
 	if err != nil {
 		return nil, err
 	}
-	candidates, err := parseMemoryExtractorCandidates(output, turn, e.workspaceRoot(turn.SessionID), e.nowUTC())
-	if err != nil {
-		return nil, err
-	}
-	return candidates, nil
+	return parseMemoryExtractorCandidates(output, turn, e.workspaceRoot(turn.SessionID), e.nowUTC())
 }
 
 func (e *forkedMemoryExtractor) spawnExtractorSession(
@@ -246,10 +252,17 @@ func (e *forkedMemoryExtractor) extractorTTL() time.Duration {
 	return 2 * time.Minute
 }
 
-func (e *forkedMemoryExtractor) stopChild(parentCtx context.Context, id string) {
+func (e *forkedMemoryExtractor) stopChild(parentCtx context.Context, id string, extractionErr error) {
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), memoryExtractorStopTimeout)
 	defer cancel()
-	if err := e.sessions.StopWithCause(stopCtx, id, session.CauseCompleted, "memory extractor completed"); err != nil &&
+	cause, detail := session.CauseCompleted, "memory extractor child finished; output parsed"
+	if extractionErr != nil {
+		cause, detail = session.CauseFailed, "memory extractor child failed; see extraction failure diagnostics"
+		if errors.Is(extractionErr, context.DeadlineExceeded) {
+			cause, detail = session.CauseTimeout, "memory extractor child timed out"
+		}
+	}
+	if err := e.sessions.StopWithCause(stopCtx, id, cause, detail); err != nil &&
 		e.logger != nil {
 		e.logger.Warn("daemon: stop memory extractor child failed", "session_id", id, "error", err)
 	}

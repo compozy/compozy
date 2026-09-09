@@ -1,5 +1,18 @@
 # Memory
 
+Session pressure compaction remains independently controlled by `session.compaction.enabled`.
+It reuses checkpoint coverage and may launch a summary child when an active session reaches the
+pressure threshold, even with persistent memory disabled. Idle sessions and session-end memory
+updates do not start that work. An explicit checkpoint-role opt-out or a failed summary leaves
+uncovered events unarchived.
+
+## Enablement
+
+Memory and background dreaming are disabled by default. Respect the operator's choice: do not enable
+them implicitly. To opt in, set `memory.enabled = true` in the daemon configuration and restart.
+Set `roles.dream.enabled = true` separately for dreaming; profile/workspace role overrides apply
+when the daemon memory runtime is enabled. Existing explicit settings and memory files are preserved.
+
 ## What Memory Stores
 
 CompozyOS memory is durable Markdown outside transient session prompts. Use it for facts that should survive across sessions: project context, user preferences, durable decisions, and reusable references.
@@ -148,6 +161,12 @@ Inspect asynchronous extractor pressure before retrying or tuning Memory runs:
 
 `skipped_turns` counts transcript turns that had no non-whitespace content and were suppressed before provider work. `active_provider_sessions` shows extractor child sessions currently consuming provider work. `backpressured_sessions` increments when `memory.extractor.queue.capacity` is saturated and a session waits instead of spawning another child. `coalesced_turns`, `dropped_turns`, `failure_count`, and pending failures explain queue pressure and failed extractor handoff without exposing raw transcript text.
 
+Extraction-stage failures, including invalid model output and timeouts, are visible through
+`list-failures` and the configured DLQ. Valid candidates from a partially malformed response still
+reach the controller, but the extraction records failure. A no-candidate result is successful.
+Retry replays normalized inbox candidates only; extraction-stage failures require a new extraction.
+A child process ending does not by itself mean extraction and inbox production succeeded.
+
 ## Hygiene
 
 1. Run compozy memory list before writing a new memory entry.
@@ -166,3 +185,5 @@ Do not write memory for raw transcripts, secrets, claim tokens, OAuth material, 
 Memory v2 tool IDs (`compozy__memory_*`), operation or event IDs (`memory.*`), and scanner rule IDs (`policy_memory_*`) are operational state. The controller rejects candidates that include them.
 
 Memory should reduce future ambiguity. It should not become another source of stale context.
+
+Background role status reflects the daemon memory master switch as well as effective role settings. Pressure compaction still uses `session.compaction.enabled` and the checkpoint role switch independently. An interrupted extractor stream is a failure even when its partial text looks like valid JSON; the diagnostic retains that text without admitting it as a candidate.

@@ -38,11 +38,11 @@ func TestRoleResolverIntegration(t *testing.T) {
 			model   string
 		}{
 			{role: compozyconfig.RoleCoordinator, agent: compozyconfig.BuiltinCoordinatorAgentName, builtin: true},
-			{role: compozyconfig.RoleDream, agent: compozyconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
-			{role: compozyconfig.RoleCheckpointSummary, agent: compozyconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
-			{role: compozyconfig.RoleMemoryExtractor, enabled: true, inherit: true},
+			{role: compozyconfig.RoleDream, agent: compozyconfig.BuiltinDreamingCuratorAgentName, builtin: true},
+			{role: compozyconfig.RoleCheckpointSummary, agent: compozyconfig.BuiltinDreamingCuratorAgentName, builtin: true},
+			{role: compozyconfig.RoleMemoryExtractor, inherit: true},
 			{role: compozyconfig.RoleAutoTitle, enabled: true, inherit: true},
-			{role: compozyconfig.RoleMemoryController, enabled: defaults.MemoryController.Enabled, model: defaults.MemoryController.Model},
+			{role: compozyconfig.RoleMemoryController, model: defaults.MemoryController.Model},
 		} {
 			t.Run("Should resolve "+string(testCase.role), func(t *testing.T) {
 				t.Parallel()

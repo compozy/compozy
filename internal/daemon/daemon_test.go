@@ -5787,6 +5787,13 @@ func runDreamRuntimeLifecycleCases(t *testing.T) {
 		wantRuntime bool
 	}{
 		{
+			name: "Should keep memory and dream runtimes absent under factory defaults",
+			patch: func(cfg *compozyconfig.Config) {
+				cfg.Memory.Enabled = compozyconfig.DefaultMemoryConfig(compozyconfig.HomePaths{}).Enabled
+				cfg.Roles = compozyconfig.DefaultRolesConfig()
+			},
+		},
+		{
 			name: "Should keep the dream runtime absent when memory is disabled",
 			patch: func(cfg *compozyconfig.Config) {
 				cfg.Memory.Enabled = false
@@ -5837,7 +5844,11 @@ func runDreamRuntimeLifecycleCases(t *testing.T) {
 			})
 			d.mu.Lock()
 			dreamRuntime := d.dreamRuntime
+			memoryExtractor := d.memoryExtractor
 			d.mu.Unlock()
+			if !cfg.Memory.Enabled && memoryExtractor != nil {
+				t.Fatal("disabled memory registered an extractor")
+			}
 			if tc.wantRuntime && !dreamRuntime.Enabled() {
 				t.Fatal("dream runtime Enabled() = false, want memory-backed scheduling for workspace role resolution")
 			}
@@ -5909,6 +5920,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
+	writeDaemonFile(t, homePaths.ConfigFile, "[memory]\nenabled = true\n[roles.dream]\nenabled = true\n")
 	cfg.Memory.Dream.CheckInterval = time.Hour
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
@@ -6235,6 +6247,9 @@ func testConfig(t *testing.T, homePaths compozyconfig.HomePaths) compozyconfig.C
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	// Runtime fixtures explicitly opt in; default boot coverage uses factory values.
+	cfg.Memory.Enabled = true
+	cfg.Roles.Dream.Enabled = true
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket

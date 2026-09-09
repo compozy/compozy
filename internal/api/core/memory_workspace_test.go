@@ -85,14 +85,16 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			},
 		}
 
-		return newHandlerFixture(
+		fixture := newHandlerFixture(
 			t,
 			manager,
 			observer,
 			testutil.StubWorkspaceService{},
 			store,
 			trigger,
-		), workspace, trigger
+		)
+		fixture.Handlers.Config.Memory.Enabled = true
+		return fixture, workspace, trigger
 	}
 
 	t.Run("Should project profile memory through the selected API lens", func(t *testing.T) {
@@ -717,6 +719,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			nil,
 			nil,
 		)
+		fixture.Handlers.Config.Memory.Enabled = true
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health", nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
@@ -790,6 +793,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			store,
 			nil,
 		)
+		fixture.Handlers.Config.Memory.Enabled = true
 		query := url.Values{}
 		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)

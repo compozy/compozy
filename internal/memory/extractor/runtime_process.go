@@ -63,16 +63,22 @@ func (r *Runtime) process(req request) bool {
 			"coalesced_count": strconv.Itoa(req.coalesceCount),
 		},
 	})
-	candidates, err := r.extractor.Extract(r.workerCtx, req.turn)
-	if err != nil {
-		r.recordEvent(r.workerCtx, Event{Op: EventFailed, Turn: req.turn, Error: err.Error()})
-		r.logger.Warn("memory extractor: extract failed", "session_id", req.turn.SessionID, "error", err)
-		return true
+	candidates, extractionErr := r.extractor.Extract(r.workerCtx, req.turn)
+	if extractionErr != nil {
+		r.recordEvent(r.workerCtx, Event{Op: EventFailed, Turn: req.turn, Error: extractionErr.Error(),
+			Metadata: map[string]string{"candidate_count": strconv.Itoa(len(candidates))}})
+		r.logger.Warn("memory extractor: extract failed", "session_id", req.turn.SessionID, "error", extractionErr)
+		if len(candidates) == 0 {
+			return true
+		}
 	}
 	path, count, err := r.producer.Write(r.workerCtx, req.turn, candidates)
 	if err != nil {
 		r.recordEvent(r.workerCtx, Event{Op: EventFailed, Turn: req.turn, Error: err.Error()})
 		r.logger.Warn("memory extractor: write inbox failed", "session_id", req.turn.SessionID, "error", err)
+		return true
+	}
+	if extractionErr != nil {
 		return true
 	}
 	r.recordEvent(r.workerCtx, Event{

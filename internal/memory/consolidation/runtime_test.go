@@ -22,6 +22,31 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func TestRuntimeEligibility(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip all consolidation work until explicitly enabled", func(t *testing.T) {
+		t.Parallel()
+		service := &fakeDreamService{shouldRun: true}
+		enabled := false
+		runtime := NewRuntime(func() bool { return true }, service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute, nil, nil, WithEligibility(func(context.Context, string) (bool, error) { return enabled, nil }))
+		triggered, _, err := runtime.Trigger(t.Context(), "workspace")
+		if err != nil || triggered {
+			t.Fatalf("disabled trigger=%t error=%v", triggered, err)
+		}
+		runtime.runCheck(t.Context(), nil, service, runtime.spawner, "ticker", "workspace")
+		if service.shouldRunCalls != 0 || service.runCount() != 0 {
+			t.Fatal("disabled dreaming evaluated gates or ran consolidation")
+		}
+		enabled = true
+		triggered, _, err = runtime.Trigger(t.Context(), "workspace")
+		if err != nil || !triggered || service.runCount() != 1 {
+			t.Fatalf("enabled trigger=%t error=%v runs=%d", triggered, err, service.runCount())
+		}
+	})
+}
+
 func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {
 	t.Parallel()
 	t.Run("Should report an already-running lock conflict as a clean skip", func(t *testing.T) {

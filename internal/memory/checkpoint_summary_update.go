@@ -61,6 +61,7 @@ func (s *CheckpointSummaryService) Compact(
 	}
 
 	summaryRequest := CheckpointSummaryRequest{
+		Compaction:      true,
 		WorkspaceID:     workspaceID,
 		WorkspaceRoot:   workspaceRoot,
 		SessionID:       strings.TrimSpace(request.SessionID),
@@ -74,7 +75,7 @@ func (s *CheckpointSummaryService) Compact(
 		if errors.Is(err, ErrCheckpointSummaryDisabled) {
 			return CheckpointCompactionResult{Hint: memcontract.PreCompressHint{
 				Markdown: firstCheckpointValue(state.coverage.ResumeSummary, state.body),
-			}}, nil
+			}}, ErrCheckpointSummaryDisabled
 		}
 		return CheckpointCompactionResult{}, err
 	}

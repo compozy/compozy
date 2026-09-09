@@ -56,6 +56,8 @@ var (
 
 // CheckpointSummaryRequest is the bounded input supplied to a checkpoint summarizer.
 type CheckpointSummaryRequest struct {
+	// Compaction distinguishes pressure-driven session lifecycle work from session-end memory updates.
+	Compaction      bool
 	WorkspaceID     string
 	WorkspaceRoot   string
 	SessionID       string

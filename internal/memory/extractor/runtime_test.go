@@ -484,6 +484,35 @@ func TestRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve partial candidates without reporting extraction success", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		fake := newFakeExtractor()
+		fake.setResult([]memcontract.Candidate{testCandidate("Pedro prefers brief updates.")})
+		fake.setError(errors.New("decode memory extractor line 2"))
+		events := &recordingEventSink{}
+		runtime := newTestRuntime(t, root, fake, events)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("partial", 1)); err != nil {
+			t.Fatal(err)
+		}
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		sink := &recordingProposalSink{}
+		consumer, err := extractor.NewInboxConsumer(root, sink)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := consumer.ConsumeOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Proposed != 1 || !events.containsOp(extractor.EventFailed) ||
+			events.containsOp(extractor.EventCompleted) {
+			t.Fatalf("result=%#v events=%#v, want one preserved candidate and failure only", result, events.ops())
+		}
+	})
+
 	t.Run("Should record extractor failures without producing inbox files", func(t *testing.T) {
 		t.Parallel()
 

@@ -109,6 +109,9 @@ func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeed
 	t.Helper()
 
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	// Full-feature runtime fixtures opt in; factory-default scenarios override these switches.
+	cfg.Memory.Enabled = true
+	cfg.Roles.Dream.Enabled = true
 	cfg.HTTP.Host = defaultString(opts.Host, "127.0.0.1")
 	if opts.HTTPPort > 0 {
 		cfg.HTTP.Port = opts.HTTPPort

@@ -8,24 +8,18 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.logger = state.logger
 	d.closeLogger = state.closeLogger
 	d.booting = false
-	var localMemoryProvider memoryProviderShutdowner
-	if state.localMemoryProvider != nil {
-		localMemoryProvider = checkpointMemoryShutdowner{
-			runtime:  state.checkpointRuntime,
-			provider: state.localMemoryProvider,
-		}
-	}
 	d.daemonRuntimeState = daemonRuntimeState{
 		lock:                   state.lock,
 		harnessResolver:        state.harnessResolver,
 		registry:               state.registry,
 		profiles:               state.profiles,
 		memoryStore:            state.memoryStore,
+		checkpointStore:        state.checkpointStore,
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,
 		runtimeWorkers:         state.runtimeWorkers,
 		terminals:              state.terminals,
-		localMemoryProvider:    localMemoryProvider,
+		localMemoryProvider:    state.memoryProviderShutdowner(),
 		situationContext:       state.situationContext,
 		sessions:               state.sessions,
 		sessionWakeBridge:      state.sessionWakeBridge,
@@ -80,5 +74,15 @@ func (d *Daemon) publishBootState(state *bootState) {
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true
+	}
+}
+
+func (state *bootState) memoryProviderShutdowner() memoryProviderShutdowner {
+	if state.localMemoryProvider == nil {
+		return nil
+	}
+	return checkpointMemoryShutdowner{
+		runtime:  state.checkpointRuntime,
+		provider: state.localMemoryProvider,
 	}
 }

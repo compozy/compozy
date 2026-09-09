@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -154,50 +153,6 @@ func (d *Daemon) bootAutoTitleRuntime(
 	}
 	cleanup.add(runtime.Shutdown)
 	state.runtimeWorkers.autoTitle = runtime
-	return nil
-}
-
-func (d *Daemon) bootCheckpointSummaryRuntime(
-	ctx context.Context,
-	state *bootState,
-	sessions SessionManager,
-	cleanup *bootCleanup,
-) error {
-	if state == nil || state.localMemoryProvider == nil || state.memoryProviderRegistry == nil {
-		return nil
-	}
-	checkpointSessions, ok := sessions.(checkpointSummarySessionManager)
-	if !ok {
-		return errors.New("daemon: session manager does not implement checkpoint summary lifecycle")
-	}
-	summarizer := newDaemonCheckpointSummarizer(
-		checkpointSessions,
-		roleResolverForState(state),
-	)
-	service := memory.NewCheckpointSummaryService(
-		state.memoryStore,
-		state.workspaceResolver,
-		summarizer,
-		memory.WithCheckpointSummaryClock(d.now),
-	)
-	state.localMemoryProvider.SetSessionEndHandler(service)
-	state.localMemoryProvider.SetPreCompressHandler(service)
-	runtime := newCheckpointSummaryRuntime(
-		sessions,
-		state.memoryProviderRegistry,
-		state.cfg.Memory.Provider.Timeout,
-		state.cfg.Memory.Extractor.Deadline,
-		state.logger,
-		service,
-	)
-	if err := runtime.Start(ctx); err != nil {
-		return fmt.Errorf("daemon: start checkpoint summary runtime: %w", err)
-	}
-	cleanup.add(runtime.Shutdown)
-	if binder, ok := sessions.(sessionCompactionBinder); ok {
-		binder.SetCompactionHandler(runtime)
-	}
-	state.checkpointRuntime = runtime
 	return nil
 }
 

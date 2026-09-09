@@ -4,6 +4,8 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,10 +26,219 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const compactionIntegrationFact = "cobalt-archive-fact"
+
+func TestDaemonE2EFactoryPressureCompaction(t *testing.T) {
+	t.Run(
+		"Should preserve factory pressure coverage and resume without enabling background memory",
+		func(t *testing.T) {
+			acpmock.RequireDriver(t)
+			fixture, err := acpmock.LoadFixture(mockFixturePath(t, "agent_roles_fixture.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			loadSession := false
+			fixture.Agents[0].LoadSession = &loadSession
+			fixture.Agents[0].Turns = []acpmock.TurnFixture{
+				{
+					Name:  "fact",
+					Match: acpmock.TurnMatch{UserText: "remember the archive fact"},
+					Steps: []acpmock.Step{
+						{
+							Kind: acpmock.StepKindAssistant,
+							Text: strings.Repeat("archive-padding ", 2048) + compactionIntegrationFact,
+						},
+					},
+				},
+				{
+					Name:  "pressure",
+					Match: acpmock.TurnMatch{UserText: "cross the pressure threshold"},
+					Steps: []acpmock.Step{
+						{Kind: acpmock.StepKindAssistant, Text: "current turn remains raw"},
+						{
+							Kind: acpmock.StepKindDriverControl,
+							DriverControl: &acpmock.DriverControlStep{
+								Action:     acpmock.DriverControlWriteRawJSONRPC,
+								RawJSONRPC: `{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"role-agent-session-1","update":{"sessionUpdate":"usage_update","used":90,"size":100}}}`,
+							},
+						},
+					},
+				},
+				{
+					Name:  "summary",
+					Match: acpmock.TurnMatch{TurnSource: "synthetic"},
+					Steps: []acpmock.Step{
+						{Kind: acpmock.StepKindAssistant, Text: compactionCheckpointBody(compactionIntegrationFact)},
+					},
+				},
+				{
+					Name: "resume",
+					Match: acpmock.TurnMatch{
+						UserText:            "recover the archive fact",
+						RawUserTextContains: "<compozy_context_replay>",
+					},
+					Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "recovered"}},
+				},
+				{
+					Name:  "lost-runtime",
+					Match: acpmock.TurnMatch{UserText: "recover the archive fact"},
+					Steps: []acpmock.Step{
+						{Kind: acpmock.StepKindAssistant, Text: "recovering context"},
+						{
+							Kind:          acpmock.StepKindDriverControl,
+							DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlDisconnect},
+						},
+					},
+				},
+			}
+			data, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixturePath := filepath.Join(t.TempDir(), "pressure.json")
+			if err := os.WriteFile(fixturePath, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Memory.Enabled = compozyconfig.DefaultMemoryConfig(compozyconfig.HomePaths{}).Enabled
+					cfg.Roles.Dream.Enabled = compozyconfig.DefaultRolesConfig().Dream.Enabled
+					cfg.Roles.AutoTitle.Enabled = false
+					cfg.Roles.CheckpointSummary.Provider = acpmock.ProviderName
+					cfg.Roles.CheckpointSummary.Agent = "pressure-agent"
+				}},
+				MockAgents: []e2etest.MockAgentSpec{
+					{FixturePath: fixturePath, FixtureAgent: "role-agent", AgentName: "pressure-agent"},
+				},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+			defer cancel()
+			root := createFixtureBackedSession(t, ctx, harness, "pressure-agent", "")
+			defer func() {
+				captureCtx, captureCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				defer captureCancel()
+				if err := harness.CaptureSessionEvents(captureCtx, root.ID); err != nil {
+					t.Errorf("capture pressure events: %v", err)
+				}
+				if registration, ok := harness.MockAgentRegistration("pressure-agent"); ok {
+					if err := harness.CaptureProviderCallsFile(
+						registration.DiagnosticsPath,
+						"application/x-ndjson",
+					); err != nil {
+						t.Errorf("capture pressure provider calls: %v", err)
+					}
+				}
+				logs, err := os.ReadFile(harness.HomePaths.LogFile)
+				if err != nil {
+					t.Errorf("read pressure daemon log: %v", err)
+					return
+				}
+				if err := os.WriteFile(
+					filepath.Join(harness.Artifacts.RootDir(), "daemon.log"),
+					logs,
+					0o600,
+				); err != nil {
+					t.Errorf("capture pressure daemon log: %v", err)
+				}
+			}()
+			if _, err := harness.PromptSession(ctx, root.ID, "remember the archive fact"); err != nil {
+				t.Fatal(err)
+			}
+			for _, info := range readWorkspaceRoleSessions(t, ctx, harness) {
+				if info.ID != root.ID {
+					t.Fatalf("unexpected idle child: %#v", info)
+				}
+			}
+			db, err := sql.Open("sqlite", store.SessionDBFile(filepath.Join(harness.HomePaths.SessionsDir, root.ID)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := harness.PromptSession(ctx, root.ID, "cross the pressure threshold"); err != nil {
+				t.Fatal(err)
+			}
+			waitForRuntimeCondition(t, "factory pressure archives covered facts", 20*time.Second, func() bool {
+				var count int
+				err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM events WHERE type = 'agent_message' AND archived = 1 AND content LIKE ?", "%"+compactionIntegrationFact+"%").
+					Scan(&count)
+				if err != nil {
+					t.Fatalf("read compacted events: %v", err)
+				}
+				return count > 0
+			})
+			checkpoint := readCompactionCheckpoint(t, harness.WorkspaceRoot)
+			if !strings.Contains(checkpoint, compactionIntegrationFact) ||
+				!strings.Contains(checkpoint, "compozy:checkpoint-compaction:v1") {
+				t.Fatalf("checkpoint lacks covered fact: %q", checkpoint)
+			}
+			var raw, history int
+			if err := db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(CASE WHEN archived = 0 THEN 1 ELSE 0 END), 0) FROM events WHERE type = 'agent_message' AND content LIKE ?", "%"+compactionIntegrationFact+"%").
+				Scan(&history, &raw); err != nil {
+				t.Fatal(err)
+			}
+			if history == 0 || raw != 0 {
+				t.Fatalf("fact history=%d replay=%d, want retained history and compacted replay", history, raw)
+			}
+			if _, err := harness.PromptSession(ctx, root.ID, "recover the archive fact"); err != nil {
+				t.Fatal(err)
+			}
+			registration, ok := harness.MockAgentRegistration("pressure-agent")
+			if !ok {
+				t.Fatal("missing pressure agent registration")
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parentRecords := acpmock.DiagnosticsForCompozySession(records, root.ID)
+			var calls, starts int
+			for _, record := range parentRecords {
+				if record.ProtocolMethod == "session/prompt" {
+					calls++
+				}
+				if record.LifecycleEvent == "session_new" {
+					starts++
+				}
+			}
+			prompts := acpmock.PromptDiagnostics(parentRecords)
+			if len(prompts) != 3 || calls != 4 || starts != 2 {
+				t.Fatalf(
+					"parent completed=%d calls=%d starts=%d, want 3 completions, 4 attempts and 2 runtimes",
+					len(prompts),
+					calls,
+					starts,
+				)
+			}
+			last := prompts[2].Prompt
+			if !strings.Contains(last, compactionIntegrationFact) ||
+				strings.Contains(compactionReplayPayload(t, last), compactionIntegrationFact) {
+				t.Fatal("degraded resume lost checkpoint coverage or replayed archived raw facts")
+			}
+			children := 0
+			for _, info := range readWorkspaceRoleSessions(t, ctx, harness) {
+				if info.ID == root.ID {
+					continue
+				}
+				if info.Name != checkpointSummarySessionName {
+					t.Fatalf("unexpected background session: %#v", info)
+				}
+				children++
+			}
+			if children != 1 {
+				t.Fatalf("checkpoint children=%d, want pressure-only child", children)
+			}
+		},
+	)
+}
 
 func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 	t.Run(

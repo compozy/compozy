@@ -23,7 +23,8 @@ gone. Use `compozy memory dream trigger` and `POST /api/memory/dreams/trigger`. 
 
 ## What Triggers A Dream
 
-Dreaming is enabled by default when memory is enabled.
+Dreaming is disabled by default, including when memory is enabled. Opt in with both
+`memory.enabled = true` and `roles.dream.enabled = true`; restart after changing the memory master switch.
 
 | Trigger path      | Behavior                                                                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -114,7 +115,12 @@ and from default recall. Operators browse them with `compozy memory dream show <
 
 ## Configuration
 
+The following example explicitly enables both memory and dreaming:
+
 ```toml
+[memory]
+enabled = true
+
 [roles.dream]
 enabled = true
 # Empty selects the builtin dreaming-curator. Set a name to route to an authored curator.
