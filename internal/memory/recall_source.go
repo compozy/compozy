@@ -164,7 +164,7 @@ func (s catalogRecallSource) Candidates(
 	query memcontract.Query,
 	opts memcontract.RecallOptions,
 ) ([]memoryrecall.Candidate, error) {
-	return s.Store.recallCandidates(ctx, query, opts, s.matchAllTerms)
+	return s.recallCandidates(ctx, query, opts, s.matchAllTerms)
 }
 
 // Candidates implements recall.Source on top of the derived chunk catalog.
