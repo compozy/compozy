@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -216,6 +217,7 @@ func (r *HarnessContextResolver) ResolveStartup(startup session.StartupPromptCon
 		Session: HarnessSessionInput{
 			SessionID:            startup.SessionID,
 			Type:                 startup.SessionType,
+			SpawnRole:            startup.SpawnRole,
 			NetworkParticipation: startup.NetworkParticipation,
 			WorkspaceID:          startup.WorkspaceID,
 			Workspace:            startup.Workspace,
@@ -243,6 +245,7 @@ func (r *HarnessContextResolver) ResolvePrompt(
 		Session: HarnessSessionInput{
 			SessionID:            info.ID,
 			Type:                 info.Type,
+			SpawnRole:            store.NormalizeSessionLineage(info.ID, info.Lineage).SpawnRole,
 			NetworkParticipation: info.NetworkParticipation,
 			WorkspaceID:          info.WorkspaceID,
 			Workspace:            info.Workspace,
@@ -327,6 +330,7 @@ func normalizeHarnessSessionContext(input HarnessSessionInput) (HarnessSessionCo
 	return HarnessSessionContext{
 		SessionID:            strings.TrimSpace(input.SessionID),
 		Type:                 sessionType,
+		SpawnRole:            strings.ToLower(strings.TrimSpace(input.SpawnRole)),
 		SessionClass:         sessionClass,
 		NetworkParticipation: networkParticipation,
 		NetworkLive:          networkParticipation.Mode == participation.ModeLive,

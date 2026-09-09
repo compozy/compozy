@@ -11,7 +11,11 @@ metadata:
 
 # CompozyOS
 
-This body routes to the matching reference. Load it before acting.
+This body routes to the matching reference. When tools and skills are enabled, startup includes this router, not the full reference manuals. With tools enabled and skills disabled, capable sessions retain the two complete tool manuals inline because native skill reads are unavailable. Daemon-owned memory extraction, title generation, and checkpoint summarization omit the tool router because their role consumes supplied input and returns output; other tools-enabled sessions retain the appropriate guidance.
+
+To read a reference in a managed session, resolve `compozy__skill_view` through the active harness and call the returned tool reference with `{"name":"compozy","file":"references/<file>.md"}` using the exact path below. Tool discovery, descriptor reads, skill reads, and retained-result reads needed to load these references are the bootstrap exception to the reading prerequisite. Inspect the live descriptor before calling other tools; discover capabilities with `compozy__tool_search`. Keep existing tool authorization: missing guidance does not grant or revoke access, and a denied skill read is not permission to bypass policy through CLI or filesystem access.
+
+If a reference result is truncated and includes an artifact, resolve `compozy__tool_artifact_read` through the active harness. Pass the returned artifact URI unchanged as `artifact_uri`, start at `offset: 0`, and continue with each `next_offset` until `eof`. Decode and concatenate `data_base64` pages to read the retained result envelope, including its full structured `content`; preserve any redactions in display text. Use the current workspace scope. A preview alone is not a complete reference. If the result has no usable artifact or a continuation is denied, report the reference as unavailable; do not use CLI or filesystem access to bypass it.
 
 ## Required Reading Router
 
@@ -80,6 +84,6 @@ for a one-command terminal demonstration; multi-step terminal interaction still 
 the affected operation and report the exact path. Preserve structured runtime errors, follow the
 diagnostic order in `references/runtime-operations.md`, and keep daemon-owned state authoritative.
 
-**STOP. Read references/tools-and-skills.md and references/native-tools.md in full before discovering, invoking, creating, or modifying any CompozyOS tool or skill.** The catalog in this file is only a router.
+**Read references/tools-and-skills.md and references/native-tools.md in full before operational tool calls or tool/skill mutations.** Discovery, descriptor inspection, reference reads, and their retained-result continuations may run first to load that guidance. The catalog in this file is only a router.
 
 **STOP. Read references/tasks-and-orchestration.md in full before acting as a coordinator, worker, or reviewer.** Task authority and review verdicts are runtime contracts, not prompt conventions.

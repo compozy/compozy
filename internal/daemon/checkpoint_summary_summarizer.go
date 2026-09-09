@@ -11,6 +11,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const checkpointSummaryStopTimeout = 10 * time.Second
@@ -82,6 +83,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 			Name:                checkpointSummarySessionName,
 			Workspace:           strings.TrimSpace(request.WorkspaceRoot),
 			Type:                session.SessionTypeDream,
+			Lineage:             &store.SessionLineage{SpawnRole: session.SpawnRoleCheckpointSummary},
 			DiscardStartFailure: true,
 		})
 		return created, created != nil, createErr

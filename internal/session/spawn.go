@@ -23,6 +23,8 @@ const (
 	DefaultSpawnRole = "worker"
 	// SpawnRoleMemoryExtractor marks daemon-owned extractor children.
 	SpawnRoleMemoryExtractor = "memory-extractor"
+	// SpawnRoleCheckpointSummary marks reference-only checkpoint summarization.
+	SpawnRoleCheckpointSummary = "checkpoint-summary"
 	// SpawnRoleAutoTitle marks daemon-owned title generator children.
 	SpawnRoleAutoTitle = "auto-title"
 )

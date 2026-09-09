@@ -58,6 +58,10 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		if !strings.Contains(got, "cobalt") || !strings.Contains(got, "preserve context") {
 			t.Fatalf("Summarize() = %q, want collected agent chunks", got)
 		}
+		if manager.createOpts.Lineage == nil ||
+			manager.createOpts.Lineage.SpawnRole != session.SpawnRoleCheckpointSummary {
+			t.Fatalf("checkpoint role = %#v, want explicit input-only role", manager.createOpts.Lineage)
+		}
 		if manager.createOpts.Name != checkpointSummarySessionName ||
 			manager.createOpts.Type != session.SessionTypeDream ||
 			manager.createOpts.Workspace != request.WorkspaceRoot ||

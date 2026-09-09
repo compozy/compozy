@@ -168,6 +168,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 		WorktreeID:           strings.TrimSpace(s.worktreeID),
 		NetworkParticipation: s.networkParticipation,
 		SessionType:          normalizeSessionType(s.sessionType),
+		SpawnRole:            store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole,
 		SoulSnapshot:         cloneSoulSnapshotPointer(s.soulSnapshot),
 		CreatedAt:            s.createdAt,
 		UpdatedAt:            updatedAt,

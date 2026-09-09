@@ -10,6 +10,7 @@ import (
 type HarnessSessionInput struct {
 	SessionID            string
 	Type                 session.Type
+	SpawnRole            string
 	NetworkParticipation participation.Spec
 	WorkspaceID          string
 	Workspace            string
@@ -22,6 +23,7 @@ type HarnessSessionInput struct {
 type HarnessSessionContext struct {
 	SessionID            string
 	Type                 session.Type
+	SpawnRole            string
 	SessionClass         SessionClass
 	NetworkParticipation participation.Spec
 	NetworkLive          bool

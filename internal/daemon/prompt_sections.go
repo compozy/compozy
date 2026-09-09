@@ -34,9 +34,11 @@ const (
 	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
-	// Keep enough headroom to avoid truncating canonical tool guidance.
-	startupToolsSectionBudget   = 64_000
-	startupNetworkSectionBudget = 512
+	// Keep the router intact; reference manuals are loaded on demand.
+	startupToolsSectionBudget = 16_000
+	// Preserve complete operational guidance when the skill registry is disabled.
+	startupToolsReferenceSectionBudget = 64_000
+	startupNetworkSectionBudget        = 512
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -159,12 +161,25 @@ func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget
 			Order:          startupToolsSectionOrder,
 			Budget:         startupToolsSectionBudget,
 			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider: bundledReferencesPromptSectionProvider(
-				bundledCompozySkillName,
-				bundledToolsReference,
-				bundledNativeToolsReference,
-			),
-			Predicate: policyIncludesSection(HarnessPromptSectionTools),
+			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+				return skillbundled.LoadContent(bundledCompozySkillName)
+			}),
+			Predicate: func(policy ResolvedHarnessPolicy) bool {
+				return containsHarnessSection(policy.IncludeSections, HarnessPromptSectionTools) &&
+					containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)
+			},
+		},
+		{
+			Name:           string(HarnessPromptSectionTools),
+			Position:       PromptSectionPositionAppend,
+			Order:          startupToolsSectionOrder,
+			Budget:         startupToolsReferenceSectionBudget,
+			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+			Provider:       promptSectionProviderFunc(bundledToolReferencesPromptSection),
+			Predicate: func(policy ResolvedHarnessPolicy) bool {
+				return containsHarnessSection(policy.IncludeSections, HarnessPromptSectionTools) &&
+					!containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)
+			},
 		},
 		{
 			Name:           string(HarnessPromptSectionNetwork),
@@ -236,21 +251,14 @@ func (fn promptSectionProviderFunc) PromptSection(
 	return fn(ctx, workspace)
 }
 
-func bundledReferencesPromptSectionProvider(name string, referencePaths ...string) session.PromptProvider {
-	return promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
-		contents := make([]string, 0, len(referencePaths))
-		for _, referencePath := range referencePaths {
-			content, err := skillbundled.LoadResource(strings.TrimSpace(name), strings.TrimSpace(referencePath))
-			if err != nil {
-				return "", fmt.Errorf(
-					"daemon: load bundled startup section %q file %q: %w",
-					name,
-					referencePath,
-					err,
-				)
-			}
-			contents = append(contents, strings.TrimSpace(content))
+func bundledToolReferencesPromptSection(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+	contents := make([]string, 0, 2)
+	for _, path := range []string{bundledToolsReference, bundledNativeToolsReference} {
+		content, err := skillbundled.LoadResource(bundledCompozySkillName, path)
+		if err != nil {
+			return "", fmt.Errorf("daemon: load bundled tool guidance %q: %w", path, err)
 		}
-		return strings.Join(contents, "\n\n"), nil
-	})
+		contents = append(contents, strings.TrimSpace(content))
+	}
+	return strings.Join(contents, "\n\n"), nil
 }

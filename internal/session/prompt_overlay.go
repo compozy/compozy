@@ -24,6 +24,7 @@ type StartupPromptContext struct {
 	WorktreeID           string
 	NetworkParticipation participation.Spec
 	SessionType          Type
+	SpawnRole            string
 	SoulSnapshot         *soul.Snapshot
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
