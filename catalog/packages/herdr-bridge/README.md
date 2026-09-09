@@ -96,7 +96,8 @@ The installed copy lives in `~/.compozy/extensions/herdr-bridge/`.
 Every hook runs `hook.sh`, a short-lived shell shim that spools the payload and
 returns; `bridge.py --drain` then processes the spool in timestamp order in
 the background. Ordering preserves RFC3339 nanoseconds and timezone offsets.
-The spool directory is private (0700), and new payloads are owner-only (0600). The daemon dispatches an extension's hooks serially and drops
+The state and spool directories are private (0700). Payloads, map copies, locks,
+and the bridge log are owner-only (0600), including pre-existing state files. The daemon dispatches an extension's hooks serially and drops
 the queue when the run ends, so the hook entry point has to be faster than the
 events arrive.
 

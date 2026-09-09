@@ -10,8 +10,8 @@ import time
 from urllib.parse import quote
 
 from bridge_state import (AGENT_ID, COMPOZY_SOCK, SOURCE, STATE_DIR, Locked,
-                          close_row, consolidate, drop_stale, herdr, load_map,
-                          log, normalize_workspace, pane_alive, save_map)
+                          close_row, consolidate, drop_stale, ensure_state_dir, herdr, load_map,
+                          log, normalize_workspace, pane_alive, private_file, save_map)
 
 LOOP_EVENTS = {"loop.started", "loop.generation.pre", "loop.generation.post",
                "loop.gate.post", "loop.node.terminal", "loop.terminal",
@@ -255,8 +255,8 @@ def reconcile_loops():
 
 def watch_loops():
     """Keep one detached monitor alive until all loop rows have closed."""
-    os.makedirs(STATE_DIR, exist_ok=True)
-    with open(os.path.join(STATE_DIR, ".watch-lock"), "w") as lock:
+    ensure_state_dir()
+    with private_file(os.path.join(STATE_DIR, ".watch-lock"), "w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

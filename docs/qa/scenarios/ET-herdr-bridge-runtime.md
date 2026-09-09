@@ -30,3 +30,7 @@ Recovery follow-up: after a complete save, damage the primary map and send anoth
 hook. The last complete recovery copy must preserve pane identity. If no valid copy
 exists, queued hooks remain on disk, and maintenance emits a nonzero diagnostic.
 Reconciliation telemetry must leave the map lock available to incoming hooks.
+
+Private-state follow-up: invoke maintenance and stdin hooks under umask 022 with an
+existing 0755 state directory and 0644 map. The directory must become 0700 and state
+files, locks, and logs must be 0600 before writing.

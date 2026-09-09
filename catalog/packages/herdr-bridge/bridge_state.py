@@ -1,4 +1,5 @@
 """Shared bridge persistence, row activity, and herdr transport."""
+import contextlib
 import fcntl
 import json
 import os
@@ -26,11 +27,32 @@ STALE_SESSION_SECONDS = 1800
 STATE_RANK = {"blocked": 3, "working": 2, "idle": 1}
 
 
+def ensure_state_dir():
+    """Keep the bridge state directory private even when it already exists."""
+    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
+    os.chmod(STATE_DIR, 0o700)
+
+
+@contextlib.contextmanager
+def private_file(path, mode):
+    """Open an owner-only state file before writing any sensitive content."""
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if mode == "a" else os.O_TRUNC)
+    fd = os.open(path, flags, 0o600)
+    try:
+        fh = os.fdopen(fd, mode)
+    except Exception:
+        os.close(fd)
+        raise
+    with fh:
+        os.fchmod(fh.fileno(), 0o600)
+        yield fh
+
+
 def log(msg):
     """Write a diagnostic without failing a hook if logging is unavailable."""
     try:
-        os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
-        with open(LOG_PATH, "a") as fh:
+        ensure_state_dir()
+        with private_file(LOG_PATH, "a") as fh:
             fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {msg}\n")
     except Exception:
         pass
@@ -68,20 +90,22 @@ class Locked:
 
     def __enter__(self):
         """Acquire the exclusive lock."""
-        os.makedirs(STATE_DIR, exist_ok=True)
-        self.fh = open(os.path.join(STATE_DIR, self.name), "w")
+        ensure_state_dir()
+        self.file_context = private_file(os.path.join(STATE_DIR, self.name), "w")
+        self.fh = self.file_context.__enter__()
         fcntl.flock(self.fh, fcntl.LOCK_EX)
         return self
 
     def __exit__(self, *_):
         """Release the lock and file descriptor."""
         fcntl.flock(self.fh, fcntl.LOCK_UN)
-        self.fh.close()
+        self.file_context.__exit__(None, None, None)
 
 
 def read_map(path):
     """Read a persisted map without treating corrupt data as an empty map."""
     with open(path) as fh:
+        os.fchmod(fh.fileno(), 0o600)
         data = json.load(fh)
     if not isinstance(data, dict):
         raise ValueError("bridge map must be an object")
@@ -108,14 +132,14 @@ def load_map():
 def write_map(path, data):
     """Atomically replace one map copy with complete JSON."""
     tmp = path + ".tmp"
-    with open(tmp, "w") as fh:
+    with private_file(tmp, "w") as fh:
         json.dump(data, fh, indent=1)
     os.replace(tmp, path)
 
 
 def save_map(data):
     """Persist a recovery copy before replacing the primary map."""
-    os.makedirs(STATE_DIR, exist_ok=True)
+    ensure_state_dir()
     write_map(MAP_PATH + ".bak", data)
     write_map(MAP_PATH, data)
 

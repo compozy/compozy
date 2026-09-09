@@ -340,6 +340,16 @@ exit 0
 				if strings.Contains(output, "make verify") {
 					t.Fatalf("sensitive path planned local full verification:\n%s", output)
 				}
+				if strings.HasPrefix(tc.path, "catalog/") {
+					for _, command := range []string{
+						"would run: go run ./cmd/compozy-catalog validate ./catalog",
+						"would run: python3 -B -m unittest discover -s catalog/packages/herdr-bridge/tests -v",
+					} {
+						if !strings.Contains(output, command) {
+							t.Fatalf("catalog plan omitted %q:\n%s", command, output)
+						}
+					}
+				}
 				if !strings.Contains(output, tc.want) {
 					t.Fatalf("expected %q for %s, got:\n%s", tc.want, tc.path, output)
 				}

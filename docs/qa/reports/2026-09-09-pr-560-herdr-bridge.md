@@ -56,3 +56,18 @@ daemon/owner API walk remains valid for the unchanged session-read boundary.
 
 CI failures on 848a7aedb were README formatting and retired product spelling in the
 new package; both were repaired using the repository formatter and language check.
+
+## Private-state and gate-plan follow-up
+
+CodeRabbit findings 3970308377, 3970308390 and 3970308403 are fixed. State directory
+and existing files enforce owner-only permissions before writing. The hook test's
+process-launch wrapper waits for and reaps the real drainer before cleanup; no
+test-only runtime mode was added. Gate-plan now prints both catalog commands,
+covered by the existing scripts integration suite. Classification output moved to
+the existing gate support file to retain the production 500-line limit.
+
+The 12-case Python suite passed. A separate real maintenance/stdin CLI walk under
+umask 022 confirmed 0700 directory and 0600 map/lock/log modes, with automatic
+temporary-directory cleanup. Evidence:
+`/tmp/compozy-pr-551-560-herdr-20260909/pr-560-private-state-cli.json`.
+Earlier lifecycle, session-owner and recovery evidence remains valid.

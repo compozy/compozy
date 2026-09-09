@@ -1,7 +1,7 @@
 """Behavioral regressions for the catalog bridge's Python runtime.
 
 Owning layer: extension hook consumer, row store, and event renderer.
-Only socket/HTTP I/O is mocked; state, files, rendering, and hook execution are real.
+Only socket/HTTP I/O is mocked; a process-launch wrapper reaps the real hook drainer.
 """
 import contextlib
 import io
@@ -131,8 +131,16 @@ class BridgeTests(unittest.TestCase):
         spool = xdg / 'herdr-bridge' / 'spool'
         spool.mkdir(parents=True, mode=0o755)
         spool.chmod(0o755)
+        completion = Path(self.temp.name) / 'drainer-complete'
+        launchers = Path(self.temp.name) / 'bin'
+        launchers.mkdir()
+        wrapper = launchers / 'nohup'
+        # The shell waits for and reaps the real drainer before signaling completion.
+        wrapper.write_text('#!/bin/sh\n"$@"\nresult=$?\nprintf "%s" "$result" > "$BRIDGE_TEST_COMPLETION"\n')
+        wrapper.chmod(0o755)
         env = {**os.environ, 'XDG_STATE_HOME': str(xdg), 'HOME': self.temp.name,
-               'PYTHONDONTWRITEBYTECODE': '1'}
+               'PATH': str(launchers) + os.pathsep + os.environ['PATH'],
+               'BRIDGE_TEST_COMPLETION': str(completion), 'PYTHONDONTWRITEBYTECODE': '1'}
         # Hold the production drain lock so payload permissions can be observed.
         import fcntl
         with (spool.parent / '.drain-lock').open('w') as lock:
@@ -144,8 +152,10 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(files[0].stat().st_mode & 0o777, 0o600)
             self.assertEqual(spool.stat().st_mode & 0o777, 0o700)
         deadline = time.monotonic() + 5
-        while list(spool.glob('*.json')) and time.monotonic() < deadline:
+        while not completion.exists() and time.monotonic() < deadline:
             time.sleep(0.05)
+        self.assertTrue(completion.exists(), 'detached drainer did not finish')
+        self.assertEqual(completion.read_text(), '0')
         self.assertEqual(list(spool.glob('*.json')), [])
 
     def test_corrupt_state_is_preserved_and_command_failure_is_logged(self):
@@ -204,6 +214,25 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(bridge_loops.reconcile_loops(), [('loop/ws/loop', 'run1', 'running')])
         self.assertEqual(methods, ['pane.report_agent', 'pane.report_metadata'])
         self.assertEqual(bridge_state.load_map()['loop/ws/loop']['sessions']['run1']['state'], 'working')
+
+    def test_state_and_existing_files_are_private_under_permissive_umask(self):
+        state = Path(self.temp.name) / 'herdr-bridge'
+        state.mkdir(mode=0o755)
+        for name in ('panes.json', 'panes.json.tmp', 'panes.json.bak.tmp', 'bridge.log', '.lock', '.watch-lock'):
+            path = state / name
+            path.write_text('{}')
+            path.chmod(0o666)
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run([sys.executable, '-B', '-c',
+                                 'import bridge_state as s; import bridge_loops as l; '
+                                 's.save_map({}); s.log("private"); '
+                                 'lock=s.Locked(); lock.__enter__(); lock.__exit__(); l.watch_loops()'],
+                                env={**os.environ, 'PYTHONPATH': str(root), 'XDG_STATE_HOME': self.temp.name},
+                                capture_output=True, umask=0o022)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(state.stat().st_mode & 0o777, 0o700)
+        for path in state.iterdir():
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600, path.name)
 
 
 if __name__ == '__main__':
