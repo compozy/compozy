@@ -2,21 +2,17 @@ package daemon
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
-	"sync/atomic"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
-
-const promptSkillsCatalogCacheMaxSessions = 2048
 
 type promptSkillsRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
@@ -51,16 +47,6 @@ type skillsCatalogAugmenter struct {
 	agentResolver     func() session.AgentResolver
 	workspaceResolver func() promptSkillsWorkspaceResolver
 	profileNames      session.ProfileNameResolver
-	sequence          atomic.Uint64
-
-	mu     sync.Mutex
-	states map[string]skillsCatalogSessionState
-}
-
-type skillsCatalogSessionState struct {
-	acpSessionID string
-	signature    [sha256.Size]byte
-	lastUsed     uint64
 }
 
 func newSkillsCatalogAugmenter(
@@ -91,7 +77,6 @@ func newSkillsCatalogAugmenterState(
 		agentResolver:     agentResolver,
 		workspaceResolver: workspaceResolver,
 		profileNames:      profileNames,
-		states:            make(map[string]skillsCatalogSessionState),
 	}
 	return augmenter
 }
@@ -152,12 +137,13 @@ func (a *skillsCatalogAugmenter) augment(
 		}
 	}
 	catalog := skillspkg.BuildCurrentCatalogWithinBudget(filtered, startupSkillsSectionBudget)
+	acp.RegisterPromptSection(ctx, acp.PromptSection{
+		Key: "skills", Content: catalog,
+		StartupContent:   skillspkg.BuildCatalogWithinBudget(filtered, startupSkillsSectionBudget),
+		UnchangedContent: skillspkg.BuildCurrentCatalogUnchanged(),
+	})
 	if strings.TrimSpace(catalog) == "" {
-		a.forgetSession(info.ID)
 		return message, nil
-	}
-	if a.catalogUnchanged(info, catalog) {
-		catalog = skillspkg.BuildCurrentCatalogUnchanged()
 	}
 	if strings.TrimSpace(message) == "" {
 		return catalog, nil
@@ -183,63 +169,6 @@ func (a *skillsCatalogAugmenter) skillsForSessionAgent(
 			return a.registry.ForAgentDefSession(ctx, workspace, resolvedAgent, sessionID)
 		},
 	})
-}
-
-func (a *skillsCatalogAugmenter) catalogUnchanged(info *session.Info, catalog string) bool {
-	if info == nil {
-		return false
-	}
-
-	key := strings.TrimSpace(info.ID)
-	if key == "" {
-		return false
-	}
-
-	acpSessionID := strings.TrimSpace(info.ACPSessionID)
-	signature := sha256.Sum256([]byte(catalog))
-	sequence := a.sequence.Add(1)
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	state, ok := a.states[key]
-	unchanged := ok && state.acpSessionID == acpSessionID && state.signature == signature
-	a.states[key] = skillsCatalogSessionState{
-		acpSessionID: acpSessionID,
-		signature:    signature,
-		lastUsed:     sequence,
-	}
-	a.evictOldestLocked()
-	return unchanged
-}
-
-func (a *skillsCatalogAugmenter) forgetSession(sessionID string) {
-	key := strings.TrimSpace(sessionID)
-	if key == "" {
-		return
-	}
-
-	a.mu.Lock()
-	delete(a.states, key)
-	a.mu.Unlock()
-}
-
-func (a *skillsCatalogAugmenter) evictOldestLocked() {
-	if len(a.states) <= promptSkillsCatalogCacheMaxSessions {
-		return
-	}
-
-	var oldestKey string
-	var oldestSequence uint64
-	for key, state := range a.states {
-		if oldestKey == "" || state.lastUsed < oldestSequence {
-			oldestKey = key
-			oldestSequence = state.lastUsed
-		}
-	}
-	if oldestKey != "" {
-		delete(a.states, oldestKey)
-	}
 }
 
 func resolvePromptSkillsWorkspace(

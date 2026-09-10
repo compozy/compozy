@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -664,6 +665,170 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 	}
 }
 
+func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
+	t.Run("Should deliver current catalogs once and omit input-only context", func(t *testing.T) {
+		driverPath := acpmock.RequireDriver(t)
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Memory.Enabled = false
+		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
+		for index := range 23 {
+			name := fmt.Sprintf("measured-skill-%02d", index)
+			writeDaemonFile(
+				t,
+				filepath.Join(homePaths.SkillsDir, name, "SKILL.md"),
+				"---\nname: "+name+"\ndescription: A representative skill for prompt delivery measurement.\n---\nRead this skill when requested.\n",
+			)
+		}
+		daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+		t.Cleanup(func() {
+			if err := daemonInstance.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown: %v", err)
+			}
+		})
+		resolver := &harnessIntegrationWorkspaceResolver{resolved: workspace}
+		skillsAugmenter := newSkillsCatalogAugmenter(
+			daemonInstance.skillsRegistry,
+			nil,
+			func() promptSkillsWorkspaceResolver { return resolver },
+			nil,
+		)
+		composite, err := newPromptInputCompositeAugmenter(
+			discardLogger(),
+			daemonInstance.harnessResolver,
+			nil,
+			defaultPromptInputAugmenterDescriptors(
+				situation.WorkspaceKnowledgeAugmenter,
+				nil,
+				skillsAugmenter,
+				daemonInstance.situationContext.Augment,
+			)...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps.PromptInputAugmenter = composite
+		diagnostics := filepath.Join(t.TempDir(), "prompts.jsonl")
+		command := acpmock.BuildCommand(
+			driverPath,
+			mockFixturePath(t, "browser_skills_context_fixture.json"),
+			"skills-context-agent",
+			diagnostics,
+		)
+		workspace.Config.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+		workspace.Agents[0].Provider = acpmock.ProviderName
+		manager := newHarnessIntegrationManager(
+			t,
+			homePaths,
+			deps,
+			workspace,
+			session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(daemonInstance.providerPreStarter))),
+		)
+		send := func(sess *session.Session, label string) string {
+			t.Helper()
+			events, err := manager.Prompt(t.Context(), sess.ID, "Measure this prompt.")
+			if err != nil {
+				t.Fatal(err)
+			}
+			done := false
+			for event := range events {
+				if event.Type == acp.EventTypeError {
+					t.Fatalf("%s: %s", label, event.Error)
+				}
+				done = done || event.Type == acp.EventTypeDone
+			}
+			if !done {
+				t.Fatalf("%s did not complete", label)
+			}
+			records, err := acpmock.ReadDiagnostics(diagnostics)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prompts := acpmock.PromptDiagnostics(records)
+			if len(prompts) == 0 {
+				t.Fatal("no receiver diagnostics")
+			}
+			prompt := prompts[len(prompts)-1].Prompt
+			t.Logf(
+				"payload %s bytes=%d skills=%d unchanged=%t situation=%t",
+				label,
+				len(prompt),
+				strings.Count(prompt, "<skill name="),
+				strings.Contains(prompt, `<catalog-state unchanged="true">`),
+				strings.Contains(prompt, "<compozy-situation-context>"),
+			)
+			return prompt
+		}
+		var parent *session.Session
+		create := func(role string) *session.Session {
+			t.Helper()
+			var created *session.Session
+			var err error
+			if role == session.SpawnRoleMemoryExtractor || role == session.SpawnRoleAutoTitle {
+				created, err = manager.Spawn(t.Context(), session.SpawnOpts{
+					ParentSessionID: parent.ID, AgentName: workspace.Agents[0].Name, SpawnRole: role, TTL: time.Minute,
+				})
+			} else {
+				sessionType := session.SessionTypeUser
+				if role == session.SpawnRoleCheckpointSummary {
+					sessionType = session.SessionTypeDream
+				}
+				created, err = manager.Create(t.Context(), session.CreateOpts{
+					AgentName: workspace.Agents[0].Name, Workspace: workspace.ID, Type: sessionType,
+					Lineage: &store.SessionLineage{SpawnRole: role},
+				})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(context.Background(), created.ID); err != nil {
+					t.Errorf("Stop: %v", err)
+				}
+			})
+			return created
+		}
+		ordinary := create("")
+		parent = ordinary
+		first := send(ordinary, "first")
+		second := send(ordinary, "unchanged")
+		writeDaemonFile(
+			t,
+			filepath.Join(homePaths.SkillsDir, "measured-added", "SKILL.md"),
+			"---\nname: measured-added\ndescription: Added during the session.\n---\nRead when requested.\n",
+		)
+		waitForConditionWithin(t, "added catalog entry", 10*time.Second, func() bool {
+			entries, err := daemonInstance.skillsRegistry.ForWorkspace(t.Context(), &workspace)
+			return err == nil && strings.Contains(skillspkg.BuildCurrentCatalog(entries), `name="measured-added"`)
+		})
+		changed := send(ordinary, "changed")
+		if !strings.Contains(first, `<catalog-state unchanged="true">`) ||
+			strings.Count(first, `name="measured-skill-00"`) != 1 {
+			t.Errorf("first payload must contain the startup catalog once and the live marker")
+		}
+		if !strings.Contains(second, `<catalog-state unchanged="true">`) ||
+			strings.Contains(second, `name="measured-skill-00"`) {
+			t.Errorf("unchanged payload must contain only the marker")
+		}
+		if !strings.Contains(changed, `name="measured-added"`) ||
+			strings.Contains(changed, `<catalog-state unchanged="true">`) {
+			t.Errorf("changed payload must contain the new full catalog")
+		}
+		for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary} {
+			prompt := send(create(role), role)
+			for _, section := range []string{"<available-skills>", "<current-available-skills>", "<compozy-situation-context>"} {
+				if strings.Contains(prompt, section) {
+					t.Errorf("%s contains unusable %s", role, section)
+				}
+			}
+			if !strings.Contains(prompt, "<compozy-runtime-context>") ||
+				!strings.Contains(prompt, "You are a coding assistant.") ||
+				!strings.HasSuffix(prompt, "Measure this prompt.") {
+				t.Errorf("%s lost its runtime, instructions, or input", role)
+			}
+		}
+	})
+}
+
 func seedHarnessSituationTaskRun(
 	t *testing.T,
 	daemonInstance *Daemon,
@@ -762,7 +927,7 @@ func newHarnessIntegrationManager(
 	homePaths compozyconfig.HomePaths,
 	deps SessionManagerDeps,
 	resolvedWorkspace workspacepkg.ResolvedWorkspace,
-	driver *harnessIntegrationDriver,
+	driver session.AgentDriver,
 	extraOpts ...session.Option,
 ) *session.Manager {
 	t.Helper()

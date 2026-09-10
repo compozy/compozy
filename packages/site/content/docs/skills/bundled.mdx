@@ -71,6 +71,11 @@ the returned tool reference and `{ "name": "compozy" }`. Operators can read the 
 compozy skill view compozy
 ```
 
+Each turn resolves the current skill catalog. When it matches the startup catalog delivered in
+that request, or the catalog confirmed in an earlier turn of the same ACP process, the live section
+uses a compact `unchanged` marker. Changed catalogs are sent in full. Failed or canceled deliveries
+do not establish a reusable catalog, and fresh ACP processes establish their own context.
+
 Agents and operators read a focused resource file instead of the whole manual when the router names
 one:
 
@@ -96,7 +101,9 @@ whose roles transform supplied input into output. This uses the persisted role, 
 extractor created through `Spawn`, rather than excluding every `system`, `dream`, or `spawned`
 session. Task workers, coordinators, dream curators, interactive sessions, and unknown roles retain
 the appropriate guidance when tools are enabled. Older checkpoint sessions without an explicit role also retain
-it. The role is preserved across resume and custom background-agent routing.
+it. The role is preserved across resume and custom background-agent routing. Input-only roles also
+omit startup and live skill catalogs and situation context; their runtime identity and supplied
+instructions remain present. These prompt choices do not change permissions or explicit skill reads.
 
 | Context                        | Injected guidance                                    |
 | ------------------------------ | ---------------------------------------------------- |
