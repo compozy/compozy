@@ -7,7 +7,7 @@
 <meta name="description" content="CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&family=Playfair+Display:wght@400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="landing.css" />
 <script>document.documentElement.classList.remove("no-js");</script>
 <script src="landing-logos.js"></script>
@@ -58,12 +58,40 @@
   <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
   <symbol id="i-globe-lock" viewBox="0 0 24 24"><path d="M15.686 15A14.5 14.5 0 0 1 12 22a14.5 14.5 0 0 1 0-20 10 10 0 1 0 9.542 13"/><path d="M2 12h8.5"/><path d="M20 6V4a2 2 0 1 0-4 0v2"/><rect width="8" height="5" x="14" y="6" rx="1"/></symbol>
   <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <!-- added 2026-09-10 (section and title marks), copied from lucide-react 1.27.0 -->
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="i-blocks" viewBox="0 0 24 24"><path d="M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2"/><rect x="14" y="2" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 24 24"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></symbol>
+  <symbol id="i-workflow" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
+  <symbol id="i-columns-3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-waypoints" viewBox="0 0 24 24"><path d="m10.586 5.414-5.172 5.172"/><path d="m18.586 13.414-5.172 5.172"/><path d="M6 12h12"/><circle cx="12" cy="20" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="4" cy="12" r="2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2"/><path d="M12 2v2"/><path d="M17 20v2"/><path d="M17 2v2"/><path d="M2 12h2"/><path d="M2 17h2"/><path d="M2 7h2"/><path d="M20 12h2"/><path d="M20 17h2"/><path d="M20 7h2"/><path d="M7 20v2"/><path d="M7 2v2"/><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></symbol>
+  <symbol id="i-list-checks" viewBox="0 0 24 24"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></symbol>
+  <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+</svg>
+<!-- Catalog logos not yet in @compozy/ui/logos, vendored mono for the prototype (fill inherits currentColor). Sources: Simple Icons (CC0) for Notion, Sentry, Stripe, PostHog, PostgreSQL, Supabase; context7.com brand mark (glyph only); playwright.dev logo. Add them to packages/ui/src/logos when the marketplace catalog ships. -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="cl-context7" viewBox="4 3 20 22"><path d="M10.5724 15.2565C10.5724 17.5025 9.6613 19.3778 8.17805 21.1047H11.6319L11.6319 22.7786H6.33459V21.1895C7.95557 19.3566 8.58065 17.8628 8.58065 15.2565L10.5724 15.2565Z"/><path d="M17.4276 15.2565C17.4276 17.5025 18.3387 19.3778 19.822 21.1047H16.3681V22.7786H21.6654V21.1895C20.0444 19.3566 19.4194 17.8628 19.4194 15.2565H17.4276Z"/><path d="M10.5724 12.7435C10.5724 10.4975 9.66131 8.62224 8.17807 6.89532L11.6319 6.89532V5.22137L6.33461 5.22137V6.81056C7.95558 8.64343 8.58066 10.1373 8.58066 12.7435L10.5724 12.7435Z"/><path d="M17.4276 12.7435C17.4276 10.4975 18.3387 8.62224 19.822 6.89532L16.3681 6.89532L16.3681 5.22138L21.6654 5.22138V6.81056C20.0444 8.64343 19.4194 10.1373 19.4194 12.7435H17.4276Z"/></symbol>
+  <symbol id="cl-notion" viewBox="0 0 24 24"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/></symbol>
+  <symbol id="cl-sentry" viewBox="0 0 24 24"><path d="M13.91 2.505c-.873-1.448-2.972-1.448-3.844 0L6.904 7.92a15.478 15.478 0 0 1 8.53 12.811h-2.221A13.301 13.301 0 0 0 5.784 9.814l-2.926 5.06a7.65 7.65 0 0 1 4.435 5.848H2.194a.365.365 0 0 1-.298-.534l1.413-2.402a5.16 5.16 0 0 0-1.614-.913L.296 19.275a2.182 2.182 0 0 0 .812 2.999 2.24 2.24 0 0 0 1.086.288h6.983a9.322 9.322 0 0 0-3.845-8.318l1.11-1.922a11.47 11.47 0 0 1 4.95 10.24h5.915a17.242 17.242 0 0 0-7.885-15.28l2.244-3.845a.37.37 0 0 1 .504-.13c.255.14 9.75 16.708 9.928 16.9a.365.365 0 0 1-.327.543h-2.287c.029.612.029 1.223 0 1.831h2.297a2.206 2.206 0 0 0 1.922-3.31z"/></symbol>
+  <symbol id="cl-stripe" viewBox="0 0 24 24"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"/></symbol>
+  <symbol id="cl-posthog" viewBox="0 0 24 24"><path d="M9.854 14.5 5 9.647.854 5.5A.5.5 0 0 0 0 5.854V8.44a.5.5 0 0 0 .146.353L5 13.647l.147.146L9.854 18.5l.146.147v-.049c.065.03.134.049.207.049h2.586a.5.5 0 0 0 .353-.854L9.854 14.5zm0-5-4-4a.487.487 0 0 0-.409-.144.515.515 0 0 0-.356.21.493.493 0 0 0-.089.288V8.44a.5.5 0 0 0 .147.353l9 9a.5.5 0 0 0 .853-.354v-2.585a.5.5 0 0 0-.146-.354l-5-5zm1-4a.5.5 0 0 0-.854.354V8.44a.5.5 0 0 0 .147.353l4 4a.5.5 0 0 0 .853-.354V9.854a.5.5 0 0 0-.146-.354l-4-4zm12.647 11.515a3.863 3.863 0 0 1-2.232-1.1l-4.708-4.707a.5.5 0 0 0-.854.354v6.585a.5.5 0 0 0 .5.5H23.5a.5.5 0 0 0 .5-.5v-.6c0-.276-.225-.497-.499-.532zm-5.394.032a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6zM.854 15.5a.5.5 0 0 0-.854.354v2.293a.5.5 0 0 0 .5.5h2.293c.222 0 .39-.135.462-.309a.493.493 0 0 0-.109-.545L.854 15.501zM5 14.647.854 10.5a.5.5 0 0 0-.854.353v2.586a.5.5 0 0 0 .146.353L4.854 18.5l.146.147h2.793a.5.5 0 0 0 .353-.854L5 14.647z"/></symbol>
+  <symbol id="cl-postgres" viewBox="0 0 24 24"><path d="M23.5594 14.7228a.5269.5269 0 0 0-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 0 0-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 0 0-.5159-.0816 8.044 8.044 0 0 0-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 0 0 .0004.0041 11.0312 11.0312 0 0 0-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 0 0 .0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698zM2.371 11.8765c-.7435-2.4358-1.1779-4.8851-1.2123-5.5719-.1086-2.1714.4171-3.6829 1.5623-4.4927 1.8367-1.2986 4.8398-.5408 6.108-.13-.0032.0032-.0066.0061-.0098.0094-2.0238 2.044-1.9758 5.536-1.9708 5.7495-.0002.0823.0066.1989.0162.3593.0348.5873.0996 1.6804-.0735 2.9184-.1609 1.1504.1937 2.2764.9728 3.0892.0806.0841.1648.1631.2518.2374-.3468.3714-1.1004 1.1926-1.9025 2.1576-.5677.6825-.9597.5517-1.0886.5087-.3919-.1307-.813-.5871-1.2381-1.3223-.4796-.839-.9635-2.0317-1.4155-3.5126zm6.0072 5.0871c-.1711-.0428-.3271-.1132-.4322-.1772.0889-.0394.2374-.0902.4833-.1409 1.2833-.2641 1.4815-.4506 1.9143-1.0002.0992-.126.2116-.2687.3673-.4426a.3549.3549 0 0 0 .0737-.1298c.1708-.1513.2724-.1099.4369-.0417.156.0646.3078.26.3695.4752.0291.1016.0619.2945-.0452.4444-.9043 1.2658-2.2216 1.2494-3.1676 1.0128zm2.094-3.988-.0525.141c-.133.3566-.2567.6881-.3334 1.003-.6674-.0021-1.3168-.2872-1.8105-.8024-.6279-.6551-.9131-1.5664-.7825-2.5004.1828-1.3079.1153-2.4468.079-3.0586-.005-.0857-.0095-.1607-.0122-.2199.2957-.2621 1.6659-.9962 2.6429-.7724.4459.1022.7176.4057.8305.928.5846 2.7038.0774 3.8307-.3302 4.7363-.084.1866-.1633.3629-.2311.5454zm7.3637 4.5725c-.0169.1768-.0358.376-.0618.5959l-.146.4383a.3547.3547 0 0 0-.0182.1077c-.0059.4747-.054.6489-.115.8693-.0634.2292-.1353.4891-.1794 1.0575-.11 1.4143-.8782 2.2267-2.4172 2.5565-1.5155.3251-1.7843-.4968-2.0212-1.2217a6.5824 6.5824 0 0 0-.0769-.2266c-.2154-.5858-.1911-1.4119-.1574-2.5551.0165-.5612-.0249-1.9013-.3302-2.6462.0044-.2932.0106-.5909.019-.8918a.3529.3529 0 0 0-.0153-.1126 1.4927 1.4927 0 0 0-.0439-.208c-.1226-.4283-.4213-.7866-.7797-.9351-.1424-.059-.4038-.1672-.7178-.0869.067-.276.1831-.5875.309-.9249l.0529-.142c.0595-.16.134-.3257.213-.5012.4265-.9476 1.0106-2.2453.3766-5.1772-.2374-1.0981-1.0304-1.6343-2.2324-1.5098-.7207.0746-1.3799.3654-1.7088.5321a5.6716 5.6716 0 0 0-.1958.1041c.0918-1.1064.4386-3.1741 1.7357-4.4823a4.0306 4.0306 0 0 1 .3033-.276.3532.3532 0 0 0 .1447-.0644c.7524-.5706 1.6945-.8506 2.802-.8325.4091.0067.8017.0339 1.1742.081 1.939.3544 3.2439 1.4468 4.0359 2.3827.8143.9623 1.2552 1.9315 1.4312 2.4543-1.3232-.1346-2.2234.1268-2.6797.779-.9926 1.4189.543 4.1729 1.2811 5.4964.1353.2426.2522.4522.2889.5413.2403.5825.5515.9713.7787 1.2552.0696.087.1372.1714.1885.245-.4008.1155-1.1208.3825-1.0552 1.717-.0123.1563-.0423.4469-.0834.8148-.0461.2077-.0702.4603-.0994.7662zm.8905-1.6211c-.0405-.8316.2691-.9185.5967-1.0105a2.8566 2.8566 0 0 0 .135-.0406 1.202 1.202 0 0 0 .1342.103c.5703.3765 1.5823.4213 3.0068.1344-.2016.1769-.5189.3994-.9533.6011-.4098.1903-1.0957.333-1.7473.3636-.7197.0336-1.0859-.0807-1.1721-.151zm.5695-9.2712c-.0059.3508-.0542.6692-.1054 1.0017-.055.3576-.112.7274-.1264 1.1762-.0142.4368.0404.8909.0932 1.3301.1066.887.216 1.8003-.2075 2.7014a3.5272 3.5272 0 0 1-.1876-.3856c-.0527-.1276-.1669-.3326-.3251-.6162-.6156-1.1041-2.0574-3.6896-1.3193-4.7446.3795-.5427 1.3408-.5661 2.1781-.463zm.2284 7.0137a12.3762 12.3762 0 0 0-.0853-.1074l-.0355-.0444c.7262-1.1995.5842-2.3862.4578-3.4385-.0519-.4318-.1009-.8396-.0885-1.2226.0129-.4061.0666-.7543.1185-1.0911.0639-.415.1288-.8443.1109-1.3505.0134-.0531.0188-.1158.0118-.1902-.0457-.4855-.5999-1.938-1.7294-3.253-.6076-.7073-1.4896-1.4972-2.6889-2.0395.5251-.1066 1.2328-.2035 2.0244-.1859 2.0515.0456 3.6746.8135 4.8242 2.2824a.908.908 0 0 1 .0667.1002c.7231 1.3556-.2762 6.2751-2.9867 10.5405zm-8.8166-6.1162c-.025.1794-.3089.4225-.6211.4225a.5821.5821 0 0 1-.0809-.0056c-.1873-.026-.3765-.144-.5059-.3156-.0458-.0605-.1203-.178-.1055-.2844.0055-.0401.0261-.0985.0925-.1488.1182-.0894.3518-.1226.6096-.0867.3163.0441.6426.1938.6113.4186zm7.9305-.4114c.0111.0792-.049.201-.1531.3102-.0683.0717-.212.1961-.4079.2232a.5456.5456 0 0 1-.075.0052c-.2935 0-.5414-.2344-.5607-.3717-.024-.1765.2641-.3106.5611-.352.297-.0414.6111.0088.6356.1851z"/></symbol>
+  <symbol id="cl-supabase" viewBox="0 0 24 24"><path d="M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C-.33 13.427.65 15.455 2.409 15.455h9.579l.113 7.51c.014.985 1.259 1.408 1.873.636l9.262-11.653c1.093-1.375.113-3.403-1.645-3.403h-9.642z"/></symbol>
+  <symbol id="cl-playwright" viewBox="0 0 400 400"><path d="M136.444 221.556C123.558 225.213 115.104 231.625 109.535 238.032C114.869 233.364 122.014 229.08 131.652 226.348C141.51 223.554 149.92 223.574 156.869 224.915V219.481C150.941 218.939 144.145 219.371 136.444 221.556ZM108.946 175.876L61.0895 188.484C61.0895 188.484 61.9617 189.716 63.5767 191.36L104.153 180.668C104.153 180.668 103.578 188.077 98.5847 194.705C108.03 187.559 108.946 175.876 108.946 175.876ZM149.005 288.347C81.6582 306.486 46.0272 228.438 35.2396 187.928C30.2556 169.229 28.0799 155.067 27.5 145.928C27.4377 144.979 27.4665 144.179 27.5336 143.446C24.04 143.657 22.3674 145.473 22.7077 150.721C23.2876 159.855 25.4633 174.016 30.4473 192.721C41.2301 233.225 76.8659 311.273 144.213 293.134C158.872 289.185 169.885 281.992 178.152 272.81C170.532 279.692 160.995 285.112 149.005 288.347ZM161.661 128.11V132.903H188.077C187.535 131.206 186.989 129.677 186.447 128.11H161.661Z"/><path d="M193.981 167.584C205.861 170.958 212.144 179.287 215.465 186.658L228.711 190.42C228.711 190.42 226.904 164.623 203.57 157.995C181.741 151.793 168.308 170.124 166.674 172.496C173.024 167.972 182.297 164.268 193.981 167.584ZM299.422 186.777C277.573 180.547 264.145 198.916 262.535 201.255C268.89 196.736 278.158 193.031 289.837 196.362C301.698 199.741 307.976 208.06 311.307 215.436L324.572 219.212C324.572 219.212 322.736 193.41 299.422 186.777ZM286.262 254.795L176.072 223.99C176.072 223.99 177.265 230.038 181.842 237.869L274.617 263.805C282.255 259.386 286.262 254.795 286.262 254.795ZM209.867 321.102C122.618 297.71 133.166 186.543 147.284 133.865C153.097 112.156 159.073 96.0203 164.029 85.204C161.072 84.5953 158.623 86.1529 156.203 91.0746C150.941 101.747 144.212 119.124 137.7 143.45C123.586 196.127 113.038 307.29 200.283 330.682C241.406 341.699 273.442 324.955 297.323 298.659C274.655 319.19 245.714 330.701 209.867 321.102Z"/><path d="M161.661 262.296V239.863L99.3324 257.537C99.3324 257.537 103.938 230.777 136.444 221.556C146.302 218.762 154.713 218.781 161.661 220.123V128.11H192.869C189.471 117.61 186.184 109.526 183.423 103.909C178.856 94.612 174.174 100.775 163.545 109.665C156.059 115.919 137.139 129.261 108.668 136.933C80.1966 144.61 57.179 142.574 47.5752 140.911C33.9601 138.562 26.8387 135.572 27.5049 145.928C28.0847 155.062 30.2605 169.224 35.2445 187.928C46.0272 228.433 81.663 306.481 149.01 288.342C166.602 283.602 179.019 274.233 187.626 262.291H161.661V262.296ZM61.0848 188.484L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6614 203.743 61.0848 188.484 61.0848 188.484Z"/><path d="M341.786 129.174C329.345 131.355 299.498 134.072 262.612 124.185C225.716 114.304 201.236 97.0224 191.537 88.8994C177.788 77.3834 171.74 69.3802 165.788 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.098C297.093 344.47 343.53 242.92 357.644 190.238C364.157 165.917 367.013 147.5 367.799 135.625C368.695 122.173 359.455 126.078 341.786 129.174ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756ZM223.42 268.713C182.403 256.698 176.077 223.99 176.077 223.99L286.262 254.796C286.262 254.791 264.021 280.578 223.42 268.713ZM262.377 201.495C262.377 201.495 276.107 180.126 299.422 186.773C322.736 193.411 324.572 219.208 324.572 219.208L262.377 201.495Z"/><path d="M139.88 246.04L99.3324 257.532C99.3324 257.532 103.737 232.44 133.607 222.496L110.647 136.33L108.663 136.933C80.1918 144.611 57.1742 142.574 47.5704 140.911C33.9554 138.563 26.834 135.572 27.5001 145.929C28.08 155.063 30.2557 169.224 35.2397 187.929C46.0225 228.433 81.6583 306.481 149.005 288.342L150.989 287.719L139.88 246.04ZM61.0848 188.485L108.946 175.876C108.946 175.876 107.551 194.288 89.6087 199.018C71.6615 203.743 61.0848 188.485 61.0848 188.485Z"/><path d="M225.27 269.163L223.415 268.712C182.398 256.698 176.072 223.99 176.072 223.99L232.89 239.872L262.971 124.281L262.607 124.185C225.711 114.304 201.232 97.0224 191.532 88.8994C177.783 77.3834 171.735 69.3802 165.783 81.4857C160.526 92.163 153.797 109.54 147.284 133.866C133.171 186.543 122.623 297.706 209.867 321.097L211.655 321.5L225.27 269.163ZM166.497 172.756C166.497 172.756 180.246 151.372 203.565 158C226.899 164.628 228.706 190.425 228.706 190.425L166.497 172.756Z"/><path d="M141.946 245.451L131.072 248.537C133.641 263.019 138.169 276.917 145.276 289.195C146.513 288.922 147.74 288.687 149 288.342C152.302 287.451 155.364 286.348 158.312 285.145C150.371 273.361 145.118 259.789 141.946 245.451ZM137.7 143.451C132.112 164.307 127.113 194.326 128.489 224.436C130.952 223.367 133.554 222.371 136.444 221.551L138.457 221.101C136.003 188.939 141.308 156.165 147.284 133.866C148.799 128.225 150.318 122.978 151.832 118.085C149.393 119.637 146.767 121.228 143.776 122.867C141.759 129.093 139.722 135.898 137.7 143.451Z"/></symbol>
 </svg>
 
 <a class="skip" href="#content">Skip to content</a>
 
 <header class="tn" data-od-id="site-topnav">
-  <div class="wrap tn__inner">
+  <div class="wrap"><div class="tn__island">
+  <div class="tn__inner">
     <a class="tn__brand" href="#" aria-label="CompozyOS home"><svg viewBox="0 0 1965 355" aria-hidden="true"><use href="#cz-logo"/></svg><span class="tn__beta" aria-hidden="true">Beta</span></a>
     <nav class="tn__nav" aria-label="Site">
       <a href="#">Docs</a>
@@ -78,6 +106,7 @@
     <a class="tn__icon" href="https://github.com/compozy/compozy" aria-label="CompozyOS on GitHub"><svg class="ic ic--logo" aria-hidden="true"><use href="#lg-github"/></svg></a>
   </div>
   <div class="tn__row"><nav aria-label="Site, compact"><a href="#">Docs</a><a href="#">Marketplace</a><a href="#">Blog</a><a href="#">Changelog</a><a href="#install">Download</a></nav></div>
+  </div></div>
 </header>
 
 <main id="content">
@@ -85,24 +114,25 @@
 <!-- ================= 01 · HERO ================= -->
 <section class="hero" data-od-id="hero" aria-labelledby="hero-title">
   <div class="hero__atmo" aria-hidden="true">
-    <div class="hero__wave" aria-hidden="true" data-stand-in="generated atmosphere: hero wave (was hero-wave.webp)"></div>
+    <div class="hero__grid"></div>
+    <div class="hero__wave" aria-hidden="true"></div>
     <div class="hero__ember"></div>
   </div>
   <div class="wrap">
     <div class="hero__copy">
       <p class="eyebrow" data-od-id="hero-eyebrow" data-reveal style="--d:0">An operating system for AI agents</p>
-      <h1 class="hero__title" id="hero-title" data-od-id="hero-title" data-reveal style="--d:1">The system around the agent, already built.</h1>
+      <h1 class="hero__title" id="hero-title" data-od-id="hero-title" data-reveal style="--d:1">The system around the agent, <em>already built.</em></h1>
       <p class="hero__lead" data-od-id="hero-lead" data-reveal style="--d:2">One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.</p>
       <div class="hero__actions" data-od-id="hero-cta" data-reveal style="--d:3">
-        <a class="btn btn--primary btn--lg" href="#" data-download="hero" data-od-id="hero-download"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg><span data-label>Download for macOS</span></a>
-        <a class="btn btn--outline btn--lg" href="#" data-od-id="hero-docs">Open the runtime docs</a>
+        <a class="btn btn--primary btn--lg" href="#" data-download="hero" data-od-id="hero-download"><span data-label>Download for macOS</span><span class="btn__ico btn__ico--down" aria-hidden="true"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg></span></a>
+        <a class="btn btn--outline btn--lg" href="#" data-od-id="hero-docs">Open the runtime docs<span class="btn__ico" aria-hidden="true"><svg class="ic"><use href="#i-arrow-up-right"/></svg></span></a>
         <div class="cmd" data-od-id="hero-install-cmd"><code class="cmd__text">curl -fsSL https://compozy.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://compozy.com/install.sh | sh" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div>
       </div>
     </div>
 
     <div class="demo" data-od-id="hero-demo" data-playing="false" data-reveal style="--d:4">
       <div class="demo__bar">
-        <div class="tablist tablist--scroll demo__tabs" role="tablist" aria-label="Product demos" data-single="true">
+        <div class="tablist tablist--scroll seg demo__tabs" role="tablist" aria-label="Product demos" data-single="true">
           <button class="chip" role="tab" id="demo-tab-1" aria-controls="demo-panel" aria-selected="true" data-caption="Start a session, watch the work stream, answer the permission ask." data-route="/agents/$name/sessions/$id" data-pos="50% 0%" data-zoom="1"><svg class="ic"><use href="#i-message-square"/></svg>Agent session<span class="chip__progress"></span></button>
           <button class="chip" role="tab" id="demo-tab-2" aria-controls="demo-panel" aria-selected="false" tabindex="-1" data-caption="Open a shipped Loop and fork the graph: contract, nodes, publish." data-route="/loops/$name/editor" data-pos="0% 34%" data-zoom="1.85"><svg class="ic"><use href="#i-git-branch"/></svg>Loop editor<span class="chip__progress"></span></button>
           <button class="chip" role="tab" id="demo-tab-3" aria-controls="demo-panel" aria-selected="false" tabindex="-1" data-caption="Put an agent on a schedule; every run lands in history." data-route="/jobs" data-pos="50% 50%" data-zoom="1"><svg class="ic"><use href="#i-clock"/></svg>Scheduled jobs<span class="chip__progress"></span></button>
@@ -134,6 +164,7 @@
 <section class="sec sec--tight sec--rule" data-od-id="providers" aria-labelledby="prov-title">
   <div class="wrap">
     <div class="head" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-plug"/></svg></span>
       <h2 class="title title--feature" id="prov-title">Runs the agents you already use.</h2>
       <p class="lead">CompozyOS launches built-in CLI and provider integrations as durable sessions. Local is the default; choose Live when a session should discover peers, share capabilities, and coordinate through Compozy Network.</p>
       <p class="prov__support">Provider subscriptions and API keys stay yours. CompozyOS resells no model access.</p>
@@ -176,9 +207,10 @@
 
 <!-- ================= 03 · PAIN · THE DIY AGENT STACK ================= -->
 <section class="sec sec--soft sec--rule pain" data-od-id="pain" aria-labelledby="pain-title">
-  <div class="pain__atmo" aria-hidden="true" data-stand-in="generated atmosphere: traces (was backdrop-traces.webp)"></div>
+  <div class="pain__atmo" aria-hidden="true"></div>
   <div class="wrap g12">
     <div class="pain__copy" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-wrench"/></svg></span>
       <h2 class="title title--feature" id="pain-title">Anyone can prompt an agent. Keeping one working is still an engineering project.</h2>
       <p class="lead">Continuous agent work today means assembling loops, triggers, cron and webhooks, memory files, permission wrappers, approval gates, observability, and the glue scripts that hold them together. Every builder assembles that stack alone, and the process never repeats. CompozyOS replaces the pile, not one tool in it.</p>
       <p class="kicker">The models are broadly available. The repeatable process is not.</p>
@@ -194,15 +226,16 @@
 <section class="sec sec--rule" data-od-id="use-cases" aria-labelledby="uc-title">
   <div class="wrap">
     <div class="head" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-list-checks"/></svg></span>
       <h2 class="title" id="uc-title">CompozyOS takes the jobs you keep doing by hand.</h2>
       <p class="lead">Five jobs, all running on shipped objects: Loops, tasks, jobs, approvals.</p>
     </div>
     <ul class="uc-grid">
-      <li class="uc" data-od-id="use-case-d2" data-reveal style="--d:0">
-        <div class="uc__art" style="--pos:50% 42%;--zoom:1.02" data-stand-in="generated spot: implement"><div class="ph" role="img" aria-label="Placeholder: Spot · Implement"><span class="ph__l"><b>Spot · Implement</b>16:9 · the daemon beside a floating task list, three rows lit in order<i>was spot-implement.webp · 1024×1536</i></span></div></div>
+      <li class="uc spot" data-od-id="use-case-d2" data-reveal style="--d:0">
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1"><img src="assets/spot-implement.webp" alt="The daemon module beside a floating task list, the first row lit." loading="lazy" width="1536" height="1024"></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
-          <h3 class="uc__title">CompozyOS implements the task list after the tab closes</h3>
+          <h3 class="uc__title"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-workflow"/></svg></span><span>CompozyOS implements the task list after the tab closes</span></h3>
           <ul class="uc__list">
             <li>The bundled <code>implement-tasks</code> Loop works through authored tasks in dependency order.</li>
             <li>The work lives in a durable session. Closing the terminal changes nothing.</li>
@@ -211,11 +244,11 @@
           <div class="uc__objects"><span class="tag">Loops</span><span class="tag">tasks</span><span class="tag">sessions</span></div>
         </div>
       </li>
-      <li class="uc" data-od-id="use-case-d1" data-reveal style="--d:1">
-        <div class="uc__art" style="--pos:50% 46%;--zoom:1.08" data-stand-in="generated spot: review"><div class="ph" role="img" aria-label="Placeholder: Spot · Review"><span class="ph__l"><b>Spot · Review</b>16:9 · orbit rings around a run marker, one lap after another<i>was spot-review.webp · 1254×1254</i></span></div></div>
+      <li class="uc spot" data-od-id="use-case-d1" data-reveal style="--d:1">
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1"><img src="assets/spot-review.webp" alt="Orbit rings around a run marker, one lap trailing orange." loading="lazy" width="1536" height="1024"></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
-          <h3 class="uc__title">CompozyOS reviews a change and remediates until the round is clean</h3>
+          <h3 class="uc__title"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-repeat"/></svg></span><span>CompozyOS reviews a change and remediates until the round is clean</span></h3>
           <ul class="uc__list">
             <li>The bundled <code>review-and-fix</code> Loop pairs a reviewer with a fixer until a round returns no findings.</li>
             <li>Findings land as Markdown files you can open, not chat scrollback.</li>
@@ -224,11 +257,11 @@
           <div class="uc__objects"><span class="tag">Loops</span><span class="tag">sessions</span><span class="tag">human gate</span></div>
         </div>
       </li>
-      <li class="uc" data-od-id="use-case-o1" data-reveal style="--d:2">
-        <div class="uc__art" style="--pos:50% 50%;--zoom:1" data-stand-in="generated spot: briefing"><div class="ph" role="img" aria-label="Placeholder: Spot · Briefing"><span class="ph__l"><b>Spot · Briefing</b>16:9 · a scheduled job fanning out into archive, notify, webhook and summary steps<i>was spot-briefing.webp · 1678×937</i></span></div></div>
+      <li class="uc spot" data-od-id="use-case-o1" data-reveal style="--d:2">
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1"><img src="assets/spot-briefing.webp" alt="A scheduled job fanning out into four steps." loading="lazy" width="1536" height="1024"></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Ops</span></div>
-          <h3 class="uc__title">CompozyOS leaves a briefing waiting every weekday morning</h3>
+          <h3 class="uc__title"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-calendar-clock"/></svg></span><span>CompozyOS leaves a briefing waiting every weekday morning</span></h3>
           <ul class="uc__list">
             <li>A scheduled job dispatches an agent at 08:30 with nobody watching.</li>
             <li>Every run is recorded, with retry and backoff on failure.</li>
@@ -237,11 +270,11 @@
           <div class="uc__objects"><span class="tag">jobs</span><span class="tag">automation runs</span><span class="tag">sessions</span></div>
         </div>
       </li>
-      <li class="uc uc--wide" data-od-id="use-case-d3" data-reveal style="--d:0">
-        <div class="uc__art" style="--pos:50% 30%;--zoom:1.7" data-stand-in="generated spot: release"><div class="ph" role="img" aria-label="Placeholder: Spot · Release"><span class="ph__l"><b>Spot · Release</b>21:9 · a numbered stream of runs on one line, the current one ringed<i>was spot-release.webp · 1339×405</i></span></div></div>
+      <li class="uc uc--wide spot" data-od-id="use-case-d3" data-reveal style="--d:0">
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1"><img src="assets/spot-release.webp" alt="A row of runs on one rail, the current one ringed." loading="lazy" width="1536" height="1024"></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
-          <h3 class="uc__title">CompozyOS keeps release checks as claimed work</h3>
+          <h3 class="uc__title"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-package"/></svg></span><span>CompozyOS keeps release checks as claimed work</span></h3>
           <ul class="uc__list">
             <li>Each concern is a task an agent can claim and heartbeat.</li>
             <li>Runs close complete or failed, with structured evidence.</li>
@@ -250,11 +283,11 @@
           <div class="uc__objects"><span class="tag">tasks</span><span class="tag">claim and lease</span><span class="tag">sessions</span></div>
         </div>
       </li>
-      <li class="uc uc--wide" data-od-id="use-case-o3" data-reveal style="--d:1">
-        <div class="uc__art" style="--pos:50% 46%;--zoom:1.05" data-stand-in="generated spot: gate"><div class="ph" role="img" aria-label="Placeholder: Spot · Gate"><span class="ph__l"><b>Spot · Gate</b>21:9 · a run timeline paused at a gate, checks behind it, the next steps waiting<i>was spot-gate.webp · 1536×1024</i></span></div></div>
+      <li class="uc uc--wide spot" data-od-id="use-case-o3" data-reveal style="--d:1">
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1"><img src="assets/spot-gate.webp" alt="A run timeline paused at a gate with a lit slit." loading="lazy" width="1536" height="1024"></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Ops</span></div>
-          <h3 class="uc__title">CompozyOS waits for a person before a sensitive action proceeds</h3>
+          <h3 class="uc__title"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-hand"/></svg></span><span>CompozyOS waits for a person before a sensitive action proceeds</span></h3>
           <ul class="uc__list">
             <li>A tool call can require an approval before it runs.</li>
             <li>A Loop can pause in <code>needs-approval</code> until someone decides.</li>
@@ -271,20 +304,57 @@
 <!-- ================= 05 · COMMUNITY ================= -->
 <section class="sec sec--soft sec--rule" data-od-id="community" aria-labelledby="community-title">
   <div class="wrap">
-    <div class="head" data-reveal>
+    <div class="head head--center" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-quote"/></svg></span>
       <h2 class="title" id="community-title">Developers have been running it for months.</h2>
       <p class="micro" style="margin-top:18px">Beta program, Dec 2025 to Feb 2026</p>
     </div>
-    <ul class="quotes">
-      <li class="quote" data-od-id="quote-vedovelli" data-reveal style="--d:0"><blockquote>“This tool is spectacular.”</blockquote><p class="quote__author">Fabio Vedovelli</p></li>
-      <li class="quote" data-od-id="quote-joao" data-reveal style="--d:1"><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote><p class="quote__author">João</p></li>
-      <li class="quote" data-od-id="quote-jefferson" data-reveal style="--d:2"><blockquote>“I left it running and went to a family barbecue.”</blockquote><p class="quote__author">Jefferson Veloso</p></li>
-    </ul>
+    <!-- Quote wall: three columns drift vertically (the page's one marquee), paused on hover, static under reduced motion.
+         Three real quotes from the beta program; each column carries all three in a different order, duplicated once for the loop.
+         Avatars are photo slots (data-stand-in); the source slot (.tcard__src) takes the network mark once the origin of each quote is confirmed. -->
+    <div class="twall" data-od-id="quote-wall" aria-label="Quotes from the beta program" data-reveal style="--d:1">
+      <div class="tcol" style="--dur:46s">
+        <ul class="tset">
+          <li class="tcard spot" data-od-id="quote-vedovelli"><div class="tcard__head"><span class="avatar" data-stand-in="photo: Fabio Vedovelli" aria-hidden="true">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src" aria-hidden="true"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+          <li class="tcard spot" data-od-id="quote-joao"><div class="tcard__head"><span class="avatar" data-stand-in="photo: João" aria-hidden="true">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src" aria-hidden="true"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+          <li class="tcard spot" data-od-id="quote-jefferson"><div class="tcard__head"><span class="avatar" data-stand-in="photo: Jefferson Veloso" aria-hidden="true">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src" aria-hidden="true"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+        </ul>
+        <ul class="tset" aria-hidden="true">
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+        </ul>
+      </div>
+      <div class="tcol tcol--rev" style="--dur:54s" aria-hidden="true">
+        <ul class="tset">
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+        </ul>
+        <ul class="tset">
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+        </ul>
+      </div>
+      <div class="tcol" style="--dur:50s" aria-hidden="true">
+        <ul class="tset">
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+        </ul>
+        <ul class="tset">
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">J</span><span class="tcard__who"><b>João</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“At work, employee of the week is going to be Compozy.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">JV</span><span class="tcard__who"><b>Jefferson Veloso</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“I left it running and went to a family barbecue.”</blockquote></li>
+          <li class="tcard spot"><div class="tcard__head"><span class="avatar">FV</span><span class="tcard__who"><b>Fabio Vedovelli</b><span>Beta program</span></span><span class="tcard__src"><svg class="ic"><use href="#i-quote"/></svg></span></div><blockquote>“This tool is spectacular. I'm already in the ‘shut up and take my money’ phase.”</blockquote></li>
+        </ul>
+      </div>
+    </div>
     <ul class="proof" data-od-id="proof-strip" aria-label="Product proof" data-reveal>
       <li><svg class="ic"><use href="#i-star"/></svg><span class="skel num" role="img" aria-label="GitHub star count, loading"></span>GitHub stars</li>
-      <li>MIT license</li>
-      <li><span class="skel num" role="img" aria-label="Release count, loading"></span>releases</li>
-      <li>Local-first, no telemetry</li>
+      <li><svg class="ic"><use href="#i-file-text"/></svg>MIT license</li>
+      <li><svg class="ic"><use href="#i-package"/></svg><span class="skel num" role="img" aria-label="Release count, loading"></span>releases</li>
+      <li><svg class="ic"><use href="#i-shield-check"/></svg>Local-first, no telemetry</li>
     </ul>
   </div>
 </section>
@@ -293,12 +363,13 @@
 <section class="sec sec--rule" data-od-id="features" aria-labelledby="features-title">
   <div class="wrap">
     <div class="head" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-blocks"/></svg></span>
       <p class="eyebrow">Built in <span class="rule" aria-hidden="true"></span> Batteries included.</p>
       <h2 class="title" id="features-title">Comes with what you would otherwise build.</h2>
       <p class="lead">Memory, automation, permissions, approvals, and run history: core objects in one runtime, reachable from CLI, HTTP, and UDS.</p>
     </div>
 
-    <div class="tablist tablist--scroll ftabs" role="tablist" aria-label="Built-in features" data-od-id="features-tabs" data-reveal style="--d:1">
+    <div class="tablist tablist--scroll seg ftabs" role="tablist" aria-label="Built-in features" data-od-id="features-tabs" data-reveal style="--d:1">
       <button class="chip" role="tab" id="ft-1" aria-controls="fp-1" aria-selected="true">Sessions</button>
       <button class="chip" role="tab" id="ft-2" aria-controls="fp-2" aria-selected="false" tabindex="-1">Memory</button>
       <button class="chip" role="tab" id="ft-3" aria-controls="fp-3" aria-selected="false" tabindex="-1">Tasks</button>
@@ -310,29 +381,29 @@
     </div>
 
     <div class="fpanel" id="fp-1" role="tabpanel" aria-labelledby="ft-1" data-od-id="feature-sessions" data-reveal style="--d:2">
-      <div><h3 class="fpanel__title">Agent work that outlives the terminal</h3><p class="fpanel__desc">CompozyOS keeps the timeline, the edits, and the runs in a durable session. Pause one, resume it, and the record is still there.</p><p class="fpanel__cap">Sessions open as windows in the OS shell. Every window managed.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-message-square"/></svg></span><span>Agent work that outlives the terminal</span></h3><p class="fpanel__desc">CompozyOS keeps the timeline, the edits, and the runs in a durable session. Pause one, resume it, and the record is still there.</p><p class="fpanel__cap">Sessions open as windows in the OS shell. Every window managed.</p></div>
       <div class="win" data-stand-in="capture: /agents/$name/sessions/$id on a seeded lab"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-message-square"/></svg>Session</span><span class="win__route">/agents/$name/sessions/$id</span></div><div class="win__body" style="--pos:50% 74%;--zoom:1.26"><div class="ph" role="img" aria-label="Placeholder: Capture · Session"><span class="ph__l"><b>Capture · Session</b>16:10 · /agents/$name/sessions/$id on a seeded lab — timeline with a file edit, tests, commit, pause, beside its diff<i>was feature-sessions.webp · 1495×1052</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-2" role="tabpanel" aria-labelledby="ft-2" hidden data-od-id="feature-memory">
-      <div><h3 class="fpanel__title">Context that survives restarts</h3><p class="fpanel__desc">Typed Markdown memory (user, feedback, project, reference) with one index per scope. Agents read it on session start and update it through the same CLI.</p><p class="fpanel__cap">When the gates pass, CompozyOS starts an ephemeral session that promotes recalled facts into durable memory. No surprise compute.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-book-open"/></svg></span><span>Context that survives restarts</span></h3><p class="fpanel__desc">Typed Markdown memory (user, feedback, project, reference) with one index per scope. Agents read it on session start and update it through the same CLI.</p><p class="fpanel__cap">When the gates pass, CompozyOS starts an ephemeral session that promotes recalled facts into durable memory. No surprise compute.</p></div>
       <div class="win" data-stand-in="capture: /knowledge seeded with real files"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-book-open"/></svg>Knowledge</span><span class="win__route">/knowledge</span></div><div class="win__body" style="--pos:50% 44%;--zoom:1.12"><div class="ph" role="img" aria-label="Placeholder: Capture · Knowledge"><span class="ph__l"><b>Capture · Knowledge</b>16:10 · /knowledge seeded with real files<i>was feature-memory.webp · 1254×1254</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-3" role="tabpanel" aria-labelledby="ft-3" hidden data-od-id="feature-tasks">
-      <div><h3 class="fpanel__title">Work that stays claimed until it closes</h3><p class="fpanel__desc">Durable tasks a session claims, heartbeats, and closes: on a board, in an inbox, with history.</p><p class="fpanel__cap">Every run has one owner; crashed work returns to the queue.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-kanban"/></svg></span><span>Work that stays claimed until it closes</span></h3><p class="fpanel__desc">Durable tasks a session claims, heartbeats, and closes: on a board, in an inbox, with history.</p><p class="fpanel__cap">Every run has one owner; crashed work returns to the queue.</p></div>
       <div class="frame"><div class="win win--bare" data-stand-in="capture: /tasks?mode=kanban (list view shown until the board is captured)"><div class="win__body"><div class="ph" role="img" aria-label="Placeholder: Capture · Tasks"><span class="ph__l"><b>Capture · Tasks</b>16:10 · /tasks?mode=kanban — blocked, queued and done groups with owners and priorities<i>was capture-tasks-window.webp · 1450×906</i></span></div></div></div><code class="win__cap">/tasks?mode=kanban</code></div>
     </div>
     <div class="fpanel" id="fp-4" role="tabpanel" aria-labelledby="ft-4" hidden data-od-id="feature-automation">
-      <div><h3 class="fpanel__title">Schedules and webhooks, durable</h3><p class="fpanel__desc">CompozyOS owns clock jobs, runtime triggers, and signed webhooks. Every fire writes an inspectable run.</p><p class="fpanel__cap">Run history comes from the records the runtime already writes. Nothing extra to instrument.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-clock"/></svg></span><span>Schedules and webhooks, durable</span></h3><p class="fpanel__desc">CompozyOS owns clock jobs, runtime triggers, and signed webhooks. Every fire writes an inspectable run.</p><p class="fpanel__cap">Run history comes from the records the runtime already writes. Nothing extra to instrument.</p></div>
       <div class="win" data-stand-in="capture: /jobs with run history"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-clock"/></svg>Jobs</span><span class="win__route">/jobs</span></div><div class="win__body" style="--pos:50% 50%;--zoom:1.04"><div class="ph" role="img" aria-label="Placeholder: Capture · Jobs"><span class="ph__l"><b>Capture · Jobs</b>16:10 · /jobs with run history — a run trace beside the events-per-day chart<i>was feature-automation.webp · 1586×992</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-5" role="tabpanel" aria-labelledby="ft-5" hidden data-od-id="feature-desktops">
-      <div><h3 class="fpanel__title">Every window managed</h3><p class="fpanel__desc">Persistent desktops, tiled groups, and floating windows. Layout is workspace state the daemon owns, not browser tabs.</p><p class="fpanel__cap"><code>⌘K</code> runs the same commands the CLI exposes.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-app-window"/></svg></span><span>Every window managed</span></h3><p class="fpanel__desc">Persistent desktops, tiled groups, and floating windows. Layout is workspace state the daemon owns, not browser tabs.</p><p class="fpanel__cap"><code>⌘K</code> runs the same commands the CLI exposes.</p></div>
       <div class="frame"><div class="win win--bare"><div class="win__body" style="--pos:50% 50%;--zoom:1"><div class="ph" role="img" aria-label="Placeholder: Capture · Desktop shell"><span class="ph__l"><b>Capture · Desktop shell</b>16:10 · menubar, two tiled windows and the dock (DesktopShell · dock · DesktopPager)<i>was hero-poster.webp · 2960×1826</i></span></div></div></div><code class="win__cap">DesktopShell · dock · DesktopPager</code></div>
     </div>
     <div class="fpanel" id="fp-6" role="tabpanel" aria-labelledby="ft-6" hidden data-od-id="feature-profiles">
-      <div><h3 class="fpanel__title">Separate work on one install</h3><p class="fpanel__desc">Each session, task, and automation files under a named profile. Switch, and the lists follow.</p><p class="fpanel__cap">Profiles organize work; they are not a security boundary.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-users"/></svg></span><span>Separate work on one install</span></h3><p class="fpanel__desc">Each session, task, and automation files under a named profile. Switch, and the lists follow.</p><p class="fpanel__cap">Profiles organize work; they are not a security boundary.</p></div>
       <div class="win" data-stand-in="capture: /settings/profiles with default + one real profile"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-settings"/></svg>Settings</span><span class="win__route">/settings/profiles</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:left bottom" data-ph="backdrop · orbit"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:left bottom;--img:url(assets/backdrop-orbit.webp)"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-pr-t"><title id="dg-pr-t">Two profiles on one install: the active one holds its own sessions, tasks, and automations; switching swaps the lists.</title>
             <ellipse class="ember" cx="230" cy="412" rx="170" ry="26" opacity=".55"/>
             <rect class="plate-fill is-active" x="80" y="96" width="300" height="308" rx="16"/>
@@ -362,9 +433,9 @@
           </svg></div></div></div>
     </div>
     <div class="fpanel" id="fp-7" role="tabpanel" aria-labelledby="ft-7" hidden data-od-id="feature-gateway">
-      <div><h3 class="fpanel__title">Local until you turn remote on</h3><p class="fpanel__desc">The daemon starts reachable only on this machine. Remote access is three switches, all off by default.</p><p class="fpanel__cap">Private overlay, public delivery, public operator access: each is its own switch.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-globe-lock"/></svg></span><span>Local until you turn remote on</span></h3><p class="fpanel__desc">The daemon starts reachable only on this machine. Remote access is three switches, all off by default.</p><p class="fpanel__cap">Private overlay, public delivery, public operator access: each is its own switch.</p></div>
       <div class="win" data-stand-in="capture: /settings/gateway in the default-off state"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-globe-lock"/></svg>Remote access</span><span class="win__route">/settings/gateway</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:right center" data-ph="backdrop · radar"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:right center;--img:url(assets/backdrop-radar.webp)"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-gw-t"><title id="dg-gw-t">Remote access: private overlay, public delivery, and public operator access, all three switches off.</title>
             <ellipse class="ember" cx="176" cy="338" rx="120" ry="24" opacity=".5"/>
             <rect class="plate-fill is-active" x="96" y="164" width="160" height="156" rx="18"/>
@@ -383,9 +454,9 @@
           </svg></div></div></div>
     </div>
     <div class="fpanel" id="fp-8" role="tabpanel" aria-labelledby="ft-8" hidden data-od-id="feature-workspaces">
-      <div><h3 class="fpanel__title">One project, registered once</h3><p class="fpanel__desc">Sessions, memory, tasks, and config attach to a workspace with a stable ID.</p><p class="fpanel__cap">Worktrees give parallel agents their own checkout of the same repo.</p></div>
+      <div><h3 class="fpanel__title"><span class="mark mark--sm" aria-hidden="true"><svg class="ic"><use href="#i-folder-git-2"/></svg></span><span>One project, registered once</span></h3><p class="fpanel__desc">Sessions, memory, tasks, and config attach to a workspace with a stable ID.</p><p class="fpanel__cap">Worktrees give parallel agents their own checkout of the same repo.</p></div>
       <div class="win" data-stand-in="capture: menubar workspace switcher + worktree dialog"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-folder-git-2"/></svg>Workspaces</span><span class="win__route">menubar switcher</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:center" data-ph="backdrop · traces"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:center;--img:url(assets/backdrop-traces.webp)"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-ws-t"><title id="dg-ws-t">One workspace with a stable ID, and three worktrees that give parallel agents their own checkout.</title>
             <ellipse class="ember" cx="195" cy="352" rx="150" ry="24" opacity=".5"/>
             <rect class="plate-fill is-active" x="70" y="156" width="250" height="188" rx="16"/>
@@ -412,9 +483,10 @@
 
 <!-- ================= 07 · LOOPS SPOTLIGHT ================= -->
 <section class="sec sec--soft sec--rule loop" data-od-id="loops" aria-labelledby="loops-title">
-  <div class="loop__atmo" aria-hidden="true" data-stand-in="generated atmosphere: orbit (was backdrop-orbit.webp)"></div>
+  <div class="loop__atmo" aria-hidden="true"></div>
   <div class="wrap">
     <div class="head" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-repeat"/></svg></span>
       <h2 class="title" id="loops-title">Loops stop when the goal is verified.</h2>
       <p class="lead">A Loop is a named contract (goal, verification, and a stop) that the daemon runs unattended and always ends honestly.</p>
     </div>
@@ -426,24 +498,25 @@
       <p class="caption loop__capcap">A live run at /loop-runs, waiting on a human gate.<code class="win__cap">/loop-runs/$runId</code></p>
     </div>
     <ul class="proofs" data-od-id="loops-proof">
-      <li data-reveal style="--d:0"><strong>Typed contract, bounded iteration</strong>Every Loop carries a goal, verification, and an iteration cap (default 50).</li>
-      <li data-reveal style="--d:1"><strong>Starts only where the definition allows</strong>An operator, a schedule, a webhook, or a runtime event.</li>
-      <li data-reveal style="--d:2"><strong>Approval is a live pause, not a toast</strong>The run parks in <code>needs-approval</code> until someone decides.</li>
-      <li data-reveal style="--d:3"><strong>The same run from web, CLI, and HTTP</strong>Status, pause, cancel, history: one daemon state.</li>
-      <li data-reveal style="--d:4"><strong>Seven named endings</strong><code>done</code>, <code>no-op</code>, <code>blocked</code>, <code>failed</code>, <code>exhausted</code>, <code>stalled</code>, <code>canceled</code>. Never coerced.</li>
+      <li data-reveal style="--d:0"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-file-text"/></svg></span><strong>Typed contract, bounded iteration</strong>Every Loop carries a goal, verification, and an iteration cap (default 50).</li>
+      <li data-reveal style="--d:1"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-zap"/></svg></span><strong>Starts only where the definition allows</strong>An operator, a schedule, a webhook, or a runtime event.</li>
+      <li data-reveal style="--d:2"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-hand"/></svg></span><strong>Approval is a live pause, not a toast</strong>The run parks in <code>needs-approval</code> until someone decides.</li>
+      <li data-reveal style="--d:3"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-terminal"/></svg></span><strong>The same run from web, CLI, and HTTP</strong>Status, pause, cancel, history: one daemon state.</li>
+      <li data-reveal style="--d:4"><span class="mark mark--xs" aria-hidden="true"><svg class="ic"><use href="#i-circle-check"/></svg></span><strong>Seven named endings</strong><code>done</code>, <code>no-op</code>, <code>blocked</code>, <code>failed</code>, <code>exhausted</code>, <code>stalled</code>, <code>canceled</code>. Never coerced.</li>
     </ul>
     <div class="loop__foot" data-reveal>
       <p class="footnote">Unattended work is recoverable: task runs are claimed with a token, held by a lease, and returned to the queue if a worker dies.</p>
-      <a class="btn btn--outline" href="#" data-od-id="loops-cta">Read the Loops guide<svg class="ic ic--sm"><use href="#i-arrow-up-right"/></svg></a>
+      <a class="btn btn--outline" href="#" data-od-id="loops-cta">Read the Loops guide<span class="btn__ico" aria-hidden="true"><svg class="ic"><use href="#i-arrow-up-right"/></svg></span></a>
     </div>
   </div>
 </section>
 
 <!-- ================= 08 · EXTENSIBILITY ================= -->
-<section class="sec sec--rule" data-od-id="extensibility" aria-labelledby="ext-title">
+<section class="sec sec--rule sec--ext" data-od-id="extensibility" aria-labelledby="ext-title">
   <div class="wrap g12">
-    <div class="ext__art" role="img" aria-label="Skills, hooks, tools, automation, and extension cartridges docking into the daemon." data-reveal data-stand-in="generated concept: one package into the registries"><span class="ph__tag"><b>Extensions art</b>generated concept — one package docking into the registries · fills the 5-column panel (≥520px tall) · was ext-cartridges.webp</span></div>
+    <div class="ext__art" role="img" aria-label="Skills, hooks, tools, automation, and extension cartridges docking into the daemon." data-reveal></div>
     <div class="ext__content" data-reveal style="--d:1">
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-puzzle"/></svg></span>
       <p class="eyebrow">Built to be built on</p>
       <h2 class="title title--feature" id="ext-title">One install. The daemon already has a place for it.</h2>
       <p class="lead">An extension is one package. CompozyOS publishes its skills, tools, agents, and Loops into the same registries people and agents already use.</p>
@@ -464,13 +537,25 @@
       <div class="ext__catalog">
         <p class="caption">From the catalog</p>
         <ul class="catalog" data-od-id="ext-catalog" aria-label="Catalog entries">
-          <li>Context7<span>mcp</span></li><li>GitHub<span>mcp</span></li><li>Linear<span>mcp</span></li><li>Notion<span>mcp</span></li><li>Sentry<span>mcp</span></li><li>Playwright<span>mcp</span></li><li>Stripe<span>mcp</span></li><li>PostHog<span>mcp</span></li><li>Postgres<span>mcp</span></li><li>Supabase<span>mcp</span></li><li>Repository Orientation<span>extension</span></li><li>Batuta<span>extension</span></li><li>Documentation Writer<span>skill</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-context7"/></svg><span class="catalog__name">Context7</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#lg-github"/></svg><span class="catalog__name">GitHub</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#lg-linear"/></svg><span class="catalog__name">Linear</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-notion"/></svg><span class="catalog__name">Notion</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-sentry"/></svg><span class="catalog__name">Sentry</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-playwright"/></svg><span class="catalog__name">Playwright</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-stripe"/></svg><span class="catalog__name">Stripe</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-posthog"/></svg><span class="catalog__name">PostHog</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-postgres"/></svg><span class="catalog__name">Postgres</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg aria-hidden="true"><use href="#cl-supabase"/></svg><span class="catalog__name">Supabase</span><span class="catalog__kind">mcp</span></li>
+          <li class="spot"><svg class="ic" aria-hidden="true"><use href="#i-package"/></svg><span class="catalog__name">Repository Orientation</span><span class="catalog__kind">extension</span></li>
+          <li class="spot"><svg class="ic" aria-hidden="true"><use href="#i-package"/></svg><span class="catalog__name">Batuta</span><span class="catalog__kind">extension</span></li>
+          <li class="spot"><svg class="ic" aria-hidden="true"><use href="#i-book-open"/></svg><span class="catalog__name">Documentation Writer</span><span class="catalog__kind">skill</span></li>
         </ul>
       </div>
       <div class="ext__sdk"><p>Write one against the Host API, in Go or TypeScript, with React for views.</p><div class="ext__sdk-row"><span class="tag">Go SDK</span><span class="tag">@compozy/extension-sdk</span><span class="tag">@compozy/extension-react</span></div><p class="micro" style="margin-top:10px">init → build → validate → dev → publish</p></div>
       <p class="ext__grant">Published installs run read-only against the Host API; claim tokens and leases stay with the daemon.</p>
       <div class="ext__cta">
-        <a class="btn btn--outline" href="#" data-od-id="ext-build">Build an extension<svg class="ic ic--sm"><use href="#i-arrow-up-right"/></svg></a>
+        <a class="btn btn--outline" href="#" data-od-id="ext-build">Build an extension<span class="btn__ico" aria-hidden="true"><svg class="ic"><use href="#i-arrow-up-right"/></svg></span></a>
         <a class="btn btn--ghost" href="#" data-od-id="ext-marketplace">Browse the marketplace</a>
       </div>
     </div>
@@ -480,25 +565,26 @@
 <!-- ================= 09 · BRIDGES ================= -->
 <section class="sec sec--soft sec--rule" data-od-id="bridges" aria-labelledby="bridges-title">
   <div class="wrap">
-    <div class="bridges__canvas" data-reveal data-stand-in="generated: bridges inflow"><span class="ph__tag"><b>Bridges art</b>generated — messages flowing in from Slack, Discord, Telegram, Google Chat toward the daemon · right-anchored, 400px+ tall · was bridges-inflow.webp</span>
+    <div class="bridges__canvas" data-reveal>
       <div class="bridges__copy">
+        <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-waypoints"/></svg></span>
         <h2 class="title title--feature" id="bridges-title">From anywhere. Into a session.</h2>
         <p class="bridges__body">One platform message maps to one durable session; replies stream back to the original thread.</p>
       </div>
     </div>
     <ul class="bridges__tiles" aria-label="Bridge providers" data-od-id="bridges-grid" data-reveal style="--d:1">
-      <li><svg aria-hidden="true"><use href="#lg-slack"/></svg>Slack</li>
-      <li><svg aria-hidden="true"><use href="#lg-discord"/></svg>Discord</li>
-      <li><svg aria-hidden="true"><use href="#lg-telegram"/></svg>Telegram</li>
-      <li><svg aria-hidden="true"><use href="#lg-whatsapp"/></svg>WhatsApp</li>
-      <li><svg aria-hidden="true"><use href="#lg-teams"/></svg>Microsoft Teams</li>
-      <li><svg aria-hidden="true"><use href="#lg-google-chat"/></svg>Google Chat</li>
-      <li><svg aria-hidden="true"><use href="#lg-github"/></svg>GitHub</li>
-      <li><svg aria-hidden="true"><use href="#lg-linear"/></svg>Linear</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-slack"/></svg>Slack</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-discord"/></svg>Discord</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-telegram"/></svg>Telegram</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-whatsapp"/></svg>WhatsApp</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-teams"/></svg>Microsoft Teams</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-google-chat"/></svg>Google Chat</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-github"/></svg>GitHub</li>
+      <li class="spot"><svg aria-hidden="true"><use href="#lg-linear"/></svg>Linear</li>
     </ul>
     <div class="bridges__foot" data-reveal style="--d:2">
       <p class="caption bridges__caveat">All eight providers ship in-tree. They are not embedded in the released binary: build and install the provider from a trusted source checkout before configuring a bridge instance.</p>
-      <a class="btn btn--outline" href="#" data-od-id="bridges-cta">Set up a bridge<svg class="ic ic--sm"><use href="#i-arrow-up-right"/></svg></a>
+      <a class="btn btn--outline" href="#" data-od-id="bridges-cta">Set up a bridge<span class="btn__ico" aria-hidden="true"><svg class="ic"><use href="#i-arrow-up-right"/></svg></span></a>
     </div>
   </div>
 </section>
@@ -507,6 +593,7 @@
 <section class="sec sec--rule" id="comparison" data-od-id="comparison" aria-labelledby="cmp-title">
   <div class="wrap">
     <div class="head" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-columns-3"/></svg></span>
       <h2 class="title" id="cmp-title">Every piece, side by side.</h2>
       <p class="lead">Synara, T3 Code, Hermes, and OpenClaw each prove demand for part of the system. CompozyOS ships those parts in one product, batteries included.</p>
     </div>
@@ -532,12 +619,13 @@
 <section class="sec sec--soft sec--rule" id="install" data-od-id="install" aria-labelledby="install-title">
   <div class="wrap">
     <div class="head head--center" data-reveal>
+      <span class="mark" aria-hidden="true"><svg class="ic"><use href="#i-download"/></svg></span>
       <h2 class="title" id="install-title">Install the beta. Start one durable session.</h2>
       <p class="lead">Use the verified installer on macOS or Linux, the npm beta channel, or the pinned Go release. Homebrew returns with the stable release. Today's experience is technical: a terminal, a local daemon, and one config file. Built for developers and technical operators.</p>
       <p class="micro platforms" data-od-id="hero-platforms">Desktop for macOS and Linux. CLI for macOS, Linux, and Windows. <span data-os-note></span></p>
     </div>
     <div class="install" data-reveal style="--d:1">
-      <div class="tablist" role="tablist" aria-label="Install methods" data-od-id="install-tabs">
+      <div class="tablist seg" role="tablist" aria-label="Install methods" data-od-id="install-tabs">
         <button class="chip" role="tab" id="it-desktop" aria-controls="ip-desktop" aria-selected="true">Desktop</button>
         <button class="chip" role="tab" id="it-installer" aria-controls="ip-installer" aria-selected="false" tabindex="-1">Installer</button>
         <button class="chip" role="tab" id="it-npm" aria-controls="ip-npm" aria-selected="false" tabindex="-1">npm</button>
@@ -545,7 +633,7 @@
       </div>
       <div class="install__panels">
         <div id="ip-desktop" role="tabpanel" aria-labelledby="it-desktop" class="install__desktop" data-od-id="install-desktop">
-          <a class="btn btn--lg" href="#" data-download="install"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg><span data-label>Download for macOS</span></a>
+          <a class="btn btn--lg" href="#" data-download="install"><span data-label>Download for macOS</span><span class="btn__ico btn__ico--down" aria-hidden="true"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg></span></a>
           <a class="link" href="#">All platforms and checksums<svg class="ic ic--xs"><use href="#i-arrow-up-right"/></svg></a>
         </div>
         <div id="ip-installer" role="tabpanel" aria-labelledby="it-installer" hidden>
@@ -560,23 +648,23 @@
       </div>
     </div>
     <ol class="steps" data-od-id="install-steps" data-reveal style="--d:2">
-      <li class="step" data-step="bootstrap" hidden><span class="step__n num">1</span><div><h3 class="step__title">Bootstrap your CompozyOS home</h3><p class="step__desc">npm and Go install the binary only. Create ~/.compozy/config.toml and the default general agent once.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy install" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy install</pre></div></div></li>
-      <li class="step"><span class="step__n num" data-step-n>1</span><div><h3 class="step__title">Start the daemon</h3><p class="step__desc">One local process, detached by default, exposing CLI, HTTP/SSE, and the web UI.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy daemon start" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy daemon start</pre></div></div></li>
-      <li class="step"><span class="step__n num" data-step-n>2</span><div><h3 class="step__title">Launch a real session</h3><p class="step__desc">Run from the repository you want to manage. CompozyOS infers and registers the workspace from your current directory.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy session new --agent general --name first-run" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy session new --agent general --name first-run</pre></div></div></li>
+      <li class="step" data-step="bootstrap" hidden><span class="step__n num">1</span><div><h3 class="step__title"><svg class="ic" aria-hidden="true"><use href="#i-package"/></svg>Bootstrap your CompozyOS home</h3><p class="step__desc">npm and Go install the binary only. Create ~/.compozy/config.toml and the default general agent once.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy install" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy install</pre></div></div></li>
+      <li class="step"><span class="step__n num" data-step-n>1</span><div><h3 class="step__title"><svg class="ic" aria-hidden="true"><use href="#i-cpu"/></svg>Start the daemon</h3><p class="step__desc">One local process, detached by default, exposing CLI, HTTP/SSE, and the web UI.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy daemon start" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy daemon start</pre></div></div></li>
+      <li class="step"><span class="step__n num" data-step-n>2</span><div><h3 class="step__title"><svg class="ic" aria-hidden="true"><use href="#i-message-square"/></svg>Launch a real session</h3><p class="step__desc">Run from the repository you want to manage. CompozyOS infers and registers the workspace from your current directory.</p><div class="code"><div class="code__bar"><span class="code__cap">shell</span><button class="copy" type="button" data-copy="compozy session new --agent general --name first-run" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div><pre><span class="p">$ </span>compozy session new --agent general --name first-run</pre></div></div></li>
     </ol>
   </div>
 </section>
 
 <!-- ================= 12 · FINAL CTA ================= -->
 <section class="cta" data-od-id="final-cta" aria-labelledby="cta-title">
-  <div class="cta__art" aria-hidden="true" data-stand-in="generated closer: full-bleed"><span class="ph__tag"><b>Closer art</b>generated full-bleed — the OS shell at rest, right half of the section · was closer-shell.webp</span></div>
+  <div class="cta__art" aria-hidden="true"></div>
   <div class="cta__ember" aria-hidden="true"></div>
   <div class="wrap">
     <div class="cta__inner" data-reveal>
       <h2 class="cta__title" id="cta-title">Put agents to work continuously.</h2>
       <p class="cta__body">One complete environment, batteries included: loops, triggers, memory, permissions, approvals, and history. No scripts or orchestration frameworks to maintain.</p>
       <div class="cta__row">
-        <a class="btn btn--primary btn--lg" href="#" data-download="final" data-od-id="cta-download"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg><span data-label>Download CompozyOS</span></a>
+        <a class="btn btn--primary btn--lg" href="#" data-download="final" data-od-id="cta-download"><span data-label>Download CompozyOS</span><span class="btn__ico btn__ico--down" aria-hidden="true"><svg class="ic"><use href="#i-arrow-down-to-line"/></svg></span></a>
         <div class="cmd"><code class="cmd__text">curl -fsSL https://compozy.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://compozy.com/install.sh | sh" aria-label="Copy command"><svg class="ic ic--xs"><use href="#i-copy"/></svg><span data-copy-label>Copy</span></button></div>
         <a class="btn btn--ghost btn--lg" href="https://github.com/compozy/compozy" data-od-id="cta-star"><svg class="ic ic--sm"><use href="#i-star"/></svg>Star on GitHub</a>
       </div>

@@ -176,7 +176,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	proc *AgentProcess,
 	req promptRequest,
 	message string,
-	dispatchMessage string,
+	dispatchInput preparedPromptInput,
 	attachments []acp.PromptAttachment,
 	turnState *promptTurnDispatchState,
 	cancelPromptExecution context.CancelFunc,
@@ -186,7 +186,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		return nil, err
 	}
 	replayBlock := m.pendingResumeReplay(session.ID)
-	dispatchMessage = promptWithResumeReplay(replayBlock, dispatchMessage)
+	dispatchMessage := promptWithResumeReplay(replayBlock, dispatchInput.message)
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
@@ -202,6 +202,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
 		Message:                   dispatchMessage,
+		Sections:                  dispatchInput.sections,
 		Attachments:               attachments,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
@@ -307,7 +308,22 @@ func closePromptPersistenceDone(done chan<- struct{}) {
 	}
 }
 
-func (m *Manager) promptDispatchMessage(ctx context.Context, session *Session, message string) (string, error) {
+type preparedPromptInput struct {
+	message  string
+	sections []acp.PromptSection
+}
+
+func (m *Manager) promptDispatchMessage(
+	ctx context.Context,
+	session *Session,
+	message string,
+) (preparedPromptInput, error) {
+	ctx, sections := acp.CollectPromptSections(ctx)
+	augmented, err := m.augmentPromptMessage(ctx, session, message)
+	return preparedPromptInput{message: augmented, sections: sections()}, err
+}
+
+func (m *Manager) augmentPromptMessage(ctx context.Context, session *Session, message string) (string, error) {
 	expanded, err := m.expandPromptSkillInvocations(ctx, session, message)
 	if err != nil {
 		return "", err

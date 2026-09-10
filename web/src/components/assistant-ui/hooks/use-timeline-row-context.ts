@@ -28,7 +28,7 @@ export const timelineRowLogic = createStoreLogic({
       const sameAnchor =
         previous !== undefined &&
         previous.turnId === event.turnId &&
-        previous.anchorToolCallId === event.anchorToolCallId;
+        previous.anchorEntryId === event.anchorEntryId;
       if (sameAnchor) return context;
       const workGroupAnchors = new Map(context.workGroupAnchors);
       workGroupAnchors.set(event.groupId, event);

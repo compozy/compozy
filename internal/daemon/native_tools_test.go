@@ -10643,6 +10643,54 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name                 string
+		enabled, unavailable bool
+	}{
+		{name: "Should report disabled dream role through native health"},
+		{name: "Should report enabled dream role through native health", enabled: true},
+		{name: "Should report unavailable dream role through native health", unavailable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := roleResolverConfig()
+			cfg.Memory.Enabled, cfg.Roles.Dream.Enabled = true, tc.enabled
+			memoryStore := memorypkg.NewStore(
+				t.TempDir(),
+				memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "memory.db")),
+			)
+			openDaemonMemoryCatalog(t, memoryStore)
+			deps := &daemonNativeToolsDeps{
+				Config:       cfg,
+				MemoryStore:  memoryStore,
+				DreamTrigger: &nativeDreamTriggerService{enabled: true},
+				Roles:        newRoleResolver(&cfg, nil, nil),
+			}
+			if tc.unavailable {
+				deps.Roles = nil
+			}
+			registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryHealth},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var health contract.MemoryHealthPayload
+			if err := json.Unmarshal(result.Structured, &health); err != nil {
+				t.Fatal(err)
+			}
+			if health.DreamEnabled != tc.enabled {
+				t.Fatalf("native health=%#v", health)
+			}
+			if tc.unavailable && (health.Status != "degraded" || health.Reason == "") {
+				t.Fatalf("missing role diagnostic: %#v", health)
+			}
+		})
+	}
+
 	t.Run("Should dispatch Memory admin tools through operational Memory v2 services", func(t *testing.T) {
 		t.Parallel()
 

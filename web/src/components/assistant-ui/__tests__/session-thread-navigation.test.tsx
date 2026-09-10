@@ -212,7 +212,8 @@ function createFetchMock(log: FetchLog, search: () => SessionTranscriptSearchRes
 function renderNavigationThread({
   isSessionRunning = false,
   frame,
-}: { isSessionRunning?: boolean; frame?: { focused: boolean } } = {}) {
+  page = HEAD_PAGE,
+}: { isSessionRunning?: boolean; frame?: { focused: boolean }; page?: Page } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
@@ -220,7 +221,7 @@ function renderNavigationThread({
     sessionKeys.transcript(WORKSPACE_ID, SESSION_ID),
     {
       pageParams: [undefined],
-      pages: [HEAD_PAGE],
+      pages: [page],
     }
   );
   const thread = (running: boolean) => (
@@ -359,6 +360,62 @@ describe("SessionThread navigation host", () => {
     await user.click(fold);
     await waitFor(() => expect(fold).toHaveAttribute("aria-expanded", "false"));
     expect(screen.getByTestId("turn-fold-note")).toHaveTextContent("1 match inside");
+  });
+
+  it("Should reveal reasoning and tool details inside the same mixed work disclosure", async () => {
+    const user = userEvent.setup();
+    const message = workedMessage("msg-102", "turn-102");
+    message.parts = [
+      message.parts[0],
+      {
+        type: "reasoning",
+        state: "done",
+        text: "Inspect **café** before continuing.",
+        turn_id: "turn-102",
+      },
+      message.parts[1],
+    ] as unknown as SessionMessage["parts"];
+    const page = { ...HEAD_PAGE, has_older: false, entries: [entry(102, message)] };
+    searchResponse = {
+      matches: [
+        {
+          field: "text",
+          part_index: 1,
+          role: "assistant",
+          sequence: 102,
+          snippet: "Inspect café",
+          turn_id: "turn-102",
+        },
+      ],
+      truncated: false,
+    };
+    renderNavigationThread({ page });
+    const toggle = await screen.findByRole("button", { name: "2 tools · 1 thought" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    pressFindShortcut();
+    await user.type(await screen.findByTestId("session-find-input"), "café");
+    await screen.findAllByTestId("session-find-match");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "true"));
+    const reasoning = await screen.findByTestId("thinking-content");
+    expect(reasoning.querySelector("strong")).toHaveTextContent("café");
+    const entries = screen.getByTestId("work-summary-entries");
+    expect(
+      [...entries.querySelectorAll("[data-part-index]")].map(node =>
+        node.getAttribute("data-part-index")
+      )
+    ).toEqual(["0", "1", "2"]);
+    // Search returns one matching field per message. A new query locates the input.
+    searchResponse = { ...CAFE_MATCHES, matches: [{ ...CAFE_MATCHES.matches[0]!, part_index: 2 }] };
+    await user.clear(screen.getByTestId("session-find-input"));
+    await user.type(screen.getByTestId("session-find-input"), "ação");
+    await waitFor(() => expect(log.searchRequests).toContain("ação"));
+    await user.keyboard("{Enter}");
+    expect(await screen.findByTestId("tool-matched-field")).toHaveTextContent("ação λ café");
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.queryByTestId("thinking-content")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tool-matched-field")).not.toBeInTheDocument();
   });
 
   it("Should reveal the matched raw input of a specialized Read tool on the jump (BUG-20260906-find-specialized-tool-field)", async () => {

@@ -49,7 +49,7 @@ Seção `use-cases`, cards `.uc`. Cinco ilustrações da mesma família visual: 
 | 2.4 | `use-case-d3` Release | 21:9 | `spot-release.webp` | uma fila numerada de runs numa linha, a atual com um anel (checks de release como trabalho reivindicado) |
 | 2.5 | `use-case-o3` Gate | 21:9 | `spot-gate.webp` | uma timeline de run pausada num portão, checks atrás dele, próximos passos esperando (aprovação humana) |
 
-Os dois wide (Release e Gate) precisam de composição horizontal de verdade, não o quadrado esticado — foi o erro dos anteriores. O card aplica um degradê escuro nos 40 % inferiores; deixar o motivo principal na metade de cima.
+Os dois wide (Release e Gate) precisam de composição horizontal de verdade, não o quadrado esticado — foi o erro dos anteriores. O chão da ilustração é a cor do card (`--canvas-soft`, #1F1E1C), plano, sem vinheta: a imagem não tem moldura e precisa sumir no card; deixar o motivo principal na metade de cima.
 
 ## 3. Features — seis capturas do produto
 
@@ -72,7 +72,7 @@ Mesma família visual dos spots (item 2), mas em composição de painel, sem o d
 
 | # | Slot | Geometria | Arquivo | O que mostrar |
 | --- | --- | --- | --- | --- |
-| 4.1 | Extensions (`.ext__art`) | painel vertical de 5 colunas, ≥ 520 px de altura; gerar ~1200 × 1600 | `ext-cartridges.webp` | um pacote único encaixando nos registries do daemon: skills, hooks, tools, automation e extensions como módulos que se conectam a um mesmo bloco |
+| 4.1 | Extensions (`.ext__art`) | backdrop da seção, não painel: sangra pela borda direita da viewport sob as 5 últimas colunas (texto nas 7 primeiras), altura da seção, some por máscara antes da coluna de texto e nas bordas de cima e de baixo; gerar ~1200 × 1600 com o chão na cor da página (`--canvas`, #171615), plano, sem vinheta | `ext-cartridges.webp` | um pacote único encaixando nos registries do daemon: skills, hooks, tools, automation e extensions como módulos que se conectam a um mesmo bloco |
 | 4.2 | Bridges (`.bridges__canvas`) | painel horizontal, ≥ 400 px de altura, ancorado à direita; gerar ~2000 × 900 | `bridges-inflow.webp` | mensagens fluindo de fora (Slack, Discord, Telegram, Google Chat) para o daemon; os logos são HTML por cima, a imagem só faz o fluxo; lado esquerdo e o terço inferior ficam livres para o conteúdo |
 | 4.3 | Closer (`.cta__art`) | metade direita da seção final, full-bleed, ~66 % de largura × 112 % de altura; gerar ~2400 × 1400 | `closer-shell.webp` | o shell do CompozyOS em repouso — o desktop de longe, luz baixa; motivo à direita, esquerda escurecendo para o título |
 
@@ -118,9 +118,11 @@ Reveal-on-scroll, as abas do hero, a barra de progresso das abas e o collapse do
 ## Checklist de entrega
 
 - [ ] 1 poster do hero + 6 clipes (`hero-poster.webp`, `demo-1..6.webm` + posters)
-- [ ] 5 spots (16:9 ×3, 21:9 ×2)
+- [x] 5 spots (16:9 ×3, 21:9 ×2) — gerados 2026-09-10 com `gpt-image-2.5-sunburst` (skill `imagegen`, endpoint `edit`, duas referências de estilo: Dribbble 27555299 e 27087150); variantes escolhidas: implement v2, review v3, briefing v3, release v2, gate v1; depois um passe de edição (`--input-fidelity high`) trocou só o fundo para a cor do card, #1F1E1C, e as finais são bg-pass implement v1, review v1, briefing v3, release v3, gate v1
 - [ ] 6 capturas 16:10 (uma reaproveita o poster do hero)
-- [ ] 3 painéis conceituais
-- [ ] 4 atmosferas
+- [x] 3 painéis conceituais — ext-cartridges v3 (depois re-editada com o chão em #171615, bg-pass v1, e aplicada como backdrop da seção), bridges-inflow v2, closer-shell v1
+- [x] 4 atmosferas — hero-wave v1, backdrop-traces v3, backdrop-orbit v1, backdrop-radar v1
 - [ ] animação do pain (+ quadro final estático)
-- [ ] apagar os `.webp` antigos de `landing/assets/` e o capítulo "image placeholders" no fim de `landing.css`
+- [ ] apagar o capítulo "image placeholders" no fim de `landing.css` quando as capturas e o poster do hero entrarem (os 12 `.webp` gerados já substituíram os antigos de mesmo nome; `.ph__tag` já saiu)
+
+Limite conhecido do set gerado: o CLI da skill só aceita os tamanhos legados para modelos diferentes de `gpt-image-2`, então os arquivos saíram em 1536×1024 / 1024×1536 / 1024×1024, abaixo do piso deste brief (≥ 2400 px hero, ≥ 1600 px spots). Para produção: upscale 2× dos escolhidos ou regerar os mesmos prompts em `gpt-image-2` nos tamanhos do brief. Prompts e as 36 variantes ficaram em `/tmp/compozy-landing-gen/` (não versionado).

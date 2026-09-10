@@ -200,6 +200,38 @@ func (s settingsPaletteRuntimeStub) CmdPaletteSettings(
 }
 
 func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		memory, dream bool
+	}{
+		{name: "Should disable dreaming when both opt-ins are off"},
+		{name: "Should disable dreaming when only memory is on", memory: true},
+		{name: "Should disable dreaming when only the dream role is on", dream: true},
+		{name: "Should enable dreaming when both opt-ins are on", memory: true, dream: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := roleResolverConfig()
+			cfg.Memory.Enabled, cfg.Roles.Dream.Enabled = tc.memory, tc.dream
+			surface := &settingsRuntimeSurface{
+				dreamTrigger: &nativeDreamTriggerService{},
+				roles:        newRoleResolver(&cfg, nil, nil),
+			}
+			health, err := surface.MemoryHealthStatus(t.Context())
+			if err != nil || health.DreamEnabled != (tc.memory && tc.dream) {
+				t.Fatalf("health=%#v err=%v", health, err)
+			}
+		})
+	}
+	t.Run("Should preserve unavailable role status as an error", func(t *testing.T) {
+		t.Parallel()
+		surface := &settingsRuntimeSurface{dreamTrigger: &nativeDreamTriggerService{}}
+		_, err := surface.MemoryHealthStatus(t.Context())
+		if err == nil || !strings.Contains(err.Error(), "roles status provider is unavailable") {
+			t.Fatalf("health error=%v", err)
+		}
+	})
+
 	t.Run("Should count every valid profile memory source header", func(t *testing.T) {
 		t.Parallel()
 

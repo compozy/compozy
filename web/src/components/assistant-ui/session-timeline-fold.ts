@@ -22,6 +22,7 @@ import { summarizeToolGroup } from "./session-timeline-summary";
 import {
   type DeriveSessionRowsOptions,
   isStreamingState,
+  isInterruptedState,
   type SessionChangedFilesRow,
   type SessionRow,
   type SessionTimelineToolPart,
@@ -82,10 +83,13 @@ function changedFilesRowForTurn(
   };
 }
 
+/** Count and summarize actual tool calls without treating reasoning as tool activity. */
 function collectTurnToolParts(group: readonly SessionRow[]): SessionTimelineToolPart[] {
   const tools: SessionTimelineToolPart[] = [];
   for (const row of group) {
-    if (row.kind === "work" || row.kind === "live-tool") tools.push(...row.entries);
+    if (row.kind === "work" || row.kind === "live-tool") {
+      for (const entry of row.entries) if (entry.kind === "tool") tools.push(entry);
+    }
   }
   return tools;
 }
@@ -160,16 +164,18 @@ function foldTurnGroup(
   return visibleRows;
 }
 
-// Text, decision asks, permissions, errors and terminal evidence remain
-// operator-visible after a turn settles (rich rows never fold, ADR-006).
-// Deliberate terminal tool rows are their own surface, not transient work.
+/**
+ * Text, decision asks, permissions, errors and terminal evidence remain
+ * operator-visible after a turn settles (rich rows never fold, ADR-006).
+ * Deliberate terminal tool rows are their own surface, not transient work.
+ */
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
   if (row.kind === "work") {
     return (
       row.summary === null &&
       row.entries.length > 0 &&
-      row.entries.every(entry => isDeliberateTerminalTool(entry.toolName))
+      row.entries.every(entry => entry.kind === "tool" && isDeliberateTerminalTool(entry.toolName))
     );
   }
   if (row.kind !== "data") return false;
@@ -242,6 +248,7 @@ function turnGroupIsActive(
   });
 }
 
+/** Recognize recorded turn stops and cancellation states inside mixed work. */
 function turnGroupIsInterrupted(
   group: readonly SessionRow[],
   turnId: string,
@@ -253,7 +260,8 @@ function turnGroupIsInterrupted(
   return group.some(row => {
     if (row.kind === "work") {
       return row.entries.some(
-        tool => tool.status === "interrupted" || isInterruptedState(tool.state)
+        tool =>
+          (tool.kind === "tool" && tool.status === "interrupted") || isInterruptedState(tool.state)
       );
     }
     if (row.kind === "reasoning") {
@@ -263,10 +271,6 @@ function turnGroupIsInterrupted(
     if (row.kind === "data") return row.parts.some(part => isInterruptedState(part.state));
     return false;
   });
-}
-
-function isInterruptedState(state: string | undefined): boolean {
-  return state === "interrupted" || state === "cancelled" || state === "canceled";
 }
 
 // The turn's span: every instant the daemon recorded for it (rows here plus the

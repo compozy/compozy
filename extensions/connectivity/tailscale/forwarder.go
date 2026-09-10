@@ -21,6 +21,7 @@ type tierForwarder struct {
 	listener net.Listener
 	target   string
 	logger   *slog.Logger
+	dial     func(context.Context, string, string) (net.Conn, error)
 
 	stopLifecycle context.CancelFunc
 	done          chan struct{}
@@ -52,6 +53,7 @@ func newTierForwarder(listener net.Listener, target string, logger *slog.Logger)
 		listener:    listener,
 		target:      target,
 		logger:      logger,
+		dial:        (&net.Dialer{Timeout: forwardDialTimeout}).DialContext,
 		done:        make(chan struct{}),
 		closed:      make(chan struct{}),
 		slots:       make(chan struct{}, maxForwardConnections),
@@ -145,7 +147,9 @@ func (f *tierForwarder) forward(ctx context.Context, inbound net.Conn) {
 	defer f.wg.Done()
 	defer func() { <-f.slots }()
 	defer f.closeTracked(inbound)
-	upstream, err := (&net.Dialer{Timeout: forwardDialTimeout}).DialContext(ctx, "tcp", f.target)
+	dialCtx, cancel := context.WithTimeout(ctx, forwardDialTimeout)
+	defer cancel()
+	upstream, err := f.dial(dialCtx, "tcp", f.target)
 	if err != nil {
 		if ctx.Err() == nil {
 			f.recordForwardFailure()

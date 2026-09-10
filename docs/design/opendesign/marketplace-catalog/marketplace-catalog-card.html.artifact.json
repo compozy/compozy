@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "marketplace-catalog/marketplace-catalog-card.html",
+  "entry": "marketplace-catalog/marketplace-catalog-card.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-09-10T19:30:00.000Z",
+  "updatedAt": "2026-09-10T19:30:00.000Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

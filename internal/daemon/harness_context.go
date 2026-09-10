@@ -282,7 +282,7 @@ func (r *HarnessContextResolver) Resolve(input HarnessResolutionInput) (Resolved
 		SessionClass:         sessionCtx.SessionClass,
 		TurnOrigin:           turnCtx.Origin,
 		IncludeSections:      r.resolveSections(sessionCtx),
-		EnableAugmenters:     r.resolveAugmenters(surface, turnCtx),
+		EnableAugmenters:     r.resolveAugmenters(surface, sessionCtx, turnCtx),
 		ReentryMode:          r.resolveReentry(turnCtx),
 		DetachedRunMode:      r.resolveDetachedRunMode(sessionCtx, turnCtx),
 		SkillInjectionFilter: r.skillInjection.resolve(sessionCtx),

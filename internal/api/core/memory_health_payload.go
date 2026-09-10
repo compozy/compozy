@@ -46,6 +46,22 @@ func memoryHealthConfigPayload(cfg *compozyconfig.Config) contract.MemoryHealthP
 	}
 }
 
+// MemoryDreamRoleStatus uses the same scoped, non-invoking projection as role diagnostics.
+func MemoryDreamRoleStatus(
+	ctx context.Context,
+	roles RolesStatusProvider,
+	workspace string,
+) (contract.RoleStatus, error) {
+	if roles == nil {
+		return contract.RoleStatus{}, errRolesStatusUnavailable
+	}
+	role, err := roles.RoleStatus(ctx, strings.TrimSpace(workspace), string(compozyconfig.RoleDream))
+	if err != nil {
+		return contract.RoleStatus{}, fmt.Errorf("memory dream role status: %w", err)
+	}
+	return role, nil
+}
+
 func (h *BaseHandlers) memoryHealthSnapshot(
 	ctx context.Context,
 	rawWorkspace string,
@@ -57,7 +73,16 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 		return payload, nil
 	}
 	if h.DreamTrigger != nil {
-		payload.DreamEnabled = h.DreamTrigger.Enabled()
+		role, err := MemoryDreamRoleStatus(ctx, h.Roles, rawWorkspace)
+		if err != nil {
+			payload.Status = memoryHealthStatusDegraded
+			payload.Reason = err.Error()
+		} else {
+			payload.DreamEnabled = role.Enabled
+			if role.Agent != nil {
+				payload.DreamAgent = *role.Agent
+			}
+		}
 		lastConsolidation, err := h.DreamTrigger.LastConsolidatedAt()
 		if err != nil {
 			payload.Status = memoryHealthStatusDegraded

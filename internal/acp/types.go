@@ -177,6 +177,7 @@ type PromptRequest struct {
 	RunID                     string
 	Generation                int64
 	Message                   string
+	Sections                  []PromptSection
 	Attachments               []PromptAttachment
 	Meta                      PromptMeta
 	ActivityReporter          PromptActivityReporter
