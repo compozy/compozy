@@ -1,5 +1,5 @@
 import { BlockLoading, Button, Empty, toast } from "@compozy/ui";
-import { AlertCircle, FolderOpen } from "lucide-react";
+import { AlertCircle, FolderOpen, TerminalSquare } from "lucide-react";
 
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
@@ -146,6 +146,29 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
   const terminals = catalog.data ?? [];
   const terminalSettings = settings.data?.config.terminal;
   const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
+
+  if (requestedId === null && create.completedTerminal) {
+    const terminal = create.completedTerminal;
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => retargetTerminal(terminal.id)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Open terminal
+            </Button>
+          }
+          className="max-w-md"
+          icon={TerminalSquare}
+          title="Terminal ready"
+        />
+      </div>
+    );
+  }
 
   return (
     <TerminalWindowApp

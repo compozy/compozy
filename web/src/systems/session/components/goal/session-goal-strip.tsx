@@ -66,6 +66,7 @@ function prefillCommand(affordance: GoalComposerAffordance): string {
   return `/goal ${affordance.expandedObjective}`;
 }
 
+/** Displays one expanded Goal field, allowing long values to wrap within the strip. */
 function StripRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2.5 text-transcript-body leading-normal">

@@ -69,6 +69,7 @@ func (g *GoalRepo) BindCheckpoint(ctx context.Context, req goal.BindCheckpointRe
 	return updated, err
 }
 
+// validateBindCheckpointRequest rejects incomplete task, session, phase, and epoch fences before writing.
 func validateBindCheckpointRequest(req goal.BindCheckpointRequest) error {
 	if err := req.Key.Validate(); err != nil {
 		return err

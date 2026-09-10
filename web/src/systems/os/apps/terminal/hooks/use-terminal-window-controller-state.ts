@@ -8,7 +8,6 @@ import { useSettingsGeneral } from "@/systems/settings";
 import {
   closeTerminal,
   controlTerminalRecording,
-  createTerminal,
   rejectTerminalInputRequest,
   signalTerminal,
   waitTerminal,
@@ -33,8 +32,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
-import { terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
+import { useTerminalWindowCreation } from "./use-terminal-window-creation";
 
 const DEFAULT_ROUTE = "/terminal";
 
@@ -148,20 +147,12 @@ export function useTerminalWindowControllerState(windowId: string) {
     ]);
   };
 
-  const create = useMutation({
-    mutationKey: terminalWindowCreateKey(windowId),
-    mutationFn: (identity: TerminalViewerIdentity) =>
-      createTerminal(workspaceId, {}, destinationScope.params, identity),
-    onSuccess: async terminal => {
-      await invalidateTerminalReads();
-      await coordinator.userRetarget(windowId, {
-        app: "terminal",
-        instanceKey: terminal.id,
-        route: { pathname: `/terminal/${encodeURIComponent(terminal.id)}`, search: {} },
-      });
-    },
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to open terminal"),
+  const create = useTerminalWindowCreation({
+    windowId,
+    workspaceId,
+    catalogScope,
+    destinationScope,
+    coordinator,
   });
   const close = useMutation({
     mutationFn: (terminalId: string) =>

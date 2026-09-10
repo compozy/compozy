@@ -19,3 +19,11 @@ Owning delivery: [PR #601](https://github.com/compozy/compozy/pull/601). Detaile
 - **Workspace data isolation:** Binding adoption validates workspace, task, control, phase, session, handle, and epoch. Session Goal cancellation reads immutable profile/workspace scope. Existing receipts preserve session/runtime identity across restart. No schema migration or historical record deletion.
 - **Official Compozy skill:** `skills/compozy/references/loops.md` documents cancellation, orphan recovery, context ownership, and bounded supervision freshness.
 - **Web/Docs:** Session badges, Goal strip, Tasks, and Loop detail consume corrected backend projections; no client-side badge clearing. The Goals guide and GL/LP/RT QA slices accompany the change. Canonical lifecycle suites and focused CLI/API/Web runtime walks own validation; remaining delivery gates run in CI.
+
+## Merged PRs 596, 597, 599, 600, and 601
+
+The [main-branch remediation report](../qa/reports/2026-09-10-merged-pr-ci-review-remediation.md)
+owns the follow-up audit: captured terminal creation scope, stale-navigation
+rejection, explicit title-disclosure action names, public session imports, and
+review/CI disposition. Existing native, persisted, configuration, and official
+skill contracts remain unchanged.

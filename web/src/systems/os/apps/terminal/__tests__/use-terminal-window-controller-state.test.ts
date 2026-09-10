@@ -7,18 +7,43 @@
 // Close invariant: only confirmed running targets terminate; cancellation,
 // stale scope, or failed termination keeps the managed window retryable.
 
-import { QueryClient } from "@tanstack/react-query";
-import { act, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@compozy/ui";
-import { closeTerminal, fetchTerminals, TerminalApiError } from "@/systems/terminal";
+import {
+  closeTerminal,
+  createTerminal,
+  fetchTerminals,
+  terminalKeys,
+  terminalScope,
+  TerminalApiError,
+} from "@/systems/terminal";
 import { DEV_SERVER_TERMINAL } from "@/systems/terminal/mocks/terminal-fixtures";
 import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import type { OsWindow } from "../../../lib/os-types";
+import { executeWindowManagerCommand } from "../../../adapters/window-manager-api";
+import { RoutingCoordinator } from "../../../lib/routing-coordinator";
+import { windowManagerKeys } from "../../../lib/window-manager-query";
+import {
+  parseWindowManagerSnapshot,
+  parseWindowManagerClientView,
+} from "../../../lib/window-manager-schemas";
+import { parseSettingsWindowManagerSection } from "../../../lib/window-manager-settings-section";
+import { windowManagerClientFixture, windowManagerStorySnapshot } from "../../../mocks/fixtures";
+import { settingsWindowManagerSectionFixture } from "@/systems/settings/mocks/window-manager-fixtures";
+import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
+import { useTerminalWindowCreation } from "../hooks/use-terminal-window-creation";
 
 vi.mock("@/systems/terminal/adapters/terminal-api", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/terminal/adapters/terminal-api")>();
-  return { ...actual, fetchTerminals: vi.fn(), closeTerminal: vi.fn() };
+  return { ...actual, fetchTerminals: vi.fn(), closeTerminal: vi.fn(), createTerminal: vi.fn() };
+});
+
+vi.mock("../../../adapters/window-manager-api", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../../adapters/window-manager-api")>();
+  return { ...actual, executeWindowManagerCommand: vi.fn() };
 });
 
 const terminalWindow: OsWindow = {
@@ -48,11 +73,187 @@ const terminalExit = {
 };
 
 beforeEach(() => {
+  vi.mocked(createTerminal).mockReset();
+  vi.mocked(executeWindowManagerCommand).mockReset();
   vi.mocked(fetchTerminals).mockReset().mockResolvedValue([DEV_SERVER_TERMINAL]);
   vi.mocked(closeTerminal).mockReset().mockResolvedValue(terminalExit);
   vi.spyOn(toast, "error")
     .mockClear()
     .mockImplementation(() => "toast");
+});
+
+// Invariant: terminal creation completes in its initiating query scope and cannot
+// retarget a desktop after rebinding; completed creation remains recoverable
+// after host remount. Owner: this terminal controller host suite.
+describe("terminal creation scope", () => {
+  it.each(["unchanged", "workspace", "profile", "unbound", "return"] as const)(
+    "Should preserve the initiating terminal when the shell scope is %s",
+    async change => {
+      const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+      const runtime = new WindowManagerRuntime(client);
+      const push = vi.fn();
+      const coordinator = new RoutingCoordinator(runtime, { navigate: push, replace: vi.fn() });
+      const windowId = "w-story-terminal";
+      const original = terminalScope("ws-atlas", "work");
+      const other = terminalScope(change === "workspace" ? "ws-other" : "ws-atlas", "other");
+      const readKeys = (scope: typeof original) => [
+        terminalKeys.catalog(scope.key),
+        terminalKeys.inputRequests(scope.key),
+        terminalKeys.journalScope(scope.key),
+      ];
+      for (const key of [...readKeys(original), ...readKeys(other)]) client.setQueryData(key, []);
+      const bind = (scope: typeof original) => {
+        const snapshot = parseWindowManagerSnapshot(
+          windowManagerStorySnapshot("/terminal", scope.key.workspaceId)
+        );
+        client.setQueryData(
+          windowManagerKeys.snapshot(scope.key.workspaceId, scope.key.profileKey),
+          snapshot
+        );
+        client.setQueryData(
+          windowManagerKeys.config(scope.key.workspaceId, "client:web"),
+          parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture)
+        );
+        runtime.bind({
+          workspaceId: scope.key.workspaceId,
+          profileId: scope.key.profileKey,
+          clientId: "client:web",
+        });
+        runtime.setClient(
+          parseWindowManagerClientView(
+            windowManagerClientFixture("client:web", scope.key.workspaceId, windowId)
+          )
+        );
+        return snapshot;
+      };
+      const snapshot = bind(original);
+      runtime.start();
+      vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+        snapshot,
+        applied: true,
+        client: null,
+        diagnostics: [],
+        rebasedFrom: null,
+        changes: {
+          desktopIds: [],
+          windowIds: [],
+          groupIds: [],
+          nodeIds: [],
+          clientIds: [],
+          stackGrouped: [],
+          stackUngrouped: [],
+        },
+      });
+      let resolve!: (terminal: typeof DEV_SERVER_TERMINAL) => void;
+      vi.mocked(createTerminal).mockReturnValue(
+        new Promise(done => {
+          resolve = done;
+        })
+      );
+      const renderCreation = (initialScope: typeof original) =>
+        renderHook(
+          scope =>
+            useTerminalWindowCreation({
+              windowId,
+              workspaceId: scope.key.workspaceId,
+              catalogScope: scope,
+              destinationScope: scope,
+              coordinator,
+            }),
+          {
+            initialProps: initialScope,
+            wrapper: ({ children }: { children: ReactNode }) =>
+              createElement(QueryClientProvider, { client }, children),
+          }
+        );
+      const { result, rerender, unmount } = renderCreation(original);
+      try {
+        const identity = { id: "client:web", attachmentToken: "viewer-token" };
+        let creation!: Promise<typeof DEV_SERVER_TERMINAL>;
+        act(() => {
+          creation = result.current.mutateAsync(identity);
+        });
+        await waitFor(() =>
+          expect(createTerminal).toHaveBeenCalledExactlyOnceWith(
+            "ws-atlas",
+            {},
+            { profile: "work" },
+            identity
+          )
+        );
+        expect(result.current.isPending).toBe(true);
+        if (change !== "unchanged") {
+          act(() => {
+            if (change === "unbound") runtime.unbind();
+            else bind(other);
+          });
+          rerender(other);
+          if (change === "return") {
+            act(() => {
+              bind(original);
+            });
+            rerender(original);
+          }
+        }
+        await act(async () => {
+          resolve(DEV_SERVER_TERMINAL);
+          await creation;
+        });
+        for (const key of readKeys(original))
+          expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+        for (const key of readKeys(other))
+          expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+        if (change === "unchanged") {
+          expect(executeWindowManagerCommand).toHaveBeenCalledExactlyOnceWith(
+            "ws-atlas",
+            "work",
+            "client:web",
+            snapshot.revision,
+            {
+              commandId: "window.navigate",
+              payload: {
+                window_id: windowId,
+                instance_key: DEV_SERVER_TERMINAL.id,
+                route: { pathname: `/terminal/${DEV_SERVER_TERMINAL.id}`, search: {} },
+              },
+            }
+          );
+          expect(push).toHaveBeenCalledOnce();
+        } else {
+          expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+          expect(push).not.toHaveBeenCalled();
+        }
+        await waitFor(() => expect(result.current.isPending).toBe(false));
+        expect(result.current.completedTerminal).toEqual(
+          change === "unchanged" || change === "return" ? DEV_SERVER_TERMINAL : null
+        );
+        if (change !== "unchanged" && change !== "return") {
+          act(() => {
+            bind(original);
+          });
+          rerender(original);
+          expect(result.current.completedTerminal).toEqual(DEV_SERVER_TERMINAL);
+          expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+        }
+        if (change === "workspace") {
+          unmount();
+          const remounted = renderCreation(original);
+          try {
+            expect(remounted.result.current.completedTerminal).toEqual(DEV_SERVER_TERMINAL);
+            expect(createTerminal).toHaveBeenCalledOnce();
+            expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+          } finally {
+            remounted.unmount();
+          }
+        }
+      } finally {
+        unmount();
+        runtime.unbind();
+        runtime.stop();
+        client.clear();
+      }
+    }
+  );
 });
 
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";

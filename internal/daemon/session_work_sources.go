@@ -132,6 +132,7 @@ func (s sessionWorkSources) loopWork(ctx context.Context, id string) ([]looppkg.
 	return reader.ListSessionLoopWork(ctx, store.ReadScope{ProfileID: info.ProfileID}, info.WorkspaceID, id, ownerRunID)
 }
 
+// loops projects durable Loop work, omitting quiet paused or watching Runs that require no attention.
 func (s sessionWorkSources) loops(ctx context.Context, id string) ([]session.WorkSignal, error) {
 	rows, err := s.loopWork(ctx, id)
 	if err != nil {

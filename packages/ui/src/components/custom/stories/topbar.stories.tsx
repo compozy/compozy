@@ -215,6 +215,8 @@ export const SessionDocument: Story = {
 };
 
 /** Long session/window names stay readable at wide widths and expose the full label through keyboard/pointer disclosure. */
+const longTitle = "Inspect session summary layout — ação 👩🏽‍💻 ".repeat(40);
+
 export const LongTitle: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
@@ -226,7 +228,9 @@ export const LongTitle: Story = {
     const detail = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
       name: "Full title",
     });
-    await expect(detail.textContent).toBe(trigger.textContent);
+    await expect(heading).toHaveAccessibleName(longTitle.trim());
+    await expect(trigger).toHaveAccessibleName(`Show full title: ${longTitle.trim()}`);
+    await expect(detail.textContent).toBe(longTitle);
     await expect(detail.getBoundingClientRect().height).toBeLessThanOrEqual(256);
     await expect(detail.scrollHeight).toBeGreaterThan(detail.clientHeight);
     await userEvent.keyboard("{Escape}");
@@ -235,7 +239,7 @@ export const LongTitle: Story = {
   },
   render: () => (
     <TopbarSlotProvider>
-      <Topbar title={"Inspect session summary layout — ação 👩🏽‍💻 ".repeat(40)} />
+      <Topbar title={longTitle} />
     </TopbarSlotProvider>
   ),
 };

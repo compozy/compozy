@@ -92,6 +92,7 @@ func (r *WorkSignalRegistry) Inspect(ctx context.Context, id string, now time.Ti
 	return state
 }
 
+// appendInspectedSignals validates bounded freshness without suppressing explicit attention reasons.
 func appendInspectedSignals(state *SupervisionState, kind WorkSignalKind, signals []WorkSignal, now time.Time) {
 	status := SignalSourceState{Kind: kind, State: "absent"}
 	for _, signal := range signals {
@@ -126,6 +127,7 @@ func appendInspectedSignals(state *SupervisionState, kind WorkSignalKind, signal
 	state.Sources = append(state.Sources, status)
 }
 
+// supervisionNeedsAttention preserves unknown, stale, and explicitly blocked work as operator attention.
 func supervisionNeedsAttention(state *SupervisionState) bool {
 	return state != nil && slices.ContainsFunc(state.Sources, func(source SignalSourceState) bool {
 		return source.State == signalSourceUnknown || source.State == "stale" || source.State == "attention"

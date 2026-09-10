@@ -81,8 +81,12 @@ constraints. Full message bodies and intentionally expanded content remain reada
 - Use Tab and Enter to inspect live tool/activity details, Escape to return focus,
   and the tool/reasoning/Goal disclosure to inspect complete originals. Window head
   titles reveal their full label on pointer activation or Enter from keyboard focus.
+  The action is named `Show full title: <title>` while the heading retains the title
+  itself; it must remain distinguishable from a same-named dock navigation action.
 - Copy a full tool payload and compare its title/input/output with the fixture.
   Find a unique tail omitted from a summary; the matching title/name/input body
   must open in both running and settled tools. Closing the reveal remains reader-owned.
 
 Verification record: [issue #598 report](../reports/2026-09-10-session-summary-truncation.md).
+Post-merge action naming, clipboard coverage, and final CI evidence:
+[main remediation](../reports/2026-09-10-merged-pr-ci-review-remediation.md).

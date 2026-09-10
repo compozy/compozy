@@ -53,6 +53,7 @@ func (g *GoalRepo) GetSessionGoalProjection(
 	return projection, nil
 }
 
+// readSessionGoalProjection joins the latest owned Goal with its Run, quarantine, checkpoint, and verdict.
 func readSessionGoalProjection(
 	ctx context.Context,
 	tx *sql.Tx,

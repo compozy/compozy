@@ -73,6 +73,7 @@ function Dots({ reducedMotion }: { reducedMotion: boolean }) {
   return <TypingDots className="session-working-dots gap-transcript-meta-gap [&>span]:bg-faint" />;
 }
 
+/** Keeps elapsed time and agent counts beside an inspectable activity summary. */
 function WorkingStatusLine({
   status,
   liveDataEnabled,
@@ -146,6 +147,7 @@ function WorkingStatusLine({
   );
 }
 
+/** Renders the session status with bounded previews and complete detail access. */
 function SessionStatusLine({
   status,
   liveDataEnabled,

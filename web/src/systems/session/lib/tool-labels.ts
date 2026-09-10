@@ -235,6 +235,7 @@ export function toolHeadingName(toolName: string): string {
     : "tool";
 }
 
+/** Resolves tense-specific labels and keeps unknown prose under a generic tool identity. */
 export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
   const labels = TOOL_LABELS[toolName];
   if (labels) return labels[tense];

@@ -168,6 +168,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   );
 }
 
+/** Connects live tool rows to the thread's expansion and find-reveal state. */
 function SessionLiveToolRowContent({ row }: { row: SessionLiveToolRow }) {
   const navigation = useOptionalSessionNavigationTarget();
   const store = useTimelineRowContext();

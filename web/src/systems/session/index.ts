@@ -370,6 +370,7 @@ export {
   type SessionToolVisualState,
   type SessionToolVisualStatus,
 } from "./lib/session-tool-visual-state";
+export { getToolIcon, resolveRegisteredToolName } from "./lib/tool-labels";
 export {
   formatPayloadSize,
   PAYLOAD_PREVIEW_MAX_LINES,

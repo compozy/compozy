@@ -13,6 +13,7 @@ import (
 
 var _ session.GoalSessionStopHandler = (*daemonLoopAPIService)(nil)
 
+// StopSessionGoals cancels session-origin Goals within the session's immutable profile and workspace.
 func (s *daemonLoopAPIService) StopSessionGoals(ctx context.Context, info *session.Info) error {
 	reader, ok := s.persistence.(sessionLoopWorkReader)
 	if !ok {

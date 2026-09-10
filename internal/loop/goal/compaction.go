@@ -363,6 +363,7 @@ func (e *Executor) reseedApprovalBoundary(
 	return &turnBoundary{checkpoint: segment.checkpoint, result: result, control: control, completed: true}, err
 }
 
+// rotateBinding retains the old checkpoint fence until the replacement binding is durably adopted.
 func (e *Executor) rotateBinding(ctx context.Context, segment *segmentState) error {
 	return e.bindSegment(ctx, segment, segment.binding.BindingEpoch+1)
 }

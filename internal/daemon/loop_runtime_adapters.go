@@ -45,6 +45,7 @@ type loopCancellationSessionController struct {
 
 var _ looppkg.CancellationSessionController = loopCancellationSessionController{}
 
+// StopLoopSession settles cancellation without re-entering an already stopped session's lifecycle.
 func (c loopCancellationSessionController) StopLoopSession(ctx context.Context, id, reason string) error {
 	if reader, ok := c.sessions.(loopSessionStatusReader); ok {
 		info, err := reader.Status(ctx, id)

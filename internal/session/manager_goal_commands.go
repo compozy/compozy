@@ -16,6 +16,7 @@ type GoalSessionStopHandler interface {
 	StopSessionGoals(context.Context, *Info) error
 }
 
+// stopSessionGoals invokes Goal cancellation only for explicit operator stop or removal.
 func (m *Manager) stopSessionGoals(ctx context.Context, info *Info) error {
 	if info == nil || info.StopCause != CauseUserRequested {
 		return nil

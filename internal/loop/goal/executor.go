@@ -40,6 +40,7 @@ func (e *Executor) Execute(
 	}
 }
 
+// initializeSegment validates runtime selection and binds an executable checkpoint before work begins.
 func (e *Executor) initializeSegment(
 	ctx context.Context,
 	node dsl.Node,
@@ -180,6 +181,7 @@ func pinnedContextNudgeRatio(in loop.ActionExecutionInput) (float64, error) {
 	return policy.ContextNudgeRatio, nil
 }
 
+// bindSegment adopts durable session ownership and retries only creation attempts known to have no effect.
 func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targetEpoch int64) error {
 	request, err := e.actionSessionBindRequest(segment, targetEpoch)
 	if err != nil {
@@ -261,6 +263,7 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targe
 	}
 }
 
+// actionSessionBindRequest preserves scope, provenance, and checkpoint fences for the target binding epoch.
 func (e *Executor) actionSessionBindRequest(
 	segment *segmentState,
 	targetEpoch int64,

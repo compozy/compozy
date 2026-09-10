@@ -68,6 +68,7 @@ function collapseCrumbs(crumbs: readonly TopbarCrumb[]): {
   };
 }
 
+/** Keeps identity controls visible while long titles disclose their complete text. */
 function TopbarIdentity({
   title,
   titleRef,
@@ -193,6 +194,7 @@ function TopbarIdentity({
   );
 }
 
+/** Constrains the heading and exposes the full title to keyboard and pointer users. */
 function TopbarTitle({
   children,
   titleRef,
@@ -202,9 +204,11 @@ function TopbarTitle({
   titleRef?: React.Ref<HTMLHeadingElement>;
   className?: string;
 }) {
+  const titleId = React.useId();
   return (
     <h1
       ref={titleRef}
+      aria-labelledby={titleId}
       tabIndex={-1}
       data-slot="topbar-title"
       data-testid="topbar-title-text"
@@ -214,8 +218,14 @@ function TopbarTitle({
       )}
     >
       <Popover>
-        <PopoverTrigger className="block max-w-full truncate rounded-sm text-left focus-visible:outline-none focus-visible:shadow-focus-ring">
-          {children}
+        <PopoverTrigger
+          aria-labelledby={`${titleId}-action ${titleId}`}
+          className="block max-w-full truncate rounded-sm text-left focus-visible:outline-none focus-visible:shadow-focus-ring"
+        >
+          <span id={`${titleId}-action`} className="sr-only">
+            Show full title:
+          </span>
+          <span id={titleId}>{children}</span>
         </PopoverTrigger>
         <PopoverContent
           align="start"

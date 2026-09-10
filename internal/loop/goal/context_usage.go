@@ -37,6 +37,7 @@ func contextUsageSequence(usage *ContextUsage) *int64 {
 	return &sequence
 }
 
+// bindCheckpoint adopts the managed binding before any context observation uses its identity.
 func (e *Executor) bindCheckpoint(ctx context.Context, segment *segmentState) error {
 	updated, err := e.store.BindCheckpoint(ctx, BindCheckpointRequest{
 		Key: segment.key, ExpectedControlEpoch: segment.checkpoint.ControlEpoch,

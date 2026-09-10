@@ -96,6 +96,7 @@ export {
   terminalJournalQuery,
   terminalRecordingQuery,
   terminalScope,
+  type TerminalProfileQueryScope,
   type TerminalQueryScope,
 } from "./lib/query-options";
 export { terminalAttentionLocation } from "./lib/terminal-attention-location";

@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+// bootSessionRepair installs lifecycle handlers before replaying pending stops and repairing history.
 func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot session repair state is required")

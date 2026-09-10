@@ -106,6 +106,7 @@ function threadPartMetadata(
   return metadata;
 }
 
+/** Retains provider identity and title when adapting a persisted tool call for the thread. */
 function toToolPart(
   record: Record<string, unknown>,
   type: string,

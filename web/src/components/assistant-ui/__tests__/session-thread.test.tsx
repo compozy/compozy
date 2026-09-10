@@ -5666,13 +5666,18 @@ it("Should preserve provider titles through the runtime and disclose live and Wo
   const details = await screen.findByRole("dialog", { name: "Tool details" });
   expect(details.textContent).toContain(title);
   expect(details).toHaveTextContent("input-tail");
+  await user.click(within(details).getByRole("button", { name: "Copy tool details" }));
+  expect(await navigator.clipboard.readText()).toBe(
+    `${title}\n\n${JSON.stringify({ tool: "Bash", title, input: { command: "printf 'input-tail'" } }, null, 2)}`
+  );
   await user.keyboard("{Escape}");
   expect(trigger).toHaveFocus();
   const activity = screen.getByRole("button", { name: "Activity details" });
-  activity.focus();
-  await user.keyboard("{Enter}");
+  await user.click(activity);
   expect((await screen.findByRole("dialog", { name: "Activity details" })).textContent).toContain(
     title
   );
+  await user.click(screen.getByRole("button", { name: "Copy activity details" }));
+  expect(await navigator.clipboard.readText()).toBe(title);
   expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
 });

@@ -103,6 +103,7 @@ const LIVE_VERB: Record<SessionToolKind, string> = {
   other: "Running",
 };
 
+/** Chooses an activity verb from canonical tool identity rather than provider prose. */
 function liveVerb(kind: SessionToolKind, registryTool: string): string {
   if (kind === "search") return registryTool === "Glob" ? "Finding files" : "Searching content";
   if (kind === "web") return registryTool === "WebSearch" ? "Searching the web" : "Fetching";
@@ -110,6 +111,7 @@ function liveVerb(kind: SessionToolKind, registryTool: string): string {
   return LIVE_VERB[kind];
 }
 
+/** Builds a bounded input preview, including an agent's description or prompt. */
 function livePreview(
   kind: SessionToolKind,
   registryTool: string,
@@ -125,6 +127,7 @@ function livePreview(
   return summary && summary.trim().length > 0 ? summary : null;
 }
 
+/** Combines the canonical action with a bounded provider title or input preview. */
 export function liveToolLabel(
   toolName: string,
   args: Record<string, unknown> = {},

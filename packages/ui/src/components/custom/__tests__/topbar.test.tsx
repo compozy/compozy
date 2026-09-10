@@ -422,7 +422,7 @@ it("Should disclose the full title while preserving the route focus target", () 
   );
   const heading = screen.getByRole("heading", { name: title.trim() });
   expect(heading).toHaveAttribute("tabindex", "-1");
-  const trigger = screen.getByRole("button", { name: title.trim() });
+  const trigger = screen.getByRole("button", { name: `Show full title: ${title.trim()}` });
   trigger.focus();
   expect(trigger).toHaveFocus();
   fireEvent.click(trigger);

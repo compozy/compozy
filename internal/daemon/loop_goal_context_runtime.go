@@ -42,6 +42,7 @@ func (r *loopGoalContextRuntime) Usage(
 	return goalpkg.ContextUsage{}, nil
 }
 
+// UsageAtSequence accepts only a usage event at the exact pinned sequence; gaps remain unknown.
 func (r *loopGoalContextRuntime) UsageAtSequence(
 	ctx context.Context,
 	binding looppkg.ActionSessionBinding,

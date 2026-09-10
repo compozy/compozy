@@ -66,6 +66,7 @@ func (s *daemonLoopAPIService) goalContextSnapshot(
 	return result, nil
 }
 
+// composeSessionGoalSnapshot gives terminal Run state and live quarantine precedence over checkpoints.
 func composeSessionGoalSnapshot(
 	projection goalpkg.SessionProjection,
 	params dsl.GoalParams,
@@ -126,6 +127,7 @@ func goalVerdictSummary(turn *goalpkg.Turn) *session.GoalVerdictSummary {
 	}
 }
 
+// goalStatusFromRun maps durable Run state to the Goal strip's existing status vocabulary.
 func goalStatusFromRun(status looppkg.Status) string {
 	switch status {
 	case looppkg.StatusPaused, looppkg.StatusCanceled:

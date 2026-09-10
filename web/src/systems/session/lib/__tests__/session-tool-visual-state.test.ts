@@ -18,7 +18,8 @@ describe("tool visual state", () => {
     expect(toolVisualKind("Bash")).toBe("command");
     expect(toolVisualKind("Edit")).toBe("edit");
     expect(toolVisualKind("Write")).toBe("edit");
-    expect(toolVisualKind("Read /tmp/a.ts")).toBe("read");
+    expect(toolVisualKind("Read")).toBe("read");
+    expect(toolVisualKind("Read /tmp/a.ts")).toBe("other");
     expect(toolVisualKind("Grep")).toBe("search");
     expect(toolVisualKind("WebFetch")).toBe("web");
     expect(toolVisualKind("Task")).toBe("agent");

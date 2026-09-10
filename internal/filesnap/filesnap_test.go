@@ -197,7 +197,8 @@ func TestFromInfo(t *testing.T) {
 			t.Fatal(err)
 		}
 		snapshot := FromInfo(path, withoutSystemMetadata{info})
-		if snapshot.Equal(snapshot) {
+		recaptured := FromInfo(path, withoutSystemMetadata{info})
+		if snapshot.Equal(recaptured) {
 			t.Fatal("a failed fallback read must never authorize snapshot reuse")
 		}
 	})

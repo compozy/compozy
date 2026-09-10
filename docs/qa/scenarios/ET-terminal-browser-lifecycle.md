@@ -42,6 +42,11 @@ Walk:
 7. Exercise the keyboard/window menu and close-other/right gestures. Pinned tabs remain protected by their existing scope rules.
 8. Lose the connection while closing; verify visible failure feedback, a retained window, and a successful fresh retry after reconnect.
 9. Confirm the route, title, dock badge, and another attached viewer remain truthful throughout.
+10. Hold a terminal creation response, switch workspace or profile, and release it. The original
+    owner's catalog retains the terminal; the destination desktop is not retargeted. Returning to
+    the original scope must not revive the obsolete navigation. Its initiating tab offers
+    **Open terminal**; activating it shows the process already created without adding another
+    terminal. A creation without a scope change still opens its terminal normally.
 
 QA impact 2026-09-10: issue #594 intentionally replaces the old operator view-only close behavior. Historical passes below describe the previous contract; this round is tracked in `docs/qa/reports/2026-09-10-issue-594-terminal-close.md`.
 
@@ -50,3 +55,7 @@ window tabs, survived minimize and reload with both instances restored, and clos
 ending the original terminal. A new browser session reattached to the running terminal with shared input.
 
 QA re-walk 2026-09-10: PASS for the changed close contract. Production-bundle E2Es cover running cancel/confirm, grouped reload/history, disconnect feedback, Stop, and exited close. Manual isolated-browser checks cover keyboard/window-menu close, mixed-app groups, close-other/right targeting, shared viewers, and unchanged native view-only close. Scope and evidence: `docs/qa/reports/2026-09-10-issue-594-terminal-close.md`. Unchanged steps retain their earlier evidence.
+
+Post-merge creation-scope verification is recorded in
+`docs/qa/reports/2026-09-10-merged-pr-ci-review-remediation.md`; earlier browser evidence
+does not independently prove the newly added pending-response step.

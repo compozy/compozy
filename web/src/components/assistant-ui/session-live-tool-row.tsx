@@ -6,13 +6,14 @@ import {
   SessionSummaryDisclosure,
   liveToolLabel,
   parallelToolLabel,
+  getToolIcon,
+  resolveRegisteredToolName,
 } from "@/systems/session";
 import type { SessionNavigationReveal } from "./hooks/session-navigation-target-context";
 import { toolMessageFromPart } from "./session-timeline-tool-message";
 
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
-import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 

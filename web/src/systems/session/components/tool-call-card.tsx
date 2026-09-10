@@ -55,6 +55,7 @@ export interface SessionToolCallRowProps {
 /** Tools with specialized expanded renderers own input+output — no card-level JSON. */
 const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob", "TodoWrite"]);
 
+/** Serializes original tool identity, title, input, and output for detail copying. */
 function formatToolPayload(message: UIMessage): string {
   try {
     return JSON.stringify(
@@ -143,6 +144,7 @@ function diffStatLabel(additions: number, deletions: number): string {
   return `${additions} ${additions === 1 ? "addition" : "additions"}, ${deletions} ${deletions === 1 ? "deletion" : "deletions"}`;
 }
 
+/** Derives compact row presentation while retaining the complete inspection payload. */
 function toolCallPresentation({
   message,
   turnSettled,

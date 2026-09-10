@@ -266,6 +266,7 @@ func releaseConversationOperations(unlocks []func()) {
 	}
 }
 
+// stageSessionDelete stops execution and owned Goals before staging history for reversible removal.
 func (m *Manager) stageSessionDelete(
 	ctx context.Context,
 	target string,

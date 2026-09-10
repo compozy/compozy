@@ -54,6 +54,7 @@ function partTimestamp(part: Record<string, unknown>): string | undefined {
   return isRecord(data) ? stringField(data, "timestamp") : undefined;
 }
 
+/** Projects thread parts without discarding provider titles or original tool inputs. */
 export function toTimelineParts(message: {
   id?: string;
   content?: unknown;
