@@ -21,15 +21,12 @@ func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutd
 	if err := RemoveInfo(targets.infoPath); err != nil {
 		*errs = append(*errs, err)
 	}
-	if targets.checkpointStore != nil {
+	if targets.memoryCatalogStore != nil {
 		appendWrappedError(
 			errs,
-			"daemon: close compaction checkpoint catalog",
-			targets.checkpointStore.CloseCatalog(ctx),
+			"daemon: close memory catalog database",
+			targets.memoryCatalogStore.CloseCatalog(ctx),
 		)
-	}
-	if targets.memoryStore != nil {
-		appendWrappedError(errs, "daemon: close memory catalog database", targets.memoryStore.CloseCatalog(ctx))
 	}
 	if targets.registry != nil {
 		appendWrappedError(errs, "daemon: close global database", targets.registry.Close(ctx))

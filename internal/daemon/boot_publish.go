@@ -14,7 +14,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		registry:               state.registry,
 		profiles:               state.profiles,
 		memoryStore:            state.memoryStore,
-		checkpointStore:        state.checkpointStore,
+		memoryCatalogStore:     state.memoryCatalogStore,
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,
 		runtimeWorkers:         state.runtimeWorkers,

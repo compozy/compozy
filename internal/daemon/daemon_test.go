@@ -5391,6 +5391,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			d := newTestDaemon(t, homePaths, &cfg)
 
 			var capturedDeps SessionManagerDeps
+			var publicDeps RuntimeDeps
 			d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 				capturedDeps = deps
 				return &fakeSessionManager{}, nil
@@ -5398,7 +5399,8 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 				return &fakeObserver{}, nil
 			}
-			d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+				publicDeps = deps
 				return &fakeServer{name: "http"}, nil
 			}
 			d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
@@ -5441,6 +5443,17 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 			workspace := filepath.Join(t.TempDir(), "workspace")
 			writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspace)
+			if publicDeps.MemoryStore == nil {
+				t.Fatal("public memory store is unavailable with memory automation disabled")
+			}
+			headers, err := publicDeps.MemoryStore.ForWorkspace(workspace).
+				CatalogHeaders(t.Context(), memcontract.ScopeWorkspace)
+			if err != nil {
+				t.Fatalf("public workspace memory catalog: %v", err)
+			}
+			if len(headers) == 0 {
+				t.Fatal("public workspace memory catalog lost existing memories")
+			}
 
 			workspaceRef := workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{RootDir: workspace},

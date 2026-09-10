@@ -28,6 +28,7 @@ export function memoriesListOptions(filters?: KnowledgeListFilter) {
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: 30_000,
+    retry: false,
   });
 }
 

@@ -13,6 +13,10 @@ them implicitly. To opt in, set `memory.enabled = true` in the daemon configurat
 Set `roles.dream.enabled = true` separately for dreaming; profile/workspace role overrides apply
 when the daemon memory runtime is enabled. Existing explicit settings and memory files are preserved.
 
+Knowledge and the operator memory API/CLI remain available while `memory.enabled = false`.
+They can list existing memories and return an empty catalog for an empty workspace without enabling
+prompt injection, extraction, or dreaming. Storage failures remain errors, not empty catalogs.
+
 ## What Memory Stores
 
 CompozyOS memory is durable Markdown outside transient session prompts. Use it for facts that should survive across sessions: project context, user preferences, durable decisions, and reusable references.

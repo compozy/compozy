@@ -102,7 +102,10 @@ describe("listMemories", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(listMemories()).rejects.toThrow(KnowledgeApiError);
-    await expect(listMemories()).rejects.toThrow("Failed to fetch memories: 500");
+    await expect(listMemories()).rejects.toMatchObject({
+      message: "Memories are unavailable right now. Try again later.",
+      status: 500,
+    });
   });
 });
 

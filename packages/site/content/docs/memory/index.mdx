@@ -8,6 +8,10 @@ consolidation are explicit choices. To enable memory, set `memory.enabled = true
 `config.toml` and restart. Dreaming remains off until `roles.dream.enabled = true` is also set.
 Existing explicit settings and stored memory are preserved.
 
+You can browse existing memories in Knowledge, the Command Palette, or the memory API/CLI while
+automatic memory is disabled. An empty workspace shows an empty catalog. If storage is unavailable,
+Knowledge displays an error and does not automatically retry the failed list request.
+
 Memory is the durable layer that survives a session. CompozyOS stores curated facts as Markdown files
 behind typed indexes so agents can rediscover knowledge without replaying past transcripts. The
 runtime keeps three scopes — profile, workspace, and agent — and a dreaming loop that promotes
