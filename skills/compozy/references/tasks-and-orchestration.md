@@ -3,6 +3,7 @@
 ## Contents
 
 - Authority model, catalog, inbox, and inspection
+- Bounded worker tools
 - Pause, resume, recovery, blocks, and escalation
 - Scheduler controls
 - Coordinator, worker, and reviewer loops
@@ -17,6 +18,15 @@ Do not infer task ownership from a message. Do not mutate task state outside Com
 Task inspect, pause/resume, and forced run release/fail/retry plus scheduler pause/resume/drain and
 backlog are CLI or HTTP/UDS management surfaces. Native tools do expose task block/list/unblock and
 task-level `needs_attention` recovery; use those only for their narrower daemon-owned contracts.
+
+## Bounded worker tools
+
+`compozy__session_spawn` requires an explicit `tools` subset for a worker that uses native tools.
+Omitted or empty permissions do not inherit the parent's access. Inspect the parent's lineage
+permission budget and grant only required concrete IDs; bootstrap commonly needs `compozy__tool_search`,
+`compozy__tool_info`, `compozy__tool_artifact_read`, `compozy__skill_search`, and `compozy__skill_view`.
+The CLI equivalent repeats `compozy spawn --tool <id>`. Agent policy and parent-subset validation
+still apply. A missing required grant blocks the task rather than authorizing a filesystem/CLI bypass.
 
 ## Catalog And Inbox Reads
 

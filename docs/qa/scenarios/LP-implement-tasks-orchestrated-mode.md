@@ -100,3 +100,12 @@ Evidence: `.cache/issue-565/e2e-per-run-green.log`; targeted teardown reported `
 no survivors at `2026-09-09T17:12:37Z`. The broader terminal-path limitation above remains separate.
 
 QA 2026-09-10: Initial ACP process registration now retains the startup context instead of applying the separate process-finalization deadline. The existing orchestrated Profile extension Agent journey passed three race-enabled repetitions, including its local skill, worker settlement, and selected-profile assertions. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+Worker-tool regression (#588): inspect the conductor's spawn request and persisted child lineage.
+Require the root system conductor to have a concrete Agent-derived delegation budget and an explicit
+bootstrap tool subset within that budget. Agents without an allowlist use the native universe minus
+Agent denies; explicit overrides remain narrow. Provenance-linked system children remain unseeded.
+During the worker turn, invoke
+native `compozy__skill_view` for required guidance; an injected skill summary alone is not proof of
+callable tools. Confirm a nondelegated tool is still denied and omission still means zero tools.
+Then verify task completion, the selected Agent/Profile/runtime and stopped worker cleanup as above.

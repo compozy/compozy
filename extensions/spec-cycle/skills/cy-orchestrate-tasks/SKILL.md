@@ -36,13 +36,29 @@ uses `frontend_runtime`, and every other value uses `default_runtime`. Merge the
 frontmatter `runtime` over that category object field by field before building spawn flags. Create
 one bounded `spawned` session bound to this conductor. Bind the exact `implementer` value from the
 Goal once, then pass it as one quoted argument. TTL and parent-stop are the containment contract;
-`--ttl-seconds` is mandatory:
+`--ttl-seconds` is mandatory.
+
+The child starts with no delegated tools when permission atoms are omitted. Before spawning,
+inspect this conductor's session lineage permission policy and the worker's required operations.
+Pass an explicit subset of the parent's concrete tool IDs: the bootstrap set below supports
+native discovery, descriptor reads, skill lookup, and retained-reference reads. Add only task-required
+tools the parent can delegate. If a required tool is absent from the parent budget, block with that
+missing ID; do not retry without permissions, grant wildcards, or bypass a denial through files/CLI.
+Other permission categories remain empty unless the task needs an explicit parent-authorized subset.
+
+For native `compozy__session_spawn`, put these same IDs in `tools`; use the live descriptor for
+any additional fields. The equivalent CLI recipe is:
 
 ```bash
 IMPLEMENTER="<exact implementer identifier from the Goal>"
 compozy spawn --agent "$IMPLEMENTER" \
   --name "orchestrate-<slug>-<task_id>" \
   --role worker \
+  --tool compozy__tool_search \
+  --tool compozy__tool_info \
+  --tool compozy__tool_artifact_read \
+  --tool compozy__skill_search \
+  --tool compozy__skill_view \
   --ttl-seconds 3600 \
   --auto-stop-on-parent=true \
   --idempotency-key "orchestrate-<slug>-<task_id>" \

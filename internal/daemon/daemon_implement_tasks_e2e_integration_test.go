@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
@@ -847,6 +848,29 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 		}
 		if worker.AgentName != wantAgent {
 			t.Fatalf("spawned worker %q agent = %q, want %q", worker.Name, worker.AgentName, wantAgent)
+		}
+		for _, check := range []struct {
+			id       toolspkg.ToolID
+			callable bool
+		}{
+			{toolspkg.ToolIDSkillView, true},
+			{toolspkg.ToolIDTaskList, false},
+		} {
+			var result contract.ToolResponse
+			if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, &result,
+				"tool", "info", check.id.String(), "--session", worker.ID, "-o", "json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if result.Tool.Decision.Callable != check.callable {
+				t.Fatalf(
+					"worker %q tool %q callable=%t, want %t",
+					worker.ID,
+					check.id,
+					result.Tool.Decision.Callable,
+					check.callable,
+				)
+			}
 		}
 		got := *worker.Runtime.Effective
 		got.SpeedResolution = nil
