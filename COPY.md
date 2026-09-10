@@ -485,6 +485,11 @@ Avoid:
 
 Goal: tell the person what is true and what they can do next.
 
+Internal window controls use `Zoom window` to maximize and `Restore window` while
+zoomed to return to the saved placement and size. These labels describe internal
+CompozyOS windows, not native browser or application fullscreen. Resizing a zoomed
+window adopts the resized geometry instead of restoring its saved placement.
+
 Use:
 
 - current state, next action, and consequence.
