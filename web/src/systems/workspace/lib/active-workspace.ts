@@ -26,7 +26,7 @@ export interface ActiveWorkspaceResolution {
   /** Data binding: selected project in workspace scope; no workspace in Global. */
   runtimeWorkspace: WorkspacePayload | undefined;
   runtimeWorkspaceId: string | null;
-  /** Layout binding: remembered project, first project, or the profile's Global partition. */
+  /** Layout binding: remembered project, retained desktop, or initial fallback. */
   desktopWorkspace: WorkspacePayload | undefined;
   desktopWorkspaceId: string | null;
   chip: WorkspaceChipIdentity;
@@ -43,6 +43,7 @@ export function resolveActiveWorkspace(input: {
   userHomeDir: string | undefined;
   scope: WorkspaceScopeMode;
   selectedWorkspaceId: string | null;
+  desktopWorkspaceId?: string | null;
   /** Pass true while either source query is unsettled; the resolver then claims nothing. */
   pending?: boolean;
 }): ActiveWorkspaceResolution {
@@ -86,11 +87,14 @@ export function resolveActiveWorkspace(input: {
 
   const activeWorkspace = scope === "workspace" ? rememberedWorkspace : undefined;
   const runtimeWorkspace = activeWorkspace;
-  // Global still needs a durable window-layout partition. Prefer the operator's
-  // remembered project; on first entry, bind only the layout to the first project.
-  // With no projects, the reserved profile-owned partition keeps the shell usable
-  // without turning Global into a runtime workspace.
-  const desktopWorkspace = rememberedWorkspace ?? projectWorkspaces[0];
+  const retainedDesktopWorkspace = projectWorkspaces.find(
+    workspace => workspace.id === input.desktopWorkspaceId
+  );
+  // Preserve the layout independently of Global's unscoped data destination.
+  const desktopWorkspace =
+    rememberedWorkspace ??
+    retainedDesktopWorkspace ??
+    (input.desktopWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID ? undefined : projectWorkspaces[0]);
   const desktopWorkspaceId = desktopWorkspace?.id ?? GLOBAL_DESKTOP_WORKSPACE_ID;
 
   return {

@@ -53,6 +53,7 @@ describe("activeWorkspaceStore", () => {
     expect(context()).toEqual({
       scope: "workspace",
       selectedWorkspaceId: "ws_alpha",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
   });
@@ -63,12 +64,14 @@ describe("activeWorkspaceStore", () => {
     expect(context()).toEqual({
       scope: "global",
       selectedWorkspaceId: "ws_alpha",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
     disableGlobalScope();
     expect(context()).toEqual({
       scope: "workspace",
       selectedWorkspaceId: "ws_alpha",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
   });
@@ -85,6 +88,7 @@ describe("activeWorkspaceStore", () => {
     expect(context()).toEqual({
       scope: "global",
       selectedWorkspaceId: null,
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
   });
@@ -98,6 +102,7 @@ describe("activeWorkspaceStore", () => {
     expect(context()).toEqual({
       scope: "workspace",
       selectedWorkspaceId: "ws_gone",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
 
@@ -107,6 +112,7 @@ describe("activeWorkspaceStore", () => {
     expect(context()).toEqual({
       scope: "workspace",
       selectedWorkspaceId: "ws_gone",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
   });

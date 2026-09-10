@@ -18,6 +18,22 @@ overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts; MS-web-work
 
 story: As a builder I flip one menubar globe to work across every project folder, and I always know which destination create dialogs will use.
 
+2026-09-10 CI regression: In Global with no remembered project, keep the resolved desktop
+when background automation registers a workspace or polling reorders the catalog. Reload must
+restore the same desktop and route, without setting a workspace data destination. Selecting a
+project still changes desktops; deleting the retained project permits fallback. A Global desktop
+opened before any project exists stays on the reserved partition until an explicit selection.
+The v4 browser storage key upgrades its envelope from version 0 to 1 without losing scope,
+selected project, or per-window worktrees. The workspace hook suite owns catalog/rehydration
+coverage; `jobs-hardening.spec.ts` exercises the real background-job and reload journey.
+
+Change impact audit (`docs/_memory/change-impact.md`): the browser retains only a desktop
+partition ID. Workspace Query data and daemon window-manager partitions remain authoritative;
+Global data reads stay unscoped and profile binding is unchanged. Native tool IDs, CLI/HTTP/UDS
+contracts, hooks, extension SDKs, configuration, and `skills/compozy/` are unaffected because
+their operations and inputs do not change. Web impact is limited to workspace resolution and
+browser preference persistence; this scenario and the Jobs catalog scenario own documentation.
+
 Introduced 2026-08-12 by menubar-owned Global scope. Persist key `compozy:active-workspace:v3` stores `scope` plus `selectedWorkspaceId`. Empty v3 hydrates as Global. `$HOME` is not a UI row.
 
 2026-08-23 qa-impact (Profiles): **reset from `blocked-verify` to `untested`** — the behavior this

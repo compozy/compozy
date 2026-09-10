@@ -16,6 +16,10 @@ export function useSelectedWorkspaceId(): string | null {
   return useSelector(activeWorkspaceSelectors.selectedWorkspaceId);
 }
 
+export function useDesktopWorkspaceId(): string | null {
+  return useSelector(activeWorkspaceSelectors.desktopWorkspaceId);
+}
+
 export function useWorkspaceScopeMode(): WorkspaceScopeMode {
   return useSelector(activeWorkspaceSelectors.scope);
 }

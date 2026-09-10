@@ -18,6 +18,8 @@ export interface ActiveWorkspaceContext {
    * returns to the same project. Never the operator-home registration.
    */
   selectedWorkspaceId: string | null;
+  /** Last resolved layout partition; catalog order must not switch desktops. */
+  desktopWorkspaceId: string | null;
   /**
    * Per-scope worktree selection: each OS window carries its own worktree
    * without a second window-manager binding.
@@ -30,6 +32,7 @@ export const ACTIVE_WORKSPACE_PERSIST_KEY = "compozy:active-workspace:v4";
 const initialActiveWorkspaceContext: ActiveWorkspaceContext = {
   scope: "global",
   selectedWorkspaceId: null,
+  desktopWorkspaceId: null,
   worktreeByScope: {},
 };
 
@@ -57,6 +60,22 @@ export function resolveScopedWorktreeId(
 export const activeWorkspaceStore = createStore({
   context: initialActiveWorkspaceContext,
   on: {
+    desktopWorkspaceObserved: (
+      context,
+      event: {
+        workspaceId: string;
+        selectedWorkspaceId: string | null;
+        previousDesktopWorkspaceId: string | null;
+      }
+    ) => {
+      if (
+        context.selectedWorkspaceId !== event.selectedWorkspaceId ||
+        context.desktopWorkspaceId !== event.previousDesktopWorkspaceId ||
+        context.desktopWorkspaceId === event.workspaceId
+      )
+        return;
+      return { ...context, desktopWorkspaceId: event.workspaceId };
+    },
     workspaceSelected: (context, event: { workspaceId: string; scopeId?: string }) => {
       if (context.selectedWorkspaceId === event.workspaceId) {
         const base = { ...context, scope: "workspace" as const };
@@ -91,6 +110,7 @@ export const activeWorkspaceStore = createStore({
     workspaceSelectionCleared: () => ({
       scope: "global" as const,
       selectedWorkspaceId: null,
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     }),
     /** Workspace and worktree move together so the pair is never inconsistent. */
@@ -131,9 +151,15 @@ export const activeWorkspaceStore = createStore({
 }).with(
   persist({
     name: ACTIVE_WORKSPACE_PERSIST_KEY,
+    version: 1,
+    migrate: (persisted: Omit<ActiveWorkspaceContext, "desktopWorkspaceId">) => ({
+      ...persisted,
+      desktopWorkspaceId: null,
+    }),
     pick: context => ({
       scope: context.scope,
       selectedWorkspaceId: context.selectedWorkspaceId,
+      desktopWorkspaceId: context.desktopWorkspaceId,
       worktreeByScope: context.worktreeByScope,
     }),
   })
@@ -141,6 +167,7 @@ export const activeWorkspaceStore = createStore({
 
 export const activeWorkspaceSelectors = {
   selectedWorkspaceId: activeWorkspaceStore.select(context => context.selectedWorkspaceId),
+  desktopWorkspaceId: activeWorkspaceStore.select(context => context.desktopWorkspaceId),
   scope: activeWorkspaceStore.select(context => context.scope),
   worktreeByScope: activeWorkspaceStore.select(context => context.worktreeByScope),
 };

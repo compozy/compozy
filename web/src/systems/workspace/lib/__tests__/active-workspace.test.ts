@@ -82,6 +82,20 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.desktopWorkspaceId).toBe("ws_alpha");
   });
 
+  it("Should retain the reserved Global desktop until a project is selected", () => {
+    const input = {
+      workspaces: [home, alpha],
+      userHomeDir: HOME,
+      scope: "global" as const,
+      selectedWorkspaceId: null,
+      desktopWorkspaceId: GLOBAL_DESKTOP_WORKSPACE_ID,
+    };
+    expect(resolveActiveWorkspace(input).desktopWorkspaceId).toBe(GLOBAL_DESKTOP_WORKSPACE_ID);
+    expect(
+      resolveActiveWorkspace({ ...input, selectedWorkspaceId: alpha.id }).desktopWorkspaceId
+    ).toBe(alpha.id);
+  });
+
   it("Should claim nothing while resolution is pending", () => {
     const resolved = resolveActiveWorkspace({
       workspaces: [home, alpha],

@@ -18,6 +18,11 @@ overlaps: TA-052; TA-056; TA-automation-crud-loop-target; LP-033
 
 Added by Route Chrome + catalog migration (2026-07-17). Selection moved from local state to detail child routes.
 
+2026-09-10 CI regression: With Global on and no project selected, triggering a failing global
+job must leave its detail window and URL open even when the job registers a workspace. Reload
+must keep the detail and show the failed run with browser/CLI diagnostics. Verification owner:
+the existing failure-diagnostics case in `web/e2e/__tests__/jobs-hardening.spec.ts`.
+
 QA impact 2026-07-18: when a refresh or later page fails after rows loaded, the catalog preserves
 the rows and shows the query failure instead of presenting stale data as a successful refresh.
 

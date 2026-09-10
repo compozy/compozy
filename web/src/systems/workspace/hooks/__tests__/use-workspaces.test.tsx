@@ -266,18 +266,61 @@ describe("useActiveWorkspace", () => {
     vi.restoreAllMocks();
   });
 
+  it("Should preserve the Global desktop across catalog changes and rehydration", async () => {
+    const alpha = makeWorkspace({ id: "ws_alpha" });
+    const beta = makeWorkspace({ id: "ws_beta", root_dir: "/workspace/beta" });
+    vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    const wrapper = createWrapper(queryClient);
+    const first = renderHook(() => useActiveWorkspace(), { wrapper });
+    await waitFor(() => expect(first.result.current.desktopWorkspaceId).toBe(alpha.id));
+
+    act(() => queryClient.setQueryData(workspaceKeys.list(), [beta, alpha]));
+    await waitFor(() => expect(first.result.current.projectWorkspaces[0]?.id).toBe(beta.id));
+    expect(first.result.current.desktopWorkspaceId).toBe(alpha.id);
+    expect(first.result.current.scope).toBe("global");
+    expect(first.result.current.selectedWorkspaceId).toBeNull();
+    expect(first.result.current.runtimeWorkspaceId).toBeNull();
+    const persisted = window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY);
+    expect(persisted).not.toBeNull();
+    first.unmount();
+    setActiveWorkspaceId(null);
+    window.localStorage.setItem(ACTIVE_WORKSPACE_PERSIST_KEY, persisted!);
+    await rehydrateActiveWorkspaceStore();
+
+    const restored = renderHook(() => useActiveWorkspace(), { wrapper });
+    expect(restored.result.current.desktopWorkspaceId).toBe(alpha.id);
+    expect(restored.result.current.scope).toBe("global");
+    expect(restored.result.current.selectedWorkspaceId).toBeNull();
+
+    act(() => queryClient.setQueryData(workspaceKeys.list(), [beta]));
+    await waitFor(() => expect(restored.result.current.desktopWorkspaceId).toBe(beta.id));
+    expect(restored.result.current.scope).toBe("global");
+  });
+
   it("uses the persisted selected workspace after rehydration", async () => {
     setActiveWorkspaceId("ws_alpha");
     expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toContain("ws_alpha");
     window.localStorage.setItem(
       ACTIVE_WORKSPACE_PERSIST_KEY,
       JSON.stringify({
-        context: { scope: "workspace", selectedWorkspaceId: "ws_beta", worktreeByScope: {} },
+        context: {
+          scope: "workspace",
+          selectedWorkspaceId: "ws_beta",
+          worktreeByScope: { shell: "wt_saved" },
+        },
         version: 0,
       })
     );
     await act(async () => {
       await rehydrateActiveWorkspaceStore();
+    });
+    expect(activeWorkspaceStore.getSnapshot().context).toEqual({
+      scope: "workspace",
+      selectedWorkspaceId: "ws_beta",
+      desktopWorkspaceId: null,
+      worktreeByScope: { shell: "wt_saved" },
     });
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),

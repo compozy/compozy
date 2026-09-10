@@ -36,6 +36,7 @@ describe("confirmSessionWorkspaceSwitch", () => {
     expect(context()).toEqual({
       scope: "workspace",
       selectedWorkspaceId: "ws_other",
+      desktopWorkspaceId: null,
       worktreeByScope: {},
     });
     expect(reenter).toHaveBeenCalledOnce();
@@ -51,6 +52,7 @@ describe("confirmSessionWorkspaceSwitch", () => {
     expect(context()).toEqual({
       scope: "global",
       selectedWorkspaceId: "ws_project",
+      desktopWorkspaceId: null,
       worktreeByScope: { shell: "wt_project" },
     });
     expect(reenter).toHaveBeenCalledOnce();
