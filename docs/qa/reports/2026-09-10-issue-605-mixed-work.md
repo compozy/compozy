@@ -4,7 +4,7 @@
 - **Cadence tier:** targeted.
 - **Build:** issue branch based on `ed7f2d7a`, working tree changes.
 - **Environment:** isolated daemon and workspace, current-source Vite frontend, installed daemon beta.24, real Codex provider. Native CUA Chrome driver.
-- **Status:** in-progress.
+- **Status:** targeted QA completed; delivery validation tracked in PR #610.
 
 ## Personas and flows
 
@@ -19,7 +19,7 @@ Rafa, transcript reviewer, desktop on local fast network, en-US. Existing J-14 a
 
 ## Session Debriefs
 
-Preparation: a real read-only provider turn emitted three shell tools, one reasoning segment between tools, and a final assistant response. This engineering probe named the QA directory in its prompt; it is not counted as a persona session. It confirms real mixed activity exists for renderer inspection. The persona walk will read the resulting transcript through its public permalink.
+Preparation: a real read-only provider turn emitted three shell tools, one reasoning segment between tools, and a final assistant response. This engineering probe named the QA directory in its prompt; it is not counted as a persona session. It confirms real mixed activity exists for renderer inspection. The persona walk read the resulting transcript through its public permalink.
 
 Rafa opened the finished session through its public permalink. The first turn showed one collapsed work disclosure and a separate final answer. Expansion revealed Read → reasoning → line count → checksum in the recorded order. Reasoning retained its bold markdown; tool detail and Copy tool payload remained operable (the UI confirmed the copy). Search for the reasoning phrase opened its exact body from a closed turn fold. Search for the checksum command opened that tool's detail instead. Closing the disclosure and reloading kept the same transcript and separate response.
 
@@ -37,4 +37,4 @@ Repository-root Turborepo runs passed the canonical projection (47), scroll anch
 
 ## Final Status
 
-Rendered targeted QA passed and cleanup is clean. The first local gate passed lint/typecheck and 7,189 tests, then exposed one old integration expectation for uncollapsed mixed activity. That interaction was updated and its 58-test canonical suite passed. The user requested remaining gates run in PR CI to avoid the shared local machine queue; no local gate rerun is claimed. Current-head CI and both reviewers remain pending. Sidecar image publication remains unavailable as documented above.
+Rendered targeted QA passed and cleanup is clean. The first local gate passed lint/typecheck and 7,189 tests, then exposed one old integration expectation for uncollapsed mixed activity. That interaction was updated and its 58-test canonical suite passed. The user requested remaining gates run in PR CI to avoid the shared local machine queue; no local gate rerun is claimed. The first CodeRabbit review of `13f653a` completed with four findings, addressed together: namespaced mixed-entry keys, progress-tick live-tail detection, cancellation-state normalization/detail rendering, and explicit expanded reasoning-body/order assertions. Existing projection and thread suites were extended for those invariants; these remediation changes were inspected but are not claimed as locally re-tested. Greptile completed the initial review with no actionable findings. Per the revised delivery contract, current-head GitHub CI owns remediation validation; no second review round is requested or required. Sidecar image publication remains unavailable as documented above.

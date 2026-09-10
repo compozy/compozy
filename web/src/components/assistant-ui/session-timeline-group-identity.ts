@@ -13,6 +13,7 @@ interface WorkGroupIdentityOptions {
   usedGroupIds?: ReadonlySet<string>;
 }
 
+/** Retain an existing entry anchor across streaming updates without reusing a sibling group id. */
 export function workGroupId(
   entries: readonly SessionWorkEntry[],
   options: WorkGroupIdentityOptions
@@ -59,6 +60,7 @@ function compareIdentities(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
+/** Use the logical tool call or a namespaced reasoning part as the group anchor. */
 export function workEntryIdentity(entry: SessionWorkEntry): string {
   return entry.kind === "tool" ? entry.toolCallId.trim() || entry.id : `reasoning:${entry.id}`;
 }

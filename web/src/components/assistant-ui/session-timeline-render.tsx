@@ -97,6 +97,7 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   return <SessionDataEventMarker name={row.part.name} />;
 }
 
+/** Open mixed work for its exact search match while retaining the reader's disclosure state. */
 function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   const store = useTimelineRowContext();
   const scrollStore = useOptionalThreadScrollStore();
@@ -126,7 +127,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
     <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
       {row.entries.map(entry => (
         <SessionWorkEntryView
-          key={entry.id}
+          key={`${entry.kind}:${entry.id}`}
           entry={entry}
           active={row.active}
           turnFailed={turnFailed}
@@ -256,8 +257,10 @@ const TimelineRowContent = memo(
   (previous, next) => sessionRowEqual(previous.row, next.row)
 );
 
-// Referentially stable renderer: no closure deps, so re-deriving the row list
-// never re-creates the mapping function. Row identity carries the change signal.
+/**
+ * Referentially stable renderer: no closure deps, so re-deriving the row list
+ * never re-creates the mapping function. Row identity carries the change signal.
+ */
 function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
   return rows.map(row => <TimelineRowContent key={row.id} row={row} />);
 }

@@ -385,29 +385,35 @@ describe("session timeline derivation", () => {
     ).toMatchObject({ kind: "live-tool", expanded: true });
   });
 
-  it("Should drop progress ticks so they never append rows", () => {
-    const rows = deriveSessionRows(
-      [
-        tool(1, { status: "running", result: undefined }),
-        {
-          kind: "data",
-          id: "tick-1",
-          name: "data-compozy-event",
-          data: { type: "runtime_progress", runtime: { elapsed_seconds: 4, idle_seconds: 0 } },
-          turnId: "turn-1",
-        },
-        {
-          kind: "data",
-          id: "tick-2",
-          name: "data-compozy-event",
-          data: { type: "runtime_progress", runtime: { elapsed_seconds: 9, idle_seconds: 0 } },
-          turnId: "turn-1",
-        },
-      ],
-      { activeTurnId: "turn-1" }
-    );
-    expect(rows.map(row => row.kind)).toEqual(["live-tool"]);
-  });
+  it.each(["running", "settled"] as const)(
+    "Should ignore trailing progress ticks without settling an active %s work tail",
+    status => {
+      const rows = deriveSessionRows(
+        [
+          tool(1, { status, result: status === "running" ? undefined : { content: "done" } }),
+          {
+            kind: "data",
+            id: "tick-1",
+            name: "data-compozy-event",
+            data: { type: "runtime_progress", runtime: { elapsed_seconds: 4, idle_seconds: 0 } },
+            turnId: "turn-1",
+          },
+          {
+            kind: "data",
+            id: "tick-2",
+            name: "data-compozy-event",
+            data: { type: "runtime_progress", runtime: { elapsed_seconds: 9, idle_seconds: 0 } },
+            turnId: "turn-1",
+          },
+        ],
+        { activeTurnId: "turn-1" }
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject(
+        status === "running" ? { kind: "live-tool" } : { kind: "work", active: true }
+      );
+    }
+  );
 
   it("Should give each running child agent its own live row, never counted into the parallel row", () => {
     const rows = deriveSessionRows(
@@ -846,41 +852,49 @@ describe("session timeline derivation", () => {
     expect(rows.map(row => row.kind)).toEqual(["live-tool", "text"]);
   });
 
-  it("Should fold an interrupted turn expanded and label the interruption", () => {
-    const rows = deriveSessionRows(
-      [
-        {
-          kind: "reasoning",
-          id: "reason-int",
-          text: "Working",
-          turnId: "turn-int",
-          timestamp: "2026-07-07T12:00:00Z",
-          state: "done",
-        },
-        tool(1, {
-          turnId: "turn-int",
-          timestamp: "2026-07-07T12:00:04Z",
-          status: "interrupted",
-          state: "interrupted",
-        }),
-        text("terminal-int", "Stopped early", "turn-int", "2026-07-07T12:00:07Z"),
-      ],
-      { foldSettledTurns: true }
-    );
+  it.each(["interrupted", "cancelled", "canceled"])(
+    "Should fold a state-%s tool with its reasoning as stopped work",
+    state => {
+      const rows = deriveSessionRows(
+        [
+          {
+            kind: "reasoning",
+            id: "reason-int",
+            text: "Working",
+            turnId: "turn-int",
+            timestamp: "2026-07-07T12:00:00Z",
+            state: "done",
+          },
+          tool(1, {
+            turnId: "turn-int",
+            timestamp: "2026-07-07T12:00:04Z",
+            status: "running",
+            result: undefined,
+            state,
+          }),
+          text("terminal-int", "Stopped early", "turn-int", "2026-07-07T12:00:07Z"),
+        ],
+        { foldSettledTurns: true }
+      );
 
-    // An interrupted turn still derives a turn-fold row, but the render keeps it
-    // expanded; the label swaps to the "You stopped" language and the terminal
-    // assistant message stays visible below.
-    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
-    const foldRow = rows[0];
-    if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
-    expect(foldRow.cause).toBe("stopped");
-    expect(foldRow.open).toBe(true);
-    expect(foldRow.label).toBe("You stopped after 7s");
-    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
-    expect(foldRow.rows[0]).toMatchObject({ entries: [{ kind: "reasoning" }, { kind: "tool" }] });
-    expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });
-  });
+      // An interrupted turn still derives a turn-fold row, but the render keeps it
+      // expanded; the label swaps to the "You stopped" language and the terminal
+      // assistant message stays visible below.
+      expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+      const foldRow = rows[0];
+      if (foldRow?.kind !== "turn-fold") throw new Error("expected fold row");
+      expect(foldRow.cause).toBe("stopped");
+      expect(foldRow.open).toBe(true);
+      expect(foldRow.label).toBe("You stopped after 7s");
+      expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+      expect(foldRow.rows[0]).toMatchObject({
+        active: false,
+        summary: { label: "1 tool · 1 thought · 1 stopped" },
+        entries: [{ kind: "reasoning" }, { kind: "tool", status: "interrupted", state }],
+      });
+      expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });
+    }
+  );
 
   it("Should label a turn interrupted via the interruptedTurnIds option", () => {
     const rows = deriveSessionRows(

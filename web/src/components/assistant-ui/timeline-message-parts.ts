@@ -4,7 +4,7 @@
 // estimator (`timeline-row-estimates.ts`) read the message the same way — one
 // source of truth for how the runtime's part shapes map onto the row model.
 
-import type { SessionTimelinePart } from "./session-timeline.logic";
+import { isInterruptedState, type SessionTimelinePart } from "./session-timeline.logic";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -112,7 +112,11 @@ export function toTimelineParts(message: {
           args: recordField(part, "args"),
           result,
           isError,
-          status: result === undefined && !isError ? "running" : "settled",
+          status: isInterruptedState(state)
+            ? "interrupted"
+            : result === undefined && !isError
+              ? "running"
+              : "settled",
           turnId,
           timestamp,
           state,

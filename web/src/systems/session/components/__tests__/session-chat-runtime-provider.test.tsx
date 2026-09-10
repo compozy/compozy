@@ -2610,6 +2610,12 @@ describe("SessionChatRuntimeProvider", () => {
     // Mixed activity opens together. The original streaming ThinkingBlock
     // still opens its body automatically inside that disclosure.
     const chat = screen.getByTestId("chat-view");
+    const reasoning = within(chat).getByTestId("thinking-content");
+    expect(reasoning).toHaveTextContent("Need the current launch note before answering.");
+    expect(
+      reasoning.compareDocumentPosition(within(chat).getByTestId("tool-call-row")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     const chatText = chat.textContent ?? "";
     const beforeIndex = chatText.indexOf("Before search.");
     const reasoningIndex = chatText.indexOf("Need the current launch note before answering.");

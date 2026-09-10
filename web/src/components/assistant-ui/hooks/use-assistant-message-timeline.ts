@@ -195,6 +195,7 @@ function goalPromptMeta(content: unknown): GoalPromptMeta | null {
   return null;
 }
 
+/** Choose an order-independent entry anchor for later streaming projections. */
 function canonicalWorkEntryId(row: Extract<SessionRow, { kind: "work" }>): string {
   let anchor = row.entries[0] ? workEntryIdentity(row.entries[0]) : row.id;
   for (const tool of row.entries.slice(1)) {
@@ -204,6 +205,7 @@ function canonicalWorkEntryId(row: Extract<SessionRow, { kind: "work" }>): strin
   return anchor;
 }
 
+/** Retain anchors for work disclosures, including those nested inside turn folds. */
 function workGroupAnchorsFromRows(
   rows: readonly SessionRow[],
   previousAnchors: ReadonlyMap<string, SessionWorkGroupAnchor>

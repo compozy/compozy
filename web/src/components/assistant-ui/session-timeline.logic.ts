@@ -225,6 +225,11 @@ export function isStreamingState(state: string | undefined): boolean {
   return state === "running" || state === "streaming";
 }
 
+/** Runtime cancellation spellings share one stopped presentation. */
+export function isInterruptedState(state: string | undefined): boolean {
+  return state === "interrupted" || state === "cancelled" || state === "canceled";
+}
+
 export function deriveSessionRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions = {}
@@ -260,10 +265,10 @@ function turnRecordedTimes(
   return times;
 }
 
-// A call that was still running when the operator stopped its turn never gets a
-// result. It reads "stopped" (ADR-009), not "running" and not "failed": the
-// stop was the operator's, nothing broke. Only turns the fold layer already
-// knows as interrupted/superseded qualify; the live turn keeps its running row.
+/**
+ * Normalize explicit cancellation states and pending calls in stopped turns.
+ * A turn-level stop does not interrupt a call in the current active turn.
+ */
 function markInterruptedCalls(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions
@@ -272,24 +277,22 @@ function markInterruptedCalls(
     ...(options.interruptedTurnIds ?? []),
     ...(options.supersededTurnIds ?? []),
   ]);
-  if (stopped.size === 0) return parts;
   let changed = false;
   const marked = parts.map(part => {
-    if (
-      part.kind !== "tool" ||
-      part.status !== "running" ||
-      !part.turnId ||
-      !stopped.has(part.turnId) ||
-      part.turnId === options.activeTurnId
-    ) {
-      return part;
-    }
+    if (part.kind !== "tool" || part.status === "interrupted") return part;
+    const turnStopped =
+      part.status === "running" &&
+      part.turnId !== undefined &&
+      stopped.has(part.turnId) &&
+      part.turnId !== options.activeTurnId;
+    if (!isInterruptedState(part.state) && !turnStopped) return part;
     changed = true;
     return { ...part, status: "interrupted" as const };
   });
   return changed ? marked : parts;
 }
 
+/** Group same-turn work until a visible narrative or interaction boundary. */
 function deriveBaseRows(
   parts: readonly SessionTimelinePart[],
   options: DeriveSessionRowsOptions
@@ -405,17 +408,23 @@ function dataRowFromCluster(parts: SessionTimelineDataPart[]): SessionDataRow {
   };
 }
 
-// The live tail is the trailing tool run of the part list — the run new calls
-// still append to. It stays open while every earlier run collapses the moment
-// it settles, even mid-turn. A trailing run qualifies when (ignoring the
-// working indicator) it ends the transcript and either belongs to the active
-// turn or still has running calls.
+/**
+ * Find the same-turn work run that can still receive activity, ignoring internal
+ * progress ticks and the working indicator. Earlier settled segments may fold.
+ */
 function findLiveTailClusterStart(
   parts: readonly SessionTimelinePart[],
   activeTurnId: string | undefined
 ): string | null {
   let index = parts.length - 1;
-  while (index >= 0 && parts[index]!.kind === "working") index -= 1;
+  while (index >= 0) {
+    const part = parts[index]!;
+    if (part.kind === "working" || (part.kind === "data" && isProgressTick(part))) {
+      index -= 1;
+      continue;
+    }
+    break;
+  }
   const last = index >= 0 ? parts[index] : undefined;
   if (!last || (last.kind !== "tool" && last.kind !== "reasoning")) return null;
   const cluster: SessionWorkEntry[] = [last];
@@ -437,10 +446,12 @@ function findLiveTailClusterStart(
   return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
 }
 
-// Folds consecutive reasoning parts (same turn, uninterrupted by other kinds)
-// into one row: the grouped text is the parts joined by a blank line so nothing
-// is lost, `updateCount` counts the grouped updates, and `streaming` stays
-// true while any part is still live.
+/**
+ * Folds consecutive reasoning parts (same turn, uninterrupted by other kinds)
+ * into one row: the grouped text is the parts joined by a blank line so nothing
+ * is lost, `updateCount` counts the grouped updates, and `streaming` stays
+ * true while any part is still live.
+ */
 export function reasoningRowFromCluster(
   parts: SessionTimelineReasoningPart[]
 ): SessionReasoningRow {

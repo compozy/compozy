@@ -22,6 +22,7 @@ import { summarizeToolGroup } from "./session-timeline-summary";
 import {
   type DeriveSessionRowsOptions,
   isStreamingState,
+  isInterruptedState,
   type SessionChangedFilesRow,
   type SessionRow,
   type SessionTimelineToolPart,
@@ -82,6 +83,7 @@ function changedFilesRowForTurn(
   };
 }
 
+/** Count and summarize actual tool calls without treating reasoning as tool activity. */
 function collectTurnToolParts(group: readonly SessionRow[]): SessionTimelineToolPart[] {
   const tools: SessionTimelineToolPart[] = [];
   for (const row of group) {
@@ -162,9 +164,11 @@ function foldTurnGroup(
   return visibleRows;
 }
 
-// Text, decision asks, permissions, errors and terminal evidence remain
-// operator-visible after a turn settles (rich rows never fold, ADR-006).
-// Deliberate terminal tool rows are their own surface, not transient work.
+/**
+ * Text, decision asks, permissions, errors and terminal evidence remain
+ * operator-visible after a turn settles (rich rows never fold, ADR-006).
+ * Deliberate terminal tool rows are their own surface, not transient work.
+ */
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
   if (row.kind === "work") {
@@ -244,6 +248,7 @@ function turnGroupIsActive(
   });
 }
 
+/** Recognize recorded turn stops and cancellation states inside mixed work. */
 function turnGroupIsInterrupted(
   group: readonly SessionRow[],
   turnId: string,
@@ -266,10 +271,6 @@ function turnGroupIsInterrupted(
     if (row.kind === "data") return row.parts.some(part => isInterruptedState(part.state));
     return false;
   });
-}
-
-function isInterruptedState(state: string | undefined): boolean {
-  return state === "interrupted" || state === "cancelled" || state === "canceled";
 }
 
 // The turn's span: every instant the daemon recorded for it (rows here plus the

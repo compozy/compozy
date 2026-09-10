@@ -4,7 +4,11 @@ import {
   useRevealHold,
 } from "./hooks/session-navigation-target-context";
 import { toolMessageFromPart } from "./session-timeline-tool-message";
-import { isStreamingState, type SessionWorkEntry } from "./session-timeline.logic";
+import {
+  isStreamingState,
+  isInterruptedState,
+  type SessionWorkEntry,
+} from "./session-timeline.logic";
 
 /** Render the original part; grouping never replaces its detail or copy actions. */
 export function SessionWorkEntryView({
@@ -41,7 +45,7 @@ export function SessionWorkEntryView({
       message={toolMessageFromPart(entry)}
       partIndex={entry.partIndex}
       turnSettled={!active}
-      interrupted={entry.status === "interrupted"}
+      interrupted={entry.status === "interrupted" || isInterruptedState(entry.state)}
       turnFailed={turnFailed}
       revealOpen={hold.held}
       onRevealRelease={hold.release}

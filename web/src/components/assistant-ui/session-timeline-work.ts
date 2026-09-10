@@ -29,8 +29,7 @@ export function liveToolRowId(turnId: string | undefined): string {
   return `live:${turnId ?? "none"}`;
 }
 
-// Mixed activity stays ordered even while calls complete out of order. Terminal
-// tools retain their deliberate, individually visible interaction surface.
+/** Keep mixed activity ordered while leaving deliberate terminal interactions visible. */
 export function workRowsFromCluster(
   entries: SessionWorkEntry[],
   options: DeriveSessionRowsOptions,
@@ -89,6 +88,7 @@ export function workRowsFromCluster(
   return rows;
 }
 
+/** Retain tool-only live and settled presentation within each terminal boundary. */
 function toolRowsFromCluster(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
@@ -131,10 +131,12 @@ function splitTerminalSegments(
   return segments;
 }
 
-// The live tail: completed calls first (one group when 2+ summarize, otherwise
-// their own rows), then one live row per running child agent, then the single
-// live row for every other running call. Order inside the narrative reads
-// "what it already did, what it's doing".
+/**
+ * The live tail: completed calls first (one group when 2+ summarize, otherwise
+ * their own rows), then one live row per running child agent, then the single
+ * live row for every other running call. Order inside the narrative reads
+ * "what it already did, what it's doing".
+ */
 function liveWorkRows(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
@@ -220,6 +222,7 @@ function settledWorkRows(
   });
 }
 
+/** Keep original entries and the retained group identity behind an optional summary. */
 function settledWorkRow(
   entries: SessionWorkEntry[],
   summary: SessionWorkRow["summary"],

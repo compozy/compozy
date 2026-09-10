@@ -130,10 +130,12 @@ function changedFilesEqual(
   });
 }
 
-// CompozyOS tool inputs arrive complete (not token-streamed), so a tool's meaningful
-// change is always accompanied by a status/state/error transition. Comparing
-// those primitives — not the re-parsed `args`/`result` object references — keeps
-// settled entries stable across the hook's per-message re-parse.
+/**
+ * CompozyOS tool inputs arrive complete (not token-streamed), so a tool's meaningful
+ * change is always accompanied by a status/state/error transition. Comparing
+ * those primitives — not the re-parsed `args`/`result` object references — keeps
+ * settled entries stable across the hook's per-message re-parse.
+ */
 function workEntriesEqual(a: readonly SessionWorkEntry[], b: readonly SessionWorkEntry[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((tool, index) => {

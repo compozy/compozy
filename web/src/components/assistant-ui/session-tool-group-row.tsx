@@ -69,7 +69,7 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
         {row.expanded
           ? row.entries.map(entry => (
               <SessionWorkEntryView
-                key={entry.id}
+                key={`${entry.kind}:${entry.id}`}
                 entry={entry}
                 active={row.active}
                 turnFailed={turnFailed}
