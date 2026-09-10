@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="pt-BR" data-material="regular" data-backdrop="sunset" data-refraction="on">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Matéria — laboratório de vidro</title>
+  <link rel="stylesheet" href="glass.css">
+  <style>
+    * { box-sizing: border-box; }
+    html { --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E"); }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; }
+    svg { display: block; }
+    .vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    .page { max-width: 1480px; margin: auto; padding: 28px 40px 32px; }
+    .masthead { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; padding: 0 4px 18px; }
+    .wordmark { font-size: 22px; font-weight: 650; letter-spacing: -.05em; display: flex; align-items: center; gap: 8px; }
+    .wordmark i { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #f0b6a3, #a9a6c9); box-shadow: inset 0 1px 0 rgb(255 255 255 / .6); }
+    .eyebrow, .micro { font: 11px/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .lead { margin: 0; color: var(--muted); max-width: 64ch; }
+
+    /* ---------- Scene ---------- */
+    .scene { position: relative; overflow: hidden; border-radius: 30px; min-height: 780px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; padding: 26px; isolation: isolate; }
+    .backdrop { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--bd, #888); }
+    .backdrop .b { position: absolute; border-radius: 50%; filter: blur(var(--blur, 40px)); opacity: var(--op, 1); transform: translateZ(0); }
+    .backdrop .grain { position: absolute; inset: -20px; background: var(--grain) center / 160px; opacity: .55; mix-blend-mode: soft-light; filter: none; }
+    .backdrop .stripes, .backdrop .lines { display: none; position: absolute; inset: 0; }
+
+    :root[data-backdrop="sunset"] .backdrop { --bd: linear-gradient(180deg, #a5a3c8 0%, #c4a8c2 26%, #e4a9b5 46%, #f1b7a4 60%, #e7ad99 72%, #b28174 100%); }
+    :root[data-backdrop="sunset"] .b1 { left: 34%; top: 30%; width: 70%; height: 46%; background: radial-gradient(closest-side, rgb(255 236 220 / .9), rgb(255 236 220 / 0)); --blur: 30px; }
+    :root[data-backdrop="sunset"] .b2 { left: -24%; top: 74%; width: 86%; height: 52%; background: #5a3f45; --blur: 28px; }
+    :root[data-backdrop="sunset"] .b3 { left: 44%; top: 78%; width: 84%; height: 56%; background: #7b5350; --blur: 34px; }
+    :root[data-backdrop="sunset"] .b4 { left: -10%; top: 92%; width: 120%; height: 34%; background: #3d2b2f; --blur: 22px; }
+
+    :root[data-backdrop="meadow"] .backdrop { --bd: linear-gradient(180deg, #a9c5c9 0%, #cfe0d6 34%, #dbe4c6 50%, #93a866 62%, #5f7a45 100%); }
+    :root[data-backdrop="meadow"] .b1 { left: -10%; top: -20%; width: 70%; height: 60%; background: radial-gradient(closest-side, rgb(255 250 230 / .9), rgb(255 250 230 / 0)); --blur: 30px; }
+    :root[data-backdrop="meadow"] .b2 { left: 40%; top: 56%; width: 80%; height: 40%; background: #b7c98a; --blur: 34px; --op: .9; }
+    :root[data-backdrop="meadow"] .b3 { left: -20%; top: 74%; width: 90%; height: 50%; background: #3f5a33; --blur: 30px; }
+    :root[data-backdrop="meadow"] .b4 { left: 55%; top: 84%; width: 70%; height: 40%; background: #2e4a2a; --blur: 26px; }
+
+    :root[data-backdrop="poppy"] .backdrop { --bd: linear-gradient(180deg, #2b6fc4 0%, #3f88d6 40%, #6fb0e8 100%); }
+    :root[data-backdrop="poppy"] .b1 { left: 8%; top: 10%; width: 46%; height: 62%; background: #ff8a1f; --blur: 14px; border-radius: 48% 52% 46% 54% / 60% 40% 60% 40%; transform: rotate(-18deg); }
+    :root[data-backdrop="poppy"] .b2 { left: 22%; top: 22%; width: 20%; height: 26%; background: #ffb452; --blur: 22px; --op: .8; }
+    :root[data-backdrop="poppy"] .b3 { left: 66%; top: 66%; width: 40%; height: 46%; background: #2e5f30; --blur: 40px; --op: .75; }
+    :root[data-backdrop="poppy"] .b4 { left: 28%; top: 62%; width: 3%; height: 60%; background: #4f8f3c; --blur: 6px; border-radius: 40%; }
+
+    :root[data-backdrop="deep"] .backdrop { --bd: linear-gradient(180deg, #10151c 0%, #232d38 40%, #4d5f6e 72%, #7d8f9d 100%); }
+    :root[data-backdrop="deep"] .b1 { left: 20%; top: 46%; width: 70%; height: 30%; background: #8ea0ae; --blur: 60px; --op: .55; }
+    :root[data-backdrop="deep"] .b2 { left: -10%; top: 70%; width: 60%; height: 40%; background: #3a4855; --blur: 50px; }
+    :root[data-backdrop="deep"] .b3 { left: 60%; top: -10%; width: 50%; height: 40%; background: #1a222c; --blur: 50px; }
+    :root[data-backdrop="deep"] .b4 { display: none; }
+
+    :root[data-backdrop="studio"] .backdrop { --bd: linear-gradient(180deg, #e4e7ea 0%, #cfd4d8 45%, #a9b0b6 100%); }
+    :root[data-backdrop="studio"] .b1 { left: -10%; top: -20%; width: 60%; height: 60%; background: radial-gradient(closest-side, #ffffff, rgb(255 255 255 / 0)); --blur: 20px; }
+    :root[data-backdrop="studio"] .b2 { left: 55%; top: 60%; width: 70%; height: 60%; background: #8e969d; --blur: 60px; --op: .8; }
+    :root[data-backdrop="studio"] .b3 { left: 30%; top: 40%; width: 40%; height: 30%; background: #f2f4f6; --blur: 60px; --op: .6; }
+    :root[data-backdrop="studio"] .b4 { display: none; }
+
+    :root[data-backdrop="pastel"] .backdrop { --bd: #fbf9fb; }
+    :root[data-backdrop="pastel"] .b1 { left: -8%; top: -10%; width: 50%; height: 50%; background: #ffd9c4; --blur: 70px; --op: .9; }
+    :root[data-backdrop="pastel"] .b2 { left: 30%; top: 30%; width: 44%; height: 44%; background: #f6c7dd; --blur: 80px; --op: .85; }
+    :root[data-backdrop="pastel"] .b3 { left: 64%; top: 6%; width: 46%; height: 50%; background: #dad4f8; --blur: 80px; --op: .9; }
+    :root[data-backdrop="pastel"] .b4 { left: 50%; top: 66%; width: 60%; height: 50%; background: #cfe3ff; --blur: 80px; --op: .9; }
+
+    :root[data-backdrop="stress"] .backdrop { --bd: linear-gradient(120deg, #1a2230 0%, #2a2f3a 40%, #d81b8a 41%, #d81b8a 58%, #f4f1e8 59%, #f4f1e8 100%); }
+    :root[data-backdrop="stress"] .b1 { left: 36%; top: 18%; width: 30%; height: 34%; background: #ffffff; --blur: 24px; }
+    :root[data-backdrop="stress"] .b2 { left: 6%; top: 50%; width: 26%; height: 44%; background: #ffd400; --blur: 4px; border-radius: 12%; }
+    :root[data-backdrop="stress"] .b3 { left: 68%; top: 56%; width: 18%; height: 60%; background: #000; --blur: 2px; border-radius: 10%; }
+    :root[data-backdrop="stress"] .b4 { display: none; }
+    :root[data-backdrop="stress"] .stripes { display: block; background: repeating-linear-gradient(45deg, rgb(255 255 255 / .35) 0 6px, transparent 6px 22px); left: 0; width: 40%; }
+    :root[data-backdrop="stress"] .lines { display: block; left: 60%; width: 40%; background: repeating-linear-gradient(180deg, #1c1c1c 0 9px, transparent 9px 20px) 0 0 / 82% 100% no-repeat; opacity: .85; }
+
+    .scene[data-ink="dark"] { --glass-ink: #1b2129; --glass-ink-muted: rgb(27 33 41 / .62); --glass-focus: #0b5fd1; --glass-tint: 255 255 255; --glass-rim-near: 255 255 255; --glass-rim-far: 30 38 48; --glass-shade: 30 38 48; }
+    .scene[data-ink="dim"] .glass { --glass-tint: 56 50 58; --glass-alpha: .66; --glass-blur: 18px; --glass-saturate: 1.25; --glass-brightness: .98; --glass-rim: .75; --glass-sheen: .16; --glass-shade: 26 22 30; --glass-shadow-alpha: .32; --glass-solid: #3e3840; }
+    .scene[data-ink="dim"] .pill.clear { --glass-alpha: .62; }
+    .scene[data-ink="dim"] .media button { --glass-alpha: .5; --glass-blur: 6px; }
+    .scene[data-ink="dim"] .desk.glass { --glass-alpha: .66; --glass-blur: 36px; }
+    .scene[data-ink="dim"] .glass-plate { background: rgb(255 255 255 / .12); }
+    .stage { position: relative; z-index: 1; min-width: 0; display: grid; grid-template-columns: 352px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 22px 26px; }
+    .topbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; }
+    .chip { display: inline-flex; align-items: center; gap: 10px; padding: 9px 14px 9px 12px; font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
+    .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 3px rgb(52 199 89 / .25); }
+    .search { display: flex; align-items: center; gap: 10px; width: min(420px, 100%); padding: 6px 8px 6px 16px; min-height: 48px; }
+    .search input { flex: 1; min-width: 0; background: transparent; border: 0; color: inherit; font-size: 15px; padding: 8px 0; outline: none; }
+    .search input::placeholder { color: var(--glass-ink-muted); }
+    .search kbd { font: 12px/1 ui-monospace, Menlo, monospace; padding: 7px 9px; border-radius: 10px; background: rgb(var(--glass-tint) / .18); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .18); color: var(--glass-ink-muted); }
+    .search .sep { width: 1px; height: 22px; background: rgb(var(--glass-rim-far) / .25); margin: 0 2px; }
+    .icon-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; border: 0; background: transparent; color: inherit; border-radius: 12px; }
+    .icon-btn:hover { background: rgb(var(--glass-tint) / .16); }
+
+    /* Weather stack (reference: Rybin) */
+    .stack { display: grid; gap: 12px; align-content: start; }
+    .weather { padding: 22px 24px 20px; --glass-radius: 30px; }
+    .weather.lead-card { display: grid; grid-template-rows: auto 1fr auto; padding-bottom: 92px; }
+    .weather h2 { margin: 0; font-size: 21px; font-weight: 590; letter-spacing: -.02em; }
+    .weather .sub { margin: 3px 0 0; color: var(--glass-ink-muted); font-size: 14px; }
+    .weather .disc { position: absolute; right: 22px; top: 20px; width: 66px; height: 66px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, rgb(255 255 255 / .55), rgb(255 255 255 / .18) 70%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .5); }
+    .metrics { display: grid; grid-template-columns: auto auto; gap: 14px 18px; margin: 26px 0 0; justify-content: start; }
+    .metrics dt { font-size: 13px; color: var(--glass-ink-muted); }
+    .metrics dd { margin: 4px 0 0; font-size: 17px; font-weight: 590; letter-spacing: -.01em; display: flex; align-items: center; gap: 6px; }
+    .metrics dd svg { width: 18px; height: 18px; opacity: .9; }
+    .temp { font-size: 64px; font-weight: 300; letter-spacing: -.05em; line-height: .9; display: inline-flex; align-items: flex-start; gap: 4px; }
+    .temp sup { font-size: 20px; font-weight: 500; letter-spacing: 0; margin-top: 8px; }
+    .weather.lead-card .temp { position: absolute; right: 22px; bottom: 16px; }
+    .weather.lead-card { min-height: 300px; }
+    .weather.row { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; --glass-radius: 26px; }
+    .weather.row .temp { font-size: 52px; }
+
+    .note { padding: 18px 20px 16px; --glass-radius: 26px; }
+    .note-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .note-head h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+    .note-head .sub { margin: 2px 0 0; font-size: 12.5px; color: var(--glass-ink-muted); }
+    .badge { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: rgb(var(--glass-tint) / .22); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .25); flex-shrink: 0; }
+    .badge svg { width: 20px; height: 20px; }
+    .note-body { padding: 12px 14px 12px; }
+    .note-body p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+    .note-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .mini { border: 0; padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--glass-ink); min-height: 36px; }
+    .mini:hover { background: rgb(var(--glass-tint) / .34); }
+    /* Control cluster */
+    .cluster { min-width: 0; display: grid; grid-template-rows: auto auto 1fr; gap: 22px; align-content: start; }
+    .row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .pill { display: inline-flex; align-items: center; gap: 10px; padding: 0 18px; min-height: 48px; border: 0; color: var(--glass-ink); font-weight: 600; font-size: 15px; letter-spacing: -.01em; white-space: nowrap; }
+    .pill .orb { width: 30px; height: 30px; margin-left: -8px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #fff 0, #ffd6c2 30%, #ff7a59 55%, #3b5bff 100%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .7), 0 2px 6px rgb(0 0 0 / .2); color: #fff; }
+    .pill.clear { --glass-alpha: .06; --glass-rim: 1; --glass-sheen: .12; min-width: 128px; justify-content: center; text-shadow: 0 1px 2px rgb(0 0 0 / .18); }
+    .scene[data-ink="dark"] .pill.clear { --glass-alpha: .38; text-shadow: none; }
+    .pill.send { width: 56px; padding: 0; justify-content: center; }
+    .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 22px; align-items: center; }
+    .slider { --glass-radius: 999px; display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 16px; min-height: 52px; position: relative; }
+    .slider .lab { font-size: 13px; color: var(--glass-ink-muted); white-space: nowrap; }
+    .track { position: relative; flex: 1; height: 36px; min-width: 120px; }
+    .track .rail { position: absolute; left: 0; right: 0; top: 50%; height: 6px; margin-top: -3px; border-radius: 999px; background: rgb(255 255 255 / .28); overflow: hidden; }
+    .track .fill { position: absolute; inset: 0 auto 0 0; width: var(--v, 52%); background: rgb(255 255 255 / .92); }
+    .track input[type="range"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .track .knob { position: absolute; top: 50%; left: var(--v, 52%); width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; --glass-radius: 50%; --glass-tint: 255 255 255; --glass-alpha: .5; --glass-blur: 3px; --glass-brightness: 1.1; --glass-rim: 1; --glass-rim-near: 255 255 255; --glass-rim-far: 255 255 255; --glass-shade: 10 12 18; --glass-elevation: 6px; pointer-events: none; }
+    .track input:focus-visible + .rail + .knob { outline: 3px solid var(--glass-focus); outline-offset: 3px; }
+    .switch { display: inline-flex; align-items: center; gap: 12px; border: 0; background: transparent; color: var(--glass-ink); padding: 4px; font-weight: 600; }
+    .switch .st { position: relative; width: 62px; height: 36px; border-radius: 999px; background: rgb(255 255 255 / .28); box-shadow: inset 0 1px 2px rgb(0 0 0 / .18), inset 0 0 0 1px rgb(255 255 255 / .25); transition: background .2s; }
+    .switch[aria-checked="true"] .st { background: #34c759; }
+    .switch .th { position: absolute; top: 4px; left: 4px; width: 28px; height: 28px; border-radius: 50%; --glass-radius: 50%; --glass-alpha: .28; --glass-blur: 2px; --glass-brightness: 1.15; --glass-elevation: 5px; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+    .switch[aria-checked="true"] .th { transform: translateX(26px); }
+
+    .media { display: flex; justify-content: center; align-items: center; gap: 22px; align-self: center; padding: 12px 0 4px; }
+    .media button { border: 0; width: 64px; height: 64px; --glass-radius: 50%; --glass-alpha: .10; --glass-blur: 4px; --glass-brightness: 1.08; --glass-rim: 1; display: grid; place-items: center; color: var(--glass-ink); }
+    .scene[data-ink="dark"] .media button { --glass-alpha: .5; --glass-blur: 8px; }
+    .media button.main { width: 96px; height: 96px; }
+    .media svg { width: 28px; height: 28px; }
+    .scene[data-ink="light"] .media svg { filter: drop-shadow(0 1px 1px rgb(0 0 0 / .25)); }
+    .media button.main svg { width: 40px; height: 40px; }
+
+    .dock { grid-column: 1 / -1; justify-self: center; display: flex; gap: 6px; padding: 8px; --glass-alpha: .2; }
+    .dock a { display: grid; place-items: center; width: 56px; height: 52px; border-radius: 18px; color: var(--glass-ink); text-decoration: none; opacity: .86; }
+    .dock a[aria-current] { background: rgb(var(--glass-tint) / .28); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .3); opacity: 1; }
+    .dock svg { width: 24px; height: 24px; }
+
+    /* Desk */
+    .desk { position: relative; z-index: 1; align-self: start; padding: 20px 20px 16px; --glass-radius: 28px; }
+    .scene .desk.glass { --glass-alpha: .4; --glass-blur: 36px; --glass-saturate: 1.3; }
+    .scene[data-ink="dark"] .desk.glass { --glass-alpha: .78; }
+    .scene[data-ink="light"] .desk.glass { --glass-tint: 44 40 50; --glass-alpha: .5; --glass-rim: .6; --glass-sheen: .1; --glass-solid: #3b3f4b; }
+    .desk h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.02em; }
+    .desk-head { display: grid; gap: 4px; margin-bottom: 12px; }
+    .status { margin: 0; font-size: 12px; color: var(--glass-ink-muted); display: flex; align-items: center; gap: 7px; }
+    .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #34c759; }
+    .group { padding: 10px 0 12px; border-top: 1px solid rgb(var(--glass-rim-far) / .16); }
+    .group:first-of-type { border-top: 0; padding-top: 0; }
+    .group.contrast { border-top: 0; padding: 10px 12px; margin-bottom: 8px; }
+    .group.contrast + .group { border-top: 0; padding-top: 0; }
+    .group > .lab { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 9px; color: var(--glass-ink); }
+    .group > .lab output { font: 11px/1 ui-monospace, Menlo, monospace; color: var(--glass-ink-muted); }
+    fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+    legend { padding: 0; }
+    .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+    .swatch { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; cursor: pointer; }
+    .swatch i { width: 24px; height: 24px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35), 0 1px 2px rgb(0 0 0 / .2); }
+    input:checked + .swatch { background: rgb(var(--glass-tint) / .3); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .4); }
+    input:focus-visible + .swatch { outline: 3px solid var(--glass-focus); outline-offset: 2px; }
+    .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 12px; background: rgb(var(--glass-shade) / .16); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-far) / .1); }
+    .seg label { display: grid; place-items: center; min-height: 36px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--glass-ink-muted); }
+    .seg input:checked + span { color: var(--glass-ink); }
+    .seg label:has(input:checked) { background: rgb(var(--glass-tint) / .42); box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .35), 0 1px 2px rgb(0 0 0 / .1); }
+    .seg label:has(input:focus-visible) { outline: 3px solid var(--glass-focus); outline-offset: 2px; }
+    .range { width: 100%; margin: 0; accent-color: var(--glass-ink); height: 26px; }
+    .toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: transparent; border: 0; border-radius: 10px; color: var(--glass-ink); text-align: left; padding: 4px 2px; font-size: 13px; font-weight: 500; min-height: 44px; }
+    .toggle small { display: block; font-weight: 400; color: var(--glass-ink-muted); font-size: 11.5px; }
+    .toggle .tt { flex-shrink: 0; width: 40px; height: 24px; border-radius: 30px; background: rgb(255 255 255 / .28); box-shadow: inset 0 1px 2px rgb(0 0 0 / .18); padding: 3px; transition: background .2s; }
+    .toggle .tt::after { content: ""; display: block; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .2s; }
+    .toggle[aria-pressed="true"] .tt { background: #34c759; }
+    .toggle[aria-pressed="true"] .tt::after { transform: translateX(16px); }
+    .toggle:disabled { opacity: .55; }
+    .hint { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--glass-ink-muted); }
+    .tokens { margin: 0; padding: 10px 12px; border-radius: 12px; font: 11px/1.45 ui-monospace, Menlo, monospace; white-space: pre; overflow: auto; }
+    .tokens-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .copy { border: 0; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; min-height: 32px; }
+
+    /* Notes */
+    .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 30px 4px 0; }
+    .notes h3 { font-size: 14px; margin: 8px 0 6px; font-weight: 650; letter-spacing: -.01em; }
+    .notes p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 40ch; }
+    footer { display: flex; justify-content: space-between; gap: 16px; padding: 32px 4px 0; font-size: 11px; color: var(--muted); }
+
+    @media (max-width: 1180px) {
+      .stage { grid-template-columns: 320px minmax(0, 1fr); }
+      .weather.lead-card .temp { font-size: 64px; }
+    }
+    @media (max-width: 1000px) {
+      .page { padding: 20px; }
+      .scene { grid-template-columns: minmax(0, 1fr); padding: 18px; min-height: 0; }
+      .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+      .cluster { grid-template-rows: none; }
+      .media { padding: 10px 0; }
+      .notes { grid-template-columns: 1fr; gap: 20px; }
+    }
+    @media (max-width: 560px) {
+      .page { padding: 14px; }
+      .scene { padding: 14px; border-radius: 22px; }
+      .topbar { flex-direction: column; align-items: stretch; }
+      .search { width: 100%; }
+      .controls { grid-template-columns: minmax(0, 1fr); }
+      .weather.lead-card .temp { position: static; margin-top: 18px; }
+      .weather .disc { width: 52px; height: 52px; }
+      .media button { width: 56px; height: 56px; }
+      .media button.main { width: 80px; height: 80px; }
+      .dock a { width: 48px; }
+      .desk { padding: 18px 16px 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+    @media (forced-colors: active) {
+      .backdrop { display: none; }
+      .scene { border: 1px solid CanvasText; }
+      .track .rail, .track .fill, .switch .st, .toggle .tt, .seg { border: 1px solid ButtonText; background: Canvas; }
+      .track .fill { background: Highlight; }
+      .switch[aria-checked="true"] .st, .toggle[aria-pressed="true"] .tt { background: Highlight; }
+      .toggle .tt::after, .track .knob, .switch .th { background: ButtonText; border: 1px solid ButtonText; }
+      .dock a[aria-current] { outline: 2px solid Highlight; }
+      .chip .dot { background: Highlight; box-shadow: none; }
+    }
+    @media print {
+      body { background: #fff; color: #000; }
+      .backdrop, .desk, .media, .dock, footer { display: none; }
+      .scene { display: block; min-height: 0; border: 1px solid #777; }
+      .stage { display: block; }
+      .weather, .search, .row, .controls { margin: 12px 0; }
+      .notes { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <div class="wordmark"><i aria-hidden="true"></i>matéria</div>
+      <div class="eyebrow">Laboratório de vidro · Nº 005</div>
+    </header>
+
+    <section class="scene" id="scene" data-ink="light" aria-label="Cena de materiais">
+      <div class="backdrop" aria-hidden="true">
+        <div class="b b1"></div><div class="b b2"></div><div class="b b3"></div><div class="b b4"></div>
+        <div class="stripes"></div><div class="lines"></div>
+        <div class="grain"></div>
+      </div>
+
+      <div class="stage">
+        <div class="topbar">
+          <div class="chip glass glass-pill"><span class="dot" aria-hidden="true"></span>Composição · sistema ao vivo</div>
+          <form class="search glass glass-pill" role="search" onsubmit="return false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <label class="vh" for="q">Buscar</label>
+            <input id="q" type="search" placeholder="Buscar" autocomplete="off">
+            <kbd>⌘K</kbd>
+            <span class="sep" aria-hidden="true"></span>
+            <button class="icon-btn" type="button" aria-label="Ajuda"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg></button>
+          </form>
+        </div>
+
+        <div class="stack" aria-label="Widgets de clima">
+          <article class="weather lead-card glass" id="sample" tabindex="-1" aria-labelledby="w1">
+            <div><h2 id="w1">Florianópolis</h2><p class="sub">Ensolarado · 07:04</p></div>
+            <div class="disc" aria-hidden="true"></div>
+            <dl class="metrics">
+              <div><dt>Vento</dt><dd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8"/></svg>12 km/h</dd></div>
+              <div><dt>Visibilidade</dt><dd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-7.95A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg>10 km</dd></div>
+              <div><dt>Qualidade do ar</dt><dd><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="14" r="2"/><circle cx="12" cy="9" r="2"/><circle cx="18" cy="14" r="2"/><circle cx="12" cy="17" r="1.5"/></svg>32</dd></div>
+              <div><dt>Umidade</dt><dd><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>61%</dd></div>
+            </dl>
+            <div class="temp" aria-label="24 graus Celsius">24<sup>°C</sup></div>
+          </article>
+          <article class="weather row glass" aria-labelledby="w2">
+            <div><h2 id="w2">Lisboa</h2><p class="sub">Nublado</p></div>
+            <div class="temp" aria-label="18 graus Celsius">18<sup>°C</sup></div>
+          </article>
+          <article class="weather row glass" aria-labelledby="w3">
+            <div><h2 id="w3">São Francisco</h2><p class="sub">Névoa</p></div>
+            <div class="temp" aria-label="15 graus Celsius">15<sup>°C</sup></div>
+          </article>
+          <article class="note glass" aria-labelledby="n1">
+            <div class="note-head"><span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0v5l2 3H4l2-3zM10 19a2 2 0 0 0 4 0"/></svg></span><div><h2 id="n1">Revisão do material</h2><p class="sub">Placa estável · hoje, 09:30</p></div></div>
+            <div class="glass-plate note-body">
+              <p>Texto denso vive numa placa mais densa que a casca. Troque o fundo para <strong>Estresse</strong> e compare a leitura deste parágrafo com a dos widgets acima.</p>
+              <div class="note-actions"><button class="mini glass-plate" type="button">Adiar</button><button class="mini glass-plate" type="button">Concluir</button></div>
+            </div>
+          </article>
+        </div>
+
+        <div class="cluster">
+          <div class="row" aria-label="Botões">
+            <button class="pill glass glass-pill" type="button"><span class="orb" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg></span>Perguntar aos agentes<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="pill clear glass glass-pill" type="button" data-lens data-lens-strength=".12">Botão</button>
+            <button class="pill send glass glass-pill glass-tinted" type="button" aria-label="Enviar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg></button>
+          </div>
+
+          <div class="controls">
+            <div class="slider glass glass-smoke">
+              <span class="lab" id="vol-label">Volume</span>
+              <div class="track" style="--v: 52%">
+                <input id="vol" type="range" min="0" max="100" value="52" aria-labelledby="vol-label">
+                <div class="rail" aria-hidden="true"><div class="fill"></div></div>
+                <div class="knob glass" data-lens data-lens-strength=".26" aria-hidden="true"></div>
+              </div>
+            </div>
+            <button class="switch" type="button" role="switch" aria-checked="true" id="notif"><span>Notificações</span><span class="st" aria-hidden="true"><span class="th glass" data-lens data-lens-strength=".3"></span></span></button>
+          </div>
+
+          <div class="media" aria-label="Controles de mídia">
+            <button class="glass" type="button" aria-label="Faixa anterior" data-lens data-lens-strength=".24"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 20 9 12l10-8v16zM7 4H4v16h3z"/></svg></button>
+            <button class="glass main" type="button" aria-label="Pausar" aria-pressed="true" id="play" data-lens data-lens-strength=".26"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="4.5" height="16" rx="1.5"/></svg></button>
+            <button class="glass" type="button" aria-label="Próxima faixa" data-lens data-lens-strength=".24"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 4l10 8-10 8V4zm12 0h3v16h-3z"/></svg></button>
+          </div>
+        </div>
+
+        <nav class="dock glass glass-pill" aria-label="Navegação">
+          <a href="#" aria-current="page" aria-label="Início"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></a>
+          <a href="#" aria-label="Agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4m8-4v4"/></svg></a>
+          <a href="#" aria-label="Métricas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V12m7 8V4m7 16v-7"/></svg></a>
+          <a href="#" aria-label="Mensagens"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z"/></svg></a>
+          <a href="#" aria-label="Novo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+        </nav>
+      </div>
+
+      <aside class="desk glass" aria-labelledby="desk-title">
+        <div class="desk-head"><h2 id="desk-title">Mesa de materiais</h2><p class="status" id="status" role="status" aria-live="polite">Carregando…</p></div>
+        <div class="group contrast glass-plate">
+          <p class="lab" style="margin-bottom:4px"><span>Contraste estimado</span><output id="contrast-out">—</output></p>
+          <p class="hint" id="contrast-hint">Título do widget sobre o composto fundo + preenchimento (estimativa analítica; meça o render final).</p>
+        </div>
+
+        <fieldset class="group">
+          <legend class="lab"><span>Fundo</span></legend>
+          <div class="swatches" id="backdrops">
+            <label><input class="vh" type="radio" name="backdrop" value="sunset" checked><span class="swatch" title="Pôr do sol"><i style="background:linear-gradient(180deg,#a5a3c8,#e4a9b5 50%,#5a3f45)"></i></span><span class="vh">Pôr do sol</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="meadow"><span class="swatch" title="Campo"><i style="background:linear-gradient(180deg,#a9c5c9,#dbe4c6 50%,#3f5a33)"></i></span><span class="vh">Campo</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="poppy"><span class="swatch" title="Papoula"><i style="background:radial-gradient(circle at 35% 45%,#ff8a1f 0 38%,#3f88d6 42%)"></i></span><span class="vh">Papoula</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="deep"><span class="swatch" title="Profundo"><i style="background:linear-gradient(180deg,#10151c,#7d8f9d)"></i></span><span class="vh">Profundo</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="studio"><span class="swatch" title="Estúdio"><i style="background:linear-gradient(135deg,#f4f6f8,#a9b0b6)"></i></span><span class="vh">Estúdio</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="pastel"><span class="swatch" title="Pastel"><i style="background:linear-gradient(135deg,#ffd9c4,#f6c7dd 50%,#cfe3ff)"></i></span><span class="vh">Pastel</span></label>
+            <label><input class="vh" type="radio" name="backdrop" value="stress"><span class="swatch" title="Estresse"><i style="background:linear-gradient(120deg,#1a2230 40%,#d81b8a 41% 58%,#f4f1e8 59%)"></i></span><span class="vh">Estresse</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend class="lab"><span>Material</span></legend>
+          <div class="seg" id="materials">
+            <label><input class="vh" type="radio" name="material" value="clear"><span>Clear</span></label>
+            <label><input class="vh" type="radio" name="material" value="regular" checked><span>Regular</span></label>
+            <label><input class="vh" type="radio" name="material" value="frosted"><span>Frosted</span></label>
+          </div>
+        </fieldset>
+
+        <div class="group">
+          <label class="lab" for="light"><span>Luz</span><output id="light-out">135°</output></label>
+          <input class="range" id="light" type="range" min="0" max="360" step="1" value="135">
+          <label class="lab" for="blur" style="margin-top:10px"><span>Desfoque</span><output id="blur-out">×1.0</output></label>
+          <input class="range" id="blur" type="range" min="0" max="2.5" step=".05" value="1">
+          <label class="lab" for="fill" style="margin-top:10px"><span>Preenchimento</span><output id="fill-out">×1.0</output></label>
+          <input class="range" id="fill" type="range" min=".3" max="2.5" step=".05" value="1">
+        </div>
+
+        <div class="group">
+          <button class="toggle" id="lens-toggle" type="button" aria-pressed="true"><span>Refração<small>Lente SVG via backdrop-filter · Chromium</small></span><span class="tt" aria-hidden="true"></span></button>
+          <button class="toggle" id="grain-toggle" type="button" aria-pressed="false"><span>Grão<small>Ruído estático a 4%</small></span><span class="tt" aria-hidden="true"></span></button>
+          <button class="toggle" id="theme-toggle" type="button" aria-pressed="false"><span>Tema escuro<small>Página fora da cena</small></span><span class="tt" aria-hidden="true"></span></button>
+          <button class="toggle" id="solid-toggle" type="button" aria-pressed="false"><span>Superfícies sólidas<small>Equivale a reduzir transparência</small></span><span class="tt" aria-hidden="true"></span></button>
+        </div>
+
+        <div class="group">
+          <div class="tokens-head"><span class="lab" style="margin:0">Tokens atuais</span><button class="copy glass-plate" id="copy" type="button">Copiar</button></div>
+          <pre class="tokens glass-plate" id="tokens" tabindex="0" aria-label="Tokens CSS do material atual"></pre>
+        </div>
+      </aside>
+    </section>
+
+    <section class="notes" aria-label="Princípios">
+      <div><div class="micro">01 — Fundo</div><h3>O vidro nasce da luz atrás dele.</h3><p>Foto, wallpaper ou gradiente com variação de luminância. Sobre cor chapada o desfoque não tem o que amostrar e o material vira uma caixa cinza.</p></div>
+      <div><div class="micro">02 — Espessura</div><h3>Uma luz só, cinco pistas.</h3><p>Preenchimento fino (claro sobre cena escura, fumê sobre cena clara, frost branco com tinta escura sobre UI clara), rim em gradiente do lado iluminado, brilho interno de 1px, sheen suave e sombra tingida pela cena. Todas obedecem ao mesmo ângulo.</p></div>
+      <div><div class="micro">03 — Leitura</div><h3>Texto denso mora numa placa.</h3><p>A casca vende o material; a placa estabiliza o conteúdo. Refração é opcional, só em controles pequenos, e o modo sólido é parte do projeto.</p></div>
+    </section>
+    <footer><span>MATÉRIA / EXPLORAÇÕES DE SUPERFÍCIE</span><span>Tab percorre os controles · Esc não é necessário</span></footer>
+  </div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs id="lens-defs"></defs></svg>
+
+  <script>
+    const root = document.documentElement;
+    const scene = document.getElementById('scene');
+    const $ = (s) => document.querySelector(s);
+    const systemDark = matchMedia('(prefers-color-scheme: dark)');
+    const reducedTransparency = matchMedia('(prefers-reduced-transparency: reduce)');
+    const forcedColors = matchMedia('(forced-colors: active)');
+    const hasBackdrop = CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+    const isChromium = /Chrome\/|Chromium\/|CriOS\//.test(navigator.userAgent) && !/Firefox\//.test(navigator.userAgent);
+    const inkByBackdrop = { sunset: 'dim', meadow: 'dark', poppy: 'dim', deep: 'light', studio: 'dark', pastel: 'dark', stress: 'light' };
+    // Median / 90th-percentile relative luminance of each backdrop behind the widget stack (measured from renders, 1440px).
+    const backdropLum = { sunset: [.455, .534], meadow: [.726, .789], poppy: [.329, .398], deep: [.033, .089], studio: [.66, .903], pastel: [.899, .952], stress: [.167, .683] };
+    const names = { sunset: 'Pôr do sol', meadow: 'Campo', poppy: 'Papoula', deep: 'Profundo', studio: 'Estúdio', pastel: 'Pastel', stress: 'Estresse', clear: 'Clear', regular: 'Regular', frosted: 'Frosted' };
+
+    /* ---------- Refraction: geometry-derived displacement maps (Chromium only) ---------- */
+    const lensDefs = document.getElementById('lens-defs');
+    const lensCache = new Map();
+    function profile(t) { const q = Math.min(Math.max(t, 0), 1); return Math.pow(1 - Math.pow(1 - q, 4), .25); } // convex squircle
+    function makeMap(w, h, r, bezel, ior = 1.5) {
+      const N = 256, shift = new Float32Array(N + 1); let max = 0;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N, e = 1e-3;
+        const slope = (profile(t + e) - profile(t - e)) / (2 * e);
+        const th1 = Math.atan(slope), th2 = Math.asin(Math.min(1, Math.sin(th1) / ior));
+        shift[i] = profile(t) * Math.tan(th1 - th2); max = Math.max(max, shift[i]);
+      }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
+      const hw = w / 2, hh = h / 2, rr = Math.min(r, hw, hh);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const px = x + .5 - hw, py = y + .5 - hh;
+        const qx = Math.abs(px) - (hw - rr), qy = Math.abs(py) - (hh - rr);
+        const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
+        const dist = Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - rr; // signed, <0 inside
+        let nx = 0, ny = 0;
+        if (qx > 0 && qy > 0) { const l = Math.hypot(qx, qy) || 1; nx = qx / l; ny = qy / l; }
+        else if (qx > qy) { nx = 1; } else { ny = 1; }
+        nx *= Math.sign(px) || 1; ny *= Math.sign(py) || 1;
+        const i = (y * w + x) * 4;
+        if (dist >= 0) { d[i] = d[i + 1] = d[i + 2] = 128; d[i + 3] = 255; continue; }
+        const t = Math.min(-dist / bezel, 1), m = shift[Math.round(t * N)] / max;
+        d[i] = Math.round(128 - nx * m * 127); d[i + 1] = Math.round(128 - ny * m * 127); d[i + 2] = 128; d[i + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      return c.toDataURL('image/png');
+    }
+    function lensFilter(w, h, r, strength) {
+      const key = `${w}x${h}r${r}s${strength}`;
+      if (lensCache.has(key)) return lensCache.get(key);
+      const id = `lens-${lensCache.size + 1}`;
+      const bezel = Math.max(6, Math.min(w, h) * .42);
+      const scale = Math.max(2, Math.min(w, h) * strength) * 2; // feDisplacementMap moves scale × (channel − .5)
+      const map = makeMap(w, h, r, bezel);
+      const ns = 'http://www.w3.org/2000/svg';
+      const f = document.createElementNS(ns, 'filter');
+      f.setAttribute('id', id); f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', '100%'); f.setAttribute('height', '100%');
+      f.setAttribute('color-interpolation-filters', 'sRGB');
+      const ch = [['1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0', .94], ['0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0', 1], ['0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0', 1.06]];
+      let inner = `<feImage href="${map}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>`;
+      ch.forEach(([m, k], i) => { inner += `<feDisplacementMap in="SourceGraphic" in2="map" scale="${(scale * k).toFixed(2)}" xChannelSelector="R" yChannelSelector="G" result="d${i}"/><feColorMatrix in="d${i}" type="matrix" values="${m}" result="c${i}"/>`; });
+      inner += `<feBlend in="c0" in2="c1" mode="screen" result="c01"/><feBlend in="c01" in2="c2" mode="screen"/>`;
+      f.innerHTML = inner;
+      lensDefs.appendChild(f);
+      lensCache.set(key, id);
+      return id;
+    }
+    const lensTargets = [...document.querySelectorAll('.glass[data-lens]')];
+    function lensEnabled() { return root.dataset.refraction === 'on' && hasBackdrop && isChromium && !reducedTransparency.matches && !forcedColors.matches && root.dataset.transparency !== 'reduce'; }
+    function applyLens(el) {
+      if (!lensEnabled()) { el.style.removeProperty('--glass-lens'); return; }
+      const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
+      if (!w || !h) return;
+      const r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2);
+      const id = lensFilter(w, h, Math.round(r), parseFloat(el.dataset.lensStrength) || .2);
+      el.style.setProperty('--glass-lens', `url(#${id})`);
+    }
+    function refreshLenses() { lensTargets.forEach(applyLens); }
+    if ('ResizeObserver' in window) { const ro = new ResizeObserver(() => refreshLenses()); lensTargets.forEach((el) => ro.observe(el)); }
+
+    /* ---------- Controls ---------- */
+    function isDark() { return root.dataset.theme ? root.dataset.theme === 'dark' : systemDark.matches; }
+    function setBackdrop(v) {
+      root.dataset.backdrop = v;
+      scene.dataset.ink = inkByBackdrop[v] || 'light';
+      const chosen = document.querySelector(`input[name="backdrop"][value="${v}"]`); if (chosen) chosen.checked = true;
+      update();
+    }
+    function setMaterial(v) { root.dataset.material = v; update(); }
+    document.getElementById('backdrops').addEventListener('change', (e) => setBackdrop(e.target.value));
+    document.getElementById('materials').addEventListener('change', (e) => setMaterial(e.target.value));
+    $('#light').addEventListener('input', (e) => { root.style.setProperty('--glass-light', e.target.value + 'deg'); $('#light-out').value = e.target.value + '°'; update(); });
+    $('#blur').addEventListener('input', (e) => { root.style.setProperty('--glass-blur-mul', e.target.value); $('#blur-out').value = '×' + Number(e.target.value).toFixed(1); update(); });
+    $('#fill').addEventListener('input', (e) => { root.style.setProperty('--glass-alpha-mul', e.target.value); $('#fill-out').value = '×' + Number(e.target.value).toFixed(1); update(); });
+    function pressToggle(btn, on) { btn.setAttribute('aria-pressed', String(on)); }
+    const lensToggle = $('#lens-toggle');
+    lensToggle.addEventListener('click', () => { const on = root.dataset.refraction !== 'on'; root.dataset.refraction = on ? 'on' : 'off'; pressToggle(lensToggle, on); update(); });
+    $('#grain-toggle').addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-pressed') !== 'true'; root.style.setProperty('--glass-grain', on ? 'var(--grain)' : 'none'); pressToggle(e.currentTarget, on); update(); });
+    $('#theme-toggle').addEventListener('click', (e) => { root.dataset.theme = isDark() ? 'light' : 'dark'; pressToggle(e.currentTarget, isDark()); });
+    $('#solid-toggle').addEventListener('click', (e) => { const on = root.dataset.transparency !== 'reduce'; if (on) root.dataset.transparency = 'reduce'; else delete root.dataset.transparency; pressToggle(e.currentTarget, on); update(); });
+
+    const vol = $('#vol'); vol.addEventListener('input', () => { vol.parentElement.style.setProperty('--v', vol.value + '%'); });
+    $('#notif').addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-checked') !== 'true'; e.currentTarget.setAttribute('aria-checked', String(on)); });
+    const play = $('#play');
+    play.addEventListener('click', () => { const playing = play.getAttribute('aria-pressed') !== 'true'; play.setAttribute('aria-pressed', String(playing)); play.setAttribute('aria-label', playing ? 'Pausar' : 'Tocar');
+      play.innerHTML = playing ? '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="4.5" height="16" rx="1.5"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'; });
+    document.querySelectorAll('.dock a').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); document.querySelectorAll('.dock a').forEach((x) => x.removeAttribute('aria-current')); a.setAttribute('aria-current', 'page'); }));
+
+    /* ---------- Token readout + status ---------- */
+    const sample = document.getElementById('sample');
+    function readTokens() {
+      const cs = getComputedStyle(sample);
+      const v = (n) => cs.getPropertyValue(n).trim();
+      const alpha = Math.min(.96, parseFloat(v('--glass-alpha')) * parseFloat(v('--glass-alpha-mul') || 1));
+      const blur = parseFloat(v('--glass-blur')) * parseFloat(v('--glass-blur-mul') || 1);
+      const lens = lensEnabled() ? 'url(#lens) ' : '';
+      return `.glass {\n  --glass-tint: ${v('--glass-tint')};\n  --glass-alpha: ${alpha.toFixed(2)};\n  --glass-blur: ${blur.toFixed(0)}px;\n  --glass-saturate: ${v('--glass-saturate')};\n  --glass-light: ${v('--glass-light')};\n  --glass-rim: ${v('--glass-rim')};\n  --glass-ink: ${v('--glass-ink')};\n}\n/* ${lens}blur(${blur.toFixed(0)}px) saturate(${v('--glass-saturate')}) brightness(${v('--glass-brightness')}) */`;
+    }
+    const chan = (c) => { c /= 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); };
+    const lumRgb = (r, g, b) => .2126 * chan(r) + .7152 * chan(g) + .0722 * chan(b);
+    function parseColor(str) { str = str.trim(); if (str.startsWith('#')) { const h = str.length === 4 ? [...str.slice(1)].map((c) => c + c).join('') : str.slice(1); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; } return (str.match(/[\d.]+/g) || [0, 0, 0]).slice(0, 3).map(Number); }
+    function estimateContrast() {
+      const cs = getComputedStyle(sample); const v = (n) => cs.getPropertyValue(n).trim();
+      const [lb, lbWorst] = backdropLum[root.dataset.backdrop] || [.5, .5];
+      const solid = root.dataset.transparency === 'reduce' || reducedTransparency.matches || !hasBackdrop;
+      const tint = v('--glass-tint').split(/\s+/).map(Number); const lt = lumRgb(...tint);
+      const ink = parseColor(v('--glass-ink')); const li = lumRgb(...ink);
+      const bright = parseFloat(v('--glass-brightness')) || 1;
+      const alpha = solid ? 1 : Math.min(.96, parseFloat(v('--glass-alpha')) * parseFloat(v('--glass-alpha-mul') || 1));
+      const lSolid = lumRgb(...parseColor(cs.backgroundColor));
+      const comp = (l) => solid ? lSolid : alpha * lt + (1 - alpha) * Math.min(1, l * bright);
+      const ratio = (a, b) => (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      const typical = ratio(li, comp(lb)), worst = ratio(li, comp(li > .5 ? lbWorst : Math.max(0, lb - (lbWorst - lb))));
+      return { typical, worst };
+    }
+    function update() {
+      let mode = 'vidro ativo';
+      if (forcedColors.matches) mode = 'cores forçadas do sistema';
+      else if (reducedTransparency.matches) mode = 'sólido · preferência do sistema';
+      else if (root.dataset.transparency === 'reduce') mode = 'sólido · controle manual';
+      else if (!hasBackdrop) mode = 'sólido · navegador sem backdrop-filter';
+      const lensMsg = lensEnabled() ? 'refração ativa' : root.dataset.refraction === 'on' ? (isChromium ? 'refração suspensa' : 'refração indisponível fora do Chromium') : 'sem refração';
+      $('#status').textContent = `${names[root.dataset.material]} · ${names[root.dataset.backdrop]} · ${mode} · ${lensMsg}`;
+      refreshLenses();
+      $('#tokens').textContent = readTokens();
+      const c = estimateContrast();
+      const grade = c.worst >= 4.5 ? 'AA para texto comum' : c.worst >= 3 ? 'só texto grande (≥ 24px) · abaixo de 4.5:1' : 'decorativo · abaixo de 3:1, troque a tinta ou use a placa';
+      $('#contrast-out').value = `${c.typical.toFixed(1)}:1 · pior ${c.worst.toFixed(1)}:1`;
+      $('#contrast-hint').textContent = `${grade}. Estimativa analítica do título sobre fundo + preenchimento; meça o render final.`;
+    }
+    $('#copy').addEventListener('click', async (e) => { try { await navigator.clipboard.writeText($('#tokens').textContent); e.currentTarget.textContent = 'Copiado'; setTimeout(() => (e.currentTarget.textContent = 'Copiar'), 1400); } catch { $('#tokens').focus(); } });
+
+    /* ---------- Init ---------- */
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme')) root.dataset.theme = params.get('theme');
+    setBackdrop(params.get('backdrop') && names[params.get('backdrop')] ? params.get('backdrop') : root.dataset.backdrop);
+    if (params.get('material') && names[params.get('material')]) { root.dataset.material = params.get('material'); const m = document.querySelector(`input[name="material"][value="${params.get('material')}"]`); if (m) m.checked = true; }
+    if (params.get('light')) { $('#light').value = params.get('light'); $('#light').dispatchEvent(new Event('input')); }
+    if (params.get('solid') === '1') { root.dataset.transparency = 'reduce'; pressToggle($('#solid-toggle'), true); }
+    if (params.get('grain') === '1') { root.style.setProperty('--glass-grain', 'var(--grain)'); pressToggle($('#grain-toggle'), true); }
+    root.dataset.refraction = params.get('refraction') === 'off' ? 'off' : 'on';
+    pressToggle(lensToggle, root.dataset.refraction === 'on');
+    if (!isChromium) lensToggle.querySelector('small').textContent = 'Só o Chromium renderiza backdrop-filter: url()';
+    pressToggle($('#theme-toggle'), isDark());
+    systemDark.addEventListener('change', () => pressToggle($('#theme-toggle'), isDark()));
+    reducedTransparency.addEventListener('change', update);
+    forcedColors.addEventListener('change', update);
+    update();
+  </script>
+</body>
+</html>

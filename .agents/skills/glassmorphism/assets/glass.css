@@ -1,0 +1,234 @@
+/* Glass material primitives — solid-first, reference-driven (Apple Liquid Glass, Rybin-style widgets).
+   Apply `.glass` over a backdrop with real light and color variation; a flat fill gives the blur nothing to sample.
+   Layers, bottom to top: fill + backdrop-filter (element) → sheen (::after) → content (children) → rim (::before).
+   Primitive tokens live on :root and are consumed on `.glass`; variants set primitives on the element.
+   Never declare a derived value (rgb(var(--tint) / var(--alpha))) at :root — it would freeze there. */
+
+:root {
+  color-scheme: light;
+  --canvas: #f3f2ee;
+  --surface: #fffefb;
+  --ink: #1d232a;
+  --muted: #5c6670;
+  --line: #d3d7dc;
+  --accent: #2563eb;
+  --accent-rgb: 37 99 235;
+  --accent-ink: #ffffff;
+  --focus: #0b5fd1;
+
+  /* Material defaults = light glass over a photographic backdrop, white ink. */
+  --glass-tint: 255 255 255;      /* fill color, space-separated rgb */
+  --glass-alpha: .16;             /* fill alpha: .07 clear · .16 regular · .34 frosted */
+  --glass-blur: 14px;
+  --glass-saturate: 1.6;
+  --glass-brightness: 1.05;
+  --glass-radius: 24px;
+  --glass-light: 135deg;          /* where the light comes from (CSS angle; 135deg = top-left) */
+  --glass-rim: .8;                /* rim intensity 0–1 */
+  --glass-rim-near: 255 255 255;  /* rim color on the lit side */
+  --glass-rim-far: 255 255 255;   /* rim color on the shaded side (lower alpha) */
+  --glass-sheen: .22;             /* gloss alpha on the lit side */
+  --glass-ink: #ffffff;
+  --glass-ink-muted: rgb(255 255 255 / .9);
+  --glass-shade: 20 18 30;        /* shadow color, tinted by the scene */
+  --glass-shadow-alpha: .28;
+  --glass-elevation: 18px;
+  --glass-grain: none;            /* set to a noise data-URI to enable */
+  --glass-lens: ;                 /* JS sets `url(#id)` for refraction (Chromium only) */
+  --glass-solid: #3b3f4b;         /* opaque fallback paired with --glass-ink */
+  --glass-focus: #ffffff;
+  --glass-alpha-mul: 1;           /* global multipliers for tuning UIs */
+  --glass-blur-mul: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --canvas: #101317; --surface: #181c22; --ink: #eef1f4; --muted: #a6afb9; --line: #2e353d;
+    --accent: #7fb2ff; --accent-rgb: 127 178 255; --accent-ink: #0d1a2e; --focus: #b4d9ff;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #101317; --surface: #181c22; --ink: #eef1f4; --muted: #a6afb9; --line: #2e353d;
+  --accent: #7fb2ff; --accent-rgb: 127 178 255; --accent-ink: #0d1a2e; --focus: #b4d9ff;
+}
+
+/* Thickness presets (inherit from any ancestor). */
+:root[data-material="clear"] { --glass-alpha: .07; --glass-blur: 6px; --glass-saturate: 1.7; --glass-brightness: 1.08; --glass-rim: .95; --glass-sheen: .16; }
+:root[data-material="frosted"] { --glass-alpha: .34; --glass-blur: 26px; --glass-saturate: 1.4; --glass-brightness: 1.05; --glass-rim: .6; --glass-sheen: .26; }
+
+/* Variant: white frosted glass over LIGHT backdrops, dark ink (search bars, toolbars on pale UI). */
+.glass-light, [data-ink="dark"] .glass {
+  --glass-alpha: .62; --glass-blur: 18px; --glass-saturate: 1.3; --glass-brightness: 1;
+  --glass-rim: .7; --glass-rim-near: 255 255 255; --glass-rim-far: 30 38 48; --glass-sheen: .35;
+  --glass-ink: #1b2129; --glass-ink-muted: rgb(27 33 41 / .85);
+  --glass-shade: 30 38 48; --glass-shadow-alpha: .16; --glass-elevation: 14px;
+  --glass-solid: #f4f5f7; --glass-focus: #0b5fd1;
+}
+:root[data-material="clear"] :is(.glass-light, [data-ink="dark"] .glass) { --glass-alpha: .42; --glass-blur: 10px; --glass-saturate: 1.4; }
+:root[data-material="frosted"] :is(.glass-light, [data-ink="dark"] .glass) { --glass-alpha: .8; --glass-blur: 28px; --glass-saturate: 1.2; }
+
+/* Variant: smoked glass for compact controls on bright photos (volume slider, media chrome). */
+.glass-smoke, [data-ink="dark"] .glass-smoke {
+  --glass-tint: 16 18 24; --glass-alpha: .38; --glass-blur: 12px; --glass-saturate: 1.4; --glass-brightness: 1;
+  --glass-rim: .7; --glass-rim-near: 255 255 255; --glass-rim-far: 255 255 255; --glass-sheen: .12;
+  --glass-ink: #ffffff; --glass-ink-muted: rgb(255 255 255 / .9);
+  --glass-shade: 10 12 18; --glass-shadow-alpha: .35; --glass-solid: #24262e; --glass-focus: #ffffff;
+}
+:root[data-material="clear"] .glass-smoke { --glass-alpha: .22; }
+:root[data-material="frosted"] .glass-smoke { --glass-alpha: .58; }
+
+/* Variant: tinted brand glass with a strong rim (accent pill). */
+.glass-tinted, [data-ink="dark"] .glass-tinted {
+  --glass-tint: var(--accent-rgb); --glass-alpha: .55; --glass-blur: 12px; --glass-saturate: 1.5; --glass-brightness: 1.05;
+  --glass-rim: 1; --glass-rim-near: 255 255 255; --glass-rim-far: 255 255 255; --glass-sheen: .3;
+  --glass-ink: #ffffff; --glass-ink-muted: rgb(255 255 255 / .92);
+  --glass-shade: var(--accent-rgb); --glass-shadow-alpha: .35; --glass-solid: var(--accent); --glass-focus: #ffffff;
+}
+
+/* ---------- Solid baseline (every browser) ---------- */
+.glass {
+  --glass-hover: 0;
+  position: relative;
+  isolation: isolate;
+  color: var(--glass-ink);
+  background: var(--glass-solid);
+  border: 1px solid rgb(var(--glass-rim-far) / .35);
+  border-radius: var(--glass-radius);
+  box-shadow: 0 var(--glass-elevation) calc(var(--glass-elevation) * 2) calc(var(--glass-elevation) * -1) rgb(var(--glass-shade) / var(--glass-shadow-alpha));
+}
+.glass > * { position: relative; z-index: 1; }
+.glass-pill { --glass-radius: 999px; }
+
+/* ---------- Translucent enhancement ---------- */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    border-color: transparent;
+    background:
+      var(--glass-grain) center / 160px,
+      rgb(var(--glass-tint) / min(.96, calc(var(--glass-alpha) * var(--glass-alpha-mul) + var(--glass-hover))));
+    background-blend-mode: overlay, normal;
+    -webkit-backdrop-filter: var(--glass-lens) blur(calc(var(--glass-blur) * var(--glass-blur-mul))) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+    backdrop-filter: var(--glass-lens) blur(calc(var(--glass-blur) * var(--glass-blur-mul))) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+    box-shadow:
+      inset 0 1px 0 rgb(var(--glass-rim-near) / calc(.5 * var(--glass-rim))),
+      inset 0 -1px 0 rgb(var(--glass-rim-far) / calc(.14 * var(--glass-rim))),
+      0 1px 2px rgb(var(--glass-shade) / .10),
+      0 var(--glass-elevation) calc(var(--glass-elevation) * 2.4) calc(var(--glass-elevation) * -.8) rgb(var(--glass-shade) / var(--glass-shadow-alpha));
+  }
+  /* Rim: a 1px ring whose brightness follows the light direction. */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(var(--glass-light),
+      rgb(var(--glass-rim-near) / calc(.95 * var(--glass-rim))) 0%,
+      rgb(var(--glass-rim-near) / calc(.35 * var(--glass-rim))) 32%,
+      rgb(var(--glass-rim-far) / calc(.10 * var(--glass-rim))) 62%,
+      rgb(var(--glass-rim-far) / calc(.45 * var(--glass-rim))) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+  /* Sheen: soft gloss falling off from the lit side. */
+  .glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(var(--glass-light),
+      rgb(var(--glass-rim-near) / var(--glass-sheen)) 0%,
+      rgb(var(--glass-rim-near) / calc(var(--glass-sheen) * .25)) 34%,
+      rgb(var(--glass-rim-near) / 0) 60%);
+  }
+  /* Thickness highlight follows the light angle where trig functions exist. */
+  @supports (top: calc(sin(1deg) * 1px)) {
+    .glass {
+      box-shadow:
+        inset calc(sin(var(--glass-light)) * 1px) calc(cos(var(--glass-light)) * -1px) 0 rgb(var(--glass-rim-near) / calc(.5 * var(--glass-rim))),
+        inset calc(sin(var(--glass-light)) * -1px) calc(cos(var(--glass-light)) * 1px) 0 rgb(var(--glass-rim-far) / calc(.14 * var(--glass-rim))),
+        0 1px 2px rgb(var(--glass-shade) / .10),
+        0 var(--glass-elevation) calc(var(--glass-elevation) * 2.4) calc(var(--glass-elevation) * -.8) rgb(var(--glass-shade) / var(--glass-shadow-alpha));
+    }
+  }
+}
+
+/* Stabilized plate: a denser patch under dense text/controls inside a glass shell. Never a second live filter. */
+.glass-plate {
+  background: rgb(var(--glass-tint) / .22);
+  color: var(--glass-ink);
+  border-radius: max(0px, calc(var(--glass-radius) - 10px));
+  box-shadow: inset 0 0 0 1px rgb(var(--glass-rim-near) / .12);
+}
+:is([data-ink="dark"] .glass, .glass-light) .glass-plate { background: rgb(255 255 255 / .55); box-shadow: inset 0 0 0 1px rgb(30 38 48 / .08); }
+
+/* Interaction states: structural changes, not tint shifts. */
+.glass.is-interactive, button.glass, a.glass {
+  cursor: pointer;
+  transition: transform .18s cubic-bezier(.2, .7, .2, 1), box-shadow .18s ease, background-color .18s ease;
+}
+:is(.glass.is-interactive, button.glass, a.glass):hover { --glass-hover: .06; --glass-rim: 1; }
+:is(.glass.is-interactive, button.glass, a.glass):active { transform: translateY(1px) scale(.985); --glass-elevation: 6px; --glass-sheen: .08; }
+button.glass:disabled, .glass[aria-disabled="true"] { --glass-rim: .25; --glass-sheen: 0; --glass-ink: rgb(255 255 255 / .55); cursor: default; transform: none; }
+:where(.glass, .glass *):focus-visible { outline: 3px solid var(--glass-focus, var(--focus)); outline-offset: 3px; }
+:where(button, select, a, input, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* ---------- Preferences and fallbacks (override everything above) ---------- */
+:root[data-transparency="reduce"] .glass,
+:root[data-transparency="reduce"] :is(.glass.is-interactive, button.glass, a.glass):hover {
+  background: var(--glass-solid);
+  color: var(--glass-ink);
+  border-color: rgb(var(--glass-rim-far) / .35);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 var(--glass-elevation) calc(var(--glass-elevation) * 2) calc(var(--glass-elevation) * -1) rgb(var(--glass-shade) / var(--glass-shadow-alpha));
+}
+:root[data-transparency="reduce"] .glass::before,
+:root[data-transparency="reduce"] .glass::after { content: none; }
+:root[data-transparency="reduce"] .glass-plate { background: rgb(var(--glass-tint) / .12); }
+@media (prefers-reduced-transparency: reduce) {
+  .glass, :is(.glass.is-interactive, button.glass, a.glass):hover {
+    background: var(--glass-solid);
+    color: var(--glass-ink);
+    border-color: rgb(var(--glass-rim-far) / .35);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 var(--glass-elevation) calc(var(--glass-elevation) * 2) calc(var(--glass-elevation) * -1) rgb(var(--glass-shade) / var(--glass-shadow-alpha));
+  }
+  .glass::before, .glass::after { content: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass, .glass::before, .glass::after { animation: none; transition: none; }
+  :is(.glass.is-interactive, button.glass, a.glass):active { transform: none; }
+}
+@media (forced-colors: active) {
+  .glass, .glass-plate, :root[data-transparency="reduce"] .glass {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .glass::before, .glass::after { content: none; }
+  button.glass, a.glass { border-color: ButtonText; color: ButtonText; }
+  :where(.glass, .glass *, button, select, a, input, [tabindex]):focus-visible { outline-color: Highlight; }
+}
+@media print {
+  .glass, .glass-plate, :root[data-transparency="reduce"] .glass {
+    background: #fff;
+    color: #000;
+    border: 1px solid #777;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .glass::before, .glass::after { content: none; }
+}

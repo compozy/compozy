@@ -119,6 +119,12 @@
             "skillPath": "skills/mine/git-rebase/SKILL.md",
             "computedHash": "e9597a749af2703293cce2221aa58026ad7066e50e1a407422586866b94f25ec"
         },
+        "glassmorphism": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/glassmorphism/SKILL.md",
+            "computedHash": "0623065c1fb5f40994573fbc256ecd8d1849c45e948fe07abde2a9d9e9378cf9"
+        },
         "golang-master": {
             "source": "pedronauck/skills",
             "sourceType": "github",
