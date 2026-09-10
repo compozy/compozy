@@ -72,3 +72,13 @@ expanded from coordination to every workspace-scoped Network read and mutation, 
 ULIDs became valid policy targets, and foreign child counts began enforcing the target workspace's
 `max_active_per_workspace` cap. Recheck deny/read/all over CLI, HTTP, and UDS Network routes and the
 foreign-target spawn cap; do not reuse the earlier pass as evidence for these changed paths.
+
+## 2026-09-10 execution checkpoint
+
+The approve-all Cursor Grok 4.6 High Fast walk reached the foreign workspace, but complete native
+results were missing from MCP text content. See [BUG-20260910-hosted-mcp-text-result](../bugs/BUG-20260910-hosted-mcp-text-result.md).
+The separate spawn schema error is still under diagnosis; a background worker raced the claim
+fixture, so the no-claimable result is not proven to be a product defect. This partial walk does
+not change the scenario verdict.
+
+The supported foreign CLI spawn retest exposed [BUG-20260910-terminal-agent-identity](../bugs/BUG-20260910-terminal-agent-identity.md): native terminal processes lost the caller identity. The coordination read succeeded without agent identity and is not a permission pass. The session ended; repair and real retest are in progress.
