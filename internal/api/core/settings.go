@@ -156,14 +156,31 @@ func (h *BaseHandlers) GetSettingsWindowManager(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionWindowManager)
 }
 
-// UpdateSettingsWindowManager persists the window-manager settings section.
+// UpdateSettingsWindowManager returns canonical persisted settings and their separate apply receipt.
 func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
 	req, err := parseUpdateSettingsWindowManagerRequest(c)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
-	h.updateSettingsSectionEcho(c, req, h.respondWindowManagerMutationError)
+	result, ok := h.applySettingsSection(c, req, h.respondWindowManagerMutationError)
+	if !ok {
+		return
+	}
+	envelope, err := h.Settings.GetSection(c.Request.Context(), req.SectionRequest)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	section, err := settingsWindowManagerSectionResponse(envelope)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SettingsWindowManagerMutationResponse{
+		SettingsWindowManagerResponse: section,
+		Apply:                         SettingsApplyResponseFromResult(result),
+	})
 }
 
 // GetSettingsCmdPalette returns the command-palette settings section.

@@ -342,6 +342,14 @@ Use `GET/PATCH /api/settings/window-manager` for the typed Settings surface. Edg
 `zoom`, `reserved`, or `none`; any/landscape/portrait profiles are `window_layout` resources.
 Workspace layout documents may carry typed overrides without changing other workspaces.
 
+The Settings PATCH preserves its section echo and adds `apply`, the daemon's application receipt.
+Inspect `apply.applied`, `next_action`, `warnings`, and `partial_failures`; HTTP success alone does
+not prove live application. An unchanged file still retries a pending scoped live application;
+a global settings reload is not needed to retry a Layouts PATCH. For a behavior-only `config` save, pass `preserve_shortcuts: true` to
+retain the current local and global shortcut maps atomically. Explicit top-level shortcut maps still
+replace their respective maps. Omitting the flag retains full-config replacement semantics.
+Zero is valid for every gap: `inner` controls spacing between tiles; the other four values are insets.
+
 Shortcut values are one chord string or an array; `""` and `[]` disable an action. Indexed family
 keys accept ranges: `desktop.switch = "control+Digit1..9"` and
 `window.tab.jump = "control+alt+Digit1..8"`. The daemon expands ranges and validates defaults plus

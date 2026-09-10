@@ -12,6 +12,12 @@ import {
   parseSettingsWindowManagerSection,
   type WindowManagerSettingsSection,
 } from "../lib/window-manager-settings-section";
+import {
+  parseWindowManagerSettingsApply,
+  windowManagerApplyFailed,
+  windowManagerApplyMessage,
+  type WindowManagerSettingsApply,
+} from "../lib/window-manager-settings-result";
 import type {
   WindowManagerGlobalShortcutMap,
   WindowManagerShortcutMap,
@@ -103,6 +109,7 @@ function settingsError(response: Response, error: unknown, fallback: string) {
   );
 }
 
+/** Load and validate canonical settings for the requesting workspace and shell client. */
 export async function fetchWindowManagerSettings(
   scope: WindowManagerSettingsScopeInput,
   signal?: AbortSignal
@@ -118,6 +125,20 @@ export async function fetchWindowManagerSettings(
   return parseSettingsWindowManagerSection(requireResponseData(data, response, fallback));
 }
 
+/** Canonical saved bindings and their separate runtime application outcome. */
+export interface WindowManagerBindingsResult {
+  section: WindowManagerSettingsSection;
+  apply: WindowManagerSettingsApply;
+}
+
+/** Preserves the saved section when persistence succeeded but runtime application failed. */
+export class WindowManagerBindingsApplyError extends Error {
+  constructor(public readonly result: WindowManagerBindingsResult) {
+    super(windowManagerApplyMessage(result.apply));
+    this.name = "WindowManagerBindingsApplyError";
+  }
+}
+
 /**
  * Applies a whole desired map — the daemon replaces `shortcuts`/`aliases`
  * wholesale — and returns the section it produced, so callers never have to
@@ -126,7 +147,7 @@ export async function fetchWindowManagerSettings(
 export async function updateWindowManagerBindings(
   update: WindowManagerBindingUpdate,
   signal?: AbortSignal
-): Promise<WindowManagerSettingsSection> {
+): Promise<WindowManagerBindingsResult> {
   const { data, error, response } = await apiClient.PATCH("/api/settings/window-manager", {
     body: {
       shortcuts: shortcutsBody(update.shortcuts),
@@ -142,5 +163,11 @@ export async function updateWindowManagerBindings(
   if (apiRequestFailed(response, error)) {
     throw settingsError(response, error, fallback);
   }
-  return parseSettingsWindowManagerSection(requireResponseData(data, response, fallback));
+  const { apply, ...section } = requireResponseData(data, response, fallback);
+  const result = {
+    section: parseSettingsWindowManagerSection(section),
+    apply: parseWindowManagerSettingsApply(apply),
+  };
+  if (windowManagerApplyFailed(result.apply)) throw new WindowManagerBindingsApplyError(result);
+  return result;
 }

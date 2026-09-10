@@ -64,6 +64,15 @@ export function useOsPaletteSurface({
   // The highlight survives the catalog moving underneath it, falling to the
   // nearest neighbour only when its own row leaves.
   const selected = resolveCommandSelection(selection.previous, values, selection.value);
+  // Remember automatic selection too, so asynchronous ranking cannot move it
+  // again after the catalog first arrives or the selected row disappears.
+  if (
+    selection.value !== selected ||
+    selection.previous.length !== values.length ||
+    selection.previous.some((value, index) => value !== values[index])
+  ) {
+    setSelection({ previous: values, value: selected });
+  }
   const execution = useOsPaletteExecution({
     open,
     registry: root.registry,

@@ -12,11 +12,12 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
+// settingsWindowManagerSectionResponse projects the canonical section without discarding required zero-valued settings.
 func settingsWindowManagerSectionResponse(
 	envelope settingspkg.SectionEnvelope,
-) (any, error) {
+) (contract.SettingsWindowManagerResponse, error) {
 	if envelope.WindowManager == nil {
-		return nil, errors.New("settings window-manager section is required")
+		return contract.SettingsWindowManagerResponse{}, errors.New("settings window-manager section is required")
 	}
 	effective := envelope.WindowManager.EffectiveShortcuts
 	diagnostics := envelope.WindowManager.Diagnostics
@@ -26,7 +27,10 @@ func settingsWindowManagerSectionResponse(
 			windowmanager.DefaultBindableIDs(),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("settings window-manager shortcuts are invalid: %w", err)
+			return contract.SettingsWindowManagerResponse{}, fmt.Errorf(
+				"settings window-manager shortcuts are invalid: %w",
+				err,
+			)
 		}
 		effective = resolved
 		diagnostics = storedDiagnostics

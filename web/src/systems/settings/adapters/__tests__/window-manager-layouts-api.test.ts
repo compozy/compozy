@@ -1,3 +1,4 @@
+import { parseSettingsWindowManagerSection } from "@/systems/os";
 // Suite: window-manager Settings adapter
 // Invariant: the editor reads document + CAS revision from one authoritative snapshot, and
 // resource discovery returns the complete unbounded collection exposed by the daemon.
@@ -6,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { windowManagerSnapshotFixture } from "@/systems/os/mocks";
 import {
+  settingsWindowManagerSectionFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "../../mocks/window-manager-fixtures";
@@ -15,6 +17,7 @@ import {
 } from "../../lib/window-manager-layout-schema";
 
 import {
+  updateWindowManagerSettings,
   applyWindowManagerLayout,
   deleteWindowManagerLayoutProfile,
   exportWindowManagerLayout,
@@ -34,6 +37,7 @@ vi.mock("@/lib/api-client", () => ({
   runtimeFetch: apiMocks.fetch,
 }));
 
+/** Return a JSON transport response for the adapter’s fetch boundary. */
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -46,6 +50,115 @@ afterEach(() => {
 });
 
 describe("window-manager layouts API", () => {
+  const receipt = {
+    applied: true,
+    lifecycle: "live",
+    apply_record_id: "apply-1",
+    active_generation: 2,
+    active_config_hash: "hash",
+    next_action: "none",
+  };
+
+  it("Should preserve zero gaps and global shortcuts and request current shortcut preservation", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    config.gaps = { inner: 0, top: 0, right: 0, bottom: 0, left: 0 };
+    config.globalShortcuts = { "palette.summon.global": "meta+shift+Space" };
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({ ...settingsWindowManagerSectionFixture, apply: receipt })
+    );
+    const result = await updateWindowManagerSettings(config);
+    const request = JSON.parse(apiMocks.fetch.mock.calls[0]?.[1].body);
+    expect(request).toMatchObject({
+      preserve_shortcuts: true,
+      config: { gaps: config.gaps, global_shortcuts: config.globalShortcuts },
+    });
+    expect(result.apply).toEqual(receipt);
+  });
+
+  it.each([
+    { applied: false, next_action: "retry" },
+    { applied: false, next_action: "none" },
+    {
+      applied: true,
+      partial_failures: [
+        {
+          subsystem: "window-manager",
+          diagnostic: { title: "Apply failed", message: "Layout unavailable" },
+        },
+      ],
+    },
+  ])("Should reject HTTP success when application failed: %j", async outcome => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({ ...settingsWindowManagerSectionFixture, apply: { ...receipt, ...outcome } })
+    );
+    await expect(updateWindowManagerSettings(config)).rejects.toThrow(/Settings saved, but/);
+  });
+
+  it("Should expose failure diagnostics, warnings, and the daemon's recovery action", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockResolvedValueOnce(
+      jsonResponse({
+        ...settingsWindowManagerSectionFixture,
+        apply: {
+          ...receipt,
+          applied: false,
+          next_action: "restart-daemon",
+          warnings: ["A runtime dependency is unavailable"],
+          partial_failures: [
+            {
+              subsystem: "window-manager",
+              diagnostic: {
+                title: "Apply failed",
+                message: "Layout unavailable",
+              },
+            },
+          ],
+        },
+      })
+    );
+    await expect(updateWindowManagerSettings(config)).rejects.toThrow(
+      "Settings saved, but apply failed. Layout unavailable · A runtime dependency is unavailable Restart CompozyOS to apply."
+    );
+  });
+
+  it("Should not claim success for an unverified application receipt", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockResolvedValueOnce(jsonResponse(settingsWindowManagerSectionFixture));
+    await expect(updateWindowManagerSettings(config)).rejects.toThrow(
+      "The save result could not be verified"
+    );
+  });
+
+  it.each(["restart-daemon", "new-session"])(
+    "Should retain warnings and pending action %s",
+    async nextAction => {
+      const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+      const apply = {
+        ...receipt,
+        applied: nextAction === "new-session",
+        next_action: nextAction,
+        warnings: ["Action required"],
+      };
+      apiMocks.fetch.mockResolvedValueOnce(
+        jsonResponse({ ...settingsWindowManagerSectionFixture, apply })
+      );
+      await expect(updateWindowManagerSettings(config)).resolves.toMatchObject({ apply });
+    }
+  );
+
+  it("Should expose transport and server failures instead of success", async () => {
+    const config = parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture).config;
+    apiMocks.fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(updateWindowManagerSettings(config)).rejects.toThrow(
+      "Check the connection and retry"
+    );
+    apiMocks.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "Config write failed" }), { status: 500 })
+    );
+    await expect(updateWindowManagerSettings(config)).rejects.toThrow("Config write failed");
+  });
+
   it("Should derive the exported document and revision from one snapshot response", async () => {
     apiMocks.fetch.mockResolvedValueOnce(jsonResponse(windowManagerSnapshotFixture));
 

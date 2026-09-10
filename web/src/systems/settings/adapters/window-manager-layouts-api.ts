@@ -1,3 +1,13 @@
+import {
+  parseWindowManagerSettingsApply,
+  parseSettingsWindowManagerSection,
+  fetchWindowManagerSnapshot,
+  type WindowManagerConfig,
+  windowManagerApplyFailed,
+  windowManagerApplyMessage,
+  type WindowManagerSettingsApply,
+} from "@/systems/os";
+
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
 
 import {
@@ -22,7 +32,6 @@ import type {
   WindowManagerLayoutValidation,
 } from "../lib/window-manager-layout-types";
 import { windowManagerSnapshotToLayoutState } from "../lib/window-manager-layout-projection";
-import { fetchWindowManagerSnapshot, type WindowManagerConfig } from "@/systems/os";
 
 export class WindowManagerLayoutsApiError extends Error {
   constructor(
@@ -80,6 +89,7 @@ async function requireJson(response: Response, fallback: string): Promise<unknow
   );
 }
 
+/** Encode a settings mutation as JSON while preserving cancellation at the transport boundary. */
 function jsonRequest(body: unknown, signal?: AbortSignal): RequestInit {
   return {
     body: JSON.stringify(body),
@@ -88,15 +98,68 @@ function jsonRequest(body: unknown, signal?: AbortSignal): RequestInit {
   };
 }
 
+export interface WindowManagerSettingsSaveResult {
+  config: WindowManagerConfig;
+  apply: WindowManagerSettingsApply;
+}
+
+/** Keeps the canonical saved config available when only runtime application failed. */
+export class WindowManagerSettingsApplyError extends Error {
+  constructor(public readonly result: WindowManagerSettingsSaveResult) {
+    super(windowManagerApplyMessage(result.apply));
+    this.name = "WindowManagerSettingsApplyError";
+  }
+}
+
+/** Persist behavior without replacing live-edited shortcuts and preserve the daemon apply receipt. */
 export async function updateWindowManagerSettings(
   config: WindowManagerConfig,
   signal?: AbortSignal
-): Promise<void> {
-  const response = await runtimeFetch(`${apiBaseUrl}/api/settings/window-manager`, {
-    ...jsonRequest({ config: windowManagerSettingsConfigToWire(config) }, signal),
-    method: "PATCH",
-  });
-  await requireJson(response, "Unable to save window-manager settings");
+): Promise<WindowManagerSettingsSaveResult> {
+  let response: Response;
+  try {
+    response = await runtimeFetch(`${apiBaseUrl}/api/settings/window-manager`, {
+      ...jsonRequest(
+        { config: windowManagerSettingsConfigToWire(config), preserve_shortcuts: true },
+        signal
+      ),
+      method: "PATCH",
+    });
+  } catch (cause) {
+    if (signal?.aborted) throw cause;
+    throw new WindowManagerLayoutsApiError(
+      "Unable to reach CompozyOS. Check the connection and retry; your changes are kept.",
+      0
+    );
+  }
+  const body = await responseJson(response);
+  if (!response.ok) {
+    throw new WindowManagerLayoutsApiError(
+      `${errorMessage(body, `Unable to save settings (${response.status})`)}. Your changes are kept. Retry when the problem is resolved, or discard your changes.`,
+      response.status
+    );
+  }
+  if (body === null || typeof body !== "object") {
+    throw new WindowManagerLayoutsApiError(
+      "CompozyOS returned an invalid settings result.",
+      response.status
+    );
+  }
+  const { apply, ...section } = body as Record<string, unknown>;
+  let result: WindowManagerSettingsSaveResult;
+  try {
+    result = {
+      config: parseSettingsWindowManagerSection(section).config,
+      apply: parseWindowManagerSettingsApply(apply),
+    };
+  } catch {
+    throw new WindowManagerLayoutsApiError(
+      "The save result could not be verified. Reload settings before retrying; your changes are kept.",
+      response.status
+    );
+  }
+  if (windowManagerApplyFailed(result.apply)) throw new WindowManagerSettingsApplyError(result);
+  return result;
 }
 
 export async function exportWindowManagerLayout(

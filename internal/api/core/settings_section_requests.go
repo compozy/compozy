@@ -305,6 +305,7 @@ func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdat
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Network: &config}, nil
 }
 
+// parseUpdateSettingsWindowManagerRequest decodes the scope and preserves the opt-in shortcut merge policy.
 func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	var body contract.UpdateSettingsWindowManagerRequest
 	if err := decodeStrictJSONBody(c, &body); err != nil {
@@ -330,12 +331,13 @@ func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.Sectio
 		config = &parsed
 	}
 	return settingspkg.SectionUpdateRequest{
-		SectionRequest:               req,
-		WindowManager:                config,
-		WindowManagerShortcuts:       body.Shortcuts,
-		WindowManagerGlobalShortcuts: body.GlobalShortcuts,
-		WindowManagerAliases:         body.Aliases,
-		Overwrite:                    body.Overwrite,
+		SectionRequest:                 req,
+		WindowManager:                  config,
+		WindowManagerPreserveShortcuts: body.PreserveShortcuts,
+		WindowManagerShortcuts:         body.Shortcuts,
+		WindowManagerGlobalShortcuts:   body.GlobalShortcuts,
+		WindowManagerAliases:           body.Aliases,
+		Overwrite:                      body.Overwrite,
 	}, nil
 }
 

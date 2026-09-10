@@ -98,11 +98,12 @@ type SettingsWindowManagerBindingPayload struct {
 }
 
 type UpdateSettingsWindowManagerRequest struct {
-	Config          *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
-	Shortcuts       *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
-	Aliases         *map[string]string                        `json:"aliases,omitempty"`
-	GlobalShortcuts *map[string]string                        `json:"global_shortcuts,omitempty"`
-	Overwrite       bool                                      `json:"overwrite,omitempty"`
+	PreserveShortcuts bool                                      `json:"preserve_shortcuts,omitzero"`
+	Config            *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
+	Shortcuts         *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
+	Aliases           *map[string]string                        `json:"aliases,omitempty"`
+	GlobalShortcuts   *map[string]string                        `json:"global_shortcuts,omitempty"`
+	Overwrite         bool                                      `json:"overwrite,omitempty"`
 }
 
 type SettingsWindowManagerResponse struct {
@@ -160,4 +161,10 @@ type SettingsWindowManagerMutationError struct {
 	Chord   string `json:"chord,omitempty"`
 	Alias   string `json:"alias,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+// SettingsWindowManagerMutationResponse preserves the section echo alongside live apply truth.
+type SettingsWindowManagerMutationResponse struct {
+	SettingsWindowManagerResponse
+	Apply SettingsApplyResponse `json:"apply"`
 }

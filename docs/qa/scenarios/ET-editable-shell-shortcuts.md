@@ -19,3 +19,11 @@ overlaps: ET-web-command-palette-shortcuts
 Flagged 2026-08-16 for the Herdr parity QA tail after the shell-chord registry migration.
 
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
+
+## Palette selection continuity
+
+Open the palette from a focused composer while its command catalog is still loading. Open the
+action panel with the palette chord again. When recent or pinned commands reorder the results,
+the selected command and its action panel must remain available. Removing the selected command
+may select its nearest remaining neighbor. The existing Herdr E2E-016 journey owns the real
+keyboard flow; the palette hook suite covers asynchronous catalog and ranking arrival.

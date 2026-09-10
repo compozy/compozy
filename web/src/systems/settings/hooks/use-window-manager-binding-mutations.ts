@@ -5,6 +5,10 @@ import {
   cmdPaletteKeys,
   updateWindowManagerBindings,
   windowManagerKeys,
+  WindowManagerBindingsApplyError,
+  type WindowManagerBindingUpdate,
+  type WindowManagerBindingsResult,
+  type WindowManagerSettingsApply,
   type WindowManagerSettingsSection,
 } from "@/systems/os";
 
@@ -18,6 +22,7 @@ export interface WindowManagerBindingCommit {
 export interface WindowManagerBindingMutations {
   commit: (update: WindowManagerBindingCommit) => Promise<WindowManagerSettingsSection>;
   saving: boolean;
+  apply: WindowManagerSettingsApply | null;
 }
 
 /**
@@ -36,32 +41,51 @@ export function useWindowManagerBindingMutations(
   const queryClient = useQueryClient();
   const queue = useRef<Promise<void> | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [receipt, setReceipt] = useState<{
+    workspaceId: string | null;
+    clientId: string | undefined;
+    apply: WindowManagerSettingsApply;
+  } | null>(null);
+  const reconcile = async (
+    result: WindowManagerBindingsResult,
+    scope: WindowManagerBindingUpdate
+  ) => {
+    queryClient.setQueryData(
+      windowManagerKeys.config(scope.workspaceId, scope.clientId),
+      result.section
+    );
+    setReceipt({ workspaceId: scope.workspaceId, clientId: scope.clientId, apply: result.apply });
+    await queryClient.invalidateQueries({
+      queryKey: cmdPaletteKeys.workspaceCatalogs(scope.workspaceId ?? ""),
+    });
+  };
   const mutation = useMutation({
-    mutationFn: (update: WindowManagerBindingCommit) => {
-      const scope = clientId === undefined ? { workspaceId } : { workspaceId, clientId };
-      return updateWindowManagerBindings({ ...update, ...scope });
-    },
-    onSuccess: async section => {
-      queryClient.setQueryData(windowManagerKeys.config(workspaceId, clientId), section);
-      await queryClient.invalidateQueries({
-        queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId ?? ""),
-      });
+    mutationFn: (update: WindowManagerBindingUpdate) => updateWindowManagerBindings(update),
+    onMutate: () => setReceipt(null),
+    onSuccess: reconcile,
+    onError: async (error, scope) => {
+      if (error instanceof WindowManagerBindingsApplyError) await reconcile(error.result, scope);
     },
   });
 
   return {
     commit: update => {
       setPendingCount(count => count + 1);
-      const run = () => mutation.mutateAsync(update);
+      const scope = clientId === undefined ? { workspaceId } : { workspaceId, clientId };
+      const run = () => mutation.mutateAsync({ ...update, ...scope });
       const next = (queue.current ?? Promise.resolve()).then(run, run);
       queue.current = next.then(
         () => undefined,
         () => undefined
       );
-      return next.finally(() => {
-        setPendingCount(count => Math.max(0, count - 1));
-      });
+      return next
+        .then(result => result.section)
+        .finally(() => {
+          setPendingCount(count => Math.max(0, count - 1));
+        });
     },
     saving: pendingCount > 0,
+    apply:
+      receipt?.workspaceId === workspaceId && receipt.clientId === clientId ? receipt.apply : null,
   };
 }

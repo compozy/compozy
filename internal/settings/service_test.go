@@ -813,8 +813,55 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	}
 }
 
+// TestUpdateSectionWindowManager verifies scoped persistence, shortcut preservation, and runtime application.
 func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve current shortcuts when saving stale behavior with zero gaps", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		stale := testWindowManagerConfig()
+		shortcuts := map[string]windowmanager.ShortcutBinding{"window.close": {"meta+shift+KeyW"}}
+		globals := map[string]string{windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space"}
+		aliases := map[string]string{"session.new": "start"}
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest:               SectionRequest{Section: SectionWindowManager},
+			WindowManagerShortcuts:       &shortcuts,
+			WindowManagerGlobalShortcuts: &globals,
+			WindowManagerAliases:         &aliases,
+		}); err != nil {
+			t.Fatalf("update shortcuts: %v", err)
+		}
+		stale.Gaps = compozyconfig.WindowManagerGapsConfig{}
+		for range 2 {
+			if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+				SectionRequest:                 SectionRequest{Section: SectionWindowManager},
+				WindowManager:                  &stale,
+				WindowManagerPreserveShortcuts: true,
+			}); err != nil {
+				t.Fatalf("save behavior: %v", err)
+			}
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("reload config: %v", err)
+		}
+		if loaded.WindowManager.Gaps != (compozyconfig.WindowManagerGapsConfig{}) {
+			t.Fatalf("gaps = %#v, want all zeros", loaded.WindowManager.Gaps)
+		}
+		if !reflect.DeepEqual(loaded.WindowManager.Shortcuts, shortcuts) ||
+			!reflect.DeepEqual(loaded.WindowManager.GlobalShortcuts, globals) ||
+			!reflect.DeepEqual(loaded.CmdPalette.Aliases, aliases) {
+			t.Fatalf(
+				"behavior save replaced shortcut state: %#v, aliases %#v",
+				loaded.WindowManager,
+				loaded.CmdPalette.Aliases,
+			)
+		}
+	})
 
 	t.Run("Should round-trip the complete validated global config", func(t *testing.T) {
 		t.Parallel()
@@ -824,6 +871,8 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		service := testService(t, homePaths, Dependencies{})
 		desired := testWindowManagerConfig()
+		desired.Gaps.Inner = 0
+		desired.GlobalShortcuts = map[string]string{windowmanager.DefaultGlobalSummonCommandID: "meta+shift+Space"}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionWindowManager},

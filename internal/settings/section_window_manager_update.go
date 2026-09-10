@@ -7,6 +7,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+// updateWindowManagerSection validates and persists window-manager settings against the pre-write active baseline.
 func (s *service) updateWindowManagerSection(
 	ctx context.Context,
 	req SectionUpdateRequest,
@@ -55,6 +56,12 @@ func (s *service) updateWindowManagerSection(
 	)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	// Capture the active baseline before the first write, including a cold-service Save.
+	if loaded.scope == ScopeUser {
+		if _, err := s.ensureActiveConfigState(ctx); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	result, err := s.updateScopedConfigSection(
 		req.Section,

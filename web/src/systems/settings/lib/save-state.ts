@@ -3,7 +3,7 @@ export type SettingsSaveBarState =
   | { kind: "dirty"; warnings: string[] }
   | { kind: "invalid"; warnings: string[] }
   | { kind: "saving" }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: string; canRetry?: boolean; canDiscard?: boolean }
   | { kind: "saved"; message: string }
   | { kind: "warning"; message: string; warnings: string[] };
 
@@ -17,6 +17,7 @@ export interface SettingsSaveStateInput {
   showSaved: boolean;
 }
 
+/** Derive visible save status and recovery actions without treating an error as an immutable lock. */
 export function deriveSettingsSaveBarState({
   isDirty,
   isInvalid = false,
@@ -27,7 +28,8 @@ export function deriveSettingsSaveBarState({
   showSaved,
 }: SettingsSaveStateInput): SettingsSaveBarState {
   if (isSaving) return { kind: "saving" };
-  if (error) return { kind: "error", message: error };
+  if (error)
+    return { kind: "error", message: error, canRetry: isDirty && !isInvalid, canDiscard: isDirty };
   if (isInvalid) return { kind: "invalid", warnings };
   if (isDirty) return { kind: "dirty", warnings };
   if (warnings.length > 0) {

@@ -3,7 +3,11 @@ import { useRef, type ReactNode } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
 
-import type { WindowManagerConfig, WindowManagerSettingsSection } from "@/systems/os";
+import {
+  windowManagerApplyMessage,
+  type WindowManagerConfig,
+  type WindowManagerSettingsSection,
+} from "@/systems/os";
 import {
   LayoutProfileGrid,
   LayoutStage,
@@ -180,17 +184,28 @@ function LayoutsSettingsView({
   const configEditor = useWindowManagerConfigEditor(config);
   // Keyboard state is daemon-owned and applies live, so it writes through its
   // own path rather than joining the page's draft (US-022.AC-3).
-  const { aliases, globalRecorder, recorder } = useWindowManagerKeyboardEditors(
+  const { aliases, globalRecorder, recorder, bindingApply } = useWindowManagerKeyboardEditors(
     section,
     workspaceId,
     clientId
   );
   const saveBarState = useSettingsSaveBarState({
-    isDirty: configEditor.dirty,
+    isDirty: configEditor.dirty || configEditor.error !== null,
     isInvalid: configEditor.problems.length > 0,
     isSaving: configEditor.phase === "saving",
     error: configEditor.error instanceof Error ? configEditor.error.message : null,
-    warnings: configEditor.problems.map(problem => problem.message),
+    warnings: [
+      ...configEditor.problems.map(problem => problem.message),
+      ...(configEditor.result?.apply.warnings ?? []),
+      ...(configEditor.result &&
+      (configEditor.result.apply.next_action !== "none" ||
+        (!configEditor.result.apply.applied && !configEditor.result.apply.skipped))
+        ? [windowManagerApplyMessage(configEditor.result.apply)]
+        : []),
+    ],
+    lastAppliedLabel: configEditor.result
+      ? windowManagerApplyMessage(configEditor.result.apply)
+      : null,
   });
 
   return (
@@ -225,6 +240,7 @@ function LayoutsSettingsView({
       )}
       <WindowManagerConfigEditor
         aliases={aliases}
+        bindingApply={bindingApply}
         editor={configEditor}
         focusCommandId={focusCommandId}
         globalRecorder={globalRecorder}

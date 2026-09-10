@@ -2650,8 +2650,55 @@ func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
 	})
 }
 
+// TestUpdateSettingsSectionHandlersDelegateValidPayloads verifies decoded writes and echoed application outcomes.
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should echo the window-manager section with its failed apply receipt", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if !req.WindowManagerPreserveShortcuts || req.WindowManager.Gaps.Inner != 0 {
+					t.Fatalf("request lost preservation or zero gap: %#v", req)
+				}
+				return settingspkg.ApplyResult{
+					Section: settingspkg.SectionWindowManager, Scope: settingspkg.ScopeUser,
+					Record:     settingspkg.ApplyRecord{ID: "apply-layout", Generation: 7, Lifecycle: lifecycle.Live},
+					NextAction: lifecycle.NextActionRetry, Warnings: []string{"Runtime unavailable"},
+				}, nil
+			},
+			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section:         req.Section,
+					Scope:           settingspkg.ScopeUser,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeWorkspace},
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: compozyconfig.DefaultWindowManagerConfig(),
+					},
+				}, nil
+			},
+		}
+		for _, transport := range []string{"api-core-http", "api-core-uds"} {
+			fixture := newSettingsHandlerFixture(t, transport, service, nil)
+			config := validSettingsWindowManagerConfigPayload()
+			config.Gaps.Inner = 0
+			response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/window-manager",
+				mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: &config, PreserveShortcuts: true}))
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+			}
+			var result contract.SettingsWindowManagerMutationResponse
+			decodeJSON(t, response.Body.Bytes(), &result)
+			if result.Section != contract.SettingsSectionName(settingspkg.SectionWindowManager) ||
+				result.Config.HistoryLimit == 0 ||
+				result.Apply.Applied ||
+				result.Apply.ApplyRecordID != "apply-layout" ||
+				result.Apply.NextAction != contract.SettingsApplyNextActionRetry ||
+				len(result.Apply.Warnings) != 1 {
+				t.Fatalf("mutation response lost section or receipt: %#v", result)
+			}
+		}
+	})
 
 	memoryPayload := validSettingsMemoryConfigPayload()
 	memoryPayload.GlobalDir = "/tmp/memory"

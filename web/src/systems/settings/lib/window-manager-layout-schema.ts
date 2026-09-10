@@ -413,6 +413,7 @@ export function windowManagerProfileToWire(profile: WindowManagerLayoutProfile) 
   };
 }
 
+/** Serialize the complete behavior configuration, including zero gaps and global shortcuts. */
 export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
   return {
     new_window_policy: config.newWindowPolicy,
@@ -440,5 +441,6 @@ export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
       bottom_center: config.bindings.bottomCenter,
     },
     shortcuts: config.shortcuts,
+    global_shortcuts: config.globalShortcuts,
   };
 }

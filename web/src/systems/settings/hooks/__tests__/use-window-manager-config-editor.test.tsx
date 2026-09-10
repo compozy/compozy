@@ -21,6 +21,7 @@ vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => {
   return { ...actual, updateWindowManagerSettings };
 });
 
+import { WindowManagerSettingsApplyError } from "../../adapters/window-manager-layouts-api";
 import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
 import {
   applyTerminalShortcutPreset,
@@ -85,6 +86,16 @@ const CONFIG: WindowManagerConfig = {
   effectiveShortcuts: SHORTCUT_DEFAULTS,
 };
 
+const APPLY = {
+  applied: true,
+  lifecycle: "live" as const,
+  apply_record_id: "apply-1",
+  active_generation: 2,
+  active_config_hash: "hash",
+  next_action: "none" as const,
+};
+
+/** Exercise the draft editor with an isolated query cache and replaceable daemon baseline. */
 function renderEditor(initial = CONFIG) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -100,6 +111,7 @@ function renderEditor(initial = CONFIG) {
   };
 }
 
+/** Project validation diagnostics to the editable fields whose saves must be blocked. */
 function fields(problems: ReadonlyArray<{ field: string }>) {
   return problems.map(problem => problem.field);
 }
@@ -107,7 +119,126 @@ function fields(problems: ReadonlyArray<{ field: string }>) {
 describe("useWindowManagerConfigEditor", () => {
   beforeEach(() => {
     updateWindowManagerSettings.mockReset();
-    updateWindowManagerSettings.mockResolvedValue(undefined);
+    updateWindowManagerSettings.mockImplementation(async (config: WindowManagerConfig) => ({
+      config,
+      apply: APPLY,
+    }));
+  });
+
+  it("Should retain the failed draft and retry it without an extra edit", async () => {
+    updateWindowManagerSettings.mockRejectedValueOnce(new Error("Failed to fetch"));
+    const { result } = renderEditor();
+    act(() =>
+      result.current.setDraft(current => ({
+        ...current,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      }))
+    );
+    act(() => result.current.save());
+    await waitFor(() => expect(result.current.error?.message).toBe("Failed to fetch"));
+    expect(result.current.draft.gaps.inner).toBe(0);
+    expect(result.current.canSave).toBe(true);
+    act(() => result.current.save());
+    await waitFor(() => expect(result.current.result?.apply.applied).toBe(true));
+    expect(result.current.error).toBeNull();
+    expect(result.current.dirty).toBe(false);
+    expect(result.current.draft.gaps.inner).toBe(0);
+    expect(updateWindowManagerSettings).toHaveBeenCalledTimes(2);
+    expect(updateWindowManagerSettings.mock.calls[0]?.[0]).toEqual(
+      updateWindowManagerSettings.mock.calls[1]?.[0]
+    );
+  });
+
+  it.each(["edit", "discard"])("Should clear a failed save after %s", async action => {
+    updateWindowManagerSettings.mockRejectedValueOnce(new Error("Failed to fetch"));
+    const { result } = renderEditor();
+    act(() => result.current.setDraft(current => ({ ...current, historyLimit: 101 })));
+    act(() => result.current.save());
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    act(() => {
+      if (action === "edit")
+        result.current.setDraft(current => ({ ...current, historyLimit: 102 }));
+      else result.current.reset();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.dirty).toBe(action === "edit");
+  });
+
+  it("Should adopt persisted config after apply failure so discard cannot restore an obsolete baseline", async () => {
+    const saved = { ...CONFIG, gaps: { ...CONFIG.gaps, inner: 0 } };
+    updateWindowManagerSettings.mockRejectedValueOnce(
+      new WindowManagerSettingsApplyError({
+        config: saved,
+        apply: { ...APPLY, applied: false, next_action: "retry" },
+      })
+    );
+    const { result } = renderEditor();
+    act(() => result.current.setDraft(saved));
+    act(() => result.current.save());
+    await waitFor(() =>
+      expect(result.current.error).toBeInstanceOf(WindowManagerSettingsApplyError)
+    );
+    expect(result.current.dirty).toBe(false);
+    expect(result.current.canSave).toBe(true);
+    expect(result.current.result?.apply.applied).toBe(false);
+    act(() => result.current.reset());
+    expect(result.current.draft.gaps.inner).toBe(0);
+    expect(result.current.error).toBeNull();
+  });
+
+  it.each(["transport", "application"])(
+    "Should keep a newer edit retryable after an in-flight %s failure",
+    async failure => {
+      let rejectSave!: (error: Error) => void;
+      updateWindowManagerSettings.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectSave = reject;
+          })
+      );
+      const { result } = renderEditor();
+      act(() => result.current.setDraft(current => ({ ...current, historyLimit: 101 })));
+      act(() => result.current.save());
+      await waitFor(() => expect(updateWindowManagerSettings).toHaveBeenCalledOnce());
+      act(() => {
+        result.current.setDraft(current => ({ ...current, historyLimit: 102 }));
+        result.current.save();
+      });
+      expect(result.current.canSave).toBe(false);
+      expect(updateWindowManagerSettings).toHaveBeenCalledOnce();
+      const error =
+        failure === "application"
+          ? new WindowManagerSettingsApplyError({
+              config: { ...CONFIG, historyLimit: 101 },
+              apply: { ...APPLY, applied: false, next_action: "retry" },
+            })
+          : new Error("Failed to fetch");
+      await act(async () => rejectSave(error));
+      await waitFor(() => expect(result.current.canSave).toBe(true));
+      expect(result.current.draft.historyLimit).toBe(102);
+      expect(result.current.error).toBeNull();
+      expect(result.current.result?.apply.next_action).toBe(
+        failure === "application" ? "retry" : undefined
+      );
+    }
+  );
+
+  it("Should retain the behavior draft when live shortcut state changes", () => {
+    const { result, rerender } = renderEditor();
+    act(() =>
+      result.current.setDraft(current => ({ ...current, gaps: { ...current.gaps, inner: 0 } }))
+    );
+    rerender({
+      baseline: {
+        ...CONFIG,
+        shortcuts: { "window.close": ["meta+shift+KeyW"] },
+        globalShortcuts: { "palette.summon.global": "meta+shift+Space" },
+      },
+    });
+    expect(result.current.draft.gaps.inner).toBe(0);
+    expect(result.current.canSave).toBe(true);
+    act(() => result.current.reset());
+    expect(result.current.dirty).toBe(false);
   });
 
   it("Should preserve every daemon-required limit in the wire config", () => {
@@ -132,14 +263,14 @@ describe("useWindowManagerConfigEditor", () => {
   it("Should ignore a late save result after a newer draft transition", () => {
     const store = windowManagerConfigEditorLogic.createStore({ baseline: CONFIG });
     let snapshot = store.getInitialSnapshot();
-    const revision = JSON.stringify(CONFIG);
+    const revision = snapshot.context.baselineRevision;
     [snapshot] = store.transition(snapshot, {
       type: "draftChanged",
       draft: { ...CONFIG, historyLimit: 101 },
     });
     [snapshot] = store.transition(snapshot, {
       type: "saveRequested",
-      execute: async () => undefined,
+      execute: async () => ({ config: CONFIG, apply: APPLY }),
     });
     [snapshot] = store.transition(snapshot, {
       type: "draftChanged",
@@ -147,12 +278,14 @@ describe("useWindowManagerConfigEditor", () => {
     });
     [snapshot] = store.transition(snapshot, {
       type: "saveSucceeded",
+      result: { config: CONFIG, apply: { ...APPLY, warnings: ["Follow-up required"] } },
       operation: 1,
       revision,
       draftRevision: 1,
     });
 
     expect(snapshot.context.draft.historyLimit).toBe(102);
+    expect(snapshot.context.result?.apply.warnings).toEqual(["Follow-up required"]);
     expect(snapshot.context.phase).toBe("dirty");
   });
 

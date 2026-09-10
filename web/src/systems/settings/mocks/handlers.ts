@@ -38,11 +38,11 @@ import {
 } from "./layered-fixtures";
 import {
   settingsWindowManagerDesktopIds,
-  settingsWindowManagerSectionFixture,
   settingsWindowManagerSnapshotFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
+import { windowManagerSettingsHandlers } from "./window-manager-settings-handlers";
 import { rolesStatusFixture, settingsRolesSectionFixture } from "./roles-fixtures";
 import { settingsUpdateStatusFixture } from "./settings-update-fixture";
 
@@ -215,14 +215,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(settingsCmdPaletteSectionFixture)
   ),
 
-  compozyApiMock.get("/api/settings/window-manager", () =>
-    HttpResponse.json(settingsWindowManagerSectionFixture)
-  ),
-  // Bindings echo the section the daemon produced, never a write receipt: the
-  // caller has to see the keymap that actually resulted (ADR-006).
-  compozyApiMock.patch("/api/settings/window-manager", () =>
-    HttpResponse.json(settingsWindowManagerSectionFixture)
-  ),
+  ...windowManagerSettingsHandlers,
 
   compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
     HttpResponse.json(layoutDocumentForWorkspace(String(params.workspace_id)))

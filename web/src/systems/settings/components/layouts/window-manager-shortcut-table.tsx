@@ -2,8 +2,13 @@ import { useState } from "react";
 
 import { Button, Empty, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
 
-import { orderShortcutSources, shortcutLabel } from "@/systems/os";
-import type { WindowManagerSettingsSection } from "@/systems/os";
+import {
+  orderShortcutSources,
+  shortcutLabel,
+  windowManagerApplyFailed,
+  windowManagerApplyMessage,
+} from "@/systems/os";
+import type { WindowManagerSettingsApply, WindowManagerSettingsSection } from "@/systems/os";
 
 import type { AliasEditorModel } from "../../hooks/use-window-manager-alias-editor";
 import type { ShortcutRecorderModel } from "../../hooks/use-window-manager-shortcut-recorder";
@@ -21,6 +26,7 @@ export interface WindowManagerShortcutTableProps {
   section: WindowManagerSettingsSection;
   recorder: ShortcutRecorderModel;
   aliases: AliasEditorModel;
+  apply?: WindowManagerSettingsApply | null;
   /** Command the operator arrived to bind, from a palette deep link. */
   focusCommandId?: string;
 }
@@ -37,6 +43,7 @@ export function WindowManagerShortcutTable({
   section,
   recorder,
   aliases,
+  apply,
   focusCommandId,
 }: WindowManagerShortcutTableProps) {
   const [source, setSource] = useState<string>(SHORTCUT_SOURCE_ALL);
@@ -83,6 +90,15 @@ export function WindowManagerShortcutTable({
           Reset all
         </Button>
       </div>
+
+      {apply && !windowManagerApplyFailed(apply) ? (
+        <div className="px-4 py-2 text-form-hint text-fg-muted" role="status">
+          <p>{windowManagerApplyMessage(apply)}</p>
+          {apply.warnings?.map((warning, index) => (
+            <p key={`${index}:${warning}`}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
 
       {recorder.error !== null ? (
         <p className="px-4 py-2 text-form-hint text-danger" role="alert">

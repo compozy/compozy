@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-// Suite: OS command palette root
+// Suite: OS command palette root and surface
 // Invariant: every row is a projection of the one client registry, entity rows
 // preserve the selected tab's identity, session landing goes through the shared
 // attention jump exactly once (BR-20), destination mode offers only navigable
 // targets, and a pushed view owns the surface completely — its own results, its
 // own filters, and a keyboard selection that survives the catalog moving.
-// Owning layer: palette root view-model and presentation boundary.
+// Owning layer: palette root/surface view-model and presentation boundary.
+// This canonical suite also owns automatic surface selection and action-panel
+// continuity; its shared registry/ranking setup exercises those hooks together.
 // Boundary OUT: the dispatch seam and client-op table (cmd-palette-dispatch),
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
@@ -33,6 +35,7 @@ import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsAppId, OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import type { CmdPaletteRunOptions } from "../use-cmd-palette-dispatch";
+import { useOsPaletteSurface } from "../use-os-palette-surface";
 import { useOsPaletteRoot } from "../use-os-palette-root";
 import {
   cmdPaletteExecutionStore,
@@ -1841,6 +1844,31 @@ describe("palette execution surfaces", () => {
   afterEach(() => {
     resetPaletteExecutionEntry();
     cmdPaletteExecutionStore.trigger.pendingSettled({ commandId: CAPTURE_COMMAND.id });
+  });
+
+  it("Should retain an automatically selected row and its actions when async ranking arrives", () => {
+    let registry: PaletteRegistry = { ...EXECUTION_REGISTRY, commands: [], byId: new Map() };
+    const { result, rerender } = renderHook(
+      () => useOsPaletteSurface({ open: true, onOpenChange: vi.fn(), dispatch: paletteDispatch }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <CmdPaletteRegistryProvider registry={registry}>{children}</CmdPaletteRegistryProvider>
+        ),
+      }
+    );
+    expect(result.current.selected).toBe("");
+    registry = EXECUTION_REGISTRY;
+    rerender();
+    const selected = result.current.selected;
+    expect(selected).not.toBe("");
+    expect(selected).not.toBe("settings.layouts");
+    act(() => result.current.execution.setPanelOpen(true));
+    expect(result.current.execution.panel.open).toBe(true);
+    paletteMocks.rankSignals = { ...TEST_RANK_SIGNALS, pins: ["settings.layouts"] };
+    rerender();
+    expect(result.current.values[0]).toBe("settings.layouts");
+    expect(result.current.selected).toBe(selected);
+    expect(result.current.execution.panel.open).toBe(true);
   });
 
   it("Should toggle the action panel on the selected row, filter it, and close it [UT-125]", async () => {

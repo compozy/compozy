@@ -41,6 +41,8 @@ func (s *service) recordProviderModelsMutationApply(
 	)
 }
 
+// recordProjectedMutationApply records and applies only the selected active projection,
+// retrying pending layout application.
 func (s *service) recordProjectedMutationApply(
 	ctx context.Context,
 	result MutationResult,
@@ -56,6 +58,10 @@ func (s *service) recordProjectedMutationApply(
 	ctx = correlatedCtx
 	configLifecycle := mutationLifecycle(result)
 	noChanges := mutationResultHasNoChanges(result)
+	// A Layouts retry must compare its scoped active projection, not only the file diff.
+	if result.Section == SectionWindowManager && result.Scope == ScopeUser {
+		noChanges = noChanges && nextActiveHash == state.hash
+	}
 	record, plan, err := s.persistRuntimeApply(
 		ctx,
 		state,
