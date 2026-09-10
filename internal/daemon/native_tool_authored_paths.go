@@ -234,6 +234,7 @@ type nativeAuthoredAgentTarget struct {
 func (n *daemonNativeTools) authoredAgentTarget(
 	ctx context.Context,
 	toolID toolspkg.ToolID,
+	profileID string,
 	workspaceRef string,
 	agentName string,
 ) (nativeAuthoredAgentTarget, error) {
@@ -248,7 +249,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if n.deps.WorkspaceResolver == nil {
 		return nativeAuthoredAgentTarget{}, errors.New("daemon: workspace resolver is required")
 	}
-	resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := n.nativeSkillWorkspace(ctx, profileID, workspaceID)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}
@@ -256,7 +257,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(resolved)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}
@@ -264,7 +265,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 		workspaceID:     resolvedWorkspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
-		agentPath:       nativeAuthoredAgentPath(&resolved, name),
+		agentPath:       nativeAuthoredAgentPath(resolved, name),
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
 	}, nil
 }

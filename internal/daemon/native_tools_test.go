@@ -15964,3 +15964,117 @@ func (unsupportedNativeTaskManager) RunDetail(
 ) (*taskpkg.RunDetailView, error) {
 	return nil, errUnexpectedNativeTaskCall
 }
+
+type nativeEmptyHeartbeatStore struct{}
+
+func (nativeEmptyHeartbeatStore) FindHeartbeatSnapshotByDigest(
+	context.Context,
+	string,
+	string,
+	string,
+) (heartbeat.Snapshot, bool, error) {
+	return heartbeat.Snapshot{}, false, nil
+}
+
+func (nativeEmptyHeartbeatStore) GetHeartbeatWakeState(
+	context.Context,
+	string,
+	string,
+	string,
+) (heartbeat.WakeState, error) {
+	return heartbeat.WakeState{}, heartbeat.ErrWakeStateNotFound
+}
+
+func (nativeEmptyHeartbeatStore) ListHeartbeatWakeState(
+	context.Context,
+	heartbeat.WakeStateListQuery,
+) ([]heartbeat.WakeState, error) {
+	return nil, nil
+}
+
+func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
+	t.Parallel()
+	for _, profileName := range []string{"default", "marketing"} {
+		t.Run("Should read the caller policy from "+profileName, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			home := apitest.NewTestHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			digests := map[string]string{}
+			for _, name := range []string{"default", "marketing"} {
+				dir := filepath.Join(root, ".compozy", "profiles", name, "agents", "coder")
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(dir, "AGENT.md"),
+					[]byte("---\nname: coder\nprovider: cursor\n---\nMaintain notes.\n"),
+					0o644,
+				); err != nil {
+					t.Fatal(err)
+				}
+				body := "---\nversion: 1\nenabled: true\n---\nRead " + name + " notes.\n"
+				path := filepath.Join(dir, "HEARTBEAT.md")
+				if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				policy, err := heartbeat.Parse(
+					t.Context(),
+					heartbeat.ParseRequest{
+						SourcePath:    path,
+						WorkspaceRoot: root,
+						Content:       []byte(body),
+						Config:        cfg.Agents.Heartbeat,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				digests[name] = policy.Digest
+			}
+			resolve := func(_ context.Context, ref, name string) (workspacepkg.ResolvedWorkspace, error) {
+				agents, err := compozyconfig.LoadWorkspaceAgentDefs(root, nil, home, name)
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: ref, RootDir: root},
+					WorkspaceID: ref,
+					ProfileName: name,
+					Config:      cfg,
+					Agents:      agents,
+				}, err
+			}
+			workspace := apitest.StubWorkspaceService{
+				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					return resolve(ctx, ref, "")
+				},
+				ResolveForProfileFn: resolve,
+			}
+			status, err := heartbeat.NewManagedHeartbeatStatusService(nativeEmptyHeartbeatStore{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				HomePaths:         home,
+				Workspaces:        nativeNetworkTestWorkspaceServiceWithRoot(t, root),
+				WorkspaceResolver: workspace,
+				Profiles: nativeProfileReaderStub{
+					profiles: []profilepkg.WithCounts{
+						{Profile: profilepkg.Profile{ID: "profile-" + profileName, Name: profileName}},
+					},
+				},
+				HeartbeatStatus: status,
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true, ProfileID: "profile-" + profileName},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
+					Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("heartbeat status failed: %v", err)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"digest":"`+digests[profileName]+`"`))
+		})
+	}
+}

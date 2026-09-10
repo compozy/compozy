@@ -133,14 +133,14 @@ func (n *daemonNativeTools) sessionHealth(
 
 func (n *daemonNativeTools) agentHeartbeatStatus(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input agentHeartbeatStatusInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, err := n.authoredAgentTarget(ctx, req.ToolID, input.WorkspaceID, input.AgentName)
+	target, err := n.authoredAgentTarget(ctx, req.ToolID, scope.ProfileID, input.WorkspaceID, input.AgentName)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -189,14 +189,14 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 
 func (n *daemonNativeTools) agentHeartbeatWake(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input agentHeartbeatWakeInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, err := n.authoredAgentTarget(ctx, req.ToolID, input.WorkspaceID, input.AgentName)
+	target, err := n.authoredAgentTarget(ctx, req.ToolID, scope.ProfileID, input.WorkspaceID, input.AgentName)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
