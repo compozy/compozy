@@ -174,9 +174,7 @@ func (d *Driver) registerAgentProcess(ctx context.Context, process *AgentProcess
 	if registry == nil || process.PID <= 0 {
 		return nil
 	}
-	recordCtx, cancelRecord := processRecordContext(ctx, d.processRecordTimeout)
-	defer cancelRecord()
-	handle, err := registry.Register(recordCtx, toolruntime.RegisterConfig{
+	handle, err := registry.Register(ctx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceACPAgent,
 		Owner: toolruntime.ProcessOwner{
 			SessionID: process.SessionID,

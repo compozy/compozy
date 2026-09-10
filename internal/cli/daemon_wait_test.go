@@ -362,6 +362,36 @@ func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *tes
 func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: process exit remains observable while the shutting-down API is unresponsive.
+	// Owner: CLI daemon lifecycle; canonical suite: daemon_wait_test.go.
+	t.Run("Should observe process exit without waiting for an unresponsive status API", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(ctx context.Context) (DaemonStatus, error) {
+				<-ctx.Done()
+				return DaemonStatus{}, ctx.Err()
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) { return info, nil }
+		aliveChecks := 0
+		deps.processAlive = func(int) bool {
+			aliveChecks++
+			return aliveChecks < 2
+		}
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatalf("loadRuntimeContext() error = %v", err)
+		}
+		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+		status, err := waitForDaemonStop(ctx, deps, runtime, info)
+		if err != nil || ctx.Err() != nil || status.Status != "stopped" {
+			t.Fatalf("waitForDaemonStop() = %#v, error = %v, context error = %v", status, err, ctx.Err())
+		}
+	})
+
 	t.Run("Should outlive the daemon graceful shutdown budget", func(t *testing.T) {
 		t.Parallel()
 

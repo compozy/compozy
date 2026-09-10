@@ -26,23 +26,15 @@ func waitForDaemonStop(
 	if err := requirePollingContext(ctx); err != nil {
 		return DaemonStatus{}, err
 	}
-	client, clientErr := clientFromDeps(deps)
 	return pollUntil(
 		ctx,
 		daemonStopWaitTimeout(deps.stopTimeout, &runtime.Config),
 		deps.pollInterval,
 		nil,
 		"cli: daemon did not stop before timeout",
-		func(pollCtx context.Context, _ pollEvent) (DaemonStatus, bool, error) {
+		func(_ context.Context, _ pollEvent) (DaemonStatus, bool, error) {
 			if _, running, err := daemonInfo(runtime.HomePaths, deps); err == nil && !running {
 				return daemonStatusWithState(runtime, info, "stopped"), true, nil
-			}
-			if clientErr == nil {
-				if _, err := client.DaemonStatus(pollCtx); err != nil {
-					if _, running, infoErr := daemonInfo(runtime.HomePaths, deps); infoErr == nil && !running {
-						return daemonStatusWithState(runtime, info, "stopped"), true, nil
-					}
-				}
 			}
 			return DaemonStatus{}, false, nil
 		},

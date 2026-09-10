@@ -390,6 +390,52 @@ func TestRegisterAgentProcessRetainsRegistryForPIDLessSandboxAgents(t *testing.T
 	})
 }
 
+// Invariant: initial process registration follows startup cancellation and its budget.
+// Owner: ACP process lifecycle; canonical suite: client_process_lifecycle_test.go.
+func TestRegisterAgentProcessUsesStartupContext(t *testing.T) {
+	t.Parallel()
+	for _, canceled := range []bool{false, true} {
+		name := "Should retain the startup budget for the initial checkpoint"
+		if canceled {
+			name = "Should honor startup cancellation during the initial checkpoint"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := &failingToolRuntimeStore{
+				upsertFn: func(ctx context.Context, _ toolruntime.ProcessRecord) error { return ctx.Err() },
+			}
+			driver := New(
+				WithProcessRegistry(toolruntime.NewRegistry(store)),
+				WithProcessRecordTimeout(time.Nanosecond),
+			)
+			ctx, cancel := context.WithCancel(testutil.Context(t))
+			defer cancel()
+			if canceled {
+				cancel()
+			}
+			process := &AgentProcess{PID: os.Getpid(), SessionID: "register-startup", Command: "test-agent"}
+			err := driver.registerAgentProcess(ctx, process)
+			if canceled {
+				if !errors.Is(err, context.Canceled) || process.processRecord != nil {
+					t.Fatalf(
+						"registerAgentProcess() error = %v, handle = %v, want canceled without a handle",
+						err,
+						process.processRecord,
+					)
+				}
+				return
+			}
+			if err != nil || process.processRecord == nil {
+				t.Fatalf(
+					"registerAgentProcess() error = %v, handle = %v, want successful checkpoint",
+					err,
+					process.processRecord,
+				)
+			}
+		})
+	}
+}
+
 func TestProcessRecordContext(t *testing.T) {
 	t.Run("Should detach cancellation while preserving a bounded deadline", func(t *testing.T) {
 		t.Parallel()

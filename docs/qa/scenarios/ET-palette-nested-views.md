@@ -56,3 +56,5 @@ Walk (task_11 plan — stack semantics across all four kinds):
 Expected evidence: screenshots of each kind under the shared chrome, the truncated breadcrumb, the
 unavailable frame, the destination empty state, a generation-gap resync, and an at-most-once
 effect; note the exact pop sequence observed.
+
+QA 2026-09-10: Release integration now builds the TypeScript/React SDK dependencies before the programmable-view fixture. Its existing real daemon/CLI/HTTP isolation and extension-restart journey passed three race-enabled repetitions. This is backend evidence for view-session ownership and restart behavior; the visual keyboard/stack walk above is unchanged. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

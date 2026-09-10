@@ -130,9 +130,13 @@ func stopProcess(t *testing.T, driver *Driver, proc *AgentProcess) {
 type failingToolRuntimeStore struct {
 	updateErr error
 	upserts   int
+	upsertFn  func(context.Context, toolruntime.ProcessRecord) error
 }
 
-func (s *failingToolRuntimeStore) UpsertProcessRecord(context.Context, toolruntime.ProcessRecord) error {
+func (s *failingToolRuntimeStore) UpsertProcessRecord(ctx context.Context, record toolruntime.ProcessRecord) error {
+	if s.upsertFn != nil {
+		return s.upsertFn(ctx, record)
+	}
 	s.upserts++
 	if s.upserts > 1 {
 		return s.updateErr

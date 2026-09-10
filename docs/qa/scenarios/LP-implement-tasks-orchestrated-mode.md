@@ -98,3 +98,5 @@ it never materializes another tree. The unchanged assertions passed all five sel
 precedence combinations (31.057s, `-race -p=1 -parallel=4`), including per-run approval and rejection.
 Evidence: `.cache/issue-565/e2e-per-run-green.log`; targeted teardown reported `clean: true` with
 no survivors at `2026-09-09T17:12:37Z`. The broader terminal-path limitation above remains separate.
+
+QA 2026-09-10: Initial ACP process registration now retains the startup context instead of applying the separate process-finalization deadline. The existing orchestrated Profile extension Agent journey passed three race-enabled repetitions, including its local skill, worker settlement, and selected-profile assertions. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

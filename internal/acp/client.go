@@ -141,7 +141,8 @@ type TerminalHost interface {
 	Release(context.Context, string, string, terminalpkg.ID, terminalpkg.Actor) error
 }
 
-// WithProcessRecordTimeout bounds process registry writes for ACP subprocesses.
+// WithProcessRecordTimeout bounds process registry writes during ACP interruption and exit.
+// Initial registration uses the startup context, like the rest of process initialization.
 func WithProcessRecordTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) {
 		driver.processRecordTimeout = timeout
