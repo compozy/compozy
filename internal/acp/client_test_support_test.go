@@ -509,13 +509,7 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 	}, nil
 }
 
-func (a *helperACPAgent) Cancel(ctx context.Context, params acpsdk.CancelNotification) error {
-	if a.scenario == "cooperative_cancel_ignored" {
-		return a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
-			SessionId: params.SessionId,
-			Update:    acpsdk.UpdateAgentMessageText("cancel received"),
-		})
-	}
+func (a *helperACPAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
 	return nil
 }
 
@@ -671,6 +665,16 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			return acpsdk.PromptResponse{}, sendErr
 		}
 		<-ctx.Done()
+		if a.scenario == "cooperative_cancel_ignored" {
+			// Acknowledge SDK cancellation while keeping the noncooperative prompt alive.
+			if err := a.conn.SessionUpdate(context.WithoutCancel(ctx), acpsdk.SessionNotification{
+				SessionId: params.SessionId,
+				Update:    acpsdk.UpdateAgentMessageText("cancel received"),
+			}); err != nil {
+				return acpsdk.PromptResponse{}, err
+			}
+			<-a.conn.Done()
+		}
 		return acpsdk.PromptResponse{}, ctx.Err()
 	case "echo_prompt":
 		text := ""
