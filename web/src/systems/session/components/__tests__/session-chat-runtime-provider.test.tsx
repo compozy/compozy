@@ -2556,7 +2556,8 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
   }, 10_000);
 
-  it("renders mixed text, reasoning, and unregistered tool parts inline in order", async () => {
+  it("renders mixed text, reasoning, and unregistered tool parts in order after disclosure", async () => {
+    const user = userEvent.setup();
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),
       {
@@ -2599,12 +2600,15 @@ describe("SessionChatRuntimeProvider", () => {
 
     renderSessionThread();
 
-    await waitFor(() => {
-      expect(screen.getByTestId("tool-call-row")).toBeInTheDocument();
-    });
+    const group = await screen.findByRole("button", { name: "1 tool · 1 thought · thinking" });
+    expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Before search.")).toBeInTheDocument();
+    expect(screen.getByText("After search.")).toBeInTheDocument();
+    await user.click(group);
+    expect(await screen.findByTestId("tool-call-row")).toBeInTheDocument();
 
-    // The reasoning part is still streaming, so the flattened ThinkingBlock renders
-    // it auto-open inline — no toggle needed to read it in order.
+    // Mixed activity opens together. The original streaming ThinkingBlock
+    // still opens its body automatically inside that disclosure.
     const chat = screen.getByTestId("chat-view");
     const chatText = chat.textContent ?? "";
     const beforeIndex = chatText.indexOf("Before search.");

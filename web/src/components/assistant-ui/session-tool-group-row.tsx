@@ -1,11 +1,8 @@
-import { Check } from "lucide-react";
+import { Check, LoaderCircle } from "lucide-react";
 
-import { SessionToolCallRow } from "@/systems/session";
-
-import { useOptionalSessionNavigationTarget } from "./hooks/session-navigation-target-context";
+import { SessionWorkEntryView } from "./session-work-entry";
 import { summaryFailureSuffix } from "./session-timeline-summary";
-import { toolMessageFromPart } from "./session-timeline-tool-message";
-import type { SessionWorkRow } from "./session-timeline.logic";
+import { isStreamingState, type SessionWorkRow } from "./session-timeline.logic";
 import { TranscriptDisclosure } from "./transcript-disclosure";
 
 export interface SessionToolGroupRowProps {
@@ -15,36 +12,15 @@ export interface SessionToolGroupRowProps {
   onToggle: () => void;
 }
 
-/**
- * `SessionToolGroupRow` (ADR-006 rule 1): two or more settled tools rest as one
- * sentence — "Ran 6 commands, edited 2 files, read 3 files" — with a check in
- * the well and the chevron on hover. A failure the turn absorbed appends
- * "· 1 failed" in the same ink. Open reveals the production ToolCallRows, each
- * expandable on its own; opening never yanks the viewport (ADR-007).
- */
+/** A compact work summary opens the original ordered tool and reasoning details. */
 export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGroupRowProps) {
-  const navigation = useOptionalSessionNavigationTarget();
   const summary = row.summary;
   if (!summary) return null;
-  const reveal = navigation?.reveal ?? null;
-  // The tool row holding the revealed part opens its body when the matched
-  // field lives there; the reader closing it releases that hold only.
-  const revealFor = (tool: { toolCallId: string; partIndex?: number }) => {
-    const id = `tool:${tool.toolCallId}`;
-    const held =
-      reveal !== null &&
-      reveal.opensBody &&
-      reveal.partIndex !== null &&
-      tool.partIndex === reveal.partIndex &&
-      !(navigation?.released.has(id) ?? false);
-    return {
-      onRevealRelease: () => navigation?.releaseDisclosure(id),
-      revealOpen: held,
-      ...(held && reveal.field ? { revealField: reveal.field } : {}),
-    };
-  };
   const detailsId = `${row.groupId}:entries`;
   const failed = summaryFailureSuffix(summary);
+  const busy = row.entries.some(entry =>
+    entry.kind === "tool" ? entry.status === "running" : isStreamingState(entry.state)
+  );
   return (
     <div
       data-testid="work-summary-row"
@@ -53,11 +29,20 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
       className="flex min-w-0 flex-col"
     >
       <TranscriptDisclosure
+        className="min-w-0 max-w-full"
+        title={summary.label}
         expanded={row.expanded}
         onToggle={onToggle}
         aria-controls={detailsId}
         icon={
-          <Check aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
+          busy ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="size-3 shrink-0 animate-spin text-subtle motion-reduce:animate-none"
+            />
+          ) : (
+            <Check aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
+          )
         }
         label={
           <span data-testid="work-summary-label">
@@ -82,15 +67,12 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
         className={row.expanded ? "flex min-w-0 flex-col gap-0.5 pt-0.5" : undefined}
       >
         {row.expanded
-          ? row.entries.map(tool => (
-              <SessionToolCallRow
-                key={tool.id}
-                message={toolMessageFromPart(tool)}
-                partIndex={tool.partIndex}
-                turnSettled
-                interrupted={tool.status === "interrupted"}
+          ? row.entries.map(entry => (
+              <SessionWorkEntryView
+                key={entry.id}
+                entry={entry}
+                active={row.active}
                 turnFailed={turnFailed}
-                {...revealFor(tool)}
               />
             ))
           : null}

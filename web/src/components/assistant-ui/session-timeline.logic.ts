@@ -1,18 +1,6 @@
-// Pure derivation of the assistant transcript into a flat `SessionRow` view.
-//
-// `deriveSessionRows` maps message parts to rows without mutating the runtime
-// message array (ADR-006 quiet transcript). Consecutive tool parts form one run
-// per turn. The live tail run — the trailing run of the active turn — derives
-// exactly one live tool row for its running calls (a parallel run stays one row
-// and counts) while its completed calls collapse into an expandable group; each
-// running child agent is its own live row. Every settled run collapses — the
-// moment it settles, even mid-turn — into a semantic summary row ("Ran 2
-// commands, edited 3 files"), absorbed failures included. Interrupted calls
-// stay individually visible. Consecutive reasoning parts fold into one row;
-// consecutive same-kind runtime markers merge into one data row carrying a ×N
-// count. Progress ticks never become rows. The settled-turn "Worked for Xs"
-// fold layer lives in `./session-timeline-fold`; semantic row equality lives in
-// `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
+// Pure transcript projection. Reasoning and tools share a same-turn work
+// segment; text, visible events, and deliberate terminal interactions bound it.
+// Persisted parts are never changed by presentation grouping.
 
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
@@ -143,17 +131,14 @@ export interface SessionWorkingRow extends SessionBaseRow {
   startedAt?: number;
 }
 
-/**
- * Settled tool work: a run resting as one semantic summary line (`summary`
- * non-null, expandable to its rows) or the individual rows of a run too small
- * or too particular to summarize (a lone call, interrupted calls, terminal
- * blocks). `active` marks the completed-tools group of the live turn.
- */
+export type SessionWorkEntry = SessionTimelineToolPart | SessionTimelineReasoningPart;
+
+/** Ordered activity with an optional compact disclosure; terminal calls stay inline. */
 export interface SessionWorkRow extends SessionBaseRow {
   kind: "work";
   groupId: string;
-  /** Every tool part in this run, in order. */
-  entries: SessionTimelineToolPart[];
+  /** Original reasoning and tool parts in chronological order. */
+  entries: SessionWorkEntry[];
   /** Non-null when the run rests as a collapsed semantic summary line. */
   summary: SessionToolGroupSummary | null;
   expanded: boolean;
@@ -312,21 +297,14 @@ function deriveBaseRows(
   const rows: SessionRow[] = [];
   const usedWorkGroupIds = new Set<string>();
   const liveTailStartId = findLiveTailClusterStart(parts, options.activeTurnId);
-  let toolCluster: SessionTimelineToolPart[] = [];
-  let reasoningCluster: SessionTimelineReasoningPart[] = [];
+  let workCluster: SessionWorkEntry[] = [];
   let markerCluster: SessionTimelineDataPart[] = [];
   let markerKey: string | null = null;
 
-  const flushToolCluster = () => {
-    if (toolCluster.length === 0) return;
-    rows.push(...workRowsFromCluster(toolCluster, options, liveTailStartId, usedWorkGroupIds));
-    toolCluster = [];
-  };
-
-  const flushReasoningCluster = () => {
-    if (reasoningCluster.length === 0) return;
-    rows.push(reasoningRowFromCluster(reasoningCluster));
-    reasoningCluster = [];
+  const flushWorkCluster = () => {
+    if (workCluster.length === 0) return;
+    rows.push(...workRowsFromCluster(workCluster, options, liveTailStartId, usedWorkGroupIds));
+    workCluster = [];
   };
 
   const flushMarkerCluster = () => {
@@ -340,33 +318,20 @@ function deriveBaseRows(
     if (part.kind === "data" && isProgressTick(part)) {
       continue;
     }
-    if (part.kind === "tool") {
-      flushReasoningCluster();
+    if (part.kind === "tool" || part.kind === "reasoning") {
       flushMarkerCluster();
-      const previous = toolCluster.at(-1);
+      const previous = workCluster.at(-1);
       if (previous && previous.turnId !== part.turnId) {
-        flushToolCluster();
+        flushWorkCluster();
       }
-      toolCluster.push(part);
-      continue;
-    }
-
-    if (part.kind === "reasoning") {
-      flushToolCluster();
-      flushMarkerCluster();
-      const previous = reasoningCluster.at(-1);
-      if (previous && previous.turnId !== part.turnId) {
-        flushReasoningCluster();
-      }
-      reasoningCluster.push(part);
+      workCluster.push(part);
       continue;
     }
 
     if (part.kind === "data") {
       const key = markerClusterKey(part);
       if (key !== null) {
-        flushToolCluster();
-        flushReasoningCluster();
+        flushWorkCluster();
         const previous = markerCluster.at(-1);
         if (previous && (previous.turnId !== part.turnId || markerKey !== key)) {
           flushMarkerCluster();
@@ -377,13 +342,11 @@ function deriveBaseRows(
       }
     }
 
-    flushToolCluster();
-    flushReasoningCluster();
+    flushWorkCluster();
     flushMarkerCluster();
     rows.push(rowFromPart(part));
   }
-  flushToolCluster();
-  flushReasoningCluster();
+  flushWorkCluster();
   flushMarkerCluster();
   return rows;
 }
@@ -454,14 +417,21 @@ function findLiveTailClusterStart(
   let index = parts.length - 1;
   while (index >= 0 && parts[index]!.kind === "working") index -= 1;
   const last = index >= 0 ? parts[index] : undefined;
-  if (!last || last.kind !== "tool") return null;
-  const cluster: SessionTimelineToolPart[] = [last];
+  if (!last || (last.kind !== "tool" && last.kind !== "reasoning")) return null;
+  const cluster: SessionWorkEntry[] = [last];
   for (let scan = index - 1; scan >= 0; scan -= 1) {
     const previous = parts[scan]!;
-    if (previous.kind !== "tool" || previous.turnId !== last.turnId) break;
+    if (previous.kind === "data" && isProgressTick(previous)) continue;
+    if (
+      (previous.kind !== "tool" && previous.kind !== "reasoning") ||
+      previous.turnId !== last.turnId
+    )
+      break;
     cluster.unshift(previous);
   }
-  const hasRunning = cluster.some(tool => tool.status === "running");
+  const hasRunning = cluster.some(part =>
+    part.kind === "tool" ? part.status === "running" : isStreamingState(part.state)
+  );
   const activeTurn =
     activeTurnId !== undefined && activeTurnId !== "" && last.turnId === activeTurnId;
   return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
@@ -471,7 +441,9 @@ function findLiveTailClusterStart(
 // into one row: the grouped text is the parts joined by a blank line so nothing
 // is lost, `updateCount` counts the grouped updates, and `streaming` stays
 // true while any part is still live.
-function reasoningRowFromCluster(parts: SessionTimelineReasoningPart[]): SessionReasoningRow {
+export function reasoningRowFromCluster(
+  parts: SessionTimelineReasoningPart[]
+): SessionReasoningRow {
   const first = parts[0];
   const textParts: string[] = [];
   for (const part of parts) {

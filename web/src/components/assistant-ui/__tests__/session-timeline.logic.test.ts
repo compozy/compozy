@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveSessionRows,
+  sessionRowEqual,
   type SessionTimelinePart,
   type SessionTimelineToolPart,
 } from "../session-timeline.logic";
@@ -34,6 +35,91 @@ function text(
 }
 
 describe("session timeline derivation", () => {
+  it("Should preserve mixed order, complete parts, expansion and identity through streaming", () => {
+    const parts: SessionTimelinePart[] = [
+      {
+        kind: "reasoning",
+        id: "r1",
+        text: "Inspect **input**",
+        turnId: "turn-1",
+        state: "done",
+        partIndex: 0,
+      },
+      tool(1, { status: "running", partIndex: 1 }),
+      {
+        kind: "reasoning",
+        id: "r2",
+        text: "Then `verify`",
+        turnId: "turn-1",
+        state: "streaming",
+        partIndex: 2,
+      },
+      tool(2, { isError: true, partIndex: 3 }),
+    ];
+    const [initial] = deriveSessionRows(parts, { activeTurnId: "turn-1" });
+    if (initial?.kind !== "work") throw new Error("expected mixed work");
+    expect(initial.entries).toEqual(parts);
+    expect(initial.summary).toMatchObject({ entryCount: 2, failedCount: 1 });
+    expect(initial.summary?.label).toBe("2 tools · 2 thoughts · 1 running · thinking");
+    expect(initial.active).toBe(true);
+    const settledParts = parts.map(part =>
+      part.kind === "tool" ? { ...part, status: "settled" as const } : { ...part, state: "done" }
+    );
+    const [settled] = deriveSessionRows(settledParts, {
+      expandedWorkGroupIds: new Set([initial.groupId]),
+    });
+    if (settled?.kind !== "work") throw new Error("expected settled mixed work");
+    expect(settled.groupId).toBe(initial.groupId);
+    expect(settled.expanded).toBe(true);
+    expect(settled.active).toBe(false);
+    expect(settled.entries).toEqual(settledParts);
+    expect(sessionRowEqual(initial, settled)).toBe(false);
+    const [updated] = deriveSessionRows(
+      parts.map(part =>
+        part.kind === "reasoning" ? { ...part, text: part.text + " more" } : part
+      ),
+      { activeTurnId: "turn-1" }
+    );
+    expect(sessionRowEqual(initial, updated!)).toBe(false);
+  });
+
+  it("Should bound mixed work by turns, permissions and deliberate terminal interactions", () => {
+    const thought = (id: string, turnId = "turn-1"): SessionTimelinePart => ({
+      kind: "reasoning",
+      id,
+      text: id,
+      turnId,
+      state: "done",
+    });
+    const parts: SessionTimelinePart[] = [
+      thought("r1"),
+      tool(1),
+      tool(2, { toolName: "compozy__terminal_exec" }),
+      thought("r2"),
+      tool(3),
+      {
+        kind: "data",
+        id: "permission",
+        name: "data-compozy-permission",
+        data: {},
+        turnId: "turn-1",
+      },
+      thought("r3"),
+      tool(4, { status: "interrupted" }),
+      thought("r4", "turn-2"),
+      tool(5, { turnId: "turn-2" }),
+    ];
+    const rows = deriveSessionRows(parts);
+    expect(rows.map(row => row.kind)).toEqual(["work", "work", "work", "data", "work", "work"]);
+    expect(rows[1]).toMatchObject({ summary: null, entries: [parts[2]] });
+    expect(rows[4]).toMatchObject({ summary: { label: "1 tool · 1 thought · 1 stopped" } });
+    expect(
+      rows.flatMap<SessionTimelinePart>(row =>
+        row.kind === "work" ? row.entries : row.kind === "data" ? row.parts : []
+      )
+    ).toEqual(parts);
+  });
+
   it("Should collapse a settled run of 8 into one semantic summary row", () => {
     const rows = deriveSessionRows(Array.from({ length: 8 }, (_, index) => tool(index + 1)));
 
@@ -124,7 +210,7 @@ describe("session timeline derivation", () => {
         {
           groupId,
           turnId: "turn-1",
-          anchorToolCallId: "tool-call-1",
+          anchorEntryId: "tool-call-1",
         },
       ],
     ]);
@@ -176,10 +262,7 @@ describe("session timeline derivation", () => {
     if (group?.kind !== "work") throw new Error("expected completed group");
     expect(group.summary?.failedCount).toBe(1);
     const anchors = new Map([
-      [
-        group.groupId,
-        { groupId: group.groupId, turnId: "turn-1", anchorToolCallId: "tool-call-1" },
-      ],
+      [group.groupId, { groupId: group.groupId, turnId: "turn-1", anchorEntryId: "tool-call-1" }],
     ]);
 
     const settledParts = liveParts.map((part, index) =>
@@ -216,7 +299,7 @@ describe("session timeline derivation", () => {
         {
           groupId: historicalGroupId,
           turnId: "turn-1",
-          anchorToolCallId: "tool-call-1",
+          anchorEntryId: "tool-call-1",
         },
       ],
     ]);
@@ -232,7 +315,7 @@ describe("session timeline derivation", () => {
     expect(workRows[0]?.summary?.failedCount).toBe(1);
   });
 
-  it("Should break the cluster into two runs when text and reasoning interleave", () => {
+  it("Should keep text between work segments while grouping adjacent reasoning and tools", () => {
     const parts: SessionTimelinePart[] = [
       tool(1),
       tool(2),
@@ -243,14 +326,14 @@ describe("session timeline derivation", () => {
 
     const rows = deriveSessionRows(parts);
 
-    expect(rows.map(row => row.kind)).toEqual(["work", "text", "reasoning", "work"]);
-    const [first, , , last] = rows;
+    expect(rows.map(row => row.kind)).toEqual(["work", "text", "work"]);
+    const [first, , last] = rows;
     if (first?.kind !== "work" || last?.kind !== "work") throw new Error("expected work rows");
-    // The settled 2-run collapses to a summary; the lone trailing call stays a
-    // plain row (below the 2+ fold minimum).
+    // Reasoning is an entry, never an extra tool in the summary.
     expect(first.summary?.label).toBe("Read 2 files");
-    expect(last.summary).toBeNull();
-    expect(last.entries).toHaveLength(1);
+    expect(last.summary?.label).toBe("1 tool · 1 thought");
+    expect(last.summary?.entryCount).toBe(1);
+    expect(last.entries.map(entry => entry.id)).toEqual(["reason-break", "tool-3"]);
   });
 
   // UT-085 / UT-089 (ADR-006 rule 1): the live turn derives exactly one live row
@@ -527,7 +610,8 @@ describe("session timeline derivation", () => {
     expect(foldRow.open).toBe(false);
     // A lone Read has no group sentence, so the fold carries the duration alone.
     expect(foldRow.counts).toBeNull();
-    expect(foldRow.rows.map(row => row.kind)).toEqual(["reasoning", "work"]);
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(foldRow.rows[0]).toMatchObject({ entries: [{ kind: "reasoning" }, { kind: "tool" }] });
     // The terminal assistant message is never folded inside the disclosure.
     expect(foldRow.rows.some(row => row.kind === "text")).toBe(false);
     expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal" });
@@ -590,10 +674,15 @@ describe("session timeline derivation", () => {
     }
     expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
     expect(terminalRow.summary).toBeNull();
-    expect(terminalRow.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_exec"]);
+    expect(terminalRow.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "compozy__terminal_exec",
+    ]);
     const foldedWork = foldRow.rows[0];
     if (foldedWork?.kind !== "work") throw new Error("expected folded work");
-    expect(foldedWork.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+    expect(foldedWork.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "Read",
+      "Read",
+    ]);
     // Inside the fold the calls read as rows — no second disclosure; the sentence lives on the fold.
     expect(foldedWork.summary).toBeNull();
     expect(foldRow.counts).toBe("Read 2 files");
@@ -622,10 +711,15 @@ describe("session timeline derivation", () => {
       throw new Error("expected a fold followed by a persistent terminal work row");
     }
     expect(terminalRow.summary).toBeNull();
-    expect(terminalRow.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_open"]);
+    expect(terminalRow.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "compozy__terminal_open",
+    ]);
     const foldedWork = foldRow.rows[0];
     if (foldedWork?.kind !== "work") throw new Error("expected folded work");
-    expect(foldedWork.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+    expect(foldedWork.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "Read",
+      "Read",
+    ]);
   });
 
   it("Should keep a running terminal as its own live row beside the live tail", () => {
@@ -646,10 +740,15 @@ describe("session timeline derivation", () => {
 
     const work = rows.filter(row => row.kind === "work");
     expect(work).toHaveLength(2);
-    expect(work[0]?.entries.map(entry => entry.toolName)).toEqual(["Read", "Read"]);
+    expect(work[0]?.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "Read",
+      "Read",
+    ]);
     expect(work[0]?.summary?.label).toBe("Read 2 files");
     expect(work[0]?.active).toBe(true);
-    expect(work[1]?.entries.map(entry => entry.toolName)).toEqual(["compozy__terminal_exec"]);
+    expect(work[1]?.entries.map(entry => entry.kind === "tool" && entry.toolName)).toEqual([
+      "compozy__terminal_exec",
+    ]);
     expect(work[1]?.summary).toBeNull();
     expect(work[1]?.active).toBe(true);
   });
@@ -778,7 +877,8 @@ describe("session timeline derivation", () => {
     expect(foldRow.cause).toBe("stopped");
     expect(foldRow.open).toBe(true);
     expect(foldRow.label).toBe("You stopped after 7s");
-    expect(foldRow.rows.map(row => row.kind)).toEqual(["reasoning", "work"]);
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(foldRow.rows[0]).toMatchObject({ entries: [{ kind: "reasoning" }, { kind: "tool" }] });
     expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });
   });
 
@@ -983,7 +1083,10 @@ it("Should fold a superseded turn with its true cause and keep a failed turn ope
     row => row.kind === "work" && row.entries.some(entry => entry.id === "tool-2")
   );
   if (work?.kind !== "work") throw new Error("expected the stopped call inside the fold");
-  expect(work.entries.find(entry => entry.id === "tool-2")?.status).toBe("interrupted");
+  expect(work.entries.find(entry => entry.id === "tool-2")).toMatchObject({
+    kind: "tool",
+    status: "interrupted",
+  });
 
   const failed = deriveSessionRows(
     [

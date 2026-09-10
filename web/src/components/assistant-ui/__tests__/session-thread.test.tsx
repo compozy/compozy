@@ -3332,72 +3332,105 @@ describe("SessionThread transcript states", () => {
     expect(viewport.scrollTop).toBe(300);
   });
 
-  it("Should preserve a work disclosure node and focus when a lower-sorting call arrives", async () => {
-    const user = userEvent.setup();
-    const queryClient = createQueryClient();
-    const toolPart = (toolCallId: string, index: number) => ({
-      type: "tool-Read",
-      toolCallId,
-      state: "output-available",
-      turn_id: "turn-anchor-stable",
-      timestamp: `2026-07-07T12:00:0${index}Z`,
-      input: { file_path: `/tmp/stable-${toolCallId}.ts` },
-      output: { type: "tool_result", title: "Read", raw: { content: toolCallId } },
-    });
-    const initialMessages = toReadonlyThreadMessages([
-      {
-        id: "assistant-anchor-stable",
-        role: "assistant",
-        parts: ["b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
-      } as SessionMessage,
-    ]);
-    const grownMessages = toReadonlyThreadMessages([
-      {
-        id: "assistant-anchor-stable",
-        role: "assistant",
-        parts: ["a", "b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
-      } as SessionMessage,
-    ]);
-    const tree = (messages: readonly ThreadMessage[]) => (
-      <QueryClientProvider client={queryClient}>
-        <SessionChatRuntimeProvider
-          sessionId={primarySessionFixture.id}
-          workspaceId={fixtureWorkspaceId()}
-        >
-          <SessionTranscriptThreadProvider
-            messages={messages}
-            status="success"
-            error={null}
-            retry={() => {}}
+  it.each([false, true])(
+    "Should preserve a work disclosure node and focus as entries arrive and settle (mixed: %s)",
+    async mixed => {
+      const user = userEvent.setup();
+      const queryClient = createQueryClient();
+      const toolPart = (toolCallId: string, index: number) => ({
+        type: "tool-Read",
+        toolCallId,
+        state: "output-available",
+        turn_id: "turn-anchor-stable",
+        timestamp: `2026-07-07T12:00:0${index}Z`,
+        input: { file_path: `/tmp/stable-${toolCallId}.ts` },
+        output: { type: "tool_result", title: "Read", raw: { content: toolCallId } },
+      });
+      const initialMessages = toReadonlyThreadMessages([
+        {
+          id: "assistant-anchor-stable",
+          role: "assistant",
+          parts: [
+            ...(mixed
+              ? [
+                  {
+                    type: "reasoning",
+                    id: "stable-thought",
+                    text: "Checking **files**",
+                    state: "streaming",
+                    turn_id: "turn-anchor-stable",
+                  },
+                ]
+              : []),
+            ...["b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+          ],
+        } as SessionMessage,
+      ]);
+      const grownMessages = toReadonlyThreadMessages([
+        {
+          id: "assistant-anchor-stable",
+          role: "assistant",
+          parts: [
+            ...(mixed
+              ? [
+                  {
+                    type: "reasoning",
+                    id: "stable-thought",
+                    text: "Checked **files**",
+                    state: "done",
+                    turn_id: "turn-anchor-stable",
+                  },
+                ]
+              : []),
+            ...["a", "b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+          ],
+        } as SessionMessage,
+      ]);
+      const tree = (messages: readonly ThreadMessage[]) => (
+        <QueryClientProvider client={queryClient}>
+          <SessionChatRuntimeProvider
+            sessionId={primarySessionFixture.id}
+            workspaceId={fixtureWorkspaceId()}
           >
-            <SessionThread
-              sessionId={primarySessionFixture.id}
-              agentName={primarySessionFixture.agent_name}
-              canPrompt
-              onCancelPrompt={() => {}}
-              isSessionRunning={false}
-            />
-          </SessionTranscriptThreadProvider>
-        </SessionChatRuntimeProvider>
-      </QueryClientProvider>
-    );
+            <SessionTranscriptThreadProvider
+              messages={messages}
+              status="success"
+              error={null}
+              retry={() => {}}
+            >
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning={false}
+              />
+            </SessionTranscriptThreadProvider>
+          </SessionChatRuntimeProvider>
+        </QueryClientProvider>
+      );
 
-    const view = render(tree(initialMessages));
-    const initialButton = await screen.findByRole("button", { name: "Read 5 files" });
-    initialButton.focus();
-    await user.click(initialButton);
-    expect(initialButton).toHaveAttribute("aria-expanded", "true");
+      const view = render(tree(initialMessages));
+      const initialButton = await screen.findByRole("button", {
+        name: mixed ? "5 tools · 1 thought · thinking" : "Read 5 files",
+      });
+      initialButton.focus();
+      await user.click(initialButton);
+      expect(initialButton).toHaveAttribute("aria-expanded", "true");
 
-    view.rerender(tree(grownMessages));
+      view.rerender(tree(grownMessages));
 
-    const grownButton = await screen.findByRole("button", { name: "Read 6 files" });
-    expect(grownButton).toBe(initialButton);
-    expect(grownButton).toHaveAttribute("aria-expanded", "true");
-    grownButton.focus();
-    await user.keyboard("{Enter}");
-    expect(grownButton).toHaveAttribute("aria-expanded", "false");
-    expect(document.activeElement).toBe(grownButton);
-  });
+      const grownButton = await screen.findByRole("button", {
+        name: mixed ? "6 tools · 1 thought" : "Read 6 files",
+      });
+      expect(grownButton).toBe(initialButton);
+      expect(grownButton).toHaveAttribute("aria-expanded", "true");
+      grownButton.focus();
+      await user.keyboard("{Enter}");
+      expect(grownButton).toHaveAttribute("aria-expanded", "false");
+      expect(document.activeElement).toBe(grownButton);
+    }
+  );
 });
 
 // Suite: streaming render-count probe (task 39).

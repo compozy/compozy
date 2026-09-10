@@ -1,10 +1,9 @@
-// Tool-run derivation (ADR-006 rule 1). A settled run rests as one summary row;
-// the live tail run splits into the completed-tools group (collapsed sentence,
-// expandable) and exactly one live row for the calls still running — a parallel
-// run stays one row and counts. Running child agents are their own live rows.
+// Same-turn work projection. Mixed activity retains chronological order in one
+// disclosure; tool-only activity keeps the existing live/settled presentation.
 
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 
+import { isStreamingState, reasoningRowFromCluster } from "./session-timeline.logic";
 import { workGroupId } from "./session-timeline-group-identity";
 import {
   classifyToolSummaryCategory,
@@ -17,9 +16,10 @@ import type {
   SessionRow,
   SessionTimelineToolPart,
   SessionWorkRow,
+  SessionWorkEntry,
 } from "./session-timeline.logic";
 
-/** A child agent (Task / Agent) — rendered as its own live row, never grouped or counted. */
+/** Tool-only live runs keep each child agent on its own row. */
 export function isAgentToolPart(part: SessionTimelineToolPart): boolean {
   return classifyToolSummaryCategory(part) === "agent";
 }
@@ -29,7 +29,67 @@ export function liveToolRowId(turnId: string | undefined): string {
   return `live:${turnId ?? "none"}`;
 }
 
+// Mixed activity stays ordered even while calls complete out of order. Terminal
+// tools retain their deliberate, individually visible interaction surface.
 export function workRowsFromCluster(
+  entries: SessionWorkEntry[],
+  options: DeriveSessionRowsOptions,
+  liveTailStartId: string | null,
+  usedGroupIds: Set<string>
+): SessionRow[] {
+  const rows: SessionRow[] = [];
+  let segment: SessionWorkEntry[] = [];
+  const flush = () => {
+    if (segment.length === 0) return;
+    const tools = segment.filter(entry => entry.kind === "tool");
+    const reasoning = segment.filter(entry => entry.kind === "reasoning");
+    if (tools.length === 0) {
+      rows.push(reasoningRowFromCluster(reasoning));
+    } else if (reasoning.length === 0) {
+      rows.push(...toolRowsFromCluster(tools, options, liveTailStartId, usedGroupIds));
+    } else {
+      const groupId = workGroupId(segment, { ...options, usedGroupIds });
+      usedGroupIds.add(groupId);
+      const running = tools.filter(tool => tool.status === "running").length;
+      const stopped = tools.filter(tool => tool.status === "interrupted").length;
+      const thinking = reasoning.some(part => isStreamingState(part.state));
+      const label = [
+        `${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
+        `${reasoning.length} ${reasoning.length === 1 ? "thought" : "thoughts"}`,
+        ...(running ? [`${running} running`] : []),
+        ...(thinking ? ["thinking"] : []),
+        ...(stopped ? [`${stopped} stopped`] : []),
+      ].join(" · ");
+      rows.push(
+        settledWorkRow(
+          segment,
+          {
+            label,
+            parts: [],
+            entryCount: tools.length,
+            failedCount: tools.filter(tool => tool.isError).length,
+          },
+          groupId,
+          options,
+          running > 0 || thinking
+        )
+      );
+    }
+    segment = [];
+  };
+  for (const entry of entries) {
+    if (entry.kind === "tool" && isDeliberateTerminalTool(entry.toolName)) {
+      flush();
+      rows.push(...toolRowsFromCluster([entry], options, liveTailStartId, usedGroupIds));
+    } else {
+      segment.push(entry);
+    }
+  }
+  flush();
+  return rows;
+}
+
+function toolRowsFromCluster(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
   liveTailStartId: string | null,
@@ -161,7 +221,7 @@ function settledWorkRows(
 }
 
 function settledWorkRow(
-  entries: SessionTimelineToolPart[],
+  entries: SessionWorkEntry[],
   summary: SessionWorkRow["summary"],
   groupId: string,
   options: DeriveSessionRowsOptions,

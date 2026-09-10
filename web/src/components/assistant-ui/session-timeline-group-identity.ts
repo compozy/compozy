@@ -1,10 +1,10 @@
-import type { SessionTimelineToolPart } from "./session-timeline.logic";
+import type { SessionWorkEntry } from "./session-timeline.logic";
 
 /** Local identity retained across streaming re-derivations of one message. */
 export interface SessionWorkGroupAnchor {
   groupId: string;
   turnId?: string;
-  anchorToolCallId: string;
+  anchorEntryId: string;
 }
 
 interface WorkGroupIdentityOptions {
@@ -14,18 +14,18 @@ interface WorkGroupIdentityOptions {
 }
 
 export function workGroupId(
-  entries: readonly SessionTimelineToolPart[],
+  entries: readonly SessionWorkEntry[],
   options: WorkGroupIdentityOptions
 ): string {
   const first = entries[0]!;
   const turnPrefix = `work:${first.turnId ?? "none"}:`;
-  const identities = entries.map(tool => tool.toolCallId.trim() || tool.id);
+  const identities = entries.map(workEntryIdentity);
   const identitySet = new Set(identities);
 
   const retainedAnchor = [...(options.workGroupAnchors?.values() ?? [])].find(
     anchor =>
       anchor.turnId === first.turnId &&
-      identitySet.has(anchor.anchorToolCallId) &&
+      identitySet.has(anchor.anchorEntryId) &&
       !options.usedGroupIds?.has(anchor.groupId)
   );
   if (retainedAnchor) return retainedAnchor.groupId;
@@ -57,4 +57,8 @@ export function workGroupId(
 function compareIdentities(left: string, right: string): number {
   if (left === right) return 0;
   return left < right ? -1 : 1;
+}
+
+export function workEntryIdentity(entry: SessionWorkEntry): string {
+  return entry.kind === "tool" ? entry.toolCallId.trim() || entry.id : `reasoning:${entry.id}`;
 }

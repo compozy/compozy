@@ -27,3 +27,11 @@ owns the follow-up audit: captured terminal creation scope, stale-navigation
 rejection, explicit title-disclosure action names, public session imports, and
 review/CI disposition. Existing native, persisted, configuration, and official
 skill contracts remain unchanged.
+
+## Issue 605 — Mixed reasoning and tool work groups
+
+- **Native tools:** No IDs, schemas, descriptors, CLI, HTTP or UDS changes. The Web projects existing reasoning and tool parts into one ordered work segment.
+- **Extensibility and hooks:** Tool registration, MCP, extensions, hooks, bridge progress and config remain unchanged. Deliberate terminal tools retain their separate interactive rows.
+- **Workspace data isolation:** Group anchors and disclosure state remain local to each message's timeline store. Persisted transcript, session/workspace keys and SSE contracts are unchanged; no migration or recovery action is needed.
+- **Official Compozy skill:** No update required: public agent operations and protocol semantics are unchanged.
+- **Web/Docs:** Timeline projection, work entries, group identity/equality, turn folds, and find reveal consume the widened internal entry union. The virtualizer already estimates work from entry count and measures actual expanded DOM. RT-048 and RT-055 own the updated behavior; canonical projection, thread/navigation and scroll suites plus rendered QA verify it. Public site documentation has no changed API or operational instructions.

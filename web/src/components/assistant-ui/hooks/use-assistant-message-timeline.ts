@@ -2,6 +2,7 @@ import { useAuiState } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useLayoutEffect } from "react";
 
+import { workEntryIdentity } from "../session-timeline-group-identity";
 import {
   deriveSessionRows,
   isStreamingState,
@@ -194,10 +195,10 @@ function goalPromptMeta(content: unknown): GoalPromptMeta | null {
   return null;
 }
 
-function canonicalToolCallId(row: Extract<SessionRow, { kind: "work" }>): string {
-  let anchor = row.entries[0]?.toolCallId.trim() || row.entries[0]?.id || row.id;
+function canonicalWorkEntryId(row: Extract<SessionRow, { kind: "work" }>): string {
+  let anchor = row.entries[0] ? workEntryIdentity(row.entries[0]) : row.id;
   for (const tool of row.entries.slice(1)) {
-    const identity = tool.toolCallId.trim() || tool.id;
+    const identity = workEntryIdentity(tool);
     if (identity < anchor) anchor = identity;
   }
   return anchor;
@@ -215,7 +216,7 @@ function workGroupAnchorsFromRows(
         anchors.set(row.groupId, {
           groupId: row.groupId,
           turnId: row.turnId,
-          anchorToolCallId: previous?.anchorToolCallId ?? canonicalToolCallId(row),
+          anchorEntryId: previous?.anchorEntryId ?? canonicalWorkEntryId(row),
         });
         continue;
       }

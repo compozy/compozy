@@ -85,7 +85,9 @@ function changedFilesRowForTurn(
 function collectTurnToolParts(group: readonly SessionRow[]): SessionTimelineToolPart[] {
   const tools: SessionTimelineToolPart[] = [];
   for (const row of group) {
-    if (row.kind === "work" || row.kind === "live-tool") tools.push(...row.entries);
+    if (row.kind === "work" || row.kind === "live-tool") {
+      for (const entry of row.entries) if (entry.kind === "tool") tools.push(entry);
+    }
   }
   return tools;
 }
@@ -169,7 +171,7 @@ function isPersistentTurnRow(row: SessionRow): boolean {
     return (
       row.summary === null &&
       row.entries.length > 0 &&
-      row.entries.every(entry => isDeliberateTerminalTool(entry.toolName))
+      row.entries.every(entry => entry.kind === "tool" && isDeliberateTerminalTool(entry.toolName))
     );
   }
   if (row.kind !== "data") return false;
@@ -253,7 +255,8 @@ function turnGroupIsInterrupted(
   return group.some(row => {
     if (row.kind === "work") {
       return row.entries.some(
-        tool => tool.status === "interrupted" || isInterruptedState(tool.state)
+        tool =>
+          (tool.kind === "tool" && tool.status === "interrupted") || isInterruptedState(tool.state)
       );
     }
     if (row.kind === "reasoning") {

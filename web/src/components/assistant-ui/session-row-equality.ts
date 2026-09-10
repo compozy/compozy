@@ -11,7 +11,7 @@ import type {
   SessionRow,
   SessionTextRow,
   SessionTimelineDataPart,
-  SessionTimelineToolPart,
+  SessionWorkEntry,
   SessionTurnFoldRow,
   SessionWorkingRow,
   SessionWorkRow,
@@ -61,7 +61,7 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
         a.expanded === other.expanded &&
         (a.summary?.label ?? null) === (other.summary?.label ?? null) &&
         (a.summary?.failedCount ?? 0) === (other.summary?.failedCount ?? 0) &&
-        toolEntriesEqual(a.entries, other.entries)
+        workEntriesEqual(a.entries, other.entries)
       );
     }
     case "live-tool": {
@@ -69,7 +69,7 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
       return (
         a.agent === other.agent &&
         a.expanded === other.expanded &&
-        toolEntriesEqual(a.entries, other.entries)
+        workEntriesEqual(a.entries, other.entries)
       );
     }
     case "turn-fold": {
@@ -134,16 +134,28 @@ function changedFilesEqual(
 // change is always accompanied by a status/state/error transition. Comparing
 // those primitives — not the re-parsed `args`/`result` object references — keeps
 // settled entries stable across the hook's per-message re-parse.
-function toolEntriesEqual(
-  a: readonly SessionTimelineToolPart[],
-  b: readonly SessionTimelineToolPart[]
-): boolean {
+function workEntriesEqual(a: readonly SessionWorkEntry[], b: readonly SessionWorkEntry[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((tool, index) => {
     const other = b[index];
+    if (
+      !other ||
+      tool.kind !== other.kind ||
+      tool.id !== other.id ||
+      tool.partIndex !== other.partIndex ||
+      tool.turnId !== other.turnId
+    )
+      return false;
+    if (tool.kind === "reasoning") {
+      return (
+        other.kind === "reasoning" &&
+        tool.text === other.text &&
+        tool.state === other.state &&
+        tool.timestamp === other.timestamp
+      );
+    }
     return (
-      other !== undefined &&
-      tool.id === other.id &&
+      other.kind === "tool" &&
       tool.toolCallId === other.toolCallId &&
       tool.toolName === other.toolName &&
       tool.toolTitle === other.toolTitle &&
