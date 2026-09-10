@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -110,6 +111,53 @@ func BenchmarkValidateToolSpec(b *testing.B) {
 	for b.Loop() {
 		if _, err := validateToolSpec(ctx, benchmarkToolScope, benchmarkToolSpec); err != nil {
 			b.Fatalf("validateToolSpec() error = %v", err)
+		}
+	}
+}
+
+func BenchmarkRuntimeRegistryNativeSessionProjection(b *testing.B) {
+	nativeTools := make([]NativeTool, 128)
+	for i := range nativeTools {
+		descriptor := validDescriptor()
+		descriptor.ID = ToolID(fmt.Sprintf("compozy__native_%03d", i))
+		descriptor.Backend.NativeName = fmt.Sprintf("native_%03d", i)
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"properties":{
+				"workspace_id":{"type":"string"},
+				"session_id":{"type":"string"},
+				"query":{"type":"string"},
+				"limit":{"type":"integer","minimum":1,"maximum":100},
+				"filters":{"type":"array","items":{"type":"object","properties":{
+					"name":{"type":"string"},"value":{"type":"string"}
+				},"required":["name","value"],"additionalProperties":false}}
+			},
+			"additionalProperties":false
+		}`)
+		nativeTools[i] = NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{}, nil
+			},
+		}
+	}
+	provider, err := NewNativeProvider(nativeTools[0].Descriptor.Source, nativeTools...)
+	if err != nil {
+		b.Fatalf("NewNativeProvider() error = %v", err)
+	}
+	registry, err := NewRegistry(WithProviders(provider))
+	if err != nil {
+		b.Fatalf("NewRegistry() error = %v", err)
+	}
+	scope := Scope{WorkspaceID: "workspace-1", SessionID: "session-1"}
+	b.ReportAllocs()
+	for b.Loop() {
+		views, projectionErr := registry.SessionProjection(b.Context(), scope)
+		if projectionErr != nil {
+			b.Fatalf("SessionProjection() error = %v", projectionErr)
+		}
+		if len(views) != len(nativeTools) {
+			b.Fatalf("SessionProjection() returned %d tools, want %d", len(views), len(nativeTools))
 		}
 	}
 }

@@ -181,6 +181,32 @@ func (r *Resolver) Get(ctx context.Context, idOrNameOrPath string) (Workspace, e
 	return cloneWorkspace(ws), nil
 }
 
+// ResolveRegistration validates the current workspace root and identity without loading runtime resources.
+func (r *Resolver) ResolveRegistration(ctx context.Context, idOrNameOrPath string) (Workspace, error) {
+	ws, _, err := r.resolveRegistration(ctx, idOrNameOrPath)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return cloneWorkspace(ws), nil
+}
+
+// resolveRegistration rechecks the canonical root and durable identity for every registration lookup.
+func (r *Resolver) resolveRegistration(ctx context.Context, ref string) (Workspace, Identity, error) {
+	if err := checkContext(ctx); err != nil {
+		return Workspace{}, Identity{}, err
+	}
+	ws, err := r.lookupWorkspace(ctx, ref)
+	if err != nil {
+		return Workspace{}, Identity{}, err
+	}
+	refreshed, err := r.refreshRootDir(ctx, ws)
+	if err != nil {
+		return ws, Identity{}, err
+	}
+	identity, err := ensureIdentity(ctx, refreshed.RootDir, r.now, NewWorkspaceID)
+	return refreshed, identity, err
+}
+
 func (r *Resolver) nextWorkspaceName(ctx context.Context, rootDir string) (string, error) {
 	workspaces, err := r.store.ListWorkspaces(ctx)
 	if err != nil {

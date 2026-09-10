@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/fileutil"
-	"github.com/compozy/compozy/internal/skillscan"
 )
 
 const (
@@ -22,6 +20,7 @@ const (
 )
 
 type workspaceScan struct {
+	skillSources        map[string]workspaceSkillScan
 	snapshots           map[string]filesnap.Snapshot
 	agents              []agentCandidate
 	skills              []skillCandidate
@@ -45,27 +44,18 @@ type workspaceSkillRoot struct {
 	source string
 }
 
+// scanWorkspace captures agent and skill dependencies while preserving configured root precedence and trust.
 func (r *Resolver) scanWorkspace(
 	ctx context.Context,
 	ws Workspace,
 	profileName string,
 	skillsConfig *compozyconfig.SkillsConfig,
 ) (workspaceScan, error) {
-	if err := checkContext(ctx); err != nil {
-		return workspaceScan{}, err
-	}
-
-	scan := workspaceScan{
-		snapshots:           make(map[string]filesnap.Snapshot),
-		agents:              make([]agentCandidate, 0),
-		skills:              make([]skillCandidate, 0),
-		profileDeclarations: make([]ProfileDeclaration, 0),
-	}
-	declarations, err := r.scanWorkspaceDependencies(ws, profileName, scan.snapshots)
+	scan, err := r.scanAgentConfig(ctx, ws, profileName)
 	if err != nil {
 		return workspaceScan{}, err
 	}
-	scan.profileDeclarations = declarations
+	scan.skillSources = make(map[string]workspaceSkillScan)
 
 	discoveryRoots := compozyconfig.WorkspaceDiscoveryRoots(
 		ws.RootDir,
@@ -84,9 +74,6 @@ func (r *Resolver) scanWorkspace(
 			return workspaceScan{}, err
 		}
 
-		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
-			return workspaceScan{}, err
-		}
 		rootSkillsConfig := skillsConfig
 		if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 			rootSkillsConfig = &globalConfig.Skills
@@ -108,9 +95,10 @@ func (r *Resolver) scanWorkspace(
 	for _, root := range skillRoots {
 		trustedSkillRoots = append(trustedSkillRoots, root.spec.Dir)
 	}
+	previousSources := r.cachedSkillSources(ws.ID, profileName)
 	for order, root := range skillRoots {
-		if err := scanSkillSource(
-			root.spec, root.source, order, trustedSkillRoots, scan.snapshots, &scan.skills,
+		if err := scan.scanSkillSource(
+			ctx, root, order, trustedSkillRoots, previousSources[root.spec.Dir],
 		); err != nil {
 			return workspaceScan{}, err
 		}
@@ -290,52 +278,6 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 			return fmt.Errorf("workspace: snapshot agent capability catalog %q: %w", path, err)
 		}
 	}
-	return nil
-}
-
-func scanSkillSource(
-	root compozyconfig.SkillRootSpec,
-	source string,
-	rootOrder int,
-	trustedRoots []string,
-	snapshots map[string]filesnap.Snapshot,
-	dst *[]skillCandidate,
-) error {
-	skillsDir := root.Dir
-	if err := addSnapshotIfExists(skillsDir, snapshots); err != nil {
-		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
-	}
-
-	result, err := skillscan.ScanDirectoryWithin(skillsDir, trustedRoots)
-	if err != nil {
-		return fmt.Errorf("workspace: scan skills directory %q: %w", skillsDir, err)
-	}
-	maps.Copy(snapshots, result.Snapshots)
-
-	for _, skillFile := range result.Paths {
-		skillDir := filepath.Dir(skillFile)
-		skillName, err := loadWorkspaceSkillName(skillFile)
-		if err != nil {
-			if errors.Is(err, errInvalidWorkspaceSkillDefinition) {
-				continue
-			}
-			return fmt.Errorf("workspace: load skill identity %q: %w", skillFile, err)
-		}
-
-		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
-			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
-		}
-		if err := addSnapshotIfExists(filepath.Join(skillDir, compozyconfig.MCPJSONName), snapshots); err != nil {
-			return fmt.Errorf("workspace: snapshot skill MCP sidecar %q: %w", skillDir, err)
-		}
-		*dst = append(*dst, skillCandidate{
-			name:      skillName,
-			dir:       skillDir,
-			source:    source,
-			rootOrder: rootOrder,
-		})
-	}
-
 	return nil
 }
 

@@ -39,20 +39,21 @@ func newHostedProjectionCache() hostedProjectionCache {
 	}
 }
 
+// projectionForGeneration coalesces known generations and rebuilds views whenever generation authority is absent.
 func (s *HostedService) projectionForGeneration(
 	ctx context.Context,
 	record *hostedBindRecord,
 	registry tools.Registry,
 ) (HostedProjectionResponse, error) {
 	if s.projectionGeneration == nil {
-		return buildHostedProjection(ctx, registry, record.scope())
+		return buildHostedProjection(ctx, registry, record)
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return buildHostedProjection(ctx, registry, scope)
+			return buildHostedProjection(ctx, registry, record)
 		}
 		if cached, ok := s.projectionCache.load(record.bindID, generation); ok {
 			return cached, nil
@@ -68,7 +69,7 @@ func (s *HostedService) projectionForGeneration(
 			return response, err
 		}
 
-		response, err := buildHostedProjection(ctx, registry, scope)
+		response, err := buildHostedProjection(ctx, registry, record)
 		if err != nil {
 			s.projectionCache.finish(key, HostedProjectionResponse{}, err, false, false)
 			return HostedProjectionResponse{}, err
@@ -83,7 +84,7 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
 	}
-	return buildHostedProjection(ctx, registry, scope)
+	return buildHostedProjection(ctx, registry, record)
 }
 
 func (s *HostedService) finishProjectionGeneration(
@@ -105,16 +106,17 @@ func (s *HostedService) finishProjectionGeneration(
 	return owned
 }
 
+// buildHostedProjection lists current policy-filtered views before applying binding-local digest reuse.
 func buildHostedProjection(
 	ctx context.Context,
 	registry tools.Registry,
-	scope tools.Scope,
+	record *hostedBindRecord,
 ) (HostedProjectionResponse, error) {
-	views, err := registry.List(ctx, scope)
+	views, err := registry.List(ctx, record.scope())
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	return hostedProjectionResponse(views), nil
+	return hostedProjectionResponse(views, record.digestMemo), nil
 }
 
 func (c *hostedProjectionCache) load(bindID string, generation string) (HostedProjectionResponse, bool) {

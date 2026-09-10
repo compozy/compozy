@@ -84,6 +84,7 @@ func (e *EffectivePolicyEvaluator) evaluateIndexed(
 	return decision, nil
 }
 
+// evaluateIndexedDescriptor isolates custom evaluators from the registry's immutable descriptors.
 func evaluateIndexedDescriptor(
 	ctx context.Context,
 	scope Scope,
@@ -93,5 +94,5 @@ func evaluateIndexedDescriptor(
 	if indexed, ok := evaluator.(indexedPolicyEvaluator); ok {
 		return indexed.evaluateIndexed(ctx, scope, descriptor)
 	}
-	return evaluator.Evaluate(ctx, scope, descriptor)
+	return evaluator.Evaluate(ctx, scope, cloneDescriptor(descriptor))
 }

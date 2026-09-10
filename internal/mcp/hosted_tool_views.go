@@ -1,7 +1,12 @@
 package mcp
 
-import "github.com/compozy/compozy/internal/tools"
+import (
+	"slices"
 
+	"github.com/compozy/compozy/internal/tools"
+)
+
+// cloneToolViews isolates every mutable descriptor, availability, and decision field while preserving nil input.
 func cloneToolViews(src []tools.ToolView) []tools.ToolView {
 	if src == nil {
 		return nil
@@ -9,6 +14,7 @@ func cloneToolViews(src []tools.ToolView) []tools.ToolView {
 	out := make([]tools.ToolView, len(src))
 	copy(out, src)
 	for i := range out {
+		out[i].Descriptor.Backend.RequiresCapabilities = slices.Clone(src[i].Descriptor.Backend.RequiresCapabilities)
 		out[i].Descriptor.ToolPresentation = tools.CloneToolPresentation(src[i].Descriptor.ToolPresentation)
 		out[i].Descriptor.InputSchema = cloneRaw(out[i].Descriptor.InputSchema)
 		out[i].Descriptor.OutputSchema = cloneRaw(out[i].Descriptor.OutputSchema)

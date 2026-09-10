@@ -12168,22 +12168,23 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := testConfig(t, testHomePaths(t))
-			workspaces := apitest.StubWorkspaceService{
-				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
-					return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
-				},
-				ResolveForProfileFn: func(_ context.Context, ref, profileName string) (workspacepkg.ResolvedWorkspace, error) {
-					if ref != "ws-profile" || profileName != tc.profileName {
-						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
-					}
-					if tc.unavailable {
-						return workspacepkg.ResolvedWorkspace{Config: cfg}, nil
-					}
-					return workspacepkg.ResolvedWorkspace{Config: cfg, Agents: []compozyconfig.AgentDef{{
-						Name: "profile-agent", Provider: "opencode", Prompt: "Work.", Permissions: "deny-all",
-					}}}, nil
-				},
-			}
+			workspaces := nativeToolPolicyWorkspaceResolverFunc(func(
+				ctx context.Context,
+				ref, profileName string,
+			) (workspacepkg.ResolvedAgentConfig, error) {
+				if err := ctx.Err(); err != nil {
+					return workspacepkg.ResolvedAgentConfig{}, err
+				}
+				if ref != "ws-profile" || profileName != tc.profileName {
+					return workspacepkg.ResolvedAgentConfig{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				if tc.unavailable {
+					return workspacepkg.ResolvedAgentConfig{Config: cfg}, nil
+				}
+				return workspacepkg.ResolvedAgentConfig{Config: cfg, Agents: []compozyconfig.AgentDef{{
+					Name: "profile-agent", Provider: "opencode", Prompt: "Work.", Permissions: "deny-all",
+				}}}, nil
+			})
 			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 				Config: &cfg, WorkspaceResolver: workspaces,
 				ProfileNames: promptSkillsProfileNameResolver{tc.profileID: tc.profileName},
@@ -12210,6 +12211,30 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should propagate narrow workspace resolution errors", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := testConfig(t, testHomePaths(t))
+		want := errors.New("narrow workspace resolution failed")
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config: &cfg,
+			WorkspaceResolver: nativeToolPolicyWorkspaceResolverFunc(func(
+				context.Context,
+				string,
+				string,
+			) (workspacepkg.ResolvedAgentConfig, error) {
+				return workspacepkg.ResolvedAgentConfig{}, want
+			}),
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		_, err = resolver.Resolve(t.Context(), toolspkg.Scope{WorkspaceID: "ws-error"})
+		if !errors.Is(err, want) {
+			t.Fatalf("Resolve(narrow workspace error) error = %v, want %v", err, want)
+		}
+	})
 
 	t.Run("Should resolve full default projection and scoped runtime policy inputs", func(t *testing.T) {
 		t.Parallel()
@@ -12306,22 +12331,23 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		workspaceConfig := globalConfig
 		workspaceConfig.Permissions.Mode = compozyconfig.PermissionModeApproveAll
 		workspaceConfig.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultAsk
-		workspaces := apitest.StubWorkspaceService{ResolveFn: func(
+		workspaces := nativeToolPolicyWorkspaceResolverFunc(func(
 			ctx context.Context,
 			ref string,
-		) (workspacepkg.ResolvedWorkspace, error) {
+			_ string,
+		) (workspacepkg.ResolvedAgentConfig, error) {
 			if err := ctx.Err(); err != nil {
-				return workspacepkg.ResolvedWorkspace{}, err
+				return workspacepkg.ResolvedAgentConfig{}, err
 			}
 			if ref != "ws-effect" {
-				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				return workspacepkg.ResolvedAgentConfig{}, workspacepkg.ErrWorkspaceNotFound
 			}
-			return workspacepkg.ResolvedWorkspace{
+			return workspacepkg.ResolvedAgentConfig{
 				Workspace:   workspacepkg.Workspace{ID: "ws-effect", RootDir: t.TempDir()},
 				WorkspaceID: "ws-effect",
 				Config:      workspaceConfig,
 			}, nil
-		}}
+		})
 		agents := &nativeToolPolicyAgentResolverStub{
 			agent: compozyconfig.AgentDef{Name: "authored-agent", Provider: "opencode", Prompt: "Work."},
 		}
@@ -12406,12 +12432,22 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			}
 		}
 		workspaceRoot := t.TempDir()
-		workspaceResolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
+		workspaceResolver := nativeToolPolicyWorkspaceResolverFunc(func(
+			ctx context.Context,
+			ref string,
+			_ string,
+		) (workspacepkg.ResolvedAgentConfig, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedAgentConfig{}, err
+			}
+			if strings.TrimSpace(ref) != workspaceRegistration {
+				return workspacepkg.ResolvedAgentConfig{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedAgentConfig{
 				Workspace:   workspacepkg.Workspace{ID: workspaceRegistration, RootDir: workspaceRoot},
 				WorkspaceID: workspaceIdentity,
-			},
-		}
+			}, nil
+		})
 		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 			Config:            &cfg,
 			WorkspaceResolver: workspaceResolver,
@@ -12745,10 +12781,26 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					}, nil
 				},
 			}
+			policyWorkspaces := nativeToolPolicyWorkspaceResolverFunc(func(
+				ctx context.Context,
+				ref string,
+				profileName string,
+			) (workspacepkg.ResolvedAgentConfig, error) {
+				resolved, err := workspaces.Resolve(ctx, ref)
+				if err != nil {
+					return workspacepkg.ResolvedAgentConfig{}, err
+				}
+				return workspacepkg.ResolvedAgentConfig{
+					Workspace:   resolved.Workspace,
+					WorkspaceID: resolved.WorkspaceID,
+					ProfileName: profileName,
+					Config:      resolved.Config,
+				}, nil
+			})
 			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 				Config:            &cfg,
 				Sessions:          sessions,
-				WorkspaceResolver: workspaces,
+				WorkspaceResolver: policyWorkspaces,
 				ApprovalAvailable: true,
 			})
 			if err != nil {
@@ -13216,15 +13268,29 @@ func (s *nativeToolPolicySessionStub) Status(context.Context, string) (*session.
 	return s.info, nil
 }
 
+type nativeToolPolicyWorkspaceResolverFunc func(
+	context.Context,
+	string,
+	string,
+) (workspacepkg.ResolvedAgentConfig, error)
+
+func (f nativeToolPolicyWorkspaceResolverFunc) ResolveAgentConfig(
+	ctx context.Context,
+	ref string,
+	profileName string,
+) (workspacepkg.ResolvedAgentConfig, error) {
+	return f(ctx, ref, profileName)
+}
+
 type nativeToolPolicyAgentResolverStub struct {
 	agent compozyconfig.AgentDef
 	err   error
 	calls []string
 }
 
-func (r *nativeToolPolicyAgentResolverStub) ResolveAgent(
+func (r *nativeToolPolicyAgentResolverStub) ResolvePolicyAgent(
 	name string,
-	_ *workspacepkg.ResolvedWorkspace,
+	_ *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {
 	r.calls = append(r.calls, name)
 	if r.err != nil {

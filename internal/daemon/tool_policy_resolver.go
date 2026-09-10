@@ -18,7 +18,7 @@ import (
 type nativeToolPolicyResolverDeps struct {
 	Config            *compozyconfig.Config
 	Sessions          nativeToolPolicySessionReader
-	WorkspaceResolver workspacepkg.RuntimeResolver
+	WorkspaceResolver nativeToolPolicyWorkspaceResolver
 	ProfileNames      session.ProfileNameResolver
 	AgentResolver     nativeToolPolicyAgentResolver
 	ExtensionRegistry *extensionpkg.Registry
@@ -29,14 +29,18 @@ type nativeToolPolicySessionReader interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
 }
 
+type nativeToolPolicyWorkspaceResolver interface {
+	ResolveAgentConfig(ctx context.Context, workspaceRef, profileName string) (workspacepkg.ResolvedAgentConfig, error)
+}
+
 type nativeToolPolicyAgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
+	ResolvePolicyAgent(name string, resolved *workspacepkg.ResolvedAgentConfig) (compozyconfig.AgentDef, error)
 }
 
 type nativeToolPolicyResolver struct {
 	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
-	workspaceResolver workspacepkg.RuntimeResolver
+	workspaceResolver nativeToolPolicyWorkspaceResolver
 	profileNames      session.ProfileNameResolver
 	agentResolver     nativeToolPolicyAgentResolver
 	extensionRegistry *extensionpkg.Registry
@@ -226,10 +230,11 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 	return nil, fmt.Errorf("daemon: resolve session tool policy %q: %w", sessionID, err)
 }
 
+// resolveWorkspaceConfig loads policy inputs without skill discovery and retains the session profile identity.
 func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	ctx context.Context,
 	scope toolspkg.Scope,
-) (*workspacepkg.ResolvedWorkspace, *compozyconfig.Config, error) {
+) (*workspacepkg.ResolvedAgentConfig, *compozyconfig.Config, error) {
 	cfg := r.cfg
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
 	if strings.TrimSpace(workspaceID) == "" {
@@ -238,32 +243,29 @@ func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	if r.workspaceResolver == nil {
 		return nil, cfg, nil
 	}
-	var resolved workspacepkg.ResolvedWorkspace
-	var err error
-	if scope.ProfileID == "" {
-		resolved, err = r.workspaceResolver.Resolve(ctx, workspaceID)
-	} else {
-		profileName, profileErr := resolvePromptSkillsProfileName(ctx, r.profileNames, scope.ProfileID)
+	profileName := ""
+	if scope.ProfileID != "" {
+		var profileErr error
+		profileName, profileErr = resolvePromptSkillsProfileName(ctx, r.profileNames, scope.ProfileID)
 		if profileErr != nil {
 			return nil, nil, fmt.Errorf("daemon: resolve tool policy profile %q: %w", scope.ProfileID, profileErr)
 		}
-		profileResolver, ok := r.workspaceResolver.(workspacepkg.ProfileRuntimeResolver)
-		if !ok {
-			return nil, nil, errors.New("daemon: tool policy workspace resolver does not support profile layers")
-		}
-		resolved, err = profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
-		resolved.ProfileID = scope.ProfileID
 	}
+	resolved, err := r.workspaceResolver.ResolveAgentConfig(ctx, workspaceID, profileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: resolve workspace tool policy %q: %w", workspaceID, err)
+	}
+	if scope.ProfileID != "" {
+		resolved.ProfileID = scope.ProfileID
 	}
 	return &resolved, &resolved.Config, nil
 }
 
+// applyAgentToolPolicy applies resolved agent restrictions and an explicitly configured permission mode.
 func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	inputs *toolspkg.PolicyInputs,
 	agentName string,
-	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+	resolvedWorkspace *workspacepkg.ResolvedAgentConfig,
 	cfg *compozyconfig.Config,
 ) error {
 	agent, err := r.resolveAgent(agentName, resolvedWorkspace)
@@ -285,18 +287,19 @@ func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	return nil
 }
 
+// resolveAgent uses the policy catalog when available and otherwise resolves from the workspace snapshot.
 func (r *nativeToolPolicyResolver) resolveAgent(
 	agentName string,
-	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+	resolvedWorkspace *workspacepkg.ResolvedAgentConfig,
 ) (compozyconfig.AgentDef, error) {
 	if r.agentResolver != nil {
-		agent, err := r.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+		agent, err := r.agentResolver.ResolvePolicyAgent(agentName, resolvedWorkspace)
 		if err != nil {
 			return compozyconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
 		}
 		return agent, nil
 	}
-	agent, err := resolveAgentFromWorkspaceSnapshot(agentName, resolvedWorkspace)
+	agent, err := resolvePolicyAgentFromWorkspaceSnapshot(agentName, resolvedWorkspace)
 	if err != nil {
 		return compozyconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
 	}

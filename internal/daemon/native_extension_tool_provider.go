@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -17,17 +18,22 @@ const (
 	specCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__spec_cycle__finalize_review_round"
 )
 
+type daemonExtensionWorkspaceResolver interface {
+	ResolveRegistration(ctx context.Context, ref string) (workspacepkg.Workspace, error)
+}
+
 type daemonExtensionToolProvider struct {
 	inner             toolspkg.Provider
-	workspaceResolver workspacepkg.RuntimeResolver
+	workspaceResolver daemonExtensionWorkspaceResolver
 }
 
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
 
+// newDaemonScopedExtensionToolProvider validates workspace scope while preserving an absent provider as nil.
 func newDaemonScopedExtensionToolProvider(
 	inner toolspkg.Provider,
-	workspaceResolver workspacepkg.RuntimeResolver,
+	workspaceResolver daemonExtensionWorkspaceResolver,
 ) toolspkg.Provider {
 	if inner == nil {
 		return nil
@@ -88,6 +94,7 @@ func (p *daemonExtensionToolProvider) Resolve(
 	}, true, nil
 }
 
+// canonicalWorkspaceScope resolves workspace aliases to a current registration ID without loading resources.
 func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -103,7 +110,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 			workspacepkg.ErrWorkspaceResolverUnavailable,
 		)
 	}
-	resolved, err := p.workspaceResolver.Resolve(ctx, workspaceRef)
+	resolved, err := p.workspaceResolver.ResolveRegistration(ctx, workspaceRef)
 	if err != nil {
 		return toolspkg.Scope{}, fmt.Errorf(
 			"daemon: resolve extension tool workspace %q: %w",
@@ -111,7 +118,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 			err,
 		)
 	}
-	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	workspaceID, err := extensionWorkspaceRegistrationID(resolved)
 	if err != nil {
 		return toolspkg.Scope{}, fmt.Errorf(
 			"daemon: resolved extension tool workspace %q has no registered runtime id: %w",
@@ -125,7 +132,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 
 type daemonExtensionToolHandle struct {
 	inner             toolspkg.Handle
-	workspaceResolver workspacepkg.RuntimeResolver
+	workspaceResolver daemonExtensionWorkspaceResolver
 }
 
 var _ toolspkg.Handle = (*daemonExtensionToolHandle)(nil)
@@ -218,6 +225,7 @@ func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
 	return req, nil
 }
 
+// attachTrustedWorkspace validates registration and fills a missing trusted root before extension dispatch.
 func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 	ctx context.Context,
 	req toolspkg.CallRequest,
@@ -237,7 +245,7 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			toolspkg.ErrToolInvalidInput,
 		)
 	}
-	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := h.workspaceResolver.ResolveRegistration(ctx, workspaceID)
 	if err != nil {
 		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
 			req.ToolID,
@@ -256,7 +264,7 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			toolspkg.ErrToolInvalidInput,
 		)
 	}
-	req.WorkspaceID, err = nativeResolvedRegistryWorkspaceID(&resolved)
+	req.WorkspaceID, err = extensionWorkspaceRegistrationID(resolved)
 	if err != nil {
 		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
 			req.ToolID,
@@ -266,6 +274,15 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 	}
 	req.TrustedWorkspaceRoot = root
 	return req, nil
+}
+
+// extensionWorkspaceRegistrationID rejects empty registry IDs before they can become unscoped requests.
+func extensionWorkspaceRegistrationID(ws workspacepkg.Workspace) (string, error) {
+	workspaceID := strings.TrimSpace(ws.ID)
+	if workspaceID == "" {
+		return "", errors.New("daemon: resolved workspace registry id is empty")
+	}
+	return workspaceID, nil
 }
 
 func (h *daemonExtensionToolHandle) resolveImportTasksPattern(

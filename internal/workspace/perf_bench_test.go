@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -99,6 +101,51 @@ func BenchmarkResolverResolve(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkResolverWorkspaceIdentity(b *testing.B) {
+	for _, registrationOnly := range []bool{false, true} {
+		name := "runtime_snapshot"
+		if registrationOnly {
+			name = "registration"
+		}
+		b.Run(name, func(b *testing.B) {
+			fixture := newBenchmarkResolverFixture(b)
+			for index := range 200 {
+				writeSkill(
+					b,
+					filepath.Join(fixture.workspace.RootDir, ".compozy", "skills", fmt.Sprintf("skill-%03d", index)),
+				)
+			}
+			for index := range 5 {
+				external := b.TempDir()
+				writeSkill(b, external)
+				link := filepath.Join(
+					fixture.workspace.RootDir,
+					".compozy",
+					"skills",
+					fmt.Sprintf("external-%d", index),
+				)
+				if err := os.Symlink(external, link); err != nil {
+					b.Fatalf("Symlink(external skill) error = %v", err)
+				}
+			}
+			if _, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID); err != nil {
+				b.Fatalf("Resolve(prewarm) error = %v", err)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				if registrationOnly {
+					if _, err := fixture.resolver.ResolveRegistration(fixture.ctx, fixture.workspace.ID); err != nil {
+						b.Fatalf("ResolveRegistration() error = %v", err)
+					}
+				} else if _, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID); err != nil {
+					b.Fatalf("Resolve() error = %v", err)
+				}
+			}
+		})
+	}
 }
 
 func BenchmarkResolverList(b *testing.B) {

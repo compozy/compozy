@@ -47,21 +47,24 @@ type Resolver struct {
 	changeHook          ChangeHook
 	operatorHomeDir     string
 
-	registrationMu sync.Mutex
-	reconcileMu    sync.Mutex
-	unregister     *unregisterCoordinator
-	mu             sync.RWMutex
-	cache          map[string]*cachedEntry
+	registrationMu        sync.Mutex
+	reconcileMu           sync.Mutex
+	unregister            *unregisterCoordinator
+	mu                    sync.RWMutex
+	cache                 map[string]*cachedEntry
+	agentConfigCache      map[string]*cachedAgentConfig
+	agentConfigGeneration uint64
 }
 
 var _ RuntimeResolver = (*Resolver)(nil)
 var _ ProfileRuntimeResolver = (*Resolver)(nil)
 
 type cachedEntry struct {
-	workspace  Workspace
-	resolved   ResolvedWorkspace
-	snapshots  map[string]filesnap.Snapshot
-	lastAccess time.Time
+	workspace    Workspace
+	resolved     ResolvedWorkspace
+	snapshots    map[string]filesnap.Snapshot
+	skillSources map[string]workspaceSkillScan
+	lastAccess   time.Time
 }
 
 const rollbackDeleteTimeout = 2 * time.Second
@@ -91,6 +94,7 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		operatorHomeDir:     resolvedOpts.operatorHomeDir,
 		unregister:          newUnregisterCoordinator(),
 		cache:               make(map[string]*cachedEntry),
+		agentConfigCache:    make(map[string]*cachedAgentConfig),
 	}, nil
 }
 
@@ -105,21 +109,14 @@ func (r *Resolver) ResolveForProfile(
 	idOrNameOrPath string,
 	profileName string,
 ) (resolved ResolvedWorkspace, err error) {
-	trimmedProfile := strings.TrimSpace(profileName)
-	if err := compozyconfig.ValidateResourceProfileName(trimmedProfile); err != nil {
-		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve profile resources: %w", err)
-	}
-	profileID := ""
-	if r.profileAvailability != nil {
-		resolvedProfileID, err := r.profileAvailability.AvailableProfileID(ctx, trimmedProfile)
-		if err != nil {
-			return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve profile resources: %w", err)
-		}
-		profileID = resolvedProfileID
+	trimmedProfile, profileID, err := r.resolveProfileIdentity(ctx, profileName)
+	if err != nil {
+		return ResolvedWorkspace{}, err
 	}
 	return r.resolve(ctx, idOrNameOrPath, trimmedProfile, profileID)
 }
 
+// resolve revalidates identity and resource dependencies before returning an isolated workspace snapshot.
 func (r *Resolver) resolve(
 	ctx context.Context,
 	idOrNameOrPath string,
@@ -131,22 +128,8 @@ func (r *Resolver) resolve(
 	workspaceID := ""
 	defer r.observeResolve(start, &workspaceID, &cacheHit, &resolved, &err)
 
-	if err := checkContext(ctx); err != nil {
-		return ResolvedWorkspace{}, err
-	}
-
-	ws, err := r.lookupWorkspace(ctx, idOrNameOrPath)
-	if err != nil {
-		return ResolvedWorkspace{}, err
-	}
+	ws, identity, err := r.resolveRegistration(ctx, idOrNameOrPath)
 	workspaceID = ws.ID
-
-	ws, err = r.refreshRootDir(ctx, ws)
-	if err != nil {
-		return ResolvedWorkspace{}, err
-	}
-	workspaceID = ws.ID
-	identity, err := ensureIdentity(ctx, ws.RootDir, r.now, NewWorkspaceID)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -166,8 +149,9 @@ func (r *Resolver) resolve(
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan.snapshots) {
+	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan) {
 		cached.lastAccess = now
+		cached.skillSources = scan.skillSources
 		cacheHit = true
 		resolved = cloneResolvedWorkspace(&cached.resolved)
 		resolved.Workspace = cloneWorkspace(ws)
@@ -193,10 +177,11 @@ func (r *Resolver) resolve(
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
 	r.cache[cacheKey] = &cachedEntry{
-		workspace:  cloneWorkspace(ws),
-		resolved:   cloneResolvedWorkspace(&resolved),
-		snapshots:  cloneSnapshots(scan.snapshots),
-		lastAccess: now,
+		workspace:    cloneWorkspace(ws),
+		resolved:     cloneResolvedWorkspace(&resolved),
+		snapshots:    cloneSnapshots(scan.snapshots),
+		skillSources: scan.skillSources,
+		lastAccess:   now,
 	}
 	r.mu.Unlock()
 
@@ -366,9 +351,15 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	}
 
 	r.mu.Lock()
+	r.agentConfigGeneration++
 	for key := range r.cache {
 		if key == trimmedID || strings.HasPrefix(key, trimmedID+"\x00") {
 			delete(r.cache, key)
+		}
+	}
+	for key := range r.agentConfigCache {
+		if key == trimmedID || strings.HasPrefix(key, trimmedID+"\x00") {
+			delete(r.agentConfigCache, key)
 		}
 	}
 	r.mu.Unlock()
@@ -380,7 +371,9 @@ func (r *Resolver) InvalidateAll() {
 		return
 	}
 	r.mu.Lock()
+	r.agentConfigGeneration++
 	clear(r.cache)
+	clear(r.agentConfigCache)
 	r.mu.Unlock()
 }
 
@@ -394,6 +387,7 @@ func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, works
 	return nil
 }
 
+// buildResolvedWorkspace validates agent and sandbox state and isolates the merged runtime resources.
 func (r *Resolver) buildResolvedWorkspace(
 	ctx context.Context,
 	ws Workspace,
@@ -408,13 +402,7 @@ func (r *Resolver) buildResolvedWorkspace(
 		return ResolvedWorkspace{}, errors.New("workspace: config is required")
 	}
 
-	applyDefaultAgentOverride(cfg, ws.DefaultAgent)
-	resolvedSandbox, err := resolveWorkspaceSandbox(ws, cfg)
-	if err != nil {
-		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve sandbox for %q: %w", ws.ID, err)
-	}
-
-	agents, agentDiagnostics, err := loadAgents(ctx, scan.agents)
+	state, err := buildWorkspaceAgentState(ctx, ws, cfg, scan.agents)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -427,10 +415,10 @@ func (r *Resolver) buildResolvedWorkspace(
 		ProfileRoot:         resolvedProfileRoot(r.homePaths.ProfilesDir, profileName),
 		ProfileDeclarations: append([]ProfileDeclaration(nil), scan.profileDeclarations...),
 		Config:              compozyconfig.CloneConfig(cfg),
-		Agents:              cloneAgentDefs(agents),
-		AgentDiagnostics:    append([]AgentDiagnostic(nil), agentDiagnostics...),
+		Agents:              cloneAgentDefs(state.agents),
+		AgentDiagnostics:    append([]AgentDiagnostic(nil), state.diagnostics...),
 		Skills:              cloneSkillPaths(skills),
-		Sandbox:             cloneSandboxResolved(resolvedSandbox),
+		Sandbox:             cloneSandboxResolved(state.sandbox),
 		ResolvedAt:          r.now(),
 	}, nil
 }
@@ -458,31 +446,21 @@ func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.R
 	return cfg.ResolveSandbox(ref)
 }
 
-func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snapshot) bool {
+// canReuse requires matching dependency snapshots, merged skills, and workspace runtime overrides.
+func (c *cachedEntry) canReuse(ws Workspace, scan workspaceScan) bool {
 	if c == nil {
 		return false
 	}
-	if !filesnap.Equal(c.snapshots, snapshots) {
+	if !filesnap.Equal(c.snapshots, scan.snapshots) || !slices.Equal(c.resolved.Skills, mergeSkillPaths(scan.skills)) {
 		return false
 	}
-	if strings.TrimSpace(c.workspace.DefaultAgent) != strings.TrimSpace(ws.DefaultAgent) {
-		return false
-	}
-	if strings.TrimSpace(c.workspace.SandboxRef) != strings.TrimSpace(ws.SandboxRef) {
-		return false
-	}
-	if strings.TrimSpace(c.workspace.RootDir) != strings.TrimSpace(ws.RootDir) {
-		return false
-	}
-	if !slices.Equal(c.workspace.AdditionalDirs, ws.AdditionalDirs) {
-		return false
-	}
-
-	return true
+	return sameWorkspaceRuntimeInputs(c.workspace, ws)
 }
 
+// evictExpiredLocked expires both resolver caches by last access while the resolver mutex is held.
 func (r *Resolver) evictExpiredLocked(now time.Time) {
 	cutoff := now.Add(-r.cacheTTL)
+	r.evictAgentConfigCacheLocked(cutoff)
 	for workspaceID, entry := range r.cache {
 		if entry.lastAccess.Before(cutoff) {
 			r.logger.Debug("workspace.cache.evict",

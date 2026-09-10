@@ -2,9 +2,13 @@ package workspace
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -336,4 +340,510 @@ func agentCapabilityIDsForContract(agents []compozyconfig.AgentDef, name string)
 		return ids
 	}
 	return nil
+}
+
+func TestWorkspaceContractAgentConfigResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate caller mutations from cold and warm narrow cache results", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		additionalDir := mustCanonicalRoot(t, t.TempDir())
+		ws := Workspace{
+			ID: "ws_agent_config_copies", RootDir: t.TempDir(), Name: "repo",
+			AdditionalDirs: []string{additionalDir},
+		}
+		cfg := validConfig(homePaths)
+		cfg.Memory.Controller.Policy.AllowOrigins = []string{"agent"}
+		cfg.Automation.Triggers = []compozyconfig.AutomationTrigger{{
+			Name: "github-push", Filter: map[string]string{"branch": "main"},
+		}}
+		resolver := newTestResolver(t, newMockWorkspaceStore(ws),
+			WithHomePaths(homePaths),
+			WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+			withNow(func() time.Time { return time.Unix(1_700_050_000, 0).UTC() }),
+		)
+		writeFile(t,
+			filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+			strings.Join([]string{
+				"---", "name: coder", "provider: claude", "model: original",
+				"tools: [compozy__session_list]", "---", "", "Prompt for coder.", "",
+			}, "\n"),
+		)
+
+		for attempt := range 3 {
+			resolved, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(attempt %d) error = %v", attempt, err)
+			}
+			if got := resolved.Config.Memory.Controller.Policy.AllowOrigins; !slices.Equal(got, []string{"agent"}) {
+				t.Fatalf("config origins on attempt %d = %#v, want original agent slice", attempt, got)
+			}
+			if got := resolved.Config.Automation.Triggers; len(got) != 1 || got[0].Filter["branch"] != "main" {
+				t.Fatalf("config automation on attempt %d = %#v, want original main filter", attempt, got)
+			}
+			if got := resolved.Agents; len(got) != 1 || got[0].Model != "original" ||
+				!slices.Equal(got[0].Tools, []string{"compozy__session_list"}) {
+				t.Fatalf("agents on attempt %d = %#v, want original coder model and tools", attempt, got)
+			}
+			if got := resolved.AdditionalDirs; !slices.Equal(got, []string{additionalDir}) {
+				t.Fatalf("additional directories on attempt %d = %#v, want %#v", attempt, got, []string{additionalDir})
+			}
+			if attempt == 2 {
+				continue
+			}
+			resolved.Config.Memory.Controller.Policy.AllowOrigins[0] = "caller-origin"
+			resolved.Config.Automation.Triggers[0].Filter["branch"] = "caller-branch"
+			resolved.Agents[0].Model = "caller-model"
+			resolved.Agents[0].Tools[0] = "caller-tool"
+			resolved.AdditionalDirs[0] = "caller-directory"
+		}
+	})
+
+	t.Run("Should resolve config and agents without traversing an invalid skills directory", func(t *testing.T) {
+		t.Parallel()
+
+		resolver, ws, _ := newAgentConfigContractResolver(t)
+		workspaceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+		writeFile(t, filepath.Join(workspaceDir, compozyconfig.ConfigName), "[defaults]\nagent = \"coder\"\n")
+		writeAgentDef(
+			t,
+			filepath.Join(workspaceDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+			"coder",
+			"selected-model",
+		)
+		writeFile(t, filepath.Join(workspaceDir, compozyconfig.SkillsDirName), "not a resource directory")
+
+		if _, err := resolver.Resolve(t.Context(), ws.ID); err == nil {
+			t.Fatal("Resolve(invalid skills directory) error = nil, want rejection")
+		} else if !strings.Contains(err.Error(), "scan skills directory") {
+			t.Fatalf("Resolve(invalid skills directory) error = %v, want skill traversal failure", err)
+		}
+		resolved, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+		if err != nil {
+			t.Fatalf("ResolveAgentConfig(invalid skills directory) error = %v", err)
+		}
+		if resolved.Config.Defaults.Agent != "coder" || agentModel(resolved.Agents, "coder") != "selected-model" {
+			t.Fatalf("narrow resolution with unrelated invalid skills = %#v, want configured coder", resolved)
+		}
+	})
+
+	for _, profileName := range []string{"", "marketing"} {
+		t.Run(
+			"Should preserve full resolution values and skills after narrow resolution for "+profileName,
+			func(t *testing.T) {
+				t.Parallel()
+
+				availability := &agentConfigContractProfileAvailability{id: "profile-marketing"}
+				resolver, ws, homePaths := newAgentConfigContractResolver(
+					t,
+					WithProfileAvailabilityChecker(availability),
+				)
+				writeAgentDef(t, filepath.Join(homePaths.AgentsDir, "coder", agentDefinitionFile), "coder", "global")
+				workspaceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+				writeFile(t, filepath.Join(workspaceDir, compozyconfig.ConfigName), "[defaults]\nagent = \"coder\"\n")
+				writeAgentDef(
+					t,
+					filepath.Join(workspaceDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+					"coder",
+					"workspace",
+				)
+				personalDir := filepath.Join(homePaths.ProfilesDir, "marketing")
+				writeAgentDef(
+					t,
+					filepath.Join(personalDir, compozyconfig.AgentsDirName, "personal", agentDefinitionFile),
+					"personal",
+					"personal",
+				)
+				profileDir := filepath.Join(workspaceDir, compozyconfig.ProfilesDirName, "marketing")
+				writeFile(t, filepath.Join(profileDir, compozyconfig.ConfigName), "[defaults]\nagent = \"personal\"\n")
+				writeAgentDef(
+					t,
+					filepath.Join(profileDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+					"coder",
+					"profile",
+				)
+				writeSkill(t, filepath.Join(workspaceDir, compozyconfig.SkillsDirName, "first"))
+
+				narrow, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig() error = %v", err)
+				}
+				var full ResolvedWorkspace
+				if profileName == "" {
+					full, err = resolver.Resolve(t.Context(), ws.ID)
+				} else {
+					full, err = resolver.ResolveForProfile(t.Context(), ws.ID, profileName)
+				}
+				if err != nil {
+					t.Fatalf("full resolution after ResolveAgentConfig() error = %v", err)
+				}
+				if !reflect.DeepEqual(narrow.Workspace, full.Workspace) || narrow.WorkspaceID == "" ||
+					narrow.WorkspaceID != full.WorkspaceID || narrow.ProfileID != full.ProfileID ||
+					narrow.ProfileName != full.ProfileName {
+					t.Fatalf("narrow workspace/profile identity = %#v, want full identity %#v", narrow, full)
+				}
+				if !reflect.DeepEqual(narrow.Config, full.Config) || !reflect.DeepEqual(narrow.Agents, full.Agents) {
+					t.Fatalf("narrow config/agents differ from full resolution: narrow = %#v, full = %#v", narrow, full)
+				}
+				if got, want := skillNames(full.Skills), []string{"first"}; !slices.Equal(got, want) {
+					t.Fatalf("full skills after narrow resolution = %#v, want %#v", got, want)
+				}
+				wantAgent, wantModel, wantProfileID := "coder", "workspace", ""
+				if profileName != "" {
+					wantAgent, wantModel, wantProfileID = "personal", "profile", availability.id
+				}
+				if narrow.Config.Defaults.Agent != wantAgent || agentModel(narrow.Agents, "coder") != wantModel ||
+					narrow.ProfileID != wantProfileID || narrow.ProfileName != profileName {
+					t.Fatalf(
+						"narrow selection = %#v, want agent %q, model %q, profile ID %q",
+						narrow,
+						wantAgent,
+						wantModel,
+						wantProfileID,
+					)
+				}
+			},
+		)
+	}
+}
+
+func TestWorkspaceContractAgentConfigDependencies(t *testing.T) {
+	t.Parallel()
+
+	for _, profileName := range []string{"", "marketing"} {
+		t.Run("Should refresh changed config and agents before cache expiry for "+profileName, func(t *testing.T) {
+			t.Parallel()
+
+			resolver, ws, _ := newAgentConfigContractResolver(t)
+			resourceDir := filepath.Join(ws.RootDir, compozyconfig.DirName)
+			if profileName != "" {
+				resourceDir = filepath.Join(resourceDir, compozyconfig.ProfilesDirName, profileName)
+			}
+			configFile := filepath.Join(resourceDir, compozyconfig.ConfigName)
+			agentFile := filepath.Join(resourceDir, compozyconfig.AgentsDirName, "coder", agentDefinitionFile)
+			writeFile(t, configFile, "[defaults]\nagent = \"coder\"\n")
+			writeAgentDef(t, agentFile, "coder", "original")
+			first, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(first) error = %v", err)
+			}
+			if first.Config.Defaults.Agent != "coder" || agentModel(first.Agents, "coder") != "original" {
+				t.Fatalf("initial config and agent selection = %#v", first)
+			}
+
+			writeFile(t, configFile, "[defaults]\nagent = \"reviewer\"\n")
+			afterConfig, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(after config edit) error = %v", err)
+			}
+			if afterConfig.Config.Defaults.Agent != "reviewer" {
+				t.Fatalf("default agent after config edit = %q, want reviewer", afterConfig.Config.Defaults.Agent)
+			}
+
+			writeAgentDef(t, agentFile, "coder", "changed-model")
+			afterAgent, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(after agent edit) error = %v", err)
+			}
+			if got := agentModel(afterAgent.Agents, "coder"); got != "changed-model" {
+				t.Fatalf("agent model after edit = %q, want changed-model", got)
+			}
+		})
+	}
+}
+
+func TestWorkspaceContractAgentConfigInvalidation(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		invalidate func(*Resolver, string, *time.Time)
+	}{
+		{
+			name: "Should refresh narrow config after workspace invalidation",
+			invalidate: func(resolver *Resolver, workspaceID string, _ *time.Time) {
+				resolver.Invalidate(workspaceID)
+			},
+		},
+		{
+			name: "Should refresh narrow config after global invalidation",
+			invalidate: func(resolver *Resolver, _ string, _ *time.Time) {
+				resolver.InvalidateAll()
+			},
+		},
+		{
+			name: "Should refresh narrow config after idle cache expiration",
+			invalidate: func(_ *Resolver, _ string, now *time.Time) {
+				*now = now.Add(10*time.Minute + time.Second)
+			},
+		},
+	} {
+		for _, profileName := range []string{"", "marketing"} {
+			t.Run(test.name+" for profile "+profileName, func(t *testing.T) {
+				t.Parallel()
+
+				currentTime := time.Unix(1_700_040_000, 0).UTC()
+				var loadedConfig compozyconfig.Config
+				resolver, ws, homePaths := newAgentConfigContractResolver(t,
+					WithConfigLoader(func(string) (compozyconfig.Config, error) {
+						return loadedConfig, nil
+					}),
+					WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) {
+						return loadedConfig, nil
+					}),
+					withNow(func() time.Time { return currentTime }),
+				)
+				loadedConfig = validConfig(homePaths)
+				loadedConfig.Defaults.Agent = "coder"
+				first, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(first) error = %v", err)
+				}
+				if first.Config.Defaults.Agent != "coder" {
+					t.Fatalf("initial default agent = %q, want coder", first.Config.Defaults.Agent)
+				}
+				loadedConfig.Defaults.Agent = "reviewer"
+				cached, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(before invalidation) error = %v", err)
+				}
+				if cached.Config.Defaults.Agent != "coder" {
+					t.Fatalf("cached default agent before invalidation = %q, want coder", cached.Config.Defaults.Agent)
+				}
+
+				test.invalidate(resolver, ws.ID, &currentTime)
+				refreshed, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, profileName)
+				if err != nil {
+					t.Fatalf("ResolveAgentConfig(after invalidation) error = %v", err)
+				}
+				if refreshed.Config.Defaults.Agent != "reviewer" {
+					t.Fatalf("default agent after invalidation = %q, want reviewer", refreshed.Config.Defaults.Agent)
+				}
+			})
+		}
+	}
+
+	for _, test := range []struct {
+		name       string
+		invalidate func(*Resolver, string)
+	}{
+		{
+			name: "Should not republish narrow config after concurrent workspace invalidation",
+			invalidate: func(resolver *Resolver, workspaceID string) {
+				resolver.Invalidate(workspaceID)
+			},
+		},
+		{
+			name: "Should not republish narrow config after concurrent global invalidation",
+			invalidate: func(resolver *Resolver, _ string) {
+				resolver.InvalidateAll()
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := newTestHomePaths(t)
+			oldConfig := validConfig(homePaths)
+			oldConfig.Defaults.Agent = "coder"
+			newConfig := compozyconfig.CloneConfig(&oldConfig)
+			newConfig.Defaults.Agent = "reviewer"
+
+			loadStarted := make(chan struct{})
+			releaseLoad := make(chan struct{})
+			var loadMu sync.Mutex
+			loadCalls := 0
+			resolveCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			resolver, ws, _ := newAgentConfigContractResolver(t,
+				WithConfigLoader(func(string) (compozyconfig.Config, error) {
+					loadMu.Lock()
+					loadCalls++
+					call := loadCalls
+					loadMu.Unlock()
+					if call == 1 {
+						close(loadStarted)
+						select {
+						case <-releaseLoad:
+							return oldConfig, nil
+						case <-resolveCtx.Done():
+							return compozyconfig.Config{}, resolveCtx.Err()
+						}
+					}
+					return newConfig, nil
+				}),
+			)
+
+			type resolutionResult struct {
+				resolved ResolvedAgentConfig
+				err      error
+			}
+			result := make(chan resolutionResult, 1)
+			go func() {
+				resolved, err := resolver.ResolveAgentConfig(resolveCtx, ws.ID, "")
+				result <- resolutionResult{resolved: resolved, err: err}
+			}()
+
+			select {
+			case <-loadStarted:
+			case first := <-result:
+				t.Fatalf("ResolveAgentConfig finished before loader barrier: error = %v", first.err)
+			case <-resolveCtx.Done():
+				first := <-result
+				t.Fatalf("ResolveAgentConfig did not reach loader barrier: error = %v", first.err)
+			}
+			test.invalidate(resolver, ws.ID)
+			close(releaseLoad)
+			first := <-result
+			if first.err != nil {
+				t.Fatalf("ResolveAgentConfig(concurrent invalidation) error = %v", first.err)
+			}
+			if first.resolved.Config.Defaults.Agent != "coder" {
+				t.Fatalf("in-flight default agent = %q, want coder", first.resolved.Config.Defaults.Agent)
+			}
+
+			refreshed, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(after concurrent invalidation) error = %v", err)
+			}
+			if refreshed.Config.Defaults.Agent != "reviewer" {
+				t.Fatalf(
+					"default agent after concurrent invalidation = %q, want reviewer",
+					refreshed.Config.Defaults.Agent,
+				)
+			}
+			loadMu.Lock()
+			calls := loadCalls
+			loadMu.Unlock()
+			if calls != 2 {
+				t.Fatalf("config loader calls after concurrent invalidation = %d, want 2", calls)
+			}
+		})
+	}
+}
+
+func TestWorkspaceContractAgentConfigIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		change func(*testing.T, string)
+		want   error
+	}{
+		{
+			name: "Should reject a removed workspace root after narrow cache warmup",
+			change: func(t *testing.T, root string) {
+				t.Helper()
+				if err := os.RemoveAll(root); err != nil {
+					t.Fatalf("RemoveAll(root) error = %v", err)
+				}
+			},
+			want: ErrWorkspaceRootMissing,
+		},
+		{
+			name: "Should reject invalid current workspace identity after narrow cache warmup",
+			change: func(t *testing.T, root string) {
+				t.Helper()
+				writeFile(t, identityPath(root), `workspace_id = "invalid"`)
+			},
+			want: ErrWorkspaceIdentityInvalid,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver, ws, _ := newAgentConfigContractResolver(t)
+			if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+				t.Fatalf("ResolveAgentConfig(first) error = %v", err)
+			}
+			test.change(t, ws.RootDir)
+			got, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+			if !errors.Is(err, test.want) {
+				t.Fatalf("ResolveAgentConfig(after identity change) error = %v, want %v", err, test.want)
+			}
+			if got.WorkspaceID != "" || got.ID != "" || len(got.Agents) != 0 {
+				t.Fatalf("failed narrow resolution returned workspace/agent data: %#v", got)
+			}
+		})
+	}
+
+	t.Run("Should recheck current profile ownership and availability on narrow cache hits", func(t *testing.T) {
+		t.Parallel()
+
+		availability := &agentConfigContractProfileAvailability{id: "profile-first"}
+		resolver, ws, _ := newAgentConfigContractResolver(t, WithProfileAvailabilityChecker(availability))
+		first, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, " marketing ")
+		if err != nil {
+			t.Fatalf("ResolveAgentConfig(first profile) error = %v", err)
+		}
+		if first.ProfileName != "marketing" || first.ProfileID != "profile-first" {
+			t.Fatalf("first profile identity = %q/%q, want marketing/profile-first", first.ProfileName, first.ProfileID)
+		}
+		availability.id = "profile-recreated"
+		current, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "marketing")
+		if err != nil {
+			t.Fatalf("ResolveAgentConfig(recreated profile) error = %v", err)
+		}
+		if current.ProfileID != "profile-recreated" {
+			t.Fatalf("current profile ID = %q, want profile-recreated", current.ProfileID)
+		}
+		availability.err = errors.New("profile lifecycle operation in progress")
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "marketing"); !errors.Is(err, availability.err) {
+			t.Fatalf("ResolveAgentConfig(unavailable profile) error = %v, want %v", err, availability.err)
+		}
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, ""); err != nil {
+			t.Fatalf("ResolveAgentConfig(unprofiled workspace) error = %v", err)
+		}
+		availability.err = nil
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "../marketing"); err == nil ||
+			!strings.Contains(
+				err.Error(),
+				`workspace: resolve profile resources: config: resource profile name "../marketing" must match`,
+			) {
+			t.Fatalf(
+				"ResolveAgentConfig(invalid profile name) error = %v, want wrapped profile validation failure",
+				err,
+			)
+		}
+	})
+}
+
+func newAgentConfigContractResolver(t *testing.T, opts ...Option) (*Resolver, Workspace, compozyconfig.HomePaths) {
+	t.Helper()
+
+	homePaths := newTestHomePaths(t)
+	ws := Workspace{ID: "ws_agent_config_contract", RootDir: t.TempDir(), Name: "repo"}
+	baseOpts := []Option{
+		WithHomePaths(homePaths),
+		WithConfigLoader(func(root string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(root))
+		}),
+		WithProfileConfigLoader(func(root, profileName string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				homePaths,
+				compozyconfig.WithWorkspaceRoot(root),
+				compozyconfig.WithProfile(profileName),
+			)
+		}),
+		withNow(func() time.Time { return time.Unix(1_700_030_000, 0).UTC() }),
+		WithCacheTTL(10 * time.Minute),
+	}
+	return newTestResolver(t, newMockWorkspaceStore(ws), append(baseOpts, opts...)...), ws, homePaths
+}
+
+type agentConfigContractProfileAvailability struct {
+	id  string
+	err error
+}
+
+var _ ProfileAvailabilityChecker = (*agentConfigContractProfileAvailability)(nil)
+
+func (a *agentConfigContractProfileAvailability) EnsureAvailableName(context.Context, string) error {
+	return a.err
+}
+
+func (a *agentConfigContractProfileAvailability) AvailableProfileID(context.Context, string) (string, error) {
+	return a.id, a.err
 }

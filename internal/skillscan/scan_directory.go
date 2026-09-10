@@ -62,6 +62,7 @@ type scanBudget struct {
 	candidates int
 }
 
+// newDirectoryScanner resolves trusted roots and represents missing or unreadable roots without traversal.
 func newDirectoryScanner(root string, trustedRoots []string) (*directoryScanner, error) {
 	trimmedRoot := strings.TrimSpace(root)
 	if trimmedRoot == "" {
@@ -97,11 +98,12 @@ func newDirectoryScanner(root string, trustedRoots []string) (*directoryScanner,
 		return nil, fmt.Errorf("skillscan: resolve root %q: %w", absRoot, err)
 	}
 
+	canonicalRoots := canonicalTrustedRoots(trustedRoots, resolvedRoot)
 	return &directoryScanner{
 		root:          absRoot,
 		walkRoot:      resolvedRoot,
 		resolvedRoot:  resolvedRoot,
-		trustedRoots:  canonicalTrustedRoots(trustedRoots, resolvedRoot),
+		trustedRoots:  canonicalRoots,
 		seenRealPaths: make(map[string]struct{}),
 		budget:        &scanBudget{},
 		result: DirectoryResult{
@@ -109,6 +111,7 @@ func newDirectoryScanner(root string, trustedRoots []string) (*directoryScanner,
 			Snapshots: make(map[string]filesnap.Snapshot, MaxCandidates),
 			RealPaths: make(map[string]string, MaxCandidates),
 			Stats:     RootScanStats{Exists: true, Readable: true},
+			discovery: newDirectorySnapshot(absRoot, resolvedRoot, canonicalRoots),
 		},
 	}, nil
 }
@@ -121,6 +124,7 @@ func (s *directoryScanner) scanBase() error {
 	return nil
 }
 
+// visit records discovery evidence within traversal limits and prevents reuse after unreadable entries.
 func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr error) error {
 	if s.budget.entries >= MaxEntries {
 		slog.Warn("skillscan: entry limit reached", "root", s.root, "limit", MaxEntries)
@@ -129,6 +133,7 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	}
 	s.budget.entries++
 	if walkErr != nil {
+		s.result.discovery.complete = false
 		slog.Warn("skillscan: skipping unreadable path", "path", candidate, "error", walkErr)
 		if candidate == s.walkRoot && errors.Is(walkErr, fs.ErrPermission) {
 			s.result.Stats.Readable = false
@@ -142,33 +147,53 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	if err != nil {
 		return err
 	}
+	if candidate != s.walkRoot {
+		s.result.discovery.trackEntry(candidate, entry)
+	}
 	if entry.IsDir() {
 		if candidate != s.walkRoot && shouldSkipDirectory(entry.Name()) {
 			return filepath.SkipDir
 		}
+		s.result.discovery.directories[candidate] = nil
+		s.result.discovery.track(candidate, entry)
 		return nil
 	}
+	s.result.discovery.trackLink(candidate, entry)
 	if entry.Name() != SkillFileName {
 		return nil
 	}
+	return s.visitDefinition(reportedCandidate, entry)
+}
+
+// visitDefinition accepts contained regular skill files once per real path and enforces the candidate limit.
+func (s *directoryScanner) visitDefinition(reportedCandidate string, entry fs.DirEntry) error {
 	if err := pathWithinRoot(s.resolvedRoot, reportedCandidate); err != nil {
+		s.result.discovery.complete = false
 		slog.Warn("skillscan: skipping definition outside root", "path", reportedCandidate, "error", err)
 		return nil
 	}
 	info, err := os.Stat(reportedCandidate)
 	if err != nil {
+		s.result.discovery.complete = false
 		slog.Warn("skillscan: skipping unreadable definition", "path", reportedCandidate, "error", err)
 		return nil
 	}
 	if !info.Mode().IsRegular() {
+		s.result.discovery.complete = false
 		slog.Warn("skillscan: skipping non-regular definition", "path", reportedCandidate)
 		return nil
 	}
 	realPath, err := filepath.EvalSymlinks(reportedCandidate)
 	if err != nil {
+		s.result.discovery.complete = false
 		slog.Warn("skillscan: skipping unresolved definition", "path", reportedCandidate, "error", err)
 		return nil
 	}
+	if entry.Type()&os.ModeSymlink != 0 {
+		s.result.discovery.resolved[reportedCandidate] = realPath
+	}
+	snapshot := filesnap.FromInfo(realPath, info)
+	s.result.discovery.files[realPath] = snapshot
 	s.result.Stats.ScannedCount++
 	s.budget.candidates++
 	candidateLimitReached := s.budget.candidates >= MaxCandidates
@@ -180,7 +205,6 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 		return nil
 	}
 	s.seenRealPaths[realPath] = struct{}{}
-	snapshot := filesnap.Snapshot{ModTime: info.ModTime(), Size: info.Size()}
 	s.result.Paths = append(s.result.Paths, reportedCandidate)
 	s.result.Snapshots[reportedCandidate] = snapshot
 	s.result.RealPaths[reportedCandidate] = realPath
@@ -192,6 +216,7 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	return nil
 }
 
+// followFirstLevelLinks traverses only trusted directory targets under the shared discovery budget.
 func (s *directoryScanner) followFirstLevelLinks() error {
 	if s.budget.candidates >= MaxCandidates || s.budget.entries >= MaxEntries {
 		return nil
@@ -217,7 +242,13 @@ func (s *directoryScanner) followFirstLevelLinks() error {
 			continue
 		}
 		info, err := os.Stat(resolved)
-		if err != nil || !info.IsDir() {
+		if err != nil {
+			s.result.discovery.complete = false
+			continue
+		}
+		if !info.IsDir() {
+			s.result.discovery.resolved[linkPath] = resolved
+			s.result.discovery.files[resolved] = filesnap.FromInfo(resolved, info)
 			continue
 		}
 		if !pathWithinAnyTrustedRoot(resolved, s.trustedRoots) {
@@ -245,7 +276,9 @@ func (s *directoryScanner) followFirstLevelLinks() error {
 	return nil
 }
 
+// mergeLinkedResult preserves linked scan evidence while deduplicating definitions by real path.
 func (s *directoryScanner) mergeLinkedResult(result DirectoryResult) {
+	s.result.discovery.merge(result.discovery)
 	s.result.Stats.ScannedCount += result.Stats.ScannedCount
 	s.result.Stats.Truncated = s.result.Stats.Truncated || result.Stats.Truncated
 	for _, path := range result.Paths {

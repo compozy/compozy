@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -85,6 +86,81 @@ func TestWatcherDetectChangesModifiedSkillByMTime(t *testing.T) {
 	if changes[0].path != skillPath || changes[0].action != "modified" {
 		t.Fatalf("detectChanges() change = %#v, want modified change for %q", changes[0], skillPath)
 	}
+}
+
+func TestWatcherMetadataPreservedChanges(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should publish invalid to valid and valid to invalid in-place edits", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		valid := skillWithDescription("preserved", "Preserved metadata")
+		invalid := strings.Replace(valid, "name: ", "nope: ", 1)
+		skillPath := writeSkillFile(t, root, filepath.Join("preserved", skillFileName), invalid)
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(root)})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, found := registry.Get("preserved"); found {
+			t.Fatal("invalid definition must not be published before the edit")
+		}
+		watcher := NewWatcher(registry, time.Millisecond)
+		watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+		var published []bool
+		watcher.SetAfterRefresh(func(context.Context) error {
+			_, found := registry.Get("preserved")
+			published = append(published, found)
+			return nil
+		})
+
+		for index, step := range []struct {
+			name    string
+			content string
+			present bool
+		}{
+			{name: "Should publish the valid in-place edit", content: valid, present: true},
+			{name: "Should remove the invalid in-place edit", content: invalid},
+		} {
+			t.Run(step.name, func(t *testing.T) {
+				before, err := os.Stat(skillPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(skillPath, []byte(step.content), before.Mode()); err != nil {
+					t.Fatal(err)
+				}
+				setFileTimes(t, skillPath, before.ModTime())
+				after, err := os.Stat(skillPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !os.SameFile(before, after) || before.Size() != after.Size() || before.Mode() != after.Mode() ||
+					!before.ModTime().Equal(after.ModTime()) {
+					t.Fatal("fixture must preserve inode, size, mode, and modification time")
+				}
+				changed, _, changes, err := watcher.detectChanges(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !changed || len(changes) != 1 || changes[0].path != skillPath || changes[0].action != "modified" {
+					t.Fatalf("detectChanges() = %t, %#v, want one modified definition", changed, changes)
+				}
+				if err := watcher.pollOnce(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if len(published) != index+1 || published[index] != step.present {
+					t.Fatalf("afterRefresh publication = %v, want valid then invalid", published)
+				}
+				if err := watcher.pollOnce(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if len(published) != index+1 {
+					t.Fatal("unchanged content triggered an additional publication")
+				}
+			})
+		}
+	})
 }
 
 func TestWatcherDetectChangesDeletedSkill(t *testing.T) {

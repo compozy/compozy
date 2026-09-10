@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -90,6 +91,70 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+
+	t.Run("Should reject invalid descriptors introduced by a dynamic provider reindex", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		provider := registryTestProvider{
+			source: descriptor.Source,
+			list: func() []Descriptor {
+				return []Descriptor{descriptor}
+			},
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if _, err := registry.DiagnosticProjection(t.Context(), Scope{}); err != nil {
+			t.Fatalf("DiagnosticProjection(initial) error = %v", err)
+		}
+		descriptor.InputSchema = json.RawMessage(`{"type":false}`)
+		_, err = registry.DiagnosticProjection(t.Context(), Scope{})
+		requireReason(t, err, ReasonSchemaInvalid)
+	})
+
+	t.Run("Should recompute native conflicts and ordering when dynamic providers change", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewNativeProvider() error = %v", err)
+		}
+		first := descriptorWithID(ToolIDTaskRead, "Read Task")
+		last := descriptorWithID(ToolIDToolList, "List Tools")
+		descriptors := []Descriptor{last, descriptor, first}
+		dynamic := providerWithDescriptors(descriptor.Source, descriptors...)
+		dynamic.list = func() []Descriptor { return descriptors }
+		registry, err := NewRegistry(WithProviders(provider, dynamic))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		views, err := registry.OperatorProjection(t.Context(), Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("OperatorProjection(conflicted) error = %v", err)
+		}
+		requireToolIDs(t, views, descriptor.ID, first.ID, last.ID)
+		requireViewReason(t, views, descriptor.ID, ReasonConflictedID)
+		descriptors = []Descriptor{last, first}
+		views, err = registry.SessionProjection(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection(recovered) error = %v", err)
+		}
+		ids := make([]ToolID, len(views))
+		for i := range views {
+			ids[i] = views[i].Descriptor.ID
+		}
+		if want := []ToolID{descriptor.ID, first.ID, last.ID}; !slices.Equal(ids, want) {
+			t.Fatalf("SessionProjection(recovered) IDs = %#v, want ordered IDs %#v", ids, want)
+		}
+	})
 
 	t.Run("Should mark duplicate canonical IDs as conflicted and hide from session projection", func(t *testing.T) {
 		t.Parallel()

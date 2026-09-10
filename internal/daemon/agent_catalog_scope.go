@@ -3,6 +3,7 @@ package daemon
 import (
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -14,18 +15,51 @@ type agentCatalogLens struct {
 	workspaceID string
 }
 
-func agentCatalogLensFor(resolved *workspacepkg.ResolvedWorkspace) agentCatalogLens {
-	lens := agentCatalogLens{profileID: store.DefaultProfileID, profileName: daemonDefaultProfileName}
+type agentCatalogSnapshot struct {
+	lens    agentCatalogLens
+	agents  []compozyconfig.AgentDef
+	present bool
+}
+
+// agentCatalogWorkspaceSnapshot retains workspace visibility and agent definitions without copying the resource graph.
+func agentCatalogWorkspaceSnapshot(resolved *workspacepkg.ResolvedWorkspace) agentCatalogSnapshot {
 	if resolved == nil {
-		return lens
+		return agentCatalogSnapshot{lens: agentCatalogLensForIdentity("", "", "")}
 	}
-	if profileID := strings.TrimSpace(resolved.ProfileID); profileID != "" {
+	return agentCatalogSnapshot{
+		lens:    agentCatalogLensForIdentity(resolved.ID, resolved.ProfileID, resolved.ProfileName),
+		agents:  resolved.Agents,
+		present: true,
+	}
+}
+
+// agentCatalogPolicySnapshot gives policy resolution the same visibility rules as full workspace resolution.
+func agentCatalogPolicySnapshot(resolved *workspacepkg.ResolvedAgentConfig) agentCatalogSnapshot {
+	if resolved == nil {
+		return agentCatalogSnapshot{lens: agentCatalogLensForIdentity("", "", "")}
+	}
+	return agentCatalogSnapshot{
+		lens:    agentCatalogLensForIdentity(resolved.ID, resolved.ProfileID, resolved.ProfileName),
+		agents:  resolved.Agents,
+		present: true,
+	}
+}
+
+// agentCatalogLensFor uses the default profile when no workspace snapshot is available.
+func agentCatalogLensFor(resolved *workspacepkg.ResolvedWorkspace) agentCatalogLens {
+	return agentCatalogWorkspaceSnapshot(resolved).lens
+}
+
+// agentCatalogLensForIdentity normalizes scope identifiers while retaining default profile visibility.
+func agentCatalogLensForIdentity(workspaceID, profileID, profileName string) agentCatalogLens {
+	lens := agentCatalogLens{profileID: store.DefaultProfileID, profileName: daemonDefaultProfileName}
+	if profileID := strings.TrimSpace(profileID); profileID != "" {
 		lens.profileID = profileID
 	}
-	if profileName := strings.TrimSpace(resolved.ProfileName); profileName != "" {
+	if profileName := strings.TrimSpace(profileName); profileName != "" {
 		lens.profileName = profileName
 	}
-	lens.workspaceID = strings.TrimSpace(resolved.ID)
+	lens.workspaceID = strings.TrimSpace(workspaceID)
 	return lens
 }
 

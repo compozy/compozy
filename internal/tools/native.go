@@ -91,7 +91,7 @@ func (p *NativeProvider) Resolve(_ context.Context, scope Scope, id ToolID) (Han
 		return nil, false, nil
 	}
 	return &nativeHandle{
-		descriptor:   cloneDescriptor(nativeTool.Descriptor),
+		descriptor:   nativeTool.Descriptor,
 		call:         nativeTool.Call,
 		availability: nativeTool.Availability,
 		scope:        scope,

@@ -46,6 +46,96 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject extension operations when workspace registration cannot be validated", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name        string
+			resolver    daemonExtensionWorkspaceResolver
+			cause       error
+			message     string
+			callMessage string
+		}{
+			{
+				name:        "Should reject an unavailable resolver",
+				cause:       workspacepkg.ErrWorkspaceResolverUnavailable,
+				message:     `workspace "workspace-identity" cannot be resolved`,
+				callMessage: "has no workspace resolver",
+			},
+			{
+				name:        "Should reject an unknown workspace",
+				resolver:    &daemonExtensionWorkspaceResolverStub{},
+				cause:       workspacepkg.ErrWorkspaceNotFound,
+				message:     `resolve extension tool workspace "workspace-identity"`,
+				callMessage: `workspace "workspace-identity" is invalid`,
+			},
+			{
+				name: "Should reject an empty registration id",
+				resolver: &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{RootDir: t.TempDir()},
+					WorkspaceID: "workspace-identity",
+				}},
+				message:     "has no registered runtime id: daemon: resolved workspace registry id is empty",
+				callMessage: "has no registered runtime id",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+				provider := newDaemonScopedExtensionToolProvider(inner, tc.resolver)
+				scope := toolspkg.Scope{WorkspaceID: "workspace-identity"}
+				if _, err := provider.List(
+					t.Context(),
+					scope,
+				); err == nil ||
+					!strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("List() error = %v, want registration validation error containing %q", err, tc.message)
+				} else if tc.cause != nil &&
+					!errors.Is(err, tc.cause) {
+					t.Fatalf("List() error = %v, want wrapped cause %v", err, tc.cause)
+				}
+				if _, _, err := provider.Resolve(t.Context(), scope, specCycleImportTasksToolID); err == nil ||
+					!strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("Resolve() error = %v, want registration validation error containing %q", err, tc.message)
+				} else if tc.cause != nil && !errors.Is(err, tc.cause) {
+					t.Fatalf("Resolve() error = %v, want wrapped cause %v", err, tc.cause)
+				}
+				source, ok := provider.(toolspkg.ProjectionGenerationProvider)
+				if !ok {
+					t.Fatal("provider does not expose projection generation")
+				}
+				if generation, known := source.ProjectionGeneration(t.Context(), scope); known || generation != "" {
+					t.Fatalf("ProjectionGeneration() = %q, %v, want unknown", generation, known)
+				}
+				handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, specCycleImportTasksToolID)
+				if err != nil || !ok {
+					t.Fatalf("Resolve(unscoped) = %v, %v, want handle", ok, err)
+				}
+				_, err = handle.Call(t.Context(), toolspkg.CallRequest{
+					ToolID: specCycleImportTasksToolID, WorkspaceID: scope.WorkspaceID,
+					Input: json.RawMessage(`{"pattern":"task_*.md"}`),
+				})
+				toolErr, matched := errors.AsType[*toolspkg.ToolError](err)
+				if !matched || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+					toolErr.ToolID != specCycleImportTasksToolID ||
+					!containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
+					t.Fatalf("Call() error = %v, want invalid-input ToolError with scope mismatch", err)
+				}
+				if !strings.Contains(toolErr.Message, tc.callMessage) || !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+					t.Fatalf(
+						"Call() error = %v, want registration validation error containing %q and ErrToolInvalidInput",
+						err,
+						tc.callMessage,
+					)
+				}
+				if inner.handle.called {
+					t.Fatal("inner handle called without valid registration")
+				}
+			})
+		}
+	})
+
 	t.Run("Should canonicalize workspace scope and attach authority to arbitrary extension tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -58,17 +148,34 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 			},
 		}
 		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		if _, err := provider.List(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-registration"}); err != nil {
+		scope := toolspkg.Scope{WorkspaceID: "workspace-identity", ProfileID: "profile-1", SessionID: "session-1"}
+		if _, err := provider.List(t.Context(), scope); err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if got, want := inner.listScope.WorkspaceID, "workspace-registration"; got != want {
-			t.Fatalf("List() workspace = %q, want %q", got, want)
+		canonical := scope
+		canonical.WorkspaceID = "workspace-registration"
+		if inner.listScope != canonical {
+			t.Fatalf("List() scope = %#v, want %#v", inner.listScope, canonical)
+		}
+		generationSource, ok := provider.(toolspkg.ProjectionGenerationProvider)
+		if !ok {
+			t.Fatal("provider does not expose projection generation")
+		}
+		if generation, known := generationSource.ProjectionGeneration(
+			t.Context(),
+			scope,
+		); !known ||
+			generation != "generation-1" {
+			t.Fatalf("ProjectionGeneration() = %q, %v, want generation-1, true", generation, known)
+		}
+		if inner.generationScope != canonical {
+			t.Fatalf("ProjectionGeneration() scope = %#v, want %#v", inner.generationScope, canonical)
 		}
 
 		toolID := toolspkg.ToolID("ext__workspace_tool__search")
 		handle, ok, err := provider.Resolve(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "workspace-registration"},
+			scope,
 			toolID,
 		)
 		if err != nil {
@@ -77,12 +184,12 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if !ok {
 			t.Fatal("Resolve() ok = false, want true")
 		}
-		if got, want := inner.resolveScope.WorkspaceID, "workspace-registration"; got != want {
-			t.Fatalf("Resolve() workspace = %q, want %q", got, want)
+		if inner.resolveScope != canonical {
+			t.Fatalf("Resolve() scope = %#v, want %#v", inner.resolveScope, canonical)
 		}
 		if _, err := handle.Call(t.Context(), toolspkg.CallRequest{
 			ToolID:      toolID,
-			WorkspaceID: "workspace-registration",
+			WorkspaceID: "workspace-identity",
 			Input:       json.RawMessage(`{}`),
 		}); err != nil {
 			t.Fatalf("Call() error = %v", err)
@@ -505,15 +612,22 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 }
 
 type daemonExtensionProviderStub struct {
-	handle       *daemonExtensionHandleStub
-	listScope    toolspkg.Scope
-	resolveScope toolspkg.Scope
+	handle          *daemonExtensionHandleStub
+	listScope       toolspkg.Scope
+	resolveScope    toolspkg.Scope
+	generationScope toolspkg.Scope
 }
 
 var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)
+var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionProviderStub)(nil)
 
 func (p *daemonExtensionProviderStub) ID() toolspkg.SourceRef {
 	return toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "spec-cycle"}
+}
+
+func (p *daemonExtensionProviderStub) ProjectionGeneration(_ context.Context, scope toolspkg.Scope) (string, bool) {
+	p.generationScope = scope
+	return "generation-1", true
 }
 
 func (p *daemonExtensionProviderStub) List(
@@ -585,6 +699,15 @@ type daemonExtensionWorkspaceResolverStub struct {
 }
 
 var _ workspacepkg.RuntimeResolver = (*daemonExtensionWorkspaceResolverStub)(nil)
+var _ daemonExtensionWorkspaceResolver = (*daemonExtensionWorkspaceResolverStub)(nil)
+
+func (r *daemonExtensionWorkspaceResolverStub) ResolveRegistration(
+	ctx context.Context,
+	ref string,
+) (workspacepkg.Workspace, error) {
+	resolved, err := r.Resolve(ctx, ref)
+	return resolved.Workspace, err
+}
 
 func (r *daemonExtensionWorkspaceResolverStub) Resolve(
 	ctx context.Context,
