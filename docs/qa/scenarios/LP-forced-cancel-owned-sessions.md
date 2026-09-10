@@ -22,3 +22,7 @@ Confirm terminal canceled truth and the work fence appear before cleanup, every 
 the borrowed and foreign-workspace sessions remain active, repeated Cancel is idempotent, failed stops
 retry after daemon restart, every Kill surface is absent, Resume is unavailable, and Rerun starts a new
 generation with new sessions.
+
+Issue #595 acceptance: explicitly stop and remove separate session-origin Goals, including one before its first work turn. Confirm cancellation before removal, no active/queued work after cancellation, and idempotent Run cancellation when the session no longer exists. Distinguish window-only dismissal and daemon reconnect from actual session stop. Retain historical attempts and verify that catalog Loop informational origins still have independent lifecycles.
+
+Targeted #595 retest evidence and limits: [Goal lifecycle report](../reports/2026-09-10-issue-595-goal-lifecycle.md). This slice does not replace earlier evidence or claim an unrun full-scenario sweep.

@@ -95,6 +95,7 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 	m.clearResumeReplay(session.ID)
 
 	m.removeActive(session.ID)
+	errs = appendLifecycleErr(errs, m.stopSessionGoals(ctx, session.Info()))
 	if m.hostedMCP != nil {
 		m.hostedMCP.ReleaseSession(session.ID)
 	}

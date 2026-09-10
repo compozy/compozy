@@ -19,6 +19,62 @@ import (
 func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: binding adoption is fenced and cannot erase same-binding context freshness.
+	// Owner: Goal checkpoint store; canonical checkpoint control integration suite.
+	t.Run("Should adopt an active binding before context observation with exact ownership", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-bind", "ws-foreign")
+		insertGoalSchemaLoopRun(t, db, "run-bind", "ws-bind", "catalog", nil)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		key := goal.TurnKey{WorkspaceID: "ws-bind", LoopRunID: "run-bind", Generation: 1, NodeID: "goal"}
+		seedActiveGoalBindingForTest(t, db, "run-bind", "ws-bind", "goal:bind", 1, "session-bind", now)
+		_, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+			Key: key, TaskRunID: "task-bind", ControlEpoch: 1, Phase: "idle", Status: "active",
+			TurnLimit: 10, ContextState: "unknown", ContextNudgeRatio: 0.8, UpdatedAt: now,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := goal.BindCheckpointRequest{Key: key, ExpectedControlEpoch: 1, ExpectedPhase: "idle",
+			TaskRunID: "task-bind", SessionID: "session-bind", BindingHandle: "goal:bind", BindingEpoch: 1}
+		for _, mutate := range []func(*goal.BindCheckpointRequest){
+			func(r *goal.BindCheckpointRequest) { r.ExpectedControlEpoch++ },
+			func(r *goal.BindCheckpointRequest) { r.ExpectedBindingEpoch++ },
+			func(r *goal.BindCheckpointRequest) { r.ExpectedPhase = "prompting" },
+			func(r *goal.BindCheckpointRequest) { r.TaskRunID = "foreign-task" },
+			func(r *goal.BindCheckpointRequest) { r.SessionID = "foreign-session" },
+			func(r *goal.BindCheckpointRequest) { r.BindingHandle = "foreign-handle" },
+			func(r *goal.BindCheckpointRequest) { r.BindingEpoch++ },
+			func(r *goal.BindCheckpointRequest) { r.Key.WorkspaceID = "ws-foreign" },
+		} {
+			invalid := request
+			mutate(&invalid)
+			if _, err := db.BindCheckpoint(ctx, invalid); err == nil {
+				t.Fatalf("accepted foreign binding owner: %#v", invalid)
+			}
+		}
+		if _, err := db.BindCheckpoint(ctx, request); err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.RecordContextUsage(ctx, goal.RecordContextUsageRequest{
+			Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, ExpectedPhase: "idle",
+			SessionID: "session-bind", BindingHandle: "goal:bind",
+			Usage: goal.ContextUsage{Known: true, Used: 5, Size: 10, Sequence: 7, ReportedAt: now},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.ExpectedBindingEpoch = 1
+		checkpoint, err := db.BindCheckpoint(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checkpoint.ContextState != "known" || checkpoint.UsageSequence == nil || *checkpoint.UsageSequence != 7 {
+			t.Fatalf("binding replay erased context: %#v", checkpoint)
+		}
+	})
+
 	t.Run("Should fence control mutation by the exact checkpoint owner tuple", func(t *testing.T) {
 		t.Parallel()
 

@@ -25,6 +25,74 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	// Invariant: a known context snapshot reads exactly its persisted usage event, even after newer activity.
+	// Owner: daemon context-event adapter; canonical managed runtime integration suite.
+	t.Run("Should read a pinned context observation from the real session event store", func(t *testing.T) {
+		driver := newHarnessIntegrationDriver()
+		driver.promptHook = func(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 3)
+			events <- acp.AgentEvent{Type: acp.EventTypeUsage, TurnID: req.TurnID, Usage: &acp.TokenUsage{ContextUsed: new(int64(10)), ContextSize: new(int64(100))}}
+			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "Work continued after the context observation."}
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			close(events)
+			return events, nil
+		}
+		fixture := newLoopGoalManagedRuntimeFixture(t, "context-reread", driver)
+		events, err := fixture.manager.Prompt(t.Context(), fixture.binding.SessionID, "Calculate the billing summary")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range events {
+		}
+		runtime := loopGoalContextRuntime{sessions: fixture.manager}
+		usage, err := runtime.Usage(t.Context(), fixture.binding)
+		if err != nil || !usage.Known {
+			t.Fatalf("latest context = %#v, %v", usage, err)
+		}
+		pinned, err := runtime.UsageAtSequence(t.Context(), fixture.binding, usage.Sequence)
+		if err != nil || !pinned.Known || pinned.Sequence != usage.Sequence || pinned.Used != 10 || pinned.Size != 100 {
+			t.Fatalf("pinned context = %#v, %v", pinned, err)
+		}
+		missing, err := runtime.UsageAtSequence(t.Context(), fixture.binding, usage.Sequence+1)
+		if err != nil || missing.Known {
+			t.Fatalf("non-usage event became known context: %#v, %v", missing, err)
+		}
+	})
+
+	// Invariant: the real managed binder adopts its checkpoint before initial context observation.
+	// Owner: Goal executor/runtime seam; canonical managed runtime integration suite.
+	t.Run("Should observe known context before the first managed Goal prompt", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "initial-context", nil, withoutInitialGoalBinding())
+		node := compileManagedGoalDefinition(t, "initial-context", fixture.agentName, "initial-context").Definition.Graph.Nodes[0]
+		judgeReached := false
+		judge := loopGoalJudgeEvaluatorFunc(func(context.Context, goalpkg.JudgeRequest) (goalpkg.JudgeResult, error) {
+			judgeReached = true
+			return goalpkg.JudgeResult{}, errors.New("known context reached the judge")
+		})
+		executor, err := goalpkg.NewExecutor(goalpkg.Dependencies{
+			Store: fixture.goalStore, Binder: fixture.runtime, Judge: judge,
+			Budget: fixture.goalStore, Context: initialGoalContextHealth{fixture.runtime}, Recovery: fixture.runtime,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = executor.Execute(t.Context(), node, looppkg.ActionExecutionInput{
+			WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID,
+			ToolScope:  toolspkg.Scope{ProfileID: store.DefaultProfileID},
+			Generation: 1, NodeID: node.ID, CorrelationID: fixture.taskRunID,
+			RuntimeSelection: &looppkg.ActionRuntimeSelection{Catalog: integrationRuntimeCatalog{}},
+			Environment:      &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot}, GoalSegmentEpoch: 1,
+			GoalContextNudgeRatio: new(0.8),
+		})
+		checkpoint, readErr := fixture.goalStore.LoadCheckpoint(t.Context(), fixture.key)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if !judgeReached || checkpoint.ContextState != "known" || checkpoint.BindingEpoch != 1 ||
+			checkpoint.UsageSequence == nil || *checkpoint.UsageSequence != 1 {
+			t.Fatalf("initial context checkpoint = %#v; execution error = %v", checkpoint, err)
+		}
+	})
 	t.Run(
 		"Should settle a queued Goal prompt when the operator explicitly clears the shared queue",
 		func(t *testing.T) {
@@ -695,6 +763,15 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("Goal successor = %#v metadata = %#v", successor, metadata)
 		}
 	})
+}
+
+type initialGoalContextHealth struct{ goalpkg.ContextHealth }
+
+func (initialGoalContextHealth) Usage(context.Context, looppkg.ActionSessionBinding) (goalpkg.ContextUsage, error) {
+	return goalpkg.ContextUsage{
+		Known: true, Used: 1, Size: 100, Sequence: 1,
+		ReportedAt: time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
+	}, nil
 }
 
 type integrationRuntimeCatalog struct{}

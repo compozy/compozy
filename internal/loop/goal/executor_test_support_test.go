@@ -487,11 +487,7 @@ func (b *fakeManagedBinder) BindActionSession(
 		b.bindErrors = b.bindErrors[1:]
 		return binding, err
 	}
-	b.store.mu.Lock()
-	b.store.checkpoint.SessionID = fmt.Sprintf("session-%d", req.TargetBindingEpoch)
-	b.store.checkpoint.BindingHandle = req.Handle
-	b.store.checkpoint.BindingEpoch = req.TargetBindingEpoch
-	b.store.mu.Unlock()
+
 	binding.ControlEpoch = controlEpoch
 	return binding, nil
 }
@@ -792,4 +788,17 @@ func newTestExecutorWithContext(
 		t.Fatalf("NewExecutor() error = %v", err)
 	}
 	return executor
+}
+
+func (s *fakeExecutorStore) BindCheckpoint(_ context.Context, req BindCheckpointRequest) (Checkpoint, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkpoint.ControlEpoch != req.ExpectedControlEpoch || s.checkpoint.BindingEpoch != req.ExpectedBindingEpoch ||
+		s.checkpoint.Phase != req.ExpectedPhase {
+		return Checkpoint{}, loop.ErrTransitionConflict
+	}
+	s.checkpoint.SessionID = req.SessionID
+	s.checkpoint.BindingHandle = req.BindingHandle
+	s.checkpoint.BindingEpoch = req.BindingEpoch
+	return cloneTestCheckpoint(s.checkpoint), nil
 }

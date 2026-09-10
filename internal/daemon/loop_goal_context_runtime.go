@@ -54,8 +54,9 @@ func (r *loopGoalContextRuntime) UsageAtSequence(
 		return goalpkg.ContextUsage{}, errors.New("daemon: Goal context usage sequence must be positive")
 	}
 	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{
-		AfterSequence:  sequence - 1,
-		BeforeSequence: sequence + 1,
+		AfterSequence: sequence - 1,
+		Forward:       true,
+		Limit:         1,
 	})
 	if err != nil {
 		return goalpkg.ContextUsage{}, err

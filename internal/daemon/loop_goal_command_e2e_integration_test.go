@@ -179,6 +179,65 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-approval", 1)
 	})
 
+	// Invariant: explicit stop/removal cancels a session Goal and run cancellation remains usable without the session.
+	// Owner: daemon lifecycle integration; canonical public Goal commands E2E suite.
+	t.Run("Should cancel a stopped or removed session Goal through independent public reads", func(t *testing.T) {
+		for _, remove := range []bool{false, true} {
+			target := createFixtureBackedSession(t, ctx, harness, "goal-clear", "goal-lifecycle")
+			status, started := callGoalCommandUDS(
+				ctx,
+				t,
+				harness,
+				target.ID,
+				"/goal Keep working until I stop this session",
+			)
+			if status != http.StatusAccepted || started.Snapshot == nil {
+				t.Fatalf("start = %d %#v", status, started)
+			}
+			path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" + url.PathEscape(target.ID)
+			if remove {
+				if err := harness.UDSJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := harness.StopSession(ctx, target.ID); err != nil {
+					t.Fatal(err)
+				}
+				snapshot := waitForGoalSnapshot(
+					ctx,
+					t,
+					harness,
+					target.ID,
+					func(goal *compozycontract.GoalSnapshot) bool {
+						return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusCanceled && !goal.Live
+					},
+				)
+				if snapshot.Status == "active" {
+					t.Fatalf("stopped session kept an active Goal: %#v", snapshot)
+				}
+			}
+			runPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loop-runs/" + started.Snapshot.RunID
+			for range 2 {
+				if err := harness.UDSJSON(
+					ctx,
+					http.MethodPost,
+					runPath+"/cancel",
+					map[string]string{"reason": "Stop requested"},
+					nil,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			run, err := getGoalLoopRun(ctx, harness, started.Snapshot.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if run.Run.Status != compozycontract.LoopRunStatusCanceled {
+				t.Fatalf("run after stop/remove = %#v", run)
+			}
+		}
+	})
+
 	t.Run("Should clear an active Goal without a late turn", func(t *testing.T) {
 		clearSession := createFixtureBackedSession(t, ctx, harness, "goal-clear", "goal-clear")
 		clearStartStatus, clearStart := callGoalCommandUDS(

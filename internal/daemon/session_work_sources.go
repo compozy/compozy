@@ -139,15 +139,48 @@ func (s sessionWorkSources) loops(ctx context.Context, id string) ([]session.Wor
 	}
 	result := make([]session.WorkSignal, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, session.WorkSignal{
-			Kind:           session.WorkSignalLoopRun,
-			Since:          row.Since,
-			Ref:            string(row.RunID),
-			ValidUntil:     row.ReconciledAt.Add(2 * defaultMechanicalSchedulerInterval),
-			StaleAttention: true,
-		})
+		if (row.Status == looppkg.StatusPaused || row.Status == looppkg.StatusWatching) && !row.NeedsAttention &&
+			len(row.Waits) == 0 {
+			continue
+		}
+		result = append(result, sessionLoopWorkSignal(row))
 	}
 	return result, nil
+}
+
+// Durable leases and admitted wait deadlines bound activity; reading a run never renews it.
+func sessionLoopWorkSignal(row looppkg.SessionWork) session.WorkSignal {
+	until := row.ReconciledAt.Add(2 * defaultMechanicalSchedulerInterval)
+	if initial := row.Since.Add(2 * defaultMechanicalSchedulerInterval); initial.After(until) {
+		until = initial
+	}
+	if row.LeaseUntil.After(until) {
+		until = row.LeaseUntil
+	}
+	attention := ""
+	if row.NeedsAttention {
+		attention = "Loop work requires attention; inspect the run's node failures and quarantine."
+	}
+	if row.Status == looppkg.StatusNeedsApproval {
+		attention = "The Goal or Loop is waiting for approval; inspect the run's pending request."
+	}
+	for _, wait := range row.Waits {
+		if wait.ClaimState == looppkg.WaitClaimInterventionRequired {
+			attention = "A Loop wait requires intervention; inspect the run's pending request."
+			continue
+		}
+		deadline := wait.ResumeAt
+		if wait.NextEscalationAt != nil && (deadline == nil || wait.NextEscalationAt.Before(*deadline)) {
+			deadline = wait.NextEscalationAt
+		}
+		if deadline != nil && deadline.Add(2*defaultMechanicalSchedulerInterval).After(until) {
+			until = deadline.Add(2 * defaultMechanicalSchedulerInterval)
+		}
+	}
+	return session.WorkSignal{
+		Kind: session.WorkSignalLoopRun, Since: row.Since, Ref: string(row.RunID), ValidUntil: until,
+		StaleAttention: attention == "", AttentionReason: attention,
+	}
 }
 
 func (s sessionWorkSources) waits(ctx context.Context, id string) ([]session.WorkSignal, error) {

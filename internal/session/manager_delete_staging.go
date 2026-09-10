@@ -312,6 +312,11 @@ func (m *Manager) stageSessionDelete(
 			target,
 		)
 	}
+	stopInfo := *info
+	stopInfo.StopCause = CauseUserRequested
+	if err := m.stopSessionGoals(ctx, &stopInfo); err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: cancel Goals before delete: %w", err)
+	}
 	return m.stageSessionDirectoryDelete(ctx, target, info)
 }
 

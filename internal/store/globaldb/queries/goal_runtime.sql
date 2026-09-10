@@ -38,7 +38,9 @@ FROM loop_goal_session_outbox
 WHERE event_id = sqlc.arg(event_id);
 
 -- name: ReadGoalSessionProjection :one
-SELECT id, status, definition_digest, origin_session_id, goal_context_nudge_ratio, goal_cleared_at
+SELECT id, status, definition_digest, origin_session_id, goal_context_nudge_ratio, goal_cleared_at,
+ EXISTS(SELECT 1 FROM loop_node_controls control WHERE control.loop_run_id = loop_runs.id
+  AND control.quarantined = 1) AS quarantined
 FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND origin_kind = 'session'

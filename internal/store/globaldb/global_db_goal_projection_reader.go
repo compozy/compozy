@@ -70,6 +70,7 @@ func readSessionGoalProjection(
 	}
 	var projection goal.SessionProjection
 	projection.Found = true
+	projection.Quarantined = row.Quarantined
 	projection.RunID = looppkg.RunID(strings.TrimSpace(row.ID))
 	projection.RunStatus = looppkg.Status(strings.TrimSpace(row.Status))
 	projection.DefinitionDigest = strings.TrimSpace(row.DefinitionDigest)

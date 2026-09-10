@@ -3136,6 +3136,35 @@ func seedGoalTurnRuntime(
 func TestGoalSessionProjectionReader(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: session Goal reads retain durable quarantine and clear it only when its control recovers.
+	// Owner: store projection; canonical session Goal projection suite.
+	t.Run("Should read quarantine from current node controls", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-quarantine")
+		sessionID := "session-quarantine"
+		insertGoalSchemaLoopRun(t, db, "run-quarantine", "ws-quarantine", "session", &sessionID)
+		ctx := testutil.Context(t)
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_node_controls
+			(loop_run_id, node_id, quarantined, quarantine_entry_json, quarantined_at, revision, updated_at)
+			VALUES ('run-quarantine', 'goal', 1, '{"node_id":"goal"}', ?, 1, ?)`, time.Now().UTC(), time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+		projection, err := db.GetSessionGoalProjection(ctx, "ws-quarantine", sessionID)
+		if err != nil || !projection.Quarantined {
+			t.Fatalf("quarantine projection = %#v, %v", projection, err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE loop_node_controls SET quarantined = 0 WHERE loop_run_id = 'run-quarantine'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		projection, err = db.GetSessionGoalProjection(ctx, "ws-quarantine", sessionID)
+		if err != nil || projection.Quarantined {
+			t.Fatalf("recovered projection = %#v, %v", projection, err)
+		}
+	})
+
 	t.Run("Should apply clear only after selecting the newest session Goal", func(t *testing.T) {
 		t.Parallel()
 

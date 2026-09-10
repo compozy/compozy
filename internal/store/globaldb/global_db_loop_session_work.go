@@ -31,13 +31,24 @@ func (g *LoopRepo) ListSessionLoopWork(
 	}
 	result := make([]looppkg.SessionWork, 0, len(rows))
 	for _, row := range rows {
-		work := looppkg.SessionWork{RunID: looppkg.RunID(row.ID)}
+		work := looppkg.SessionWork{
+			RunID:          looppkg.RunID(row.ID),
+			Status:         looppkg.Status(row.Status),
+			NeedsAttention: row.NeedsAttention,
+			OwnsGoal:       row.OwnsGoal != 0,
+		}
 		work.Since, err = store.ParseTimestamp(row.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
 		if row.ReconciledAt != "" {
 			work.ReconciledAt, err = store.ParseTimestamp(row.ReconciledAt)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if row.LeaseUntil != "" {
+			work.LeaseUntil, err = store.ParseTimestamp(row.LeaseUntil)
 			if err != nil {
 				return nil, err
 			}

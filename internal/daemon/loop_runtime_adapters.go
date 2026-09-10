@@ -46,6 +46,15 @@ type loopCancellationSessionController struct {
 var _ looppkg.CancellationSessionController = loopCancellationSessionController{}
 
 func (c loopCancellationSessionController) StopLoopSession(ctx context.Context, id, reason string) error {
+	if reader, ok := c.sessions.(loopSessionStatusReader); ok {
+		info, err := reader.Status(ctx, id)
+		if err == nil && info != nil && info.State == session.StateStopped {
+			return nil
+		}
+		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+			return err
+		}
+	}
 	err := c.sessions.StopWithCause(ctx, id, session.CauseUserRequested, reason)
 	if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, session.ErrSessionNotActive) {
 		return nil

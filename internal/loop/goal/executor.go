@@ -109,7 +109,7 @@ func (e *Executor) initializeSegment(
 	if checkpoint.Phase == checkpointPhaseAwaitingControl || checkpoint.Phase == checkpointPhaseTerminal {
 		return segment, nil
 	}
-	if err := e.bindSegment(ctx, segment); err != nil {
+	if err := e.bindSegment(ctx, segment, max(segment.checkpoint.BindingEpoch, 1)); err != nil {
 		return nil, err
 	}
 	return segment, nil
@@ -180,8 +180,8 @@ func pinnedContextNudgeRatio(in loop.ActionExecutionInput) (float64, error) {
 	return policy.ContextNudgeRatio, nil
 }
 
-func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error {
-	request, err := e.actionSessionBindRequest(segment)
+func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targetEpoch int64) error {
+	request, err := e.actionSessionBindRequest(segment, targetEpoch)
 	if err != nil {
 		return err
 	}
@@ -194,6 +194,9 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error
 				return fmt.Errorf("%w: managed Goal binding identity is incomplete", loop.ErrValidation)
 			}
 			segment.binding = binding
+			if err := e.bindCheckpoint(ctx, segment); err != nil {
+				return err
+			}
 			segment.resolvedRuntime = appliedGoalRuntime(
 				segment.resolvedRuntime,
 				binding.AppliedRuntime,
@@ -258,6 +261,7 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error
 
 func (e *Executor) actionSessionBindRequest(
 	segment *segmentState,
+	targetEpoch int64,
 ) (loop.ActionSessionBindRequest, error) {
 	handleLabel := string(segment.node.ID)
 	mode := dsl.SessionModeContinuous
@@ -273,7 +277,6 @@ func (e *Executor) actionSessionBindRequest(
 	if err != nil {
 		return loop.ActionSessionBindRequest{}, err
 	}
-	targetEpoch := max(segment.checkpoint.BindingEpoch, 1)
 	bindingAttemptID, desiredSessionID := deterministicBindingIdentity(segment.key, handle, targetEpoch)
 	contract := dsl.Contract{}
 	if segment.input.Contract != nil {

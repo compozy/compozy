@@ -10,6 +10,7 @@ import (
 type SessionProjection struct {
 	Found             bool
 	Cleared           bool
+	Quarantined       bool
 	RunID             loop.RunID
 	RunStatus         loop.Status
 	DefinitionDigest  string

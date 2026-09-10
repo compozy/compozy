@@ -13,11 +13,72 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: Loop work exposes ongoing task leases and exact Goal ownership without crossing session scope.
+	// Owner: durable Loop read model; canonical read integration suite.
+	t.Run("Should expose a live lease before the first coordinator completes", func(t *testing.T) {
+		t.Parallel()
+		db, key, taskID, now := seedGoalTurnRuntime(t, "run-work-evidence")
+		ctx := testutil.Context(t)
+		until := now.Add(time.Minute)
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'running', ended_at = NULL, lease_until = ? WHERE id = ?`,
+			store.FormatTimestamp(until),
+			taskID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		read := func(sessionID string) []looppkg.SessionWork {
+			rows, err := db.ListSessionLoopWork(
+				ctx,
+				store.ReadScope{ProfileID: store.DefaultProfileID},
+				string(key.WorkspaceID),
+				sessionID,
+				"",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return rows
+		}
+		rows := read("session-goal-runtime")
+		if len(rows) != 1 || !rows[0].LeaseUntil.Equal(until) || !rows[0].ReconciledAt.IsZero() || rows[0].OwnsGoal {
+			t.Fatalf("catalog Goal evidence = %#v", rows)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET origin_kind = 'session', origin_session_id = 'session-origin', origin_creation_profile_ref = 'profile', origin_policy_spec_digest = 'policy', origin_creation_digest = 'creation' WHERE id = ?`,
+			key.LoopRunID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if rows = read("session-goal-runtime"); len(rows) != 1 || !rows[0].OwnsGoal {
+			t.Fatalf("bound session does not own Goal: %#v", rows)
+		}
+		if rows = read("session-origin"); len(rows) != 1 || !rows[0].OwnsGoal {
+			t.Fatalf("origin does not own Goal: %#v", rows)
+		}
+		if rows = read("foreign-session"); len(rows) != 0 {
+			t.Fatalf("foreign session received evidence: %#v", rows)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'canceled' WHERE id = ?`,
+			key.LoopRunID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if rows = read("session-goal-runtime"); len(rows) != 0 {
+			t.Fatalf("terminal run retained active evidence: %#v", rows)
+		}
+	})
 
 	t.Run("Should satisfy IT-017 IT-019 and IT-020 with faithful roster and briefing rereads", func(t *testing.T) {
 		t.Parallel()

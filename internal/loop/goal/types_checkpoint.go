@@ -181,10 +181,23 @@ type BeginCompactionCancelRequest struct {
 	Cause                string
 }
 
+// BindCheckpointRequest attaches an active binding before context observation or prompt admission.
+type BindCheckpointRequest struct {
+	Key                  TurnKey
+	ExpectedControlEpoch int64
+	ExpectedBindingEpoch int64
+	ExpectedPhase        string
+	TaskRunID            string
+	SessionID            string
+	BindingHandle        string
+	BindingEpoch         int64
+}
+
 // CheckpointStore is the durable checkpoint/control subset used by Goal execution.
 type CheckpointStore interface {
 	CreateCheckpoint(context.Context, CreateCheckpointRequest) (Checkpoint, error)
 	LoadCheckpoint(context.Context, TurnKey) (Checkpoint, error)
+	BindCheckpoint(context.Context, BindCheckpointRequest) (Checkpoint, error)
 	CheckpointControl(context.Context, ControlCheckpointRequest) error
 	GrantAndReactivate(context.Context, GrantRequest) error
 	RecordReportIntent(context.Context, RecordReportIntentRequest) (ReportIntent, error)
