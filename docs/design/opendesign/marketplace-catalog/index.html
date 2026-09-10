@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Marketplace catalog · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="marketplace-catalog.css">
+<!--
+  marketplace-catalog index · set map for the five boards (rev 2, 2026-09-10:
+  everything is an extension — no kinds). Contract: DESIGN-NOTES.md.
+  Every board opens with the same three-column block: what it is · production
+  components it changes · states with their Visual Contract ids. Specimens carry
+  numbered callouts + a legend. Hub-only <style> block per GUIDE.md.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1040px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .hub__grp{margin-top:36px}
+  .hub__grp-t{font-size:12px;font-weight:510;color:var(--subtle);padding-bottom:10px}
+  .matrix{width:100%;border-collapse:collapse;font-size:12px}
+  .matrix th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .matrix td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+  .matrix td:first-child{font-family:var(--font-mono);color:var(--faint);white-space:nowrap}
+  .matrix td a{color:var(--fg);font-weight:510}
+  .matrix td a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+  .matrix .comp{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0}
+  .matrix .vc{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);text-decoration:none}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__mods{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .howto{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .howto div{padding:12px 14px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;line-height:1.55;color:var(--muted)}
+  .howto b{display:block;font-size:12px;color:var(--fg-strong);font-weight:600;margin-bottom:3px}
+  .asks{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px;margin-top:8px}
+  .asks li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:12px;line-height:1.5;color:var(--muted)}
+  .asks li b{color:var(--fg);font-weight:510}
+  .asks li .mono-id{color:var(--faint)}
+  .asks li svg{width:14px;height:14px;color:var(--success);margin-top:2px}
+  .rev{margin-top:12px;padding:12px 14px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;line-height:1.55;color:var(--muted);max-width:72ch}
+  .rev b{color:var(--fg-strong);font-weight:600}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:72ch}
+  @media (max-width:760px){.cards,.howto,.asks{grid-template-columns:1fr}.hub{padding:36px 20px 64px}.matrix .comp{display:none}}
+</style>
+</head>
+<body>
+<div class="hub" data-od-id="mc-index">
+  <div class="eyebrow-caps" style="margin-bottom:6px">Open Design set · rev 2 · decisions closed</div>
+  <h1 data-od-id="mc-index-title">Marketplace catalog</h1>
+  <p class="hub__lede">Five boards that turn the Marketplace into one surface with one kind of thing in it: <b>extensions</b>. The window lists the whole catalog; an installed entry reads “Installed” on its card instead of living behind a toggle. What you have is one line at the top — a row of logos and a count — and that line drills into the Installed view. Cards become compact rows with a real logo and a description. The packaged MCP servers become extensions that carry a server; the skills catalog is retired; ClawHub goes with it. Plugin marketplaces (the <code>marketplace.json</code> documents Claude Code, Codex, and Cursor users already point at) become catalog sources, so the plugins Compozy can already install are in the list. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono-id">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="rev" data-od-id="mc-index-rev"><b>Rev 2 (2026-09-10, same day).</b> Pedro’s first change after rev 1: no Skills and no MCPs in the marketplace. The kind views are gone; the 17 catalog MCP servers are re-published as extensions; Documentation Writer is deleted. Board 04 (“MCPs &amp; Skills”) became <b>The cut</b>; the Installed view lost its kind groups and gained a contents summary per row.</div>
+
+  <div class="hub__grp" data-od-id="mc-index-asks">
+    <div class="hub__grp-t">What was asked (2026-09-10) → where it lands</div>
+    <ul class="asks">
+      <li><svg data-lucide="check"></svg><span><b>One marketplace, no Installed | Marketplace toggle</b> — installed state on the card, the whole catalog listed. <span class="mono-id">board 01</span></span></li>
+      <li><svg data-lucide="check"></svg><span><b>No Extensions · MCPs · Skills switch — everything is an extension</b> — MCP servers re-packaged, the skills catalog retired. <span class="mono-id">board 01 · 04</span></span></li>
+      <li><svg data-lucide="check"></svg><span><b>An Installed button</b> — the shelf line drills into one flat list with the controls on each row and what each extension contains. <span class="mono-id">board 03</span></span></li>
+      <li><svg data-lucide="check"></svg><span><b>Descriptions on every card, icons and logos</b> — row-card anatomy, logo ladder, <code>icon</code> on the feed. <span class="mono-id">board 02</span></span></li>
+      <li><svg data-lucide="check"></svg><span><b>Use the agent-plugins compatibility to have all the plugins</b> — plugin marketplaces as sources, presets on day one. <span class="mono-id">board 05</span></span></li>
+      <li><svg data-lucide="check"></svg><span><b>Remove “Claude Hub” from skills search</b> — it is ClawHub; with no skills kind it is deleted whole, regimes listed. <span class="mono-id">board 04 §04</span></span></li>
+    </ul>
+  </div>
+
+  <div class="hub__grp" data-od-id="mc-index-howto">
+    <div class="hub__grp-t">How to read a board</div>
+    <div class="howto">
+      <div><b>1 · Contract block</b>Three columns at the top: the surface in plain words · the production files it modifies, adds, deletes, or reuses unchanged (backend rows marked) · the states on the page, each linked, each with its VC id.</div>
+      <div><b>2 · Specimen + callouts</b>Every specimen is a production-geometry OS window or a flush fragment. Inverted numbered markers point at the element; the legend under it names the component, the token values, and the authority (production · reference · delta).</div>
+      <div><b>3 · Tags</b>The mono tag strip under each specimen: <span class="mono-id">state</span> · <span class="mono-id">component</span> · <span class="mono-id">VC</span> · <span class="mono-id">tone / accent</span> budget. Grep a VC id to find its specimen.</div>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="mc-index-boards">
+    <div class="hub__grp-t">Boards</div>
+    <div class="cards">
+      <a class="card" href="marketplace-catalog-browse.html" data-od-id="mc-b1"><div class="card__top"><span class="card__num">01</span><span class="card__name">Browse</span><span class="card__file">marketplace-catalog-browse.html</span></div><div class="card__sub">The whole catalog with installed marked in place, search strip, installed shelf, sections by source, empties, loading, stale, Add ▾, narrow window.</div><div class="card__mods"><span class="mc-mod mc-mod--modify">modify ×4</span><span class="mc-mod mc-mod--new">new ×3</span><span class="mc-mod mc-mod--delete">delete</span><span class="mc-mod mc-mod--backend">backend</span></div></a>
+      <a class="card" href="marketplace-catalog-card.html" data-od-id="mc-b2"><div class="card__top"><span class="card__num">02</span><span class="card__name">Entry card</span><span class="card__file">marketplace-catalog-card.html</span></div><div class="card__sub">Row anatomy, logo ladder (feed icon → brand → monogram), every catalog trail state, installed trail with contents, density, detail lede.</div><div class="card__mods"><span class="mc-mod mc-mod--new">new ×4</span><span class="mc-mod mc-mod--delete">delete ×2</span><span class="mc-mod mc-mod--backend">backend</span></div></a>
+      <a class="card" href="marketplace-catalog-installed.html" data-od-id="mc-b3"><div class="card__top"><span class="card__num">03</span><span class="card__name">Installed</span><span class="card__file">marketplace-catalog-installed.html</span></div><div class="card__sub">One flat drill-in: management controls on the row, what each extension contains, updates line with Update all, search, teaching empty, remove, scope.</div><div class="card__mods"><span class="mc-mod mc-mod--new">new ×3</span><span class="mc-mod mc-mod--modify">modify ×3</span><span class="mc-mod mc-mod--delete">delete</span></div></a>
+      <a class="card" href="marketplace-catalog-cut.html" data-od-id="mc-b4"><div class="card__top"><span class="card__num">04</span><span class="card__name">The cut</span><span class="card__file">marketplace-catalog-cut.html</span></div><div class="card__sub">MCP servers as extensions (install with inputs, Server section in the detail), where skills live now, and the delete list with regimes: kinds, feeds, routes, CLI, ClawHub.</div><div class="card__mods"><span class="mc-mod mc-mod--backend">backend ×6</span><span class="mc-mod mc-mod--delete">delete</span><span class="mc-mod mc-mod--modify">modify</span></div></a>
+      <a class="card" href="marketplace-catalog-sources.html" data-od-id="mc-b5"><div class="card__top"><span class="card__num">05</span><span class="card__name">Sources</span><span class="card__file">marketplace-catalog-sources.html</span></div><div class="card__sub">Plugin marketplaces as catalog sources: settings rows, add dialog, degraded states, plugin layouts and the one open decision, CLI twin.</div><div class="card__mods"><span class="mc-mod mc-mod--new">new ×3</span><span class="mc-mod mc-mod--backend">backend ×5</span></div></a>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="mc-index-proposals">
+    <div class="hub__grp-t">Proposals</div>
+    <div class="cards">
+      <a class="card" href="marketplace-catalog-avatars.html" data-od-id="mc-p1"><div class="card__top"><span class="card__num">P1</span><span class="card__name">Fallback avatars</span><span class="card__file">marketplace-catalog-avatars.html</span></div><div class="card__sub">Hash-based avatar libraries tried in the real 40px well with the real catalog ids as seeds: DiceBear (16 CC0 styles), Boring Avatars (6 variants, default and neutral ramp), Jdenticon, Minidenticons, Bauhaus, Avvvatars. <b>Decided 2026-09-10: Boring Avatars · marble · default palette</b> — now rung 3 of the logo ladder on every board.</div><div class="card__mods"><span class="mc-mod mc-mod--modify">modify MarketplaceEntryLogo</span><span class="mc-mod mc-mod--new">bun add boring-avatars</span><span class="mc-mod mc-mod--reuse">decided</span></div></a>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="mc-index-matrix">
+    <div class="hub__grp-t">Surface → board → components</div>
+    <table class="matrix">
+      <thead><tr><th>S#</th><th>Surface</th><th>Board</th><th>Production components</th><th>VC rows</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Marketplace window · Browse</td><td><a href="marketplace-catalog-browse.html">Browse</a></td><td><span class="comp">modify MarketplaceWindow · MarketplaceKindPage→MarketplacePage · useMarketplacePage · MarketplaceResults · new MarketplaceInstalledShelf · MarketplaceCatalogSection · MarketplaceAddMenu · delete kind routes + marketplace-kind*.ts · backend GET /api/marketplace · manage_path</span></td><td class="vc">browse VC-01..10</td></tr>
+        <tr><td>S2</td><td>Entry card · logo</td><td><a href="marketplace-catalog-card.html">Entry card</a></td><td><span class="comp">new MarketplaceEntryCard · MarketplaceEntryTrail · MarketplaceEntryLogo · marketplaceBrandRegistry · delete MarketplaceCard · MarketplaceInstalledCard · marketplaceKindIcon · modify MarketplaceDetailLede · backend listing.icon</span></td><td class="vc">card VC-01..06</td></tr>
+        <tr><td>S3</td><td>Installed view</td><td><a href="marketplace-catalog-installed.html">Installed</a></td><td><span class="comp">new marketplace.installed.tsx · MarketplaceInstalledPage · useMarketplaceInstalledPage · modify MarketplaceWindow · useMarketplaceActionController · marketplace-installed-items.ts (contents) · tests</span></td><td class="vc">installed VC-01..06</td></tr>
+        <tr><td>S4</td><td>MCP servers as extensions · the cut</td><td><a href="marketplace-catalog-cut.html">The cut</a></td><td><span class="comp">backend catalog/extensions.json absorbs mcp.json · skills.json retired · one catalog route · inputs on extension install · delete clawhub + skills marketplace + MCP marketplace install · web delete kind surfaces · modify MarketplaceDetailExtension (Server section)</span></td><td class="vc">cut VC-01..04</td></tr>
+        <tr><td>S5</td><td>Settings › Marketplace · sources</td><td><a href="marketplace-catalog-sources.html">Sources</a></td><td><span class="comp">backend internal/marketplace/pluginsource · marketplace.plugin_sources · catalog/marketplaces.json · /api/marketplace/sources · compozy marketplace sources · new SettingsMarketplaceSourcesSection · MarketplaceSourceRow · AddMarketplaceDialog</span></td><td class="vc">sources VC-01..06</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="foot">Tokens bind <span class="mono-id">../design-system/ds-core.css</span> + <span class="mono-id">ds-shell.css</span> unmodified; domain lane <span class="mono-id">marketplace-catalog.css</span> chapters 00–12. References: Codex plugins (compact rows, Installed icon row, Marketplace tab) and Grok Bot marketplace (installed strip, Added ✓, monogram wells, “1 connector, 1 skill”), screenshots by Pedro 2026-09-10. No spec yet — this set is the reference for cy-create-spec once approved. All three decisions are closed in DESIGN-NOTES (Q1 client layouts accepted as aliases · Q2 `inputs[]` on extension entries · Q3 Boring Avatars marble). Next step: cy-create-spec. Iterate on these files — never regenerate a delivered board from scratch.</p>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

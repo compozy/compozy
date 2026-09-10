@@ -23,11 +23,48 @@ Operator feedback: the current images are not good enough; all of them will be g
 | Extensions art · Bridges art · Closer art | panel fills | concept illustrations, see `.ph__tag` copy |
 | Hero wave · traces · orbit · radar backdrops | atmospheres | low-opacity textures behind sections and diagrams |
 
+## Revision 2026-09-10 (b) — visual polish pass
+
+Operator feedback: with the rasters gone the page still read far below the bar (flat surfaces, few details, not visual enough). Pass applied with the four skills installed under `.agents/skills/` (`design-taste-frontend`, `high-end-visual-design`, `imagegen-frontend-web` for composition variety only, `redesign-existing-projects` for the audit and fix order). Placeholders untouched; nothing generated.
+
+Design read: redesign in preserve mode (tokens, IA, copy deck and the Playfair / Geist / JetBrains stack stay). Dials `7 / 6 / 4` (motion +1: blur-up reveal, spotlight borders, one marquee). Eyebrows still three; accent still the download action plus the beta dot, with one new tint on the comparison header cell.
+
+What changed, per layer:
+
+- **Topnav**: a floating glass island detached 10px from the top (`.tn__island`, 14px radius, blur, tinted shadow); the gutters around it pass clicks through. On mobile the compact row sits inside the island; the GitHub icon hides ≤640px.
+- **Surfaces**: one fixed grain layer (`body::before`, 5%, screen), section rules that fade at both ends, section padding raised to 96–140px.
+- **Trays (nested shell + core)**: `--tray` (6px glaze ring + hairline) on the hero plate, every `.win`, the pain stage, the extensions and bridges panels, the comparison table, the desktop install panel and the logo grid. Use-case cards are now 6px shells around a 12px art core (18 / 12 concentric).
+- **Buttons**: the trailing icon lives in its own well (`.btn__ico`), hover moves it, active scales to .98. Applied to every download and arrow CTA.
+- **Segmented strips** (`.seg`): hero demo tabs, feature tabs, install tabs.
+- **Title marks** (`.mark`, `.mark--sm`, `.mark--xs`): an icon tile above each section heading (plug · wrench · list-checks · quote · blocks · repeat · puzzle · waypoints · columns-3 · download), inside the eight feature-panel titles, the five use-case titles, the five Loops proofs and the three install steps. Seventeen Lucide symbols were added to the inline sprite (copied from `lucide-react` 1.27.0).
+- **Hero**: italic emphasis on “already built.” (same family; line-height 1.08 for the descender), a dot field behind the copy, a lower reveal threshold so the plate top is visible in the first fold at 1440×900, and bottom padding (72–104px) so the demo caption no longer sits on the next section's hairline; the ember still clips at that hairline, which is the intended "lit from below" edge.
+- **Atmosphere sections** (`.hero`, `.pain`, `.loop`, `.cta`) use `overflow:clip` instead of `overflow:hidden`: the oversized backdrops (the hero wave overflows by 12%) made those sections programmatically scrollable, so a keyboard focus or `scrollIntoView` could shift the whole atmosphere upward.
+- **Providers**: the 26 logos as a 13×2 gapless hairline grid; tile wrap below 1024px.
+- **Community → quote wall**: three columns drifting vertically (46 / 54 / 50s, the middle one reversed), edge fades, paused on hover; under reduced motion the first set lays out as three still cards. Card = photo slot · name · `Beta program` · source slot · hairline · quote. Only the three real quotes; the Vedovelli card uses the deck's optional second line. Photos: `.avatar[data-stand-in]` with initials until the portraits arrive. Source slot: quote glyph until the origin network of each quote is confirmed, then the network mark from the sprite.
+- **Extensibility catalog**: real marks. GitHub and Linear come from the generated sprite; Context7 (context7.com glyph), Notion, Sentry, Stripe, PostHog, PostgreSQL, Supabase (Simple Icons) and Playwright (playwright.dev) are vendored mono in a second inline sprite (`cl-*`) in the HTML. For production add them to `packages/ui/src/logos` and regenerate `landing-logos.js`. Extensions and skills use the package / book icons.
+- **Spotlight border** (`.spot`): the hairline lights up under the cursor on use-case cards, quote cards, catalog and bridge tiles; one delegated `pointermove` in `landing.js` feeds `--mx` / `--my`.
+
+Verification: static (177 `<use>` refs resolve, every `aria-controls` / `aria-labelledby` resolves, zero em/en dashes in visible copy outside placeholder labels, three eyebrows, `node --check`), rendered with agent-browser Chromium at 1440×900 (first fold, plate, full page) and 390×844 (nav, hero, providers, use cases, wall, features, catalog, bridges, install), plus `?annotate`, the reduced-motion wall fallback and the island hit-test.
+
+Open: portraits and source networks for the three quotes (the deck is names-only); the placeholder labels keep their em-dashes until the assets land.
+
+## Revision 2026-09-10 (c) — generated set landed (12 of the 14 image slots)
+
+The twelve generated slots from `BRIEF-IMAGENS-ANIMACOES.md` (items 2, 4 and 5) are wired; the placeholders that remain are the ones that depend on real captures or motion (hero poster + six clips, six feature captures, the pain animation, the three quote portraits).
+
+- **Model and method**: `gpt-image-2.5-sunburst` through the `imagegen` skill CLI (`edit` endpoint, `quality=high`, `--no-augment`), every slot generated with the same two style references chosen by the operator: Dribbble 27555299 (Modular Infra, isometric matte modules) and Dribbble 27087150 (Minimal Stack, dark with one orange strip). Three variants per slot; the operator picked one each. Prompts and all 36 variants are in `/tmp/compozy-landing-gen/` (per-slot prompt files, `index.html` gallery, `manifest.json`); not committed.
+- **Picks**: spot-implement v2 · spot-review v3 · spot-briefing v3 · spot-release v2 · spot-gate v1 · ext-cartridges v3 · bridges-inflow v2 · closer-shell v1 · hero-wave v1 · backdrop-traces v3 · backdrop-orbit v1 · backdrop-radar v1. Files overwrite the old same-named `.webp` in `assets/` (the previous stand-ins are gone).
+- **Sizes**: the CLI limits models other than `gpt-image-2` to the legacy sizes, so the set is 1536×1024 (spots, bridges, closer, hero wave), 1024×1536 (extensions panel) and 1024×1024 (three backdrops). That is below the brief's floor (hero and captures ≥ 2400 px, spots ≥ 1600 px). Acceptable for the prototype; for production either upscale the chosen files 2× or regenerate the same prompts in `gpt-image-2` at the brief's sizes.
+- **Wiring**: the five spots are `<img>` again inside `.uc__art` (`loading="lazy"`, explicit `width`/`height`, `--pos`/`--zoom` kept at neutral). The 21:9 cards crop the 3:2 renders through `object-fit`; the motif sits on the horizontal band so the crop holds. The three panels and four atmospheres are CSS backgrounds again (`.ext__art`, `.bridges__canvas`, `.cta__art`, `.hero__wave`, `.pain__atmo`, `.loop__atmo`, `.dg__atmo` via `--img`), with `mix-blend-mode:screen` and the opacities from the polish pass. The `.gen` orange badges used to confirm which slots would be generated are removed, as is the `.ph__tag` corner-tag CSS (no slot uses it any more).
+- **Spot background pass (same day)**: the five picked spots rendered on a near-black floor (≈ 8–16 RGB) that read as a dark well inside the card (`--canvas-soft`, #1f1e1c). Each pick was re-run through the `edit` endpoint with itself as the edit target (`--input-fidelity high`, three variants) and one instruction: replace only the backdrop and ground with flat #1F1E1C, no vignette, keep every object, light and accent. Measured corners land at 30–33 / 29–32 / 26–30 on every variant; picks by closest match: implement v1, review v1, briefing v3, release v3, gate v1 (`/tmp/compozy-landing-gen/bg-pass/`, gallery with the originals side by side). `.uc__art` lost its `--rail` fill and hairline border and now carries the card glaze (`--surface-glaze` to transparent at 85%) instead of the bottom darkening, so the art sits on the card with no seam.
+- **Extensions art as a backdrop (same day)**: the operator wants the extensions illustration to be the section's background, not a boxed panel. `.ext__art` left the grid: it is now absolutely positioned on `.sec--ext` (`overflow:clip`), bleeding from the viewport's right edge under the last five columns (`width:clamp(420px,46vw,700px)`, full section height, `cover`), with two intersecting masks so it dissolves toward the copy (transparent at the inner edge, solid from 42%) and at the top and bottom (12% fades). The copy moved to the first seven columns (`.ext__content{grid-column:1/8}`), the operator's call after seeing the left-hand version. No border, radius, tray or overlay. The render's floor was re-edited to the page color (#171615, same edit pass as the spots, `input_fidelity` is not accepted by this model so the edit runs without it); variant 1 measured 23,22,20 on every edge and is the one wired. Below 1024px the art returns to the flow above the copy (4:3, bleeding into the wrap gutters, fading out at the bottom and both sides).
+- **Verification**: agent-browser Chromium at 1440×900 (hero, use cases incl. the two wide cards, pain, loops, extensibility, bridges, closer, Gateway and Workspaces diagrams) and 390×844 (hero, use cases, extensibility, bridges, closer); zero broken images, five spot `<img>` present, no `class="gen"` or `ph__tag` left in the HTML.
+
 ## Files
 
 | File | Role |
 | --- | --- |
-| `landing-page.html` | The page: skip link → topnav → 12 sections → footer. `data-od-id` on every section, heading, CTA, tab strip and repeated card. Opens with the direction contract (THESIS · OWN-WORLD · STORY · FIRST VIEWPORT · FORM · FINISH). A Lucide subset is vendored as an inline `<symbol>` sprite (no CDN swap). |
+| `landing-page.html` | The page: skip link → topnav → 12 sections → footer. `data-od-id` on every section, heading, CTA, tab strip and repeated card. Opens with the direction contract (THESIS · OWN-WORLD · STORY · FIRST VIEWPORT · FORM · FINISH). A Lucide subset is vendored as an inline `<symbol>` sprite (no CDN swap), plus a second inline sprite (`cl-*`) for the catalog marks not yet in `@compozy/ui/logos`. |
 | `landing.css` | `:root` token mirror + components. No color literal outside `:root` (masks use `#000` only as a mask alpha stop). One reveal grammar (`[data-reveal]`), one authored motion (the DIY-stack collapse). |
 | `landing.js` | Reveal-on-scroll (once), ARIA tabs (hero demo · features · install), hero demo auto-advance with per-tab plate pans, OS auto-detect for the download CTAs, copy buttons, DIY-stack collapse + replay, install step renumbering, `?annotate` mode. No scroll listeners. |
 | `landing-logos.js` | SVG sprite rendered from `@compozy/ui/logos` + `Logo` (26 providers, 8 bridges, `cz-logo`, `cz-symbol`). Regenerate, never hand-edit (recipe at the end). |
@@ -44,10 +81,10 @@ Scene: a senior engineer at 11pm, laptop at 60% brightness, tabs full of agent C
 | # | Section | `data-od-id` | Layout family | Visual |
 | --- | --- | --- | --- | --- |
 | 1 | Hero | `hero` | left-led copy + full-width plate | wave terrain (`hero-wave.webp`, real site asset) + CSS ember; six demo tabs over the real shell capture; `Loop editor` and `Tasks inbox` pan the plate onto their window |
-| 2 | Providers | `providers` | stacked head + logo band | 26 real logos from the sprite, two rows of 13 at desktop (7/7/7/5 at 390px) |
+| 2 | Providers | `providers` | stacked head + gapless logo grid | 26 real logos from the sprite as a 13×2 hairline grid at desktop (tile wrap below 1024px) |
 | 3 | The DIY agent stack | `pain` | split copy / stage | nine dashed "parts" in a tray collapse into one CompozyOS block (the one authored motion); reduced motion: static parts → arrow → block |
 | 4 | Use cases | `use-cases` | bento 3 + 2 | five spot images (stand-ins, see asset map) |
-| 5 | Community | `community` | three editorial quotes + proof strip | none (calm section); live counts are skeleton bars |
+| 5 | Community | `community` | centered head + quote wall (three drifting columns) + proof strip | the page's one marquee; photo and source slots are stand-ins; live counts are skeleton bars |
 | 6 | Features | `features` | tab chips + split panel | eight window frames: 3 illustrations, 2 real captures, 3 SVG diagrams |
 | 7 | Loops | `loops` | spotlight: full-width plate + five-column proof strip | the real Loops window crop + Needs-you strip; orbit backdrop |
 | 8 | Extensibility | `extensibility` | tall image + content column | cartridge illustration; real `extension.json` (trimmed); catalog chips; SDK row |
@@ -64,19 +101,19 @@ Rule from the operator: placeholders only for images that will be generated; reu
 
 | Placement | File | Status |
 | --- | --- | --- |
-| Hero backdrop | `hero-wave.webp` (from `packages/site/public/hero-bg.webp`) + CSS ember | reusable asset, final unless the generated full-bleed lands |
+| Hero backdrop | `hero-wave.webp` (generated 2026-09-10, `gpt-image-2.5-sunburst`, variant 1) + CSS ember | final for the prototype; 1536×1024, upscale or regenerate larger for production |
 | Hero plate poster | `hero-poster.webp` (real capture, margins cropped) | stand-in for the six demo clips + posters; one poster serves all six tabs, two tabs pan it |
-| Use-case spots ×5 | `spot-implement.webp` (`docs/design/generated/bento/runtime-v1.png`), `spot-review.webp` (`bento/trace-v1.png`), `spot-briefing.webp` (site `everything/` cron illustration), `spot-release.webp` (`generated/daemon-session/illustration3.png`, cropped above its replay control), `spot-gate.webp` (`generated/ig_0422…ebb6ed8acc….png`) | on-family stand-ins for the five generated spots |
+| Use-case spots ×5 | `spot-implement.webp`, `spot-review.webp`, `spot-briefing.webp`, `spot-release.webp`, `spot-gate.webp` (generated 2026-09-10, one family, two Dribbble style references; floor re-rendered to the card color #1f1e1c) | final for the prototype; 1536×1024 each, the two wide cards crop to 21:9, no frame around the art |
 | Features · Sessions | `feature-sessions.webp` (site `everything/` session timeline, own chrome cropped) | stand-in for the `/agents/$name/sessions/$id` capture |
 | Features · Memory | `feature-memory.webp` (`bento/memory-v1.png`) | stand-in for the `/knowledge` capture |
 | Features · Tasks | `capture-tasks-window.webp` (real) | stand-in for `/tasks?mode=kanban` (list view shown) |
 | Features · Automation | `feature-automation.webp` (site `everything/` trace + events) | stand-in for the `/jobs` capture |
 | Features · Desktops | `hero-poster.webp` (real) | final-grade: the live shell |
-| Features · Profiles / Gateway / Workspaces | inline SVG diagrams over `backdrop-orbit.webp` / `backdrop-radar.webp` / `backdrop-traces.webp` (site background effects) | stand-ins for the three settings captures; diagrams show only truthful state (three switches off, no invented ids or counts) |
+| Features · Profiles / Gateway / Workspaces | inline SVG diagrams over `backdrop-orbit.webp` / `backdrop-radar.webp` / `backdrop-traces.webp` (generated 2026-09-10, 1024×1024) | diagrams are stand-ins for the three settings captures and show only truthful state (three switches off, no invented ids or counts); backdrops final |
 | Loops plate | `capture-loops-window.webp` (real) | stand-in for a `needs-approval` run at `/loop-runs/$runId`; the Needs-you strip is HTML (stand-in for `LoopRunNeedsYouCard`) |
-| Extensibility | `ext-cartridges.webp` (site `bento-illustrations/extensibility-v2.png`) | reusable asset; the generated "one package → registries" concept may replace it |
-| Bridges band | `bridges-inflow.webp` (`bento/bridges-v1.png`) | reusable asset, final |
-| Final CTA closer | `closer-shell.webp` (site `bento-illustrations/os-v2.png`) | reusable asset; the generated closer may replace it |
+| Extensibility | `ext-cartridges.webp` (generated 2026-09-10, 1024×1536; floor re-rendered to the page color #171615) | final for the prototype; section backdrop, not a panel |
+| Bridges band | `bridges-inflow.webp` (generated 2026-09-10, 1536×1024) | final for the prototype |
+| Final CTA closer | `closer-shell.webp` (generated 2026-09-10, 1536×1024) | final for the prototype |
 
 Rejected for reuse: anything carrying the legacy `agh` name (`bento_grid.png`, `memory-dream-landing-v1.png`, the workspaces illustration with `.agh/`), the `playbook.yaml` illustration (banned vocabulary), `deploy-staging.skill.md` art (fictional asset the plan deletes), the docs storyboard set (cream paper, off-theme), and `hero.png` / `hero_illustration.png` (their protocol-kind chips would re-introduce Network semantics the homepage limits to one sentence).
 

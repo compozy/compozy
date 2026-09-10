@@ -1,6 +1,4 @@
-import { defineConfig } from "vitest/config";
-
-export default defineConfig({
+module.exports = {
   test: {
     name: "extension-sdk",
     environment: "node",
@@ -17,4 +15,4 @@ export default defineConfig({
       exclude: ["dist/**", "**/*.d.ts", "src/index.ts"],
     },
   },
-});
+} satisfies import("vitest/config").ViteUserConfig;

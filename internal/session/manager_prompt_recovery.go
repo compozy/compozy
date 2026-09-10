@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type promptRecoveryEventData struct {
 
 func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	cloned := request
+	cloned.Sections = slices.Clone(request.Sections)
 	cloned.Attachments = make([]acp.PromptAttachment, len(request.Attachments))
 	for index, attachment := range request.Attachments {
 		cloned.Attachments[index] = attachment

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>The cut · Marketplace catalog · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="marketplace-catalog.css">
+<!--
+  marketplace-catalog-cut · S4 — everything becomes an extension. The 17
+  packaged MCP servers become extensions that carry a server; the skills
+  catalog (one entry) is retired; ClawHub goes with it. This board shows how
+  an MCP-backed extension reads and installs, and lists what is deleted with
+  its compatibility regime. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — extension manifest `resources.mcp_servers` + `requires_env`,
+                 extension install flow with secrets, MCP auth routes, guided
+                 MCP install inputs (feed `inputs[]`), curated feeds.
+    delta      — kinds deleted; catalog/mcp.json + catalog/skills.json retired;
+                 kind routes/CLI flags retained one release; ClawHub deleted.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ct-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Marketplace catalog</a><span class="w2-sep">/</span><h1 class="w2-title">The cut</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="marketplace-catalog-installed.html">← Installed</a><a class="btn btn--sm" href="marketplace-catalog-sources.html">Next: Sources →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="mc-contract" data-od-id="ct-contract" aria-label="What this board is">
+      <div class="mc-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="mc-contract__what"><b>S4 — one kind, and what that deletes.</b> The marketplace stops having Skills and MCPs as things of their own. The 17 packaged MCP servers become extensions whose manifest carries the server: same card, same Install, and the inputs the server needs (an API key, a scope) are asked through the extension install flow. The one catalog skill, Documentation Writer, is retired; skills keep arriving inside extensions and from your folders. With no skills kind there is no skills search, so ClawHub goes. Public surfaces that named a kind keep working for one release and say what replaced them.</p>
+        <p class="mc-contract__file">marketplace-catalog-cut.html · S4 · catalog/extensions.json absorbs catalog/mcp.json · catalog/skills.json retired</p>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="mc-mods">
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>catalog/extensions.json</b><i>internal/marketplace/entry_extension.go · catalog/packages/*</i>17 new entries, one per MCP server, each a packaged extension (<code>format: compozy</code>) whose manifest has <code>resources.mcp_servers</code> + <code>requires_env</code>; optional <code>icon</code></span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>catalog/mcp.json · catalog/skills.json</b><i>internal/marketplace/source.go · entry_mcp*.go · entry_skill.go · catalog_files.go</i>feeds retired; validator requires <code>extensions.json</code> only; projection tables keep their rows for <code>kind = extension</code></span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>one catalog route</b><i>internal/api/core/marketplace_list.go · spec/marketplace_*.go · OpenAPI · generated TS</i><code>GET /api/marketplace</code> = extensions; <code>/api/marketplace/{kind}</code> and <code>/{kind}/{entry_id}</code> kept one release (<code>extension</code> → same result, <code>mcp</code>/<code>skill</code> → empty with a deprecation header), then deleted</span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>extension install with inputs</b><i>internal/extension/marketplace_lifecycle.go · secrets</i>the feed <code>inputs[]</code> grammar (secret · string · boolean · binding env/url_query) moves onto the extension entry; the install flow collects them as it does <code>requires_env</code> today</span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>skills marketplace + ClawHub</b><i>internal/registry/clawhub · internal/skills/marketplace · /api/skills/marketplace/* · compozy skill search/install/update/remove</i>deleted; CLI verbs retained one release printing the replacement (§04)</span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>MCP marketplace install</b><i>POST /api/settings/mcp-servers/install · MarketplaceMCPDetailPayload</i>deleted; manual MCP servers stay in Settings › MCP servers unchanged</span></li>
+          <li><span class="mc-mod mc-mod--delete">delete</span><span><b>web kind surfaces</b><i>marketplace.{skills,mcps,extensions,$kind_}.tsx · lib/marketplace-kind*.ts · MCPInstallDialog · marketplace-detail-mcp*.tsx · marketplace-detail-skill*.tsx · skill install/update hooks</i>the extension detail gains a “Server” section for MCP-backed entries (§02)</span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>MarketplaceDetailExtension</b><i>web/src/systems/marketplace/components/marketplace-detail-extension.tsx</i>new Server section: launch · auth · inputs, from the manifest (reuses the MCP detail rail pieces)</span></li>
+          <li><span class="mc-mod mc-mod--reuse">reuse</span><span><b>ExtensionInstallDialog (secrets step) · MCP auth routes · Settings › MCP servers · Settings › Skills › Sources</b><i>unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="mc-states">
+          <li><a href="#ct-install">Install an MCP-backed extension — inputs, then Installed</a><code>cut VC-01</code></li>
+          <li><a href="#ct-detail">Detail of an MCP-backed extension — the Server section</a><code>cut VC-02</code></li>
+          <li><a href="#ct-skills">Where skills live now</a><code>cut VC-03</code></li>
+          <li><a href="#ct-delete">Delete targets and their regime</a><code>cut VC-04</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · INSTALL ===== -->
+    <section class="lab-sec" id="ct-install" data-od-id="ct-install">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Install an MCP-backed extension — the inputs step, then Installed</h2><span class="lab-sec__gist">cut VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same button, one extra step when the server needs something.</b> Install on Context7 opens the extension install dialog production already has; because the manifest declares an input, the dialog shows that field (secret to the vault, optional) before installing. A server that needs OAuth installs first and asks for authorization on the Installed row. Nothing on the card says “MCP”.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><div class="lab-cell__t">Card → dialog → landed</div>
+              <div class="plain plain--canvas"><div class="mkt-grid mkt-grid--1">
+                <article class="mkt-card"><span class="mkt-logo mkt-logo--image" aria-hidden="true" data-stand-in="feed icon"><svg viewBox="0 0 28 28" width="28" height="28"><rect width="28" height="28" rx="6" fill="#2f6df6"/><path d="M7 14.5l4.5 4.5L21 9.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Context7</a></b></div><p class="mkt-card__desc">Fetch current, version-specific library documentation and code examples.</p></div><div class="mkt-trail"><button class="btn btn--sm" type="button" aria-haspopup="dialog">Install</button><i class="mc-n">1</i></div></article>
+                <article class="mkt-card" aria-busy="true"><span class="mkt-logo mkt-logo--image" aria-hidden="true" data-stand-in="feed icon"><svg viewBox="0 0 28 28" width="28" height="28"><rect width="28" height="28" rx="6" fill="#2f6df6"/><path d="M7 14.5l4.5 4.5L21 9.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Context7</a></b></div><p class="mkt-card__desc">Fetch current, version-specific library documentation and code examples.</p></div><div class="mkt-trail"><button class="btn btn--sm" type="button" disabled><span class="spin" aria-hidden="true"></span>Installing…</button></div></article>
+                <article class="mkt-card is-flash"><span class="mkt-logo mkt-logo--image" aria-hidden="true" data-stand-in="feed icon"><svg viewBox="0 0 28 28" width="28" height="28"><rect width="28" height="28" rx="6" fill="#2f6df6"/><path d="M7 14.5l4.5 4.5L21 9.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Context7</a></b></div><p class="mkt-card__desc">Fetch current, version-specific library documentation and code examples.</p></div><div class="mkt-trail"><span class="mkt-installed"><svg data-lucide="check"></svg>Installed</span><i class="mc-n">3</i></div></article>
+              </div>
+              <p class="mkt-src__sentence" style="margin-top:10px">Toast: <b>Context7 installed</b> · its server is running — <span style="text-decoration:underline">Open Installed</span></p>
+              </div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">Inputs step <code>ExtensionInstallDialog</code></div>
+              <div class="plain plain--flush plain--canvas" style="display:grid;place-items:center;padding:16px">
+                <div class="dialog dialog--sm" role="dialog" aria-labelledby="ct-in-t" style="position:static;transform:none" data-od-id="ct-install-dialog">
+                  <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="key-round"></svg></span><div class="dialog__head-main"><h3 class="dialog__title" id="ct-in-t">Install Context7</h3><p class="dialog__desc">This extension runs an MCP server. It can take an API key; without one it uses the free tier.</p></div><button class="dialog__close" type="button" aria-label="Close"><svg data-lucide="x"></svg></button></div>
+                  <div class="dialog__body">
+                    <label class="eyebrow" for="ct-in-i" style="display:block;margin-bottom:6px">Context7 API key <span style="color:var(--faint);font-weight:400">· optional</span></label><input class="input input--mono" id="ct-in-i" type="password" placeholder="ctx7sk-…"><i class="mc-n">2</i>
+                    <p class="mkt-src__sentence" style="margin-top:8px">Stored in your vault as <span class="code">CONTEXT7_API_KEY</span>. You can add or change it later from the Installed row.</p>
+                    <div class="mkt-src__kv" style="margin-top:14px"><span class="k">Scope</span><span class="v">Everywhere (global)</span></div>
+                  </div>
+                  <div class="dialog__foot"><span class="dialog__foot-note"><svg data-lucide="shield-check"></svg><span>Official · checksum verified</span></span><button class="btn btn--ghost btn--sm" type="button">Cancel</button><button class="btn btn--primary btn--sm" type="button">Install</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Install</b> <em>same neutral <code>.btn--sm</code> as any extension. The dialog opens only when the manifest declares inputs or the entry is unverified; otherwise install is direct.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Inputs</b> <em>from the entry’s <code>inputs[]</code> (moved from the MCP feed grammar onto extension entries): secret → password field to the vault; string/identifier → text; boolean → switch. Optional inputs say so; required ones gate the primary.</em></span></li>
+            <li><i class="mc-n">3</i><span><b>Landed</b> <em>flash + Installed; shelf count increments. OAuth servers land the same way and read “Needs authorization” on the Installed row.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>install → inputs → pending → installed</span><span class="mc-tag"><b>component</b>ExtensionInstallDialog (reuse) · MarketplaceEntryTrail</span><span class="mc-tag"><b>VC</b>cut/VC-01</span><span class="mc-tag"><b>tone</b>accent (1, dialog primary)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · DETAIL ===== -->
+    <section class="lab-sec" id="ct-detail" data-od-id="ct-detail">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Detail of an MCP-backed extension — a Server section</h2><span class="lab-sec__gist">cut VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The detail is where “MCP” is allowed to be said.</b> The extension detail keeps its production layout (lede, README, provenance rail). An entry whose manifest provides a server gains a <b>Server</b> section with the facts the old MCP detail showed — how it launches, how it authenticates, what it asks for — rendered with the same rail pieces. Installed, the section also shows the server’s status and the Authorize / Edit configuration actions.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" data-od-id="ct-detail-demo" style="max-width:760px">
+            <div class="mkt-lede">
+              <span class="mkt-logo mkt-logo--lg mkt-logo--brand" data-brand="github" aria-hidden="true"><svg viewBox="0 0 97.6 96"><path fill="currentColor" d="M48.9,0C21.8,0,0,22,0,49.2C0,71,14,89.4,33.4,95.9c2.4,0.5,3.3-1.1,3.3-2.4c0-1.1-0.1-5.1-0.1-9.1 c-13.6,2.9-16.4-5.9-16.4-5.9c-2.2-5.7-5.4-7.2-5.4-7.2c-4.4-3,0.3-3,0.3-3c4.9,0.3,7.5,5.1,7.5,5.1c4.4,7.5,11.4,5.4,14.2,4.1 c0.4-3.2,1.7-5.4,3.1-6.6c-10.8-1.1-22.2-5.4-22.2-24.3c0-5.4,1.9-9.8,5-13.2c-0.5-1.2-2.2-6.3,0.5-13c0,0,4.1-1.3,13.4,5.1 c3.9-1.1,8.1-1.6,12.2-1.6s8.3,0.6,12.2,1.6c9.3-6.4,13.4-5.1,13.4-5.1c2.7,6.8,1,11.8,0.5,13c3.2,3.4,5,7.8,5,13.2 c0,18.9-11.4,23.1-22.3,24.3c1.8,1.5,3.3,4.5,3.3,9.1c0,6.6-0.1,11.9-0.1,13.5c0,1.3,0.9,2.9,3.3,2.4C83.6,89.4,97.6,71,97.6,49.2 C97.7,22,75.8,0,48.9,0z"/></svg></span>
+              <div style="min-width:0">
+                <div class="mkt-lede__t">GitHub</div>
+                <div class="mkt-lede__meta"><span>Compozy catalog</span><span class="dotsep"></span><span class="mono-id">v1.8.0</span><span class="dotsep"></span><span>official</span><span class="dotsep"></span><span>1 MCP server</span><span class="dotsep"></span><span>updated 3 weeks ago</span></div>
+                <p class="mkt-lede__desc">Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.</p>
+              </div>
+            </div>
+            <div class="railbox" style="position:static;margin-top:18px;max-width:420px" data-od-id="ct-detail-server">
+              <div class="rail-sec"><div class="rail-sec__t"><svg data-lucide="plug"></svg>Server<i class="mc-n">1</i></div>
+                <div class="prow"><span class="prow__k">Status</span><span class="mkt-status" data-s="authorize"><span class="d"></span>Needs authorization</span></div>
+                <div class="prow"><span class="prow__k">Launch</span><span class="mono-id">docker · ghcr.io/github/github-mcp-server@sha256:…</span></div>
+                <div class="prow"><span class="prow__k">Auth</span><span>OAuth · GitHub · scopes repo, read:org</span></div>
+                <div class="prow"><span class="prow__k">Inputs</span><span>none</span></div>
+                <div class="prow"><span class="prow__k">Scope</span><span>Everywhere (global)</span></div>
+                <div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn--sm" type="button">Authorize</button><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="settings-2"></svg>Edit configuration</button></div>
+              </div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Server section</b> <em>new in MarketplaceDetailExtension, only when <code>resources.mcp_servers</code> is non-empty · ds-core <code>.rail-sec/.prow</code> · rows: Status (installed only) · Launch · Auth · Inputs · Scope · actions. Reuses the pieces of the retired MCP detail.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>installed · needs authorization</span><span class="mc-tag"><b>component</b>MarketplaceDetailExtension (Server section)</span><span class="mc-tag"><b>VC</b>cut/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SKILLS ===== -->
+    <section class="lab-sec" id="ct-skills" data-od-id="ct-skills">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Where skills live now</h2><span class="lab-sec__gist">cut VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Skills stop being a thing you buy in the store.</b> They arrive two ways, both already shipped: inside an extension (the Installed row says “2 skills”; the detail lists them), and from your skill folders, managed in Settings › Skills › Sources. Documentation Writer leaves the catalog. The session <code>/</code> picker and the skill activation rules do not change.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><div class="lab-cell__t">Inside an extension</div>
+              <div class="plain plain--canvas"><article class="mkt-card"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="herdr-bridge" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#F0AB3D"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#C271B4" transform="translate(2 2) rotate(274 40 40) scale(1.5)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C20D90" transform="translate(7 7) rotate(231 40 40) scale(1.5)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">herdr bridge</a></b><span class="mkt-contents">1 bridge · 2 skills</span></div><p class="mkt-card__desc">Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup</p></div><div class="mkt-trail"><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable herdr bridge"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></article></div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">From your folders — Settings › Skills › Sources (skill-sources set, unchanged)</div>
+              <div class="plain plain--canvas" style="display:flex;flex-direction:column;gap:8px"><p class="mkt-src__sentence"><b>Skill sources</b> keep their board: <a href="../skill-sources/skill-sources-settings-sources.html" style="text-decoration:underline;color:var(--muted)">skill-sources-settings-sources.html</a>. The marketplace no longer links to them; Settings does.</p></div>
+            </div>
+          </div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>skills via extension · via folders</span><span class="mc-tag"><b>component</b>MarketplaceEntryCard contents · SettingsSkillSourcesSection (reuse)</span><span class="mc-tag"><b>VC</b>cut/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · DELETE ===== -->
+    <section class="lab-sec" id="ct-delete" data-od-id="ct-delete">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Delete targets and their regime</h2><span class="lab-sec__gist">cut VC-04 · SD-013</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Public surfaces get one release; internal code is deleted outright.</b> “Claude Hub” is ClawHub (<code>clawhub.ai</code>), the registry that answered skills queries and served curated skill downloads; with no skills kind it has no job left. Kind-shaped routes and CLI flags keep working for one release and name the replacement.</div>
+        <div class="spec__demo">
+          <div class="lab-del" data-od-id="ct-delete-table">
+            <div>Target</div><div>Regime</div><div>Treatment</div>
+            <div><code>catalog/mcp.json</code> · <code>catalog/skills.json</code> · <code>internal/marketplace/entry_mcp*.go</code> · <code>entry_skill.go</code></div><div><span class="reg">feed</span></div><div>Retired. The 17 servers are re-published as packaged extensions in <code>catalog/extensions.json</code> (<code>inputs[]</code> grammar carried over). Documentation Writer removed. Manifest version stays 2; validator requires only <code>extensions.json</code>.</div>
+            <div><code>marketplace_catalog_entries</code> rows with <code>kind ∈ mcp, skill</code></div><div><span class="reg">user state · SQLite</span></div><div>Goose migration deletes them; installed extensions and MCP servers are untouched.</div>
+            <div><code>GET /api/marketplace/{kind}</code> · <code>/{kind}/{entry_id}</code> · <code>?kind=</code> on <code>/search</code></div><div><span class="reg">public · HTTP/UDS</span></div><div>New <code>GET /api/marketplace</code> and <code>/api/marketplace/entries/{entry_id}</code>. Old routes retained one release: <code>extension</code> answers as before, <code>mcp</code>/<code>skill</code> answer empty with <code>Deprecation</code> + <code>Link</code> headers; then deleted.</div>
+            <div><code>POST /api/settings/mcp-servers/install</code> · <code>MarketplaceMCPDetailPayload</code></div><div><span class="reg">public · HTTP/UDS</span></div><div>Retained one release returning <code>410</code> with the replacement (install the extension); then deleted. Manual server CRUD under <code>/api/settings/mcp-servers</code> unchanged.</div>
+            <div><code>POST /api/skills/marketplace/install|update</code> · <code>DELETE /api/skills/marketplace/:name</code></div><div><span class="reg">public · HTTP/UDS</span></div><div>Retained one release returning <code>410</code>; then deleted. <code>GET /api/skills*</code> (installed skills) unchanged.</div>
+            <div><code>compozy marketplace search --kind</code> · <code>marketplace info &lt;kind&gt;</code> · <code>compozy skill search|install|update|remove</code> · <code>compozy mcp install &lt;entry&gt;</code></div><div><span class="reg">public · CLI</span></div><div><code>--kind</code> accepted and ignored with a warning; <code>info &lt;kind&gt; &lt;id&gt;</code> accepts the old shape one release; skill/mcp marketplace verbs print the replacement (<code>compozy extension install &lt;slug&gt;</code>) and exit 2; then deleted.</div>
+            <div><code>skills.marketplace.registry</code> · <code>skills.marketplace.base_url</code> · <code>skills.allowed_marketplace_mcp</code></div><div><span class="reg">public · config</span></div><div>Accepted and ignored with a deprecation warning naming the removal release; <code>SettingsMarketplacePayload</code> kept one release; then deleted.</div>
+            <div><code>internal/registry/clawhub/</code> · <code>internal/skills/marketplace/</code> · <code>marketplace_list.go</code> remote branch · <code>skill_&lt;base64&gt;</code> ids</div><div><span class="reg">internal</span></div><div>Delete. No alias, no legacy branch.</div>
+            <div>web: kind routes · <code>marketplace-kind*.ts</code> · <code>MCPInstallDialog</code> · <code>marketplace-detail-mcp*.tsx</code> · <code>marketplace-detail-skill*.tsx</code> · skill/MCP marketplace hooks · Settings “Marketplace URL” row · Skills-view fixtures</div><div><span class="reg">internal · web</span></div><div>Delete; the extension detail gains the Server section; every consumer renamed together (stories, MSW handlers, E2E fixtures).</div>
+            <div><code>compozy__*</code> native tools that browse or install by kind</div><div><span class="reg">public · tool IDs</span></div><div>Audit in the spec (change-impact.md). Kind argument accepted and ignored one release; descriptors say “extensions”.</div>
+            <div>docs: <code>docs/rfcs/002</code> registry paragraphs · <code>skills/compozy/references/</code> · QA <code>ET-web-marketplace-*</code>, <code>ET-api-mcp-catalog-install</code>, <code>ET-cli-marketplace-search</code> · site catalog pages</div><div><span class="reg">docs · QA</span></div><div>Rewrite; scenarios reset to <code>untested</code> with the new expectation.</div>
+          </div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>delete list</span><span class="mc-tag"><b>authority</b>CLAUDE.md §Compatibility Policy · SD-013 · L-040</span><span class="mc-tag"><b>VC</b>cut/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono-id">../design-system/ds-core.css</span> + <span class="mono-id">ds-shell.css</span> unmodified; domain lane <span class="mono-id">marketplace-catalog.css</span> chapters 06, 12. Server facts are the real <span class="mono-id">catalog/mcp.json</span> entries for GitHub (docker, OAuth) and Context7 (npm, optional API key), re-read as extension manifests.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

@@ -634,6 +634,12 @@ The provider embeds `tsnet`; do not install or supervise a separate Tailscale cl
 manifest must include the selected tier as `gateway.private` or `gateway.public` in
 `channel_scopes`; a mismatch fails before provider code starts.
 
+Bundled private Tailscale proof uses a loopback TCP relay into the embedded tsnet node, retaining
+core TLS hostname and exact tier nonce validation. It requires no host Tailscale client or host
+Tailnet route. The relay is private-tier-only and never advertised. Probe diagnostics distinguish
+DNS, refused/unreachable connections, timeout, TLS certificate failure, HTTP status and nonce
+mismatch without exposing the challenge. Inspect the reported class; HTTP 200 at `/` is not proof.
+
 Public endpoint proof resolves through authenticated DNS-over-TLS at
 `gateway.verify.public_dns_resolver`, not the host resolver, so MagicDNS cannot turn a Funnel proof
 into a private-tailnet connection. A provider waiting for public DNS remains staged and unadvertised

@@ -17,9 +17,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -358,6 +360,123 @@ func challengeHandler(registry ChallengeResolver, tier Tier) http.HandlerFunc {
 		if _, err := w.Write([]byte(nonce)); err != nil {
 			return
 		}
+	}
+}
+
+func TestEndpointVerificationTransport(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, host, body string
+		tier             Tier
+		trust            bool
+		want             string
+	}{
+		{"Should verify through the relay without host DNS", "example.com", "nonce", TierPrivate, true, ""},
+		{"Should reject a relay for public proof", "example.com", "nonce", TierPublic, true, "public proof"},
+		{"Should authenticate the original hostname through the relay", "wrong.invalid", "nonce", TierPrivate, true, "TLS certificate"},
+		{"Should reject an untrusted certificate through the relay", "example.com", "nonce", TierPrivate, false, "TLS certificate"},
+		{"Should require the exact nonce through the relay", "example.com", "nonce\n", TierPrivate, true, "nonce did not match"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			verifier, endpoint := newChallengeVerifier(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != testChallengePath() || r.Host != tc.host+":8443" || r.TLS.ServerName != tc.host {
+					t.Errorf(
+						"challenge origin or path changed: host=%s path=%s SNI=%s",
+						r.Host,
+						r.URL.Path,
+						r.TLS.ServerName,
+					)
+				}
+				if _, err := io.WriteString(w, tc.body); err != nil {
+					t.Errorf("write response: %v", err)
+				}
+			})
+			parsed, err := url.Parse(endpoint.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			endpoint.VerificationAddress = parsed.Host
+			endpoint.URL = "https://" + tc.host + ":8443"
+			resolver := &recordingEndpointResolver{}
+			verifier.resolver = resolver
+			if !tc.trust {
+				verifier.rootCAs = nil
+			}
+			err = verifier.Verify(t.Context(), tc.tier, endpoint, testChallengePath(), "nonce")
+			if tc.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if !errors.Is(err, ErrEndpointUnverified) || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Verify() = %v, want %s", err, tc.want)
+			}
+			if resolver.callCount() != 0 {
+				t.Fatal("private proof used host DNS")
+			}
+		})
+	}
+	t.Run("Should reject non-loopback and malformed verification addresses", func(t *testing.T) {
+		t.Parallel()
+		verifier, err := NewEndpointVerifier(time.Second, testPublicDNSResolver)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, address := range []string{"example.com:443", "100.64.0.1:8443", "127.0.0.1:0", "[::1%lo]:443", "127.0.0.1:443/path"} {
+			t.Run("Should reject "+address, func(t *testing.T) {
+				t.Parallel()
+				endpoint := testEndpoint("https://example.com")
+				endpoint.VerificationAddress = address
+				err := verifier.Verify(t.Context(), TierPrivate, endpoint, testChallengePath(), "nonce")
+				if !errors.Is(err, ErrEndpointUnverified) ||
+					!strings.Contains(err.Error(), "invalid endpoint descriptor") {
+					t.Fatalf("Verify() = %v, want invalid endpoint descriptor", err)
+				}
+			})
+		}
+	})
+}
+
+func TestEndpointProbeDiagnostics(t *testing.T) {
+	t.Parallel()
+	t.Run("Should classify a timeout while reading the challenge body", func(t *testing.T) {
+		t.Parallel()
+		verifier, endpoint := newChallengeVerifier(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			if err := http.NewResponseController(w).Flush(); err != nil {
+				t.Errorf("flush response headers: %v", err)
+				return
+			}
+			<-r.Context().Done()
+		})
+		err := verifier.Verify(t.Context(), TierPrivate, endpoint, testChallengePath(), "nonce")
+		if !errors.Is(err, ErrEndpointUnverified) || !strings.Contains(err.Error(), "endpoint probe timed out") {
+			t.Fatalf("Verify() = %v, want endpoint probe timeout", err)
+		}
+	})
+	for _, tc := range []struct {
+		name  string
+		cause error
+		want  string
+	}{
+		{"Should classify DNS failures", &net.DNSError{Name: "secret.invalid", Err: "private nonce"}, "DNS resolution failed"},
+		{"Should classify connection refusal", syscall.ECONNREFUSED, "connection refused"},
+		{"Should classify missing routes", syscall.ENETUNREACH, "network unreachable"},
+		{"Should classify timeouts", context.DeadlineExceeded, "timed out"},
+		{"Should classify cancellation", context.Canceled, "canceled"},
+		{"Should classify redirects", errEndpointRedirect, "redirect refused"},
+		{"Should withhold unknown transport details", errors.New("private nonce"), "transport failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := endpointProbeError(&url.Error{Op: "Get", URL: "https://secret.invalid/private-nonce", Err: tc.cause})
+			if !errors.Is(err, ErrEndpointUnverified) || !strings.Contains(err.Error(), tc.want) ||
+				strings.Contains(err.Error(), "private nonce") ||
+				strings.Contains(err.Error(), "secret.invalid") ||
+				strings.Contains(err.Error(), "private-nonce") {
+				t.Fatalf("unsafe or incorrect diagnostic: %v", err)
+			}
+		})
 	}
 }
 

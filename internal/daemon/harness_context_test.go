@@ -88,6 +88,46 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 	})
 }
 
+func TestHarnessContextResolverScopesInputOnlyContext(t *testing.T) {
+	t.Parallel()
+	for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary, "custom", ""} {
+		t.Run("Should scope startup and live context for role "+role, func(t *testing.T) {
+			t.Parallel()
+			resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+				RuntimeIdentityPromptSectionEnabled: true, SituationPromptSectionEnabled: true,
+				SkillsPromptSectionEnabled: true, ToolsPromptSectionEnabled: true,
+				SkillsAugmenter: true, SituationAugmenter: true,
+			})
+			wantContext := role == "" || role == "custom"
+			for _, surface := range []ResolutionSurface{ResolutionSurfaceStartup, ResolutionSurfaceTurn} {
+				resolved, err := resolver.Resolve(HarnessResolutionInput{
+					Surface: surface, Session: HarnessSessionInput{Type: session.SessionTypeSpawned, SpawnRole: role},
+					Turn: HarnessTurnRequest{Source: session.TurnSourceUser},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, section := range []HarnessPromptSection{HarnessPromptSectionSituation, HarnessPromptSectionSkills, HarnessPromptSectionTools} {
+					if slices.Contains(resolved.Policy.IncludeSections, section) != wantContext {
+						t.Fatalf("%s sections = %v", surface, resolved.Policy.IncludeSections)
+					}
+				}
+				if !slices.Contains(resolved.Policy.IncludeSections, HarnessPromptSectionRuntimeIdentity) {
+					t.Fatal("runtime identity was removed")
+				}
+				for _, augmenter := range []HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterSituation} {
+					if slices.Contains(
+						resolved.Policy.EnableAugmenters,
+						augmenter,
+					) != (wantContext && surface == ResolutionSurfaceTurn) {
+						t.Fatalf("%s augmenters = %v", surface, resolved.Policy.EnableAugmenters)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *testing.T) {
 	t.Parallel()
 	t.Run("Should suppress only winning native preset roots", func(t *testing.T) {

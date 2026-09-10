@@ -340,6 +340,14 @@ requires the exact nonce from the assigned tier listener. It validates TLS, foll
 bounds the response and request time, and blocks public endpoints that resolve inward. A failed
 challenge leaves the tier unadvertised and marks the provider degraded.
 
+A private endpoint may additionally return `verification_address`, a literal loopback IP and
+non-zero port carrying a raw TCP relay to that exact endpoint. Use this only for an isolated network
+stack that the host cannot dial directly. Forward opaque TLS bytes without terminating TLS or
+rewriting HTTP; the daemon keeps the advertised URL for certificate authentication and challenge
+validation. Bind only to loopback, fix the destination to the endpoint, bound connections and
+shutdown, return the same address in status, and close it during teardown. The field is optional;
+providers that omit it retain the host-network verification path. Public endpoints cannot use it.
+
 Connectivity providers have stricter trust rules than ordinary extensions:
 
 - Install them globally. Workspace-scoped sources are rejected.

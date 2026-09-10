@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -74,6 +75,7 @@ type AgentProcess struct {
 	systemPromptMu       sync.Mutex
 	systemPrompt         string
 	systemPromptSent     bool
+	deliveredSections    map[string][sha256.Size]byte
 	systemPromptDelivery SystemPromptDeliveryMode
 	promptCacheControl   *promptCacheControl
 

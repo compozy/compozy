@@ -14,6 +14,7 @@ import (
 
 type tailscaleNode interface {
 	Up(context.Context) error
+	Dial(context.Context, string, string) (net.Conn, error)
 	ListenPrivate(context.Context) (net.Listener, error)
 	ListenPublic(context.Context) (net.Listener, error)
 	CertificateDomains() []string
@@ -66,6 +67,10 @@ func (n *tsnetNode) Up(ctx context.Context) error {
 		return fmt.Errorf("tailscale: connect operator tailnet: %w", err)
 	}
 	return nil
+}
+
+func (n *tsnetNode) Dial(ctx context.Context, network, address string) (net.Conn, error) {
+	return n.server.Dial(ctx, network, address)
 }
 
 func (n *tsnetNode) ListenPrivate(ctx context.Context) (net.Listener, error) {

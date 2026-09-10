@@ -41,8 +41,9 @@ var (
 	extensionCurrentPromptCatalogPattern = regexp.MustCompile(
 		`(?s)<current-available-skills>(.*?)</current-available-skills>`,
 	)
-	extensionPromptSkillNamePattern = regexp.MustCompile(`<skill name="([^"]+)">`)
-	reviewerSkillNames              = append([]string{"compozy"}, specCycleIntegrationSkillNames...)
+	extensionStartupPromptCatalogPattern = regexp.MustCompile(`(?s)<available-skills>(.*?)</available-skills>`)
+	extensionPromptSkillNamePattern      = regexp.MustCompile(`<skill name="([^"]+)">`)
+	reviewerSkillNames                   = append([]string{"compozy"}, specCycleIntegrationSkillNames...)
 )
 
 func TestDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) {
@@ -141,6 +142,9 @@ func assertExtensionPromptCatalog(t testing.TB, diagnosticsPath string) {
 	}
 	for _, record := range acpmock.PromptDiagnostics(records) {
 		if strings.Contains(record.Prompt, "<current-available-skills>") {
+			if !strings.Contains(record.Prompt, `<catalog-state unchanged="true">`) {
+				t.Fatal("first extension prompt duplicated its startup skill catalog")
+			}
 			assertSkillNames(
 				t,
 				"extension prompt catalog",
@@ -342,6 +346,12 @@ func extensionPromptSkillNames(prompt string) []string {
 	catalog := extensionCurrentPromptCatalogPattern.FindStringSubmatch(prompt)
 	if len(catalog) != 2 {
 		return nil
+	}
+	if strings.Contains(catalog[1], `<catalog-state unchanged="true">`) {
+		catalog = extensionStartupPromptCatalogPattern.FindStringSubmatch(prompt)
+		if len(catalog) != 2 {
+			return nil
+		}
 	}
 	matches := extensionPromptSkillNamePattern.FindAllStringSubmatch(catalog[1], -1)
 	names := make([]string, 0, len(matches))
