@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&family=Playfair+Display:wght@400&display=swap" rel="stylesheet" />
-<link rel="preload" as="image" href="assets/hero-poster.webp" />
 <link rel="stylesheet" href="landing.css" />
 <script>document.documentElement.classList.remove("no-js");</script>
 <script src="landing-logos.js"></script>
@@ -86,7 +85,7 @@
 <!-- ================= 01 · HERO ================= -->
 <section class="hero" data-od-id="hero" aria-labelledby="hero-title">
   <div class="hero__atmo" aria-hidden="true">
-    <div class="hero__wave"></div>
+    <div class="hero__wave" aria-hidden="true" data-stand-in="generated atmosphere: hero wave (was hero-wave.webp)"></div>
     <div class="hero__ember"></div>
   </div>
   <div class="wrap">
@@ -119,7 +118,7 @@
       </div>
 
       <div class="plate" id="demo-panel" role="tabpanel" aria-labelledby="demo-tab-1" data-od-id="hero-demo-plate" data-stand-in="six demo clips + posters, recorded on a seeded lab">
-        <img class="plate__img" src="assets/hero-poster.webp" width="2960" height="1826" alt="CompozyOS desktop: the Loops and Tasks windows open over the dock and menubar. Stand-in poster until the six demo clips are recorded." />
+        <div class="plate__img ph" role="img" aria-label="Placeholder: Hero demo poster"><span class="ph__l"><b>Hero demo poster</b>16:10 · CompozyOS desktop — Loops and Tasks windows over the dock and menubar; one poster for the six demo tabs<i>was hero-poster.webp · 2960×1826</i></span></div>
         <div class="plate__sheen" aria-hidden="true"></div>
         <button class="plate__play" type="button" data-demo-toggle aria-label="Play demo"><svg class="ic i-play"><use href="#i-play"/></svg><svg class="ic i-pause"><use href="#i-pause"/></svg></button>
       </div>
@@ -177,7 +176,7 @@
 
 <!-- ================= 03 · PAIN · THE DIY AGENT STACK ================= -->
 <section class="sec sec--soft sec--rule pain" data-od-id="pain" aria-labelledby="pain-title">
-  <div class="pain__atmo" aria-hidden="true"></div>
+  <div class="pain__atmo" aria-hidden="true" data-stand-in="generated atmosphere: traces (was backdrop-traces.webp)"></div>
   <div class="wrap g12">
     <div class="pain__copy" data-reveal>
       <h2 class="title title--feature" id="pain-title">Anyone can prompt an agent. Keeping one working is still an engineering project.</h2>
@@ -185,22 +184,8 @@
       <p class="kicker">The models are broadly available. The repeatable process is not.</p>
       <p style="margin-top:24px"><a class="link link--down" href="#comparison" data-od-id="pain-link">See every piece, side by side<svg class="ic ic--xs"><use href="#i-arrow-down"/></svg></a></p>
     </div>
-    <div class="pain__stage" data-pain aria-label="Nine hand-assembled pieces collapse into one CompozyOS block" data-od-id="pain-visual" data-reveal style="--d:1">
-      <ul class="parts" aria-hidden="true">
-        <li class="part" style="--i:0;--r:-1.5deg"><svg class="ic"><use href="#i-terminal"/></svg>agent CLI</li>
-        <li class="part" style="--i:1;--r:1deg"><svg class="ic"><use href="#i-repeat"/></svg>loops</li>
-        <li class="part" style="--i:2;--r:-.6deg"><svg class="ic"><use href="#i-zap"/></svg>triggers</li>
-        <li class="part" style="--i:3;--r:.8deg"><svg class="ic"><use href="#i-calendar-clock"/></svg>cron and webhooks</li>
-        <li class="part" style="--i:4;--r:-1.2deg"><svg class="ic"><use href="#i-book-open"/></svg>memory</li>
-        <li class="part" style="--i:5;--r:1.4deg"><svg class="ic"><use href="#i-shield-check"/></svg>permissions</li>
-        <li class="part" style="--i:6;--r:.5deg"><svg class="ic"><use href="#i-hand"/></svg>approvals</li>
-        <li class="part" style="--i:7;--r:-1deg"><svg class="ic"><use href="#i-monitor"/></svg>observability</li>
-        <li class="part" style="--i:8;--r:1.1deg"><svg class="ic"><use href="#i-file-text"/></svg>glue scripts</li>
-      </ul>
-      <svg class="ic pain__arrow" aria-hidden="true"><use href="#i-arrow-down"/></svg>
-      <div class="core__glow" aria-hidden="true"></div>
-      <div class="core" aria-hidden="true"><svg viewBox="0 0 355 355"><use href="#cz-symbol"/></svg><span>CompozyOS<small>replaces the pile</small></span></div>
-      <button class="btn btn--ghost btn--xs pain__replay" type="button" data-pain-replay><svg class="ic ic--xs"><use href="#i-rotate-ccw"/></svg>Replay</button>
+    <div class="pain__stage pain__stage--ph" data-od-id="pain-visual" data-reveal style="--d:1" data-stand-in="animation: the DIY stack collapses into one CompozyOS block (to be rebuilt)">
+      <div class="ph ph--motion" role="img" aria-label="Placeholder: animation — the hand-assembled stack collapses into CompozyOS"><span class="ph__l"><b>Animation · DIY stack → CompozyOS</b>6 columns × 440px · nine hand-assembled pieces (agent CLI, loops, triggers, cron and webhooks, memory, permissions, approvals, observability, glue scripts) collapse into one CompozyOS block · loops once on enter, Replay control, static end-frame under reduced motion<i>was the CSS/JS collapse (.parts → .core)</i></span></div>
     </div>
   </div>
 </section>
@@ -214,7 +199,7 @@
     </div>
     <ul class="uc-grid">
       <li class="uc" data-od-id="use-case-d2" data-reveal style="--d:0">
-        <div class="uc__art" style="--pos:50% 42%;--zoom:1.02" data-stand-in="generated spot: implement"><img src="assets/spot-implement.webp" width="1024" height="1536" alt="A daemon device beside a floating task list, three rows lit in order." loading="lazy" /></div>
+        <div class="uc__art" style="--pos:50% 42%;--zoom:1.02" data-stand-in="generated spot: implement"><div class="ph" role="img" aria-label="Placeholder: Spot · Implement"><span class="ph__l"><b>Spot · Implement</b>16:9 · the daemon beside a floating task list, three rows lit in order<i>was spot-implement.webp · 1024×1536</i></span></div></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
           <h3 class="uc__title">CompozyOS implements the task list after the tab closes</h3>
@@ -227,7 +212,7 @@
         </div>
       </li>
       <li class="uc" data-od-id="use-case-d1" data-reveal style="--d:1">
-        <div class="uc__art" style="--pos:50% 46%;--zoom:1.08" data-stand-in="generated spot: review"><img src="assets/spot-review.webp" width="1254" height="1254" alt="Orbit rings around a run marker, one lap after another." loading="lazy" /></div>
+        <div class="uc__art" style="--pos:50% 46%;--zoom:1.08" data-stand-in="generated spot: review"><div class="ph" role="img" aria-label="Placeholder: Spot · Review"><span class="ph__l"><b>Spot · Review</b>16:9 · orbit rings around a run marker, one lap after another<i>was spot-review.webp · 1254×1254</i></span></div></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
           <h3 class="uc__title">CompozyOS reviews a change and remediates until the round is clean</h3>
@@ -240,7 +225,7 @@
         </div>
       </li>
       <li class="uc" data-od-id="use-case-o1" data-reveal style="--d:2">
-        <div class="uc__art" style="--pos:50% 50%;--zoom:1" data-stand-in="generated spot: briefing"><img src="assets/spot-briefing.webp" width="1678" height="937" alt="A scheduled job fanning out into archive, notify, webhook, and summary steps." loading="lazy" /></div>
+        <div class="uc__art" style="--pos:50% 50%;--zoom:1" data-stand-in="generated spot: briefing"><div class="ph" role="img" aria-label="Placeholder: Spot · Briefing"><span class="ph__l"><b>Spot · Briefing</b>16:9 · a scheduled job fanning out into archive, notify, webhook and summary steps<i>was spot-briefing.webp · 1678×937</i></span></div></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Ops</span></div>
           <h3 class="uc__title">CompozyOS leaves a briefing waiting every weekday morning</h3>
@@ -253,7 +238,7 @@
         </div>
       </li>
       <li class="uc uc--wide" data-od-id="use-case-d3" data-reveal style="--d:0">
-        <div class="uc__art" style="--pos:50% 30%;--zoom:1.7" data-stand-in="generated spot: release"><img src="assets/spot-release.webp" width="1339" height="405" alt="A numbered stream of runs on one line, the current one ringed." loading="lazy" /></div>
+        <div class="uc__art" style="--pos:50% 30%;--zoom:1.7" data-stand-in="generated spot: release"><div class="ph" role="img" aria-label="Placeholder: Spot · Release"><span class="ph__l"><b>Spot · Release</b>21:9 · a numbered stream of runs on one line, the current one ringed<i>was spot-release.webp · 1339×405</i></span></div></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Dev</span></div>
           <h3 class="uc__title">CompozyOS keeps release checks as claimed work</h3>
@@ -266,7 +251,7 @@
         </div>
       </li>
       <li class="uc uc--wide" data-od-id="use-case-o3" data-reveal style="--d:1">
-        <div class="uc__art" style="--pos:50% 46%;--zoom:1.05" data-stand-in="generated spot: gate"><img src="assets/spot-gate.webp" width="1536" height="1024" alt="A run timeline paused at a gate, checks behind it, the next steps waiting." loading="lazy" /></div>
+        <div class="uc__art" style="--pos:50% 46%;--zoom:1.05" data-stand-in="generated spot: gate"><div class="ph" role="img" aria-label="Placeholder: Spot · Gate"><span class="ph__l"><b>Spot · Gate</b>21:9 · a run timeline paused at a gate, checks behind it, the next steps waiting<i>was spot-gate.webp · 1536×1024</i></span></div></div>
         <div class="uc__body">
           <div class="uc__meta"><span class="lane">Ops</span></div>
           <h3 class="uc__title">CompozyOS waits for a person before a sensitive action proceeds</h3>
@@ -326,28 +311,28 @@
 
     <div class="fpanel" id="fp-1" role="tabpanel" aria-labelledby="ft-1" data-od-id="feature-sessions" data-reveal style="--d:2">
       <div><h3 class="fpanel__title">Agent work that outlives the terminal</h3><p class="fpanel__desc">CompozyOS keeps the timeline, the edits, and the runs in a durable session. Pause one, resume it, and the record is still there.</p><p class="fpanel__cap">Sessions open as windows in the OS shell. Every window managed.</p></div>
-      <div class="win" data-stand-in="capture: /agents/$name/sessions/$id on a seeded lab"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-message-square"/></svg>Session</span><span class="win__route">/agents/$name/sessions/$id</span></div><div class="win__body" style="--pos:50% 74%;--zoom:1.26"><img src="assets/feature-sessions.webp" width="1495" height="1052" alt="A session timeline: Claude Code started, a file edited, tests run, changes committed, session paused, beside the diff it produced." loading="lazy" /></div></div>
+      <div class="win" data-stand-in="capture: /agents/$name/sessions/$id on a seeded lab"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-message-square"/></svg>Session</span><span class="win__route">/agents/$name/sessions/$id</span></div><div class="win__body" style="--pos:50% 74%;--zoom:1.26"><div class="ph" role="img" aria-label="Placeholder: Capture · Session"><span class="ph__l"><b>Capture · Session</b>16:10 · /agents/$name/sessions/$id on a seeded lab — timeline with a file edit, tests, commit, pause, beside its diff<i>was feature-sessions.webp · 1495×1052</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-2" role="tabpanel" aria-labelledby="ft-2" hidden data-od-id="feature-memory">
       <div><h3 class="fpanel__title">Context that survives restarts</h3><p class="fpanel__desc">Typed Markdown memory (user, feedback, project, reference) with one index per scope. Agents read it on session start and update it through the same CLI.</p><p class="fpanel__cap">When the gates pass, CompozyOS starts an ephemeral session that promotes recalled facts into durable memory. No surprise compute.</p></div>
-      <div class="win" data-stand-in="capture: /knowledge seeded with real files"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-book-open"/></svg>Knowledge</span><span class="win__route">/knowledge</span></div><div class="win__body" style="--pos:50% 44%;--zoom:1.12"><img src="assets/feature-memory.webp" width="1254" height="1254" alt="A Markdown document hovering over a lit pedestal, ringed by the surfaces that read it." loading="lazy" /></div></div>
+      <div class="win" data-stand-in="capture: /knowledge seeded with real files"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-book-open"/></svg>Knowledge</span><span class="win__route">/knowledge</span></div><div class="win__body" style="--pos:50% 44%;--zoom:1.12"><div class="ph" role="img" aria-label="Placeholder: Capture · Knowledge"><span class="ph__l"><b>Capture · Knowledge</b>16:10 · /knowledge seeded with real files<i>was feature-memory.webp · 1254×1254</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-3" role="tabpanel" aria-labelledby="ft-3" hidden data-od-id="feature-tasks">
       <div><h3 class="fpanel__title">Work that stays claimed until it closes</h3><p class="fpanel__desc">Durable tasks a session claims, heartbeats, and closes: on a board, in an inbox, with history.</p><p class="fpanel__cap">Every run has one owner; crashed work returns to the queue.</p></div>
-      <div class="frame"><div class="win win--bare" data-stand-in="capture: /tasks?mode=kanban (list view shown until the board is captured)"><div class="win__body"><img src="assets/capture-tasks-window.webp" width="1450" height="906" alt="The Tasks window from the shell capture: blocked, queued, and done groups with owners and priorities." loading="lazy" /></div></div><code class="win__cap">/tasks?mode=kanban</code></div>
+      <div class="frame"><div class="win win--bare" data-stand-in="capture: /tasks?mode=kanban (list view shown until the board is captured)"><div class="win__body"><div class="ph" role="img" aria-label="Placeholder: Capture · Tasks"><span class="ph__l"><b>Capture · Tasks</b>16:10 · /tasks?mode=kanban — blocked, queued and done groups with owners and priorities<i>was capture-tasks-window.webp · 1450×906</i></span></div></div></div><code class="win__cap">/tasks?mode=kanban</code></div>
     </div>
     <div class="fpanel" id="fp-4" role="tabpanel" aria-labelledby="ft-4" hidden data-od-id="feature-automation">
       <div><h3 class="fpanel__title">Schedules and webhooks, durable</h3><p class="fpanel__desc">CompozyOS owns clock jobs, runtime triggers, and signed webhooks. Every fire writes an inspectable run.</p><p class="fpanel__cap">Run history comes from the records the runtime already writes. Nothing extra to instrument.</p></div>
-      <div class="win" data-stand-in="capture: /jobs with run history"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-clock"/></svg>Jobs</span><span class="win__route">/jobs</span></div><div class="win__body" style="--pos:50% 50%;--zoom:1.04"><img src="assets/feature-automation.webp" width="1586" height="992" alt="A run trace beside an events-per-day chart and a top-tools breakdown." loading="lazy" /></div></div>
+      <div class="win" data-stand-in="capture: /jobs with run history"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-clock"/></svg>Jobs</span><span class="win__route">/jobs</span></div><div class="win__body" style="--pos:50% 50%;--zoom:1.04"><div class="ph" role="img" aria-label="Placeholder: Capture · Jobs"><span class="ph__l"><b>Capture · Jobs</b>16:10 · /jobs with run history — a run trace beside the events-per-day chart<i>was feature-automation.webp · 1586×992</i></span></div></div></div>
     </div>
     <div class="fpanel" id="fp-5" role="tabpanel" aria-labelledby="ft-5" hidden data-od-id="feature-desktops">
       <div><h3 class="fpanel__title">Every window managed</h3><p class="fpanel__desc">Persistent desktops, tiled groups, and floating windows. Layout is workspace state the daemon owns, not browser tabs.</p><p class="fpanel__cap"><code>⌘K</code> runs the same commands the CLI exposes.</p></div>
-      <div class="frame"><div class="win win--bare"><div class="win__body" style="--pos:50% 50%;--zoom:1"><img src="assets/hero-poster.webp" width="2960" height="1826" alt="The live shell: menubar, two tiled windows, and the dock." loading="lazy" /></div></div><code class="win__cap">DesktopShell · dock · DesktopPager</code></div>
+      <div class="frame"><div class="win win--bare"><div class="win__body" style="--pos:50% 50%;--zoom:1"><div class="ph" role="img" aria-label="Placeholder: Capture · Desktop shell"><span class="ph__l"><b>Capture · Desktop shell</b>16:10 · menubar, two tiled windows and the dock (DesktopShell · dock · DesktopPager)<i>was hero-poster.webp · 2960×1826</i></span></div></div></div><code class="win__cap">DesktopShell · dock · DesktopPager</code></div>
     </div>
     <div class="fpanel" id="fp-6" role="tabpanel" aria-labelledby="ft-6" hidden data-od-id="feature-profiles">
       <div><h3 class="fpanel__title">Separate work on one install</h3><p class="fpanel__desc">Each session, task, and automation files under a named profile. Switch, and the lists follow.</p><p class="fpanel__cap">Profiles organize work; they are not a security boundary.</p></div>
       <div class="win" data-stand-in="capture: /settings/profiles with default + one real profile"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-settings"/></svg>Settings</span><span class="win__route">/settings/profiles</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="background-image:url('assets/backdrop-orbit.webp');--apos:left bottom"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:left bottom" data-ph="backdrop · orbit"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-pr-t"><title id="dg-pr-t">Two profiles on one install: the active one holds its own sessions, tasks, and automations; switching swaps the lists.</title>
             <ellipse class="ember" cx="230" cy="412" rx="170" ry="26" opacity=".55"/>
             <rect class="plate-fill is-active" x="80" y="96" width="300" height="308" rx="16"/>
@@ -379,7 +364,7 @@
     <div class="fpanel" id="fp-7" role="tabpanel" aria-labelledby="ft-7" hidden data-od-id="feature-gateway">
       <div><h3 class="fpanel__title">Local until you turn remote on</h3><p class="fpanel__desc">The daemon starts reachable only on this machine. Remote access is three switches, all off by default.</p><p class="fpanel__cap">Private overlay, public delivery, public operator access: each is its own switch.</p></div>
       <div class="win" data-stand-in="capture: /settings/gateway in the default-off state"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-globe-lock"/></svg>Remote access</span><span class="win__route">/settings/gateway</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="background-image:url('assets/backdrop-radar.webp');--apos:right center"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:right center" data-ph="backdrop · radar"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-gw-t"><title id="dg-gw-t">Remote access: private overlay, public delivery, and public operator access, all three switches off.</title>
             <ellipse class="ember" cx="176" cy="338" rx="120" ry="24" opacity=".5"/>
             <rect class="plate-fill is-active" x="96" y="164" width="160" height="156" rx="18"/>
@@ -400,7 +385,7 @@
     <div class="fpanel" id="fp-8" role="tabpanel" aria-labelledby="ft-8" hidden data-od-id="feature-workspaces">
       <div><h3 class="fpanel__title">One project, registered once</h3><p class="fpanel__desc">Sessions, memory, tasks, and config attach to a workspace with a stable ID.</p><p class="fpanel__cap">Worktrees give parallel agents their own checkout of the same repo.</p></div>
       <div class="win" data-stand-in="capture: menubar workspace switcher + worktree dialog"><div class="win__head"><span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title"><svg class="ic"><use href="#i-folder-git-2"/></svg>Workspaces</span><span class="win__route">menubar switcher</span></div>
-        <div class="win__body"><div class="dg"><div class="dg__atmo" style="background-image:url('assets/backdrop-traces.webp');--apos:center"></div>
+        <div class="win__body"><div class="dg"><div class="dg__atmo" style="--apos:center" data-ph="backdrop · traces"></div>
           <svg viewBox="0 0 800 500" role="img" aria-labelledby="dg-ws-t"><title id="dg-ws-t">One workspace with a stable ID, and three worktrees that give parallel agents their own checkout.</title>
             <ellipse class="ember" cx="195" cy="352" rx="150" ry="24" opacity=".5"/>
             <rect class="plate-fill is-active" x="70" y="156" width="250" height="188" rx="16"/>
@@ -427,7 +412,7 @@
 
 <!-- ================= 07 · LOOPS SPOTLIGHT ================= -->
 <section class="sec sec--soft sec--rule loop" data-od-id="loops" aria-labelledby="loops-title">
-  <div class="loop__atmo" aria-hidden="true"></div>
+  <div class="loop__atmo" aria-hidden="true" data-stand-in="generated atmosphere: orbit (was backdrop-orbit.webp)"></div>
   <div class="wrap">
     <div class="head" data-reveal>
       <h2 class="title" id="loops-title">Loops stop when the goal is verified.</h2>
@@ -435,7 +420,7 @@
     </div>
     <div class="loop__plate" data-od-id="loops-visual" data-reveal style="--d:1">
       <div class="win win--bare" data-stand-in="capture: a real needs-approval run at /loop-runs/$runId (the Loops window from the shell capture stands in)">
-        <div class="win__body"><img src="assets/capture-loops-window.webp" width="1460" height="912" alt="The Loops window from the shell capture: three workspace Loops with inputs, iteration caps, and Run buttons. Stand-in for the run page." loading="lazy" /></div>
+        <div class="win__body"><div class="ph" role="img" aria-label="Placeholder: Capture · Loop run"><span class="ph__l"><b>Capture · Loop run</b>16:10 · a real needs-approval run at /loop-runs/$runId<i>was capture-loops-window.webp · 1460×912</i></span></div></div>
         <div class="needs" aria-label="Needs you card, stand-in for LoopRunNeedsYouCard"><span class="needs__label"><svg class="ic ic--sm"><use href="#i-hand"/></svg>Needs you</span><span class="pill pill--mono pill--warning">needs-approval</span><span class="needs__actions"><button class="btn btn--xs" type="button">Approve</button><button class="btn btn--ghost btn--xs" type="button">Request changes</button><button class="btn btn--ghost btn--xs" type="button">Reject</button></span></div>
       </div>
       <p class="caption loop__capcap">A live run at /loop-runs, waiting on a human gate.<code class="win__cap">/loop-runs/$runId</code></p>
@@ -457,7 +442,7 @@
 <!-- ================= 08 · EXTENSIBILITY ================= -->
 <section class="sec sec--rule" data-od-id="extensibility" aria-labelledby="ext-title">
   <div class="wrap g12">
-    <div class="ext__art" role="img" aria-label="Skills, hooks, tools, automation, and extension cartridges docking into the daemon." data-reveal data-stand-in="generated concept: one package into the registries (the cartridge illustration stands in)"></div>
+    <div class="ext__art" role="img" aria-label="Skills, hooks, tools, automation, and extension cartridges docking into the daemon." data-reveal data-stand-in="generated concept: one package into the registries"><span class="ph__tag"><b>Extensions art</b>generated concept — one package docking into the registries · fills the 5-column panel (≥520px tall) · was ext-cartridges.webp</span></div>
     <div class="ext__content" data-reveal style="--d:1">
       <p class="eyebrow">Built to be built on</p>
       <h2 class="title title--feature" id="ext-title">One install. The daemon already has a place for it.</h2>
@@ -495,7 +480,7 @@
 <!-- ================= 09 · BRIDGES ================= -->
 <section class="sec sec--soft sec--rule" data-od-id="bridges" aria-labelledby="bridges-title">
   <div class="wrap">
-    <div class="bridges__canvas" data-reveal>
+    <div class="bridges__canvas" data-reveal data-stand-in="generated: bridges inflow"><span class="ph__tag"><b>Bridges art</b>generated — messages flowing in from Slack, Discord, Telegram, Google Chat toward the daemon · right-anchored, 400px+ tall · was bridges-inflow.webp</span>
       <div class="bridges__copy">
         <h2 class="title title--feature" id="bridges-title">From anywhere. Into a session.</h2>
         <p class="bridges__body">One platform message maps to one durable session; replies stream back to the original thread.</p>
@@ -584,7 +569,7 @@
 
 <!-- ================= 12 · FINAL CTA ================= -->
 <section class="cta" data-od-id="final-cta" aria-labelledby="cta-title">
-  <div class="cta__art" aria-hidden="true" data-stand-in="generated closer: full-bleed, the OS-shell illustration stands in"></div>
+  <div class="cta__art" aria-hidden="true" data-stand-in="generated closer: full-bleed"><span class="ph__tag"><b>Closer art</b>generated full-bleed — the OS shell at rest, right half of the section · was closer-shell.webp</span></div>
   <div class="cta__ember" aria-hidden="true"></div>
   <div class="wrap">
     <div class="cta__inner" data-reveal>

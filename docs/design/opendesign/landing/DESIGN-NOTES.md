@@ -4,6 +4,25 @@ Prototype of the redesigned `compozy.com` homepage, rebuilt 2026-09-01 after the
 
 Reference discipline applied on top of the Compozy authorities: `taste-skill` (Leonxlnx) sections 4, 9 and 14 (hero stack discipline, eyebrow budget, zero em-dashes, real imagery over div-screenshots, section-layout variety, zigzag cap), `imagegen-frontend-web` (composition anchors and background modes vary across sections; two full-bleed moments; rich sections alternate with calm ones), `impeccable` craft floor, `ui-craft` anti-defaults.
 
+## Revision 2026-09-10 — every raster pulled for regeneration
+
+Operator feedback: the current images are not good enough; all of them will be generated again. Locked responses:
+
+- Every `<img>` (12 slots) is now a `.ph` placeholder that keeps the slot's exact geometry (`.plate` 16:10, `.win__body` 16:10, `.uc__art` 16:9 / 21:9) and states, in place, the **name · slot ratio · one-line brief · the file it replaced**. The hero placeholder keeps `.plate__img` so the demo-tab pan logic in `landing.js` still runs (inert on a div).
+- The six CSS-background rasters became hatch fills: `.ext__art`, `.bridges__canvas`, `.cta__art` carry a visible `.ph__tag` (content art); `.hero__wave`, `.pain__atmo`, `.loop__atmo` and the three `.dg__atmo` diagram backdrops are decorative atmospheres and are labeled only in `?annotate` mode (`data-stand-in` / `data-ph`).
+- The `hero-poster.webp` preload is gone. No `assets/` reference remains in HTML, CSS, or JS. The files in `assets/` were **kept on disk** as reference for the regeneration pass and can be deleted once the new set lands.
+- The pain-section animation (nine hand-assembled pieces collapsing into the CompozyOS block) is also a placeholder now (`.ph--motion` inside `.pain__stage--ph`); its `.parts`/`.core` CSS and the `[data-pain]` JS block stay dormant and leave with the rebuilt animation. The full brief for every image and animation to generate is `BRIEF-IMAGENS-ANIMACOES.md` (pt-BR, operator request).
+- Regeneration brief per slot lives in the placeholder label itself; the asset map below records the previous sources. Remove the "image placeholders" chapter at the end of `landing.css` when the regenerated assets are wired.
+
+| Slot | Ratio | Generate |
+| --- | --- | --- |
+| Hero demo poster | 16:10 | desktop with Loops + Tasks windows over dock and menubar (one poster, six tabs pan it) |
+| Spot · Implement / Review / Briefing | 16:9 | daemon + task list · orbit rings around a run · scheduled job fanning out |
+| Spot · Release / Gate | 21:9 | numbered run stream, current ringed · timeline paused at a gate |
+| Capture · Session / Knowledge / Tasks / Jobs / Desktop shell / Loop run | 16:10 | real captures on a seeded lab at the routes named in each label |
+| Extensions art · Bridges art · Closer art | panel fills | concept illustrations, see `.ph__tag` copy |
+| Hero wave · traces · orbit · radar backdrops | atmospheres | low-opacity textures behind sections and diagrams |
+
 ## Files
 
 | File | Role |
