@@ -62,7 +62,7 @@ function rowReason(row: OsAttentionRow): string {
     case "session":
       return `${row.agentName} — ${row.reason}`;
     case "task":
-      return "task approval";
+      return row.reason ?? "task approval";
     case "loop-request":
       return `${row.loopName} — ${row.requestKind}`;
     case "terminal-input":
@@ -80,7 +80,7 @@ function rowWorkspace(row: OsAttentionRow): string | null {
       return row.workspaceLabel;
     case "task":
     case "loop-node":
-      return null;
+      return row.workspaceLabel ?? null;
   }
 }
 

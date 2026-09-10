@@ -1,3 +1,4 @@
+import { acknowledgeAttentionNotifications } from "../attention-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
@@ -120,5 +121,33 @@ describe("notificationsApi", () => {
 
     await expect(listNotificationPresets()).rejects.toBeInstanceOf(NotificationsApiError);
     await expect(listNotificationPresets()).rejects.toThrow("Failed to load notification presets");
+  });
+});
+
+// Invariant: the client sends the captured population and preserves structured server failures.
+// Owner: notification HTTP adapter. Canonical suite: notifications API.
+describe("attention acknowledgement API", () => {
+  it("Should send an exact Home snapshot and scope without issuing a source action", async () => {
+    mockEmptyResponse({ status: 204 });
+    await acknowledgeAttentionNotifications(
+      { surface: "home", workspace: "ws-one", all_profiles: true, receipt_profile: "work" },
+      { snapshot: "snapshot-one", id: "occurrence-one" }
+    );
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/notifications/attention/acknowledge?surface=home&workspace=ws-one&all_profiles=true&receipt_profile=work",
+      body: { snapshot: "snapshot-one", id: "occurrence-one" },
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("Should expose an expired snapshot instead of claiming acknowledgement succeeded", async () => {
+    mockJsonResponse({ error: "snapshot expired; refresh notifications" }, { status: 409 });
+    await expect(
+      acknowledgeAttentionNotifications(
+        { profile: "default", surface: "bell" },
+        { snapshot: "old-snapshot" }
+      )
+    ).rejects.toThrow("snapshot expired; refresh notifications");
   });
 });

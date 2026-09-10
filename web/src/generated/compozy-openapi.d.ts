@@ -2583,6 +2583,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/notifications/attention": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List unread operator notifications across all workspaces and source profiles */
+    get: operations["listAttentionNotifications"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/notifications/attention/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Acknowledge an exact notification snapshot */
+    post: operations["acknowledgeAttentionNotifications"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/notifications/presets": {
     parameters: {
       query?: never;
@@ -47936,6 +47970,369 @@ export interface operations {
       };
     };
   };
+  listAttentionNotifications: {
+    parameters: {
+      query?: {
+        /** @description Profile owning acknowledgement receipts, including aggregate reads */
+        receipt_profile?: string;
+        /** @description Home workspace scope; empty selects global tasks */
+        workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Exact counts and first 100 rows; snapshot includes every occurrence */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            finished: number;
+            items: {
+              agent_name?: string;
+              badge?: string;
+              detail: string;
+              finished: boolean;
+              generation: number;
+              id: string;
+              item_index: number;
+              kind: string;
+              loop_name?: string;
+              node_id?: string;
+              /** Format: date-time */
+              occurred_at: string;
+              redacted: boolean;
+              request_kind?: string;
+              run_id?: string;
+              source_id: string;
+              terminal_id?: string;
+              title: string;
+              workspace_id: string;
+              workspace_label: string;
+            }[];
+            needs_you: number;
+            snapshot: string;
+            total: number;
+          };
+        };
+      };
+      /** @description Invalid scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Operator surface */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification source unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  acknowledgeAttentionNotifications: {
+    parameters: {
+      query?: {
+        /** @description Profile owning acknowledgement receipts, including aggregate reads */
+        receipt_profile?: string;
+        /** @description Home workspace scope; empty selects global tasks */
+        workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+        /** @description Snapshot owner (default bell) */
+        surface?: "bell" | "home";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          id?: string;
+          snapshot: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Receipts committed atomically; source state unchanged */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid snapshot request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Operator surface */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Snapshot expired or does not belong to this scope; refresh */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification store unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listNotificationPresets: {
     parameters: {
       query?: {
@@ -48917,6 +49314,8 @@ export interface operations {
   getObserveOverview: {
     parameters: {
       query?: {
+        /** @description Profile owning acknowledgement receipts, including aggregate reads */
+        receipt_profile?: string;
         /** @description Scope aggregates to one workspace; empty selects the global home scope */
         workspace?: string;
         /** @description Usage window in days (default 30) */
@@ -48948,6 +49347,7 @@ export interface operations {
                   actions: string[];
                   detail?: string;
                   kind: string;
+                  notification_id?: string;
                   /** Format: date-time */
                   occurred_at: string;
                   run_id?: string;
@@ -48955,6 +49355,7 @@ export interface operations {
                   task_id?: string;
                   title: string;
                 }[];
+                snapshot?: string;
                 total: number;
               };
               freshness: {

@@ -103,10 +103,13 @@ const ATTENTION_STORY_MINUTE = 60_000;
 const ATTENTION: OsAttentionModel = {
   badges: { sessions: 1, tasks: 1, loops: 2 },
   notificationCount: 4,
+  onAcknowledge: fn(),
+  notificationSnapshot: "story-snapshot",
   sections: {
     needsYou: [
       {
         kind: "session",
+        notificationId: "story-session-occurrence",
         id: "session-2",
         title: "Marketplace empty states",
         agentName: "webgen",
@@ -120,6 +123,7 @@ const ATTENTION: OsAttentionModel = {
       },
       {
         kind: "task",
+        notificationId: "story-task-occurrence",
         id: "task-42",
         title: "Approve runtime contract",
         identifier: "CompozyOS-42",

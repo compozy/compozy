@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 
 import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
+
+import type { AttentionNotificationScope } from "@/systems/notifications";
 
 import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
 import type { HomeAttentionResolvedKind } from "../hooks/use-home-attention-actions";
@@ -9,10 +11,14 @@ import type { HomeAttention, HomeAttentionItem } from "../types";
 
 export interface HomeAttentionZoneProps {
   attention: HomeAttention;
+  notificationScope?: AttentionNotificationScope;
+  scopeLabel?: string;
 }
 
 interface HomeAttentionRowProps {
   item: HomeAttentionItem;
+  onAcknowledge: (id?: string) => void;
+  acknowledgementDisabled: boolean;
   resolved: HomeAttentionResolvedKind | undefined;
   onApprove: (taskId: string) => void;
   onReject: (taskId: string) => void;
@@ -37,6 +43,8 @@ function attentionSentence(item: HomeAttentionItem): string {
 
 function HomeAttentionRow({
   item,
+  onAcknowledge,
+  acknowledgementDisabled,
   resolved,
   onApprove,
   onReject,
@@ -76,6 +84,15 @@ function HomeAttentionRow({
         <Time iso={item.occurred_at} />
       </span>
       <span className="flex items-center gap-1.5">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Mark ${item.title} as read`}
+          disabled={isMutating || acknowledgementDisabled || !item.notification_id}
+          onClick={() => onAcknowledge(item.notification_id)}
+        >
+          <Check aria-hidden="true" />
+        </Button>
         {item.actions.includes("approve") && taskId ? (
           <Button
             disabled={isMutating}
@@ -116,26 +133,52 @@ function HomeAttentionRow({
  * verbs (approve/reject/retry/open) inline. Approve/reject resolve the row
  * optimistically; every settled decision reconciles the overview counters.
  */
-export function HomeAttentionZone({ attention }: HomeAttentionZoneProps) {
-  const { resolvedById, pendingIds, onApprove, onReject, onRetry } = useHomeAttentionActions();
+export function HomeAttentionZone({
+  attention,
+  notificationScope,
+  scopeLabel = "Selected scope",
+}: HomeAttentionZoneProps) {
+  const {
+    resolvedById,
+    pendingIds,
+    onApprove,
+    onReject,
+    onRetry,
+    onAcknowledge,
+    acknowledgementPending,
+    acknowledgementError,
+  } = useHomeAttentionActions({ snapshot: attention.snapshot, scope: notificationScope });
+  const acknowledgementDisabled =
+    acknowledgementPending || !attention.snapshot || !notificationScope;
 
   const inbox = (
-    <Button
-      nativeButton={false}
-      render={<Link search={{ mode: "inbox" }} to="/tasks" />}
-      size="sm"
-      variant="ghost"
-    >
-      Open inbox
-      <ChevronRight aria-hidden="true" />
-    </Button>
+    <span className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={acknowledgementDisabled || attention.total === 0}
+        aria-label={`Clear all notifications in ${scopeLabel}`}
+        onClick={() => onAcknowledge()}
+      >
+        {acknowledgementPending ? "Clearing…" : "Clear all"}
+      </Button>
+      <Button
+        nativeButton={false}
+        render={<Link search={{ mode: "inbox" }} to="/tasks" />}
+        size="sm"
+        variant="ghost"
+      >
+        Open inbox
+        <ChevronRight aria-hidden="true" />
+      </Button>
+    </span>
   );
 
   if (attention.total === 0 && attention.items.length === 0) {
     return (
       <Section count={0} label="Needs you" right={inbox}>
         <Panel bodyClassName="px-4 py-3.5">
-          <p className="text-small-body text-subtle">Nothing needs you right now.</p>
+          <p className="text-small-body text-subtle">No unread notifications in this scope.</p>
         </Panel>
       </Section>
     );
@@ -144,6 +187,12 @@ export function HomeAttentionZone({ attention }: HomeAttentionZoneProps) {
   return (
     <Section count={attention.total} label="Needs you" right={inbox}>
       <Panel bodyClassName="p-0" className="overflow-hidden">
+        <p className="px-4 py-2 text-micro text-subtle">{scopeLabel} · notifications only</p>
+        {acknowledgementError ? (
+          <p role="alert" className="px-4 py-2 text-small-body text-danger">
+            {acknowledgementError}
+          </p>
+        ) : null}
         <div className="divide-y divide-line-soft">
           {attention.items.map(item => (
             <HomeAttentionRow
@@ -152,7 +201,9 @@ export function HomeAttentionZone({ attention }: HomeAttentionZoneProps) {
                 (item.run_id != null && pendingIds.has(item.run_id))
               }
               item={item}
-              key={`${item.kind}:${item.task_id ?? item.title}`}
+              key={item.notification_id ?? `${item.kind}:${item.task_id ?? item.title}`}
+              onAcknowledge={onAcknowledge}
+              acknowledgementDisabled={acknowledgementDisabled}
               onApprove={onApprove}
               onReject={onReject}
               onRetry={onRetry}

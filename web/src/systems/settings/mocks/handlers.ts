@@ -138,6 +138,19 @@ function settingsPersonaTarget(request: Request) {
 }
 
 export const handlers: HttpHandler[] = [
+  compozyApiMock.get("/api/notifications/attention", () =>
+    HttpResponse.json({
+      snapshot: "story-empty-notifications",
+      total: 0,
+      needs_you: 0,
+      finished: 0,
+      items: [],
+    })
+  ),
+  compozyApiMock.post(
+    "/api/notifications/attention/acknowledge",
+    () => new HttpResponse(null, { status: 204 })
+  ),
   compozyApiMock.get("/api/settings/general", () =>
     HttpResponse.json(settingsGeneralSectionFixture)
   ),

@@ -12,3 +12,10 @@ export type NotificationPresetEnablement = OperationResponse<
   "setNotificationPresetEnablement",
   200
 >;
+
+export type AttentionNotifications = OperationResponse<"listAttentionNotifications", 200>;
+export type AttentionNotification = AttentionNotifications["items"][number];
+export type AcknowledgeAttentionRequest = OperationRequestBody<"acknowledgeAttentionNotifications">;
+export type AttentionNotificationScope = NonNullable<
+  OperationQuery<"acknowledgeAttentionNotifications">
+>;

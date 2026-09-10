@@ -4,9 +4,9 @@ area: RT
 title: Keep the tab title's needs-you count exact
 persona: Théo
 journey: J-respond-to-agent-attention
-expected: While the tab is visible or backgrounded, its title shows the exact cross-workspace needs-you summary, excludes Finished work, survives route changes, clears at zero, and never displays a stale source as current.
+expected: While the tab is visible or backgrounded, its title shows the exact cross-workspace unread needs-you notification count, excludes Finished work, survives route changes, clears at zero, and never displays a stale source as current.
 entry_points: browser tab title; web route navigation
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -23,3 +23,9 @@ QA impact 2026-08-16: Task 03 added the summary-fed document title channel. Flag
 the real-user walk and evidence.
 
 QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Playwright lane, and full Web E2E exercised cross-workspace landing, permission resolution, counts, channel suppression, task canary, catalog scope/order, finished presence clearing, and honest quiet/stale states. The lab browser exposed its real notification capability; deterministic granted and denied branches ran in the canonical browser suite.
+
+
+2026-09-10 issue 606: the title and bell count share the unread notification projection. Clear all
+must clear both after server confirmation while runtime session badges continue to report source
+attention. The attention Playwright suite now uses the real Clear all action for the zero-count
+transition. Local browser execution is deferred by explicit user instruction to CI.

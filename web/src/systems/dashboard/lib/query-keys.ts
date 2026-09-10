@@ -18,6 +18,7 @@ export const dashboardKeys = {
       ...dashboardKeys.overviewRoot(),
       normalizeText(filters.workspace),
       normalizeNumber(filters.usageWindow),
+      normalizeText(filters.receiptProfile ?? filters.profile),
       // Two profiles reading the same window are two answers, never one entry.
       filters.allProfiles === true ? PROFILE_AGGREGATE : normalizeText(filters.profile),
     ] as const,

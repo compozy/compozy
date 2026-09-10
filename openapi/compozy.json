@@ -113032,6 +113032,936 @@
         ]
       }
     },
+    "/api/notifications/attention": {
+      "get": {
+        "operationId": "listAttentionNotifications",
+        "parameters": [
+          {
+            "description": "Profile owning acknowledgement receipts, including aggregate reads",
+            "in": "query",
+            "name": "receipt_profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Home workspace scope; empty selects global tasks",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "finished": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "items": {
+                        "properties": {
+                          "agent_name": {
+                            "type": "string"
+                          },
+                          "badge": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "finished": {
+                            "type": "boolean"
+                          },
+                          "generation": {
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "item_index": {
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "loop_name": {
+                            "type": "string"
+                          },
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "occurred_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "redacted": {
+                            "type": "boolean"
+                          },
+                          "request_kind": {
+                            "type": "string"
+                          },
+                          "run_id": {
+                            "type": "string"
+                          },
+                          "source_id": {
+                            "type": "string"
+                          },
+                          "terminal_id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          },
+                          "workspace_label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "detail",
+                          "finished",
+                          "generation",
+                          "id",
+                          "item_index",
+                          "kind",
+                          "occurred_at",
+                          "redacted",
+                          "source_id",
+                          "title",
+                          "workspace_id",
+                          "workspace_label"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "needs_you": {
+                      "type": "integer"
+                    },
+                    "snapshot": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "finished",
+                    "items",
+                    "needs_you",
+                    "snapshot",
+                    "total"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Exact counts and first 100 rows; snapshot includes every occurrence"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid scope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Operator surface"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Notification source unavailable"
+          }
+        },
+        "summary": "List unread operator notifications across all workspaces and source profiles",
+        "tags": [
+          "notifications"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/notifications/attention/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeAttentionNotifications",
+        "parameters": [
+          {
+            "description": "Profile owning acknowledgement receipts, including aggregate reads",
+            "in": "query",
+            "name": "receipt_profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Home workspace scope; empty selects global tasks",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Snapshot owner (default bell)",
+            "in": "query",
+            "name": "surface",
+            "schema": {
+              "enum": [
+                "bell",
+                "home"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "snapshot": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "snapshot"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Receipts committed atomically; source state unchanged"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid snapshot request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Operator surface"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Snapshot expired or does not belong to this scope; refresh"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "current_turn_id": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Notification store unavailable"
+          }
+        },
+        "summary": "Acknowledge an exact notification snapshot",
+        "tags": [
+          "notifications"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/notifications/presets": {
       "get": {
         "operationId": "listNotificationPresets",
@@ -115531,6 +116461,14 @@
         "operationId": "getObserveOverview",
         "parameters": [
           {
+            "description": "Profile owning acknowledgement receipts, including aggregate reads",
+            "in": "query",
+            "name": "receipt_profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Scope aggregates to one workspace; empty selects the global home scope",
             "in": "query",
             "name": "workspace",
@@ -115599,6 +116537,9 @@
                                   "kind": {
                                     "type": "string"
                                   },
+                                  "notification_id": {
+                                    "type": "string"
+                                  },
                                   "occurred_at": {
                                     "format": "date-time",
                                     "type": "string"
@@ -115625,6 +116566,9 @@
                                 "type": "object"
                               },
                               "type": "array"
+                            },
+                            "snapshot": {
+                              "type": "string"
                             },
                             "total": {
                               "type": "integer"

@@ -71,7 +71,11 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
         <DataSurface.Content>
           {!overview ? null : (
             <div className="flex flex-col gap-6">
-              <HomeAttentionZone attention={overview.attention} />
+              <HomeAttentionZone
+                attention={overview.attention}
+                notificationScope={model.notificationScope}
+                scopeLabel={model.activeWorkspaceName ?? "Selected workspace"}
+              />
               <HomeKpiStrip
                 overview={overview}
                 workingNowDetail={workingNowDetail(workingNow.sessionCount, workingNow.runCount)}

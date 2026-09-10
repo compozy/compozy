@@ -4,12 +4,23 @@
 // focused window's worktree scope; session counts come from the daemon summary
 // and vanish when it is stale rather than reporting a page total.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
-import { renderHook } from "@testing-library/react";
+import { renderHook as renderReactHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
-  return { ...actual, useQuery: vi.fn() };
+  const queryMock = vi.fn();
+  return {
+    ...actual,
+    useQuery: Object.assign(
+      (options: { queryKey: readonly unknown[] }) => {
+        if (options.queryKey[0] === "notifications")
+          return { data: notificationResponse, isError: notificationStale, isLoading: false };
+        return queryMock(options);
+      },
+      { mockReturnValue: queryMock.mockReturnValue.bind(queryMock) }
+    ),
+  };
 });
 vi.mock("@/systems/profiles", () => ({ useProfileReadScope: vi.fn() }));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() }));
@@ -62,7 +73,20 @@ vi.mock("../use-attention-policy", () => ({
 }));
 
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
+import type { AttentionNotifications } from "@/systems/notifications";
+
+let notificationResponse: AttentionNotifications;
+let notificationStale = false;
+function renderHook<T>(callback: () => T) {
+  const client = new QueryClient();
+  return renderReactHook(callback, {
+    wrapper: ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children),
+  });
+}
+
 import { useProfileReadScope } from "@/systems/profiles";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import { useAttentionSummary } from "../use-attention-summary";
@@ -140,6 +164,8 @@ function workspaceForCall(call: number): string | null | undefined {
 describe("useOsAttention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    notificationResponse = { snapshot: "snapshot", total: 0, needs_you: 0, finished: 0, items: [] };
+    notificationStale = false;
     vi.mocked(useActiveWorkspace).mockReturnValue({
       scope: "workspace",
       activeWorkspaceId: "ws_alpha",
@@ -154,7 +180,7 @@ describe("useOsAttention", () => {
     } as never);
     vi.mocked(useTasks).mockReturnValue({ data: [], isError: false, isLoading: false } as never);
     vi.mocked(useProfileReadScope).mockReturnValue({
-      destination: { profile: "work" },
+      destination: "work",
       destinationOwner: { id: "profile-work" },
     } as never);
     vi.mocked(useQuery).mockReturnValue({
@@ -195,7 +221,8 @@ describe("useOsAttention", () => {
     expect(filtersForCall(MODAL_CALL).archive).toBeUndefined();
   });
 
-  it("Should isolate attention-row failures from the sessions modal catalog", () => {
+  it("Should isolate notification failures from the sessions modal catalog", () => {
+    notificationStale = true;
     vi.mocked(useSessions)
       .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }))
       .mockReturnValueOnce(sessionsQuery({}))
@@ -230,7 +257,7 @@ describe("useOsAttention", () => {
     expect(filtersForCall(FINISHED_CALL).badge).toBe("done");
     expect(workspaceForCall(MODAL_CALL)).toBe(workspace.id);
     expect(filtersForCall(MODAL_CALL).worktree).toBe("wt_payments");
-    expect(result.current.sections.needsYou.map(row => row.id)).toEqual(["sess_other_worktree"]);
+    expect(result.current.badges.sessions).toBeUndefined();
     expect(result.current.sessions).toEqual([]);
   });
 
@@ -274,21 +301,41 @@ describe("useOsAttention", () => {
     expect(result.current.badges.sessions).toBeUndefined();
   });
 
-  it("Should surface loop-node rows only when the existence probes are true", () => {
-    vi.mocked(useLoopNodeExists).mockImplementation((_workspaceId, state) => state === "waiting");
+  it("Should use unread notification counts independently of source attention", () => {
+    vi.mocked(useLoopNodeExists).mockImplementation(() => true);
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
-
+    notificationResponse = {
+      snapshot: "snapshot",
+      total: 230,
+      needs_you: 230,
+      finished: 0,
+      items: [
+        {
+          id: "occurrence",
+          kind: "loop-node",
+          source_id: "node",
+          workspace_id: "ws-other",
+          workspace_label: "other",
+          title: "Waiting node",
+          detail: "waiting",
+          occurred_at: "2026-09-10T12:00:00Z",
+          run_id: "run",
+          item_index: 0,
+          generation: 0,
+          redacted: false,
+          finished: false,
+        },
+      ],
+    };
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
-
     expect(result.current.sections.needsYou).toEqual([
-      {
+      expect.objectContaining({
         kind: "loop-node",
-        id: "waiting",
-        title: "Loop nodes waiting on you",
-        state: "waiting",
-      },
+        notificationId: "occurrence",
+        workspaceId: "ws-other",
+      }),
     ]);
-    expect(result.current.notificationCount).toBe(0);
+    expect(result.current.notificationCount).toBe(230);
   });
 
   it("Should compose exact healthy loop totals and rows without changing session counts", () => {
@@ -315,9 +362,9 @@ describe("useOsAttention", () => {
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.badges).toMatchObject({ sessions: 2, loops: 4 });
-    expect(result.current.notificationCount).toBe(6);
-    expect(result.current.loopRequestsDisconnected).toBe(true);
-    expect(result.current.sections.needsYou[0]).toMatchObject({ kind: "loop-request" });
+    expect(result.current.notificationCount).toBe(0);
+    expect(result.current.loopRequestsDisconnected).toBe(false);
+    expect(result.current.sections.needsYou).toEqual([]);
   });
 
   it("Should count only terminal approvals owned by the current workspace and profile", () => {
@@ -359,7 +406,7 @@ describe("useOsAttention", () => {
     expect(result.current.badges.terminal).toBe(1);
   });
 
-  it("Should surface pending terminal input in Needs you and the attention count", () => {
+  it("Should preserve terminal source badges after all notifications are acknowledged", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
     vi.mocked(useQuery).mockReturnValue({
       data: {
@@ -385,19 +432,8 @@ describe("useOsAttention", () => {
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.badges.terminal).toBe(1);
-    expect(result.current.notificationCount).toBe(1);
-    expect(result.current.sections.needsYou).toEqual([
-      expect.objectContaining({
-        kind: "terminal-input",
-        id: "req-3f8a",
-        title: "Password requested",
-        agentName: "claude-code",
-        terminalId: "term-9cd7e14b2a66",
-        workspaceId: workspace.id,
-        workspaceLabel: "alpha",
-        stale: false,
-      }),
-    ]);
+    expect(result.current.notificationCount).toBe(0);
+    expect(result.current.sections.needsYou).toEqual([]);
   });
 
   it("Should keep a healthy terminal count when the session stream is stale", () => {
@@ -432,6 +468,6 @@ describe("useOsAttention", () => {
 
     expect(result.current.badges.sessions).toBeUndefined();
     expect(result.current.badges.terminal).toBe(1);
-    expect(result.current.notificationCount).toBe(1);
+    expect(result.current.notificationCount).toBe(0);
   });
 });

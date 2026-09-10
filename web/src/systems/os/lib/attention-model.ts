@@ -39,6 +39,7 @@ export interface OsAttentionBadges {
 }
 
 export interface OsSessionAttentionRow {
+  notificationId?: string;
   kind: "session";
   id: string;
   title: string;
@@ -57,6 +58,9 @@ export interface OsSessionAttentionRow {
 }
 
 export interface OsTaskAttentionRow {
+  workspaceId?: string;
+  reason?: string;
+  workspaceLabel?: string;
   kind: "task";
   id: string;
   title: string;
@@ -65,7 +69,10 @@ export interface OsTaskAttentionRow {
 
 export interface OsLoopNodeAttentionRow {
   kind: "loop-node";
-  id: "waiting" | "attention";
+  id: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+  runId?: string;
   title: string;
   state: "waiting" | "attention";
 }
@@ -110,12 +117,13 @@ export interface OsTerminalInputAttentionRow {
   stale: boolean;
 }
 
-export type OsAttentionRow =
+export type OsAttentionRow = (
   | OsSessionAttentionRow
   | OsTaskAttentionRow
   | OsLoopNodeAttentionRow
   | OsLoopRequestAttentionRow
-  | OsTerminalInputAttentionRow;
+  | OsTerminalInputAttentionRow
+) & { notificationId?: string };
 
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */

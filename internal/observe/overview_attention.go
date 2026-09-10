@@ -1,107 +1,123 @@
 package observe
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
-	"sort"
+	"slices"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/notifications"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (OverviewAttention, error) {
-	taskScope, err := taskScopeFromCatalogScope(query.TaskScope)
+	items, err := o.TaskAttentionItems(ctx, query)
 	if err != nil {
 		return OverviewAttention{}, err
 	}
-
-	page, err := o.QueryTaskInbox(ctx, TaskInboxQuery{
-		ReadScope:   query.ReadScope,
-		Scope:       query.TaskScope,
-		WorkspaceID: query.WorkspaceID,
-		Limit:       overviewAttentionScan,
-	}, query.Actor)
-	if err != nil {
-		return OverviewAttention{}, fmt.Errorf("observe: query attention inbox: %w", err)
-	}
-
-	// needs_input mirrors the actor-scoped inbox ownership so it cannot surface
-	// needs-attention tasks the caller's inbox would withhold. An unmapped or
-	// anonymous actor cannot own tasks: skip the scan entirely rather than let an
-	// empty owner filter fall through to every needs-attention task in scope.
-	ownerKind := taskpkg.OwnerKindForActor(query.Actor.Kind)
-	ownerRef := strings.TrimSpace(query.Actor.Ref)
-	var needsAttention []taskpkg.Summary
-	if ownerKind != "" && ownerRef != "" {
-		needsAttention, err = o.registry.ListTasks(ctx, taskpkg.Query{
-			ReadScope:   query.ReadScope,
-			Scope:       taskScope,
-			WorkspaceID: query.WorkspaceID,
-			Status:      taskpkg.TaskStatusNeedsAttention,
-			OwnerKind:   ownerKind,
-			OwnerRef:    ownerRef,
-			Limit:       overviewAttentionScan,
-		})
-		if err != nil {
-			return OverviewAttention{}, fmt.Errorf("observe: list needs-attention tasks: %w", err)
-		}
-	}
-
 	attention := OverviewAttention{ByKind: map[string]int{}}
-	seen := make(map[string]struct{})
-	items := make([]OverviewAttentionItem, 0)
-
-	for _, group := range page.Groups {
-		switch group.Lane {
-		case TaskInboxLaneApprovals:
-			attention.ByKind[OverviewAttentionKindApproval] = group.Count
-			for _, item := range group.Items {
-				items = appendAttentionItem(items, seen, approvalAttentionItem(item))
-			}
-		case TaskInboxLaneFailedRuns:
-			attention.ByKind[OverviewAttentionKindFailure] = group.Count
-			for _, item := range group.Items {
-				items = appendAttentionItem(items, seen, failureAttentionItem(item))
-			}
+	if query.AcknowledgementProfileID != "" {
+		ids := make([]string, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, item.NotificationID)
 		}
-	}
-
-	needsInputCount := 0
-	for index := range needsAttention {
-		item, ok := needsInputAttentionItem(&needsAttention[index])
-		if !ok {
-			continue
+		snapshot, unread, captureErr := o.CaptureAttentionSnapshot(ctx, OverviewAttentionScope(query), ids)
+		if captureErr != nil {
+			return OverviewAttention{}, captureErr
 		}
-		needsInputCount++
-		items = appendAttentionItem(items, seen, item)
+		attention.Snapshot = snapshot
+		visible := make(map[string]bool, len(unread))
+		for _, id := range unread {
+			visible[id] = true
+		}
+		items = slices.DeleteFunc(items, func(item OverviewAttentionItem) bool { return !visible[item.NotificationID] })
 	}
-	attention.ByKind[OverviewAttentionKindNeedsInput] = needsInputCount
-
-	sort.SliceStable(items, func(left, right int) bool {
-		return items[left].OccurredAt.After(items[right].OccurredAt)
-	})
-	if len(items) > overviewAttentionItemCap {
-		items = items[:overviewAttentionItemCap]
+	for _, item := range items {
+		attention.ByKind[item.Kind]++
 	}
-
-	attention.Items = items
-	// Total sums exact inbox facet counts (approval, failure) with the bounded
-	// owner-scoped needs_input scan (capped at overviewAttentionScan).
-	for _, count := range attention.ByKind {
-		attention.Total += count
-	}
+	attention.Total = len(items)
+	attention.Items = items[:min(len(items), overviewAttentionItemCap)]
 	return attention, nil
 }
 
-func taskScopeFromCatalogScope(scope taskpkg.CatalogScope) (taskpkg.Scope, error) {
-	switch scope {
-	case taskpkg.CatalogScopeGlobal:
-		return taskpkg.ScopeGlobal, nil
-	case taskpkg.CatalogScopeWorkspace:
-		return taskpkg.ScopeWorkspace, nil
-	default:
-		return "", fmt.Errorf("observe: unsupported task catalog scope %q", scope)
+// OverviewAttentionScope binds Home's snapshot to its selected read population.
+func OverviewAttentionScope(query OverviewQuery) notifications.AttentionScope {
+	return notifications.AttentionScope{
+		ProfileID: query.AcknowledgementProfileID, ActorKind: string(query.Actor.Kind), ActorID: query.Actor.Ref,
+		Population: notifications.AttentionIdentity(
+			"home", string(query.TaskScope), query.WorkspaceID, query.ReadScope.ProfileID,
+			strconv.FormatBool(query.ReadScope.AllProfiles),
+		),
 	}
+}
+
+// TaskAttentionItems reuses inbox visibility and triage before building a complete attention snapshot.
+func (o *Observer) TaskAttentionItems(ctx context.Context, query OverviewQuery) ([]OverviewAttentionItem, error) {
+	queries := []TaskInboxQuery{
+		{Lane: TaskInboxLaneApprovals},
+		{Lane: TaskInboxLaneFailedRuns},
+	}
+	items := make([]OverviewAttentionItem, 0)
+	seen := make(map[string]struct{})
+	for _, inboxQuery := range queries {
+		inboxQuery.ReadScope, inboxQuery.Scope, inboxQuery.WorkspaceID = query.ReadScope, query.TaskScope, query.WorkspaceID
+		inboxQuery.Limit = 200
+		for {
+			page, err := o.QueryTaskInbox(ctx, inboxQuery, query.Actor)
+			if err != nil {
+				return nil, fmt.Errorf("observe: query attention inbox: %w", err)
+			}
+			for _, group := range page.Groups {
+				if group.Lane == TaskInboxLaneArchived {
+					continue
+				}
+				for _, source := range group.Items {
+					var item OverviewAttentionItem
+					switch group.Lane {
+					case TaskInboxLaneApprovals:
+						item = approvalAttentionItem(source)
+					case TaskInboxLaneFailedRuns:
+						item = failureAttentionItem(source)
+					default:
+						continue
+					}
+					item.WorkspaceID = source.Task.WorkspaceID
+					item.NotificationID = notifications.AttentionIdentity(
+						"task", source.Task.WorkspaceID, source.Task.ID, item.Kind,
+						strconv.FormatInt(source.Task.LatestEventSeq, 10), item.RunID, item.OccurredAt.UTC().Format(time.RFC3339Nano),
+					)
+					items = appendAttentionItem(items, seen, item)
+				}
+			}
+			if !page.HasMore {
+				break
+			}
+			if page.NextCursor == "" || page.NextCursor == inboxQuery.Cursor {
+				return nil, errors.New("observe: attention inbox did not advance")
+			}
+			inboxQuery.Cursor = page.NextCursor
+		}
+	}
+	needsInput, err := o.overviewNeedsInput(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range needsInput {
+		items = appendAttentionItem(items, seen, item)
+	}
+
+	slices.SortFunc(items, func(a, b OverviewAttentionItem) int {
+		if order := b.OccurredAt.Compare(a.OccurredAt); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.NotificationID, b.NotificationID)
+	})
+	return items, nil
 }
 
 func appendAttentionItem(
@@ -147,28 +163,4 @@ func failureAttentionItem(item taskpkg.InboxItem) OverviewAttentionItem {
 		}
 	}
 	return attention
-}
-
-func needsInputAttentionItem(summary *taskpkg.Summary) (OverviewAttentionItem, bool) {
-	if summary == nil || summary.Status != taskpkg.TaskStatusNeedsAttention {
-		return OverviewAttentionItem{}, false
-	}
-	item := OverviewAttentionItem{
-		Kind:       OverviewAttentionKindNeedsInput,
-		Title:      summary.Title,
-		TaskID:     summary.ID,
-		OccurredAt: summary.LastActivityAt,
-		Actions:    []string{OverviewActionOpen},
-	}
-	if item.OccurredAt.IsZero() {
-		item.OccurredAt = summary.UpdatedAt
-	}
-	if summary.NeedsAttention != nil {
-		item.Detail = strings.TrimSpace(summary.NeedsAttention.Reason)
-	}
-	if summary.ActiveRun != nil {
-		item.RunID = summary.ActiveRun.ID
-		item.SessionID = summary.ActiveRun.SessionID
-	}
-	return item, true
 }

@@ -215,6 +215,10 @@ export function DesktopMenubar({
           >
             <AttentionBell
               sections={attention.sections}
+              total={attention.notificationTotal}
+              pending={attention.acknowledging}
+              error={attention.acknowledgementError}
+              onAcknowledge={attention.onAcknowledge}
               sessionsDisconnected={attention.attentionSessionsDisconnected}
               tasksDisconnected={attention.tasksDisconnected}
               loopRequestsDisconnected={attention.loopRequestsDisconnected}

@@ -70,6 +70,8 @@ func registerFilesystemRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	notifications := api.Group("/notifications")
+	notifications.GET("/attention", handlers.AttentionNotifications)
+	notifications.POST("/attention/acknowledge", handlers.AcknowledgeAttentionNotifications)
 	presets := notifications.Group("/presets")
 	presets.GET("", handlers.ListNotificationPresets)
 	presets.POST("", handlers.CreateNotificationPreset)

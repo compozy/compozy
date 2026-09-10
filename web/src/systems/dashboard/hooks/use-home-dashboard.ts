@@ -19,10 +19,12 @@ import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 import { useDaemonHealth } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";
+import type { AttentionNotificationScope } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
 
 export interface HomeDashboardModel {
   scope: HomeScope;
+  notificationScope?: AttentionNotificationScope;
   /** The per-profile usage breakdown belongs to the aggregate read alone (S10). */
   profileAggregate: boolean;
   connectionStatus: ConnectionStatus;
@@ -70,7 +72,7 @@ export function useHomeDashboard({
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
-  const { aggregate, params: profileScope } = useProfileReadScope();
+  const { aggregate, params: profileScope, destination } = useProfileReadScope();
   const resolvedScope = homeScopeForActiveWorkspace(workspaceScope, activeWorkspaceId);
   const scopeSettled = resolvedScope !== null;
   const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
@@ -80,6 +82,7 @@ export function useHomeDashboard({
       {
         workspace: scope.workspaceParam || undefined,
         usageWindow,
+        receiptProfile: destination,
         // Usage follows the active view: a scoped profile sees only its own
         // figures, and the aggregate sees every owner labelled (US-013).
         ...("all_profiles" in profileScope
@@ -116,6 +119,12 @@ export function useHomeDashboard({
 
   return {
     scope,
+    notificationScope: {
+      ...profileScope,
+      receipt_profile: destination,
+      workspace: scope.workspaceParam || undefined,
+      surface: "home",
+    },
     profileAggregate: aggregate,
     connectionStatus,
     usageWindow,

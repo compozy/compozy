@@ -66,3 +66,30 @@ Issue #603 delivery also pins the site preview install command to the repository
 - **Workspace data isolation:** Group anchors and disclosure state remain local to each message's timeline store. Persisted transcript, session/workspace keys and SSE contracts are unchanged; no migration or recovery action is needed.
 - **Official Compozy skill:** No update required: public agent operations and protocol semantics are unchanged.
 - **Web/Docs:** Timeline projection, work entries, group identity/equality, turn folds, and find reveal consume the widened internal entry union. The virtualizer already estimates work from entry count and measures actual expanded DOM. RT-048 and RT-055 own the updated behavior; canonical projection, thread/navigation and scroll suites plus rendered QA verify it. Public site documentation has no changed API or operational instructions.
+
+## Issue 606 — Durable notification acknowledgement
+
+- **Native tools:** no native IDs, tool descriptors or CLI verbs change. Additive operator HTTP/UDS
+  `GET /notifications/attention` and `POST /notifications/attention/acknowledge` routes expose the
+  notification read/acknowledgement contract. Existing task decisions, task triage, presence and
+  session attention-summary surfaces keep their meanings.
+- **Extensibility and hooks:** no hook, bridge preset, delivery cursor, SDK or configuration changes.
+  Acknowledgement does not emit source completion or approval events.
+- **Workspace data isolation:** exact occurrence receipts belong to a profile and actor. Home
+  snapshots bind workspace/global scope plus profile lens; bell snapshots contain all workspaces and
+  source profiles, with receipts belonging to the selected destination profile. Bulk writes only
+  accept IDs captured in that snapshot, commit atomically and are idempotent. New occurrences race
+  safely outside old snapshots. Task inbox triage filters the task candidates; raw escalations keep
+  their existing lifecycle semantics.
+- **Compatibility:** migration 109 adds receipt and snapshot tables without rewriting source data.
+  Snapshots expire after 24 hours; receipts persist. Old databases migrate through the canonical
+  schema generator. New overview fields are additive; the Home attention count now means unread
+  occurrences. Existing runtime/session/task status and decision APIs are unchanged.
+- **Official Compozy skill:** the native-tools reference documents the operator-only API, exact
+  snapshot acknowledgement and separation from source actions.
+- **Web/Docs:** bell, title count and Home use server receipts, show mutation errors, and invalidate
+  both corresponding caches after settlement. Individual controls do not activate their row.
+  Notification preset docs distinguish inbox acknowledgement from delivery configuration. Updated
+  bell/Home/title QA scenarios record the new contract. SQLite, overview and existing API/component/
+  browser suites own coverage; broad local gates and rendered labs are deferred to CI by explicit
+  user instruction for this delivery.

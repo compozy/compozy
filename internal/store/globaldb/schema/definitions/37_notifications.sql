@@ -36,3 +36,24 @@ CREATE INDEX idx_notification_presets_builtin
 CREATE INDEX notification_cursors_stream_sequence_idx
 			ON notification_cursors(scope_kind, profile_id, workspace_id, stream_name, last_sequence DESC)
 			WHERE last_sequence > 0;
+
+CREATE TABLE attention_acknowledgements (
+    profile_id TEXT NOT NULL REFERENCES profiles(id),
+    actor_kind TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    occurrence_id TEXT NOT NULL,
+    acknowledged_at TEXT NOT NULL,
+    PRIMARY KEY (profile_id, actor_kind, actor_id, occurrence_id)
+);
+
+CREATE TABLE attention_snapshots (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES profiles(id),
+    actor_kind TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    population TEXT NOT NULL,
+    occurrence_ids TEXT NOT NULL CHECK (json_valid(occurrence_ids)),
+    expires_at TEXT NOT NULL
+);
+
+CREATE INDEX attention_snapshots_expiry_idx ON attention_snapshots(expires_at);

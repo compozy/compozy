@@ -1,8 +1,12 @@
 package globaldb
 
 import (
+	"errors"
+	"fmt"
+	"github.com/compozy/compozy/internal/notifications"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,4 +126,151 @@ func insertAttentionTestWorkspace(t *testing.T, db *GlobalDB, id string, name st
 		t.Fatalf("InsertWorkspace(%s) error = %v", name, err)
 	}
 	return workspace
+}
+
+// Invariant: receipts are durable, actor/profile scoped and atomic over the captured population.
+// Owner: SQLite notification repository. Canonical suite: profile attention persistence.
+func TestAttentionAcknowledgements(t *testing.T) {
+	t.Parallel()
+	scope := notifications.AttentionScope{ProfileID: store.DefaultProfileID, ActorKind: "human", ActorID: "operator", Population: "bell"}
+	t.Run("Should acknowledge a complete snapshot without consuming a racing occurrence", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAttentionTestDB(t)
+		var repository notifications.AttentionStore = db
+		ids := make([]string, 251)
+		for i := range ids {
+			ids[i] = fmt.Sprintf("occurrence-%03d", i)
+		}
+		snapshot, unread, err := repository.CaptureAttentionSnapshot(ctx, scope, ids)
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := len(unread); got != len(ids) {
+			t.Fatalf("length = %d, want %d", got, len(ids))
+		}
+		if err := repository.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, ids[0]); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, unread, err = repository.CaptureAttentionSnapshot(ctx, scope, ids)
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := len(unread); got != len(ids)-1 {
+			t.Fatalf("length = %d, want %d", got, len(ids)-1)
+		}
+		ids = append(ids, "new-occurrence")
+		if err := repository.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := repository.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, unread, err = repository.CaptureAttentionSnapshot(ctx, scope, ids)
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got, want := unread, []string{"new-occurrence"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+		// A second SQLite connection models reload/reconnect, without sharing a browser cache.
+		reopened, err := OpenGlobalDB(ctx, db.Path())
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("close: %v", err)
+			}
+		})
+		_, unread, err = reopened.CaptureAttentionSnapshot(ctx, scope, ids)
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got, want := unread, []string{"new-occurrence"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	})
+	t.Run("Should reject foreign snapshots and share receipts only within the same operator profile", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAttentionTestDB(t)
+		insertAttentionTestProfile(t, db, "01K34OTHERPROFILE000000000", "other")
+		snapshot, _, err := db.CaptureAttentionSnapshot(ctx, scope, []string{"one"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, change := range []notifications.AttentionScope{
+			{ProfileID: "01K34OTHERPROFILE000000000", ActorKind: scope.ActorKind, ActorID: scope.ActorID, Population: scope.Population},
+			{ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: "other", Population: scope.Population},
+			{ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID, Population: "home-other-workspace"},
+		} {
+			if err := db.AcknowledgeAttentionSnapshot(ctx, change, snapshot, ""); !errors.Is(err, notifications.ErrAttentionSnapshotUnavailable) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		}
+		if err := db.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, "outside"); !errors.Is(err, notifications.ErrAttentionSnapshotUnavailable) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := db.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, "one"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		home := scope
+		home.Population = "home-selected-workspace"
+		_, unread, err := db.CaptureAttentionSnapshot(ctx, home, []string{"one"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(unread) != 0 {
+			t.Fatalf("expected empty, got %v", unread)
+		}
+		other := scope
+		other.ActorID = "other"
+		_, unread, err = db.CaptureAttentionSnapshot(ctx, other, []string{"one"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got, want := unread, []string{"one"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+		other = scope
+		other.ProfileID = "01K34OTHERPROFILE000000000"
+		_, unread, err = db.CaptureAttentionSnapshot(ctx, other, []string{"one"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got, want := unread, []string{"one"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	})
+	t.Run("Should retain every row after a partial bulk write failure and reject expired snapshots", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAttentionTestDB(t)
+		now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		db.now = func() time.Time { return now }
+		snapshot, _, err := db.CaptureAttentionSnapshot(ctx, scope, []string{"a", "b"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, err = db.db.ExecContext(ctx, `CREATE TRIGGER fail_attention_receipt BEFORE INSERT ON attention_acknowledgements WHEN NEW.occurrence_id = 'b' BEGIN SELECT RAISE(ABORT, 'injected storage failure'); END`)
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := db.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, ""); err == nil || !strings.Contains(err.Error(), "injected storage failure") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_, unread, err := db.CaptureAttentionSnapshot(ctx, scope, []string{"a", "b"})
+		if err := err; err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got, want := unread, []string{"a", "b"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+		now = now.Add(attentionSnapshotLifetime + time.Second)
+		err = db.AcknowledgeAttentionSnapshot(ctx, scope, snapshot, "")
+		if !(errors.Is(err, notifications.ErrAttentionSnapshotUnavailable)) {
+			t.Fatal("expected true: errors.Is(err, notifications.ErrAttentionSnapshotUnavailable)")
+		}
+	})
 }

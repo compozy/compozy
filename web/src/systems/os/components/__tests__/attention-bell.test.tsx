@@ -1,6 +1,6 @@
 // Suite: OS attention bell rows
 // Invariant: the bell renders Needs you and Finished as separate, populated-only
-// sections; finished-unseen work stays visible without a dismiss control; muted
+// sections; finished-unseen work can be acknowledged independently of opening it; muted
 // and stale rows stay listed and activatable; loop-node rows render only when
 // supplied and hand their deep-link state to the host.
 // Boundary IN: AttentionBell props, section shape, and row union.
@@ -115,13 +115,58 @@ describe("AttentionBell sections", () => {
     expect(screen.getByText("Release notes draft")).toBeInTheDocument();
   });
 
-  it("Should offer no manual dismiss — viewing a session is the only way to clear it", () => {
-    renderBell({
-      finished: [sessionRow({ id: "sess-done", badge: "done" })],
-    });
+  it("Should acknowledge individual and all notifications without opening source work", async () => {
+    const user = userEvent.setup();
+    const row = sessionRow({ notificationId: "occurrence-1", badge: "done" });
+    const onSelect = vi.fn();
+    const onAcknowledge = vi.fn();
+    render(
+      <AttentionBell
+        sections={{ needsYou: [], finished: [row] }}
+        total={230}
+        loading={false}
+        onSelect={onSelect}
+        onAcknowledge={onAcknowledge}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: `Mark ${row.title} as read` }));
+    expect(onAcknowledge).toHaveBeenCalledWith(row);
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(onAcknowledge).toHaveBeenLastCalledWith();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByText(/Showing 1 of 230/)).toBeInTheDocument();
+  });
 
-    expect(screen.queryByRole("button", { name: /mark .*seen/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /dismiss/i })).not.toBeInTheDocument();
+  it("Should retain failed rows and expose the acknowledgement error", () => {
+    const row = sessionRow({ notificationId: "occurrence-1" });
+    const { rerender } = render(
+      <AttentionBell
+        sections={{ needsYou: [row], finished: [] }}
+        loading={false}
+        pending
+        onSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+    expect(screen.getByRole("button", { name: `Mark ${row.title} as read` })).toBeDisabled();
+    rerender(
+      <AttentionBell
+        sections={{ needsYou: [row], finished: [] }}
+        loading={false}
+        error="Could not clear notifications"
+        onSelect={vi.fn()}
+        onAcknowledge={vi.fn()}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not clear notifications");
+    expect(screen.getByText(row.title)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear all" })).toBeEnabled();
   });
 
   it("Should name the workspace and the reason on a row", () => {

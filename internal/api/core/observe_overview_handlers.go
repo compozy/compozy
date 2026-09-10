@@ -22,14 +22,8 @@ func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
 		return
 	}
 
-	actor, err := h.taskActorContext(c, taskActionOverview)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-	readScope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
+	query, ok := h.attentionOverviewQuery(c)
+	if !ok {
 		return
 	}
 
@@ -39,25 +33,7 @@ func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
 		return
 	}
 
-	query := observe.OverviewQuery{
-		ReadScope:       readScope,
-		TaskScope:       taskpkg.CatalogScopeGlobal,
-		UsageWindowDays: usageWindow,
-		Actor:           actor.Actor,
-	}
-	if workspace := strings.TrimSpace(c.Query("workspace")); workspace != "" {
-		scope := taskpkg.CatalogScopeWorkspace
-		if err := h.resolveTaskCatalogWorkspace(
-			c.Request.Context(),
-			workspace,
-			&scope,
-			&query.WorkspaceID,
-		); err != nil {
-			h.respondError(c, StatusForTaskError(err), err)
-			return
-		}
-		query.TaskScope = scope
-	}
+	query.UsageWindowDays = usageWindow
 
 	view, err := observer.QueryObserveOverview(c.Request.Context(), query)
 	if err != nil {
@@ -81,4 +57,17 @@ func parseOverviewUsageWindow(raw string) (int, error) {
 		return 0, NewTaskValidationError(errOverviewUsageWindow)
 	}
 	return window, nil
+}
+
+func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.OverviewQuery) bool {
+	query.TaskScope = taskpkg.CatalogScopeGlobal
+	if workspace := strings.TrimSpace(c.Query("workspace")); workspace != "" {
+		scope := taskpkg.CatalogScopeWorkspace
+		if err := h.resolveTaskCatalogWorkspace(c.Request.Context(), workspace, &scope, &query.WorkspaceID); err != nil {
+			h.respondError(c, StatusForTaskError(err), err)
+			return false
+		}
+		query.TaskScope = scope
+	}
+	return true
 }
