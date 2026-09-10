@@ -50,22 +50,11 @@ func (r *Resolver) scanWorkspace(
 	profileName string,
 	skillsConfig *compozyconfig.SkillsConfig,
 ) (workspaceScan, error) {
-	if err := checkContext(ctx); err != nil {
-		return workspaceScan{}, err
-	}
-
-	scan := workspaceScan{
-		skillSources:        make(map[string]workspaceSkillScan),
-		snapshots:           make(map[string]filesnap.Snapshot),
-		agents:              make([]agentCandidate, 0),
-		skills:              make([]skillCandidate, 0),
-		profileDeclarations: make([]ProfileDeclaration, 0),
-	}
-	declarations, err := r.scanWorkspaceDependencies(ws, profileName, scan.snapshots)
+	scan, err := r.scanAgentConfig(ctx, ws, profileName)
 	if err != nil {
 		return workspaceScan{}, err
 	}
-	scan.profileDeclarations = declarations
+	scan.skillSources = make(map[string]workspaceSkillScan)
 
 	discoveryRoots := compozyconfig.WorkspaceDiscoveryRoots(
 		ws.RootDir,
@@ -84,9 +73,6 @@ func (r *Resolver) scanWorkspace(
 			return workspaceScan{}, err
 		}
 
-		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
-			return workspaceScan{}, err
-		}
 		rootSkillsConfig := skillsConfig
 		if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 			rootSkillsConfig = &globalConfig.Skills

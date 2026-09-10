@@ -76,6 +76,16 @@ type ResolvedWorkspace struct {
 	ResolvedAt          time.Time
 }
 
+// ResolvedAgentConfig contains workspace identity and the configuration used to resolve agents.
+type ResolvedAgentConfig struct {
+	Workspace
+	WorkspaceID string
+	ProfileID   string
+	ProfileName string
+	Config      compozyconfig.Config
+	Agents      []compozyconfig.AgentDef
+}
+
 // ProfileDeclaration identifies committed workspace content bound by profile name.
 type ProfileDeclaration struct {
 	Name string
