@@ -1137,6 +1137,13 @@ test.describe("Skills marketplace management", () => {
     await expect(
       sessionUI.chatView.getByText(skillsContextAcknowledgement, { exact: true })
     ).toHaveCount(1, { timeout: 30_000 });
+    // Acknowledgement text can arrive before the turn settles and the live
+    // transcript reconnects. This scenario needs a new prompt, not a busy steer.
+    await expect(sessionUI.composerSendButton).toBeVisible();
+    await expect(sessionUI.composerSendButton).not.toHaveAttribute(
+      "data-transport",
+      "disconnected"
+    );
     return session;
   }
 
