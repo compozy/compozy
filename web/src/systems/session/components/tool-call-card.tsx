@@ -1,6 +1,9 @@
 import { CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
 import { Suspense, useState, lazy } from "react";
 
+import { compactSessionSummary } from "../lib/session-summary";
+import { DetailPayload } from "./tool-renderers/detail-payload";
+
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
 import { fileDiffStatForTool } from "../lib/tool-diff-stat";
@@ -9,6 +12,7 @@ import {
   getToolIcon,
   getToolLabel,
   resolveRegisteredToolName,
+  toolHeadingName,
 } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
 import { isToolBodyField } from "../lib/tool-matched-field";
@@ -56,6 +60,7 @@ function formatToolPayload(message: UIMessage): string {
     return JSON.stringify(
       {
         tool: message.toolName,
+        ...(message.toolTitle ? { title: message.toolTitle } : {}),
         input: message.toolInput ?? {},
         output: message.toolResult ?? null,
         error: message.toolError === true,
@@ -113,9 +118,17 @@ function previewFor(
   status: ToolCallStatus
 ): string | undefined {
   if (status === "failed") {
-    return failurePreview(message, registryTool);
+    return compactSessionSummary(failurePreview(message, registryTool));
   }
-  const summary = getToolCompactSummary(registryTool, message.toolInput);
+  const description =
+    message.toolTitle && message.toolTitle !== registryTool
+      ? message.toolTitle
+      : message.toolName !== toolHeadingName(registryTool)
+        ? message.toolName
+        : undefined;
+  const summary = description
+    ? compactSessionSummary(description)
+    : getToolCompactSummary(registryTool, message.toolInput);
   if (registryTool === "Read" && status === "success" && summary) {
     const body = message.toolResult?.stdout ?? message.toolResult?.content;
     if (typeof body === "string" && body.length > 0) {
@@ -174,9 +187,17 @@ function toolCallPresentation({
   const showArtifactResult = message.toolResult?.truncated === true;
   // A find jump names the field it matched: that payload renders in full beside
   // the tool's own display, so the searched text is on screen (not only the
-  // specialized summary of it). Header fields (title, tool name, file) already show.
+  // specialized summary of it). Title/name matches open the original title below.
   const matchedField = revealOpen && isToolBodyField(revealField) ? revealField : null;
+  const titleDetail =
+    revealField === "tool_name" ? message.toolName : (message.toolTitle ?? message.toolName);
+  const showTitleDetail = Boolean(
+    titleDetail &&
+    (titleDetail !== toolHeadingName(registryTool) ||
+      (revealOpen && (revealField === "title" || revealField === "tool_name")))
+  );
   const showExpandedBody =
+    showTitleDetail ||
     showArtifactResult ||
     isSpecialized ||
     hasOutput ||
@@ -195,6 +216,8 @@ function toolCallPresentation({
     matchedField,
     showArtifactResult,
     showExpandedBody,
+    showTitleDetail,
+    titleDetail,
   };
 }
 
@@ -238,6 +261,8 @@ export function SessionToolCallRow({
     matchedField,
     showArtifactResult,
     showExpandedBody,
+    showTitleDetail,
+    titleDetail,
   } = toolCallPresentation({
     message,
     turnSettled,
@@ -289,6 +314,14 @@ export function SessionToolCallRow({
       >
         {showExpandedBody ? (
           <ToolCallRow.Output>
+            {showTitleDetail && titleDetail ? (
+              <DetailPayload
+                aria-label="Tool title"
+                text={titleDetail}
+                defaultExpanded
+                downloadName="tool-title.txt"
+              />
+            ) : null}
             {matchedField ? (
               <MatchedToolFieldContent message={message} field={matchedField} />
             ) : null}

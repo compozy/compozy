@@ -70,3 +70,15 @@ describe("tool visual state", () => {
     expect(parallelToolLabel(3)).toBe("Running 3 tools…");
   });
 });
+
+// Invariant: provider descriptions and agent prompts cannot become unbounded action headings.
+it("Should keep identity separate from long descriptive titles and bound agent previews", () => {
+  const title = "Inspect\n" + "ação 👩🏽‍💻 ".repeat(100);
+  expect(liveToolLabel("Bash", { command: "ls" }, title)).toMatchObject({ verb: "Running shell" });
+  expect(liveToolLabel(title).verb).toBe("Running tool");
+  expect(liveToolLabel(title).preview).not.toContain("\n");
+  const label = liveToolLabel("Agent", { prompt: title });
+  expect(label.verb).toBe("Running agent");
+  expect(label.preview).toMatch(/…$/);
+  expect(label.preview!.length).toBeLessThan(title.length);
+});

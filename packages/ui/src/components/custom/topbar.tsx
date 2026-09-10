@@ -3,6 +3,8 @@
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
+import { Popover, PopoverContent, PopoverTrigger } from "../popover";
+
 import { cn } from "../../lib/utils";
 import {
   DropdownMenu,
@@ -156,15 +158,9 @@ function TopbarIdentity({
               /
             </span>
           ) : null}
-          <h1
-            ref={titleRef}
-            tabIndex={-1}
-            data-slot="topbar-title"
-            data-testid="topbar-title-text"
-            className="min-w-0 truncate pl-0.5 text-ws-name font-semibold tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
-          >
+          <TopbarTitle titleRef={titleRef} className="pl-0.5">
             {leaf}
-          </h1>
+          </TopbarTitle>
         </nav>
       </div>
     );
@@ -187,21 +183,49 @@ function TopbarIdentity({
           {mark}
         </span>
       ) : null}
-      <h1
-        ref={titleRef}
-        tabIndex={-1}
-        data-slot="topbar-title"
-        data-testid="topbar-title-text"
-        className="min-w-0 truncate text-ws-name font-semibold tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
-      >
-        {leaf}
-      </h1>
+      <TopbarTitle titleRef={titleRef}>{leaf}</TopbarTitle>
       {slot?.count !== undefined && slot.count !== null ? (
         <span data-slot="topbar-count" className="font-mono text-mono-id tabular-nums text-faint">
           {slot.count}
         </span>
       ) : null}
     </div>
+  );
+}
+
+function TopbarTitle({
+  children,
+  titleRef,
+  className,
+}: {
+  children: React.ReactNode;
+  titleRef?: React.Ref<HTMLHeadingElement>;
+  className?: string;
+}) {
+  return (
+    <h1
+      ref={titleRef}
+      tabIndex={-1}
+      data-slot="topbar-title"
+      data-testid="topbar-title-text"
+      className={cn(
+        "min-w-0 max-w-xs text-ws-name font-semibold tracking-tight text-fg-strong outline-none",
+        className
+      )}
+    >
+      <Popover>
+        <PopoverTrigger className="block max-w-full truncate rounded-sm text-left focus-visible:outline-none focus-visible:shadow-focus-ring">
+          {children}
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          aria-label="Full title"
+          className="max-w-[calc(100vw-2rem)] whitespace-pre-wrap select-text [overflow-wrap:anywhere]"
+        >
+          {children}
+        </PopoverContent>
+      </Popover>
+    </h1>
   );
 }
 

@@ -107,6 +107,7 @@ export function toTimelineParts(message: {
           id,
           toolCallId: stringField(part, "toolCallId") ?? id,
           toolName: stringField(part, "toolName") ?? "tool",
+          toolTitle: stringField(part, "toolTitle"),
           args: recordField(part, "args"),
           result,
           isError,

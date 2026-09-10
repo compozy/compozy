@@ -212,3 +212,12 @@ export const SessionDocument: Story = {
     </TopbarSlotProvider>
   ),
 };
+
+/** Long session/window names stay readable at wide widths and expose the full label through keyboard/pointer disclosure. */
+export const LongTitle: Story = {
+  render: () => (
+    <TopbarSlotProvider>
+      <Topbar title={"Inspect session summary layout — ação 👩🏽‍💻 ".repeat(12)} />
+    </TopbarSlotProvider>
+  ),
+};

@@ -654,3 +654,46 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(screen.getAllByTestId("tool-matched-field")).toHaveLength(1);
   });
 });
+
+// Invariant: title summaries leave the exact title, input, and output available for keyboard disclosure/copy/find.
+// Owner: session tool card; canonical suite: tool-call-card.
+it("Should disclose a long provider title and copy its exact original payload", async () => {
+  const user = userEvent.setup();
+  const title = "Inspect fixture\n" + "ação 👩🏽‍💻 ".repeat(80) + "title-tail";
+  const message = makeToolMessage({
+    toolName: "Bash",
+    toolTitle: title,
+    toolInput: { command: "printf 'input-tail'" },
+    toolResult: { stdout: "output-tail" },
+  });
+  render(<SessionToolCallRow message={message} turnSettled />);
+  expect(queryToolName()).toHaveTextContent("Ran command");
+  expect(queryPreview()).not.toHaveTextContent("title-tail");
+  const trigger = screen.getByRole("button", { name: /Ran command.*Toggle tool call/ });
+  trigger.focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByLabelText("Tool title").textContent).toBe(title);
+  const writeText = vi.spyOn(navigator.clipboard, "writeText");
+  await user.click(screen.getByRole("button", { name: "Copy tool payload" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalled());
+  expect(JSON.parse(writeText.mock.calls[0]![0])).toMatchObject({
+    tool: "Bash",
+    title,
+    input: message.toolInput,
+    output: message.toolResult,
+  });
+});
+
+it("Should show a title-only unknown tool in full when find reveals its title", () => {
+  const title = "provider description ".repeat(80) + "title-only-tail";
+  render(
+    <SessionToolCallRow
+      message={makeToolMessage({ toolName: title, toolInput: undefined })}
+      turnSettled
+      revealOpen
+      revealField="title"
+    />
+  );
+  expect(screen.getByLabelText("Tool title").textContent).toBe(title);
+  expect(queryToolName()).toHaveTextContent("Used tool");
+});

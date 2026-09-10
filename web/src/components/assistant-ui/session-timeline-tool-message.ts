@@ -9,6 +9,7 @@ export function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
     role: part.result !== undefined || part.isError ? "tool_result" : "tool_call",
     content: "",
     toolName: part.toolName,
+    toolTitle: part.toolTitle,
     toolInput: part.args,
     toolResult: resolveToolResult(part.result),
     toolError: part.isError,

@@ -145,7 +145,12 @@ export function findMatchSource(
     kind,
     opensBody:
       kind === "reasoning" ||
-      (kind === "tool" && (field === "input" || field === "output" || field === "error")),
+      (kind === "tool" &&
+        (field === "input" ||
+          field === "output" ||
+          field === "error" ||
+          field === "title" ||
+          field === "tool_name")),
     partIndex,
     toolCallId: kind === "tool" ? (readString(part, "toolCallId") ?? null) : null,
   };

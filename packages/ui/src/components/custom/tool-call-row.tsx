@@ -144,11 +144,11 @@ function ToolCallRowInner({
       >
         {iconContent}
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+      <span className="flex min-w-0 max-w-sm flex-1 items-baseline gap-1.5">
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className="min-w-0 shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
+          className="min-w-0 max-w-xs shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
           title={nativeTitle(toolName)}
         >
           {toolName}

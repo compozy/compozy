@@ -169,6 +169,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
 }
 
 function SessionLiveToolRowContent({ row }: { row: SessionLiveToolRow }) {
+  const navigation = useOptionalSessionNavigationTarget();
   const store = useTimelineRowContext();
   const scrollStore = useOptionalThreadScrollStore();
   const reducedMotion = usePrefersReducedMotion();
@@ -180,6 +181,7 @@ function SessionLiveToolRowContent({ row }: { row: SessionLiveToolRow }) {
     <SessionLiveToolRowView
       row={hold.held && !row.expanded ? { ...row, expanded: true } : row}
       reducedMotion={reducedMotion}
+      reveal={hold.held ? navigation?.reveal : null}
       onToggle={() => {
         notifyDisclosureToggled(scrollStore);
         if (hold.held) {
