@@ -192,7 +192,8 @@ func (s *directoryScanner) visitDefinition(reportedCandidate string, entry fs.Di
 	if entry.Type()&os.ModeSymlink != 0 {
 		s.result.discovery.resolved[reportedCandidate] = realPath
 	}
-	s.result.discovery.files[realPath] = info
+	snapshot := filesnap.FromInfo(realPath, info)
+	s.result.discovery.files[realPath] = snapshot
 	s.result.Stats.ScannedCount++
 	s.budget.candidates++
 	candidateLimitReached := s.budget.candidates >= MaxCandidates
@@ -204,7 +205,6 @@ func (s *directoryScanner) visitDefinition(reportedCandidate string, entry fs.Di
 		return nil
 	}
 	s.seenRealPaths[realPath] = struct{}{}
-	snapshot := filesnap.Snapshot{ModTime: info.ModTime(), Size: info.Size()}
 	s.result.Paths = append(s.result.Paths, reportedCandidate)
 	s.result.Snapshots[reportedCandidate] = snapshot
 	s.result.RealPaths[reportedCandidate] = realPath
@@ -248,7 +248,7 @@ func (s *directoryScanner) followFirstLevelLinks() error {
 		}
 		if !info.IsDir() {
 			s.result.discovery.resolved[linkPath] = resolved
-			s.result.discovery.files[resolved] = info
+			s.result.discovery.files[resolved] = filesnap.FromInfo(resolved, info)
 			continue
 		}
 		if !pathWithinAnyTrustedRoot(resolved, s.trustedRoots) {

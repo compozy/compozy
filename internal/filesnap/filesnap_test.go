@@ -2,6 +2,7 @@ package filesnap
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,6 +88,127 @@ func TestEqual(t *testing.T) {
 			t.Fatal("Equal(different values) = true, want false")
 		}
 	})
+}
+
+func TestFromInfo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fingerprint file contents when change metadata is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "definition.md")
+		if err := os.WriteFile(path, []byte("alpha"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		metadata := withoutSystemMetadata{info}
+		before := FromInfo(path, metadata)
+		if !before.Equal(FromInfo(path, metadata)) {
+			t.Fatal("unchanged readable content must produce equal snapshots")
+		}
+		if err := os.WriteFile(path, []byte("bravo"), info.Mode()); err != nil {
+			t.Fatal(err)
+		}
+		if before.Equal(FromInfo(path, metadata)) {
+			t.Fatal("different file bytes with identical supplied metadata must invalidate the snapshot")
+		}
+	})
+
+	for _, directory := range []bool{false, true} {
+		name := "Should fingerprint directory entry names when change metadata is unavailable"
+		if directory {
+			name = "Should fingerprint directory entry types when change metadata is unavailable"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			child := filepath.Join(root, "original")
+			if err := os.WriteFile(child, []byte("content"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata := withoutSystemMetadata{info}
+			before := FromInfo(root, metadata)
+			if !before.Equal(FromInfo(root, metadata)) {
+				t.Fatal("unchanged directory entries must produce equal snapshots")
+			}
+			if directory {
+				if err := os.Remove(child); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(child, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.Rename(child, filepath.Join(root, "renamed")); err != nil {
+				t.Fatal(err)
+			}
+			if before.Equal(FromInfo(root, metadata)) {
+				t.Fatal("changed directory membership or type must invalidate the snapshot")
+			}
+		})
+	}
+
+	t.Run("Should fingerprint symbolic link targets when change metadata is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "linked")
+		if err := os.Symlink("original", path); err != nil {
+			t.Skipf("Symlink unavailable: %v", err)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		metadata := withoutSystemMetadata{info}
+		before := FromInfo(path, metadata)
+		if !before.Equal(FromInfo(path, metadata)) {
+			t.Fatal("unchanged symbolic link target must produce equal snapshots")
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink("retarget", path); err != nil {
+			t.Fatal(err)
+		}
+		if before.Equal(FromInfo(path, metadata)) {
+			t.Fatal("a different symbolic link target must invalidate the snapshot")
+		}
+	})
+
+	t.Run("Should keep unreadable fallback content uncacheable", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "definition.md")
+		if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		snapshot := FromInfo(path, withoutSystemMetadata{info})
+		if snapshot.Equal(snapshot) {
+			t.Fatal("a failed fallback read must never authorize snapshot reuse")
+		}
+	})
+}
+
+type withoutSystemMetadata struct {
+	fs.FileInfo
+}
+
+func (withoutSystemMetadata) Sys() any {
+	return nil
 }
 
 func TestCloneReturnsIndependentCopy(t *testing.T) {

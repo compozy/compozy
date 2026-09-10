@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+
+	"github.com/compozy/compozy/internal/filesnap"
 )
 
 type directorySnapshot struct {
 	root         string
 	trustedRoots []string
-	files        map[string]fs.FileInfo
+	files        map[string]filesnap.Snapshot
 	directories  map[string][]directoryEntry
 	resolved     map[string]string
 	complete     bool
@@ -27,7 +29,7 @@ type directoryEntry struct {
 func newDirectorySnapshot(root, resolved string, trustedRoots []string) *directorySnapshot {
 	return &directorySnapshot{
 		root: root, trustedRoots: slices.Clone(trustedRoots), complete: true,
-		files: make(map[string]fs.FileInfo), resolved: map[string]string{root: resolved},
+		files: make(map[string]filesnap.Snapshot), resolved: map[string]string{root: resolved},
 		directories: make(map[string][]directoryEntry),
 	}
 }
@@ -107,16 +109,14 @@ func (s *directorySnapshot) unchangedPaths(ctx context.Context) bool {
 	return true
 }
 
-// unchangedFiles requires unchanged identity, metadata, and filesystem change times for all recorded paths.
+// unchangedFiles revalidates every recorded file and directory against its captured snapshot.
 func (s *directorySnapshot) unchangedFiles(ctx context.Context) bool {
 	for path, expected := range s.files {
 		if ctx.Err() != nil {
 			return false
 		}
 		current, err := os.Lstat(path)
-		if err != nil || !os.SameFile(expected, current) || expected.Mode() != current.Mode() ||
-			expected.Size() != current.Size() || !expected.ModTime().Equal(current.ModTime()) ||
-			!sameFileChangeTime(expected, current) {
+		if err != nil || !expected.Equal(filesnap.FromInfo(path, current)) {
 			return false
 		}
 	}
@@ -145,7 +145,7 @@ func (s *directorySnapshot) track(path string, entry fs.DirEntry) {
 		s.complete = false
 		return
 	}
-	s.files[path] = info
+	s.files[path] = filesnap.FromInfo(path, info)
 }
 
 // merge combines linked discovery evidence and rejects incomplete or contradictory directory listings.

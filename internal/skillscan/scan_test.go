@@ -6,7 +6,6 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -15,7 +14,6 @@ import (
 
 func TestDirectoryResultUnchanged(t *testing.T) {
 	t.Parallel()
-	reusable := runtime.GOOS == "darwin" || runtime.GOOS == "linux"
 
 	for _, tc := range []struct {
 		name      string
@@ -55,8 +53,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(result.Paths) != 0 || result.Unchanged(t.Context(), root, trusted) != reusable {
-				t.Fatalf("initial discovery = %#v, want empty projection with reuse %t", result.Paths, reusable)
+			if len(result.Paths) != 0 || !result.Unchanged(t.Context(), root, trusted) {
+				t.Fatalf("initial discovery = %#v, want empty reusable projection", result.Paths)
 			}
 			definition := filepath.Join(nested, SkillFileName)
 			if tc.directory {
@@ -193,8 +191,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Unchanged(t.Context(), root, []string{root}) != reusable {
-				t.Fatalf("fresh complete discovery reuse must be %t on %s", reusable, runtime.GOOS)
+			if !result.Unchanged(t.Context(), root, []string{root}) {
+				t.Fatal("fresh complete discovery must be reusable")
 			}
 			tc.change(t, root, definition)
 			if result.Unchanged(t.Context(), root, []string{root}) {
@@ -238,8 +236,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 				if target == allowed && len(result.Paths) != 1 {
 					t.Fatalf("allowed projection = %#v, want one deduplicated definition", result.Paths)
 				}
-				if result.Unchanged(t.Context(), root, trusted) != reusable {
-					t.Fatalf("stable link discovery reuse must be %t on %s", reusable, runtime.GOOS)
+				if !result.Unchanged(t.Context(), root, trusted) {
+					t.Fatal("stable link discovery must be reusable")
 				}
 				if err := os.Remove(intermediate); err != nil {
 					t.Fatal(err)
@@ -296,8 +294,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(result.Paths) != 0 || result.Unchanged(t.Context(), root, trusted) != reusable {
-				t.Fatalf("initial discovery = %#v, want empty projection with reuse %t", result.Paths, reusable)
+			if len(result.Paths) != 0 || !result.Unchanged(t.Context(), root, trusted) {
+				t.Fatalf("initial discovery = %#v, want empty reusable projection", result.Paths)
 			}
 			if fileTarget {
 				if err := os.Remove(target); err != nil {

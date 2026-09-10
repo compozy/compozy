@@ -386,6 +386,7 @@ func resolveWatcherRootsProvider(
 	return roots, nil
 }
 
+// diffSnapshots reports additions, removals, and captured filesystem changes in stable path order.
 func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange {
 	changes := make([]fileChange, 0)
 
@@ -396,7 +397,7 @@ func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange 
 			continue
 		}
 
-		if snapshot.Size != previousSnapshot.Size || !snapshot.ModTime.Equal(previousSnapshot.ModTime) {
+		if !snapshot.Equal(previousSnapshot) {
 			changes = append(changes, fileChange{path: path, action: watcherModifiedKey})
 		}
 	}
