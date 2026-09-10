@@ -149,7 +149,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   };
 
   const create = useMutation({
-    mutationKey: terminalWindowCreateKey(workspaceId, windowId),
+    mutationKey: terminalWindowCreateKey(windowId),
     mutationFn: (identity: TerminalViewerIdentity) =>
       createTerminal(workspaceId, {}, destinationScope.params, identity),
     onSuccess: async terminal => {

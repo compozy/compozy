@@ -62,6 +62,7 @@ export function TerminalWindowBody(props: TerminalWindowBodyProps) {
   );
 }
 
+/** Renders the interactive attachment and process controls without owning managed-window closure. */
 function TerminalInteractiveWindowBody({
   terminal,
   viewerId,
@@ -169,6 +170,7 @@ function TerminalInteractiveWindowBody({
   );
 }
 
+/** Renders retained pipe output with Wait and Signal controls under the shared window-close flow. */
 function TerminalPipeWindowBody({
   terminal,
   workspaceId,

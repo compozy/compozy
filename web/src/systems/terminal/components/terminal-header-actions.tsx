@@ -124,6 +124,7 @@ export function TerminalWindowVerbs({
   );
 }
 
+/** Keeps pipe supervision actions available while window chrome owns close confirmation. */
 function TerminalPipeHeaderActions({
   onSignal,
   onWait,

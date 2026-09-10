@@ -110,32 +110,38 @@ describe("terminal window close lifecycle", () => {
     );
   });
 
-  it("Should retain pending creation across a shell rebind and allow closing after failure", async () => {
-    const client = new QueryClient();
-    const controller = new TerminalWindowClose();
-    let fail!: (error: Error) => void;
-    const mutation = client.getMutationCache().build(client, {
-      mutationKey: terminalWindowCreateKey("ws-close", terminalWindow.id),
-      mutationFn: () =>
-        new Promise((_resolve, reject) => {
-          fail = reject;
-        }),
-    });
-    const creation = mutation.execute(undefined).catch(() => undefined);
-    await waitFor(() => expect(fail).toBeDefined());
-    const guard = controller.guard("ws-close", client);
-    const launcher = { ...terminalWindow, instanceKey: null };
-    await expect(guard([launcher], () => true)).resolves.toBe(false);
-    // Profile switches replace the shell guard, but creation still belongs to
-    // the same workspace/window even while its destination profile changes.
-    controller.cancel();
-    const rebound = controller.guard("ws-close", client);
-    await expect(rebound([launcher], () => true)).resolves.toBe(false);
-    fail(new Error("create unavailable"));
-    await creation;
-    await expect(rebound([launcher], () => true)).resolves.toBe(true);
-    expect(closeTerminal).not.toHaveBeenCalled();
-  });
+  it.each(["ws-other", null])(
+    "Should retain pending creation when rebinding to workspace %s",
+    async workspaceId => {
+      const client = new QueryClient();
+      const controller = new TerminalWindowClose();
+      let fail!: (error: Error) => void;
+      const mutation = client.getMutationCache().build(client, {
+        mutationKey: terminalWindowCreateKey(terminalWindow.id),
+        mutationFn: () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      });
+      const creation = mutation.execute(undefined).catch(() => undefined);
+      await waitFor(() => expect(fail).toBeDefined());
+      const guard = controller.guard("ws-close", client);
+      const launcher = { ...terminalWindow, instanceKey: null };
+      await expect(guard([launcher], () => true)).resolves.toBe(false);
+      // The launcher keeps its identity while workspace/profile selection changes.
+      // Its initiating mutation must remain visible to the new shell guard.
+      controller.cancel();
+      const rebound = controller.guard(workspaceId, client);
+      await expect(rebound([launcher], () => true)).resolves.toBe(false);
+      await expect(rebound([{ ...launcher, id: "another-window" }], () => true)).resolves.toBe(
+        true
+      );
+      fail(new Error("create unavailable"));
+      await creation;
+      await expect(rebound([launcher], () => true)).resolves.toBe(true);
+      expect(closeTerminal).not.toHaveBeenCalled();
+    }
+  );
 
   it("Should await all concurrent closes after partial failure before allowing a fresh retry", async () => {
     const second = { ...DEV_SERVER_TERMINAL, id: "second", profile_name: "second-profile" };

@@ -9,9 +9,9 @@ interface CloseConfirmation {
   answer: (confirmed: boolean) => void;
 }
 
-/** Tracks launcher creation across destination-profile changes. */
-export const terminalWindowCreateKey = (workspaceId: string, windowId: string) =>
-  ["terminal-window-create", workspaceId, windowId] as const;
+/** Tracks one launcher across workspace and destination-profile changes. */
+export const terminalWindowCreateKey = (windowId: string) =>
+  ["terminal-window-create", windowId] as const;
 
 /** Operator-only orchestration; native window close remains view-only. */
 export class TerminalWindowClose {
@@ -27,20 +27,22 @@ export class TerminalWindowClose {
     return async (targets, isCurrent) => {
       const windows = targets.filter(window => window.app === "terminal");
       if (windows.length === 0) return true;
-      if (!workspaceId && windows.every(window => !window.instanceKey)) return true;
       try {
-        if (!workspaceId) throw new Error("Select the terminal's workspace before closing it.");
         if (
           windows.some(
             window =>
               !window.instanceKey &&
               queryClient.isMutating({
-                mutationKey: terminalWindowCreateKey(workspaceId, window.id),
+                mutationKey: terminalWindowCreateKey(window.id),
                 exact: true,
               }) > 0
           )
         ) {
           throw new Error("The terminal is still opening. Try closing it again when it is ready.");
+        }
+        if (!workspaceId) {
+          if (windows.every(window => !window.instanceKey)) return true;
+          throw new Error("Select the terminal's workspace before closing it.");
         }
         // Keep the terminal bundle lazy until an operator actually closes one.
         const api = await import("@/systems/terminal");

@@ -76,6 +76,7 @@ export function DesktopShell() {
   );
 }
 
+/** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
 function DesktopChrome({
   firstRun,
   updateAvailable,
