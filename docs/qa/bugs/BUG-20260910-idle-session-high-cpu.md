@@ -35,12 +35,18 @@ reused after constructor validation, unchanged skill discovery is reused after
 filesystem checks, hosted digests are reused after complete projection comparison,
 and native policy uses a separate config/agent resolver without skill inventory.
 Live availability, permissions, scope precedence and digest compatibility remain
-covered by regression tests and real runtime canaries.
+covered by regression tests and real runtime canaries. Review hardening also
+validates directory membership and captured filesystem change metadata, protects
+agent-config cache publication against invalidation races, and propagates
+metadata-preserving skill edits through the resource-catalog watcher.
 
 ## Verification
 
 See the owning report for the raw-evidence locations, controlled before/after
-measurements, regression suites, and final gate status. The final gate and strict QA audit passed; lab teardown is clean. The matching Go 1.26.4 runtime comparison
-reduced daemon CPU from 186.867% to 22.726% (87.84%), with two active sessions,
-two total sessions, and the same 237-tool catalog. Functional canaries passed;
-the installed user application has not been replaced.
+measurements, regression suites, and final gate status. The original local gate
+and strict QA audit passed. At the user's request, delivery gates for the final
+review commit run exclusively in CI. The matching Go 1.26.4 runtime comparison
+reduced daemon CPU from 186.867% to 21.157% (88.68%), with two active sessions,
+two total sessions, and the same 237-tool catalog. Functional canaries, including
+metadata-preserving edits, passed. Both labs report clean teardown with zero
+surviving processes; the installed user application has not been replaced.

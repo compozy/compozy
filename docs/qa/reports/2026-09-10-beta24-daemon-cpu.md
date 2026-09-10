@@ -97,8 +97,14 @@ mutation isolation, including the nested backend capability list. Conflict detec
 
 Skill discovery and parsed names are reused only after synchronously checking
 every traversed non-ignored directory, definition, filesystem identity, mode,
-size, modification time, and relevant resolved link target. Directory checks
-detect additions inside previously empty nested folders. Rejected first-level
+size, modification time, and relevant resolved link target. Directory snapshots
+also retain the entry names and types observed by the traversal and compare them
+with the current listing. This detects additions and file-to-directory changes
+even when directory timestamps and size are preserved. Darwin and Linux change
+times detect in-place definition edits that retain inode, size, and modification
+time. When those metadata are unavailable, captured content, directory-entry,
+or symlink-target fingerprints provide the fallback; failed reads prevent reuse
+without adding a new resolution error. Rejected first-level
 links are checked independently, so the five rejected links in the incident's
 workspace do not disable reuse of the entire valid tree. Incomplete, unreadable,
 and truncated discovery results remain conservative cache misses.
@@ -128,6 +134,13 @@ configuration dependencies, agent definitions, sandbox validation, and cache
 invalidation retain their existing checks. The resource agent catalog shares its
 lookup logic between full and policy-only inputs, retaining profile precedence,
 builtin fallback, and detached agent definitions.
+
+Review also identified a publication race in the new agent-config cache. An
+in-flight build now captures the invalidation generation and publishes only if
+that generation is still current. Both workspace-specific and global invalidation
+advance it, preventing an older load from repopulating an invalidated cache. The
+already-running caller can finish with its original result; subsequent callers
+reload the current configuration.
 
 The full projection continues to reevaluate live availability and policy. An
 authoritative generation is not invented for mutable native callbacks. This is
@@ -186,20 +199,36 @@ for the authoritative matching-toolchain comparison.
 | Released beta.24 | 1.26.4 | 56.94 | 30.471 | 186.867% |
 | First four corrections | 1.26.6 | 12.73 | 30.361 | 41.929% |
 | All five corrections | 1.26.6 | 7.32 | 30.417 | 24.065% |
-| All five corrections, matching release toolchain | 1.26.4 | 6.89 | 30.318 | 22.726% |
+| All five corrections before review hardening, matching release toolchain | 1.26.4 | 6.89 | 30.318 | 22.726% |
+| First review correction, before watcher hardening | 1.26.4 | 6.60 | 30.237 | 21.828% |
+| Final correction, including watcher publication | 1.26.4 | 6.40 | 30.251 | 21.157% |
 
 The first four corrections reduced CPU by 77.56% in this controlled comparison.
 A 30.17-second Go CPU profile then recorded 12.23 CPU-seconds and attributed the
 largest remaining cost to filesystem checks in policy resolution. This profile
 motivated the agent-config correction. The Go 1.26.6 representative result is
 87.12% less daemon CPU (7.76x lower) than released beta.24; this comparison includes
-the compiler patch-version difference. The authoritative Go 1.26.4 result is
+the compiler patch-version difference. The pre-review Go 1.26.4 result is
 **87.84% less CPU (8.22x lower)**. The remaining 22.726% is measured overhead,
 not a claim of zero idle cost. Two other worktrees were running frontend
 validation during this shared-host window. Thirty observations and before/after
 logs confirm this task's gate remained queued for the entire measurement.
 
-Final Go 1.26.6 scale checks, also with exactly two active and two total sessions:
+After the first review corrections, a fresh isolated lab with the same fixture measured
+**21.828% daemon CPU, 88.32% less than beta.24 (8.56x lower)**. Regular fixture
+paths and file-content hashes match the original representative lab; two active
+and two total sessions and the exact catalog hash were verified before and after
+the window. No local gate or test suite ran alongside this measurement.
+Both windows use Go 1.26.4, CGO disabled, and `-trimpath`. The small difference
+between the two corrected runs is shared-host variation, not a separate claimed
+performance gain from the cache correctness fixes.
+
+The final watcher-corrected binary measured **21.157% daemon CPU: 88.68% less
+than beta.24 (8.83x lower)**, with the same build flags, fixture, two active/two
+total sessions, and unchanged 237-tool catalog. This final window also ran
+without concurrent local gates or test suites.
+
+Pre-review Go 1.26.6 scale checks, also with exactly two active and two total sessions:
 
 | Synthetic skill roots | CPU-seconds | Wall seconds | Daemon CPU |
 | --- | ---: | ---: | ---: |
@@ -218,8 +247,18 @@ clients observed extension disable/enable transitions of 237 → 234 → 237 too
 and workspace `tools.enabled` changes of 237 → 0 → 237, restoring the exact
 original catalog hash each time. Nested skill creation, rename, and removal
 converged across MCP, CLI, and source provenance in 3.534, 2.896, and 3.085 seconds
-on the final Go 1.26.4 build. That catalog uses the existing three-second watcher interval; the resolver's own
+on the pre-review Go 1.26.4 build. That catalog uses the existing three-second watcher interval; the resolver's own
 synchronous mutation contract is covered separately by its regression suite.
+
+On the final watcher-corrected binary, nested create/rename/remove converged in
+2.567 / 2.921 / 3.054 seconds. Renaming `NOTES.md` to `SKILL.md` while preserving
+the parent directory's size and timestamps converged in 2.173 seconds; replacing
+a same-named file with a skill subtree converged in 1.678 seconds. In-place
+invalid-to-valid and valid-to-invalid definition edits, preserving inode, size,
+mode, and modification time, reached both MCP and CLI in 2.106 / 2.809 seconds.
+Both connected clients again observed configuration and extension transitions
+and recovered the exact original catalog; configuration bytes/absence and the
+fixture were restored. The existing ten-second convergence bound was retained.
 
 Behavior equivalence is checked separately for each correction:
 
@@ -258,6 +297,43 @@ This is the owning impact audit, following `docs/_memory/change-impact.md`.
   the corresponding runtime verification.
 
 ## Regression and delivery verification
+
+The remote-review remediation covers every severity and category, including
+CodeRabbit's pre-merge documentation warning. Greptile's preserved-directory
+metadata case failed before the listing correction. A separate same-inode
+invalid-to-valid and valid-to-invalid skill diagnostic passed on the original
+base, failed with discovery reuse, and passed after change-time validation.
+These cases are retained in the existing scanner and workspace cache suites.
+The actual MCP canary then exposed a separate, preexisting publication boundary:
+the skills watcher still compared only size and modification time before invoking
+the resource-catalog refresh callback. Both MCP and CLI missed the repaired
+definition for 9.945 seconds. Changing only its modification time published the
+same content in 1.010 seconds. The original failed canary and causal diagnostic
+are retained, rather than relabeled as passing evidence.
+The correction centralizes captured change metadata in `filesnap`, so directory
+discovery, registry caches, and the watcher use the same comparison. The watcher
+now triggers the existing resource-catalog refresh callback for these edits.
+Darwin/Linux snapshots use numeric filesystem identity and change time without
+reading file content; the fallback follows the existing extension-manifest
+fingerprinting approach. Tests in the existing snapshot and watcher suites cover
+publication, absence of extra refreshes, and fallback behavior. Those new tests
+are delegated to CI under the user's instruction.
+Registry ordering, registration error contracts, invalid-profile errors, and
+registration alias cases also have stronger assertions in their existing suites.
+The invalidation barrier regression fails for both workspace and global
+invalidation when run against the original unguarded cache publication; both
+cases pass with the generation guard. Before the watcher correction, an AST audit recorded documentation for
+71 of 71 touched production functions, with unchanged function bodies from the
+documentation edits and every production file below 500 lines.
+
+All issue comments, review bodies (including collapsed details), inline comments,
+review threads, and check annotations were paginated. The first review contained
+one Greptile finding, six CodeRabbit inline findings, and one CodeRabbit docstring
+coverage warning. No additional nitpick or outside-diff finding was present.
+React Doctor reported no project findings and explicitly skipped analysis because
+the PR changes no React files. The PR's current review/check records own the final
+remote disposition; `.cache/cpu-investigation/review-ledger.json` retains the local
+source-by-source inventory.
 
 The owning suites cover observable behavior at their existing boundaries:
 
@@ -298,32 +374,49 @@ That helper acquires the repository's shared verification lock and runs
 -parallel 4 -timeout 20m ./internal/daemon` with the existing hosted MCP workspace
 API, extension authoring, and extension lifecycle parity integration tests selected.
 It supplies the real daemon and ACP fixture binaries through the existing test
-configuration. Final runtime canaries passed on both toolchains. The matched
-Go 1.26.4 production build passed the representative CPU window and all canaries.
+configuration. Pre-review runtime canaries passed on both toolchains. The matched
+pre-review Go 1.26.4 build passed the representative CPU window and all canaries.
 Its SHA-256 is `c4bfad8774cf066f13549a163d176903e3988834dd1e63dfc94ff7eb7f6e385f`.
 
 ```sh
 GOTOOLCHAIN=go1.26.4 CGO_ENABLED=0 go build -trimpath -o .cache/cpu-investigation/compozy-policy-go1264 ./cmd/compozy
 ```
 
-`make gate` passed with zero lint issues: the affected Go race suites passed in
+The final reviewed binary is `.cache/cpu-investigation/compozy-watcher-go1264`,
+built with the same command and release toolchain from code commit
+`66100544f88d6ce9b0c2b5a8affec78a2a2fb9c9`. Its SHA-256 is
+`d092bb5c11ff30ab6bd7147d33128688ee8adc698f705a85a8a2c8eac2bb6a83`.
+The final measurement and runtime evidence live under
+`/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-review-20260910-181815-323329-lab/qa-artifacts/qa/`.
+Its canonical teardown also completed with `clean: true` and zero survivors.
+The final restoration record confirms the original fixture paths/content,
+configuration absence, skill count, and two-session state. The final strict QA
+audit awaits only the current-head CI evidence; its `final_verify` record will
+reference GitHub Actions rather than claim a local gate was run.
+
+Before remote review, `make gate` passed with zero lint issues: the affected Go race suites passed in
 276 seconds, including the daemon package in 253.321 seconds. The initial lint
 run found three promoted-field selector style issues in mutation-isolation tests;
 they were corrected without changing production behavior or assertions. The final
-run passed all affected lanes. Subsequent edits only record delivery evidence.
+run passed all affected lanes. The review regressions and focused race suites also
+passed locally before the user requested that subsequent delivery gates run only
+in CI. That instruction supersedes the default local-gate requirement for the
+final review commit. No new local gate or full validation suite is run afterward;
+the final commit's GitHub CI workflow is the delivery gate.
 
-The strict QA audit passed with zero blockers and zero warnings. Canonical lab
+The original strict QA audit passed with zero blockers and zero warnings. Canonical lab
 teardown completed with `clean: true` and zero surviving lab processes. The
 teardown first verified process identities and targeted only the six current lab
 processes; it did not stop the user's daemon or another worktree's processes.
 
-Final local evidence root:
+Original local evidence root:
 `/Users/pedronauck/dev/qa-labs/compozy-beta24-cpu-20260910-162426-604899-lab/qa-artifacts/qa/`.
 It contains `qa-audit-report.json`, `teardown.json`, `verification-report.md`,
 `logs/final-make-verify.log`, the final binary proof and the
 `final-policy-go1264-clean-state-representative-*` measurement/queue records.
-Formatting and commit-message checks were run directly before committing, avoiding
-lint-staged's automatic stash behavior. No schema, configuration key, tool ID, public
+Formatting and commit-message checks for the original fix were run directly before
+committing, avoiding lint-staged's automatic stash behavior. The review commit
+delegates final gates to CI as requested. No schema, configuration key, tool ID, public
 DTO, or persisted shape changes, so migrations and wire generation are not needed.
 
 ## Verification limits
