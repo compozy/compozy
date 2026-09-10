@@ -284,29 +284,34 @@ func TestMemoryExtractorOutputContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		for scope := range strings.SplitSeq(example.Scope, "|") {
-			example.Scope = scope
-			example.Type = "user"
-			example.Content = "The user prefers compact daily summaries."
-			example.AgentTier = ""
-			if scope == string(memcontract.ScopeAgent) {
-				example.AgentTier = string(memcontract.AgentTierGlobal)
-			}
-			output, err := json.Marshal(example)
-			if err != nil {
-				t.Fatal(err)
-			}
-			candidates, err := parseMemoryExtractorCandidates(string(output), turn, "", time.Time{})
-			if err != nil || len(candidates) != 1 {
-				t.Fatalf("advertised scope %q: candidates=%#v, error=%v", scope, candidates, err)
-			}
-			if candidates[0].Scope != memcontract.Scope(scope) {
-				t.Fatalf("candidate scope=%q, want %q", candidates[0].Scope, scope)
-			}
+			t.Run("Should parse "+scope+" scope", func(t *testing.T) {
+				t.Parallel()
+				candidateExample := example
+				candidateExample.Scope = scope
+				candidateExample.Type = "user"
+				candidateExample.Content = "The user prefers compact daily summaries."
+				candidateExample.AgentTier = ""
+				if scope == string(memcontract.ScopeAgent) {
+					candidateExample.AgentTier = string(memcontract.AgentTierGlobal)
+				}
+				output, err := json.Marshal(candidateExample)
+				if err != nil {
+					t.Fatal(err)
+				}
+				candidates, err := parseMemoryExtractorCandidates(string(output), turn, "", time.Time{})
+				if err != nil || len(candidates) != 1 {
+					t.Fatalf("advertised scope %q: candidates=%#v, error=%v", scope, candidates, err)
+				}
+				if candidates[0].Scope != memcontract.Scope(scope) {
+					t.Fatalf("candidate scope=%q, want %q", candidates[0].Scope, scope)
+				}
+			})
 		}
 	})
 	candidate := `{"type":"user","content":"Pedro prefers concise updates."}`
 	for _, tc := range []struct {
 		name, output string
+		wantError    string
 		count        int
 		failure      bool
 	}{
@@ -319,7 +324,7 @@ func TestMemoryExtractorOutputContract(t *testing.T) {
 		{name: "Should preserve candidates around unknown prose", output: "Here are the candidates:\n" + candidate, count: 1, failure: true},
 		{name: "Should reject unknown prose alone", output: "Unable to determine memories", failure: true},
 		{name: "Should reject invalid candidate fields", output: `{"type":"user","content":""}`, failure: true},
-		{name: "Should reject retired global scope", output: `{"type":"user","scope":"global","content":"Personal preference"}`, failure: true},
+		{name: "Should reject retired global scope", output: `{"type":"user","scope":"global","content":"Personal preference"}`, failure: true, wantError: `unsupported scope "global"`},
 		{name: "Should reject null", output: `null`, failure: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -330,6 +335,9 @@ func TestMemoryExtractorOutputContract(t *testing.T) {
 				"",
 				time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC),
 			)
+			if tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("parse error = %v, want %q", err, tc.wantError)
+			}
 			if len(candidates) != tc.count || (err != nil) != tc.failure {
 				t.Fatalf(
 					"parse = %d candidates, %v; want %d candidates, failure=%t",
