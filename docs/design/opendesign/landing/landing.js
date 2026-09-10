@@ -32,7 +32,7 @@
           }
         });
       },
-      { threshold: 0.12, rootMargin: "0px 0px -6% 0px" }
+      { threshold: 0.04, rootMargin: "0px 0px -4% 0px" } // low threshold so tall plates reveal as soon as they enter
     );
     revealables.forEach(function (n) {
       revealIO.observe(n);
@@ -296,6 +296,19 @@
       if (replayBtn) replayBtn.addEventListener("click", replay);
     }
   }
+
+  /* ---------- spotlight borders: one delegated pointer listener feeds --mx/--my to .spot cards ---------- */
+  document.addEventListener(
+    "pointermove",
+    function (e) {
+      var card = e.target && e.target.closest ? e.target.closest(".spot") : null;
+      if (!card) return;
+      var r = card.getBoundingClientRect();
+      card.style.setProperty("--mx", e.clientX - r.left + "px");
+      card.style.setProperty("--my", e.clientY - r.top + "px");
+    },
+    { passive: true }
+  );
 
   /* ---------- install: npm / Go add the bootstrap step ---------- */
   var installTabs = tablists["Install methods"];
