@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-07
+## 0.3.0 - 2026-09-10
 
 ### ♻️ Refactoring
 
@@ -69,6 +69,7 @@
 - Integrated terminal — runtime-owned shells for people and agents (#490)
 - Live steer and truthful stop for sessions (#555)
 - Manageable session queue, truthful live view, and legible transcripts (#557)
+- Add herdr bridge to community catalog (#560)
 
 ### 🐛 Bug Fixes
 
@@ -189,6 +190,26 @@
 - Stabilize loop recovery and simplify run inspection (#554)
 - Keep pending activity visible and repair CI synchronization
 - Prevent stale terminal catalog reads from replacing live state
+- Honor profile in operator tool catalog (#551)
+- Tolerate unmatched terms in memory recall (#569)
+- Scope startup tool guidance to session roles (#572)
+- Preserve migrated state during update recovery (#574)
+- Unify spec-cycle task completion semantics (#575)
+- Preserve provider command routing for spawned sessions (#576)
+- Preserve prior session profiles and bound metadata warnings (#578)
+- Preserve native model reasoning capabilities (#579)
+- Make memory opt-in and preserve pressure compaction (#580)
+- Resolve post-merge shutdown and verification failures
+- Keep loop authoring editable during validation
+- Preserve profile scope across loop run views (#583)
+- Preserve profile ownership in loop and memory runtimes (#582)
+- Reserve shutdown time for required cleanup (#581)
+- Retain the Global desktop across workspace catalog changes
+- Repair release integration contracts and lifecycle cleanup
+- Stabilize release lifecycle races and integration fixtures
+- Respect startup and shutdown lifecycle contexts
+- Preserve interrupted session identity and bridge progress bursts
+- Preserve cancellation delivery and pending activity deadlines
 
 ### 🔧 Miscellaneous Tasks
 
@@ -204,6 +225,9 @@
 - Fix failing tests
 - Stabilize Windows PTY read readiness
 - Drain Windows PTY startup output
+- Enable memory for the knowledge browser journey
+- Keep noncooperative ACP prompts alive after cancellation
+- Select the desktop workspace before awaiting its client
 
 ### Release Notes
 
@@ -1024,6 +1048,34 @@ Managed sessions load installed skills through the native `compozy__skill_view` 
 
 Migration notes: the managed CLI transport is deleted — the socket, `COMPOZY_AGENT_TRANSPORT_SOCKET`, the managed identity headers, and the managed skill API scope. Operator CLI behavior from a normal shell is unchanged.
 
+##### Memory and dreaming require explicit opt-in
+
+CompozyOS is a control plane, so it no longer starts persistent memory extraction or background
+dreaming from omitted settings. `memory.enabled` and `roles.dream.enabled` now default to `false`.
+To enable memory, set `memory.enabled = true` in `config.toml` and restart the daemon. Dreaming
+requires the separate `roles.dream.enabled = true` opt-in; enabling memory alone leaves it off.
+
+The enabled extractor now requests an explicit no-candidate result, accepts conventional empty
+responses and JSONL fences, and preserves valid candidates from mixed output. Malformed lines
+remain diagnosable failures instead of silently disappearing. Extraction failures and timeouts
+appear in the configured DLQ and extractor failure listing. Child-stop details distinguish failed
+or timed-out extraction from a parsed child response; successful inbox production owns the
+`memory.extractor.completed` event.
+
+Session pressure compaction remains independently controlled by `session.compaction.enabled`.
+It reuses checkpoint coverage and may launch a summary child when an active session reaches the
+pressure threshold, even with persistent memory disabled. Idle sessions and session-end memory
+updates do not start that work. An explicit checkpoint-role opt-out or a failed summary leaves
+uncovered events unarchived.
+
+### Migration notes
+
+No configuration is rewritten and no stored memory is deleted. Existing explicit `true` or `false`
+values retain their meaning; omitted values use the new disabled defaults. Profile and workspace
+role overrides keep their precedence under the daemon memory master switch. Existing public keys,
+tools, routes, and response shapes remain available. Raw extraction failures require a new
+extraction; replay remains limited to normalized candidate inbox failures. (#561)
+
 ##### One owner per Loop run, and cancellation that sticks
 
 Loop action runs now have exactly one daemon-owned worker, cancellation survives a restart, and a session that needs CompozyOS tools fails before the provider starts instead of running without them. Fresh CompozyOS homes also start with the bundled `dev-cycle` extension already enabled, while a home that has been booted before keeps whatever you chose. (#321, #322, #326)
@@ -1081,6 +1133,26 @@ PRs: [#545](https://github.com/compozy/compozy/pull/545), [#546](https://github.
 ##### Resource-only extensions need no toolchain
 
 An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
+
+##### Previous-release sessions remain readable after upgrade
+
+Sessions created by 0.3.0-beta.21 remain readable after upgrading. The persisted
+creation-profile codec accepts versions 4 and 5, validates their fields, and keeps
+historical profile references, policy digests, and creation digests unchanged.
+New runtime profiles continue to use version 5.
+
+Unreadable session metadata now produces a bounded scan summary with at most five
+examples. An unchanged set repeats at most once every five minutes per scanner;
+changed failures are reported immediately. `compozy doctor --only
+runtime.session_metadata -o json` reports live counts and a bounded sample,
+including missing or invalid catalog creation witnesses.
+
+Migration notes: the version 4 to 5 change added optional ACP selections. Version
+4 profiles upgrade through the persistence codec with no selections, preserving
+their original bytes and hashes instead of rewriting immutable witnesses. No SQL
+migration, config change, session deletion, or manual reset is required. Unknown
+versions and corrupted witnesses remain rejected and unchanged. This does not
+change dreaming defaults or claim to reproduce the reported CPU/disk measurements.
 
 ##### Run the Linux AppImage without installing libfuse2
 

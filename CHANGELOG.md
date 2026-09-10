@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-09-07
+## 0.3.0 - 2026-09-10
 
 ### ♻️ Refactoring
 
@@ -76,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integrated terminal — runtime-owned shells for people and agents (#490)
 - Live steer and truthful stop for sessions (#555)
 - Manageable session queue, truthful live view, and legible transcripts (#557)
+- Add herdr bridge to community catalog (#560)
 
 ### 🐛 Bug Fixes
 
@@ -196,6 +197,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilize loop recovery and simplify run inspection (#554)
 - Keep pending activity visible and repair CI synchronization
 - Prevent stale terminal catalog reads from replacing live state
+- Honor profile in operator tool catalog (#551)
+- Tolerate unmatched terms in memory recall (#569)
+- Scope startup tool guidance to session roles (#572)
+- Preserve migrated state during update recovery (#574)
+- Unify spec-cycle task completion semantics (#575)
+- Preserve provider command routing for spawned sessions (#576)
+- Preserve prior session profiles and bound metadata warnings (#578)
+- Preserve native model reasoning capabilities (#579)
+- Make memory opt-in and preserve pressure compaction (#580)
+- Resolve post-merge shutdown and verification failures
+- Keep loop authoring editable during validation
+- Preserve profile scope across loop run views (#583)
+- Preserve profile ownership in loop and memory runtimes (#582)
+- Reserve shutdown time for required cleanup (#581)
+- Retain the Global desktop across workspace catalog changes
+- Repair release integration contracts and lifecycle cleanup
+- Stabilize release lifecycle races and integration fixtures
+- Respect startup and shutdown lifecycle contexts
+- Preserve interrupted session identity and bridge progress bursts
+- Preserve cancellation delivery and pending activity deadlines
 
 ### 🔧 Miscellaneous Tasks
 
@@ -211,6 +232,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix failing tests
 - Stabilize Windows PTY read readiness
 - Drain Windows PTY startup output
+- Enable memory for the knowledge browser journey
+- Keep noncooperative ACP prompts alive after cancellation
+- Select the desktop workspace before awaiting its client
 
 ## 0.2.15 - 2026-07-17
 
