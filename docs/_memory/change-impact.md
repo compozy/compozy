@@ -37,3 +37,11 @@ owns the follow-up audit: captured terminal creation scope, stale-navigation
 rejection, explicit title-disclosure action names, public session imports, and
 review/CI disposition. Existing native, persisted, configuration, and official
 skill contracts remain unchanged.
+
+## Issue 602 — Embedded private endpoint verification
+
+- **Native tools:** Gateway status/audit, CLI and HTTP/UDS keep their IDs, DTOs and authorization. Existing provider causes gain safe failure classification; only a core-verified route becomes advertised.
+- **Extensibility and hooks:** The connectivity endpoint wire contract adds optional `verification_address` for a bounded loopback TCP relay. Go/TypeScript SDKs co-ship through codegen. Omission retains existing behavior; public proof rejects the field. No config, hook or manifest permission changes.
+- **Workspace data isolation:** Provider transports remain global gateway runtime resources, owned per tier and torn down before the node closes. No persisted schema or data migration. Public addresses exclude the relay; endpoint identity comparisons include it.
+- **Official Compozy skill:** Runtime Gateway guidance explains embedded private proof and safe diagnostic classes.
+- **Web/Docs:** Existing Gateway views consume provider causes without new UI state. Tailscale and extension-authoring guides describe transport, proof and recovery. `RT-connectivity-provider-route` owns the affected scenario. TLS, nonce, redirects, tier binding and public outbound policy retain their owning gateway suites; provider tests cover relay lifecycle.

@@ -116,10 +116,11 @@ type Confirmation struct {
 }
 
 type ConnectivityAdvertisedEndpoint struct {
-	URL          string `json:"url"`
-	Scheme       string `json:"scheme"`
-	SchemePolicy string `json:"scheme_policy,omitempty"`
-	Stability    string `json:"stability"`
+	URL                 string `json:"url"`
+	Scheme              string `json:"scheme"`
+	SchemePolicy        string `json:"scheme_policy,omitempty"`
+	Stability           string `json:"stability"`
+	VerificationAddress string `json:"verification_address,omitempty"`
 }
 
 type ConnectivityEstablishRequest struct {

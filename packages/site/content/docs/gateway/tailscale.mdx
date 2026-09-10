@@ -129,6 +129,13 @@ Public addresses are resolved through an authenticated DNS-over-TLS resolver
 (`gateway.verify.public_dns_resolver`, default `1.1.1.1:853`) rather than this machine's resolver,
 so a private MagicDNS answer can never stand in for the public route.
 
+Private verification travels through the embedded node's own network stack. The provider opens a
+loopback TCP relay with one fixed destination: its private HTTPS listener. The daemon sends TLS
+through that relay and still authenticates the advertised hostname, requires the exact tier
+challenge response, and rejects redirects. This works without a host Tailscale installation or a
+host route to Tailnet addresses. The relay is not an advertised address and closes with the tier.
+Public Funnel verification never uses this private transport.
+
 ## Where state lives
 
 The embedded node keeps its identity, and the private key of its issued certificate, in
@@ -138,14 +145,19 @@ fresh node.
 
 ## Troubleshooting
 
-| Symptom                                                      | Cause and fix                                                                                                           |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `TS_AUTHKEY binding is required`                             | No key bound, or the binding was removed. Run step 2. Expired and revoked keys fail the same way.                       |
-| `tailscale: tailnet HTTPS certificate domain is unavailable` | MagicDNS or HTTPS certificates are off. Enable both under **DNS** in the admin console.                                 |
-| `tailscale: provision HTTPS certificate: …`                  | Certificate issuance failed or timed out. Confirm HTTPS certificates are enabled, then let the daemon retry.            |
-| `tailscale: listen for public gateway: …`                    | Funnel is not allowed for this node. Grant the funnel policy in the admin console (step 1) and retry.                   |
-| `gateway endpoint unverified: endpoint probe failed`         | Usually public DNS still propagating. The daemon retries on its own; recheck status after a minute.                     |
-| Provider degraded with `forward target is unavailable`       | The tier's loopback listener stopped. Check daemon health with `compozy status`, then `compozy gateway status -o json`. |
+| Symptom                                                         | Cause and fix                                                                                                                                            |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TS_AUTHKEY binding is required`                                | No key bound, or the binding was removed. Run step 2. Expired and revoked keys fail the same way.                                                        |
+| `tailscale: tailnet HTTPS certificate domain is unavailable`    | MagicDNS or HTTPS certificates are off. Enable both under **DNS** in the admin console.                                                                  |
+| `tailscale: provision HTTPS certificate: …`                     | Certificate issuance failed or timed out. Confirm HTTPS certificates are enabled, then let the daemon retry.                                             |
+| `tailscale: listen for public gateway: …`                       | Funnel is not allowed for this node. Grant the funnel policy in the admin console (step 1) and retry.                                                    |
+| `endpoint DNS resolution failed`                                | The probe resolver could not resolve the endpoint. For public Funnel, check DNS propagation and the configured public resolver.                          |
+| `endpoint connection refused` or `endpoint network unreachable` | Check provider listener readiness and the network route. The embedded private provider uses its own tsnet transport.                                     |
+| `endpoint probe timed out`                                      | Check provider routing, listener readiness, and certificate provisioning. The daemon retries while keeping the endpoint unadvertised.                    |
+| `endpoint TLS certificate verification failed`                  | Check the endpoint hostname, certificate validity and system trust store. TLS verification must remain enabled.                                          |
+| `challenge returned HTTP …` or `challenge nonce did not match`  | The endpoint did not return the exact assigned tier challenge. Inspect forwarding and tier binding; a successful request to `/` is not sufficient proof. |
+| `endpoint transport failed` (or older `endpoint probe failed`)  | Inspect provider health and network connectivity. This message alone does not identify DNS propagation as the cause.                                     |
+| Provider degraded with `forward target is unavailable`          | The tier's loopback listener stopped. Check daemon health with `compozy status`, then `compozy gateway status -o json`.                                  |
 
 ## Remove it cleanly
 
