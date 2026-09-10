@@ -2,15 +2,20 @@ package tailscale
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -232,6 +237,103 @@ func TestTierForwarderBridgesToDaemonLoopback(t *testing.T) {
 	if err := forwarder.Close(ctx); err != nil {
 		t.Fatalf("Close(forwarder) error = %v", err)
 	}
+}
+
+func TestPrivateVerificationRelayLifecycle(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward the challenge through the private listener and close the relay", func(t *testing.T) {
+		t.Parallel()
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != challengePathPrefix+"private" || r.Host != "example.com:8443" {
+				t.Errorf("changed challenge request: %s %s", r.Host, r.URL.Path)
+			}
+			if _, err := io.WriteString(w, "exact-nonce"); err != nil {
+				t.Errorf("write challenge: %v", err)
+			}
+		}))
+		t.Cleanup(target.Close)
+		certificateSource := httptest.NewTLSServer(http.NotFoundHandler())
+		t.Cleanup(certificateSource.Close)
+		roots := x509.NewCertPool()
+		roots.AddCert(certificateSource.Certificate())
+		privateListener := tls.NewListener(newTestListener(t), certificateSource.TLS.Clone())
+		node := &fakeTailscaleNode{privateListener: privateListener, domains: []string{"example.com"}}
+		provider, err := NewProvider(t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider.newNode = func(string, *slog.Logger) (tailscaleNode, error) { return node, nil }
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := provider.Close(ctx); err != nil {
+				t.Errorf("close provider: %v", err)
+			}
+		})
+		req := compozysdk.ConnectivityEstablishRequest{
+			Tier:          tierPrivate,
+			ForwardTarget: strings.TrimPrefix(target.URL, "http://"),
+			ChallengePath: challengePathPrefix + "private",
+			Deadline:      time.Now().Add(time.Second),
+		}
+		reachable, err := provider.Establish(t.Context(), compozysdk.ExtensionContext{}, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		address := reachable.Endpoints[0].VerificationAddress
+		if address == "" {
+			t.Fatal("missing verification address")
+		}
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots},
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, address)
+			},
+		}
+		t.Cleanup(transport.CloseIdleConnections)
+		client := &http.Client{Transport: transport, Timeout: time.Second}
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"https://example.com:8443"+req.ChallengePath,
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusOK || string(body) != "exact-nonce" {
+			t.Fatalf("challenge: status=%d body=%q read=%v close=%v", response.StatusCode, body, readErr, closeErr)
+		}
+		status, err := provider.Status(
+			t.Context(),
+			compozysdk.ExtensionContext{},
+			compozysdk.ConnectivityStatusRequest{Tier: tierPrivate},
+		)
+		if err != nil || status.Endpoints[0] != reachable.Endpoints[0] {
+			t.Fatalf("status drift: %#v %v", status, err)
+		}
+		stopped, err := provider.Teardown(
+			t.Context(),
+			compozysdk.ExtensionContext{},
+			compozysdk.ConnectivityTeardownRequest{Tier: tierPrivate, Deadline: time.Now().Add(time.Second)},
+		)
+		if err != nil || !stopped.Stopped {
+			t.Fatalf("teardown: %#v %v", stopped, err)
+		}
+		conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(t.Context(), "tcp", address)
+		if err == nil {
+			if closeErr := conn.Close(); closeErr != nil {
+				t.Errorf("close connection: %v", closeErr)
+			}
+			t.Fatal("relay remained reachable after teardown")
+		}
+	})
 }
 
 func TestBundledManagedInstall(t *testing.T) {
@@ -524,6 +626,13 @@ func (n *fakeTailscaleNode) Up(context.Context) error {
 		<-release
 	}
 	return nil
+}
+
+func (n *fakeTailscaleNode) Dial(ctx context.Context, network, address string) (net.Conn, error) {
+	if network != "tcp" || len(n.domains) == 0 || address != net.JoinHostPort(n.domains[0], privateListenerPort) {
+		return nil, errors.New("unexpected private verification destination")
+	}
+	return (&net.Dialer{}).DialContext(ctx, network, n.privateListener.Addr().String())
 }
 
 func (n *fakeTailscaleNode) ListenPrivate(context.Context) (net.Listener, error) {

@@ -23,9 +23,10 @@ const (
 )
 
 type activeTier struct {
-	endpoint  compozysdk.ConnectivityAdvertisedEndpoint
-	domain    string
-	forwarder *tierForwarder
+	endpoint     compozysdk.ConnectivityAdvertisedEndpoint
+	domain       string
+	forwarder    *tierForwarder
+	verification *tierForwarder
 }
 
 type activeTierEntry struct {
@@ -114,8 +115,15 @@ func (p *Provider) Establish(
 	if err != nil {
 		return result, errors.Join(err, closeListener(listener))
 	}
+	verification, err := startVerificationRelay(callCtx, node, tier, domain, p.logger)
+	if err != nil {
+		return result, errors.Join(err, closeListener(listener))
+	}
+	if verification != nil {
+		endpoint.VerificationAddress = verification.listener.Addr().String()
+	}
 	forwarder.Start()
-	active := &activeTier{endpoint: endpoint, domain: domain, forwarder: forwarder}
+	active := &activeTier{endpoint: endpoint, domain: domain, forwarder: forwarder, verification: verification}
 	p.mu.Lock()
 	p.tiers[tier] = active
 	p.mu.Unlock()
@@ -192,7 +200,7 @@ func (p *Provider) Teardown(
 	active := p.active(tier)
 	var stopErr error
 	if active != nil {
-		stopErr = active.forwarder.Close(stopCtx)
+		stopErr = errors.Join(active.verification.Close(stopCtx), active.forwarder.Close(stopCtx))
 		if stopErr == nil {
 			p.removeActiveIf(tier, active)
 		}
@@ -223,7 +231,7 @@ func (p *Provider) Close(ctx context.Context) error {
 	p.mu.RUnlock()
 	var errs []error
 	for _, entry := range entries {
-		if err := entry.active.forwarder.Close(ctx); err != nil {
+		if err := errors.Join(entry.active.verification.Close(ctx), entry.active.forwarder.Close(ctx)); err != nil {
 			errs = append(errs, err)
 			continue
 		}

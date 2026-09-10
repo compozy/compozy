@@ -28,6 +28,7 @@ type settingsRuntimeSurface struct {
 	observer          Observer
 	memoryStore       *memory.Store
 	dreamTrigger      DreamTrigger
+	roles             core.RolesStatusProvider
 	automation        automationRuntime
 	network           networkRuntime
 	mcpAuthStore      mcpauth.TokenStore
@@ -93,6 +94,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		observer:          state.observer,
 		memoryStore:       state.memoryStore,
 		dreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
+		roles:             roleResolverForState(state),
 		automation:        state.automation,
 		network:           state.network,
 		mcpAuthStore:      mcpAuthStore,
@@ -169,8 +171,14 @@ func (s *settingsRuntimeSurface) GeneralRuntimeStatus(
 
 func (s *settingsRuntimeSurface) MemoryHealthStatus(ctx context.Context) (settingspkg.MemoryHealthStatus, error) {
 	status := settingspkg.MemoryHealthStatus{
-		Available:    s.memoryStore != nil,
-		DreamEnabled: s.dreamTrigger != nil && s.dreamTrigger.Enabled(),
+		Available: s.memoryStore != nil,
+	}
+	if s.dreamTrigger != nil {
+		role, err := core.MemoryDreamRoleStatus(ctx, s.roles, "")
+		if err != nil {
+			return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health: %w", err)
+		}
+		status.DreamEnabled = role.Enabled
 	}
 	if s.memoryStore == nil {
 		return status, nil

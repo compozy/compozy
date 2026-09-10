@@ -14,7 +14,11 @@ import (
 )
 
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {
+	sectionsDelivered := false
 	defer func() {
+		if !sectionsDelivered {
+			proc.forgetPromptSections(req.Sections)
+		}
 		if active != nil && active.cancel != nil {
 			active.cancel()
 		}
@@ -52,6 +56,10 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	if _, included := promptRequest.Meta["system"]; included {
 		proc.markSystemPromptSent()
 	}
+	if ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
+		proc.markPromptSectionsDelivered(req)
+		sectionsDelivered = true
+	}
 
 	usage := proc.mergePromptUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage))
 	doneEvent := AgentEvent{
@@ -73,7 +81,8 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	if err != nil {
 		return acpsdk.PromptRequest{}, err
 	}
-	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(req.Message)
+	message := proc.compactPromptSections(req.Message, req.Sections)
+	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
 	if promptText != "" {
 		prompt = append(prompt, textBlockWithPromptCacheControl(promptText, proc.promptCacheControl))

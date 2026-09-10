@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Sources · Marketplace catalog · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="marketplace-catalog.css">
+<!--
+  marketplace-catalog-sources · S5 — plugin marketplaces as catalog sources.
+  Compozy already installs Agent Plugins packages; this board makes the
+  ecosystem's marketplace documents (marketplace.json with a plugins[] list)
+  feed the Extensions catalog. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — settings group/panelbox/srow grammar, skill-sources board 01
+                 collapsible-row grammar (preset table + custom rows), Agent
+                 Plugins reader (internal/extension/agentplugin), client-layout
+                 rejection (AgentPluginClientLayoutError).
+    reference  — Codex “Marketplace” tab (one row per marketplace: name · N plugins
+                 · path · Upgrade · remove), Grok “Team plugins” attribution.
+    delta      — new config `marketplace.plugin_sources`, preset feed
+                 catalog/marketplaces.json, new routes + CLI, new listing fields
+                 `layout` and `icon`.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Marketplace catalog</a><span class="w2-sep">/</span><h1 class="w2-title">Sources</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="marketplace-catalog-cut.html">← The cut</a><a class="btn btn--sm" href="index.html">Back to set</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="mc-contract" data-od-id="sr-contract" aria-label="What this board is">
+      <div class="mc-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="mc-contract__what"><b>S5 — every plugin out there, in our list.</b> Everything in the marketplace is an extension, and Compozy already installs Agent Plugins packages. What it cannot do yet is <b>read a plugin marketplace</b> — the <span class="mono-id">marketplace.json</span> document Claude Code, Codex, and Cursor users already point at. This board adds that: a marketplace is a source you register once (GitHub repository or local folder), Compozy fetches its plugin list on the catalog schedule, and each plugin becomes an Extensions entry under a section named after the marketplace. Compozy ships a short preset list so the official marketplaces are there on day one. Every plugin the document lists installs, whatever layout it keeps its manifest in (§04, Q1 decided).</p>
+        <p class="mc-contract__file">marketplace-catalog-sources.html · S5 · Settings › Marketplace › Plugin marketplaces · config marketplace.plugin_sources</p>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="mc-mods">
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>internal/marketplace/pluginsource</b><i>new package</i>fetches a marketplace document (GitHub raw / git / file), decodes <code>plugins[]</code> (name · source · description · version · author · homepage · repository · license · keywords · category · icon), emits extension entries <code>format: agent-plugin</code> · <code>source: &lt;marketplace name&gt;</code> · <code>layout</code></span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>marketplace.plugin_sources</b><i>internal/config/marketplace.go</i><code>[[marketplace.plugin_sources]] name · source · enabled</code>; presets from <code>catalog/marketplaces.json</code> (new feed, manifest v2) with <code>default: on|off</code></span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>routes</b><i>internal/api/httpapi + udsapi · OpenAPI · generated TS</i><code>GET/POST/DELETE /api/marketplace/sources</code> · <code>POST /api/marketplace/sources/:name/refresh</code> (co-ship per eng-contract-codegen-coship)</span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>compozy marketplace sources</b><i>internal/cli/marketplace.go</i><code>list · add &lt;ref&gt; · remove &lt;name&gt; · refresh [name]</code></span></li>
+          <li><span class="mc-mod mc-mod--backend">backend</span><span><b>install from a marketplace plugin</b><i>internal/extension/marketplace_lifecycle.go</i>plugin <code>source</code> relative path → inside the marketplace checkout; <code>github:</code> / url → existing installers; loader accepts <code>.claude-plugin/</code>, <code>.codex-plugin/</code>, <code>.cursor-plugin/</code> manifests as aliases (Q1)</span></li>
+          <li><span class="mc-mod mc-mod--new">new</span><span><b>SettingsMarketplaceSourcesSection · MarketplaceSourceRow</b><i>web/src/systems/settings/components/settings-marketplace-sources-section.tsx · marketplace-source-row.tsx</i>Collapsible rows on the skill-sources grammar; hosted on a new Settings › Marketplace page that also holds the existing <code>marketplace.catalog.*</code> keys</span></li>
+          <li><span class="mc-mod mc-mod--new">new</span><span><b>AddMarketplaceDialog</b><i>web/src/systems/marketplace/components/add-marketplace-dialog.tsx</i>one field, validate, add; opened from Add ▾ and from Settings</span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>MarketplaceCatalogSection</b><i>board 01</i>one section per enabled marketplace with plugins; gist = “Plugin marketplace · owner/repo”</span></li>
+          <li><span class="mc-mod mc-mod--reuse">reuse</span><span><b>SettingsGroup · Collapsible · Switch · Pill · Dialog · Input · Button</b><i>@compozy/ui + settings system — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="mc-states">
+          <li><a href="#sr-rows">Settings — one line per marketplace</a><code>sources VC-01</code></li>
+          <li><a href="#sr-add">Add a plugin marketplace — dialog</a><code>sources VC-02</code></li>
+          <li><a href="#sr-degraded">Could not refresh · not a marketplace</a><code>sources VC-03 · 04</code></li>
+          <li><a href="#sr-layout">Plugin layouts — what installs</a><code>sources VC-05</code></li>
+          <li><a href="#sr-cli">Agent parity — the CLI twin</a><code>sources VC-06</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · ROWS ===== -->
+    <section class="lab-sec" id="sr-rows" data-od-id="sr-rows">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings › Marketplace — one collapsible line per source</h2><span class="lab-sec__gist">sources VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same grammar as skill sources.</b> The Compozy catalog is the first line and is always on. Below it, the preset marketplaces Compozy recommends (on or off by default), then anything you added, marked <code>custom</code>. Closed, a line says name · count · switch. Open, it shows where it comes from, when it was last read, and how many of its plugins can be installed. Turning a marketplace off hides its section in Browse; already-installed plugins stay installed.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas" style="max-width:820px" data-od-id="sr-rows-demo">
+            <div class="sgroup"><div class="sgroup__t">Plugin marketplaces</div><p class="sgroup__d">Marketplaces you turn on list their plugins under Extensions. Nothing installs until you choose to.</p></div>
+            <div class="panelbox">
+              <details class="mkt-src" data-od-id="sr-row-compozy">
+                <summary class="mkt-src__sum"><svg class="disclosure-icon" data-lucide="chevron-down"></svg><span class="mkt-src__name">Compozy catalog</span><span class="mkt-src__meta">built in</span><span class="mkt-src__trail"><span class="mkt-src__meta">20 extensions</span><span class="mkt-src__meta" style="color:var(--faint)">always on</span></span><i class="mc-n">1</i></summary>
+                <div class="mkt-src__body">
+                  <div class="mkt-src__kv"><span class="k">Feed</span><span class="v mono-id">https://raw.githubusercontent.com/compozy/compozy/main/catalog</span></div>
+                  <div class="mkt-src__kv"><span class="k">Last read</span><span class="v">12 minutes ago · refreshes every hour</span></div>
+                </div>
+              </details>
+              <details class="mkt-src" open data-od-id="sr-row-anthropic">
+                <summary class="mkt-src__sum"><svg class="disclosure-icon" data-lucide="chevron-down"></svg><span class="mkt-src__name">claude-plugins-official</span><span class="mkt-src__trail"><span class="mkt-src__meta">6 plugins</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="List claude-plugins-official under Extensions"><span class="knob"></span></button></span><i class="mc-n">2</i></summary>
+                <div class="mkt-src__body">
+                  <div class="mkt-src__kv"><span class="k">Repository</span><span class="v mono-id">github.com/anthropics/claude-plugins-official</span></div>
+                  <div class="mkt-src__kv"><span class="k">Document</span><span class="v mono-id">.claude-plugin/marketplace.json · owner Anthropic</span></div>
+                  <div class="mkt-src__kv"><span class="k">Last read</span><span class="v">12 minutes ago · refreshes with the catalog</span></div>
+                  <div class="mkt-src__kv"><span class="k">Plugins</span><span class="v">6 listed · 6 can be installed<i class="mc-n">3</i></span></div>
+                  <div class="mkt-src__acts"><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="refresh-cw"></svg>Refresh now</button><a class="btn btn--ghost btn--sm" href="marketplace-catalog-browse.html#br-default"><svg data-lucide="store"></svg>Show in Marketplace</a></div>
+                </div>
+              </details>
+              <details class="mkt-src" data-od-id="sr-row-openai">
+                <summary class="mkt-src__sum"><svg class="disclosure-icon" data-lucide="chevron-down"></svg><span class="mkt-src__name">openai-codex</span><span class="mkt-src__trail"><span class="mkt-src__meta">off</span><button class="switch" type="button" role="switch" aria-checked="false" aria-label="List openai-codex under Extensions"><span class="knob"></span></button></span><i class="mc-n">4</i></summary>
+                <div class="mkt-src__body">
+                  <div class="mkt-src__kv"><span class="k">Repository</span><span class="v mono-id">github.com/openai/codex</span></div>
+                  <p class="mkt-src__sentence">Turn it on to read its plugin list. Compozy will not contact this repository until then.</p>
+                </div>
+              </details>
+              <details class="mkt-src" data-od-id="sr-row-team">
+                <summary class="mkt-src__sum"><svg class="disclosure-icon" data-lucide="chevron-down"></svg><span class="mkt-src__name">team-plugins</span><span class="pill pill--xs" data-form="hollow">custom</span><span class="mkt-src__trail"><span class="mkt-src__meta">4 plugins</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="List team-plugins under Extensions"><span class="knob"></span></button></span><i class="mc-n">5</i></summary>
+                <div class="mkt-src__body">
+                  <div class="mkt-src__kv"><span class="k">Folder</span><span class="v mono-id">~/Dev/team-plugins</span></div>
+                  <div class="mkt-src__kv"><span class="k">Document</span><span class="v mono-id">marketplace.json · owner Compozy team</span></div>
+                  <div class="mkt-src__kv"><span class="k">Last read</span><span class="v">on every open · local folder</span></div>
+                  <div class="mkt-src__kv"><span class="k">Plugins</span><span class="v">4 listed · 4 can be installed</span></div>
+                  <div class="mkt-src__acts"><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="refresh-cw"></svg>Refresh now</button><button class="btn btn--ghost btn--sm" type="button" style="color:var(--danger)"><svg data-lucide="trash-2"></svg>Remove</button></div>
+                </div>
+              </details>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn--outline btn--sm" type="button"><svg data-lucide="plus"></svg>Add plugin marketplace…</button><i class="mc-n">6</i></div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Compozy catalog</b> <em>always on, no switch (“always on” in faint text) · open shows the feed URL and refresh cadence — the existing <code>marketplace.catalog.*</code> keys, surfaced where they belong.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Preset, on</b> <em>from <code>catalog/marketplaces.json</code> (<code>default: on</code>) · 44px summary: chevron · name · count · Switch 32×18. Rendered open here because the body is the subject.</em></span></li>
+            <li><i class="mc-n">3</i><span><b>Plugins line</b> <em>“n listed · m can be installed”; m &lt; n only when a listed plugin has no manifest at all (dropped at decode with a diagnostic) — every layout installs (§04).</em></span></li>
+            <li><i class="mc-n">4</i><span><b>Preset, off</b> <em><code>default: off</code> · no network until switched on · the row still shows its repository so the choice is informed.</em></span></li>
+            <li><i class="mc-n">5</i><span><b>Custom</b> <em>hollow <code>custom</code> pill · Remove lives inside the fold (danger ghost) — presets cannot be removed, only turned off.</em></span></li>
+            <li><i class="mc-n">6</i><span><b>Add</b> <em>outline sm under the box · same dialog as Add ▾ in the marketplace head.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>4 sources · 1 custom · 1 off</span><span class="mc-tag"><b>component</b>SettingsMarketplaceSourcesSection · MarketplaceSourceRow</span><span class="mc-tag"><b>VC</b>sources/VC-01</span><span class="mc-tag"><b>tone</b>none · danger on Remove only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ADD ===== -->
+    <section class="lab-sec" id="sr-add" data-od-id="sr-add">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Add a plugin marketplace — one field, a check, then Add</h2><span class="lab-sec__gist">sources VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Paste what you have.</b> <code>owner/repo</code>, a GitHub URL, or a local folder. On blur the daemon fetches the document and the dialog shows what it found — name, owner, plugin count, how many are installable — before you commit. Add registers it enabled and refreshes; the marketplace head gets a toast with “Show in Marketplace”. Nothing is installed by adding a marketplace.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><div class="lab-cell__t">Empty → validating</div>
+              <div class="plain plain--flush plain--canvas" style="display:grid;place-items:center;padding:16px">
+                <div class="dialog dialog--sm" role="dialog" aria-labelledby="sr-add-t1" style="position:static;transform:none" data-od-id="sr-add-dialog-empty">
+                  <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="store"></svg></span><div class="dialog__head-main"><h3 class="dialog__title" id="sr-add-t1">Add a plugin marketplace</h3><p class="dialog__desc">Compozy reads its plugin list and shows the plugins under Extensions. Nothing installs until you choose to.</p></div><button class="dialog__close" type="button" aria-label="Close"><svg data-lucide="x"></svg></button></div>
+                  <div class="dialog__body"><label class="eyebrow" for="sr-add-i1" style="display:block;margin-bottom:6px">GitHub repository or folder</label><input class="input input--mono" id="sr-add-i1" placeholder="owner/repo · https://github.com/owner/repo · /path/to/folder"><p class="mkt-src__sentence" style="margin-top:8px">The repository needs a <span class="code">marketplace.json</span> at its root or under <span class="code">.claude-plugin/</span>.</p></div>
+                  <div class="dialog__foot"><button class="btn btn--ghost btn--sm" type="button">Cancel</button><button class="btn btn--primary btn--sm" type="button" disabled>Add marketplace</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">Found — ready to add</div>
+              <div class="plain plain--flush plain--canvas" style="display:grid;place-items:center;padding:16px">
+                <div class="dialog dialog--sm" role="dialog" aria-labelledby="sr-add-t2" style="position:static;transform:none" data-od-id="sr-add-dialog-found">
+                  <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="store"></svg></span><div class="dialog__head-main"><h3 class="dialog__title" id="sr-add-t2">Add a plugin marketplace</h3><p class="dialog__desc">Compozy reads its plugin list and shows the plugins under Extensions. Nothing installs until you choose to.</p></div><button class="dialog__close" type="button" aria-label="Close"><svg data-lucide="x"></svg></button></div>
+                  <div class="dialog__body">
+                    <label class="eyebrow" for="sr-add-i2" style="display:block;margin-bottom:6px">GitHub repository or folder</label><input class="input input--mono" id="sr-add-i2" value="anthropics/claude-plugins-official">
+                    <div class="notice notice--success" style="margin-top:12px"><svg data-lucide="check"></svg><span><b>claude-plugins-official</b> · owner Anthropic · 6 plugins listed, 6 can be installed. Read from <span class="mono-id">.claude-plugin/marketplace.json</span>.</span></div><i class="mc-n">1</i>
+                  </div>
+                  <div class="dialog__foot"><span class="dialog__foot-note"><svg data-lucide="info"></svg><span>Refreshes with the catalog, every hour.</span></span><button class="btn btn--ghost btn--sm" type="button">Cancel</button><button class="btn btn--primary btn--sm" type="button">Add marketplace</button><i class="mc-n">2</i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Found</b> <em>ds-core <code>.notice--success</code> with the parsed identity · the check is <code>POST /api/marketplace/sources?dry_run=true</code> (same decoder, nothing persisted).</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Primary</b> <em>the dialog’s one accent action, enabled only after a successful check. Name conflicts append the owner (“claude-plugins-official · anthropic”) and say so.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>empty · found</span><span class="mc-tag"><b>component</b>AddMarketplaceDialog</span><span class="mc-tag"><b>VC</b>sources/VC-02</span><span class="mc-tag"><b>tone</b>success (found) · accent (1)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DEGRADED ===== -->
+    <section class="lab-sec" id="sr-degraded" data-od-id="sr-degraded">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Could not refresh · not a marketplace</h2><span class="lab-sec__gist">sources VC-03 · VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Plain sentence first, code after.</b> A marketplace that failed its last refresh keeps serving the plugins it last read, says so in the row, and shows the reason inside the fold. A reference that has no marketplace document is refused in the dialog with the sentence and the path it looked at. Machine truth (error class, HTTP status) demotes to micro mono.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><div class="lab-cell__t">Could not refresh <code>sources VC-03</code></div>
+              <div class="plain plain--flush plain--canvas"><div class="panelbox" style="border:0;border-radius:0">
+                <details class="mkt-src" open data-od-id="sr-row-degraded">
+                  <summary class="mkt-src__sum"><svg class="disclosure-icon" data-lucide="chevron-down"></svg><span class="mkt-src__name">team-plugins</span><span class="pill pill--xs" data-form="hollow">custom</span><span class="pill pill--xs" data-tone="warning">couldn’t refresh</span><span class="mkt-src__trail"><span class="mkt-src__meta">4 plugins</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="List team-plugins under Extensions"><span class="knob"></span></button></span><i class="mc-n">1</i></summary>
+                  <div class="mkt-src__body">
+                    <p class="mkt-src__sentence"><b>The folder is not reachable right now.</b> Its 4 plugins still show in the Marketplace from the last read, 3 days ago.</p>
+                    <div class="mkt-src__kv"><span class="k">Folder</span><span class="v mono-id">~/Dev/team-plugins</span></div>
+                    <div class="mkt-src__kv"><span class="k">Reason</span><span class="v mono-id">source_unreachable · ENOENT</span></div>
+                    <div class="mkt-src__acts"><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="refresh-cw"></svg>Try again</button><button class="btn btn--ghost btn--sm" type="button" style="color:var(--danger)"><svg data-lucide="trash-2"></svg>Remove</button></div>
+                  </div>
+                </details>
+              </div></div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">Not a marketplace <code>sources VC-04</code></div>
+              <div class="plain plain--flush plain--canvas" style="padding:16px">
+                <label class="eyebrow" for="sr-nm-i" style="display:block;margin-bottom:6px">GitHub repository or folder</label><input class="input input--mono" id="sr-nm-i" value="pedronauck/dotfiles" aria-invalid="true">
+                <div class="notice notice--danger" style="margin-top:12px" data-od-id="sr-not-marketplace"><svg data-lucide="alert-circle"></svg><span><b>This repository has no plugin list.</b> Compozy looked for <span class="mono-id">marketplace.json</span> at the root and under <span class="mono-id">.claude-plugin/</span>. If it is a single plugin, install it from Add ▾ › Install extension from GitHub.</span></div><i class="mc-n">2</i>
+              </div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Degraded row</b> <em>warning xs pill in the summary (state, tone earned) · sentence + last-read age · error class in micro mono · Try again / Remove.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Refused</b> <em>input <code>aria-invalid</code> · danger notice with the sentence, the two paths checked, and the nearest right action.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>source_unreachable · not_a_marketplace</span><span class="mc-tag"><b>component</b>MarketplaceSourceRow · AddMarketplaceDialog</span><span class="mc-tag"><b>VC</b>sources/VC-03 · VC-04</span><span class="mc-tag"><b>tone</b>warning · danger</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · LAYOUTS ===== -->
+    <section class="lab-sec" id="sr-layout" data-od-id="sr-layout">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Plugin layouts — every layout installs (Q1 decided)</h2><span class="lab-sec__gist">sources VC-05 · Q1 = accept alias</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Decided 2026-09-10 (Q1 = yes).</b> Today Compozy installs only the Agent Plugins standard layout (<code>plugin.json</code> at the package root) and refuses the client layouts (<code>.claude-plugin/</code>, <code>.codex-plugin/</code>, <code>.cursor-plugin/</code>). Pedro accepted the alias: the manifest loader reads those manifests as read-only aliases and records <code>layout</code> in provenance — boundary translation, the shape SD-013 sanctions. Every plugin a marketplace lists installs with the same button; the “Claude Code layout” pill never renders. The right-hand column stays as the record of the rejected alternative.</div>
+        <div class="spec__demo">
+          <div class="lab-del" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)" data-od-id="sr-layout-table">
+            <div>Plugin layout</div><div>Decided · accept alias</div><div>Rejected · keep refusal (record)</div>
+            <div><code>plugin.json</code> at root · Agent Plugins 1.0.0</div><div>Install</div><div>Install</div>
+            <div><code>.claude-plugin/plugin.json</code></div><div>Install · loader reads the alias, records <code>layout: claude-plugin</code> in provenance</div><div>Hollow pill “Claude Code layout” · title sentence · detail links the migration guide</div>
+            <div><code>.codex-plugin/</code> · <code>.cursor-plugin/</code></div><div>Same as above</div><div>Same pill, client name from <code>agent_plugin_errors.go</code></div>
+            <div>No manifest found</div><div>Not listed — dropped at decode with a diagnostic on the source row</div><div>Same</div>
+          </div>
+          <div class="lab-grid lab-grid--2" style="margin-top:12px">
+            <div class="lab-cell"><div class="lab-cell__t">Card as decided</div>
+              <div class="plain plain--canvas"><article class="mkt-card"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="feature-dev" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#F0AB3D"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#C271B4" transform="translate(-4 4) rotate(-164 40 40) scale(1.4)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C20D90" transform="translate(-6 -6) rotate(-246 40 40) scale(1.4)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Feature Dev</a></b></div><p class="mkt-card__desc">Guided feature development: explore, design, implement, and verify in one flow</p></div><div class="mkt-trail"><button class="btn btn--sm" type="button">Install</button></div></article></div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">Rejected alternative (not a VC)</div>
+              <div class="plain plain--canvas"><article class="mkt-card"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="feature-dev" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#F0AB3D"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#C271B4" transform="translate(-4 4) rotate(-164 40 40) scale(1.4)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C20D90" transform="translate(-6 -6) rotate(-246 40 40) scale(1.4)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Feature Dev</a></b></div><p class="mkt-card__desc">Guided feature development: explore, design, implement, and verify in one flow</p></div><div class="mkt-trail"><span class="pill pill--xs mkt-blocker" data-form="hollow" title="This plugin keeps its manifest in .claude-plugin/. Compozy installs plugins with plugin.json at the root. See the migration guide.">Claude Code layout</span></div></article></div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>layout on the listing</b> <em>additive field <code>layout: standard | claude-plugin | codex-plugin | cursor-plugin</code> on extension listings from a plugin marketplace, kept for provenance and the detail; Compozy-catalog entries omit it. It no longer gates install.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Blocker pill</b> <em>retired with Q1; the only remaining blocker on a card is <code>trust.decision = blocked</code>.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>4 layouts · decided</span><span class="mc-tag"><b>component</b>MarketplaceEntryTrail · agentplugin loader</span><span class="mc-tag"><b>VC</b>sources/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · CLI ===== -->
+    <section class="lab-sec" id="sr-cli" data-od-id="sr-cli">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Agent parity — the CLI twin</h2><span class="lab-sec__gist">sources VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Anything the UI can do, an agent can do.</b> The same routes back four verbs; <code>-o json</code> returns the source rows exactly as the settings page reads them. The official Compozy skill gains a paragraph so agents know marketplaces exist and how to add one.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas" style="padding:14px 16px" data-od-id="sr-cli-demo">
+<pre style="margin:0;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--fg)"><span style="color:var(--faint)">$</span> compozy marketplace sources list
+NAME                      KIND     PLUGINS  INSTALLABLE  STATE     SOURCE
+compozy-catalog           feed     20       20           ok        https://raw.githubusercontent.com/compozy/compozy/main/catalog
+claude-plugins-official   preset   6        6            ok        github:anthropics/claude-plugins-official
+openai-codex              preset   -        -            off       github:openai/codex
+team-plugins              custom   4        4            degraded  file:///Users/pedro/Dev/team-plugins
+
+<span style="color:var(--faint)">$</span> compozy marketplace sources add anthropics/claude-plugins-official
+added claude-plugins-official · 6 plugins · 6 can be installed
+
+<span style="color:var(--faint)">$</span> compozy marketplace sources refresh team-plugins
+<span style="color:var(--warning)">could not refresh team-plugins:</span> the folder is not reachable (source_unreachable · ENOENT) · still serving 4 plugins from 3 days ago</pre>
+          </div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>list · add · refresh (degraded)</span><span class="mc-tag"><b>component</b>compozy marketplace sources</span><span class="mc-tag"><b>VC</b>sources/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono-id">../design-system/ds-core.css</span> + <span class="mono-id">ds-shell.css</span> unmodified; domain lane <span class="mono-id">marketplace-catalog.css</span> chapters 06, 10. Marketplace names are fixtures for whatever the registered documents declare; <span class="mono-id">openai-codex</span> and <span class="mono-id">claude-plugins-official</span> are the names those ecosystems use for their own marketplaces. The preset list itself is a feed decision, not a code constant.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

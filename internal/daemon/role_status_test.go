@@ -5,12 +5,57 @@ import (
 	"reflect"
 	"testing"
 
+	core "github.com/compozy/compozy/internal/api/core"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestRoleStatusProjection(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve workspace role overrides and live opt-in changes in memory health", func(t *testing.T) {
+		t.Parallel()
+		cfg := roleResolverConfig()
+		cfg.Memory.Enabled, cfg.Roles.Dream.Enabled = true, false
+		scoped := cfg
+		scoped.Roles.Dream.Enabled = true
+		resolver := newRoleResolver(
+			&cfg,
+			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{"ws-dream": scoped}},
+			nil,
+		)
+		for _, workspace := range []string{"", "ws-dream"} {
+			role, err := core.MemoryDreamRoleStatus(t.Context(), resolver, workspace)
+			if err != nil || role.Enabled != (workspace != "") {
+				t.Fatalf("workspace=%q role=%#v err=%v", workspace, role, err)
+			}
+		}
+		cfg.Roles.Dream.Enabled = true
+		role, err := core.MemoryDreamRoleStatus(t.Context(), resolver, "")
+		if err != nil || !role.Enabled {
+			t.Fatalf("live role=%#v err=%v", role, err)
+		}
+	})
+	t.Run("Should preserve the profile role context in memory health", func(t *testing.T) {
+		t.Parallel()
+		cfg := roleResolverConfig()
+		cfg.Memory.Enabled = true
+		scoped := loopActionBinderWorkspace(t, nil)
+		scoped.ProfileID = "profile-engineering"
+		scoped.Config.Memory.Enabled, scoped.Config.Roles.Dream.Enabled = true, true
+		resolver := newRoleResolver(&cfg, &loopPolicyProfileWorkspaceResolver{scoped: scoped}, nil)
+		resolver.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
+		ctx := withRoleInvocationCorrelation(t.Context(), roleInvocationCorrelation{ProfileID: "profile-engineering"})
+		role, err := core.MemoryDreamRoleStatus(ctx, resolver, "ws-loop")
+		if err != nil || !role.Enabled {
+			t.Fatalf("profile role=%#v err=%v", role, err)
+		}
+		ctx = withRoleInvocationCorrelation(ctx, roleInvocationCorrelation{ProfileID: "profile-missing"})
+		if _, err := core.MemoryDreamRoleStatus(ctx, resolver, "ws-loop"); err == nil {
+			t.Fatal("missing profile must remain an error")
+		}
+	})
 
 	t.Run("Should return the closed roster sorted with truthful provenance", func(t *testing.T) {
 		t.Parallel()

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Installed · Marketplace catalog · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="marketplace-catalog.css">
+<!--
+  marketplace-catalog-installed · S3 — the Installed view (rev 2). One
+  drill-in from the shelf: a flat list of installed extensions with the
+  controls that manage them. No kind groups — everything is an extension.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — drill-in breadcrumb (w2-back + crumbs), extension inventory
+                 (useExtensionInventory · GET /api/extensions with catalog join),
+                 Switch enable, MCP auth status/Authorize, overflow menu,
+                 type-to-confirm remove, teaching-empty copy + CLI hint, batch update.
+    reference  — Grok Bot “Back to Marketplace › Installed” with “1 connector, 1 skill”
+                 under each name; Codex settings list (one row per plugin, toggle right).
+    delta      — one flat page instead of three per-kind Installed scopes;
+                 contents summary after the name; description on every row;
+                 one updates line with “Update all”.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="in-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Marketplace catalog</a><span class="w2-sep">/</span><h1 class="w2-title">Installed</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="marketplace-catalog-card.html">← Entry card</a><a class="btn btn--sm" href="marketplace-catalog-cut.html">Next: The cut →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="mc-contract" data-od-id="in-contract" aria-label="What this board is">
+      <div class="mc-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="mc-contract__what"><b>S3 — everything you installed, in one list, with the controls on the row.</b> Click the installed line in Browse and the window drills into <b>Installed</b>. Every row keeps the card anatomy from board 02, adds what the extension contains (“1 MCP server · 2 skills”), and gains the controls that manage it — enable, authorize when its server needs it, update, remove. One line above the list says how many updates are waiting and updates them all. Search filters the list. Back returns to Browse.</p>
+        <p class="mc-contract__file">marketplace-catalog-installed.html · S3 · route /marketplace/installed · ?q=</p>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="mc-mods">
+          <li><span class="mc-mod mc-mod--new">new</span><span><b>marketplace.installed.tsx</b><i>web/src/routes/_app/marketplace.installed.tsx</i>sync-only leaf; search <code>q</code></span></li>
+          <li><span class="mc-mod mc-mod--new">new</span><span><b>MarketplaceInstalledPage</b><i>web/src/systems/marketplace/components/marketplace-installed-page.tsx</i>breadcrumb head · search strip · updates line · flat list · empties</span></li>
+          <li><span class="mc-mod mc-mod--new">new</span><span><b>useMarketplaceInstalledPage</b><i>web/src/systems/marketplace/hooks/use-marketplace-installed-page.ts</i>extension inventory joined with the catalog (<code>buildInstalledExtensionItems</code>); per-row contents from the inventory; updates count</span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>MarketplaceWindow</b><i>web/src/systems/os/apps/marketplace/marketplace-window.tsx</i>resolves <code>/marketplace/installed</code></span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>useMarketplaceActionController</b><i>web/src/systems/marketplace/components/use-marketplace-action-controller.tsx</i>remove / toggle / update unchanged; authorize now targets the MCP server an extension provides; “View installed →” toast link targets this page</span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>marketplace-installed-items.ts</b><i>web/src/systems/marketplace/lib/marketplace-installed-items.ts</i>only <code>buildInstalledExtensionItems</code> survives; gains <code>contents</code> (skills · MCP servers · hooks counts) and the server auth status</span></li>
+          <li><span class="mc-mod mc-mod--delete">delete</span><span><b>Installed scope of MarketplaceKindPage · skill/MCP installed builders</b><i>marketplace-kind-results.tsx (installed branch) · buildInstalledSkillItems · buildInstalledMCPItems</i>and the per-kind teaching empties</span></li>
+          <li><span class="mc-mod mc-mod--modify">modify</span><span><b>tests</b><i>marketplace-components.test.tsx · marketplace.spec.ts · CH-marketplace-installed-default</i>“opens Installed by default” retired; new: shelf → Installed, flat list, Back, Update all</span></li>
+          <li><span class="mc-mod mc-mod--reuse">reuse</span><span><b>Switch · Button · DropdownMenu · ConfirmDialog · Empty · SearchInput</b><i>@compozy/ui — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="mc-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="mc-states">
+          <li><a href="#in-default">Installed — flat list with contents</a><code>installed VC-01</code></li>
+          <li><a href="#in-search">Search</a><code>installed VC-02</code></li>
+          <li><a href="#in-updates">Updates — the line and the row</a><code>installed VC-03</code></li>
+          <li><a href="#in-empty">Nothing installed yet</a><code>installed VC-04</code></li>
+          <li><a href="#in-remove">Remove — confirm by name</a><code>installed VC-05</code></li>
+          <li><a href="#in-scope">Workspace scope on a row</a><code>installed VC-06</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · DEFAULT ===== -->
+    <section class="lab-sec" id="in-default" data-od-id="in-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Installed — one flat list, contents after the name</h2><span class="lab-sec__gist">installed VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Drill-in, not a mode.</b> The head grows a breadcrumb (Marketplace › Installed) with the back chevron; the strip keeps only search. Rows are the board-02 card with the installed trail: switch, overflow, and — when the extension provides an MCP server — its status word and Authorize. After the name, a quiet summary of what the extension contains, so “GitHub” reads as “1 MCP server” and “herdr bridge” as “1 bridge · 2 skills” without a kind tab. Name order.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="in-default-stage">
+            <section class="win win--inline is-focused mkt-win mkt-win--installed" style="--mkt-win-h:560px" data-od-id="in-default-win">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <a class="w2-back" href="marketplace-catalog-browse.html" aria-label="Back to Marketplace"><svg data-lucide="chevron-left"></svg></a>
+                <nav class="w2-crumbs"><a class="w2-crumb" href="marketplace-catalog-browse.html">Marketplace</a><span class="w2-sep">/</span><span class="w2-title">Installed</span><span class="w2-count">5</span></nav><i class="mc-n">1</i>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="refresh-cw"></svg>Refresh</button><button class="btn btn--outline btn--sm" type="button"><svg data-lucide="plus"></svg>Add<svg data-lucide="chevron-down"></svg></button></div></div>
+              </header>
+              <div class="win-toolbar">
+                <label class="field field-search"><svg data-lucide="search"></svg><input type="search" placeholder="Search installed…" aria-label="Search installed"><kbd class="kbd">/</kbd></label><i class="mc-n">2</i>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </div>
+              <div class="win-body"><div class="mkt-page">
+                <div class="mkt-updates" data-od-id="in-updates-line"><span class="dot" aria-hidden="true"></span><b>1 update available</b><span>herdr bridge 0.3.2 → 0.3.3</span><button class="btn btn--ghost btn--xs" type="button">Update all</button><i class="mc-n">3</i></div>
+                <div class="mkt-grid mkt-grid--1">
+                  <article class="mkt-card" data-od-id="in-row-code-review"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="code-review" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#92A1C6"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#146A7C" transform="translate(0 0) rotate(-280 40 40) scale(1.2)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#F0AB3D" transform="translate(0 0) rotate(-240 40 40) scale(1.2)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Code Review</a></b><span class="mkt-contents">3 skills · 1 hook</span><span class="mkt-origin">claude-plugins-official</span><i class="mc-n">4</i></div><p class="mkt-card__desc">Review pull requests with confidence-scored findings and a summarized verdict</p></div><div class="mkt-trail"><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable Code Review"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">5</i></div></article>
+                  <article class="mkt-card" data-od-id="in-row-context7"><span class="mkt-logo mkt-logo--image" aria-hidden="true" data-stand-in="feed icon"><svg viewBox="0 0 28 28" width="28" height="28"><rect width="28" height="28" rx="6" fill="#2f6df6"/><path d="M7 14.5l4.5 4.5L21 9.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Context7</a></b><span class="mkt-contents">1 MCP server</span></div><p class="mkt-card__desc">Fetch current, version-specific library documentation and code examples.</p></div><div class="mkt-trail"><span class="mkt-status" data-s="running"><span class="d"></span>Running</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable Context7"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">6</i></div></article>
+                  <article class="mkt-card" data-od-id="in-row-github"><span class="mkt-logo mkt-logo--brand" data-brand="github" aria-hidden="true"><svg viewBox="0 0 97.6 96"><path fill="currentColor" d="M48.9,0C21.8,0,0,22,0,49.2C0,71,14,89.4,33.4,95.9c2.4,0.5,3.3-1.1,3.3-2.4c0-1.1-0.1-5.1-0.1-9.1 c-13.6,2.9-16.4-5.9-16.4-5.9c-2.2-5.7-5.4-7.2-5.4-7.2c-4.4-3,0.3-3,0.3-3c4.9,0.3,7.5,5.1,7.5,5.1c4.4,7.5,11.4,5.4,14.2,4.1 c0.4-3.2,1.7-5.4,3.1-6.6c-10.8-1.1-22.2-5.4-22.2-24.3c0-5.4,1.9-9.8,5-13.2c-0.5-1.2-2.2-6.3,0.5-13c0,0,4.1-1.3,13.4,5.1 c3.9-1.1,8.1-1.6,12.2-1.6s8.3,0.6,12.2,1.6c9.3-6.4,13.4-5.1,13.4-5.1c2.7,6.8,1,11.8,0.5,13c3.2,3.4,5,7.8,5,13.2 c0,18.9-11.4,23.1-22.3,24.3c1.8,1.5,3.3,4.5,3.3,9.1c0,6.6-0.1,11.9-0.1,13.5c0,1.3,0.9,2.9,3.3,2.4C83.6,89.4,97.6,71,97.6,49.2 C97.7,22,75.8,0,48.9,0z"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">GitHub</a></b><span class="mkt-contents">1 MCP server</span></div><p class="mkt-card__desc">Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.</p></div><div class="mkt-trail"><span class="mkt-status" data-s="authorize"><span class="d"></span>Needs authorization</span><button class="btn btn--sm" type="button">Authorize</button><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable GitHub"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">7</i></div></article>
+                  <article class="mkt-card" data-od-id="in-row-herdr"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="herdr-bridge" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#F0AB3D"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#C271B4" transform="translate(2 2) rotate(274 40 40) scale(1.5)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C20D90" transform="translate(7 7) rotate(231 40 40) scale(1.5)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">herdr bridge</a></b><span class="mkt-contents">1 bridge · 2 skills</span></div><p class="mkt-card__desc">Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup</p></div><div class="mkt-trail"><span class="ver">v0.3.3</span><button class="btn btn--sm" type="button">Update</button><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable herdr bridge"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">8</i></div></article>
+                  <article class="mkt-card" data-od-id="in-row-repo"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="repository-orientation" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#C20D90"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#92A1C6" transform="translate(2 2) rotate(338 40 40) scale(1.5)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#146A7C" transform="translate(-7 -7) rotate(-327 40 40) scale(1.5)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Repository Orientation</a></b><span class="mkt-contents">1 skill</span></div><p class="mkt-card__desc">Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths</p></div><div class="mkt-trail"><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable Repository Orientation"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></article>
+                </div>
+              </div></div>
+            </section>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Breadcrumb head</b> <em>production drill-in grammar: w2-back · “Marketplace” crumb · “Installed” title · mono count. Back → Browse (router history).</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Strip</b> <em>search only, placeholder “Search installed…”, <code>/</code> focuses.</em></span></li>
+            <li><i class="mc-n">3</i><span><b>Updates line</b> <em>new <code>.mkt-updates</code> · 32px · warning dot + “n updates available” + the names when n ≤ 2 · ghost xs “Update all” → <code>POST /api/extensions/update</code> (batch). Renders only when n &gt; 0.</em></span></li>
+            <li><i class="mc-n">4</i><span><b>Contents + origin</b> <em>“3 skills · 1 hook” from the extension inventory (12px subtle) · faint mono marketplace name only for entries that did not come from the Compozy catalog. Zero of a thing renders nothing.</em></span></li>
+            <li><i class="mc-n">5</i><span><b>Extension row</b> <em>Switch (enabled) + overflow · from <code>ExtensionPayload.enabled</code>. Disabled = switch off, nothing else changes.</em></span></li>
+            <li><i class="mc-n">6</i><span><b>Server running</b> <em>an extension that provides an MCP server shows the server’s status word + dot before its switch — the same truth Settings › MCP servers reads.</em></span></li>
+            <li><i class="mc-n">7</i><span><b>Needs authorization</b> <em>warning word + neutral “Authorize” (existing OAuth begin for the server the extension provides). Never a warning pill.</em></span></li>
+            <li><i class="mc-n">8</i><span><b>Update first</b> <em>version + Update precede the switch and the overflow.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>5 installed · 1 update · 1 needs authorization</span><span class="mc-tag"><b>component</b>MarketplaceInstalledPage · MarketplaceEntryCard (installed trail)</span><span class="mc-tag"><b>VC</b>installed/VC-01</span><span class="mc-tag"><b>tone</b>success (running) · warning (authorize · update) · accent 0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · SEARCH ===== -->
+    <section class="lab-sec" id="in-search" data-od-id="in-search">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Search</h2><span class="lab-sec__gist">installed VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same rule as Browse.</b> Name and description; the updates line stays; no hits → “No installed extensions match this query” with Clear search.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas" data-od-id="in-search-demo">
+            <div class="win-toolbar"><label class="field field-search" style="border-color:var(--line-strong)"><svg data-lucide="search"></svg><input type="search" value="git" aria-label="Search installed"><kbd class="kbd">esc</kbd></label><span class="w2-flex"></span></div>
+            <div class="mkt-page">
+              <div class="mkt-grid mkt-grid--1">
+                <article class="mkt-card"><span class="mkt-logo mkt-logo--brand" data-brand="github" aria-hidden="true"><svg viewBox="0 0 97.6 96"><path fill="currentColor" d="M48.9,0C21.8,0,0,22,0,49.2C0,71,14,89.4,33.4,95.9c2.4,0.5,3.3-1.1,3.3-2.4c0-1.1-0.1-5.1-0.1-9.1 c-13.6,2.9-16.4-5.9-16.4-5.9c-2.2-5.7-5.4-7.2-5.4-7.2c-4.4-3,0.3-3,0.3-3c4.9,0.3,7.5,5.1,7.5,5.1c4.4,7.5,11.4,5.4,14.2,4.1 c0.4-3.2,1.7-5.4,3.1-6.6c-10.8-1.1-22.2-5.4-22.2-24.3c0-5.4,1.9-9.8,5-13.2c-0.5-1.2-2.2-6.3,0.5-13c0,0,4.1-1.3,13.4,5.1 c3.9-1.1,8.1-1.6,12.2-1.6s8.3,0.6,12.2,1.6c9.3-6.4,13.4-5.1,13.4-5.1c2.7,6.8,1,11.8,0.5,13c3.2,3.4,5,7.8,5,13.2 c0,18.9-11.4,23.1-22.3,24.3c1.8,1.5,3.3,4.5,3.3,9.1c0,6.6-0.1,11.9-0.1,13.5c0,1.3,0.9,2.9,3.3,2.4C83.6,89.4,97.6,71,97.6,49.2 C97.7,22,75.8,0,48.9,0z"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#"><mark class="mkt-mark">Git</mark>Hub</a></b><span class="mkt-contents">1 MCP server</span></div><p class="mkt-card__desc">Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.</p></div><div class="mkt-trail"><span class="mkt-status" data-s="authorize"><span class="d"></span>Needs authorization</span><button class="btn btn--sm" type="button">Authorize</button><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable GitHub"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></article>
+              </div>
+            </div>
+          </div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>query “git” · 1 of 5</span><span class="mc-tag"><b>component</b>MarketplaceInstalledPage</span><span class="mc-tag"><b>VC</b>installed/VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · UPDATES ===== -->
+    <section class="lab-sec" id="in-updates" data-od-id="in-updates">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Updates — the line, then the row</h2><span class="lab-sec__gist">installed VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Update where you are.</b> A row with <code>update_available</code> shows the target version and Update. The line above the list aggregates and offers “Update all”, which calls the existing batch endpoint; progress is per row — the daemon’s partial-progress truth stays visible, a failed row returns to “Update” with the toast naming the failure while the others keep going.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas"><div class="mkt-page" data-od-id="in-updates-demo">
+            <div class="mkt-updates"><span class="dot" aria-hidden="true"></span><b>2 updates available</b><span>1 of 2 done</span><button class="btn btn--ghost btn--xs" type="button" disabled>Updating…</button><i class="mc-n">1</i></div>
+            <div class="mkt-grid mkt-grid--1">
+              <article class="mkt-card" aria-busy="true"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="batuta" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#92A1C6"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#146A7C" transform="translate(6 6) rotate(70 40 40) scale(1.3)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#F0AB3D" transform="translate(-1 -1) rotate(-105 40 40) scale(1.3)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Batuta</a></b><span class="mkt-contents">2 loops · 1 skill</span></div><p class="mkt-card__desc">Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates</p></div><div class="mkt-trail"><button class="btn btn--sm" type="button" disabled><span class="spin" aria-hidden="true"></span>Updating…</button><button class="switch is-on" type="button" role="switch" aria-checked="true" disabled aria-label="Enable Batuta"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" disabled aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">2</i></div></article>
+              <article class="mkt-card is-flash"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="herdr-bridge" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#F0AB3D"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#C271B4" transform="translate(2 2) rotate(274 40 40) scale(1.5)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C20D90" transform="translate(7 7) rotate(231 40 40) scale(1.5)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">herdr bridge</a></b><span class="mkt-contents">1 bridge · 2 skills</span></div><p class="mkt-card__desc">Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup</p></div><div class="mkt-trail"><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable herdr bridge"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="mc-n">3</i></div></article>
+            </div>
+          </div></div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Line in progress</b> <em>“1 of 2 done” · the button is disabled while the batch runs.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Row in progress</b> <em>production pending grammar: .55 opacity, spinner, controls disabled.</em></span></li>
+            <li><i class="mc-n">3</i><span><b>Row done</b> <em>one success-tint flash, version word gone, controls back.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>batch · 1 done · 1 in flight</span><span class="mc-tag"><b>component</b>MarketplaceInstalledPage updates line · MarketplaceEntryTrail</span><span class="mc-tag"><b>VC</b>installed/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · EMPTY ===== -->
+    <section class="lab-sec" id="in-empty" data-od-id="in-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Nothing installed yet</h2><span class="lab-sec__gist">installed VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Reachable by URL, honest when empty.</b> The shelf does not render at zero, so this page is reached by a bookmark or a toast link. One teaching empty, production copy kept, CLI hint kept, one button back to Browse.</div>
+        <div class="spec__demo">
+          <div class="plain plain--flush plain--canvas"><div class="empty" data-od-id="in-empty-demo"><span class="empty__well"><svg data-lucide="package"></svg></span><b>No extensions installed yet</b><p>Everything you install from the marketplace shows up here. You can also use <code class="mkt-cli">compozy extension install &lt;slug&gt;</code>.</p><div class="empty__acts"><a class="btn btn--sm" href="marketplace-catalog-browse.html"><svg data-lucide="store"></svg>Browse the marketplace</a></div></div></div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>0 installed</span><span class="mc-tag"><b>component</b>Empty</span><span class="mc-tag"><b>VC</b>installed/VC-04</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · REMOVE ===== -->
+    <section class="lab-sec" id="in-remove" data-od-id="in-remove">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Remove — the overflow, then confirm by name</h2><span class="lab-sec__gist">installed VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Unchanged mechanics, new home.</b> The overflow holds View details · Edit server configuration (only when the extension provides an MCP server) · Remove…; Remove opens the production ConfirmDialog with type-to-confirm. After removal the row leaves the list; the entry reads Install again in Browse.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2">
+            <div class="lab-cell"><div class="lab-cell__t">Overflow menu</div>
+              <div class="plain plain--canvas" style="position:relative;min-height:190px">
+                <article class="mkt-card" style="max-width:560px"><span class="mkt-logo mkt-logo--brand" data-brand="github" aria-hidden="true"><svg viewBox="0 0 97.6 96"><path fill="currentColor" d="M48.9,0C21.8,0,0,22,0,49.2C0,71,14,89.4,33.4,95.9c2.4,0.5,3.3-1.1,3.3-2.4c0-1.1-0.1-5.1-0.1-9.1 c-13.6,2.9-16.4-5.9-16.4-5.9c-2.2-5.7-5.4-7.2-5.4-7.2c-4.4-3,0.3-3,0.3-3c4.9,0.3,7.5,5.1,7.5,5.1c4.4,7.5,11.4,5.4,14.2,4.1 c0.4-3.2,1.7-5.4,3.1-6.6c-10.8-1.1-22.2-5.4-22.2-24.3c0-5.4,1.9-9.8,5-13.2c-0.5-1.2-2.2-6.3,0.5-13c0,0,4.1-1.3,13.4,5.1 c3.9-1.1,8.1-1.6,12.2-1.6s8.3,0.6,12.2,1.6c9.3-6.4,13.4-5.1,13.4-5.1c2.7,6.8,1,11.8,0.5,13c3.2,3.4,5,7.8,5,13.2 c0,18.9-11.4,23.1-22.3,24.3c1.8,1.5,3.3,4.5,3.3,9.1c0,6.6-0.1,11.9-0.1,13.5c0,1.3,0.9,2.9,3.3,2.4C83.6,89.4,97.6,71,97.6,49.2 C97.7,22,75.8,0,48.9,0z"/></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">GitHub</a></b><span class="mkt-contents">1 MCP server</span></div><p class="mkt-card__desc">Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.</p></div><div class="mkt-trail"><span class="mkt-status" data-s="running"><span class="d"></span>Running</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable GitHub"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-expanded="true" aria-pressed="true" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></article>
+                <div class="menu menu--overlay" role="menu" style="position:absolute;right:16px;top:64px;width:220px" data-od-id="in-overflow"><button class="menu-item" role="menuitem" type="button"><svg data-lucide="info"></svg>View details</button><button class="menu-item" role="menuitem" type="button"><svg data-lucide="settings-2"></svg>Edit server configuration</button><div class="menu-sep" role="separator"></div><button class="menu-item menu-item--danger" role="menuitem" type="button"><svg data-lucide="trash-2"></svg>Remove…</button></div>
+              </div>
+            </div>
+            <div class="lab-cell"><div class="lab-cell__t">Confirm by name <code>ConfirmDialog</code></div>
+              <div class="plain plain--flush plain--canvas" style="display:grid;place-items:center;padding:16px">
+                <div class="dialog dialog--sm" role="alertdialog" aria-labelledby="in-rm-t" data-od-id="in-remove-dialog" style="position:static;transform:none">
+                  <div class="dialog__head"><span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="trash-2"></svg></span><div class="dialog__head-main"><h3 class="dialog__title" id="in-rm-t">Remove GitHub?</h3><p class="dialog__desc">Its MCP server stops and is removed from every session. Files installed from the marketplace are deleted; your data folder and saved credentials are kept.</p></div></div>
+                  <div class="dialog__body"><label class="eyebrow" for="in-rm-i" style="display:block;margin-bottom:6px">Type <b style="font-family:var(--font-mono);color:var(--fg-strong)">GitHub</b> to confirm</label><input class="input input--mono" id="in-rm-i" placeholder="GitHub"></div>
+                  <div class="dialog__foot"><span class="dialog__foot-note"><svg data-lucide="info"></svg><span>You can install it again from the marketplace.</span></span><button class="btn btn--ghost btn--sm" type="button">Cancel</button><button class="btn btn--destructive btn--sm" type="button" disabled>Remove</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul class="mc-legend">
+            <li><i class="mc-n">1</i><span><b>Overflow</b> <em>production DropdownMenu · “Edit server configuration” only when the extension provides an MCP server · Remove… is the only danger item.</em></span></li>
+            <li><i class="mc-n">2</i><span><b>Dialog</b> <em>production ConfirmDialog (sm) · type-to-confirm on the exact name · destructive button enabled only on match · copy names what stops (server · skills · hooks) from the contents summary.</em></span></li>
+          </ul>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>overflow · confirm</span><span class="mc-tag"><b>component</b>DropdownMenu · ConfirmDialog</span><span class="mc-tag"><b>VC</b>installed/VC-05</span><span class="mc-tag"><b>tone</b>danger (remove)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · SCOPE ===== -->
+    <section class="lab-sec" id="in-scope" data-od-id="in-scope">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Workspace scope on a row</h2><span class="lab-sec__gist">installed VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Scope is shown only when it is not the default.</b> An extension whose server was installed at workspace scope carries a faint mono word after the contents (<code>workspace · acme-api</code>); global renders nothing. The count includes every scope the daemon returned for the active workspace.</div>
+        <div class="spec__demo">
+          <div class="plain plain--canvas"><div class="mkt-grid mkt-grid--1" style="max-width:640px" data-od-id="in-scope-demo">
+            <article class="mkt-card"><span class="mkt-logo mkt-logo--image mkt-logo--full" data-seed="postgres" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 80 80" fill="none" role="img" xmlns="http://www.w3.org/2000/svg"><mask id="_R_0_" maskUnits="userSpaceOnUse" x="0" y="0" width="80" height="80"><rect width="80" height="80" fill="#FFFFFF"></rect></mask><g mask="url(#_R_0_)"><rect width="80" height="80" fill="#146A7C"></rect><path filter="url(#filter__R_0_)" d="M32.414 59.35L50.376 70.5H72.5v-71H33.728L26.5 13.381l19.057 27.08L32.414 59.35z" fill="#F0AB3D" transform="translate(-2 2) rotate(-82 40 40) scale(1.5)"></path><path filter="url(#filter__R_0_)" style="mix-blend-mode:overlay" d="M22.216 24L0 46.75l14.108 38.129L78 86l-3.081-59.276-22.378 4.005 12.972 20.186-23.35 27.395L22.215 24z" fill="#C271B4" transform="translate(-3 -3) rotate(-123 40 40) scale(1.5)"></path></g><defs><filter id="filter__R_0_" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur stdDeviation="7" result="effect1_foregroundBlur"></feGaussianBlur></filter></defs></svg></span><div class="mkt-card__main"><div class="mkt-card__name"><b><a href="#">Postgres</a></b><span class="mkt-contents">1 MCP server</span><span class="mkt-origin">workspace · acme-api</span></div><p class="mkt-card__desc">Query and inspect PostgreSQL databases with read-only access by default.</p></div><div class="mkt-trail"><span class="mkt-status" data-s="stopped"><span class="d"></span>Stopped</span><button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable Postgres"><span class="knob"></span></button><button class="btn btn--ghost btn--sm btn--icon" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></article>
+          </div></div>
+          <div class="mc-tags"><span class="mc-tag"><b>state</b>workspace-scoped row</span><span class="mc-tag"><b>component</b>MarketplaceEntryCard (scope word)</span><span class="mc-tag"><b>VC</b>installed/VC-06</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono-id">../design-system/ds-core.css</span> + <span class="mono-id">ds-shell.css</span> unmodified; domain lane <span class="mono-id">marketplace-catalog.css</span> chapters 06, 08. Installed fixtures: Code Review (plugin, disabled) · Context7 · GitHub (needs authorization) · herdr bridge (update 0.3.3) · Repository Orientation. Contents summaries come from the extension inventory. Overflow and dialog are staged in-flow; production positions them as popovers.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

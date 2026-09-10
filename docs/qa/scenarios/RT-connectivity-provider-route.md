@@ -31,3 +31,12 @@ QA impact 2026-08-08: bundled provider renamed to `tailscale` (extension ID and 
 name); `compozy gateway provider enable` and `/api/gateway/providers/{name}` take the new name.
 Walk attempt: rename covered mechanically by the Go suite in the full gate; real route establishment
 stays blocked on the same missing authorized Tailscale account, so the scenario remains blocked-verify.
+
+QA impact 2026-09-10 (issue #602): verify the embedded private endpoint without host Tailscale or
+host Tailnet routes. Require core TLS authentication and exact tier nonce through the provider's
+fixed-destination relay; reject a relay for public proof, wrong certificate/hostname/tier/nonce,
+redirects, invalid response size and deadlines. Confirm failed proof remains unadvertised, a later
+successful attempt recovers, and teardown closes the relay. Inspect safe DNS/connectivity/TLS/HTTP
+failure classes. Local automated evidence and external limits are tracked in
+`docs/qa/reports/2026-09-10-issue-602-endpoint-verification.md`. Real Tailnet/Linux validation remains
+blocked until an isolated authorized account/environment is supplied; never reuse active node state.

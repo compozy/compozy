@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
@@ -21,53 +22,31 @@ import (
 )
 
 func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T) {
-	t.Run("Should compact unchanged catalog after the first prompt", func(t *testing.T) {
+	t.Run("Should retain full context until transport delivery is confirmed", func(t *testing.T) {
 		t.Parallel()
-
-		registry, augmenter := newPromptSkillsAugmenterForTest(t, []*skillspkg.Skill{
-			{
-				Meta: skillspkg.SkillMeta{
-					Name:        "qa-marker-skill",
-					Description: "Shows up while enabled.",
-				},
-				Enabled: true,
-			},
+		_, augmenter := newPromptSkillsAugmenterForTest(t, []*skillspkg.Skill{
+			{Meta: skillspkg.SkillMeta{Name: "qa-marker-skill", Description: "Shows up while enabled."}, Enabled: true},
 		})
-		_ = registry
 		sess := newPromptSkillsSession("sess-compact")
-
-		first, err := augmenter(context.Background(), sess, "list current skills")
-		if err != nil {
-			t.Fatalf("augmenter(first) error = %v", err)
-		}
-		if !strings.Contains(first, `name="qa-marker-skill"`) {
-			t.Fatalf("first prompt = %q, want enabled skill entry", first)
-		}
-
-		second, err := augmenter(context.Background(), sess, "list current skills again")
-		if err != nil {
-			t.Fatalf("augmenter(second) error = %v", err)
-		}
-		if !strings.Contains(second, `<catalog-state unchanged="true">`) {
-			t.Fatalf("second prompt = %q, want unchanged catalog marker", second)
-		}
-		if strings.Contains(second, `name="qa-marker-skill"`) {
-			t.Fatalf("second prompt = %q, want compact marker without repeated skill entries", second)
-		}
-		if !strings.Contains(second, "resolve canonical `compozy__skill_view` for full skill/resource instructions") {
-			t.Fatalf("second prompt = %q, want compact harness-agnostic skill_view guidance", second)
-		}
-		if !strings.Contains(
-			second,
-			"Do not invoke `compozy skill view` or read skill files directly from a managed session",
-		) {
-			t.Fatalf("second prompt = %q, want native-only managed skill guidance", second)
-		}
-		if !strings.Contains(second, "`compozy skill view` is an operator-shell command only") {
-			t.Fatalf("second prompt = %q, want operator-only CLI guidance", second)
-		}
-		if !strings.HasSuffix(second, "list current skills again") {
-			t.Fatalf("second prompt = %q, want original prompt preserved", second)
+		for _, message := range []string{"first request", "retry request"} {
+			ctx, sections := acp.CollectPromptSections(t.Context())
+			prompt, err := augmenter(ctx, sess, message)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registered := sections()
+			if len(registered) != 1 || !strings.Contains(prompt, registered[0].Content) ||
+				!strings.Contains(prompt, `name="qa-marker-skill"`) || !strings.HasSuffix(prompt, message) {
+				t.Fatalf("prompt lost its full retryable catalog: %q (%#v)", prompt, registered)
+			}
+			if registered[0].StartupContent != skillspkg.BuildCatalogWithinBudget([]*skillspkg.Skill{
+				{
+					Meta:    skillspkg.SkillMeta{Name: "qa-marker-skill", Description: "Shows up while enabled."},
+					Enabled: true,
+				},
+			}, startupSkillsSectionBudget) || registered[0].UnchangedContent != skillspkg.BuildCurrentCatalogUnchanged() {
+				t.Fatalf("registered section does not match startup and current catalog semantics: %#v", registered)
+			}
 		}
 	})
 
@@ -162,8 +141,8 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if err != nil {
 			t.Fatalf("augmenter(second) error = %v", err)
 		}
-		if !strings.Contains(second, `<catalog-state unchanged="true">`) {
-			t.Fatalf("second prompt = %q, want unchanged catalog marker", second)
+		if !strings.Contains(second, `name="qa-marker-skill"`) {
+			t.Fatalf("second prompt = %q, want full context pending delivery", second)
 		}
 
 		sess.ACPSessionID = "acp-2"
@@ -475,8 +454,8 @@ func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AugmentWithPolicy(repeat) error = %v", err)
 		}
-		if !strings.Contains(repeat, `unchanged="true"`) {
-			t.Fatalf("repeat catalog = %q, want unchanged marker", repeat)
+		if repeat != strings.Replace(filtered, "second", "third", 1) {
+			t.Fatalf("repeat catalog = %q, want the same filtered transport input", repeat)
 		}
 	})
 }

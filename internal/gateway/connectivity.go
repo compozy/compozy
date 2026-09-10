@@ -45,10 +45,11 @@ func (s EndpointStability) Validate() error {
 
 // AdvertisedEndpoint is one untrusted provider endpoint pending core verification.
 type AdvertisedEndpoint struct {
-	URL          string
-	Scheme       string
-	SchemePolicy EndpointSchemePolicy
-	Stability    EndpointStability
+	URL                 string
+	Scheme              string
+	SchemePolicy        EndpointSchemePolicy
+	VerificationAddress string
+	Stability           EndpointStability
 }
 
 // Validate checks the provider-owned descriptor without performing network I/O.
@@ -74,6 +75,9 @@ func (e AdvertisedEndpoint) Validate() error {
 	case scheme != endpointSchemeHTTPS && scheme != "http" && policy == EndpointSchemePolicyTailnetInternal:
 	default:
 		return errors.New("gateway: endpoint scheme is not allowed by policy")
+	}
+	if err := validateVerificationAddress(e.VerificationAddress); err != nil {
+		return err
 	}
 	return e.Stability.Validate()
 }
