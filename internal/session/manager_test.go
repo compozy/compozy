@@ -1846,7 +1846,12 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 				Command:   "/bin/compozy",
 			},
 		}
-		h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithHostedMCPLauncher(hosted),
+			WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView}),
+		)
 
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:   "coder",
@@ -1864,6 +1869,9 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 			}
 		})
 
+		if got := session.Info().Lineage.PermissionPolicy.Tools; len(got) != 0 {
+			t.Fatalf("verdict-only delegation tools = %#v, want none", got)
+		}
 		if got := h.driver.startCalls[0].MCPServers; len(got) != 0 {
 			t.Fatalf("start MCPServers = %#v, want none for verdict-only runtime", got)
 		}
@@ -1876,58 +1884,71 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	t.Parallel()
 
-	logs := newCaptureLogHandler()
-	h := newHarness(t, WithLogger(slog.New(logs)))
-	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			ID:      h.workspaceID,
-			RootDir: h.workspace,
-			Name:    h.workspaceName,
-		},
-		Config: h.cfg,
-		Agents: []compozyconfig.AgentDef{{
-			Name:     "coder",
-			Provider: "openclaw",
-			Prompt:   "You are helpful.",
-		}},
+	t.Run("Should withhold delegation tools when the provider disables session MCP", func(t *testing.T) {
+		t.Parallel()
+
+		logs := newCaptureLogHandler()
+		h := newHarness(t, WithLogger(slog.New(logs)))
+		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      h.workspaceID,
+				RootDir: h.workspace,
+				Name:    h.workspaceName,
+			},
+			Config: h.cfg,
+			Agents: []compozyconfig.AgentDef{{
+				Name:     "coder",
+				Provider: "openclaw",
+				Prompt:   "You are helpful.",
+			}},
+		})
+		hosted := &recordingHostedMCPLauncher{
+			server: compozyconfig.MCPServer{
+				Name:      "compozy-hosted-tools",
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   "/bin/compozy",
+			},
+		}
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithHostedMCPLauncher(hosted),
+			WithLogger(slog.New(logs)),
+			WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView}),
+		)
+
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		if got := session.Info().Lineage.PermissionPolicy.Tools; len(got) != 0 {
+			t.Fatalf("MCP-disabled delegation tools = %#v, want none", got)
+		}
+		got := h.driver.startCalls[0]
+		if got.Command != "openclaw acp" {
+			t.Fatalf("start command = %q, want openclaw acp", got.Command)
+		}
+		if len(got.MCPServers) != 0 {
+			t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
+		}
+		if requests := hosted.launchRequests(); len(requests) != 0 {
+			t.Fatalf("hosted launch requests = %#v, want none", requests)
+		}
+		record, ok := logs.FindByMessage("session.mcp.skipped")
+		if !ok {
+			t.Fatalf("logs = %#v, want session MCP skipped diagnostic", logs.Records())
+		}
+		if record.Level != slog.LevelInfo {
+			t.Fatalf("session MCP skipped log level = %s, want INFO", record.Level)
+		}
+		if got, want := record.Attrs["reason"], "provider_session_mcp_disabled"; got != want {
+			t.Fatalf("session MCP skipped reason = %q, want %q", got, want)
+		}
+		if got, want := record.Attrs["resolved_provider"], "openclaw"; got != want {
+			t.Fatalf("session MCP skipped provider = %q, want %q", got, want)
+		}
 	})
-	hosted := &recordingHostedMCPLauncher{
-		server: compozyconfig.MCPServer{
-			Name:      "compozy-hosted-tools",
-			Transport: compozyconfig.MCPServerTransportStdio,
-			Command:   "/bin/compozy",
-		},
-	}
-	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted), WithLogger(slog.New(logs)))
-
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	got := h.driver.startCalls[0]
-	if got.Command != "openclaw acp" {
-		t.Fatalf("start command = %q, want openclaw acp", got.Command)
-	}
-	if len(got.MCPServers) != 0 {
-		t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
-	}
-	if requests := hosted.launchRequests(); len(requests) != 0 {
-		t.Fatalf("hosted launch requests = %#v, want none", requests)
-	}
-	record, ok := logs.FindByMessage("session.mcp.skipped")
-	if !ok {
-		t.Fatalf("logs = %#v, want session MCP skipped diagnostic", logs.Records())
-	}
-	if record.Level != slog.LevelInfo {
-		t.Fatalf("session MCP skipped log level = %s, want INFO", record.Level)
-	}
-	if got, want := record.Attrs["reason"], "provider_session_mcp_disabled"; got != want {
-		t.Fatalf("session MCP skipped reason = %q, want %q", got, want)
-	}
-	if got, want := record.Attrs["resolved_provider"], "openclaw"; got != want {
-		t.Fatalf("session MCP skipped provider = %q, want %q", got, want)
-	}
 }
 
 func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {

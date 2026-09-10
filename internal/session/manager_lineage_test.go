@@ -129,29 +129,66 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name     string
-			override []string
+			name         string
+			override     []string
+			sessionType  Type
+			denyTools    []string
+			unrestricted bool
 		}{
 			{name: "Should leave nil override unchanged"},
 			{name: "Should leave empty override unchanged", override: []string{}},
+			{name: "Should materialize default native tools for a root user session", unrestricted: true},
+			{
+				name:         "Should materialize default native tools for a root system session",
+				sessionType:  SessionTypeSystem,
+				unrestricted: true,
+			},
+			{
+				name:         "Should honor denies with default native tools",
+				sessionType:  SessionTypeSystem,
+				unrestricted: true,
+				denyTools:    []string{toolspkg.ToolIDTaskUpdate.String()},
+			},
+			{
+				name:         "Should preserve a narrower explicit root system override",
+				sessionType:  SessionTypeSystem,
+				unrestricted: true,
+				override:     []string{toolspkg.ToolIDTaskRead.String()},
+			},
+			{name: "Should materialize a root system session budget", sessionType: SessionTypeSystem},
+			{
+				name:        "Should materialize a root system session budget with an empty override",
+				sessionType: SessionTypeSystem,
+				override:    []string{},
+			},
+			{
+				name:        "Should exclude denied tools from a root system session budget",
+				sessionType: SessionTypeSystem,
+				denyTools:   []string{toolspkg.ToolIDTaskUpdate.String()},
+			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				h := newHostedMCPHarness(t)
+				h := newHostedMCPHarness(t, WithToolUniverse([]toolspkg.ToolID{
+					toolspkg.ToolIDTaskRead, toolspkg.ToolIDTaskUpdate,
+				}))
+				agentTools := []string{toolspkg.ToolIDTaskRead.String(), toolspkg.ToolIDTaskUpdate.String()}
+				if tt.unrestricted {
+					agentTools = nil
+				}
 				addHarnessAgent(t, h, compozyconfig.AgentDef{
-					Name:     "unchanged-coder",
-					Provider: "claude",
-					Prompt:   "Use the default tool profile.",
-					Tools: []string{
-						toolspkg.ToolIDTaskRead.String(),
-						toolspkg.ToolIDTaskUpdate.String(),
-					},
+					Name:      "unchanged-coder",
+					DenyTools: tt.denyTools,
+					Provider:  "claude",
+					Prompt:    "Use the default tool profile.",
+					Tools:     agentTools,
 				})
 
 				sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
 					AgentName:            "unchanged-coder",
+					Type:                 tt.sessionType,
 					Workspace:            h.workspaceID,
 					AllowedToolsOverride: tt.override,
 				})
@@ -171,6 +208,9 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				wantTools := []string{
 					toolspkg.ToolIDTaskRead.String(),
 					toolspkg.ToolIDTaskUpdate.String(),
+				}
+				if len(tt.denyTools) > 0 || len(tt.override) > 0 {
+					wantTools = []string{toolspkg.ToolIDTaskRead.String()}
 				}
 				if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("lineage tools = %#v, want concrete delegation policy %#v", got, wantTools)

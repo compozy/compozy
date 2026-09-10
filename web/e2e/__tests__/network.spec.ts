@@ -36,8 +36,9 @@ const createdChannelPurpose = "Coordinate browser e2e work";
 const openWorkId = "browser_work_needs_input_17";
 const openWorkRequestMessageId = "browser_msg_needs_input_request_01";
 const openWorkMessageId = "browser_msg_needs_input_01";
+// Public native ToolIDs such as compozy__mcp_auth_status are not credential markers.
 const sensitivePattern =
-  /compozy_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|proof["':\s]|signature["':\s]/i;
+  /compozy_claim_|claim_token["':\s]|(?<!compozy__)mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|proof["':\s]|signature["':\s]/i;
 
 test.use({
   runtimeOptions: {
