@@ -58,7 +58,7 @@ type daemonMemoryExtractor struct {
 	done   chan struct{}
 }
 
-func newDaemonMemoryExtractor(
+func (d *Daemon) newDaemonMemoryExtractor(
 	ctx context.Context,
 	state *bootState,
 	sessions SessionManager,
@@ -77,6 +77,11 @@ func newDaemonMemoryExtractor(
 		}
 	}
 	workspaceRoots := &sync.Map{}
+	profileStores := d.memoryRecallStoreResolver(state)
+	profileEvents := &daemonMemoryExtractorEvents{
+		stores:         profileStores,
+		sessionProfile: daemonSessionProfileResolver(sessions, "daemon: extractor session profile is unavailable"),
+	}
 	forked := &forkedMemoryExtractor{
 		sessions:       forkSessions,
 		roles:          roleResolverForState(state),
@@ -90,7 +95,7 @@ func newDaemonMemoryExtractor(
 		context.WithoutCancel(ctx),
 		state.globalMemoryDir,
 		forked,
-		extractorpkg.WithEventSink(state.memoryStore),
+		extractorpkg.WithEventSink(profileEvents),
 		extractorpkg.WithLogger(state.logger),
 		extractorpkg.WithClock(now),
 		extractorpkg.WithCoalesceMax(state.cfg.Memory.Extractor.Queue.CoalesceMax),
@@ -102,13 +107,15 @@ func newDaemonMemoryExtractor(
 		return nil, fmt.Errorf("daemon: create memory extractor runtime: %w", err)
 	}
 	sink := &daemonMemoryProposalSink{
+		sessionProfile:    profileEvents.sessionProfile,
+		profileStores:     profileStores,
 		base:              state.memoryStore,
 		workspaceResolver: state.workspaceResolver,
 	}
 	consumer, err := extractorpkg.NewInboxConsumer(
 		state.globalMemoryDir,
 		sink,
-		extractorpkg.WithConsumerEventSink(state.memoryStore),
+		extractorpkg.WithConsumerEventSink(profileEvents),
 		extractorpkg.WithConsumerLogger(state.logger),
 		extractorpkg.WithConsumerClock(now),
 		extractorpkg.WithConsumerInboxPath(state.cfg.Memory.Extractor.InboxPath),

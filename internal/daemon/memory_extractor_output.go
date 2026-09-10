@@ -218,6 +218,7 @@ func candidateFromExtractedLine(
 		metadata["workspace_root"] = workspaceRoot
 	}
 	return memcontract.Candidate{
+		ProfileID:   turn.ProfileID,
 		WorkspaceID: strings.TrimSpace(turn.WorkspaceID),
 		Scope:       scope,
 		AgentName:   agentName,

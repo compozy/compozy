@@ -72,7 +72,7 @@ func (d *Daemon) bootMemorySessionRuntime(
 	if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
 		return err
 	}
-	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)
+	memoryExtractor, err := d.newDaemonMemoryExtractor(ctx, state, sessions, d.now)
 	if err != nil {
 		return err
 	}

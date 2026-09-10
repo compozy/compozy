@@ -339,9 +339,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-agent-runtime"}
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
-			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
-			}},
+			policyGate: &loopSessionPolicyGate{
+				profileNames: loopProfileNameResolverStub{"profile-marketing": "marketing"},
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
 		}
 
 		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
@@ -378,9 +381,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		binder := &loopActionSessionBinder{
 			sessions:  sessions,
 			worktrees: worktrees,
-			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
-			}},
+			policyGate: &loopSessionPolicyGate{
+				profileNames: loopProfileNameResolverStub{"profile-marketing": "marketing"},
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
 		}
 
 		for itemIndex := range 3 {
@@ -442,9 +448,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		binder := &loopActionSessionBinder{
 			sessions:  sessions,
 			worktrees: worktrees,
-			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
-			}},
+			policyGate: &loopSessionPolicyGate{
+				profileNames: loopProfileNameResolverStub{"profile-marketing": "marketing"},
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
 		}
 
 		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
@@ -487,9 +496,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		binder := &loopActionSessionBinder{
 			sessions:  sessions,
 			worktrees: worktrees,
-			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
-			}},
+			policyGate: &loopSessionPolicyGate{
+				profileNames: loopProfileNameResolverStub{"profile-marketing": "marketing"},
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
 		}
 
 		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
@@ -1552,6 +1564,16 @@ func (r loopActionBinderWorkspaceResolver) Resolve(
 	return resolved, nil
 }
 
+func (r loopActionBinderWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	ref, name string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if name != "default" && name != "marketing" {
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+	return r.Resolve(ctx, ref)
+}
+
 func (r loopActionBinderWorkspaceResolver) ResolveOrRegister(
 	_ context.Context,
 	path string,
@@ -2061,4 +2083,80 @@ func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
 			t.Fatalf("createCall.Speed = %q, want fast", createCall.Speed)
 		}
 	})
+}
+
+// Loop policy resolution owns selecting the resource layer before resolving an Agent.
+func TestLoopSessionPolicyProfile(t *testing.T) {
+	t.Parallel()
+	for _, byPath := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should resolve the owning Profile policy with path %t", byPath), func(t *testing.T) {
+			t.Parallel()
+			scoped := loopActionBinderWorkspace(
+				t,
+				[]compozyconfig.AgentDef{
+					{Name: "profile-worker", Provider: "mock", Prompt: "Work", Permissions: "deny-all"},
+				},
+			)
+			scoped.ProfileID = "profile-engineering"
+			resolver := &loopPolicyProfileWorkspaceResolver{scoped: scoped}
+			gate := &loopSessionPolicyGate{
+				workspaceResolver: resolver,
+				profileNames:      loopProfileNameResolverStub{"profile-engineering": "engineering"},
+			}
+			opts := session.CreateOpts{ProfileID: "profile-engineering", Workspace: "ws-loop"}
+			if byPath {
+				opts.Workspace = ""
+				opts.WorkspacePath = scoped.RootDir
+			}
+			result, err := gate.applyResolved(t.Context(), &opts, "profile-worker", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.workspace.ProfileID != opts.ProfileID || opts.Permissions != compozyconfig.PermissionModeDenyAll {
+				t.Fatalf(
+					"wrong profile or policy: workspace=%q permissions=%q",
+					result.workspace.ProfileID,
+					opts.Permissions,
+				)
+			}
+		})
+	}
+	t.Run("Should refuse an unknown Profile even when the Agent exists globally", func(t *testing.T) {
+		t.Parallel()
+		resolved := loopActionBinderWorkspace(
+			t,
+			[]compozyconfig.AgentDef{{Name: "profile-worker", Provider: "mock", Prompt: "Work"}},
+		)
+		gate := &loopSessionPolicyGate{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			},
+			profileNames: loopProfileNameResolverStub{},
+		}
+		opts := session.CreateOpts{ProfileID: "profile-missing", Workspace: "ws-loop"}
+		if _, err := gate.applyResolved(
+			t.Context(),
+			&opts,
+			"profile-worker",
+			nil,
+		); err == nil ||
+			!strings.Contains(err.Error(), "profile not found") {
+			t.Fatalf("error = %v, want profile not found", err)
+		}
+	})
+}
+
+type loopPolicyProfileWorkspaceResolver struct {
+	loopActionBinderWorkspaceResolver
+	scoped workspacepkg.ResolvedWorkspace
+}
+
+func (r *loopPolicyProfileWorkspaceResolver) ResolveForProfile(
+	_ context.Context,
+	ref, name string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if name != "engineering" || (ref != "ws-loop" && ref != r.scoped.RootDir) {
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+	return r.scoped, nil
 }

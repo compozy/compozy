@@ -123,9 +123,12 @@ func (t *daemonMemoryControllerTiebreaker) prepareCall(
 	roles := t.roles
 	if t.configSnapshot != nil {
 		cfg := t.configSnapshot()
-		roles = newRoleResolver(&cfg, t.roles.workspaceResolver, t.roles.agents, t.roles.events)
+		snapshot := *t.roles
+		snapshot.config = &cfg
+		roles = &snapshot
 	}
-	options, err := roles.resolveMemoryControllerCallOptions(ctx, request.Candidate.WorkspaceID)
+	roleCtx := withRoleInvocationCorrelation(ctx, memoryControllerCorrelation(request.Candidate))
+	options, err := roles.resolveMemoryControllerCallOptions(roleCtx, request.Candidate.WorkspaceID)
 	if err != nil {
 		return memoryControllerPreparedCall{}, err
 	}
@@ -258,6 +261,7 @@ func memoryControllerCallContext(
 
 func memoryControllerCorrelation(candidate memcontract.Candidate) roleInvocationCorrelation {
 	correlation := roleInvocationCorrelation{
+		ProfileID:   strings.TrimSpace(candidate.ProfileID),
 		WorkspaceID: strings.TrimSpace(candidate.WorkspaceID),
 		AgentName:   strings.TrimSpace(candidate.AgentName),
 	}

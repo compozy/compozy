@@ -29,3 +29,9 @@ that implement-tasks worker sessions retain the same Worktree id.
 QA follow-up 2026-09-01: while the real extension task run was claimed and blocked inside
 `ext__spec_cycle__import_tasks`, CLI removal returned `worktree_operation_in_progress`. After the
 tool completed with the worktree-only task path, the same CLI removal succeeded.
+
+Profile policy regression (#570): repeat worker creation with a Profile-scoped Agent in a
+non-default Profile, using both Workspace ID and root path. Verify the same Profile layer supplies
+the Agent, sandbox, permissions, and runtime settings for action, pinned, and judge sessions.
+An unknown or unavailable Profile must fail before session creation, even if a same-named global
+Agent exists. Retain the default Profile and worktree environment canaries above.

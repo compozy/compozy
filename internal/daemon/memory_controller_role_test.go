@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/memory/controller"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestMemoryControllerRoleCallOptions(t *testing.T) {
@@ -94,6 +95,56 @@ func TestMemoryControllerRoleCallOptions(t *testing.T) {
 
 func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should resolve the candidate owner with a live config snapshot and reject unknown owners",
+		func(t *testing.T) {
+			t.Parallel()
+			cfg := roleResolverConfig()
+			scoped := loopActionBinderWorkspace(t, nil)
+			scoped.ProfileID = "profile-engineering"
+			scoped.Config = cfg
+			scoped.Config.Roles.MemoryController.Model = "profile-controller"
+			workspaces := &loopPolicyProfileWorkspaceResolver{scoped: scoped}
+			roles := newRoleResolver(&cfg, workspaces, nil)
+			roles.profileNames = loopProfileNameResolverStub{"profile-engineering": "engineering"}
+			invoker := &memoryControllerInvokerStub{result: session.TransientModelResult{
+				Output: `{"op":"noop","target_id":"","confidence":0.5,"reason":"ambiguous"}`, Accepted: true,
+			}}
+			tiebreaker := &daemonMemoryControllerTiebreaker{
+				invoker:        invoker,
+				roles:          roles,
+				configSnapshot: func() compozyconfig.Config { return cfg },
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": scoped},
+				},
+			}
+			request := controller.TiebreakerRequest{Candidate: memcontract.Candidate{
+				Scope:       memcontract.ScopeProfile,
+				Content:     "candidate",
+				WorkspaceID: "ws-loop",
+				ProfileID:   "profile-engineering",
+			}}
+			result, err := tiebreaker.BreakTie(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Call == nil || result.Call.Model != "profile-controller" || len(invoker.calls) != 1 ||
+				invoker.calls[0].Model != "profile-controller" {
+				t.Fatalf("wrong controller: result=%#v calls=%#v", result, invoker.calls)
+			}
+			request.Candidate.ProfileID = "profile-missing"
+			if _, err := tiebreaker.BreakTie(
+				t.Context(),
+				request,
+			); err == nil ||
+				!strings.Contains(err.Error(), "profile not found") {
+				t.Fatalf("error = %v, want profile not found", err)
+			}
+			if len(invoker.calls) != 1 {
+				t.Fatal("unknown Profile invoked a controller")
+			}
+		},
+	)
 	t.Run("Should invoke the configured live role with bounded targets", func(t *testing.T) {
 		t.Parallel()
 
