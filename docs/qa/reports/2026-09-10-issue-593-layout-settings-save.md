@@ -72,11 +72,11 @@ preserving the newer draft. A second browser capture, `edit-clears-error.png`, e
 ## Verification and limits
 
 - Root `bunx turbo run test typecheck build --filter=./web` passed: 771 suites / 7,133 tests,
-  typecheck and build. The final gate passed 771 suites / 7,137 tests.
+  typecheck and build. The gate for `1e829ff` passed 771 suites / 7,137 tests.
 - `CGO_ENABLED=1 go test -race ./internal/settings ./internal/api/core` passed; the receipt case also
   passed after extending it to both HTTP and UDS handler shims.
 - Root `bunx turbo run build --filter=./packages/site` passed, including TypeScript and static pages.
-- `make gate` passed on the final production diff: codegen-check, Go lint (zero issues), scoped
+- `make gate` passed on commit `1e829ff` before the subsequent review remediation: codegen-check, Go lint (zero issues), scoped
   Go race tests, and Web lint (zero warnings/errors), typecheck and all tests. Required CI is
   tracked on the current PR head.
 - Laboratory teardown completed with `clean: true`.
@@ -96,3 +96,38 @@ checker produced identical findings on the base and changed test files; there ar
 This targeted walk does not claim Electron global-hotkey registration, Linux, provider-backed agent
 workflows, or the full resilience matrix. The application-rejection test is a unit I/O boundary test;
 the live failure evidence is transport and HTTP write rejection.
+
+
+## Complete review remediation
+
+All inline, review-body and summary comments from Greptile, CodeRabbit and React Doctor were
+inventoried, including the docstring-coverage warning. Immediate shortcut, global-hotkey and alias
+writes now retain apply receipts, cache canonical persisted sections on application failure, and
+show warnings and deferred actions. Late results update only the submitting workspace. The existing
+adapter, shortcut-table and MSW suites cover these boundaries; interactive fixtures retain each
+profile/workspace configuration through subsequent GETs and reset between stories.
+
+The resumed isolated browser walk verified the exact served JavaScript filename against the current
+`web/dist/index.html` before recording `window.tab.new` as `meta+alt+KeyS` and editing the session alias.
+The UI showed “Settings saved and applied.”; reload retained the shortcut, and the public settings
+read retained both the shortcut and alias. Evidence: `keyboard-current.har`,
+`keyboard-current-applied.png`, `keyboard-current-feedback.txt`, `keyboard-current-reloaded.txt`,
+and `keyboard-current-persisted.json` under the artifact root above. An earlier attempt served an
+older bundle and is explicitly excluded from current-build evidence (`keyboard-older-bundle.har`).
+Global OS hotkey registration and injected apply failures remain unit-boundary evidence, not live
+platform claims. The own-lab teardown is retained in the same manifest.
+
+## CI follow-up and validation ownership
+
+CI run `34510838879` failed Herdr E2E-016: the second palette chord lost its action panel.
+The trace showed the automatically selected row changing from `palette.view.sessions` to
+`palette.open` when asynchronous ranking arrived. The palette surface derived its initial fallback
+without retaining that selection, so each reorder could choose another first row. A regression in
+the existing palette hook suite reproduced the failure before the correction and passed afterward (one focused case). The surface now
+retains automatic selection with the same guarded render-time reconciliation used by the view
+shell. The E2E assertion is unchanged.
+
+The review batch passed the existing adapter/MSW/shortcut-table suites (42 tests), an additional
+18-test shortcut-table run including late workspace results, and root Web typecheck/build.
+At the user's request, the queued local gate for this batch was canceled; subsequent delivery gates
+run in CI. Earlier local gate results above apply to their recorded inputs, not the final PR head.

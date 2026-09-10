@@ -17,6 +17,7 @@ export interface SettingsSaveStateInput {
   showSaved: boolean;
 }
 
+/** Derive visible save status and recovery actions without treating an error as an immutable lock. */
 export function deriveSettingsSaveBarState({
   isDirty,
   isInvalid = false,

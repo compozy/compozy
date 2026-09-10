@@ -58,6 +58,7 @@ type WindowManagerConfigEditorStoreEvents = {
   };
 };
 
+/** Track behavior changes independently of separately edited shortcut maps. */
 function configRevision(config: WindowManagerConfig): string {
   const {
     shortcuts: _shortcuts,
@@ -69,6 +70,7 @@ function configRevision(config: WindowManagerConfig): string {
   return JSON.stringify(behavior);
 }
 
+/** Fence asynchronous results against the canonical baseline that started the save. */
 function isCurrentConfig(
   context: WindowManagerConfigEditorStoreContext,
   revision: string
@@ -76,10 +78,12 @@ function isCurrentConfig(
   return context.baselineRevision === revision;
 }
 
+/** Recognize the transport conflict status without replacing the original error. */
 function isConflictError(error: Error): boolean {
   return Reflect.get(error, "status") === 409;
 }
 
+/** Create independent baseline and draft snapshots for a newly loaded configuration. */
 function initialConfigEditorContext(
   baseline: WindowManagerConfig
 ): WindowManagerConfigEditorStoreContext {
@@ -96,6 +100,7 @@ function initialConfigEditorContext(
   };
 }
 
+/** Adopt a new server baseline while preserving an existing behavior draft. */
 function reconcileConfigEditorContext(
   previous: WindowManagerConfigEditorStoreContext,
   baseline: WindowManagerConfig
@@ -213,10 +218,12 @@ export const windowManagerConfigEditorLogic = createStoreLogic<
   },
 });
 
+/** Accept finite values within the inclusive limits, including valid zero spacing. */
 function inRange(value: number, range: { min: number; max: number }): boolean {
   return Number.isInteger(value) && value >= range.min && value <= range.max;
 }
 
+/** Validate editable behavior before submitting a full configuration to the daemon. */
 function collectProblems(config: WindowManagerConfig): WindowManagerConfigProblem[] {
   const problems: WindowManagerConfigProblem[] = [];
   const ranges = WINDOW_MANAGER_RANGES;
@@ -259,6 +266,7 @@ function collectProblems(config: WindowManagerConfig): WindowManagerConfigProble
   return problems;
 }
 
+/** Expose a retryable, single-flight behavior draft with canonical persistence and apply outcomes. */
 export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
   const baselineRevision = configRevision(baseline);
   const { store } = useStoreBinding(

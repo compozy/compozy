@@ -23,6 +23,7 @@ func getSettingsWindowManagerOperationSpec() OperationSpec {
 	}
 }
 
+// updateSettingsWindowManagerOperationSpec declares the additive section-and-apply mutation response.
 func updateSettingsWindowManagerOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodPatch,

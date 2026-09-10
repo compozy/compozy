@@ -419,5 +419,3 @@ export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model"
 export { ROLE_ORDER, type RoleRuntimeValue } from "./lib/roles-config";
 export type { RolesDisclosure } from "./hooks/use-roles-disclosure";
 export type { RolesRuntimeOptions } from "./hooks/use-roles-runtime-options";
-
-export { windowManagerApplyMessage } from "./lib/window-manager-settings-result";

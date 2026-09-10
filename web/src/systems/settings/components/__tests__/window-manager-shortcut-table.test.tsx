@@ -14,9 +14,12 @@ import * as os from "@/systems/os";
 import {
   parseSettingsWindowManagerSection,
   WindowManagerSettingsError,
+  WindowManagerBindingsApplyError,
+  windowManagerKeys,
   type WindowManagerSettingsWire,
 } from "@/systems/os";
 
+import { settingsReloadAppliedFixture } from "../../mocks/fixtures";
 import { useWindowManagerAliasEditor } from "../../hooks/use-window-manager-alias-editor";
 import { useWindowManagerBindingMutations } from "../../hooks/use-window-manager-binding-mutations";
 import { useGlobalShortcutRecorder } from "../../hooks/use-global-shortcut-recorder";
@@ -42,10 +45,12 @@ function sectionFrom(mutate: (wire: WindowManagerSettingsWire) => void = () => {
  */
 function ShortcutSurface({
   section = sectionFrom(),
+  workspaceId = "workspace:alpha",
 }: {
   section?: ReturnType<typeof sectionFrom>;
+  workspaceId?: string;
 }) {
-  const mutations = useWindowManagerBindingMutations("workspace:alpha");
+  const mutations = useWindowManagerBindingMutations(workspaceId);
   const recorder = useWindowManagerShortcutRecorder(section, mutations);
   const globalRecorder = useGlobalShortcutRecorder(section, mutations);
   const aliases = useWindowManagerAliasEditor(
@@ -55,7 +60,12 @@ function ShortcutSurface({
   );
   return (
     <>
-      <WindowManagerShortcutTable aliases={aliases} recorder={recorder} section={section} />
+      <WindowManagerShortcutTable
+        apply={mutations.apply}
+        aliases={aliases}
+        recorder={recorder}
+        section={section}
+      />
       <WindowManagerGlobalHotkeys recorder={globalRecorder} section={section} />
     </>
   );
@@ -63,14 +73,16 @@ function ShortcutSurface({
 
 function renderTable(section?: ReturnType<typeof sectionFrom>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const tree = (next?: ReturnType<typeof sectionFrom>) => (
+  const tree = (next?: ReturnType<typeof sectionFrom>, workspaceId?: string) => (
     <QueryClientProvider client={client}>
-      <ShortcutSurface section={next ?? section} />
+      <ShortcutSurface section={next ?? section} workspaceId={workspaceId} />
     </QueryClientProvider>
   );
   const view = render(tree());
   return {
     ...view,
+    client,
+    showScope: (workspaceId: string) => view.rerender(tree(undefined, workspaceId)),
     /** Re-renders with the section a later daemon answer would have served. */
     showSection: (next: ReturnType<typeof sectionFrom>) => view.rerender(tree(next)),
   };
@@ -82,7 +94,10 @@ function updateWindowManagerBindingsMock() {
 
 describe("WindowManagerShortcutTable", () => {
   beforeEach(() => {
-    vi.spyOn(os, "updateWindowManagerBindings").mockResolvedValue(sectionFrom());
+    vi.spyOn(os, "updateWindowManagerBindings").mockResolvedValue({
+      section: sectionFrom(),
+      apply: settingsReloadAppliedFixture,
+    });
   });
 
   afterEach(() => {
@@ -221,7 +236,10 @@ describe("WindowManagerShortcutTable", () => {
         "ext.notes.capture": ["meta+KeyN"],
       };
     });
-    updateWindowManagerBindingsMock().mockResolvedValueOnce(afterOverwrite);
+    updateWindowManagerBindingsMock().mockResolvedValueOnce({
+      section: afterOverwrite,
+      apply: settingsReloadAppliedFixture,
+    });
     const view = renderTable();
 
     await user.click(screen.getByTestId("shortcut-recorder-ext.notes.capture"));
@@ -375,5 +393,72 @@ describe("WindowManagerShortcutTable", () => {
     expect(screen.getByTestId("window-manager-global-hotkeys")).toHaveTextContent(
       "No global hotkeys"
     );
+  });
+  it.each([
+    ["restart-daemon", "Settings saved. Restart CompozyOS to apply."],
+    ["new-session", "Settings saved. New sessions use this config."],
+  ] as const)(
+    "Should visibly preserve the %s action and warnings after a shortcut edit",
+    async (next_action, message) => {
+      updateWindowManagerBindingsMock().mockResolvedValueOnce({
+        section: sectionFrom(),
+        apply: {
+          ...settingsReloadAppliedFixture,
+          applied: false,
+          next_action,
+          warnings: ["A shell still needs the new keymap"],
+        },
+      });
+      const user = userEvent.setup();
+      renderTable();
+      await user.click(screen.getByTestId("shortcut-reset-all"));
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(screen.getByText("A shell still needs the new keymap")).toBeVisible();
+    }
+  );
+
+  it("Should cache persisted bindings and show application failure instead of successful reset", async () => {
+    const saved = sectionFrom(wire => {
+      wire.config.shortcuts = {};
+    });
+    updateWindowManagerBindingsMock().mockRejectedValueOnce(
+      new WindowManagerBindingsApplyError({
+        section: saved,
+        apply: { ...settingsReloadAppliedFixture, applied: false, next_action: "retry" },
+      })
+    );
+    const user = userEvent.setup();
+    const { client } = renderTable();
+    await user.click(screen.getByTestId("shortcut-reset-all"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Settings saved, but apply failed.");
+    expect(screen.queryByText("Every shortcut restored to its default.")).not.toBeInTheDocument();
+    expect(client.getQueryData(windowManagerKeys.config("workspace:alpha"))).toEqual(saved);
+    await user.click(screen.getByTestId("shortcut-reset-all"));
+    expect(await screen.findByText("Settings saved and applied.")).toBeVisible();
+    expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should reconcile a late binding result only into the workspace that submitted it", async () => {
+    let finish!: (result: os.WindowManagerBindingsResult) => void;
+    updateWindowManagerBindingsMock().mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    const { client, showScope } = renderTable();
+    await user.click(screen.getByTestId("shortcut-reset-all"));
+    await waitFor(() => expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(1));
+    showScope("workspace:beta");
+    const saved = sectionFrom(wire => {
+      wire.config.shortcuts = {};
+    });
+    finish({ section: saved, apply: settingsReloadAppliedFixture });
+    await waitFor(() =>
+      expect(client.getQueryData(windowManagerKeys.config("workspace:alpha"))).toEqual(saved)
+    );
+    expect(client.getQueryData(windowManagerKeys.config("workspace:beta"))).toBeUndefined();
+    expect(screen.queryByText("Settings saved and applied.")).not.toBeInTheDocument();
   });
 });

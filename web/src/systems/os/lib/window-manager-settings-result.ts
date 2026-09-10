@@ -29,10 +29,12 @@ const applySchema = z.object({
 
 export type WindowManagerSettingsApply = z.infer<typeof applySchema>;
 
+/** Validate the daemon receipt before any caller interprets HTTP success as live application. */
 export function parseWindowManagerSettingsApply(value: unknown): WindowManagerSettingsApply {
   return applySchema.parse(value);
 }
 
+/** Describe persisted state separately from application failure or a pending operator action. */
 export function windowManagerApplyMessage(result: WindowManagerSettingsApply): string {
   if (result.partial_failures?.length || result.next_action === "retry") {
     const details = [
@@ -56,6 +58,7 @@ export function windowManagerApplyMessage(result: WindowManagerSettingsApply): s
   return "Settings saved and applied.";
 }
 
+/** Identify failed or unverified live application while allowing explicit deferred actions. */
 export function windowManagerApplyFailed(result: WindowManagerSettingsApply): boolean {
   return (
     Boolean(result.partial_failures?.length) ||

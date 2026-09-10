@@ -12,6 +12,7 @@ func hasWindowManagerMutation(req SectionUpdateRequest) bool {
 		req.WindowManagerAliases != nil
 }
 
+// mergeWindowManagerRequest merges behavior with current shortcut maps when preservation is requested.
 func mergeWindowManagerRequest(
 	current compozyconfig.WindowManagerConfig,
 	aliases map[string]string,

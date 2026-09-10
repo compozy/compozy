@@ -3,7 +3,11 @@ import { useRef, type ReactNode } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
 
-import type { WindowManagerConfig, WindowManagerSettingsSection } from "@/systems/os";
+import {
+  windowManagerApplyMessage,
+  type WindowManagerConfig,
+  type WindowManagerSettingsSection,
+} from "@/systems/os";
 import {
   LayoutProfileGrid,
   LayoutStage,
@@ -13,7 +17,6 @@ import {
   useLayoutsSettingsData,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  windowManagerApplyMessage,
   useWindowManagerConfigEditor,
   useWindowManagerKeyboardEditors,
   useWindowManagerLayoutEditor,
@@ -181,7 +184,7 @@ function LayoutsSettingsView({
   const configEditor = useWindowManagerConfigEditor(config);
   // Keyboard state is daemon-owned and applies live, so it writes through its
   // own path rather than joining the page's draft (US-022.AC-3).
-  const { aliases, globalRecorder, recorder } = useWindowManagerKeyboardEditors(
+  const { aliases, globalRecorder, recorder, bindingApply } = useWindowManagerKeyboardEditors(
     section,
     workspaceId,
     clientId
@@ -237,6 +240,7 @@ function LayoutsSettingsView({
       )}
       <WindowManagerConfigEditor
         aliases={aliases}
+        bindingApply={bindingApply}
         editor={configEditor}
         focusCommandId={focusCommandId}
         globalRecorder={globalRecorder}

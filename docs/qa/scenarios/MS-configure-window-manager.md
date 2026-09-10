@@ -28,6 +28,10 @@ daemon's next action and warnings; HTTP 200 alone is not live-apply evidence. Wh
 succeeds but application fails, retry must reapply the pending layout rather than skip it as an
 unchanged file, and Discard must retain the canonical saved baseline. Edit shortcuts while a
 behavior draft is open and verify saving that draft preserves the latest shortcut maps and aliases.
+For immediate shortcut, global-hotkey and alias edits, verify the saved section remains canonical
+after application failure, no failure is announced as an applied success, and warnings plus
+restart/new-session actions remain visible. Switch workspace during a pending edit and confirm
+the result stays with its original scope.
 The targeted run is tracked in `docs/qa/reports/2026-09-10-issue-593-layout-settings-save.md`.
 
 qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior defaults, shortcuts, bindings, gaps, snap thresholds, and declarative layout editing; 2026-07-24 added `window_manager.swap_modifier` (default `shift`) across config.toml, settings PATCH, Settings UI, and web gesture resolution; 2026-07-24 rebuilt Settings › Layouts as a direct-manipulation surface (canvas + inspector + docked review gate, diagram choice cards, gap box, snap map, repeat-width track, chord recorder, saved-layout cards) and added the `compozy layout-profile` CLI verbs. Flag only; the next QA cycle owns live retesting.

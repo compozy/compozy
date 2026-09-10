@@ -27,7 +27,6 @@ import {
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
   settingsReloadBlockedFixture,
-  settingsReloadAppliedFixture,
   settingsRestartRequiredMutationFixture,
   settingsRestartResponseFixture,
   settingsRestartStatusFixture,
@@ -39,11 +38,11 @@ import {
 } from "./layered-fixtures";
 import {
   settingsWindowManagerDesktopIds,
-  settingsWindowManagerSectionFixture,
   settingsWindowManagerSnapshotFixture,
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
+import { windowManagerSettingsHandlers } from "./window-manager-settings-handlers";
 import { rolesStatusFixture, settingsRolesSectionFixture } from "./roles-fixtures";
 import { settingsUpdateStatusFixture } from "./settings-update-fixture";
 
@@ -216,16 +215,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(settingsCmdPaletteSectionFixture)
   ),
 
-  compozyApiMock.get("/api/settings/window-manager", () =>
-    HttpResponse.json(settingsWindowManagerSectionFixture)
-  ),
-  // Mutations preserve the section echo and expose the daemon apply receipt.
-  compozyApiMock.patch("/api/settings/window-manager", () =>
-    HttpResponse.json({
-      ...settingsWindowManagerSectionFixture,
-      apply: settingsReloadAppliedFixture,
-    })
-  ),
+  ...windowManagerSettingsHandlers,
 
   compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>
     HttpResponse.json(layoutDocumentForWorkspace(String(params.workspace_id)))

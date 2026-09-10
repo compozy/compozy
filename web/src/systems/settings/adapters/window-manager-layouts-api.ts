@@ -1,10 +1,12 @@
-import { parseSettingsWindowManagerSection } from "@/systems/os";
 import {
   parseWindowManagerSettingsApply,
+  parseSettingsWindowManagerSection,
+  fetchWindowManagerSnapshot,
+  type WindowManagerConfig,
   windowManagerApplyFailed,
   windowManagerApplyMessage,
   type WindowManagerSettingsApply,
-} from "../lib/window-manager-settings-result";
+} from "@/systems/os";
 
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
 
@@ -30,7 +32,6 @@ import type {
   WindowManagerLayoutValidation,
 } from "../lib/window-manager-layout-types";
 import { windowManagerSnapshotToLayoutState } from "../lib/window-manager-layout-projection";
-import { fetchWindowManagerSnapshot, type WindowManagerConfig } from "@/systems/os";
 
 export class WindowManagerLayoutsApiError extends Error {
   constructor(
@@ -101,6 +102,7 @@ export interface WindowManagerSettingsSaveResult {
   apply: WindowManagerSettingsApply;
 }
 
+/** Keeps the canonical saved config available when only runtime application failed. */
 export class WindowManagerSettingsApplyError extends Error {
   constructor(public readonly result: WindowManagerSettingsSaveResult) {
     super(windowManagerApplyMessage(result.apply));
@@ -108,6 +110,7 @@ export class WindowManagerSettingsApplyError extends Error {
   }
 }
 
+/** Persist behavior without replacing live-edited shortcuts and preserve the daemon apply receipt. */
 export async function updateWindowManagerSettings(
   config: WindowManagerConfig,
   signal?: AbortSignal

@@ -1,6 +1,6 @@
 import { HelpTip, Slider } from "@compozy/ui";
 
-import type { WindowManagerSettingsSection } from "@/systems/os";
+import type { WindowManagerSettingsApply, WindowManagerSettingsSection } from "@/systems/os";
 
 import type { AliasEditorModel } from "../hooks/use-window-manager-alias-editor";
 import type { GlobalShortcutRecorderModel } from "../hooks/use-global-shortcut-recorder";
@@ -22,6 +22,7 @@ import { WindowManagerSnapMap } from "./layouts/window-manager-snap-map";
 
 interface WindowManagerConfigEditorProps {
   editor: WindowManagerConfigEditorModel;
+  bindingApply?: WindowManagerSettingsApply | null;
   /** Daemon truth for the keyboard surface; not part of the draft. */
   section: WindowManagerSettingsSection;
   recorder: ShortcutRecorderModel;
@@ -40,6 +41,7 @@ interface WindowManagerConfigEditorProps {
  */
 export function WindowManagerConfigEditor({
   aliases,
+  bindingApply,
   editor,
   focusCommandId,
   globalRecorder,
@@ -101,6 +103,7 @@ export function WindowManagerConfigEditor({
         <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
           <WindowManagerShortcutTable
             aliases={aliases}
+            apply={bindingApply}
             focusCommandId={focusCommandId}
             recorder={recorder}
             section={section}
@@ -150,6 +153,7 @@ export function WindowManagerConfigEditor({
   );
 }
 
+/** Group a behavior control with its explanation and validation error. */
 function WindowManagerConfigCard({
   title,
   help,

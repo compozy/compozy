@@ -32,6 +32,8 @@ export {
   fetchWindowManagerSettings,
   updateWindowManagerBindings,
   WindowManagerSettingsError,
+  WindowManagerBindingsApplyError,
+  type WindowManagerBindingsResult,
   type WindowManagerBindingUpdate,
   type WindowManagerMutationCode,
 } from "./adapters/window-manager-settings-api";
@@ -179,3 +181,10 @@ export {
   systemNotificationState,
   type SystemNotificationState,
 } from "./lib/system-notification-channel";
+
+export {
+  parseWindowManagerSettingsApply,
+  windowManagerApplyFailed,
+  windowManagerApplyMessage,
+  type WindowManagerSettingsApply,
+} from "./lib/window-manager-settings-result";

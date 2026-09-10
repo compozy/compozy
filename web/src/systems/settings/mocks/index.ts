@@ -55,3 +55,5 @@ export {
   windowManagerLayoutDocumentFixture,
   windowManagerLayoutResourceFixture,
 } from "./window-manager-fixtures";
+
+export { resetWindowManagerSettingsMockState } from "./window-manager-settings-handlers";

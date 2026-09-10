@@ -12,12 +12,14 @@ interface SettingsSaveBarProps {
   className?: string;
 }
 
+/** Keep daemon warnings visible in both applied and dirty save states. */
 function warningsFor(state: SettingsSaveBarState): string[] {
   return state.kind === "dirty" || state.kind === "invalid" || state.kind === "warning"
     ? state.warnings
     : [];
 }
 
+/** Choose the status message from the save lifecycle without losing supplied diagnostics. */
 function messageFor(state: Exclude<SettingsSaveBarState, { kind: "idle" }>): string {
   switch (state.kind) {
     case "dirty":
@@ -34,6 +36,7 @@ function messageFor(state: Exclude<SettingsSaveBarState, { kind: "idle" }>): str
 }
 
 /** Pure save-state renderer. Mutation and saved-flash orchestration live in route hooks. */
+/** Render save status and only the recovery actions allowed by the owning editor. */
 function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSaveBarProps) {
   if (state.kind === "idle") return null;
 

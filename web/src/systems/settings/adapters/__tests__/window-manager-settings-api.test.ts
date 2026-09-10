@@ -17,9 +17,11 @@ import {
   parseSettingsWindowManagerSection,
   updateWindowManagerBindings,
   WindowManagerSettingsError,
+  WindowManagerBindingsApplyError,
   type WindowManagerSettingsWire,
 } from "@/systems/os";
 
+import { settingsReloadAppliedFixture } from "../../mocks/fixtures";
 import { settingsWindowManagerSectionFixture } from "../../mocks/window-manager-fixtures";
 
 vi.mock("@/lib/api-client", async importOriginal => {
@@ -174,7 +176,7 @@ describe("window-manager settings API adapter", () => {
   it("Should send complete maps and keep overwrite off the wire until asked [RA0252]", async () => {
     const wire = sectionWire();
     vi.mocked(apiClient.PATCH).mockResolvedValue({
-      data: wire,
+      data: { ...wire, apply: settingsReloadAppliedFixture },
       error: undefined,
       response: new Response(null, { status: 200 }),
     } as never);
@@ -210,5 +212,62 @@ describe("window-manager settings API adapter", () => {
         body: expect.objectContaining({ overwrite: true }),
       })
     );
+  });
+  it.each([
+    { applied: false, next_action: "retry" },
+    {
+      partial_failures: [
+        {
+          subsystem: "window-manager",
+          diagnostic: { title: "Apply failed", message: "Renderer unavailable" },
+        },
+      ],
+    },
+    { applied: false },
+  ])("Should retain canonical saved bindings when application fails: %j", async patch => {
+    const wire = sectionWire();
+    wire.config.shortcuts = { "window.close": ["meta+KeyW"] };
+    const apply = { ...settingsReloadAppliedFixture, ...patch };
+    vi.mocked(apiClient.PATCH).mockResolvedValue({
+      data: { ...wire, apply },
+      response: new Response(null, { status: 200 }),
+    } as never);
+    const failure = await updateWindowManagerBindings({
+      workspaceId: "workspace:alpha",
+      shortcuts: { "window.close": ["meta+KeyW"] },
+    }).catch(error => error);
+    expect(failure).toBeInstanceOf(WindowManagerBindingsApplyError);
+    expect(failure.result).toEqual({ section: parseSettingsWindowManagerSection(wire), apply });
+    expect(failure.message).toMatch(/saved.*(failed|not applied)/);
+  });
+
+  it.each(["restart-daemon", "new-session"])(
+    "Should retain pending %s actions and warnings",
+    async next_action => {
+      const wire = sectionWire();
+      const apply = {
+        ...settingsReloadAppliedFixture,
+        applied: false,
+        next_action,
+        warnings: ["Some shortcuts await application"],
+      };
+      vi.mocked(apiClient.PATCH).mockResolvedValue({
+        data: { ...wire, apply },
+        response: new Response(null, { status: 200 }),
+      } as never);
+      await expect(
+        updateWindowManagerBindings({ workspaceId: null, aliases: {} })
+      ).resolves.toEqual({ section: parseSettingsWindowManagerSection(wire), apply });
+    }
+  );
+
+  it("Should reject a successful HTTP response without a verifiable apply receipt", async () => {
+    vi.mocked(apiClient.PATCH).mockResolvedValue({
+      data: sectionWire(),
+      response: new Response(null, { status: 200 }),
+    } as never);
+    await expect(
+      updateWindowManagerBindings({ workspaceId: null, aliases: {} })
+    ).rejects.toBeInstanceOf(ZodError);
   });
 });

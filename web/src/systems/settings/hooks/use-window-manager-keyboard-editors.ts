@@ -5,6 +5,7 @@ import { useWindowManagerAliasEditor } from "./use-window-manager-alias-editor";
 import { useWindowManagerBindingMutations } from "./use-window-manager-binding-mutations";
 import { useWindowManagerShortcutRecorder } from "./use-window-manager-shortcut-recorder";
 
+/** Share one scoped write queue and application receipt across shortcut, hotkey and alias editors. */
 export function useWindowManagerKeyboardEditors(
   section: WindowManagerSettingsSection,
   workspaceId: string,
@@ -21,5 +22,5 @@ export function useWindowManagerKeyboardEditors(
     bindings,
     commandId => section.commands.find(command => command.id === commandId)?.title ?? commandId
   );
-  return { aliases, globalRecorder, recorder };
+  return { aliases, globalRecorder, recorder, bindingApply: bindings.apply };
 }

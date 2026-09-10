@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
+// settingsWindowManagerSectionResponse projects the canonical section without discarding required zero-valued settings.
 func settingsWindowManagerSectionResponse(
 	envelope settingspkg.SectionEnvelope,
 ) (contract.SettingsWindowManagerResponse, error) {

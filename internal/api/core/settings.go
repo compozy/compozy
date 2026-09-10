@@ -156,7 +156,7 @@ func (h *BaseHandlers) GetSettingsWindowManager(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionWindowManager)
 }
 
-// UpdateSettingsWindowManager persists the window-manager settings section.
+// UpdateSettingsWindowManager returns canonical persisted settings and their separate apply receipt.
 func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
 	req, err := parseUpdateSettingsWindowManagerRequest(c)
 	if err != nil {

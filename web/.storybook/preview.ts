@@ -21,6 +21,7 @@ import { storybookSystemHandlerGroups, storybookSystemHandlers } from "@/storybo
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { clearActiveWorkspaceSelection } from "@/systems/workspace";
 import { sessionStore } from "@/systems/session/stores/session-store";
+import { resetWindowManagerSettingsMockState } from "@/systems/settings/mocks";
 import { resetAgentMockState } from "@/systems/agent/mocks";
 import { resetWindowManagerMockState } from "@/systems/os/mocks";
 
@@ -256,6 +257,7 @@ export function createStorybookRouter(
 
 export function resetStorybookAppState(initialEntry?: string) {
   resetAgentMockState();
+  resetWindowManagerSettingsMockState();
   resetWindowManagerMockState(initialEntry);
   clearActiveWorkspaceSelection();
   sessionStore.trigger.allDraftsDiscarded();

@@ -1,6 +1,8 @@
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { resetWindowManagerSettingsMockState } from "../window-manager-settings-handlers";
+import { settingsWindowManagerSectionFixture } from "../window-manager-fixtures";
 import { handlers } from "../handlers";
 
 const server = setupServer(...handlers);
@@ -12,6 +14,7 @@ beforeAll(() => {
 
 afterEach(() => {
   server.resetHandlers();
+  resetWindowManagerSettingsMockState();
 });
 
 afterAll(() => {
@@ -42,6 +45,60 @@ describe("settings shell MSW handlers", () => {
           document: { workspace_id: "workspace-custom" },
         },
       },
+    });
+  });
+
+  it("Should persist a full layout Save through reload without crossing profile or workspace boundaries", async () => {
+    const url = `${API}/api/settings/window-manager?scope=workspace&workspace_id=ws-save&profile=alpha`;
+    const config = {
+      ...structuredClone(settingsWindowManagerSectionFixture.config),
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+    };
+    const write = await fetch(url, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ config }),
+    });
+    expect(write.status).toBe(200);
+    await expect(write.json()).resolves.toMatchObject({ config, apply: { applied: true } });
+    await expect((await fetch(url)).json()).resolves.toMatchObject({ config });
+    for (const query of [
+      "scope=workspace&workspace_id=ws-other&profile=alpha",
+      "scope=workspace&workspace_id=ws-save&profile=beta",
+      "scope=user&profile=alpha",
+    ]) {
+      await expect(
+        (await fetch(`${API}/api/settings/window-manager?${query}`)).json()
+      ).resolves.toMatchObject({ config: settingsWindowManagerSectionFixture.config });
+    }
+    resetWindowManagerSettingsMockState();
+    await expect((await fetch(url)).json()).resolves.toMatchObject({
+      config: settingsWindowManagerSectionFixture.config,
+    });
+  });
+
+  it("Should preserve separately edited shortcuts when a behavior draft is saved", async () => {
+    const url = `${API}/api/settings/window-manager?scope=user`;
+    const shortcuts = { "window.close": ["meta+KeyW"] };
+    const global_shortcuts = { "palette.summon.global": "meta+alt+Space" };
+    const aliases = { "session.new": "start" };
+    const write = (body: unknown) =>
+      fetch(url, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    await write({ shortcuts, global_shortcuts, aliases });
+    await write({
+      config: {
+        ...settingsWindowManagerSectionFixture.config,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      },
+      preserve_shortcuts: true,
+    });
+    await expect((await fetch(url)).json()).resolves.toMatchObject({
+      config: { shortcuts, global_shortcuts, gaps: { inner: 0 } },
+      aliases,
     });
   });
 

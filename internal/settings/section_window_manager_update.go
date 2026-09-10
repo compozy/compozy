@@ -7,6 +7,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+// updateWindowManagerSection validates and persists window-manager settings against the pre-write active baseline.
 func (s *service) updateWindowManagerSection(
 	ctx context.Context,
 	req SectionUpdateRequest,
