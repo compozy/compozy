@@ -16,6 +16,7 @@ type workspaceSkillScan struct {
 	names     map[string]string
 }
 
+// cachedSkillSources exposes immutable discovery evidence only while the owning workspace cache entry is live.
 func (r *Resolver) cachedSkillSources(workspaceID, profileName string) map[string]workspaceSkillScan {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -26,6 +27,7 @@ func (r *Resolver) cachedSkillSources(workspaceID, profileName string) map[strin
 	return nil
 }
 
+// scanSkillSource reuses validated discovery and names while refreshing skill directory and sidecar snapshots.
 func (scan *workspaceScan) scanSkillSource(
 	ctx context.Context,
 	root workspaceSkillRoot,
@@ -69,6 +71,7 @@ func (scan *workspaceScan) scanSkillSource(
 	return nil
 }
 
+// scanWorkspaceSkillSource retains discovery evidence while excluding invalid skill definitions from parsed names.
 func scanWorkspaceSkillSource(skillsDir string, trustedRoots []string) (workspaceSkillScan, error) {
 	result, err := skillscan.ScanDirectoryWithin(skillsDir, trustedRoots)
 	if err != nil {

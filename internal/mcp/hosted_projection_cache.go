@@ -39,6 +39,7 @@ func newHostedProjectionCache() hostedProjectionCache {
 	}
 }
 
+// projectionForGeneration coalesces known generations and rebuilds views whenever generation authority is absent.
 func (s *HostedService) projectionForGeneration(
 	ctx context.Context,
 	record *hostedBindRecord,
@@ -105,6 +106,7 @@ func (s *HostedService) finishProjectionGeneration(
 	return owned
 }
 
+// buildHostedProjection lists current policy-filtered views before applying binding-local digest reuse.
 func buildHostedProjection(
 	ctx context.Context,
 	registry tools.Registry,

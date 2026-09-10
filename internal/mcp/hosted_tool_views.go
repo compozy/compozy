@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+// cloneToolViews isolates every mutable descriptor, availability, and decision field while preserving nil input.
 func cloneToolViews(src []tools.ToolView) []tools.ToolView {
 	if src == nil {
 		return nil

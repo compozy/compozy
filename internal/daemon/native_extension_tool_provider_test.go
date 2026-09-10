@@ -50,17 +50,33 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		t.Parallel()
 
 		for _, tc := range []struct {
-			name     string
-			resolver daemonExtensionWorkspaceResolver
+			name        string
+			resolver    daemonExtensionWorkspaceResolver
+			cause       error
+			message     string
+			callMessage string
 		}{
-			{name: "Should reject an unavailable resolver"},
-			{name: "Should reject an unknown workspace", resolver: &daemonExtensionWorkspaceResolverStub{}},
+			{
+				name:        "Should reject an unavailable resolver",
+				cause:       workspacepkg.ErrWorkspaceResolverUnavailable,
+				message:     `workspace "workspace-identity" cannot be resolved`,
+				callMessage: "has no workspace resolver",
+			},
+			{
+				name:        "Should reject an unknown workspace",
+				resolver:    &daemonExtensionWorkspaceResolverStub{},
+				cause:       workspacepkg.ErrWorkspaceNotFound,
+				message:     `resolve extension tool workspace "workspace-identity"`,
+				callMessage: `workspace "workspace-identity" is invalid`,
+			},
 			{
 				name: "Should reject an empty registration id",
 				resolver: &daemonExtensionWorkspaceResolverStub{resolved: workspacepkg.ResolvedWorkspace{
 					Workspace:   workspacepkg.Workspace{RootDir: t.TempDir()},
 					WorkspaceID: "workspace-identity",
 				}},
+				message:     "has no registered runtime id: daemon: resolved workspace registry id is empty",
+				callMessage: "has no registered runtime id",
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -69,11 +85,21 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 				inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 				provider := newDaemonScopedExtensionToolProvider(inner, tc.resolver)
 				scope := toolspkg.Scope{WorkspaceID: "workspace-identity"}
-				if _, err := provider.List(t.Context(), scope); err == nil {
-					t.Fatal("List() error = nil, want registration validation error")
+				if _, err := provider.List(
+					t.Context(),
+					scope,
+				); err == nil ||
+					!strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("List() error = %v, want registration validation error containing %q", err, tc.message)
+				} else if tc.cause != nil &&
+					!errors.Is(err, tc.cause) {
+					t.Fatalf("List() error = %v, want wrapped cause %v", err, tc.cause)
 				}
-				if _, _, err := provider.Resolve(t.Context(), scope, specCycleImportTasksToolID); err == nil {
-					t.Fatal("Resolve() error = nil, want registration validation error")
+				if _, _, err := provider.Resolve(t.Context(), scope, specCycleImportTasksToolID); err == nil ||
+					!strings.Contains(err.Error(), tc.message) {
+					t.Fatalf("Resolve() error = %v, want registration validation error containing %q", err, tc.message)
+				} else if tc.cause != nil && !errors.Is(err, tc.cause) {
+					t.Fatalf("Resolve() error = %v, want wrapped cause %v", err, tc.cause)
 				}
 				source, ok := provider.(toolspkg.ProjectionGenerationProvider)
 				if !ok {
@@ -86,11 +112,22 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 				if err != nil || !ok {
 					t.Fatalf("Resolve(unscoped) = %v, %v, want handle", ok, err)
 				}
-				if _, err := handle.Call(t.Context(), toolspkg.CallRequest{
+				_, err = handle.Call(t.Context(), toolspkg.CallRequest{
 					ToolID: specCycleImportTasksToolID, WorkspaceID: scope.WorkspaceID,
 					Input: json.RawMessage(`{"pattern":"task_*.md"}`),
-				}); err == nil {
-					t.Fatal("Call() error = nil, want registration validation error")
+				})
+				toolErr, matched := errors.AsType[*toolspkg.ToolError](err)
+				if !matched || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+					toolErr.ToolID != specCycleImportTasksToolID ||
+					!containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
+					t.Fatalf("Call() error = %v, want invalid-input ToolError with scope mismatch", err)
+				}
+				if !strings.Contains(toolErr.Message, tc.callMessage) || !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+					t.Fatalf(
+						"Call() error = %v, want registration validation error containing %q and ErrToolInvalidInput",
+						err,
+						tc.callMessage,
+					)
 				}
 				if inner.handle.called {
 					t.Fatal("inner handle called without valid registration")

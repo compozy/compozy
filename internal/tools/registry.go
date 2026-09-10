@@ -426,6 +426,7 @@ func denialErrorForView(view *ToolView) error {
 	return NewToolError(ErrorCodeDenied, id, fmt.Sprintf("tool %q is denied", id), ErrToolDenied, reasons...)
 }
 
+// cloneDescriptor isolates all mutable descriptor fields, including schemas and backend capability requirements.
 func cloneDescriptor(src Descriptor) Descriptor {
 	cloned := src
 	cloned.Backend.RequiresCapabilities = slices.Clone(src.Backend.RequiresCapabilities)

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -623,6 +624,104 @@ func TestWorkspaceContractAgentConfigInvalidation(t *testing.T) {
 			})
 		}
 	}
+
+	for _, test := range []struct {
+		name       string
+		invalidate func(*Resolver, string)
+	}{
+		{
+			name: "Should not republish narrow config after concurrent workspace invalidation",
+			invalidate: func(resolver *Resolver, workspaceID string) {
+				resolver.Invalidate(workspaceID)
+			},
+		},
+		{
+			name: "Should not republish narrow config after concurrent global invalidation",
+			invalidate: func(resolver *Resolver, _ string) {
+				resolver.InvalidateAll()
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := newTestHomePaths(t)
+			oldConfig := validConfig(homePaths)
+			oldConfig.Defaults.Agent = "coder"
+			newConfig := compozyconfig.CloneConfig(&oldConfig)
+			newConfig.Defaults.Agent = "reviewer"
+
+			loadStarted := make(chan struct{})
+			releaseLoad := make(chan struct{})
+			var loadMu sync.Mutex
+			loadCalls := 0
+			resolveCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			resolver, ws, _ := newAgentConfigContractResolver(t,
+				WithConfigLoader(func(string) (compozyconfig.Config, error) {
+					loadMu.Lock()
+					loadCalls++
+					call := loadCalls
+					loadMu.Unlock()
+					if call == 1 {
+						close(loadStarted)
+						select {
+						case <-releaseLoad:
+							return oldConfig, nil
+						case <-resolveCtx.Done():
+							return compozyconfig.Config{}, resolveCtx.Err()
+						}
+					}
+					return newConfig, nil
+				}),
+			)
+
+			type resolutionResult struct {
+				resolved ResolvedAgentConfig
+				err      error
+			}
+			result := make(chan resolutionResult, 1)
+			go func() {
+				resolved, err := resolver.ResolveAgentConfig(resolveCtx, ws.ID, "")
+				result <- resolutionResult{resolved: resolved, err: err}
+			}()
+
+			select {
+			case <-loadStarted:
+			case first := <-result:
+				t.Fatalf("ResolveAgentConfig finished before loader barrier: error = %v", first.err)
+			case <-resolveCtx.Done():
+				first := <-result
+				t.Fatalf("ResolveAgentConfig did not reach loader barrier: error = %v", first.err)
+			}
+			test.invalidate(resolver, ws.ID)
+			close(releaseLoad)
+			first := <-result
+			if first.err != nil {
+				t.Fatalf("ResolveAgentConfig(concurrent invalidation) error = %v", first.err)
+			}
+			if first.resolved.Config.Defaults.Agent != "coder" {
+				t.Fatalf("in-flight default agent = %q, want coder", first.resolved.Config.Defaults.Agent)
+			}
+
+			refreshed, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "")
+			if err != nil {
+				t.Fatalf("ResolveAgentConfig(after concurrent invalidation) error = %v", err)
+			}
+			if refreshed.Config.Defaults.Agent != "reviewer" {
+				t.Fatalf(
+					"default agent after concurrent invalidation = %q, want reviewer",
+					refreshed.Config.Defaults.Agent,
+				)
+			}
+			loadMu.Lock()
+			calls := loadCalls
+			loadMu.Unlock()
+			if calls != 2 {
+				t.Fatalf("config loader calls after concurrent invalidation = %d, want 2", calls)
+			}
+		})
+	}
 }
 
 func TestWorkspaceContractAgentConfigIdentity(t *testing.T) {
@@ -698,8 +797,15 @@ func TestWorkspaceContractAgentConfigIdentity(t *testing.T) {
 			t.Fatalf("ResolveAgentConfig(unprofiled workspace) error = %v", err)
 		}
 		availability.err = nil
-		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "../marketing"); err == nil {
-			t.Fatal("ResolveAgentConfig(invalid profile name) error = nil, want rejection")
+		if _, err := resolver.ResolveAgentConfig(t.Context(), ws.ID, "../marketing"); err == nil ||
+			!strings.Contains(
+				err.Error(),
+				`workspace: resolve profile resources: config: resource profile name "../marketing" must match`,
+			) {
+			t.Fatalf(
+				"ResolveAgentConfig(invalid profile name) error = %v, want wrapped profile validation failure",
+				err,
+			)
 		}
 	})
 }

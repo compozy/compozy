@@ -230,6 +230,7 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 	return nil, fmt.Errorf("daemon: resolve session tool policy %q: %w", sessionID, err)
 }
 
+// resolveWorkspaceConfig loads policy inputs without skill discovery and retains the session profile identity.
 func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -260,6 +261,7 @@ func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	return &resolved, &resolved.Config, nil
 }
 
+// applyAgentToolPolicy applies resolved agent restrictions and an explicitly configured permission mode.
 func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	inputs *toolspkg.PolicyInputs,
 	agentName string,
@@ -285,6 +287,7 @@ func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	return nil
 }
 
+// resolveAgent uses the policy catalog when available and otherwise resolves from the workspace snapshot.
 func (r *nativeToolPolicyResolver) resolveAgent(
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedAgentConfig,

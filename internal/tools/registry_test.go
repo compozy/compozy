@@ -147,7 +147,13 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SessionProjection(recovered) error = %v", err)
 		}
-		requireToolIDs(t, views, descriptor.ID, first.ID, last.ID)
+		ids := make([]ToolID, len(views))
+		for i := range views {
+			ids[i] = views[i].Descriptor.ID
+		}
+		if want := []ToolID{descriptor.ID, first.ID, last.ID}; !slices.Equal(ids, want) {
+			t.Fatalf("SessionProjection(recovered) IDs = %#v, want ordered IDs %#v", ids, want)
+		}
 	})
 
 	t.Run("Should mark duplicate canonical IDs as conflicted and hide from session projection", func(t *testing.T) {

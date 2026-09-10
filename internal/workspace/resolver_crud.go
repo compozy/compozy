@@ -190,6 +190,7 @@ func (r *Resolver) ResolveRegistration(ctx context.Context, idOrNameOrPath strin
 	return cloneWorkspace(ws), nil
 }
 
+// resolveRegistration rechecks the canonical root and durable identity for every registration lookup.
 func (r *Resolver) resolveRegistration(ctx context.Context, ref string) (Workspace, Identity, error) {
 	if err := checkContext(ctx); err != nil {
 		return Workspace{}, Identity{}, err

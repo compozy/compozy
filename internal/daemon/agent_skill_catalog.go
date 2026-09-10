@@ -47,6 +47,7 @@ func agentCatalogDependency(
 	return dependency
 }
 
+// ResolveAgent returns an isolated definition using catalog, workspace, then builtin precedence.
 func (c *resourceAgentCatalog) ResolveAgent(
 	name string,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -54,6 +55,7 @@ func (c *resourceAgentCatalog) ResolveAgent(
 	return c.resolveAgent(name, agentCatalogWorkspaceSnapshot(resolved))
 }
 
+// ResolvePolicyAgent preserves agent precedence without requiring a workspace skill inventory.
 func (c *resourceAgentCatalog) ResolvePolicyAgent(
 	name string,
 	resolved *workspacepkg.ResolvedAgentConfig,
@@ -61,6 +63,7 @@ func (c *resourceAgentCatalog) ResolvePolicyAgent(
 	return c.resolveAgent(name, agentCatalogPolicySnapshot(resolved))
 }
 
+// resolveAgent applies scope precedence and preserves missing-workspace and unavailable-agent errors.
 func (c *resourceAgentCatalog) resolveAgent(
 	name string,
 	snapshot agentCatalogSnapshot,
@@ -97,6 +100,7 @@ func (c *resourceAgentCatalog) AgentCatalogRevision() int64 {
 	return c.catalog.Revision()
 }
 
+// lookupAgentRecord returns a defensive copy of the highest-ranked visible record with deterministic ties.
 func (c *resourceAgentCatalog) lookupAgentRecord(
 	target string,
 	lens agentCatalogLens,
@@ -134,6 +138,7 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	return resources.Record[compozyconfig.AgentDef]{}, false
 }
 
+// resolveAgentFromWorkspaceSnapshot returns an isolated workspace definition without consulting the catalog.
 func resolveAgentFromWorkspaceSnapshot(
 	target string,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -141,6 +146,7 @@ func resolveAgentFromWorkspaceSnapshot(
 	return resolveAgentFromSnapshot(target, agentCatalogWorkspaceSnapshot(resolved))
 }
 
+// resolvePolicyAgentFromWorkspaceSnapshot resolves a definition from the narrow configuration snapshot.
 func resolvePolicyAgentFromWorkspaceSnapshot(
 	target string,
 	resolved *workspacepkg.ResolvedAgentConfig,
@@ -148,6 +154,7 @@ func resolvePolicyAgentFromWorkspaceSnapshot(
 	return resolveAgentFromSnapshot(target, agentCatalogPolicySnapshot(resolved))
 }
 
+// resolveAgentFromSnapshot distinguishes an absent workspace from a missing agent and clones successful results.
 func resolveAgentFromSnapshot(target string, snapshot agentCatalogSnapshot) (compozyconfig.AgentDef, error) {
 	if !snapshot.present {
 		return compozyconfig.AgentDef{}, errors.New("session: resolved workspace is required")
@@ -160,6 +167,7 @@ func resolveAgentFromSnapshot(target string, snapshot agentCatalogSnapshot) (com
 	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
+// ResolveAgentArtifacts combines the visible agent with its ownership, soul, and heartbeat resources.
 func (c *resourceAgentCatalog) ResolveAgentArtifacts(
 	name string,
 	resolved *workspacepkg.ResolvedWorkspace,

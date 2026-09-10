@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
+// bindLaunch consumes one armed launch nonce and gives the resulting binding its own digest memo.
 func (s *HostedService) bindLaunch(
 	sessionID string,
 	nonce string,
@@ -102,6 +103,7 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	return s.projectionForGeneration(ctx, record, registry)
 }
 
+// hostedProjectionResponse returns isolated, ID-sorted views and a digest over their canonical empty form.
 func hostedProjectionResponse(views []tools.ToolView, memo *hostedProjectionDigestMemo) HostedProjectionResponse {
 	sorted := cloneToolViews(views)
 	if len(sorted) == 0 {
@@ -122,6 +124,7 @@ type hostedProjectionDigestMemo struct {
 	digest string
 }
 
+// digestFor synchronizes exact-view digest reuse and never caches a failed encoding.
 func (m *hostedProjectionDigestMemo) digestFor(views []tools.ToolView) string {
 	if m == nil {
 		return hostedProjectionDigest(views)

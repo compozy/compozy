@@ -14,6 +14,7 @@ type hostedBootstrapCallRegistry interface {
 	BootstrapSessionCall(context.Context, tools.Scope, tools.CallRequest) (tools.ToolResult, error)
 }
 
+// bootstrapProjection caches bootstrap views only when the binding and authoritative generation remain valid.
 func (s *HostedService) bootstrapProjection(
 	ctx context.Context,
 	record *hostedBindRecord,

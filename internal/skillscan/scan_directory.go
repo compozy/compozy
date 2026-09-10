@@ -62,6 +62,7 @@ type scanBudget struct {
 	candidates int
 }
 
+// newDirectoryScanner resolves trusted roots and represents missing or unreadable roots without traversal.
 func newDirectoryScanner(root string, trustedRoots []string) (*directoryScanner, error) {
 	trimmedRoot := strings.TrimSpace(root)
 	if trimmedRoot == "" {
@@ -123,6 +124,7 @@ func (s *directoryScanner) scanBase() error {
 	return nil
 }
 
+// visit records discovery evidence within traversal limits and prevents reuse after unreadable entries.
 func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr error) error {
 	if s.budget.entries >= MaxEntries {
 		slog.Warn("skillscan: entry limit reached", "root", s.root, "limit", MaxEntries)
@@ -145,10 +147,14 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	if err != nil {
 		return err
 	}
+	if candidate != s.walkRoot {
+		s.result.discovery.trackEntry(candidate, entry)
+	}
 	if entry.IsDir() {
 		if candidate != s.walkRoot && shouldSkipDirectory(entry.Name()) {
 			return filepath.SkipDir
 		}
+		s.result.discovery.directories[candidate] = nil
 		s.result.discovery.track(candidate, entry)
 		return nil
 	}
@@ -159,6 +165,7 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	return s.visitDefinition(reportedCandidate, entry)
 }
 
+// visitDefinition accepts contained regular skill files once per real path and enforces the candidate limit.
 func (s *directoryScanner) visitDefinition(reportedCandidate string, entry fs.DirEntry) error {
 	if err := pathWithinRoot(s.resolvedRoot, reportedCandidate); err != nil {
 		s.result.discovery.complete = false
@@ -209,6 +216,7 @@ func (s *directoryScanner) visitDefinition(reportedCandidate string, entry fs.Di
 	return nil
 }
 
+// followFirstLevelLinks traverses only trusted directory targets under the shared discovery budget.
 func (s *directoryScanner) followFirstLevelLinks() error {
 	if s.budget.candidates >= MaxCandidates || s.budget.entries >= MaxEntries {
 		return nil
@@ -268,6 +276,7 @@ func (s *directoryScanner) followFirstLevelLinks() error {
 	return nil
 }
 
+// mergeLinkedResult preserves linked scan evidence while deduplicating definitions by real path.
 func (s *directoryScanner) mergeLinkedResult(result DirectoryResult) {
 	s.result.discovery.merge(result.discovery)
 	s.result.Stats.ScannedCount += result.Stats.ScannedCount

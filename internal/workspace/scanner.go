@@ -44,6 +44,7 @@ type workspaceSkillRoot struct {
 	source string
 }
 
+// scanWorkspace captures agent and skill dependencies while preserving configured root precedence and trust.
 func (r *Resolver) scanWorkspace(
 	ctx context.Context,
 	ws Workspace,

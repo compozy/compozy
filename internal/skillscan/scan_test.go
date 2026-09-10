@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -14,6 +15,112 @@ import (
 
 func TestDirectoryResultUnchanged(t *testing.T) {
 	t.Parallel()
+	reusable := runtime.GOOS == "darwin" || runtime.GOOS == "linux"
+
+	for _, tc := range []struct {
+		name      string
+		directory bool
+		linked    bool
+	}{
+		{name: "Should detect new definition membership when directory metadata is preserved"},
+		{
+			name:      "Should detect a new subtree at the same entry name when directory metadata is preserved",
+			directory: true,
+		},
+		{name: "Should detect new linked definition membership when directory metadata is preserved", linked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			nested := filepath.Join(root, "empty", "nested")
+			reportedNested := nested
+			trusted := []string{root}
+			if tc.linked {
+				target := t.TempDir()
+				link := filepath.Join(root, "linked")
+				if err := os.Symlink(target, link); err != nil {
+					t.Skipf("Symlink unavailable: %v", err)
+				}
+				nested = filepath.Join(target, "empty", "nested")
+				reportedNested = filepath.Join(link, "empty", "nested")
+				trusted = append(trusted, target)
+			}
+			placeholder := writeDefinition(t, nested, "NOTES.md")
+			before, err := os.Stat(nested)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := ScanDirectoryWithin(root, trusted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(result.Paths) != 0 || result.Unchanged(t.Context(), root, trusted) != reusable {
+				t.Fatalf("initial discovery = %#v, want empty projection with reuse %t", result.Paths, reusable)
+			}
+			definition := filepath.Join(nested, SkillFileName)
+			if tc.directory {
+				if err := os.Remove(placeholder); err != nil {
+					t.Fatal(err)
+				}
+				writeDefinition(t, placeholder, SkillFileName)
+			} else if err := os.Rename(placeholder, definition); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chtimes(nested, before.ModTime(), before.ModTime()); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.Stat(nested)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(before, after) || before.Mode() != after.Mode() || before.Size() != after.Size() ||
+				!before.ModTime().Equal(after.ModTime()) {
+				t.Fatal("fixture did not preserve directory identity, mode, size and modification time")
+			}
+			if result.Unchanged(t.Context(), root, trusted) {
+				t.Fatal("new discovery with preserved directory metadata was reported unchanged")
+			}
+			current, err := ScanDirectoryWithin(root, trusted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition = filepath.Join(reportedNested, SkillFileName)
+			if tc.directory {
+				definition = filepath.Join(reportedNested, "NOTES.md", SkillFileName)
+			}
+			if want := []string{definition}; !slices.Equal(current.Paths, want) {
+				t.Fatalf("new discovery = %#v, want %#v", current.Paths, want)
+			}
+		})
+	}
+
+	t.Run("Should discard conflicting discovery from overlapping linked roots", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		definition := writeDefinition(t, root, filepath.Join("real", SkillFileName))
+		if err := os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "linked")); err != nil {
+			t.Skipf("Symlink unavailable: %v", err)
+		}
+		scanner, err := newDirectoryScanner(root, []string{root})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := scanner.scanBase(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(definition); err != nil {
+			t.Fatal(err)
+		}
+		writeDefinition(t, definition, SkillFileName)
+		if err := scanner.followFirstLevelLinks(); err != nil {
+			t.Fatal(err)
+		}
+		if scanner.result.Unchanged(t.Context(), root, []string{root}) {
+			t.Fatal("conflicting observations of a linked directory produced reusable discovery")
+		}
+	})
 
 	for _, tc := range []struct {
 		name   string
@@ -86,8 +193,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !result.Unchanged(t.Context(), root, []string{root}) {
-				t.Fatal("fresh complete discovery is not reusable")
+			if result.Unchanged(t.Context(), root, []string{root}) != reusable {
+				t.Fatalf("fresh complete discovery reuse must be %t on %s", reusable, runtime.GOOS)
 			}
 			tc.change(t, root, definition)
 			if result.Unchanged(t.Context(), root, []string{root}) {
@@ -131,8 +238,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 				if target == allowed && len(result.Paths) != 1 {
 					t.Fatalf("allowed projection = %#v, want one deduplicated definition", result.Paths)
 				}
-				if !result.Unchanged(t.Context(), root, trusted) {
-					t.Fatal("stable links prevented reuse")
+				if result.Unchanged(t.Context(), root, trusted) != reusable {
+					t.Fatalf("stable link discovery reuse must be %t on %s", reusable, runtime.GOOS)
 				}
 				if err := os.Remove(intermediate); err != nil {
 					t.Fatal(err)
@@ -189,8 +296,8 @@ func TestDirectoryResultUnchanged(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(result.Paths) != 0 || !result.Unchanged(t.Context(), root, trusted) {
-				t.Fatalf("initial discovery = %#v, want reusable empty projection", result.Paths)
+			if len(result.Paths) != 0 || result.Unchanged(t.Context(), root, trusted) != reusable {
+				t.Fatalf("initial discovery = %#v, want empty projection with reuse %t", result.Paths, reusable)
 			}
 			if fileTarget {
 				if err := os.Remove(target); err != nil {

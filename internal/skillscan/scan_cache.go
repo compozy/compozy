@@ -13,14 +13,22 @@ type directorySnapshot struct {
 	root         string
 	trustedRoots []string
 	files        map[string]fs.FileInfo
+	directories  map[string][]directoryEntry
 	resolved     map[string]string
 	complete     bool
 }
 
+type directoryEntry struct {
+	name     string
+	typeBits fs.FileMode
+}
+
+// newDirectorySnapshot binds discovery evidence to the original root, resolved path, and trusted roots.
 func newDirectorySnapshot(root, resolved string, trustedRoots []string) *directorySnapshot {
 	return &directorySnapshot{
 		root: root, trustedRoots: slices.Clone(trustedRoots), complete: true,
 		files: make(map[string]fs.FileInfo), resolved: map[string]string{root: resolved},
+		directories: make(map[string][]directoryEntry),
 	}
 }
 
@@ -38,10 +46,30 @@ func (r DirectoryResult) Unchanged(ctx context.Context, root string, trustedRoot
 	if !slices.Equal(canonicalTrustedRoots(trustedRoots, snapshot.resolved[absolute]), snapshot.trustedRoots) {
 		return false
 	}
-	return snapshot.unchangedPaths(ctx) && snapshot.unchangedFiles(ctx) &&
+	return snapshot.unchangedPaths(ctx) && snapshot.unchangedFiles(ctx) && snapshot.unchangedDirectories(ctx) &&
 		r.unchangedSkippedLinks(ctx, snapshot.trustedRoots)
 }
 
+// unchangedDirectories detects membership or type changes even when directory timestamps are preserved.
+func (s *directorySnapshot) unchangedDirectories(ctx context.Context) bool {
+	for path, expected := range s.directories {
+		if ctx.Err() != nil {
+			return false
+		}
+		current, err := os.ReadDir(path)
+		if err != nil || len(current) != len(expected) {
+			return false
+		}
+		for index, entry := range current {
+			if entry.Name() != expected[index].name || entry.Type() != expected[index].typeBits {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// unchangedSkippedLinks requires each rejected link to retain its recorded failure or containment reason.
 func (r DirectoryResult) unchangedSkippedLinks(ctx context.Context, trustedRoots []string) bool {
 	for _, link := range r.Stats.SkippedLinks {
 		if ctx.Err() != nil {
@@ -65,6 +93,7 @@ func (r DirectoryResult) unchangedSkippedLinks(ctx context.Context, trustedRoots
 	return true
 }
 
+// unchangedPaths invalidates discovery when a root or followed symlink resolves to a different target.
 func (s *directorySnapshot) unchangedPaths(ctx context.Context) bool {
 	for path, expected := range s.resolved {
 		if ctx.Err() != nil {
@@ -78,6 +107,7 @@ func (s *directorySnapshot) unchangedPaths(ctx context.Context) bool {
 	return true
 }
 
+// unchangedFiles requires unchanged identity, metadata, and filesystem change times for all recorded paths.
 func (s *directorySnapshot) unchangedFiles(ctx context.Context) bool {
 	for path, expected := range s.files {
 		if ctx.Err() != nil {
@@ -85,19 +115,30 @@ func (s *directorySnapshot) unchangedFiles(ctx context.Context) bool {
 		}
 		current, err := os.Lstat(path)
 		if err != nil || !os.SameFile(expected, current) || expected.Mode() != current.Mode() ||
-			expected.Size() != current.Size() || !expected.ModTime().Equal(current.ModTime()) {
+			expected.Size() != current.Size() || !expected.ModTime().Equal(current.ModTime()) ||
+			!sameFileChangeTime(expected, current) {
 			return false
 		}
 	}
 	return true
 }
 
+// trackLink records symlink metadata so replacement or retargeting invalidates discovery.
 func (s *directorySnapshot) trackLink(path string, entry fs.DirEntry) {
 	if entry.Type()&os.ModeSymlink != 0 {
 		s.track(path, entry)
 	}
 }
 
+// trackEntry captures the listing that drove traversal, including ignored children.
+func (s *directorySnapshot) trackEntry(path string, entry fs.DirEntry) {
+	parent := filepath.Dir(path)
+	s.directories[parent] = append(s.directories[parent], directoryEntry{
+		name: entry.Name(), typeBits: entry.Type(),
+	})
+}
+
+// track marks the snapshot incomplete when entry metadata cannot be captured safely.
 func (s *directorySnapshot) track(path string, entry fs.DirEntry) {
 	info, err := entry.Info()
 	if err != nil {
@@ -107,11 +148,18 @@ func (s *directorySnapshot) track(path string, entry fs.DirEntry) {
 	s.files[path] = info
 }
 
+// merge combines linked discovery evidence and rejects incomplete or contradictory directory listings.
 func (s *directorySnapshot) merge(other *directorySnapshot) {
 	if other == nil || !other.complete {
 		s.complete = false
 		return
 	}
+	for path, entries := range other.directories {
+		if previous, exists := s.directories[path]; exists && !slices.Equal(previous, entries) {
+			s.complete = false
+		}
+	}
 	maps.Copy(s.files, other.files)
+	maps.Copy(s.directories, other.directories)
 	maps.Copy(s.resolved, other.resolved)
 }

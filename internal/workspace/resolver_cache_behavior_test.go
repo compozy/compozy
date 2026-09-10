@@ -105,6 +105,76 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		}
 	})
 
+	for _, test := range []struct {
+		name       string
+		validFirst bool
+	}{
+		{
+			name: "Should immediately discover a repaired skill when in-place edits preserve file metadata",
+		},
+		{
+			name:       "Should immediately exclude an invalidated skill when in-place edits preserve file metadata",
+			validFirst: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			home := newTestHomePaths(t)
+			ws := Workspace{ID: "ws_skill_validity", RootDir: root, Name: "repo"}
+			skillDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName, "alpha")
+			writeSkill(t, skillDir)
+			definition := filepath.Join(skillDir, skillDefinitionFile)
+			validContent, err := os.ReadFile(definition)
+			if err != nil {
+				t.Fatalf("ReadFile(skill definition) error = %v", err)
+			}
+			invalidContent := strings.Replace(string(validContent), "name: alpha", "nope: alpha", 1)
+			var initialNames []string
+			if test.validFirst {
+				initialNames = []string{"alpha"}
+			} else {
+				writeFile(t, definition, invalidContent)
+			}
+			resolver := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+				withNow(func() time.Time { return time.Unix(1_700_060_000, 0).UTC() }),
+			)
+			initial, err := resolver.Resolve(t.Context(), ws.ID)
+			if err != nil {
+				t.Fatalf("Resolve(before validity change) error = %v", err)
+			}
+			if got := skillNames(initial.Skills); !slices.Equal(got, initialNames) {
+				t.Fatalf("initial skill names = %#v, want %#v", got, initialNames)
+			}
+			before, err := os.Stat(definition)
+			if err != nil {
+				t.Fatalf("Stat(before skill edit) error = %v", err)
+			}
+			updatedContent, wantNames := string(validContent), []string{"alpha"}
+			if test.validFirst {
+				updatedContent, wantNames = invalidContent, nil
+			}
+			writeFile(t, definition, updatedContent)
+			touchPath(t, definition, before.ModTime())
+			after, err := os.Stat(definition)
+			if err != nil {
+				t.Fatalf("Stat(after skill edit) error = %v", err)
+			}
+			if !os.SameFile(before, after) || before.Size() != after.Size() || before.Mode() != after.Mode() ||
+				!before.ModTime().Equal(after.ModTime()) {
+				t.Fatal("skill edit must preserve file identity, size, mode, and modification time")
+			}
+			current, err := resolver.Resolve(t.Context(), ws.ID)
+			if err != nil {
+				t.Fatalf("Resolve(after validity change) error = %v", err)
+			}
+			if got := skillNames(current.Skills); !slices.Equal(got, wantNames) {
+				t.Fatalf("skill names after validity change = %#v, want %#v", got, wantNames)
+			}
+		})
+	}
+
 	t.Run("Should discard skill discovery with its expired workspace cache entry", func(t *testing.T) {
 		t.Parallel()
 

@@ -47,12 +47,13 @@ type Resolver struct {
 	changeHook          ChangeHook
 	operatorHomeDir     string
 
-	registrationMu   sync.Mutex
-	reconcileMu      sync.Mutex
-	unregister       *unregisterCoordinator
-	mu               sync.RWMutex
-	cache            map[string]*cachedEntry
-	agentConfigCache map[string]*cachedAgentConfig
+	registrationMu        sync.Mutex
+	reconcileMu           sync.Mutex
+	unregister            *unregisterCoordinator
+	mu                    sync.RWMutex
+	cache                 map[string]*cachedEntry
+	agentConfigCache      map[string]*cachedAgentConfig
+	agentConfigGeneration uint64
 }
 
 var _ RuntimeResolver = (*Resolver)(nil)
@@ -115,6 +116,7 @@ func (r *Resolver) ResolveForProfile(
 	return r.resolve(ctx, idOrNameOrPath, trimmedProfile, profileID)
 }
 
+// resolve revalidates identity and resource dependencies before returning an isolated workspace snapshot.
 func (r *Resolver) resolve(
 	ctx context.Context,
 	idOrNameOrPath string,
@@ -349,6 +351,7 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	}
 
 	r.mu.Lock()
+	r.agentConfigGeneration++
 	for key := range r.cache {
 		if key == trimmedID || strings.HasPrefix(key, trimmedID+"\x00") {
 			delete(r.cache, key)
@@ -368,6 +371,7 @@ func (r *Resolver) InvalidateAll() {
 		return
 	}
 	r.mu.Lock()
+	r.agentConfigGeneration++
 	clear(r.cache)
 	clear(r.agentConfigCache)
 	r.mu.Unlock()
@@ -383,6 +387,7 @@ func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, works
 	return nil
 }
 
+// buildResolvedWorkspace validates agent and sandbox state and isolates the merged runtime resources.
 func (r *Resolver) buildResolvedWorkspace(
 	ctx context.Context,
 	ws Workspace,
@@ -441,6 +446,7 @@ func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.R
 	return cfg.ResolveSandbox(ref)
 }
 
+// canReuse requires matching dependency snapshots, merged skills, and workspace runtime overrides.
 func (c *cachedEntry) canReuse(ws Workspace, scan workspaceScan) bool {
 	if c == nil {
 		return false
@@ -451,6 +457,7 @@ func (c *cachedEntry) canReuse(ws Workspace, scan workspaceScan) bool {
 	return sameWorkspaceRuntimeInputs(c.workspace, ws)
 }
 
+// evictExpiredLocked expires both resolver caches by last access while the resolver mutex is held.
 func (r *Resolver) evictExpiredLocked(now time.Time) {
 	cutoff := now.Add(-r.cacheTTL)
 	r.evictAgentConfigCacheLocked(cutoff)

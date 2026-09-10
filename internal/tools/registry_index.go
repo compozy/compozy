@@ -22,6 +22,7 @@ func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registr
 	return r.buildIndexMatching(ctx, scope, nil)
 }
 
+// buildIndexMatching reuses native descriptors, validates fresh dynamic listings, and preserves conflicts.
 func (r *RuntimeRegistry) buildIndexMatching(
 	ctx context.Context,
 	scope Scope,
@@ -66,6 +67,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 	return index, nil
 }
 
+// add retains the first descriptor for each ID and records conflicts from subsequent providers.
 func (i *registryIndex) add(descriptor Descriptor, provider Provider) {
 	if existing, ok := i.byID[descriptor.ID]; ok {
 		reason := conflictReason(&existing.descriptor, &descriptor)

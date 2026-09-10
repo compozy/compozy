@@ -21,6 +21,7 @@ type agentCatalogSnapshot struct {
 	present bool
 }
 
+// agentCatalogWorkspaceSnapshot retains workspace visibility and agent definitions without copying the resource graph.
 func agentCatalogWorkspaceSnapshot(resolved *workspacepkg.ResolvedWorkspace) agentCatalogSnapshot {
 	if resolved == nil {
 		return agentCatalogSnapshot{lens: agentCatalogLensForIdentity("", "", "")}
@@ -32,6 +33,7 @@ func agentCatalogWorkspaceSnapshot(resolved *workspacepkg.ResolvedWorkspace) age
 	}
 }
 
+// agentCatalogPolicySnapshot gives policy resolution the same visibility rules as full workspace resolution.
 func agentCatalogPolicySnapshot(resolved *workspacepkg.ResolvedAgentConfig) agentCatalogSnapshot {
 	if resolved == nil {
 		return agentCatalogSnapshot{lens: agentCatalogLensForIdentity("", "", "")}
@@ -43,10 +45,12 @@ func agentCatalogPolicySnapshot(resolved *workspacepkg.ResolvedAgentConfig) agen
 	}
 }
 
+// agentCatalogLensFor uses the default profile when no workspace snapshot is available.
 func agentCatalogLensFor(resolved *workspacepkg.ResolvedWorkspace) agentCatalogLens {
 	return agentCatalogWorkspaceSnapshot(resolved).lens
 }
 
+// agentCatalogLensForIdentity normalizes scope identifiers while retaining default profile visibility.
 func agentCatalogLensForIdentity(workspaceID, profileID, profileName string) agentCatalogLens {
 	lens := agentCatalogLens{profileID: store.DefaultProfileID, profileName: daemonDefaultProfileName}
 	if profileID := strings.TrimSpace(profileID); profileID != "" {

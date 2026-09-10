@@ -30,6 +30,7 @@ type daemonExtensionToolProvider struct {
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
 
+// newDaemonScopedExtensionToolProvider validates workspace scope while preserving an absent provider as nil.
 func newDaemonScopedExtensionToolProvider(
 	inner toolspkg.Provider,
 	workspaceResolver daemonExtensionWorkspaceResolver,
@@ -93,6 +94,7 @@ func (p *daemonExtensionToolProvider) Resolve(
 	}, true, nil
 }
 
+// canonicalWorkspaceScope resolves workspace aliases to a current registration ID without loading resources.
 func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -223,6 +225,7 @@ func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
 	return req, nil
 }
 
+// attachTrustedWorkspace validates registration and fills a missing trusted root before extension dispatch.
 func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 	ctx context.Context,
 	req toolspkg.CallRequest,
@@ -273,6 +276,7 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 	return req, nil
 }
 
+// extensionWorkspaceRegistrationID rejects empty registry IDs before they can become unscoped requests.
 func extensionWorkspaceRegistrationID(ws workspacepkg.Workspace) (string, error) {
 	workspaceID := strings.TrimSpace(ws.ID)
 	if workspaceID == "" {

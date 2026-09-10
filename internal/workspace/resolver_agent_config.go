@@ -57,6 +57,7 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 		resolved.WorkspaceID, resolved.ProfileID = identity.WorkspaceID, profileID
 		return resolved, nil
 	}
+	agentConfigGeneration := r.agentConfigGeneration
 	r.mu.Unlock()
 	resolved, err := r.buildResolvedAgentConfig(ctx, ws, scan.agents, profileName)
 	if err != nil {
@@ -65,13 +66,16 @@ func (r *Resolver) ResolveAgentConfig(ctx context.Context, ref, profileName stri
 	resolved.WorkspaceID, resolved.ProfileID = identity.WorkspaceID, profileID
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	r.agentConfigCache[cacheKey] = &cachedAgentConfig{
-		resolved: cloneResolvedAgentConfig(&resolved), snapshots: cloneSnapshots(scan.snapshots), lastAccess: now,
+	if agentConfigGeneration == r.agentConfigGeneration {
+		r.agentConfigCache[cacheKey] = &cachedAgentConfig{
+			resolved: cloneResolvedAgentConfig(&resolved), snapshots: cloneSnapshots(scan.snapshots), lastAccess: now,
+		}
 	}
 	r.mu.Unlock()
 	return resolved, nil
 }
 
+// buildResolvedAgentConfig applies the full resolver's configuration, agent, and sandbox validation without skills.
 func (r *Resolver) buildResolvedAgentConfig(
 	ctx context.Context,
 	ws Workspace,
@@ -92,6 +96,7 @@ func (r *Resolver) buildResolvedAgentConfig(
 	}, nil
 }
 
+// scanAgentConfig captures configuration and agent dependencies without traversing skill roots.
 func (r *Resolver) scanAgentConfig(ctx context.Context, ws Workspace, profileName string) (workspaceScan, error) {
 	if err := checkContext(ctx); err != nil {
 		return workspaceScan{}, err
@@ -113,6 +118,7 @@ func (r *Resolver) scanAgentConfig(ctx context.Context, ws Workspace, profileNam
 	return scan, nil
 }
 
+// buildWorkspaceAgentState applies the workspace default and validates sandbox and discovered agent definitions.
 func buildWorkspaceAgentState(
 	ctx context.Context,
 	ws Workspace,
@@ -131,6 +137,7 @@ func buildWorkspaceAgentState(
 	return workspaceAgentState{agents: agents, diagnostics: diagnostics, sandbox: resolvedSandbox}, nil
 }
 
+// resolveProfileIdentity validates the profile name and rechecks its current availability and durable identity.
 func (r *Resolver) resolveProfileIdentity(ctx context.Context, name string) (string, string, error) {
 	profileName := strings.TrimSpace(name)
 	if err := compozyconfig.ValidateResourceProfileName(profileName); err != nil {
@@ -146,6 +153,7 @@ func (r *Resolver) resolveProfileIdentity(ctx context.Context, name string) (str
 	return profileName, profileID, nil
 }
 
+// cloneResolvedAgentConfig isolates mutable workspace, configuration, and agent data from cached snapshots.
 func cloneResolvedAgentConfig(src *ResolvedAgentConfig) ResolvedAgentConfig {
 	return ResolvedAgentConfig{
 		Workspace: cloneWorkspace(src.Workspace), WorkspaceID: src.WorkspaceID,
@@ -154,6 +162,7 @@ func cloneResolvedAgentConfig(src *ResolvedAgentConfig) ResolvedAgentConfig {
 	}
 }
 
+// sameWorkspaceRuntimeInputs compares only workspace fields that affect resolved runtime behavior.
 func sameWorkspaceRuntimeInputs(left, right Workspace) bool {
 	return strings.TrimSpace(left.DefaultAgent) == strings.TrimSpace(right.DefaultAgent) &&
 		strings.TrimSpace(left.SandboxRef) == strings.TrimSpace(right.SandboxRef) &&
@@ -161,6 +170,7 @@ func sameWorkspaceRuntimeInputs(left, right Workspace) bool {
 		slices.Equal(left.AdditionalDirs, right.AdditionalDirs)
 }
 
+// evictAgentConfigCacheLocked removes inactive narrow snapshots while the resolver mutex is held.
 func (r *Resolver) evictAgentConfigCacheLocked(cutoff time.Time) {
 	for key, cached := range r.agentConfigCache {
 		if cached.lastAccess.Before(cutoff) {

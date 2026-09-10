@@ -37,14 +37,21 @@ func TestResolveRegistration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadIdentityFile() error = %v", err)
 		}
-		for _, ref := range []string{ws.Name, root, link, identity.WorkspaceID} {
-			got, resolveErr := resolver.ResolveRegistration(t.Context(), ref)
-			if resolveErr != nil {
-				t.Fatalf("ResolveRegistration(%q) error = %v", ref, resolveErr)
-			}
-			if got.ID != registered.ID || got.RootDir != canonical {
-				t.Fatalf("ResolveRegistration(%q) = %#v, want id %q and root %q", ref, got, ws.ID, canonical)
-			}
+		for _, alias := range []struct{ name, ref string }{
+			{"Should resolve the registered name", ws.Name},
+			{"Should resolve the canonical root", root},
+			{"Should resolve the linked root", link},
+			{"Should resolve the durable workspace identity", identity.WorkspaceID},
+		} {
+			t.Run(alias.name, func(t *testing.T) {
+				got, resolveErr := resolver.ResolveRegistration(t.Context(), alias.ref)
+				if resolveErr != nil {
+					t.Fatalf("ResolveRegistration(%q) error = %v", alias.ref, resolveErr)
+				}
+				if got.ID != registered.ID || got.RootDir != canonical {
+					t.Fatalf("ResolveRegistration(%q) = %#v, want id %q and root %q", alias.ref, got, ws.ID, canonical)
+				}
+			})
 		}
 		if updated := store.mustWorkspace(ws.ID); updated.RootDir != canonical {
 			t.Fatalf("persisted root = %q, want canonical %q", updated.RootDir, canonical)
