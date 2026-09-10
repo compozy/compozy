@@ -640,7 +640,7 @@ jobs:
           install-playwright: "false"
 
       - name: Build extension fixture dependencies
-        run: bunx turbo run build --filter=@compozy/extension-react
+        run: bun run turbo run build --filter=@compozy/extension-react
 
       - name: Run full integration suite
         env:
