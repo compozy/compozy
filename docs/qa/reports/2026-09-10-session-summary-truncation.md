@@ -38,6 +38,7 @@ keyboard regression checks.
   activity copy passed at all three widths.
 - At 200% CSS zoom with reduced motion, Working measured 44 px (22 CSS px).
   Full-payload search found a tail absent from the summaries and opened its detail.
+  A separate live-title query also opened the original title during execution.
 - Three concurrent calls, including a long agent prompt, retained independent
   keyboard details and the agent counter at 360 and 1600 px without page overflow.
 - Shared window headings retain the route's programmatic focus target and use a

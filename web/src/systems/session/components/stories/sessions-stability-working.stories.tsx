@@ -64,6 +64,7 @@ const longSummaryTranscript = [
       ),
       part({
         type: `tool-${longToolTitle}`,
+        title: longToolTitle + "\nlive-title-tail",
         toolCallId: "summary-live",
         state: "input-available",
         turnId: TURN,
