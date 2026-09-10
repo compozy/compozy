@@ -23,9 +23,15 @@ true:
 
 Every interactive terminal you open (`terminal_open`, or `terminal_exec` with `visible: true`)
 appears as a Terminal window on the operator's CompozyOS desktop without stealing their focus. The
-operator and authorized agents in the same profile can interact with it concurrently. The operator
-closing that window never kills the process, and a window they closed does not reopen for the same
-terminal.
+operator and authorized agents in the same profile can interact with it concurrently. The operator's window Close asks for confirmation before terminating a running terminal and its work,
+then removes the managed window. Cancel preserves both. An exited terminal closes without the running
+warning; Stop ends the terminal without closing its window. Shared viewers observe the same exit.
+Closing a group confirms its affected running terminals together; a failure retains the windows for
+retry, including any terminals already stopped. Normal journal and recording retention is unchanged.
+
+Native `compozy__window_close` and CLI/API window close remain view-only. Detaching a stream or
+closing the browser does not terminate the process. A closed managed window does not reopen
+automatically for the same terminal.
 
 For routine internal commands, keep using the provider's normal command tool. Provider-internal
 commands render in session activity as plain command output; they do not create a CompozyOS

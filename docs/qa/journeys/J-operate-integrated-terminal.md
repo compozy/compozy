@@ -17,7 +17,9 @@ flowchart TD
   G -->|yes| D
   G -->|exited| H[Read the final output and exit state]
   H --> Z[True end: terminal state, journal, window list, and session transcript agree on what was supervised]
-  B -.->|operator closes before typing| X1[Abandon: the terminal remains available until its configured lifecycle closes it]
+  B -.->|operator closes| X1{Confirm termination?}
+  X1 -->|cancel| D
+  X1 -->|confirm| Z
   E -.->|operator does not return| X2[Abandon: detached lifetime policy remains authoritative]
 ```
 
@@ -53,7 +55,7 @@ journey:
     natural: "The operator closes the finished terminal or continues work in the resumed one."
   abandonment:
     - at_step: 2
-      how: "Close the window while the command is still running."
+      how: "Minimize the window or detach the viewer while the command is still running."
       resume: "Reopen the Terminal app and attach to the same terminal from the current stream cursor."
   crosses: [terminal-runtime, session-transcript, journal, recordings, profile-scope, WebSocket-stream]
 ```

@@ -4,7 +4,7 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Clicking the Terminal dock item lands in a working terminal directly; New terminal opens a second one as an OS window tab; reloading preserves both; closing the window never ends a running terminal, and reopening adopts the newest running one; closing an already-ended terminal is a quiet no-op, never an error toast.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
 qa_status: pass
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
@@ -35,10 +35,18 @@ Walk:
 
 1. Click the Terminal dock item in a project with no terminals; a working terminal opens with no launcher or empty-state click in between.
 2. Use the head's New terminal; a second terminal joins the frame as an OS window tab; switch between both deck tabs and reload the browser.
-3. Close the Terminal window while one command is still running; confirm via `compozy terminal list` both sessions keep running; click the dock item and confirm it reattaches to the newest running session.
-4. Let a terminal end, then close it again from the head's overflow; confirm the recorded exit is reported with no error toast, and the exit bar owns the story with no "Reconnecting…" line.
-5. Confirm the route, window title, and dock badge remain truthful throughout.
+3. Close a running Terminal window. Cancel the accessible confirmation and verify its process and window remain intact through CLI and refresh.
+4. Confirm Close; verify the process exits before the managed window disappears. Reopen the browser and confirm it stays closed; inspect retained journal/recording history through the normal surfaces.
+5. Stop a running terminal from its header; verify the window remains on its exit state, then close it without another running warning.
+6. Close a group containing two terminals and an unrelated app; verify one confirmation lists only the affected running terminals. Cancel preserves the group; confirm closes the group without terminating terminals outside it.
+7. Exercise the keyboard/window menu and close-other/right gestures. Pinned tabs remain protected by their existing scope rules.
+8. Lose the connection while closing; verify visible failure feedback, a retained window, and a successful fresh retry after reconnect.
+9. Confirm the route, title, dock badge, and another attached viewer remain truthful throughout.
+
+QA impact 2026-09-10: issue #594 intentionally replaces the old operator view-only close behavior. Historical passes below describe the previous contract; this round is tracked in `docs/qa/reports/2026-09-10-issue-594-terminal-close.md`.
 
 2026-09-04 targeted re-walk: passed. The Terminal app opened a second terminal, switched between OS
 window tabs, survived minimize and reload with both instances restored, and closed one window without
 ending the original terminal. A new browser session reattached to the running terminal with shared input.
+
+QA re-walk 2026-09-10: PASS for the changed close contract. Production-bundle E2Es cover running cancel/confirm, grouped reload/history, disconnect feedback, Stop, and exited close. Manual isolated-browser checks cover keyboard/window-menu close, mixed-app groups, close-other/right targeting, shared viewers, and unchanged native view-only close. Scope and evidence: `docs/qa/reports/2026-09-10-issue-594-terminal-close.md`. Unchanged steps retain their earlier evidence.

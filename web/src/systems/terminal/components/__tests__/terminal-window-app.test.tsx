@@ -132,9 +132,9 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId(`terminal-pipe-pane-${MAKE_GATE_TERMINAL.id}`)).toBeInTheDocument();
     expect(screen.getByText("412")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-pipe-chip")).toHaveTextContent("read-only log");
-    // Wait and Close are the pipe head verbs; Signal lives in overflow.
+    // Wait and Signal remain available; close belongs to the OS window.
     expect(screen.getByTestId("terminal-wait")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-close")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-close")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-signal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("terminal-pipe-overflow"));
     expect(await screen.findByTestId("terminal-signal")).toBeInTheDocument();
@@ -890,18 +890,15 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
   });
 
-  it("Should close the terminal from the head overflow, disabled while pending", async () => {
+  it("Should keep Stop available without a redundant terminal close action", async () => {
     const actions = stubWindowActions();
     renderWindow({ actions, terminals: [DEV_SERVER_TERMINAL] });
 
-    await userEvent.click(screen.getByTestId("terminal-overflow"));
-    await userEvent.click(await screen.findByTestId("terminal-close"));
-    expect(actions.onCloseTerminal).toHaveBeenCalledExactlyOnceWith(DEV_SERVER_TERMINAL.id);
-
-    const pending = stubWindowActions({ closePending: true });
-    renderWindow({ actions: pending, terminals: [DEV_SERVER_TERMINAL] });
-    const overflows = screen.getAllByTestId("terminal-overflow");
-    await userEvent.click(overflows[overflows.length - 1]);
-    expect(await screen.findByTestId("terminal-close")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByTestId("terminal-overflow")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-close")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("terminal-stop"));
+    expect(actions.onStop).toHaveBeenCalledExactlyOnceWith(DEV_SERVER_TERMINAL.id);
+    expect(actions.onCloseTerminal).not.toHaveBeenCalled();
+    expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
   });
 });

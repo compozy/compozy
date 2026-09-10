@@ -7,6 +7,7 @@ export {
   closeTerminal,
   controlTerminalRecording,
   createTerminal,
+  fetchTerminals,
   fetchTerminalInputRequestProjection,
   rejectTerminalInputRequest,
   signalTerminal,

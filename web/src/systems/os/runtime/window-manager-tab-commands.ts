@@ -14,6 +14,8 @@ import type { WindowManagerCommandInput } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WindowManagerRuntimeCore } from "./window-manager-runtime-core";
 import { randomWindowManagerId } from "./window-manager-runtime-helpers";
+import { windowCloseTargets, type WindowCloseGuard } from "../lib/window-close-targets";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 
 /**
  * Builders for the tab half of the command surface. They live apart from
@@ -144,6 +146,12 @@ export function retargetWindowCommand(
  * geometry runtime so neither of those files carries the tab surface.
  */
 export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
+  private closeGuard: WindowCloseGuard | null = null;
+  private closePending = false;
+
+  setCloseGuard(guard: WindowCloseGuard | null): void {
+    this.closeGuard = guard;
+  }
   navigateWindow = (
     id: string,
     route: OsWindowRoute,
@@ -222,6 +230,33 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
 
   reopenWindow = (): WindowManagerCommandOutcome => this.dispatch(reopenWindowCommand());
 
-  closeWindowScoped = (windowId: string, scope: OsCloseScope): Promise<boolean> =>
-    this.dispatch(closeWindowCommand(windowId, scope)).completion;
+  closeWindowScoped = async (windowId: string, scope: OsCloseScope): Promise<boolean> => {
+    if (!this.closeGuard) return this.dispatch(closeWindowCommand(windowId, scope)).completion;
+    if (this.closePending || !windowManagerCommandsAvailable(this.view)) return false;
+    const binding = this.binding;
+    const guard = this.closeGuard;
+    const targets = windowCloseTargets(this.view, windowId, scope);
+    if (targets.length === 0) return false;
+    const identity = (windows: typeof targets) =>
+      JSON.stringify(
+        windows.map(window => [window.id, window.app, window.instanceKey, window.route])
+      );
+    const captured = identity(targets);
+    const isCurrent = () =>
+      this.binding === binding &&
+      this.closeGuard === guard &&
+      windowManagerCommandsAvailable(this.view) &&
+      identity(windowCloseTargets(this.view, windowId, scope)) === captured;
+    this.closePending = true;
+    try {
+      if (!(await guard(targets, isCurrent)) || !isCurrent()) return false;
+      // Never let a queued group close expand to newly joined, unconfirmed tabs.
+      return await this.dispatch({
+        ...closeWindowCommand(windowId, scope),
+        expectedRevision: this.view.snapshot?.revision,
+      }).completion;
+    } finally {
+      this.closePending = false;
+    }
+  };
 }

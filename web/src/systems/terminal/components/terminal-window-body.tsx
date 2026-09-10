@@ -125,10 +125,8 @@ function TerminalInteractiveWindowBody({
   return (
     <>
       <TerminalHeader
-        closePending={actions.closePending}
         hostChrome={hostChrome}
         limit={limit}
-        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}
         onStop={controller.stop}
         onStopRecording={controller.stopRecording}
@@ -188,10 +186,8 @@ function TerminalPipeWindowBody({
   return (
     <>
       <TerminalHeader
-        closePending={actions.closePending}
         hostChrome={hostChrome}
         limit={limit}
-        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}
         onSignal={
           readOnly || terminal.state !== "running" ? undefined : () => actions.onStop(terminal.id)
