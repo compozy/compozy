@@ -6,7 +6,7 @@ Return JSONL. If there are no durable candidates, return exactly `{"no_candidate
 Do not describe the empty result in prose. Each candidate line has:
 
 ```json
-{"type":"user|feedback|project|reference","scope":"global|workspace|agent","agent_tier":"","content":"","evidence":"","entity":"","attribute":""}
+{"type":"user|feedback|project|reference","scope":"profile|workspace|agent","agent_tier":"","content":"","evidence":"","entity":"","attribute":""}
 ```
 
 Hard rules:
@@ -16,6 +16,7 @@ Hard rules:
 - Do not emit candidates when the same turn already made an explicit memory write.
 - Keep every candidate lexical-only. Do not include embeddings, vectors, or similarity scores.
 - Include concise evidence tied to the provided message sequence range.
+- Use `profile` for personal facts reusable across Workspaces and `workspace` for repository-specific facts. `global` is not a memory scope.
 - Set `agent_tier` to `workspace` or `global` only when `scope` is `agent`; otherwise leave it empty.
 - Apply the WHAT_NOT_TO_SAVE policy below before emitting any line.
 

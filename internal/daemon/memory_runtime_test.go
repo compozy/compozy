@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -263,6 +264,46 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 
 func TestMemoryExtractorOutputContract(t *testing.T) {
 	t.Parallel()
+	t.Run("Should parse every scope advertised by the rendered extractor prompt", func(t *testing.T) {
+		t.Parallel()
+		turn := memcontract.TurnRecord{SessionID: "parent", WorkspaceID: "workspace", AgentID: "engineer"}
+		prompt, err := renderMemoryExtractorPrompt(turn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, schema, found := strings.Cut(prompt, "```json\n")
+		if !found {
+			t.Fatal("extractor prompt has no candidate JSON schema")
+		}
+		schema, _, found = strings.Cut(schema, "\n```")
+		if !found {
+			t.Fatal("extractor candidate schema is not terminated")
+		}
+		var example extractedMemoryLine
+		if err := json.Unmarshal([]byte(schema), &example); err != nil {
+			t.Fatal(err)
+		}
+		for scope := range strings.SplitSeq(example.Scope, "|") {
+			example.Scope = scope
+			example.Type = "user"
+			example.Content = "The user prefers compact daily summaries."
+			example.AgentTier = ""
+			if scope == string(memcontract.ScopeAgent) {
+				example.AgentTier = string(memcontract.AgentTierGlobal)
+			}
+			output, err := json.Marshal(example)
+			if err != nil {
+				t.Fatal(err)
+			}
+			candidates, err := parseMemoryExtractorCandidates(string(output), turn, "", time.Time{})
+			if err != nil || len(candidates) != 1 {
+				t.Fatalf("advertised scope %q: candidates=%#v, error=%v", scope, candidates, err)
+			}
+			if candidates[0].Scope != memcontract.Scope(scope) {
+				t.Fatalf("candidate scope=%q, want %q", candidates[0].Scope, scope)
+			}
+		}
+	})
 	candidate := `{"type":"user","content":"Pedro prefers concise updates."}`
 	for _, tc := range []struct {
 		name, output string
@@ -278,6 +319,7 @@ func TestMemoryExtractorOutputContract(t *testing.T) {
 		{name: "Should preserve candidates around unknown prose", output: "Here are the candidates:\n" + candidate, count: 1, failure: true},
 		{name: "Should reject unknown prose alone", output: "Unable to determine memories", failure: true},
 		{name: "Should reject invalid candidate fields", output: `{"type":"user","content":""}`, failure: true},
+		{name: "Should reject retired global scope", output: `{"type":"user","scope":"global","content":"Personal preference"}`, failure: true},
 		{name: "Should reject null", output: `null`, failure: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

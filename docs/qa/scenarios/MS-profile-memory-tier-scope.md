@@ -54,3 +54,11 @@ each of two Profiles. Verify queued turns, extractor role resolution, profile-ti
 diagnostic events retain the source Profile. A missing Profile must refuse extraction/storage;
 it must not resolve the other Profile's Agent or write into default memory. Keep Workspace memory
 shared as specified above. Repeat after replaying the durable extractor inbox.
+
+Extractor vocabulary regression (#587): with memory explicitly enabled, complete a root turn asking
+to remember a personal preference across Workspaces, without an explicit memory-write call. The
+rendered extractor prompt must advertise `profile | workspace | agent`. Confirm its emitted
+Profile candidate is accepted and persists only under the source Profile; the default Profile must
+not return it. Keep `agent_tier: global` valid only for Agent scope, and keep `scope: global` rejected.
+A Workspace fact should still persist into shared Workspace memory. Separate provider-startup
+failures from prompt/parser failures when recording the result.
