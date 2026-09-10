@@ -299,7 +299,7 @@ test("E2E-003: zoom lifts a window off a shared desktop and unzoom restores the 
   const before = await windowManagerSnapshot(runtime, workspace.id);
   const anchor = layoutSignature(before, "desktop-default");
   const tiledRect = await windowRect(appPage, tasks);
-  const zoomButton = tasks.getByRole("button", { name: "Zoom window" });
+  const zoomButton = tasks.locator('button[data-action="zoom"]');
   await zoomButton.click();
 
   await expect
@@ -342,6 +342,92 @@ test("E2E-003: zoom lifts a window off a shared desktop and unzoom restores the 
   await expect.poll(() => windowRect(appPage, tasks)).toEqual(tiledRect);
   await expect(tasks).toBeVisible();
   await expect(settings).toBeVisible();
+});
+
+// Invariant: real pointer resizing exits internal zoom, persists the new geometry,
+// and subsequent restore cycles leave the other desktop's windows untouched.
+test("Issue 585: internal windows restore and resize across repeated zoom cycles", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const settings = await openDockApp(appPage, "Settings", "settings");
+  await openDockApp(appPage, "Tasks", "tasks");
+  const tasksID = await windowID(tasks);
+  const settingsID = await windowID(settings);
+  const before = await windowManagerSnapshot(runtime, workspace.id);
+  const originalRect = await windowRect(appPage, tasks);
+  const originalFloating = before.windows[tasksID]!.floating_rect;
+
+  for (let cycle = 0; cycle < 2; cycle++) {
+    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
+    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
+    await tasks.getByRole("button", { name: "Restore window", exact: true }).click();
+    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
+    await expect.poll(() => windowRect(appPage, tasks)).toEqual(originalRect);
+    const restored = await windowManagerSnapshot(runtime, workspace.id);
+    expect(restored.windows[tasksID]!.floating_rect).toEqual(originalFloating);
+    expect(restored.windows[tasksID]!.placement).toBe("floating");
+    expect(restored.windows[settingsID]).toEqual(before.windows[settingsID]);
+  }
+
+  for (const cursor of ["se-resize", "col-resize"]) {
+    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
+    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
+    const handle = windowFrame(tasks)
+      .locator("..")
+      .locator(
+        cursor === "col-resize"
+          ? '[style*="cursor: col-resize"][style*="left: -5px"]'
+          : '[style*="cursor: se-resize"]'
+      );
+    await expect(handle).toBeVisible();
+    await handle.hover();
+    const zoomRect = await windowRect(appPage, tasks);
+    await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("Maximized window resize handle must have a layout box");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await appPage.mouse.move(x, y);
+    await appPage.mouse.down();
+    await appPage.mouse.move(
+      x + (cursor === "col-resize" ? 160 : -160),
+      y - (cursor === "se-resize" ? 100 : 0),
+      { steps: 12 }
+    );
+    await appPage.mouse.up();
+    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
+    const resizedRect = await windowRect(appPage, tasks);
+    const resized = await windowManagerSnapshot(runtime, workspace.id);
+    expect(resized.windows[settingsID]).toEqual(before.windows[settingsID]);
+    const desktopID = resized.windows[tasksID]!.desktop_id;
+    const signature = layoutSignature(resized, desktopID);
+    const ownGroup = resized.desktops
+      .find(desktop => desktop.id === desktopID)!
+      .groups.find(group => group.root.window_id === tasksID);
+    expect(ownGroup).toBeDefined();
+    expect(ownGroup!.frame.x).toBeCloseTo(cursor === "col-resize" ? 160 / zoomRect.w : 0, 5);
+    expect(ownGroup!.frame.y).toBe(0);
+    expect(ownGroup!.frame.width).toBeCloseTo(1 - 160 / zoomRect.w, 5);
+    expect(ownGroup!.frame.height).toBeCloseTo(
+      cursor === "se-resize" ? 1 - 100 / zoomRect.h : 1,
+      5
+    );
+
+    await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
+    await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");
+    await tasks.getByRole("button", { name: "Restore window", exact: true }).click();
+    await expect(windowFrame(tasks)).not.toHaveAttribute("data-zoomed");
+    await expect.poll(() => windowRect(appPage, tasks)).toEqual(resizedRect);
+    await appPage.reload();
+    await expect(tasks).toBeVisible();
+    await expect.poll(() => windowRect(appPage, tasks)).toEqual(resizedRect);
+    const persisted = await windowManagerSnapshot(runtime, workspace.id);
+    expect(layoutSignature(persisted, desktopID)).toEqual(signature);
+    expect(persisted.windows[settingsID]).toEqual(before.windows[settingsID]);
+  }
 });
 
 test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom restores the split", async ({
@@ -390,7 +476,7 @@ test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom r
     ""
   );
 
-  await shell.deck(stackID).getByRole("button", { name: "Zoom window" }).click();
+  await shell.deck(stackID).getByRole("button", { name: "Restore window" }).click();
   await expect
     .poll(async () => {
       const snapshot = await windowManagerSnapshot(runtime, workspace.id);

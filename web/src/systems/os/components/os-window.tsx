@@ -102,9 +102,9 @@ export function OsWindow({ frame }: OsWindowProps) {
       minHeight={compact ? undefined : minimum.height}
       maxWidth={resizeMax?.width}
       maxHeight={resizeMax?.height}
-      // A zoomed frame is pinned to the work area: unzoom it to move or size it.
+      // Resize ends zoom through window.resize; moving still requires restore.
       disableDragging={compact || frame.zoomed}
-      enableResizing={!compact && !frame.zoomed && enableResizing}
+      enableResizing={!compact && enableResizing}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
       onDragStart={handleDragStart}

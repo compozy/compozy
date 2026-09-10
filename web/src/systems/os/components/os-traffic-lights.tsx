@@ -1,3 +1,4 @@
+import { Maximize2, Minimize2 } from "lucide-react";
 import { Fragment } from "react";
 
 import { cn } from "@/lib/utils";
@@ -57,6 +58,8 @@ function Light({
   compact: boolean;
   pressed?: boolean;
 }) {
+  const label = action === "zoom" && pressed ? "Restore window" : ACTION_LABEL[action];
+  const ZoomIcon = pressed ? Minimize2 : Maximize2;
   const glyph = cn(
     "rounded-xs border border-line-strong bg-btn-default-fill transition-colors duration-base",
     compact ? "size-traffic-light-compact" : "size-traffic-light"
@@ -68,7 +71,8 @@ function Light({
   return (
     <button
       type="button"
-      aria-label={ACTION_LABEL[action]}
+      aria-label={label}
+      title={label}
       aria-pressed={pressed}
       data-action={action}
       className={cn(
@@ -84,7 +88,12 @@ function Light({
       onMouseDown={event => event.preventDefault()}
       onClick={() => onSelect(action)}
     >
-      <span aria-hidden="true" className={cn(glyph, ACTION_TONE[action])} />
+      <span
+        aria-hidden="true"
+        className={cn(glyph, ACTION_TONE[action], "grid place-items-center")}
+      >
+        {action === "zoom" ? <ZoomIcon className="size-2.5" /> : null}
+      </span>
     </button>
   );
 }
