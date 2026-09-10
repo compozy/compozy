@@ -143,7 +143,7 @@ describe("OnboardingSetupFrame", () => {
     expect(screen.getByTestId("onboarding-summary-value")).toHaveTextContent("None yet");
 
     await user.click(screen.getByRole("button", { name: "About workspace" }));
-    expect(screen.getByText(/Skip starts in Global/)).toBeInTheDocument();
-    expect(screen.getByText(/does not enable Network/)).toBeInTheDocument();
+    expect(await screen.findByText(/Skip starts in Global/)).toBeInTheDocument();
+    expect(await screen.findByText(/does not enable Network/)).toBeInTheDocument();
   });
 });

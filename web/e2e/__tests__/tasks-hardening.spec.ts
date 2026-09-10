@@ -35,8 +35,9 @@ const tasksSessionAgentName = "browser-lifecycle-agent";
 // wake indicator gates on (truthful UI).
 const compozySessionHeader = "X-Compozy-Session-ID";
 const compozyAgentHeader = "X-Compozy-Agent";
+// Public native ToolIDs such as compozy__mcp_auth_status are not credential markers.
 const sensitivePattern =
-  /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
+  /compozy_claim_|["']claim_token["']\s*:|(?<!compozy__)mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 test.use({
   runtimeOptions: {

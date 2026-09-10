@@ -104,7 +104,8 @@ QA 2026-09-10: Initial ACP process registration now retains the startup context 
 Worker-tool regression (#588): inspect the conductor's spawn request and persisted child lineage.
 Require the root system conductor to have a concrete Agent-derived delegation budget and an explicit
 bootstrap tool subset within that budget. Agents without an allowlist use the native universe minus
-Agent denies; explicit overrides remain narrow. Provenance-linked system children remain unseeded.
+Agent denies; explicit overrides remain narrow. Provenance-linked system children, verdict-only
+runtimes, and providers without session MCP remain unseeded.
 During the worker turn, invoke
 native `compozy__skill_view` for required guidance; an injected skill summary alone is not proof of
 callable tools. Confirm a nondelegated tool is still denied and omission still means zero tools.

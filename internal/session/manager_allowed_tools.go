@@ -61,7 +61,7 @@ func (s *sessionStartSpec) materializeRootDelegationTools(
 	catalog toolspkg.ToolsetCatalog,
 	universe []toolspkg.ToolID,
 ) error {
-	if s == nil {
+	if s == nil || !resolved.SessionMCP || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil
 	}
 	switch normalizeSessionType(s.sessionType) {
