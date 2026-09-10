@@ -672,8 +672,10 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		cfg.Memory.Enabled = false
 		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
+		expectedSkills := []string{"compozy"}
 		for index := range 23 {
 			name := fmt.Sprintf("measured-skill-%02d", index)
+			expectedSkills = append(expectedSkills, name)
 			writeDaemonFile(
 				t,
 				filepath.Join(homePaths.SkillsDir, name, "SKILL.md"),
@@ -801,16 +803,24 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 			return err == nil && strings.Contains(skillspkg.BuildCurrentCatalog(entries), `name="measured-added"`)
 		})
 		changed := send(ordinary, "changed")
-		if !strings.Contains(first, `<catalog-state unchanged="true">`) ||
-			strings.Count(first, `name="measured-skill-00"`) != 1 {
+		assertCatalog := func(label, prompt string, expected []string) {
+			t.Helper()
+			var names []string
+			for _, match := range extensionPromptSkillNamePattern.FindAllStringSubmatch(prompt, -1) {
+				names = append(names, match[1])
+			}
+			assertSkillNames(t, label, names, expected)
+		}
+		assertCatalog("first payload", first, expectedSkills)
+		assertCatalog("unchanged payload", second, nil)
+		assertCatalog("changed payload", changed, append(slices.Clone(expectedSkills), "measured-added"))
+		if !strings.Contains(first, `<catalog-state unchanged="true">`) {
 			t.Errorf("first payload must contain the startup catalog once and the live marker")
 		}
-		if !strings.Contains(second, `<catalog-state unchanged="true">`) ||
-			strings.Contains(second, `name="measured-skill-00"`) {
+		if !strings.Contains(second, `<catalog-state unchanged="true">`) {
 			t.Errorf("unchanged payload must contain only the marker")
 		}
-		if !strings.Contains(changed, `name="measured-added"`) ||
-			strings.Contains(changed, `<catalog-state unchanged="true">`) {
+		if strings.Contains(changed, `<catalog-state unchanged="true">`) {
 			t.Errorf("changed payload must contain the new full catalog")
 		}
 		for _, role := range []string{session.SpawnRoleMemoryExtractor, session.SpawnRoleAutoTitle, session.SpawnRoleCheckpointSummary} {
