@@ -63,3 +63,26 @@ is pending task10 and must follow the task07/task08 normative artboards.
 QA 2026-09-06 integrated verdict: Selected new grammar and navigation branches passed: all task07/08 visual rows and substates, actual3,023-message history, unloaded Unicode input and all text/title/output/error/filename fields, exact nested landing, focus/trail/no-match/bottom ownership, full260-line browser download, and generation1→2 archive invalidation while Find remained focused. The report retains each repair/re-walk and the distinction between controlled runtime and deterministic visual fixtures.
 
 QA impact 2026-09-10: the thinking indicator now re-arms an early timer callback until its existing flicker-guard deadline, preventing an indefinitely hidden pending state. The canonical thread-status timing tests and full conversation/runtime suites passed. Evidence and browser verification are owned by `docs/qa/reports/2026-09-10-release-integration-repair.md`.
+
+## Bounded summaries (issue #598)
+
+Use the sanitized `SessionsStability/Working/LongSummaries` story, then repeat the
+relevant transcript flow against the isolated browser runtime. At 360, 860, and
+1600 px, summaries stay on one line: tool/reasoning/live/activity/Goal text uses a
+maximum 24 rem readable measure; headings use at most 20 rem. Smaller containers
+shrink these bounds. Session sidebar and deck tabs retain their existing tighter
+constraints. Full message bodies and intentionally expanded content remain readable.
+
+- Inspect a multiline heredoc, an unbroken path, Unicode graphemes, a provider title
+  separate from tool identity, concurrent tools, and running/settled/error states.
+- Confirm the Working row remains 22 px high, elapsed time and stop/composer controls
+  stay visible, and no horizontal page overflow appears. Repeat at 200% zoom and
+  with reduced motion; opening a summary popup must not shift the transcript.
+- Use Tab and Enter to inspect live tool/activity details, Escape to return focus,
+  and the tool/reasoning/Goal disclosure to inspect complete originals. Window head
+  titles reveal their full label on pointer activation or Enter from keyboard focus.
+- Copy a full tool payload and compare its title/input/output with the fixture.
+  Find a unique tail omitted from a summary; the matching title/name/input body
+  must open in both running and settled tools. Closing the reveal remains reader-owned.
+
+Verification record: [issue #598 report](../reports/2026-09-10-session-summary-truncation.md).

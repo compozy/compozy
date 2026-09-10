@@ -70,7 +70,9 @@ function StripRow({ label, children }: { label: string; children: React.ReactNod
   return (
     <div className="flex gap-2.5 text-transcript-body leading-normal">
       <span className="w-[76px] shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
-      <span className="min-w-0 text-muted">{children}</span>
+      <span className="min-w-0 whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
+        {children}
+      </span>
     </div>
   );
 }
@@ -142,7 +144,7 @@ export function SessionGoalStrip({
           className={cn("size-1.5 shrink-0 rounded-full", STATE_DOT[state])}
         />
         <Eyebrow className="shrink-0 text-subtle">Goal</Eyebrow>
-        <span className="min-w-0 flex-1 truncate text-small-body text-fg">
+        <span className="min-w-0 max-w-sm flex-1 truncate text-small-body text-fg">
           {snapshot.objective}
         </span>
         <span
@@ -164,6 +166,7 @@ export function SessionGoalStrip({
       </button>
       {open ? (
         <div data-testid="goal-strip-body" className="flex flex-col gap-[5px] px-1 pt-1.5 pb-0.5">
+          <StripRow label="Objective">{snapshot.objective}</StripRow>
           {snapshot.contract_summary ? (
             <StripRow label="Contract">{snapshot.contract_summary}</StripRow>
           ) : null}

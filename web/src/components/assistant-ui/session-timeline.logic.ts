@@ -77,6 +77,7 @@ export interface SessionTimelineToolPart extends SessionTimelineBasePart {
   kind: "tool";
   toolCallId: string;
   toolName: string;
+  toolTitle?: string;
   args: Record<string, unknown>;
   result?: unknown;
   isError?: boolean;

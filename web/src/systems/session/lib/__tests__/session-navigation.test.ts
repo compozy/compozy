@@ -295,7 +295,7 @@ describe("navigation host derivations", () => {
     });
     expect(findMatchSource({ field: "tool_name", part_index: 1 }, agent)).toMatchObject({
       insideFold: true,
-      opensBody: false,
+      opensBody: true,
     });
     expect(findMatchSource({ field: "text", part_index: 0 }, agent)).toMatchObject({
       insideFold: true,

@@ -1,10 +1,18 @@
 import { ChevronRight, Layers } from "lucide-react";
 import { createElement } from "react";
 
+import {
+  SessionToolCallRow,
+  SessionSummaryDisclosure,
+  liveToolLabel,
+  parallelToolLabel,
+} from "@/systems/session";
+import type { SessionNavigationReveal } from "./hooks/session-navigation-target-context";
+import { toolMessageFromPart } from "./session-timeline-tool-message";
+
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
 import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
-import { liveToolLabel, parallelToolLabel } from "@/systems/session/lib/session-tool-visual-state";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 
@@ -20,7 +28,7 @@ function LiveToolGlyph({ part }: { part: SessionTimelineToolPart }) {
 // (plain subtle text when still — under reduced motion, or while the window
 // is paused — the word "Running" carries the state), nothing on the right.
 function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: boolean }) {
-  const label = liveToolLabel(part.toolName, part.args);
+  const label = liveToolLabel(part.toolName, part.args, part.toolTitle);
   return (
     <div
       className="flex min-h-transcript-line min-w-0 items-center gap-transcript-inline-gap px-1 text-small-body"
@@ -32,13 +40,17 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
       </span>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate font-medium",
+          "min-w-0 max-w-sm flex-1 truncate font-medium",
           still ? "text-subtle" : "session-shimmer"
         )}
         data-testid="live-tool-label"
-        title={label.text}
       >
-        {label.text}
+        <SessionSummaryDisclosure
+          summary={label.text}
+          label="Tool details"
+          detail={`${part.toolTitle ?? part.toolName}\n\n${JSON.stringify({ tool: part.toolName, ...(part.toolTitle ? { title: part.toolTitle } : {}), input: part.args }, null, 2)}`}
+          className="max-w-full font-medium"
+        />
       </span>
     </div>
   );
@@ -48,6 +60,7 @@ export interface SessionLiveToolRowViewProps {
   row: SessionLiveToolRow;
   reducedMotion: boolean;
   onToggle: () => void;
+  reveal?: SessionNavigationReveal | null;
 }
 
 /**
@@ -63,6 +76,7 @@ export function SessionLiveToolRowView({
   row,
   reducedMotion,
   onToggle,
+  reveal,
 }: SessionLiveToolRowViewProps) {
   const liveData = useSessionThreadLiveData();
   const still = reducedMotion || !liveData;
@@ -77,6 +91,15 @@ export function SessionLiveToolRowView({
         className="flex min-w-0 flex-col"
       >
         <LiveToolLine part={first} still={still} />
+        {reveal ? (
+          <SessionToolCallRow
+            message={toolMessageFromPart(first)}
+            partIndex={first.partIndex}
+            revealOpen
+            revealField={reveal.field ?? undefined}
+            onRevealRelease={onToggle}
+          />
+        ) : null}
       </div>
     );
   }
@@ -104,7 +127,7 @@ export function SessionLiveToolRowView({
         </span>
         <span
           className={cn(
-            "min-w-0 flex-1 truncate font-medium",
+            "min-w-0 max-w-sm flex-1 truncate font-medium",
             still ? "text-subtle" : "session-shimmer"
           )}
           data-testid="live-tool-label"
@@ -133,7 +156,20 @@ export function SessionLiveToolRowView({
         }
       >
         {row.expanded
-          ? row.entries.map(part => <LiveToolLine key={part.id} part={part} still={still} />)
+          ? row.entries.map(part => (
+              <div key={part.id} className="min-w-0">
+                <LiveToolLine part={part} still={still} />
+                {reveal && reveal.partIndex === part.partIndex ? (
+                  <SessionToolCallRow
+                    message={toolMessageFromPart(part)}
+                    partIndex={part.partIndex}
+                    revealOpen
+                    revealField={reveal.field ?? undefined}
+                    onRevealRelease={onToggle}
+                  />
+                ) : null}
+              </div>
+            ))
           : null}
       </div>
     </div>

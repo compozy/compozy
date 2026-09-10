@@ -129,7 +129,7 @@ function currentActivity(session: SessionWorkingStatusInput["session"]): string 
   if (runningTools > 1) return `Running ${runningTools} tools`;
   const tool = session.activity?.current_tool?.trim();
   if (!tool) return null;
-  return liveToolLabel(tool).verb;
+  return liveToolLabel(tool).text;
 }
 
 export function agentCountLabel(count: number): string {

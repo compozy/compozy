@@ -183,4 +183,14 @@ describe("SessionGoalStrip", () => {
     expect(body).toHaveTextContent("Approved · 2 blocking issues");
     expect(body).toHaveTextContent("verdict_007");
   });
+
+  // Invariant: the full objective remains in the keyboard-accessible disclosure, independent of the contract summary.
+  // Owner: session Goal disclosure; canonical suite: session-goal-strip.
+  it("Should disclose the exact multiline Goal objective", () => {
+    const objective = "Inspect summary layout\n" + "unbroken_path_".repeat(80) + "objective-tail";
+    render(<SessionGoalStrip snapshot={snapshot({ objective })} />);
+    fireEvent.click(screen.getByTestId("goal-strip-line"));
+    const body = screen.getByTestId("goal-strip-body");
+    expect(body.textContent).toContain(objective);
+  });
 });

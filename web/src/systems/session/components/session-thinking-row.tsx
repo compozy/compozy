@@ -1,5 +1,7 @@
 import { CircleAlert, CircleStop, LoaderCircle } from "lucide-react";
 
+import { SessionSummaryDisclosure } from "./session-summary-disclosure";
+
 import { TypingDots } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
@@ -39,7 +41,7 @@ export interface SessionThinkingRowProps {
 }
 
 const ROW_CLASS =
-  "flex min-h-transcript-row items-center gap-2 px-1 py-0.5 text-transcript-meta text-subtle tabular-nums";
+  "flex min-h-transcript-row min-w-0 items-center gap-2 px-1 py-0.5 text-transcript-meta text-subtle tabular-nums";
 
 function SessionStatusSeparator() {
   return (
@@ -76,11 +78,13 @@ function WorkingStatusLine({
   liveDataEnabled,
   pausedAtMs,
   reducedMotion,
+  activityDetail,
 }: {
   status: Extract<SessionWorkingStatus, { kind: "working" }>;
   liveDataEnabled: boolean;
   pausedAtMs: number | null;
   reducedMotion: boolean;
+  activityDetail?: string;
 }) {
   const asOf = !liveDataEnabled && pausedAtMs !== null ? formatMessageTimestamp(pausedAtMs) : null;
   return (
@@ -93,35 +97,48 @@ function WorkingStatusLine({
       className={ROW_CLASS}
     >
       <Dots reducedMotion={reducedMotion || !liveDataEnabled} />
-      <span>
-        {status.startedAtMs !== null ? (
-          <>
-            Working for{" "}
-            <WorkingTimer
-              startedAtMs={status.startedAtMs}
-              enabled={liveDataEnabled}
-              fallback={status.elapsed}
-            />
-          </>
-        ) : (
-          "Working…"
-        )}
+      <span className="flex min-w-0 flex-1 items-center">
+        <span className="shrink-0 whitespace-nowrap">
+          {status.startedAtMs !== null ? (
+            <>
+              Working for{" "}
+              <WorkingTimer
+                startedAtMs={status.startedAtMs}
+                enabled={liveDataEnabled}
+                fallback={status.elapsed}
+              />
+            </>
+          ) : (
+            "Working…"
+          )}
+        </span>
         {status.activity ? (
           <>
             <SessionStatusSeparator />
-            <span data-testid="session-working-activity">{status.activity}</span>
+            <span data-testid="session-working-activity" className="min-w-0 max-w-sm">
+              <SessionSummaryDisclosure
+                label="Activity details"
+                summary={status.activity}
+                detail={activityDetail ?? status.activity}
+                className="max-w-full"
+              />
+            </span>
           </>
         ) : null}
         {status.agentCount > 0 ? (
           <>
             <SessionStatusSeparator />
-            <span data-testid="session-working-agents">{agentCountLabel(status.agentCount)}</span>
+            <span data-testid="session-working-agents" className="shrink-0 whitespace-nowrap">
+              {agentCountLabel(status.agentCount)}
+            </span>
           </>
         ) : null}
         {asOf ? (
           <>
             <SessionStatusSeparator />
-            <span data-testid="session-working-as-of">as of {asOf}</span>
+            <span data-testid="session-working-as-of" className="shrink-0 whitespace-nowrap">
+              as of {asOf}
+            </span>
           </>
         ) : null}
       </span>
@@ -134,11 +151,13 @@ function SessionStatusLine({
   liveDataEnabled,
   pausedAtMs,
   reducedMotion,
+  activityDetail,
 }: {
   status: SessionWorkingStatus;
   liveDataEnabled: boolean;
   pausedAtMs: number | null;
   reducedMotion: boolean;
+  activityDetail?: string;
 }) {
   switch (status.kind) {
     case "thinking": {
@@ -166,6 +185,7 @@ function SessionStatusLine({
           liveDataEnabled={liveDataEnabled}
           pausedAtMs={pausedAtMs}
           reducedMotion={reducedMotion}
+          activityDetail={activityDetail}
         />
       );
     case "stopped":
@@ -271,6 +291,13 @@ export function SessionThinkingRow({
       liveDataEnabled={liveDataEnabled}
       pausedAtMs={pausedAtMs}
       reducedMotion={reducedMotion}
+      activityDetail={
+        session.pending_interactions.length === 0 &&
+        (session.supervision?.work_signals.filter(signal => signal.kind === "tool_running")
+          .length ?? 0) <= 1
+          ? session.activity?.current_tool
+          : undefined
+      }
     />
   );
 }

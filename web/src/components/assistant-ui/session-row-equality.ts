@@ -146,6 +146,7 @@ function toolEntriesEqual(
       tool.id === other.id &&
       tool.toolCallId === other.toolCallId &&
       tool.toolName === other.toolName &&
+      tool.toolTitle === other.toolTitle &&
       tool.status === other.status &&
       tool.state === other.state &&
       tool.isError === other.isError &&

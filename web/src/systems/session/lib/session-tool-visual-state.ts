@@ -7,7 +7,9 @@
 // module owns the mapping and the accessible words; palette fidelity is owned
 // by the artboards and Storybook capture, never by a unit test.
 
-import { getToolCompactSummary, resolveRegisteredToolName } from "./tool-labels";
+import { compactSessionSummary } from "./session-summary";
+
+import { getToolCompactSummary, resolveRegisteredToolName, toolHeadingName } from "./tool-labels";
 
 export type SessionToolVisualStatus =
   | "live"
@@ -104,7 +106,7 @@ const LIVE_VERB: Record<SessionToolKind, string> = {
 function liveVerb(kind: SessionToolKind, registryTool: string): string {
   if (kind === "search") return registryTool === "Glob" ? "Finding files" : "Searching content";
   if (kind === "web") return registryTool === "WebSearch" ? "Searching the web" : "Fetching";
-  if (kind === "other") return `Running ${registryTool}`;
+  if (kind === "other") return `Running ${toolHeadingName(registryTool)}`;
   return LIVE_VERB[kind];
 }
 
@@ -115,7 +117,9 @@ function livePreview(
 ): string | null {
   if (kind === "agent") {
     const description = args.description ?? args.prompt;
-    return typeof description === "string" && description.trim() ? description.trim() : null;
+    return typeof description === "string" && description.trim()
+      ? compactSessionSummary(description)
+      : null;
   }
   const summary = getToolCompactSummary(registryTool, args);
   return summary && summary.trim().length > 0 ? summary : null;
@@ -123,12 +127,21 @@ function livePreview(
 
 export function liveToolLabel(
   toolName: string,
-  args: Record<string, unknown> = {}
+  args: Record<string, unknown> = {},
+  title?: string
 ): SessionLiveToolLabel {
   const registryTool = resolveRegisteredToolName(toolName);
   const kind = toolVisualKind(toolName);
   const verb = liveVerb(kind, registryTool);
-  const preview = livePreview(kind, registryTool, args);
+  const description =
+    title && title !== registryTool
+      ? title
+      : toolHeadingName(toolName) === "tool" && toolName !== "tool"
+        ? toolName
+        : null;
+  const preview = description
+    ? compactSessionSummary(description)
+    : livePreview(kind, registryTool, args);
   if (preview === null) return { verb, preview, text: verb };
   // Paths read as the object of the verb ("Editing a/b.ts"); everything else is
   // set off with a dash ("Running shell — go test").

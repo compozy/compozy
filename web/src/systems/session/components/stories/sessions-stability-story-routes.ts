@@ -54,9 +54,15 @@ function searchableFields(
   const type = readString(source, "type") ?? "";
   if (type === "text") return [{ field: "text", text: readString(source, "text") ?? "", role: "" }];
   if (!type.startsWith("tool-")) return [];
-  return Object.entries(asRecord(source.input))
+  const inputs = Object.entries(asRecord(source.input))
     .filter((entry): entry is [string, string] => typeof entry[1] === "string")
     .map(([, text]) => ({ field: "input", text, role: "tool" }));
+  const title = readString(source, "title");
+  return [
+    ...inputs,
+    ...(title ? [{ field: "title", text: title, role: "tool" }] : []),
+    { field: "tool_name", text: type.slice("tool-".length), role: "tool" },
+  ];
 }
 
 function snippetAround(text: string, at: number, length: number): string {

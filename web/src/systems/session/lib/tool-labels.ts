@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { compactSessionSummary } from "./session-summary";
+
 import { canonicalCompozyToolName } from "./session-terminal-tools";
 
 // --- Tool Icons ---
@@ -208,7 +210,7 @@ const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
 
 /**
  * Resolve a canonical registry tool id from a streamed or persisted tool name.
- * Accepts exact ids ("Read") and ACP-style titles ("Read routes.go").
+ * Accepts exact ids and the documented hosted-MCP projection; prose remains a title.
  */
 export function resolveRegisteredToolName(toolName: string): string {
   const trimmed = toolName.trim();
@@ -222,18 +224,22 @@ export function resolveRegisteredToolName(toolName: string): string {
   if (REGISTERED_TOOL_NAMES.has(canonical)) {
     return canonical;
   }
-  for (const registered of REGISTERED_TOOL_NAMES) {
-    if (trimmed.startsWith(`${registered} `)) {
-      return registered;
-    }
-  }
   return trimmed;
+}
+
+/** Free-form provider titles are descriptions, not canonical tool identities. */
+export function toolHeadingName(toolName: string): string {
+  const resolved = resolveRegisteredToolName(toolName);
+  return REGISTERED_TOOL_NAMES.has(resolved) || /^[\p{L}\p{N}_:.-]{1,80}$/u.test(resolved)
+    ? resolved
+    : "tool";
 }
 
 export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
   const labels = TOOL_LABELS[toolName];
   if (labels) return labels[tense];
 
+  toolName = toolHeadingName(toolName);
   // Fallback for unknown tools
   switch (tense) {
     case "active":
@@ -258,13 +264,7 @@ export function getToolCompactSummary(
   const fullSummary = getToolFullSummary(toolName, toolInput);
   if (fullSummary === undefined) return undefined;
 
-  return truncate(fullSummary, getToolSummaryMaxLength(toolName));
-}
-
-function truncate(str: string, maxLen: number): string {
-  if (!str) return "";
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + "\u2026";
+  return compactSessionSummary(fullSummary, getToolSummaryMaxLength(toolName));
 }
 
 function getToolFullSummary(

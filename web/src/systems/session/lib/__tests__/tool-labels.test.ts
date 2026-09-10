@@ -102,9 +102,9 @@ describe("getToolLabel", () => {
 });
 
 describe("resolveRegisteredToolName", () => {
-  it("returns the registry id for exact and ACP-style titles", () => {
+  it("resolves exact identities while preserving free-form titles", () => {
     expect(resolveRegisteredToolName("Read")).toBe("Read");
-    expect(resolveRegisteredToolName("Read routes.go")).toBe("Read");
+    expect(resolveRegisteredToolName("Read routes.go")).toBe("Read routes.go");
     expect(resolveRegisteredToolName("Bash")).toBe("Bash");
   });
 
@@ -161,5 +161,27 @@ describe("getToolCompactSummary", () => {
 
   it("returns undefined when toolInput is undefined", () => {
     expect(getToolCompactSummary("Bash")).toBeUndefined();
+  });
+});
+
+// Invariant: display-only normalization is one line, grapheme-safe, and never invents tool identity.
+// Owner: session presentation; canonical suite: tool-labels.
+describe("provider summary presentation", () => {
+  it("Should treat a script title as an unknown tool and preserve explicit native identity", () => {
+    const title = "python3 - <<'PY'\n" + "print('hello')\n".repeat(30) + "PY";
+    expect(getToolLabel(title, "active")).toBe("Running tool...");
+    expect(getToolLabel(title, "past")).toBe("Used tool");
+    expect(resolveRegisteredToolName(title)).toBe(title);
+    expect(resolveRegisteredToolName("mcp__host__compozy__terminal_exec")).toBe(
+      "compozy__terminal_exec"
+    );
+    expect(getToolLabel("Bash dependency investigation", "past")).toBe("Used tool");
+  });
+  it("Should normalize multiline input and truncate between complete graphemes", () => {
+    const emoji = "👩🏽‍💻";
+    const command = emoji.repeat(90) + "\nraw-tail";
+    expect(getToolCompactSummary("Bash", { command })).toBe(emoji.repeat(79) + "…");
+    expect(getToolCompactSummary("Bash", { command: "first\n\tsecond" })).toBe("first second");
+    expect(command).toContain("\nraw-tail");
   });
 });

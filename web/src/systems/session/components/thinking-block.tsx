@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Brain, ChevronDown } from "lucide-react";
 
+import { compactSessionSummary } from "../lib/session-summary";
+
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 
@@ -42,7 +44,7 @@ export function ThinkingBlock({
   const live = !thinkingComplete;
   const ownOpen = userOpen ?? live;
   const open = ownOpen || revealOpen;
-  const preview = firstThinkingLine(thinking);
+  const preview = compactSessionSummary(firstThinkingLine(thinking));
 
   return (
     <div
@@ -81,7 +83,7 @@ export function ThinkingBlock({
                 Thought
               </span>
               {preview ? (
-                <span className="min-w-0 flex-1 truncate text-subtle">{preview}</span>
+                <span className="min-w-0 max-w-sm flex-1 truncate text-subtle">{preview}</span>
               ) : null}
             </span>
             <ChevronDown

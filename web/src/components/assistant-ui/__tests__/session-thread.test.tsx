@@ -5627,3 +5627,52 @@ describe("SessionThread thinking guard", () => {
     }
   });
 });
+
+// Invariant: runtime projection retains canonical identity plus exact provider title,
+// and live/working summaries offer keyboard disclosure without losing the timer.
+// Owner: session thread composition; canonical suite: session-thread.
+it("Should preserve provider titles through the runtime and disclose live and Working details", async () => {
+  const user = userEvent.setup();
+  const title = "Inspect layout\n" + "ação 👩🏽‍💻 ".repeat(100) + "provider-title-tail";
+  const transcript = [
+    {
+      id: "long-title",
+      role: "assistant",
+      status: { type: "running" },
+      parts: [
+        {
+          type: "tool-Bash",
+          title,
+          toolCallId: "long-call",
+          state: "input-available",
+          turnId: "long-turn",
+          input: { command: "printf 'input-tail'" },
+        },
+      ],
+    },
+  ] as unknown as SessionMessage[];
+  renderThreadState({
+    status: "success",
+    messages: toReadonlyThreadMessages(transcript),
+    isSessionRunning: true,
+    statusSession: runningStatusSession("2026-09-06T12:00:00Z", title),
+  });
+  const live = await screen.findByTestId("live-tool-label");
+  expect(live).toHaveTextContent("Running shell");
+  expect(live).not.toHaveTextContent("provider-title-tail");
+  const trigger = within(live).getByRole("button", { name: "Tool details" });
+  trigger.focus();
+  await user.keyboard("{Enter}");
+  const details = await screen.findByRole("dialog", { name: "Tool details" });
+  expect(details.textContent).toContain(title);
+  expect(details).toHaveTextContent("input-tail");
+  await user.keyboard("{Escape}");
+  expect(trigger).toHaveFocus();
+  const activity = screen.getByRole("button", { name: "Activity details" });
+  activity.focus();
+  await user.keyboard("{Enter}");
+  expect((await screen.findByRole("dialog", { name: "Activity details" })).textContent).toContain(
+    title
+  );
+  expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
+});

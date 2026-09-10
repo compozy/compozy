@@ -122,6 +122,7 @@ function toToolPart(
     type: "tool-call" as const,
     toolCallId,
     toolName,
+    toolTitle: stringField(record, "title"),
     args: toJSONObject(input),
     argsText: jsonText(input),
     result: toolPartResult(record, isError),

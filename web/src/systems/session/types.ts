@@ -332,6 +332,7 @@ export interface UIMessage {
   role: UIMessageRole;
   content: string;
   toolName?: string;
+  toolTitle?: string;
   toolInput?: Record<string, unknown>;
   toolResult?: ToolUseResult;
   toolError?: boolean;

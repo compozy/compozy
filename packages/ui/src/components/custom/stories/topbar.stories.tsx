@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { LayoutDashboard, ListChecks } from "lucide-react";
 
 import { Button } from "../../button";
@@ -209,6 +210,32 @@ export const SessionDocument: Story = {
         }
         title="Prune stale sessions"
       />
+    </TopbarSlotProvider>
+  ),
+};
+
+/** Long session/window names stay readable at wide widths and expose the full label through keyboard/pointer disclosure. */
+export const LongTitle: Story = {
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const heading = within(canvasElement).getByRole("heading", { level: 1 });
+    await expect(heading.getBoundingClientRect().width).toBeLessThanOrEqual(320);
+    const trigger = within(heading).getByRole("button");
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    const detail = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
+      name: "Full title",
+    });
+    await expect(detail.textContent).toBe(trigger.textContent);
+    await expect(detail.getBoundingClientRect().height).toBeLessThanOrEqual(256);
+    await expect(detail.scrollHeight).toBeGreaterThan(detail.clientHeight);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    canvasElement.dataset.titleChecks = "passed";
+  },
+  render: () => (
+    <TopbarSlotProvider>
+      <Topbar title={"Inspect session summary layout — ação 👩🏽‍💻 ".repeat(40)} />
     </TopbarSlotProvider>
   ),
 };

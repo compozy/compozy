@@ -107,4 +107,17 @@ describe("ThinkingBlock", () => {
     // The "N updates" eyebrow is gone — grouping stays a derivation concern.
     expect(trigger).not.toHaveTextContent("updates");
   });
+
+  // Invariant: only the collapsed preview is bounded; keyboard disclosure preserves reasoning.
+  // Owner: reasoning disclosure; canonical suite: thinking-block.
+  it("Should expose the full long reasoning after keyboard expansion", async () => {
+    const user = userEvent.setup();
+    const thinking = "Reviewing " + "ação 👩🏽‍💻 ".repeat(90) + "reasoning-tail";
+    render(<ThinkingBlock thinking={thinking} thinkingComplete />);
+    const trigger = screen.getByTestId("thinking-trigger");
+    expect(trigger).not.toHaveTextContent("reasoning-tail");
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("region", { name: "Reasoning" })).toHaveTextContent(thinking);
+  });
 });

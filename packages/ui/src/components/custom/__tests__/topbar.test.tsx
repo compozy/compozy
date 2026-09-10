@@ -410,3 +410,21 @@ describe("Topbar", () => {
     expect(screen.getByTestId("probe")).toHaveTextContent("ok");
   });
 });
+
+// Invariant: bounded window titles expose the complete label on keyboard focus.
+// Owner: shared window head; canonical suite: topbar.
+it("Should disclose the full title while preserving the route focus target", () => {
+  const title = "Inspect session summaries — ação ".repeat(12);
+  render(
+    <TopbarSlotProvider>
+      <Topbar title={title} />
+    </TopbarSlotProvider>
+  );
+  const heading = screen.getByRole("heading", { name: title.trim() });
+  expect(heading).toHaveAttribute("tabindex", "-1");
+  const trigger = screen.getByRole("button", { name: title.trim() });
+  trigger.focus();
+  expect(trigger).toHaveFocus();
+  fireEvent.click(trigger);
+  expect(screen.getByRole("dialog", { name: "Full title" }).textContent).toBe(title);
+});
