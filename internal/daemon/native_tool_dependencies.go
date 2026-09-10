@@ -82,6 +82,7 @@ type daemonNativeToolsDeps struct {
 	MemoryStore                *memorypkg.Store
 	MemoryToolWrites           memoryToolWriteRecorder
 	DreamTrigger               core.DreamTrigger
+	Roles                      core.RolesStatusProvider
 	MemoryExtractor            core.MemoryExtractorService
 	MemoryProviders            core.MemoryProviderService
 	MemorySessionLedger        core.MemorySessionLedgerService

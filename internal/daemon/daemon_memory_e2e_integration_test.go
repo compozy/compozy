@@ -127,6 +127,137 @@ func TestDaemonE2EKnowledgeWithoutMemoryAutomation(t *testing.T) {
 	}
 }
 
+func TestDaemonE2EMemoryDreamHealth(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		memory, dream bool
+	}{
+		{name: "Should report both opt-ins disabled"},
+		{name: "Should report memory enabled without dreaming", memory: true},
+		{name: "Should require memory for the dream role", dream: true},
+		{name: "Should report both opt-ins enabled", memory: true, dream: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Memory.Enabled, cfg.Roles.Dream.Enabled = tc.memory, tc.dream
+				}},
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+			var role compozycontract.RoleStatusResponse
+			if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/roles/dream", nil, &role); err != nil {
+				t.Fatal(err)
+			}
+			want := tc.memory && tc.dream
+			wantStatus := "disabled"
+			if tc.memory {
+				wantStatus = "ok"
+			}
+			if role.Role.Enabled != want {
+				t.Fatalf("role=%#v want enabled=%t", role.Role, want)
+			}
+			for _, transport := range []struct {
+				name string
+				read func(context.Context, string, string, any, any) error
+			}{{name: "HTTP", read: harness.HTTPJSON}, {name: "UDS", read: harness.UDSJSON}} {
+				var health compozycontract.MemoryHealthPayload
+				if err := transport.read(ctx, http.MethodGet, "/api/memory/health", nil, &health); err != nil {
+					t.Fatal(err)
+				}
+				if health.DreamEnabled != want || health.Enabled != tc.memory || health.Status != wantStatus {
+					t.Fatalf("%s health=%#v role=%#v", transport.name, health, role.Role)
+				}
+			}
+			var health compozycontract.MemoryHealthPayload
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&health,
+				"memory",
+				"health",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if health.DreamEnabled != want {
+				t.Fatalf("CLI health=%#v role=%#v", health, role.Role)
+			}
+		})
+	}
+}
+
+func TestDaemonE2EMemoryDreamHealthLiveScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep workspace overrides isolated across live role changes", func(t *testing.T) {
+		t.Parallel()
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			Workspace: e2etest.WorkspaceSeedOptions{
+				Files: map[string]string{".compozy/config.toml": "[roles.dream]\nenabled = true\n"},
+			},
+			ConfigSeed: e2etest.ConfigSeedOptions{
+				Mutate: func(cfg *compozyconfig.Config) { cfg.Memory.Enabled = true; cfg.Roles.Dream.Enabled = false },
+			},
+		})
+		for _, enabled := range []bool{false, true, false} {
+			var mutation map[string]any
+			if err := harness.CLI.RunJSON(
+				t.Context(),
+				&mutation,
+				"config",
+				"set",
+				"roles.dream.enabled",
+				strconv.FormatBool(enabled),
+				"--scope",
+				"user",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatal(err)
+			}
+			for _, scope := range []struct {
+				workspace string
+				want      bool
+			}{{want: enabled}, {workspace: harness.WorkspaceID, want: true}} {
+				var health compozycontract.MemoryHealthPayload
+				path := "/api/memory/health?workspace_id=" + url.QueryEscape(scope.workspace)
+				if err := harness.HTTPJSON(t.Context(), http.MethodGet, path, nil, &health); err != nil {
+					t.Fatal(err)
+				}
+				var role compozycontract.RoleStatusResponse
+				if err := harness.UDSJSON(
+					t.Context(),
+					http.MethodGet,
+					"/api/roles/dream?workspace="+url.QueryEscape(scope.workspace),
+					nil,
+					&role,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if health.Status != "ok" || health.DreamEnabled != scope.want || role.Role.Enabled != scope.want {
+					t.Fatalf("workspace=%q health=%#v role=%#v want=%t", scope.workspace, health, role.Role, scope.want)
+				}
+			}
+			var settings compozycontract.SettingsMemoryResponse
+			if err := harness.HTTPJSON(
+				t.Context(),
+				http.MethodGet,
+				"/api/settings/memory",
+				nil,
+				&settings,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if settings.Health.DreamEnabled != enabled {
+				t.Fatalf("settings dream=%t want=%t", settings.Health.DreamEnabled, enabled)
+			}
+		}
+	})
+}
+
 func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

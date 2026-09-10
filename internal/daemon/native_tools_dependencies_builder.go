@@ -45,6 +45,7 @@ func (d *Daemon) nativeToolsDeps(
 		MemoryStore:                state.memoryStore,
 		MemoryToolWrites:           state.memoryExtractor,
 		DreamTrigger:               state.deps.DreamTrigger,
+		Roles:                      roleResolverForState(state),
 		MemoryExtractor:            state.deps.MemoryExtractor,
 		MemoryProviders:            state.deps.MemoryProviders,
 		MemorySessionLedger:        state.deps.MemorySessionLedger,

@@ -27,3 +27,14 @@ owns the follow-up audit: captured terminal creation scope, stale-navigation
 rejection, explicit title-disclosure action names, public session imports, and
 review/CI disposition. Existing native, persisted, configuration, and official
 skill contracts remain unchanged.
+
+## Issue 603 — Effective Dream health reporting
+
+Owning evidence: [focused QA report](../qa/reports/2026-09-10-issue-603-dream-health.md).
+
+- **Native tools:** `compozy__memory_health` reports the same scoped Dream role state as CLI/HTTP/UDS health and role diagnostics. Existing IDs, descriptors, schemas, authorization, and error fields are retained.
+- **Extensibility/hooks/config:** No new keys, hooks, SDK behavior, or background work. Role configuration and provenance stay owned by the existing resolver; Dream execution eligibility is unchanged.
+- **Workspace data isolation:** Health passes its selected workspace and context to role status resolution. Unscoped API/Settings reads use the global role rather than aggregating unrelated workspaces. Memory catalog/profile ownership is unchanged; no persistence or migration changes.
+- **Official skill:** `skills/compozy/references/memory.md` explains both opt-ins and diagnostic-only reads.
+- **Web/Docs:** Memory health/Settings consumers receive corrected existing fields. No rendering or interaction change. The Memory System guide and MS-011 describe the truth table and same-scope comparison.
+- **Compatibility:** Public wire shapes and user state are unchanged; this corrects a boolean projection with no deprecation or migration.

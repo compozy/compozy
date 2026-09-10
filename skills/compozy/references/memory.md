@@ -191,3 +191,11 @@ Memory v2 tool IDs (`compozy__memory_*`), operation or event IDs (`memory.*`), a
 Memory should reduce future ambiguity. It should not become another source of stale context.
 
 Background role status reflects the daemon memory master switch as well as effective role settings. Pressure compaction still uses `session.compaction.enabled` and the checkpoint role switch independently. An interrupted extractor stream is a failure even when its partial text looks like valid JSON; the diagnostic retains that text without admitting it as a candidate.
+
+## Dream health diagnostics
+
+`memory health`, `GET /api/memory/health`, and `compozy__memory_health` report the
+effective Dream role for the selected workspace; compare with `roles show dream`
+using the same workspace. An unscoped API read uses the global role. Memory alone
+does not enable dreaming: both memory and the Dream role must be enabled. Missing
+role resolution stays an explicit diagnostic, and health reads do not trigger work.

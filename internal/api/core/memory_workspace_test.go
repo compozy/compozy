@@ -93,6 +93,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			store,
 			trigger,
 		)
+		fixture.Handlers.Roles = memoryHealthRolesStub{status: contract.RoleStatus{Enabled: true}}
 		fixture.Handlers.Config.Memory.Enabled = true
 		return fixture, workspace, trigger
 	}
@@ -650,6 +651,54 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("memory payload = %#v", payload.Memory)
 		}
 	})
+
+	for _, tc := range []struct {
+		name        string
+		enabled     bool
+		unavailable bool
+		err         error
+	}{
+		{name: "Should report a disabled dream role with the memory trigger enabled"},
+		{name: "Should report an enabled dream role", enabled: true},
+		{name: "Should degrade health when role status is unavailable", unavailable: true},
+		{name: "Should preserve role resolution failures", err: errors.New("role scope unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture, workspace, _ := setup(t)
+			var gotWorkspace string
+			fixture.Handlers.Roles = memoryHealthRolesStub{
+				status:    contract.RoleStatus{Enabled: tc.enabled, Agent: new("scoped-curator")},
+				err:       tc.err,
+				workspace: &gotWorkspace,
+			}
+			if tc.unavailable {
+				fixture.Handlers.Roles = nil
+			}
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/memory/health?workspace_id="+url.QueryEscape(workspace),
+				nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("health status=%d body=%s", response.Code, response.Body.String())
+			}
+			var health contract.MemoryHealthPayload
+			testutil.DecodeJSONResponse(t, response, &health)
+			if health.DreamEnabled != tc.enabled {
+				t.Fatalf("dream enabled=%t want=%t", health.DreamEnabled, tc.enabled)
+			}
+			if tc.unavailable || tc.err != nil {
+				if health.Status != "degraded" || health.Reason == "" {
+					t.Fatalf("missing role diagnostic: %#v", health)
+				}
+			} else if gotWorkspace != workspace || health.DreamAgent != "scoped-curator" || health.Status != "ok" {
+				t.Fatalf("scoped role health=%#v workspace=%q", health, gotWorkspace)
+			}
+		})
+	}
 
 	t.Run("Should report memory health directly", func(t *testing.T) {
 		t.Parallel()
@@ -1897,4 +1946,18 @@ func seedCoreMemoryCatalogDocuments(t *testing.T, dir string, count int) {
 			t.Fatalf("Chtimes(%s) error = %v", filename, err)
 		}
 	}
+}
+
+type memoryHealthRolesStub struct {
+	core.RolesStatusProvider
+	status    contract.RoleStatus
+	err       error
+	workspace *string
+}
+
+func (s memoryHealthRolesStub) RoleStatus(_ context.Context, workspace, _ string) (contract.RoleStatus, error) {
+	if s.workspace != nil {
+		*s.workspace = workspace
+	}
+	return s.status, s.err
 }
