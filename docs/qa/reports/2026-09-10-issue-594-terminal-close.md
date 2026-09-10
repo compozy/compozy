@@ -56,7 +56,7 @@ layout/scope checks precede termination; the final close is revision-fenced.
 - E2E-020 disconnects the actual browser transport before confirmation; visible failure preserves the window and running process. Reconnect/reload restores the same terminal; Stop preserves its window; exited close is direct.
 - Manual browser QA: Cancel receives initial focus; keyboard and window-menu close use the same dialog; two viewers observe a shared exit; Tasks closes normally. A mixed Tasks/alpha/beta group lists only running terminals. Close others cancellation preserves the group, Close right ends beta only, and final group close ends alpha/removes Tasks while an external terminal remains running.
 - Native compatibility probe: CLI window close removes the managed view; a subsequent terminal get still reports running with zero viewers.
-- React Doctor changed-source scan: 100/100, no issues.
+- React Doctor on all 16 committed changed-source files: 93/100; one `async-await-in-loop` advisory. Termination is deliberately sequential so each target is fenced again and the first failure stops further termination. The earlier 100/100 scan included only the 13 already tracked files.
 - Global-scope regression: close resolves the retained desktop's owning project even while the data destination is unscoped; E2E-002 and E2E-020 passed with Global enabled before running/exited close.
 - QA teardown reported `clean: true`, with no surviving registered processes.
 - Delivery commands: `make gate` and current-head required PR checks; their final outcomes are recorded in the pull request.
