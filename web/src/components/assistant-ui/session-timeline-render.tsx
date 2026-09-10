@@ -12,7 +12,6 @@ import {
   useOptionalThreadScrollStore,
 } from "./hooks/thread-scroll-context";
 import {
-  type SessionNavigationReveal,
   useOptionalSessionNavigationTarget,
   useRevealHold,
 } from "./hooks/session-navigation-target-context";
@@ -24,7 +23,7 @@ import {
 import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionLiveToolRowView } from "./session-live-tool-row";
-import { toolMessageFromPart } from "./session-timeline-tool-message";
+import { SessionWorkEntryView } from "./session-work-entry";
 import { SessionToolGroupRow } from "./session-tool-group-row";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
@@ -47,7 +46,6 @@ import {
   isClarifyEventData,
   PermissionDataPart,
   RuntimeActivityNotice,
-  SessionToolCallRow,
   ThinkingBlock,
 } from "@/systems/session";
 
@@ -85,27 +83,6 @@ function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
   );
 }
 
-/** The tool row holding the revealed part opens its body when the matched field lives there. */
-function toolRevealProps(
-  reveal: SessionNavigationReveal | null,
-  released: ReadonlySet<string> | undefined,
-  release: ((id: string) => void) | undefined,
-  tool: { toolCallId: string; partIndex?: number }
-): { revealOpen: boolean; revealField?: string; onRevealRelease: () => void } {
-  const id = `tool:${tool.toolCallId}`;
-  const held =
-    reveal !== null &&
-    reveal.opensBody &&
-    reveal.partIndex !== null &&
-    tool.partIndex === reveal.partIndex &&
-    !(released?.has(id) ?? false);
-  return {
-    onRevealRelease: () => release?.(id),
-    revealOpen: held,
-    ...(held && reveal.field ? { revealField: reveal.field } : {}),
-  };
-}
-
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
   if (row.part.name === "data-compozy-event" && isClarifyEventData(row.part.data)) {
     return <ClarificationDataPart data={row.part.data} />;
@@ -120,10 +97,10 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   return <SessionDataEventMarker name={row.part.name} />;
 }
 
+/** Open mixed work for its exact search match while retaining the reader's disclosure state. */
 function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   const store = useTimelineRowContext();
   const scrollStore = useOptionalThreadScrollStore();
-  const navigation = useOptionalSessionNavigationTarget();
   const turnFailed = use(TurnFailedContext);
   const hold = useRevealHold(
     row.id,
@@ -148,20 +125,12 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   }
   return (
     <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
-      {row.entries.map(tool => (
-        <SessionToolCallRow
-          key={tool.id}
-          message={toolMessageFromPart(tool)}
-          partIndex={tool.partIndex}
-          turnSettled={!row.active}
-          interrupted={tool.status === "interrupted"}
+      {row.entries.map(entry => (
+        <SessionWorkEntryView
+          key={`${entry.kind}:${entry.id}`}
+          entry={entry}
+          active={row.active}
           turnFailed={turnFailed}
-          {...toolRevealProps(
-            navigation?.reveal ?? null,
-            navigation?.released,
-            navigation?.releaseDisclosure,
-            tool
-          )}
         />
       ))}
     </div>
@@ -288,8 +257,10 @@ const TimelineRowContent = memo(
   (previous, next) => sessionRowEqual(previous.row, next.row)
 );
 
-// Referentially stable renderer: no closure deps, so re-deriving the row list
-// never re-creates the mapping function. Row identity carries the change signal.
+/**
+ * Referentially stable renderer: no closure deps, so re-deriving the row list
+ * never re-creates the mapping function. Row identity carries the change signal.
+ */
 function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
   return rows.map(row => <TimelineRowContent key={row.id} row={row} />);
 }

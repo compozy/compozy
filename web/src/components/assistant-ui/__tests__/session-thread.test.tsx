@@ -2719,60 +2719,71 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
   });
 
-  it("Should keep an interrupted turn expanded and label the interruption", async () => {
-    // A `stop_reason` data event is the runtime's operator-stop signal; the turn
-    // must fold behind a "You stopped after Xs" label yet stay expanded (work
-    // visible without a click), so the operator keeps their place.
-    const transcript = [
-      {
-        id: "assistant-interrupted",
-        role: "assistant",
-        parts: [
-          {
-            type: "reasoning",
-            text: "Reviewing the launch file.",
-            state: "done",
-            turn_id: "turn-int",
-            timestamp: "2026-07-07T12:00:00Z",
-          },
-          {
-            type: "tool-Read",
-            toolCallId: "tool-read-int",
-            state: "output-available",
-            turn_id: "turn-int",
-            timestamp: "2026-07-07T12:00:04Z",
-            input: { file_path: "/tmp/interrupted.md" },
-            output: { type: "tool_result", title: "Read", raw: { content: "partial" } },
-          },
-          {
-            type: "data-compozy-event",
-            data: {
-              type: "session-stopped",
+  it.each(["event", "interrupted", "cancelled", "canceled"])(
+    "Should keep %s interruption visible with consistent tool detail",
+    async interruption => {
+      // A `stop_reason` data event is the runtime's operator-stop signal; the turn
+      // must fold behind a "You stopped after Xs" label yet stay expanded (work
+      // visible without a click), so the operator keeps their place.
+      const transcript = [
+        {
+          id: "assistant-interrupted",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              text: "Reviewing the launch file.",
+              state: "done",
               turn_id: "turn-int",
-              stop_reason: "cancelled",
+              timestamp: "2026-07-07T12:00:00Z",
+            },
+            {
+              type: "tool-Read",
+              toolCallId: "tool-read-int",
+              state: interruption === "event" ? "output-available" : interruption,
+              turn_id: "turn-int",
+              timestamp: "2026-07-07T12:00:04Z",
+              input: { file_path: "/tmp/interrupted.md" },
+              output: { type: "tool_result", title: "Read", raw: { content: "partial" } },
+            },
+            ...(interruption === "event"
+              ? [
+                  {
+                    type: "data-compozy-event",
+                    data: {
+                      type: "session-stopped",
+                      turn_id: "turn-int",
+                      stop_reason: "cancelled",
+                      timestamp: "2026-07-07T12:00:07Z",
+                    },
+                  },
+                ]
+              : []),
+            {
+              type: "text",
+              text: "Stopped before the summary.",
+              state: "done",
+              turn_id: "turn-int",
               timestamp: "2026-07-07T12:00:07Z",
             },
-          },
-          {
-            type: "text",
-            text: "Stopped before the summary.",
-            state: "done",
-            turn_id: "turn-int",
-            timestamp: "2026-07-07T12:00:07Z",
-          },
-        ] as unknown as SessionMessage["parts"],
-      } as SessionMessage,
-    ];
+          ] as unknown as SessionMessage["parts"],
+        } as SessionMessage,
+      ];
 
-    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // The interruption is labeled and the fold has no collapse toggle.
-    expect(await screen.findByText("You stopped after 7s")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /You stopped after/i })).not.toBeInTheDocument();
-    // Work stays expanded without a click, and the terminal message is visible.
-    expect(screen.getByText(/\/tmp\/interrupted\.md/)).toBeInTheDocument();
-    expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
-  });
+      // The interruption is labeled and the fold has no collapse toggle.
+      expect(await screen.findByText("You stopped after 7s")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /You stopped after/i })).not.toBeInTheDocument();
+      // Work stays expanded without a click, and the terminal message is visible.
+      expect(screen.getByText(/\/tmp\/interrupted\.md/)).toBeInTheDocument();
+      expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
+      if (interruption !== "event") {
+        expect(screen.getByTestId("tool-call-state-word")).toHaveTextContent("stopped");
+        expect(screen.queryByTestId("live-tool")).not.toBeInTheDocument();
+      }
+    }
+  );
 
   it("Should let the provider diagnostic own a live prompt failure instead of rendering it twice", async () => {
     // The live stream's errorText and the persisted diagnostic event carry the same daemon summary.
@@ -3332,72 +3343,124 @@ describe("SessionThread transcript states", () => {
     expect(viewport.scrollTop).toBe(300);
   });
 
-  it("Should preserve a work disclosure node and focus when a lower-sorting call arrives", async () => {
-    const user = userEvent.setup();
-    const queryClient = createQueryClient();
-    const toolPart = (toolCallId: string, index: number) => ({
-      type: "tool-Read",
-      toolCallId,
-      state: "output-available",
-      turn_id: "turn-anchor-stable",
-      timestamp: `2026-07-07T12:00:0${index}Z`,
-      input: { file_path: `/tmp/stable-${toolCallId}.ts` },
-      output: { type: "tool_result", title: "Read", raw: { content: toolCallId } },
-    });
-    const initialMessages = toReadonlyThreadMessages([
-      {
-        id: "assistant-anchor-stable",
-        role: "assistant",
-        parts: ["b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
-      } as SessionMessage,
-    ]);
-    const grownMessages = toReadonlyThreadMessages([
-      {
-        id: "assistant-anchor-stable",
-        role: "assistant",
-        parts: ["a", "b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
-      } as SessionMessage,
-    ]);
-    const tree = (messages: readonly ThreadMessage[]) => (
-      <QueryClientProvider client={queryClient}>
-        <SessionChatRuntimeProvider
-          sessionId={primarySessionFixture.id}
-          workspaceId={fixtureWorkspaceId()}
-        >
-          <SessionTranscriptThreadProvider
-            messages={messages}
-            status="success"
-            error={null}
-            retry={() => {}}
+  it.each([false, true])(
+    "Should preserve a work disclosure node and focus as entries arrive and settle (mixed: %s)",
+    async mixed => {
+      const user = userEvent.setup();
+      const queryClient = createQueryClient();
+      const toolPart = (toolCallId: string, index: number) => ({
+        type: "tool-Read",
+        // Match the reasoning part's fallback id to exercise cross-kind identity.
+        toolCallId: mixed && toolCallId === "b" ? "assistant-anchor-stable:0" : toolCallId,
+        state: "output-available",
+        turn_id: "turn-anchor-stable",
+        timestamp: `2026-07-07T12:00:0${index}Z`,
+        input: { file_path: `/tmp/stable-${toolCallId}.ts` },
+        output: { type: "tool_result", title: "Read", raw: { content: toolCallId } },
+      });
+      const initialMessages = toReadonlyThreadMessages([
+        {
+          id: "assistant-anchor-stable",
+          role: "assistant",
+          parts: [
+            ...(mixed
+              ? [
+                  {
+                    type: "reasoning",
+                    id: "stable-thought",
+                    text: "Checking **files**",
+                    state: "streaming",
+                    turn_id: "turn-anchor-stable",
+                  },
+                ]
+              : []),
+            ...["b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+          ],
+        } as SessionMessage,
+      ]);
+      const grownMessages = toReadonlyThreadMessages([
+        {
+          id: "assistant-anchor-stable",
+          role: "assistant",
+          parts: [
+            ...(mixed
+              ? [
+                  {
+                    type: "reasoning",
+                    id: "stable-thought",
+                    text: "Checked **files**",
+                    state: "done",
+                    turn_id: "turn-anchor-stable",
+                  },
+                ]
+              : []),
+            ...["a", "b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+          ],
+        } as SessionMessage,
+      ]);
+      const tree = (messages: readonly ThreadMessage[]) => (
+        <QueryClientProvider client={queryClient}>
+          <SessionChatRuntimeProvider
+            sessionId={primarySessionFixture.id}
+            workspaceId={fixtureWorkspaceId()}
           >
-            <SessionThread
-              sessionId={primarySessionFixture.id}
-              agentName={primarySessionFixture.agent_name}
-              canPrompt
-              onCancelPrompt={() => {}}
-              isSessionRunning={false}
-            />
-          </SessionTranscriptThreadProvider>
-        </SessionChatRuntimeProvider>
-      </QueryClientProvider>
-    );
+            <SessionTranscriptThreadProvider
+              messages={messages}
+              status="success"
+              error={null}
+              retry={() => {}}
+            >
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning={false}
+              />
+            </SessionTranscriptThreadProvider>
+          </SessionChatRuntimeProvider>
+        </QueryClientProvider>
+      );
 
-    const view = render(tree(initialMessages));
-    const initialButton = await screen.findByRole("button", { name: "Read 5 files" });
-    initialButton.focus();
-    await user.click(initialButton);
-    expect(initialButton).toHaveAttribute("aria-expanded", "true");
+      const view = render(tree(initialMessages));
+      const initialButton = await screen.findByRole("button", {
+        name: mixed ? "5 tools · 1 thought · thinking" : "Read 5 files",
+      });
+      initialButton.focus();
+      await user.click(initialButton);
+      expect(initialButton).toHaveAttribute("aria-expanded", "true");
 
-    view.rerender(tree(grownMessages));
+      const thought = mixed ? screen.getByTestId("thinking-block") : null;
+      const retainedTool = screen
+        .getAllByTestId("tool-call-row")
+        .find(row => row.textContent?.includes("stable-b.ts"));
+      expect(retainedTool).toBeDefined();
+      expect(screen.getAllByTestId("tool-call-row")).toHaveLength(5);
 
-    const grownButton = await screen.findByRole("button", { name: "Read 6 files" });
-    expect(grownButton).toBe(initialButton);
-    expect(grownButton).toHaveAttribute("aria-expanded", "true");
-    grownButton.focus();
-    await user.keyboard("{Enter}");
-    expect(grownButton).toHaveAttribute("aria-expanded", "false");
-    expect(document.activeElement).toBe(grownButton);
-  });
+      view.rerender(tree(grownMessages));
+
+      const grownButton = await screen.findByRole("button", {
+        name: mixed ? "6 tools · 1 thought" : "Read 6 files",
+      });
+      expect(screen.getAllByTestId("tool-call-row")).toHaveLength(6);
+      expect(
+        screen.getAllByTestId("tool-call-row").find(row => row.textContent?.includes("stable-b.ts"))
+      ).toBe(retainedTool);
+      if (mixed) {
+        expect(screen.getByTestId("thinking-block")).toBe(thought);
+        expect(thought).toHaveTextContent("Checked files");
+        expect(
+          thought!.compareDocumentPosition(retainedTool!) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+      }
+      expect(grownButton).toBe(initialButton);
+      expect(grownButton).toHaveAttribute("aria-expanded", "true");
+      grownButton.focus();
+      await user.keyboard("{Enter}");
+      expect(grownButton).toHaveAttribute("aria-expanded", "false");
+      expect(document.activeElement).toBe(grownButton);
+    }
+  );
 });
 
 // Suite: streaming render-count probe (task 39).
