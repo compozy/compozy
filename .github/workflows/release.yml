@@ -618,7 +618,7 @@ jobs:
       COMPOZY_GO_TEST_P: "1"
       COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
       COMPOZY_GO_TEST_SHARD_TOTAL: "8"
-      COMPOZY_GO_TEST_JSONFILE_DIR: ${{ runner.temp }}/integration-results
+      COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/integration-results
     steps:
       - uses: actions/checkout@v7
         with:
@@ -652,7 +652,7 @@ jobs:
         with:
           name: integration-artifacts-${{ matrix.shard_index }}
           path: |
-            ${{ runner.temp }}/integration-results
+            /tmp/integration-results
             coverage.out
             test-results.xml
             /tmp/compozy-e2e-*
