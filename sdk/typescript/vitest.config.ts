@@ -15,4 +15,4 @@ module.exports = {
       exclude: ["dist/**", "**/*.d.ts", "src/index.ts"],
     },
   },
-} satisfies import("vitest/config").UserConfig;
+} satisfies import("vitest/config").ViteUserConfig;

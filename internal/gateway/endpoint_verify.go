@@ -129,6 +129,9 @@ func (v *EndpointVerifier) Verify(
 	}
 	body, readErr := readBoundedChallengeBody(response.Body)
 	closeErr := response.Body.Close()
+	if errors.Is(readErr, context.DeadlineExceeded) || errors.Is(readErr, context.Canceled) {
+		return endpointProbeError(readErr)
+	}
 	if readErr != nil || closeErr != nil {
 		return fmt.Errorf("%w: challenge response is invalid", ErrEndpointUnverified)
 	}

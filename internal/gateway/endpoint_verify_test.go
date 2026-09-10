@@ -423,26 +423,37 @@ func TestEndpointVerificationTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, address := range []string{"example.com:443", "100.64.0.1:8443", "127.0.0.1:0", "[::1%lo]:443", "127.0.0.1:443/path"} {
-			endpoint := testEndpoint("https://example.com")
-			endpoint.VerificationAddress = address
-			if err := verifier.Verify(
-				t.Context(),
-				TierPrivate,
-				endpoint,
-				testChallengePath(),
-				"nonce",
-			); !errors.Is(
-				err,
-				ErrEndpointUnverified,
-			) {
-				t.Fatalf("accepted address %s: %v", address, err)
-			}
+			t.Run("Should reject "+address, func(t *testing.T) {
+				t.Parallel()
+				endpoint := testEndpoint("https://example.com")
+				endpoint.VerificationAddress = address
+				err := verifier.Verify(t.Context(), TierPrivate, endpoint, testChallengePath(), "nonce")
+				if !errors.Is(err, ErrEndpointUnverified) ||
+					!strings.Contains(err.Error(), "invalid endpoint descriptor") {
+					t.Fatalf("Verify() = %v, want invalid endpoint descriptor", err)
+				}
+			})
 		}
 	})
 }
 
 func TestEndpointProbeDiagnostics(t *testing.T) {
 	t.Parallel()
+	t.Run("Should classify a timeout while reading the challenge body", func(t *testing.T) {
+		t.Parallel()
+		verifier, endpoint := newChallengeVerifier(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			if err := http.NewResponseController(w).Flush(); err != nil {
+				t.Errorf("flush response headers: %v", err)
+				return
+			}
+			<-r.Context().Done()
+		})
+		err := verifier.Verify(t.Context(), TierPrivate, endpoint, testChallengePath(), "nonce")
+		if !errors.Is(err, ErrEndpointUnverified) || !strings.Contains(err.Error(), "endpoint probe timed out") {
+			t.Fatalf("Verify() = %v, want endpoint probe timeout", err)
+		}
+	})
 	for _, tc := range []struct {
 		name  string
 		cause error
