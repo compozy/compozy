@@ -114,11 +114,31 @@ test.describe("E2E-009 attention bell", () => {
     await expect(badge).toHaveText("1");
   });
 
-  test("Should offer no manual dismiss anywhere in the bell", async ({ appPage: page }) => {
+  test("Should acknowledge a notification durably without changing its failed session", async ({
+    appPage: page,
+    runtime,
+    browserArtifacts,
+  }) => {
+    const workspace = await globalWorkspace(runtime);
+    const failed = await createFailedSession(runtime, workspace);
     await page.locator(bell.trigger).click();
     const popover = page.getByTestId(bell.popover);
-    await expect(popover.getByRole("button", { name: /mark .*seen/i })).toHaveCount(0);
-    await expect(popover.getByRole("button", { name: /^dismiss/i })).toHaveCount(0);
+    const row = popover.getByTestId(`os-attention-session-${failed.id}`);
+    await expect(row).toBeVisible();
+    await row
+      .locator("..")
+      .getByRole("button", { name: /^Mark .* as read$/ })
+      .click();
+    await expect(row).toBeHidden();
+    const source = await runtime.requestJSON<SessionEnvelope>(
+      sessionAPIPath(workspace.id, failed.id)
+    );
+    expect(source.session.badge).toBe(failed.badge);
+    expect(source.session.state).toBe(failed.state);
+    await reloadShell(page);
+    await page.locator(bell.trigger).click();
+    await expect(page.getByTestId(`os-attention-session-${failed.id}`)).toBeHidden();
+    await browserArtifacts.captureScreenshot("acknowledged-bell", page);
   });
 
   test("Should land on the session a row names, switching workspace when needed", async ({
@@ -223,10 +243,8 @@ test.describe("E2E-012 tab title count", () => {
     await createFailedSession(runtime, workspace);
     await expect(page).toHaveTitle(/^\(1\) /);
 
-    await page.route("**/api/sessions/attention-summary", async route => {
-      await route.fulfill({ json: { needs_you: 0, finished: 0, by_workspace: [] } });
-    });
-    await reloadShell(page);
+    await page.locator(bell.trigger).click();
+    await page.getByTestId(bell.popover).getByRole("button", { name: "Clear all" }).click();
     await expect(page).not.toHaveTitle(/^\(/);
   });
 

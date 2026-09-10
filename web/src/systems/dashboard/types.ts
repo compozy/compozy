@@ -4,6 +4,7 @@ export type HomeOverview = OperationResponse<"getObserveOverview", 200>["overvie
 export type HomeOverviewWireFilter = OperationQuery<"getObserveOverview">;
 
 interface HomeOverviewFilterBase {
+  receiptProfile?: string;
   workspace?: string;
   usageWindow?: HomeUsageWindow;
 }

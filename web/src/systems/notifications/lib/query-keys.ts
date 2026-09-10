@@ -6,6 +6,8 @@ function normalizeText(value?: string | null): string {
 
 export const notificationKeys = {
   all: ["notifications"] as const,
+  attentionRoot: () => [...notificationKeys.all, "attention"] as const,
+  attention: (profile: string) => [...notificationKeys.attentionRoot(), profile] as const,
   presetsRoot: () => [...notificationKeys.all, "presets"] as const,
   presetsList: (filter: NotificationPresetFilter = {}) =>
     [

@@ -10,7 +10,12 @@ import { sessionsListOptions } from "@/systems/session";
 import { taskDashboardOptions } from "@/systems/tasks/lib/query-options";
 
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
-import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
+import {
+  actingProfile,
+  readProfileLens,
+  readProfileScopeParams,
+  readProfileView,
+} from "@/systems/profiles";
 
 export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> {
   await preloadHomeWorkspace(queryClient);
@@ -48,6 +53,7 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
       homeOverviewOptions({
         workspace: scope.workspaceParam || undefined,
         usageWindow,
+        receiptProfile: actingProfile(readProfileView(queryClient, readProfileLens())),
         ...("all_profiles" in profileScope
           ? { allProfiles: true }
           : { profile: profileScope.profile }),

@@ -36,3 +36,12 @@ export {
 
 // Components
 export { NotificationPresetsPanel } from "./components";
+
+export type {
+  AttentionNotifications,
+  AttentionNotification,
+  AcknowledgeAttentionRequest,
+  AttentionNotificationScope,
+} from "./types";
+export { attentionNotificationsOptions } from "./lib/query-options";
+export { acknowledgeAttentionNotifications } from "./adapters/attention-api";

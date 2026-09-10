@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { listAttentionNotifications } from "../adapters/attention-api";
+
 import { listNotificationPresets } from "../adapters/notifications-api";
 import { notificationKeys } from "./query-keys";
 import type { NotificationPresetFilter } from "../types";
@@ -18,6 +20,15 @@ export function notificationPresetsOptions(filter: NotificationPresetFilter = {}
     queryFn: ({ signal }) => listNotificationPresets(filter, signal),
     staleTime: NOTIFICATION_COLLECTION_STALE_TIME,
     refetchInterval: NOTIFICATION_COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetryNotificationsQuery,
+  });
+}
+
+export function attentionNotificationsOptions(profile: string) {
+  return queryOptions({
+    queryKey: notificationKeys.attention(profile),
+    queryFn: ({ signal }) => listAttentionNotifications(profile, signal),
+    staleTime: 0,
     retry: shouldRetryNotificationsQuery,
   });
 }

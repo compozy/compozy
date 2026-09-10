@@ -431,3 +431,28 @@ while enablement is per profile and an absent profile row means enabled. Use
 This reference gives the stable map. The live descriptor gives exact input schema, output shape, risk flags, availability reason codes, and policy/dependency diagnostics.
 
 If a descriptor is unavailable or denied, do not retry blindly. Choose a narrower tool, read-only status path, or CLI/control surface based on the reason code.
+
+## Operator notification acknowledgement
+
+The bell and Home expose durable notification acknowledgement independently of source work state.
+The additive HTTP/UDS routes are operator surfaces; no new native tool or CLI verb is introduced.
+
+- `GET /api/notifications/attention?profile=<destination>` reads all workspaces and source profiles.
+  Its exact counts and `snapshot` cover every unread occurrence; `items` contains the first 100.
+  The selected destination profile and operator identity own the receipts.
+- `POST /api/notifications/attention/acknowledge?profile=<destination>` accepts
+  `{ "snapshot": "<returned snapshot>", "id": "<occurrence>" }`. Omit `id` for all snapshot members.
+  Repeated requests are safe; later occurrences are excluded. Writes are atomic.
+- Home uses `GET /api/observe/overview`'s `attention.snapshot`. Submit the acknowledgement with
+  `surface=home` and the same `workspace`, `profile`/`all_profiles` and `receipt_profile` values.
+  Empty workspace selects global tasks. `receipt_profile` identifies the receipt owner when the
+  view aggregates source profiles; it is operator-only.
+- `204` confirms the receipts committed. Refresh both notification and overview reads. `409` means
+  the snapshot expired (24-hour lifetime), is unavailable or belongs to another population; refresh
+  before retrying. Other failures leave the requested set unacknowledged and must remain visible.
+
+Acknowledgement never approves, rejects, retries, cancels, deletes or completes source work. Pending
+requests remain reachable in their owning app. Session badges and attention-summary still represent
+runtime state; bell/title counts represent unread notifications. Task candidates honor existing inbox
+triage. An acknowledged occurrence stays hidden across reconnects; a new source revision/run/request
+can notify again. Notification presets, bridge fanout and delivery cursors are unchanged.

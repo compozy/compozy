@@ -1,10 +1,15 @@
 import { useSelector, useStore } from "@xstate/store-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   createHomeAttentionActionsLogic,
   type HomeAttentionResolvedKind,
 } from "./home-attention-actions-store";
+import {
+  acknowledgeAttentionNotifications,
+  notificationKeys,
+  type AttentionNotificationScope,
+} from "@/systems/notifications";
 import { dashboardKeys } from "../lib/query-keys";
 import { useApproveTask, useRejectTask, useRetryTaskRun } from "@/systems/tasks";
 
@@ -14,6 +19,9 @@ const homeAttentionActionsLogic = createHomeAttentionActionsLogic();
 
 export interface HomeAttentionActions {
   resolvedById: Record<string, HomeAttentionResolvedKind>;
+  acknowledgementPending: boolean;
+  acknowledgementError: string | null;
+  onAcknowledge: (id?: string) => void;
   /** Every task_id/run_id with a mutation in flight; each row stays disabled until it settles. */
   pendingIds: ReadonlySet<string>;
   onApprove: (taskId: string) => void;
@@ -22,8 +30,27 @@ export interface HomeAttentionActions {
 }
 
 /** Owns Needs-you mutations and reconciles overview counters after success. */
-export function useHomeAttentionActions(): HomeAttentionActions {
+export function useHomeAttentionActions(acknowledgement?: {
+  snapshot?: string;
+  scope?: AttentionNotificationScope;
+}): HomeAttentionActions {
   const queryClient = useQueryClient();
+  const acknowledgementMutation = useMutation({
+    mutationFn: ({
+      snapshot,
+      scope,
+      id,
+    }: {
+      snapshot: string;
+      scope: AttentionNotificationScope;
+      id?: string;
+    }) => acknowledgeAttentionNotifications(scope, { snapshot, id }),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }),
+        queryClient.invalidateQueries({ queryKey: notificationKeys.attentionRoot() }),
+      ]),
+  });
   const approveTask = useApproveTask();
   const rejectTask = useRejectTask();
   const retryTaskRun = useRetryTaskRun();
@@ -43,6 +70,17 @@ export function useHomeAttentionActions(): HomeAttentionActions {
   return {
     resolvedById,
     pendingIds,
+    acknowledgementPending: acknowledgementMutation.isPending,
+    acknowledgementError: acknowledgementMutation.error?.message ?? null,
+    onAcknowledge: id => {
+      if (!acknowledgement?.snapshot || !acknowledgement.scope || acknowledgementMutation.isPending)
+        return;
+      acknowledgementMutation.mutate({
+        snapshot: acknowledgement.snapshot,
+        scope: acknowledgement.scope,
+        id,
+      });
+    },
     onApprove: taskId =>
       store.trigger.approveRequested({
         id: taskId,

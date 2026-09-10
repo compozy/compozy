@@ -39,11 +39,12 @@ const (
 // OverviewQuery bounds one home overview read within an explicit profile scope
 // or an intentional all-profiles aggregate.
 type OverviewQuery struct {
-	ReadScope       store.ReadScope
-	WorkspaceID     string
-	TaskScope       taskpkg.CatalogScope
-	UsageWindowDays int
-	Actor           taskpkg.ActorIdentity
+	AcknowledgementProfileID string
+	ReadScope                store.ReadScope
+	WorkspaceID              string
+	TaskScope                taskpkg.CatalogScope
+	UsageWindowDays          int
+	Actor                    taskpkg.ActorIdentity
 }
 
 // Validate normalizes the usage window and rejects unsupported values.
@@ -83,21 +84,24 @@ type OverviewView struct {
 
 // OverviewAttention lists everything currently waiting on the user.
 type OverviewAttention struct {
-	Total  int
-	ByKind map[string]int
-	Items  []OverviewAttentionItem
+	Snapshot string
+	Total    int
+	ByKind   map[string]int
+	Items    []OverviewAttentionItem
 }
 
 // OverviewAttentionItem is one actionable attention row.
 type OverviewAttentionItem struct {
-	Kind       string
-	Title      string
-	Detail     string
-	TaskID     string
-	RunID      string
-	SessionID  string
-	OccurredAt time.Time
-	Actions    []string
+	NotificationID string
+	WorkspaceID    string
+	Kind           string
+	Title          string
+	Detail         string
+	TaskID         string
+	RunID          string
+	SessionID      string
+	OccurredAt     time.Time
+	Actions        []string
 }
 
 // OverviewToday summarizes today's terminal work.

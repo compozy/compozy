@@ -21,21 +21,23 @@ type ObserveOverviewPayload struct {
 
 // OverviewAttentionPayload lists everything currently waiting on the user.
 type OverviewAttentionPayload struct {
-	Total  int                            `json:"total"`
-	ByKind map[string]int                 `json:"by_kind"`
-	Items  []OverviewAttentionItemPayload `json:"items"`
+	Snapshot string                         `json:"snapshot,omitempty"`
+	Total    int                            `json:"total"`
+	ByKind   map[string]int                 `json:"by_kind"`
+	Items    []OverviewAttentionItemPayload `json:"items"`
 }
 
 // OverviewAttentionItemPayload is one actionable attention row.
 type OverviewAttentionItemPayload struct {
-	Kind       string    `json:"kind"`
-	Title      string    `json:"title"`
-	Detail     string    `json:"detail,omitempty"`
-	TaskID     string    `json:"task_id,omitempty"`
-	RunID      string    `json:"run_id,omitempty"`
-	SessionID  string    `json:"session_id,omitempty"`
-	OccurredAt time.Time `json:"occurred_at"`
-	Actions    []string  `json:"actions"`
+	NotificationID string    `json:"notification_id,omitempty"`
+	Kind           string    `json:"kind"`
+	Title          string    `json:"title"`
+	Detail         string    `json:"detail,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	Actions        []string  `json:"actions"`
 }
 
 // OverviewTodayPayload summarizes today's terminal work.

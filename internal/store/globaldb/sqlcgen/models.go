@@ -101,6 +101,24 @@ type AppMetadatum struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+type AttentionAcknowledgement struct {
+	ProfileID      string `json:"profile_id"`
+	ActorKind      string `json:"actor_kind"`
+	ActorID        string `json:"actor_id"`
+	OccurrenceID   string `json:"occurrence_id"`
+	AcknowledgedAt string `json:"acknowledged_at"`
+}
+
+type AttentionSnapshot struct {
+	ID            string `json:"id"`
+	ProfileID     string `json:"profile_id"`
+	ActorKind     string `json:"actor_kind"`
+	ActorID       string `json:"actor_id"`
+	Population    string `json:"population"`
+	OccurrenceIds string `json:"occurrence_ids"`
+	ExpiresAt     string `json:"expires_at"`
+}
+
 type AttentionWorkspaceMute struct {
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`

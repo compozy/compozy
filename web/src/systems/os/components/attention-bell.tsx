@@ -1,6 +1,6 @@
-import { Bell, CircleAlert } from "lucide-react";
+import { Bell, Check, CircleAlert } from "lucide-react";
 
-import { Eyebrow, Icon } from "@compozy/ui";
+import { Button, Eyebrow, Icon } from "@compozy/ui";
 
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
 import { AttentionBellRow } from "./attention-bell-row";
@@ -10,11 +10,15 @@ function BellSection({
   rows,
   onSelect,
   testId,
+  onAcknowledge,
+  disabled,
 }: {
   label: string;
   rows: readonly OsAttentionRow[];
   onSelect: (row: OsAttentionRow) => void;
   testId: string;
+  onAcknowledge?: (row?: OsAttentionRow) => void;
+  disabled: boolean;
 }) {
   if (rows.length === 0) return null;
   return (
@@ -27,7 +31,21 @@ function BellSection({
         <span className="font-mono text-micro text-faint">{rows.length}</span>
       </Eyebrow>
       {rows.map(row => (
-        <AttentionBellRow key={`${row.kind}:${row.id}`} row={row} onSelect={onSelect} />
+        <div
+          className="flex min-w-0 items-center"
+          key={row.notificationId ?? `${row.kind}:${row.id}`}
+        >
+          <AttentionBellRow row={row} onSelect={onSelect} />
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Mark ${row.title} as read`}
+            disabled={disabled || !row.notificationId || !onAcknowledge}
+            onClick={() => onAcknowledge?.(row)}
+          >
+            <Check aria-hidden="true" />
+          </Button>
+        </div>
       ))}
     </section>
   );
@@ -35,6 +53,10 @@ function BellSection({
 
 export interface AttentionBellProps {
   sections: OsAttentionSections;
+  total?: number;
+  pending?: boolean;
+  error?: string | null;
+  onAcknowledge?: (row?: OsAttentionRow) => void;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
   loopRequestsDisconnected?: boolean;
@@ -42,18 +64,13 @@ export interface AttentionBellProps {
   onSelect: (row: OsAttentionRow) => void;
 }
 
-/**
- * Two sections, populated only: **Needs you** (questions, permission gates,
- * failures, task approvals) and **Finished** (work that completed while the
- * operator was elsewhere). Finished is visible but never counted — the badge
- * stays a trustworthy "how many are blocked on me" number.
- *
- * There is no dismiss control anywhere: a `done` marker clears by viewing the
- * session and by nothing else, so a manual "mark seen" would be a lie the
- * runtime cannot honour.
- */
+/** Acknowledgement removes notifications while source actions remain available in their owning app. */
 export function AttentionBell({
   sections,
+  total,
+  pending = false,
+  error,
+  onAcknowledge,
   sessionsDisconnected,
   tasksDisconnected,
   loopRequestsDisconnected = false,
@@ -71,6 +88,28 @@ export function AttentionBell({
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="os-attention-bell">
+      <div className="flex items-center justify-between gap-2 border-b border-line px-1 pb-2">
+        <span className="text-micro text-subtle">All workspaces · all profiles</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending || disconnected || empty || !onAcknowledge}
+          onClick={() => onAcknowledge?.()}
+        >
+          {pending ? "Clearing…" : "Clear all"}
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" className="px-2 py-2 text-small-body text-danger">
+          {error}
+        </p>
+      ) : null}
+      {total !== undefined && total > sections.needsYou.length + sections.finished.length ? (
+        <p className="px-2 py-2 text-micro text-subtle">
+          Showing {sections.needsYou.length + sections.finished.length} of {total}. Clear all
+          includes every notification.
+        </p>
+      ) : null}
       {disconnected ? (
         <div
           role="status"
@@ -86,12 +125,16 @@ export function AttentionBell({
           label="Needs you"
           rows={sections.needsYou}
           onSelect={onSelect}
+          onAcknowledge={onAcknowledge}
+          disabled={pending || disconnected}
           testId="os-bell-needs-you"
         />
         <BellSection
           label="Finished"
           rows={sections.finished}
           onSelect={onSelect}
+          onAcknowledge={onAcknowledge}
+          disabled={pending || disconnected}
           testId="os-bell-finished"
         />
         {!loading && empty && !disconnected ? (
@@ -101,7 +144,7 @@ export function AttentionBell({
           >
             <Icon as={Bell} size="lg" className="text-faint" />
             <p className="text-small-body font-medium text-fg-strong">All quiet</p>
-            <p className="text-small-body text-muted">Nothing needs you.</p>
+            <p className="text-small-body text-muted">No unread notifications.</p>
           </div>
         ) : null}
         {loading && empty ? (

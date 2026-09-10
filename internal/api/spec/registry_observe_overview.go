@@ -11,6 +11,7 @@ func getObserveOverviewOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
+			queryParam("receipt_profile", "Profile owning acknowledgement receipts, including aggregate reads", false),
 			queryParam(
 				specWorkspaceKey,
 				"Scope aggregates to one workspace; empty selects the global home scope",

@@ -48,3 +48,11 @@ read. The zone error copy also changed ("Unable to load the home overview" / "Th
 return the overview" → "Couldn't load the overview" / "Try again in a moment"), and the System zone's
 `Daemon` label is now `Runtime`. Re-walk the populated path on a workspace with real work; the
 `BUG-20260813-retry-leaves-blank-route` fix fields are retained history, not a fresh claim.
+
+
+2026-09-10 issue 606: Needs you shows unread notifications for the selected workspace/global and
+profile lens. Mark as read removes one occurrence without Retry/Approve/Reject/Open. Clear all
+includes every current occurrence, even beyond the 12-row display and inbox page limits. Verify
+bell/Home receipt consistency, exact counts, reload, failed acknowledgement, and a new failed run
+reappearing. Source task decisions remain available in Open inbox. Local QA is deferred by explicit
+user instruction; the existing SQLite/overview tests and CI own validation for this change.

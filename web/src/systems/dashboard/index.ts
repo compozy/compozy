@@ -6,3 +6,5 @@ export { homeScopeForActiveWorkspace, type HomeScope } from "./lib/home-scope";
 export { homeWorkingNowSessionFilters } from "./lib/home-working-now-query";
 export { homePrefsStore } from "./hooks/use-home-prefs-store";
 export { homeActivityOptions, homeOverviewOptions } from "./lib/query-options";
+
+export { dashboardKeys } from "./lib/query-keys";

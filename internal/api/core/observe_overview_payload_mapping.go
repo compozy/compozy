@@ -37,23 +37,25 @@ func ObserveOverviewPayloadFromView(view *observe.OverviewView) contract.Observe
 
 func overviewAttentionPayload(attention observe.OverviewAttention) contract.OverviewAttentionPayload {
 	payload := contract.OverviewAttentionPayload{
-		Total:  attention.Total,
-		ByKind: maps.Clone(attention.ByKind),
-		Items:  make([]contract.OverviewAttentionItemPayload, 0, len(attention.Items)),
+		Snapshot: attention.Snapshot,
+		Total:    attention.Total,
+		ByKind:   maps.Clone(attention.ByKind),
+		Items:    make([]contract.OverviewAttentionItemPayload, 0, len(attention.Items)),
 	}
 	if payload.ByKind == nil {
 		payload.ByKind = map[string]int{}
 	}
 	for _, item := range attention.Items {
 		payload.Items = append(payload.Items, contract.OverviewAttentionItemPayload{
-			Kind:       item.Kind,
-			Title:      item.Title,
-			Detail:     item.Detail,
-			TaskID:     item.TaskID,
-			RunID:      item.RunID,
-			SessionID:  item.SessionID,
-			OccurredAt: item.OccurredAt,
-			Actions:    append([]string(nil), item.Actions...),
+			NotificationID: item.NotificationID,
+			Kind:           item.Kind,
+			Title:          item.Title,
+			Detail:         item.Detail,
+			TaskID:         item.TaskID,
+			RunID:          item.RunID,
+			SessionID:      item.SessionID,
+			OccurredAt:     item.OccurredAt,
+			Actions:        append([]string(nil), item.Actions...),
 		})
 	}
 	return payload

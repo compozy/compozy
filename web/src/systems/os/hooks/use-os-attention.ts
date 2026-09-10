@@ -4,11 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
-  attentionCount,
   deriveAttentionBadges,
-  deriveAttentionSections,
   type OsAttentionBadges,
   type OsAttentionSections,
+  type OsAttentionRow,
 } from "../lib/attention-model";
 import {
   sessionListSortParam,
@@ -32,6 +31,8 @@ import {
   type WorkspaceScopeMode,
 } from "@/systems/workspace";
 
+import { useBellNotifications } from "./use-bell-notifications";
+
 import { useAttentionPolicy } from "./use-attention-policy";
 import { useAttentionSessions } from "./use-attention-rows";
 import { useAttentionSummary } from "./use-attention-summary";
@@ -42,6 +43,11 @@ const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 export interface OsAttentionModel {
   badges: OsAttentionBadges;
   notificationCount: number;
+  notificationTotal?: number;
+  notificationSnapshot?: string;
+  acknowledging?: boolean;
+  acknowledgementError?: string | null;
+  onAcknowledge?: (row?: OsAttentionRow) => void;
   sections: OsAttentionSections;
   sessions: SessionPayload[];
   attentionSessionsDisconnected: boolean;
@@ -95,30 +101,22 @@ export function useOsAttention(
     ...baseBadges,
     ...(terminal.badge === undefined ? {} : { terminal: terminal.badge }),
   };
-  const sections = deriveAttentionSections({
-    sessions: sessions.attention.sessions,
-    sessionRowsStale: sessions.attention.stale,
-    workspaceLabels: new Map(workspaces.map(workspace => [workspace.id, workspace.name])),
-    mutedWorkspaceIds: policy.mutedWorkspaceIds,
-    tasks: tasks.rows,
-    taskRowsStale: tasks.rowsDisconnected,
-    loopWaitingPresent: loops.waitingPresent,
-    loopAttentionPresent: loops.attentionPresent,
-    loopRequests: loops.requests.items,
-    terminalRequests: terminal.rows,
-    terminalRowsStale: !terminal.ready,
-    terminalWorkspaceId: workspaceId ?? undefined,
-  });
+  const notifications = useBellNotifications(policy.mutedWorkspaceIds);
   return {
     badges,
-    notificationCount: attentionCount(badges),
-    sections,
+    notificationCount: notifications.count,
+    notificationTotal: notifications.total,
+    notificationSnapshot: notifications.snapshot,
+    acknowledging: notifications.pending,
+    acknowledgementError: notifications.error,
+    onAcknowledge: notifications.acknowledge,
+    sections: notifications.sections,
     sessions: sessions.modal,
-    attentionSessionsDisconnected: sessions.attention.stale || sessions.summary.stale,
+    attentionSessionsDisconnected: notifications.stale,
     sessionsDisconnected: sessions.disconnected,
-    tasksDisconnected: tasks.rowsDisconnected,
-    loopRequestsDisconnected: loops.requests.disconnected,
-    loading: sessions.loading || tasks.loading || terminal.loading || loops.requests.loading,
+    tasksDisconnected: notifications.stale,
+    loopRequestsDisconnected: notifications.stale,
+    loading: notifications.loading,
   };
 }
 
