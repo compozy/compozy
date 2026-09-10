@@ -71,6 +71,7 @@ function ShortcutSurface({
   );
 }
 
+/** Render binding editors with an isolated cache and explicit server/scope transitions. */
 function renderTable(section?: ReturnType<typeof sectionFrom>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const tree = (next?: ReturnType<typeof sectionFrom>, workspaceId?: string) => (
@@ -88,6 +89,7 @@ function renderTable(section?: ReturnType<typeof sectionFrom>) {
   };
 }
 
+/** Access the adapter I/O seam used to supply canonical sections and application receipts. */
 function updateWindowManagerBindingsMock() {
   return vi.mocked(os.updateWindowManagerBindings);
 }
@@ -417,26 +419,39 @@ describe("WindowManagerShortcutTable", () => {
     }
   );
 
-  it("Should cache persisted bindings and show application failure instead of successful reset", async () => {
-    const saved = sectionFrom(wire => {
-      wire.config.shortcuts = {};
-    });
-    updateWindowManagerBindingsMock().mockRejectedValueOnce(
-      new WindowManagerBindingsApplyError({
-        section: saved,
-        apply: { ...settingsReloadAppliedFixture, applied: false, next_action: "retry" },
-      })
-    );
-    const user = userEvent.setup();
-    const { client } = renderTable();
-    await user.click(screen.getByTestId("shortcut-reset-all"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Settings saved, but apply failed.");
-    expect(screen.queryByText("Every shortcut restored to its default.")).not.toBeInTheDocument();
-    expect(client.getQueryData(windowManagerKeys.config("workspace:alpha"))).toEqual(saved);
-    await user.click(screen.getByTestId("shortcut-reset-all"));
-    expect(await screen.findByText("Settings saved and applied.")).toBeVisible();
-    expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(2);
-  });
+  it.each(["retry", "none"] as const)(
+    "Should cache persisted bindings and show %s application failure instead of successful reset",
+    async next_action => {
+      const saved = sectionFrom(wire => {
+        wire.config.shortcuts = {};
+      });
+      updateWindowManagerBindingsMock().mockRejectedValueOnce(
+        new WindowManagerBindingsApplyError({
+          section: saved,
+          apply: {
+            ...settingsReloadAppliedFixture,
+            applied: false,
+            skipped: false,
+            restart_required: false,
+            next_action,
+            warnings: ["Renderer unavailable"],
+          },
+        })
+      );
+      const user = userEvent.setup();
+      const { client } = renderTable();
+      await user.click(screen.getByTestId("shortcut-reset-all"));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /Settings saved, but (apply failed|not applied)\./
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent("Renderer unavailable");
+      expect(screen.queryByText("Every shortcut restored to its default.")).not.toBeInTheDocument();
+      expect(client.getQueryData(windowManagerKeys.config("workspace:alpha"))).toEqual(saved);
+      await user.click(screen.getByTestId("shortcut-reset-all"));
+      expect(await screen.findByText("Settings saved and applied.")).toBeVisible();
+      expect(updateWindowManagerBindingsMock()).toHaveBeenCalledTimes(2);
+    }
+  );
 
   it("Should reconcile a late binding result only into the workspace that submitted it", async () => {
     let finish!: (result: os.WindowManagerBindingsResult) => void;

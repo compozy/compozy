@@ -813,6 +813,7 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	}
 }
 
+// TestUpdateSectionWindowManager verifies scoped persistence, shortcut preservation, and runtime application.
 func TestUpdateSectionWindowManager(t *testing.T) {
 	t.Parallel()
 

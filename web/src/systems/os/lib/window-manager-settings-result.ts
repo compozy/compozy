@@ -54,7 +54,10 @@ export function windowManagerApplyMessage(result: WindowManagerSettingsApply): s
   }
   if (result.next_action === "new-session") return "Settings saved. New sessions use this config.";
   if (result.skipped) return "No config changes detected.";
-  if (!result.applied) return "Settings saved, but not applied. Retry to apply.";
+  if (!result.applied) {
+    const details = result.warnings?.join(" · ");
+    return `Settings saved, but not applied. ${details ? `${details} ` : ""}Retry to apply.`;
+  }
   return "Settings saved and applied.";
 }
 

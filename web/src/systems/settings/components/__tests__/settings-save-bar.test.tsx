@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SettingsSaveBar } from "../settings-save-bar";
 import type { SettingsSaveBarState } from "../../lib/save-state";
 
+/** Render the shared recovery controls and expose their action spies to behavior assertions. */
 function renderSaveBar(
   state: SettingsSaveBarState,
   overrides: Partial<React.ComponentProps<typeof SettingsSaveBar>> = {}

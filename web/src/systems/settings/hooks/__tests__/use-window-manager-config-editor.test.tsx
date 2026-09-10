@@ -95,6 +95,7 @@ const APPLY = {
   next_action: "none" as const,
 };
 
+/** Exercise the draft editor with an isolated query cache and replaceable daemon baseline. */
 function renderEditor(initial = CONFIG) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -110,6 +111,7 @@ function renderEditor(initial = CONFIG) {
   };
 }
 
+/** Project validation diagnostics to the editable fields whose saves must be blocked. */
 function fields(problems: ReadonlyArray<{ field: string }>) {
   return problems.map(problem => problem.field);
 }

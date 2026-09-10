@@ -109,6 +109,7 @@ function settingsError(response: Response, error: unknown, fallback: string) {
   );
 }
 
+/** Load and validate canonical settings for the requesting workspace and shell client. */
 export async function fetchWindowManagerSettings(
   scope: WindowManagerSettingsScopeInput,
   signal?: AbortSignal

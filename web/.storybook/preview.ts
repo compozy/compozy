@@ -255,6 +255,7 @@ export function createStorybookRouter(
   return createStubStorybookRouter(Story, options);
 }
 
+/** Reset daemon fixtures and client stores so stories cannot inherit another story’s edits. */
 export function resetStorybookAppState(initialEntry?: string) {
   resetAgentMockState();
   resetWindowManagerSettingsMockState();

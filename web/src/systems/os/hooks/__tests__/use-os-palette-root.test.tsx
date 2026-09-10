@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-// Suite: OS command palette root
+// Suite: OS command palette root and surface
 // Invariant: every row is a projection of the one client registry, entity rows
 // preserve the selected tab's identity, session landing goes through the shared
 // attention jump exactly once (BR-20), destination mode offers only navigable
 // targets, and a pushed view owns the surface completely — its own results, its
 // own filters, and a keyboard selection that survives the catalog moving.
-// Owning layer: palette root view-model and presentation boundary.
+// Owning layer: palette root/surface view-model and presentation boundary.
+// This canonical suite also owns automatic surface selection and action-panel
+// continuity; its shared registry/ranking setup exercises those hooks together.
 // Boundary OUT: the dispatch seam and client-op table (cmd-palette-dispatch),
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,

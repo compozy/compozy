@@ -89,6 +89,7 @@ async function requireJson(response: Response, fallback: string): Promise<unknow
   );
 }
 
+/** Encode a settings mutation as JSON while preserving cancellation at the transport boundary. */
 function jsonRequest(body: unknown, signal?: AbortSignal): RequestInit {
   return {
     body: JSON.stringify(body),

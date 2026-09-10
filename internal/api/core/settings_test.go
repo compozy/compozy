@@ -2650,6 +2650,7 @@ func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
 	})
 }
 
+// TestUpdateSettingsSectionHandlersDelegateValidPayloads verifies decoded writes and echoed application outcomes.
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
 

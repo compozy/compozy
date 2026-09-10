@@ -41,7 +41,8 @@ func (s *service) recordProviderModelsMutationApply(
 	)
 }
 
-// recordProjectedMutationApply records and applies only the selected active projection, retrying pending layout application.
+// recordProjectedMutationApply records and applies only the selected active projection,
+// retrying pending layout application.
 func (s *service) recordProjectedMutationApply(
 	ctx context.Context,
 	result MutationResult,

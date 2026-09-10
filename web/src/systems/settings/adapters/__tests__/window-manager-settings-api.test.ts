@@ -37,6 +37,7 @@ vi.mock("@/lib/api-client", async importOriginal => {
 
 import { apiClient } from "@/lib/api-client";
 
+/** Clone the wire fixture so malformed-response cases cannot leak into another test. */
 function sectionWire(): WindowManagerSettingsWire {
   return structuredClone(settingsWindowManagerSectionFixture) as WindowManagerSettingsWire;
 }

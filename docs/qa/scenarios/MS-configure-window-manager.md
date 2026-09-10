@@ -51,3 +51,7 @@ live window-manager config contract. Reset for the window-tabs targeted cycle.
 the daemon serves defaults and the effective map. Reset for the Herdr parity QA tail.
 
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
+
+A binding receipt that reports saved settings without confirmed application (`applied: false`,
+`next_action: none`) must show its warnings with the retry error, including when no partial-failure
+diagnostic is supplied.

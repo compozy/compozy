@@ -2313,6 +2313,8 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 	})
 }
 
+// TestConfigApplyServiceRecordsRuntimeReconcileFailures preserves failure receipts
+// and retries only pending projections.
 func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 	t.Parallel()
 

@@ -131,3 +131,12 @@ The review batch passed the existing adapter/MSW/shortcut-table suites (42 tests
 18-test shortcut-table run including late workspace results, and root Web typecheck/build.
 At the user's request, the queued local gate for this batch was canceled; subsequent delivery gates
 run in CI. Earlier local gate results above apply to their recorded inputs, not the final PR head.
+
+The subsequent CodeRabbit review identified a warning-loss case for persisted bindings with
+`applied: false` and `next_action: none`. The shared receipt message now includes those warnings;
+the existing shortcut-table failure test passed both explicit retry and unverified application cases.
+The palette test remains in the canonical root/surface suite, which already owns its registry,
+ranking and action-panel behavior; no separate surface suite exists. Its ownership header and the
+PR delivery requirement explain that placement and the CI-driven palette correction. The CI Go
+lint failure in `c322164` was a 125-character documentation line, now wrapped to the 120-character
+limit. Documentation coverage remediation includes the touched test helpers.

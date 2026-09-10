@@ -37,6 +37,7 @@ vi.mock("@/lib/api-client", () => ({
   runtimeFetch: apiMocks.fetch,
 }));
 
+/** Return a JSON transport response for the adapter’s fetch boundary. */
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
