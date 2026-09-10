@@ -20,6 +20,7 @@ func (m *Service) launchTerminal(
 	ctx context.Context,
 	launch terminalLaunch,
 ) (*session, terminalKey, error) {
+	launch.spec.Env = processEnvironment(launch.origin, launch.spec.Env)
 	proc, err := m.pty.Start(ctx, launch.spec)
 	if err != nil {
 		return nil, terminalKey{}, fmt.Errorf("terminal: start %s: %w", launch.startLabel, err)

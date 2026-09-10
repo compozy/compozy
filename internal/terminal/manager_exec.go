@@ -223,7 +223,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	spec := ProcSpec{
 		Argv:        argv,
 		Cwd:         cwd,
-		Env:         cloneStringMap(request.Env),
+		Env:         processEnvironment(request.Actor, request.Env),
 		Cols:        80,
 		Rows:        24,
 		Mode:        ptyMode,

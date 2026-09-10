@@ -65,6 +65,10 @@ only terminals the task authorizes you to close. `close` is idempotent: closing 
 terminal succeeds and reports the recorded exit, while `signal` and `write` on an ended terminal
 still fail with `terminal_exited`.
 
+Processes opened by an agent inherit the originating session and agent identity for managed CLI
+commands. `exec` environment overrides cannot replace that identity. A persistent terminal keeps its
+origin identity when other authorized actors write to it; shared input does not rebind its process.
+
 ## Approval And Shared Input
 
 Agent execution requires operator approval unless the parsed command matches configured policy. An

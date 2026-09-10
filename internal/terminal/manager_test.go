@@ -33,6 +33,66 @@ import (
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should carry the originating agent identity into every process shape", func(t *testing.T) {
+		t.Parallel()
+		for _, shape := range []string{"exec", "open", "pipe"} {
+			t.Run("Should bind identity for "+shape, func(t *testing.T) {
+				t.Parallel()
+				manager, starter, _ := newTestManager(t, DefaultSettings())
+				actor := Actor{
+					Kind: ActorKindAgent, ID: "field-writer", ProfileID: "profile-a",
+					SessionID: "session-a", RunID: "run-a", Generation: 1,
+				}
+				env := map[string]string{
+					"COMPOZY_SESSION_ID": "wrong-session", "compozy_agent": "wrong-agent",
+					"COMPOZY_AGENT_NAME": "wrong-name", "KEEP": "value",
+				}
+				completed := make(chan error, 1)
+				go func() {
+					var err error
+					switch shape {
+					case "exec":
+						_, err = manager.Exec(t.Context(), ExecRequest{
+							WS: "workspace-a", Command: "printf", Args: []string{"ok"},
+							Env: env, Approval: "allowlisted", Actor: actor,
+						})
+					case "open":
+						_, err = manager.Open(t.Context(), OpenRequest{
+							WS: "workspace-a", Shell: "sh", Actor: actor,
+						})
+					case "pipe":
+						_, err = manager.OpenPipe(t.Context(), PipeRequest{
+							WS: "workspace-a", Argv: []string{"printf", "ok"}, Env: env, Actor: actor,
+						})
+					}
+					completed <- err
+				}()
+				proc := receiveStartedProc(t, starter)
+				code := 0
+				proc.complete(terminalExit("exited", &code, nil))
+				if err := <-completed; err != nil {
+					t.Fatal(err)
+				}
+				for key, want := range map[string]string{
+					"COMPOZY_SESSION_ID": actor.SessionID, "COMPOZY_AGENT": actor.ID, "COMPOZY_AGENT_NAME": actor.ID,
+				} {
+					if got := proc.spec.Env[key]; got != want {
+						t.Errorf("process %s = %q, want %q", key, got, want)
+					}
+				}
+				if _, present := proc.spec.Env["compozy_agent"]; present {
+					t.Error("case-insensitive identity override reached the process")
+				}
+				if shape != "open" && proc.spec.Env["KEEP"] != "value" {
+					t.Error("caller environment was not preserved")
+				}
+				if env["COMPOZY_SESSION_ID"] != "wrong-session" {
+					t.Error("caller environment was mutated")
+				}
+			})
+		}
+	})
+
 	t.Run("Should admit an exec producer only under its resolved workspace", func(t *testing.T) {
 		t.Parallel()
 
