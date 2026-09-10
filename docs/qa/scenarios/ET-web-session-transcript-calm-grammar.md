@@ -82,7 +82,9 @@ constraints. Full message bodies and intentionally expanded content remain reada
   and the tool/reasoning/Goal disclosure to inspect complete originals. Window head
   titles reveal their full label on pointer activation or Enter from keyboard focus.
   The action is named `Show full title: <title>` while the heading retains the title
-  itself; it must remain distinguishable from a same-named dock navigation action.
+  itself in both its accessible name and text content; it must remain
+  distinguishable from a same-named dock navigation action. Selecting the window
+  through the command palette must still find its original title.
 - Copy a full tool payload and compare its title/input/output with the fixture.
   Find a unique tail omitted from a summary; the matching title/name/input body
   must open in both running and settled tools. Closing the reveal remains reader-owned.

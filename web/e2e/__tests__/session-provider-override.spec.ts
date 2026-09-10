@@ -371,6 +371,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
   await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
   const reasoningSlider = reasoningStrip.getByRole("slider");
+  await expect(reasoningSlider).toBeEnabled();
   await reasoningSlider.press("End");
   await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
   await appPage.keyboard.press("Escape");

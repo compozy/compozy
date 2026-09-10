@@ -16,7 +16,8 @@ then fixing remaining CI and review findings directly on `main`.
 All issue comments, review bodies, inline comments, and review threads were read
 through paginated GitHub APIs. The captured inventory has 28 threads: six for
 #596, four for #597, seven for #599, four for #600, and seven for #601. Three
-remained unresolved when remediation began.
+remained unresolved when remediation began. After the fixes were pushed in
+`ca1a2dad3`, all 28 threads were resolved and the inventory was read back.
 
 - **#597, discussion r3982537005:** valid. Terminal creation now captures the
   initiating workspace, profile, query scope, coordinator, and shell binding in
@@ -60,9 +61,9 @@ remained unresolved when remediation began.
 - **#600 Teams race shard**, job `103006561149`: the provider readiness marker
   did not arrive within the existing deadline. Ten repetitions of the exact
   test and three complete Teams suite runs passed locally with `-race`. No
-  timeout, readiness assertion, or production behavior was weakened. Final CI
-  must validate the Linux shard again; the original timeout is not claimed to
-  have a proven root cause.
+  timeout, readiness assertion, or production behavior was weakened. All eight
+  Linux race shards passed in full CI run `34523984349`; the original timeout
+  is not claimed to have a proven root cause.
 - **Post-merge Web gate:** the visual-state suite still expected the free-form
   name `Read /tmp/a.ts` to resolve as canonical `Read`. That assertion predates
   the PR's explicit rule that identity is never inferred from a prose prefix,
@@ -70,6 +71,21 @@ remained unresolved when remediation began.
   The owning visual-state suite now checks both canonical `Read` as `read`
   and the descriptive name as `other`. No production prefix heuristic was
   reintroduced to satisfy the stale assertion.
+- **Full merged-head CI**, run `34523984349` on `ca1a2dad3`: all Go, SDK,
+  Darwin/Windows, frontend, desktop, and runtime E2E lanes passed. Eight browser
+  scenarios failed across four shards. Seven shared the same Topbar regression:
+  the hidden action prefix was inside the heading, contaminating exact title
+  text and route-state evidence. The terminal hidden-input trace also shows the
+  palette query `Show full title:\nNew session`, which could not match its tab.
+  The action-label span now sits outside the heading while retaining the same
+  `aria-labelledby` relationship. Existing title, route, and terminal assertions
+  remain unchanged.
+- **Reasoning selection readiness**, job `103028464416`: the browser trace shows
+  the E2E pressing `End` while the slider had `aria-disabled="true"`, before the
+  selected model update completed. The existing session-provider-override suite
+  owns persistence of an advertised model and reasoning effort across the UI,
+  prompt request, and session state. It now waits for the slider to be enabled
+  before keyboard input. All `High`/`high` assertions and deadlines remain intact.
 
 ## Verification record
 
@@ -96,6 +112,20 @@ real daemon/browser journeys from deterministic Query/clipboard I/O tests.
   directory. A manually dispatched full CI run covers backend, Web, and
   Desktop; the earlier merged-head run was canceled by another main update,
   and the subsequent docs-only run does not replace that full verification.
+- The follow-up production bundle passed the root Turborepo build. All eight
+  previously failing browser scenarios passed against that bundle and the real
+  daemon in 2.5 minutes, using their existing isolated-runtime fixtures and the
+  machine-wide verification lock. The run started from the repository root
+  through the Web package's installed Playwright CLI; no E2E task is registered
+  in Turborepo. The canonical UI/Web delivery checks still run through root
+  Turborepo in `make gate`. Logs and the complete browser artifacts are retained
+  as `ci-followup-e2e-final.log` and `ci-followup-e2e-final-artifacts.zip`.
+- React Doctor's follow-up change scan found no issues, scoring 100/100.
+- The final follow-up `make gate` passed both affected UI/Web lanes with zero
+  lint warnings/errors, including all 762 UI and 7,187 Web tests. Evidence is
+  `ci-followup-gate-final.log`; unchanged source inputs reuse the preceding
+  `ci-followup-gate.log`. Three additional reasoning-persistence E2E repetitions
+  passed in 22.4 seconds (`ci-followup-reasoning-repeat.log`).
 
 ### Isolated browser journey
 

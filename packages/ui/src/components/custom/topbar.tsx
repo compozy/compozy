@@ -206,36 +206,38 @@ function TopbarTitle({
 }) {
   const titleId = React.useId();
   return (
-    <h1
-      ref={titleRef}
-      aria-labelledby={titleId}
-      tabIndex={-1}
-      data-slot="topbar-title"
-      data-testid="topbar-title-text"
-      className={cn(
-        "min-w-0 max-w-xs text-ws-name font-semibold tracking-tight text-fg-strong outline-none",
-        className
-      )}
-    >
-      <Popover>
-        <PopoverTrigger
-          aria-labelledby={`${titleId}-action ${titleId}`}
-          className="block max-w-full truncate rounded-sm text-left focus-visible:outline-none focus-visible:shadow-focus-ring"
-        >
-          <span id={`${titleId}-action`} className="sr-only">
-            Show full title:
-          </span>
-          <span id={titleId}>{children}</span>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          aria-label="Full title"
-          className="max-h-64 max-w-[calc(100vw-2rem)] overflow-auto whitespace-pre-wrap select-text [overflow-wrap:anywhere]"
-        >
-          {children}
-        </PopoverContent>
-      </Popover>
-    </h1>
+    <>
+      <span id={`${titleId}-action`} hidden>
+        Show full title:
+      </span>
+      <h1
+        ref={titleRef}
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        data-slot="topbar-title"
+        data-testid="topbar-title-text"
+        className={cn(
+          "min-w-0 max-w-xs text-ws-name font-semibold tracking-tight text-fg-strong outline-none",
+          className
+        )}
+      >
+        <Popover>
+          <PopoverTrigger
+            aria-labelledby={`${titleId}-action ${titleId}`}
+            className="block max-w-full truncate rounded-sm text-left focus-visible:outline-none focus-visible:shadow-focus-ring"
+          >
+            <span id={titleId}>{children}</span>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            aria-label="Full title"
+            className="max-h-64 max-w-[calc(100vw-2rem)] overflow-auto whitespace-pre-wrap select-text [overflow-wrap:anywhere]"
+          >
+            {children}
+          </PopoverContent>
+        </Popover>
+      </h1>
+    </>
   );
 }
 
