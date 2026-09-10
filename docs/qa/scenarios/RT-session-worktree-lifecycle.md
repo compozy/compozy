@@ -23,3 +23,5 @@ It must also prove a hook cannot rewrite the resolved cwd and a child cannot sel
 another checkout.
 
 QA 2026-09-10: The existing daemon worktree integration passed real local commands after terminal authorization received the resolved worktree roots. The owning containment assertions remain enabled. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+QA 2026-09-10 follow-up: Caller cancellation now takes precedence when ready completion and cancellation are both observable. The existing 200-repeat race regression and real worktree lifecycle integration passed. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

@@ -5662,7 +5662,14 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 			return homePaths, nil
 		},
 		ensureHome: compozyconfig.EnsureHomeLayout,
-		newClient:  NewClient,
+		newClient: func(target ClientTarget) (DaemonClient, error) {
+			client, err := NewClient(target)
+			if err == nil {
+				transportClient := client.(*daemonClient)
+				t.Cleanup(transportClient.httpClient.CloseIdleConnections)
+			}
+			return client, err
+		},
 		newDaemon: func() (daemonRunner, error) {
 			return runner, nil
 		},

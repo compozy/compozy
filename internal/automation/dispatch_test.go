@@ -1417,6 +1417,27 @@ func TestDispatchMarksRunCancelledWhenPromptIsCancelled(t *testing.T) {
 	}
 }
 
+// Invariant: durable finalization survives caller cancellation with a bounded lifetime.
+// Owner: automation dispatcher; canonical suite: dispatch_test.go.
+func TestPersistenceContextSurvivesCancellationDuringFinalization(t *testing.T) {
+	t.Parallel()
+	parent, cancelParent := context.WithCancel(testutil.Context(t))
+	defer cancelParent()
+	persist, cancelPersist := persistenceContext(parent)
+	defer cancelPersist()
+	cancelParent()
+	if err := persist.Err(); err != nil {
+		t.Fatalf("finalization context was canceled with its caller: %v", err)
+	}
+	if deadline, ok := persist.Deadline(); !ok || time.Until(deadline) > 5*time.Second {
+		t.Fatalf("finalization deadline = %v, present = %t, want bounded lifetime", deadline, ok)
+	}
+	cancelPersist()
+	if !errors.Is(persist.Err(), context.Canceled) {
+		t.Fatalf("finalization cleanup error = %v, want context.Canceled", persist.Err())
+	}
+}
+
 func TestRetryDelayHelpersAndContextAwareSleep(t *testing.T) {
 	t.Parallel()
 

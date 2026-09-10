@@ -203,8 +203,21 @@ func createIdentityFile(
 		createdAt.Format(time.RFC3339Nano),
 		rootDir,
 	)
-	if err := fileutil.AtomicWriteFile(path, content, workspaceIdentityFilePerm); err != nil {
-		if os.IsPermission(err) {
+	directory, name, err := fileutil.OpenParentDirectory(path)
+	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			err = ErrWorkspaceIdentityPermissionDenied
+		}
+		return Identity{}, fmt.Errorf("workspace: open identity directory %q: %w", path, err)
+	}
+	writeErr := directory.AtomicWriteFile(name, content, workspaceIdentityFilePerm, false)
+	closeErr := directory.Close()
+	if errors.Is(writeErr, os.ErrExist) && closeErr == nil {
+		// Another creator won publication; every caller must return that same identity.
+		return loadIdentityFile(path)
+	}
+	if err := errors.Join(writeErr, closeErr); err != nil {
+		if errors.Is(err, os.ErrPermission) {
 			return Identity{}, fmt.Errorf(
 				"workspace: write identity %q: %w",
 				path,

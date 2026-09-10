@@ -15,9 +15,6 @@ func persistenceContext(ctx context.Context) (context.Context, context.CancelFun
 	if ctx == nil {
 		return nil, func() {}
 	}
-	if ctx.Err() == nil {
-		return context.WithCancel(ctx)
-	}
 	return context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 }
 

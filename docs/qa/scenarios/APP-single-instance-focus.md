@@ -25,3 +25,5 @@ Per-OS evidence: macOS and Linux capture the focus/unminimize behavior with proc
 proof before/after the second launch, plus one second-launch-with-link forwarding walk. The
 stale-lock crash recovery (EC-2) is walked on at least one scripted OS. macOS is scripted-manual
 (screen recording + `ps` transcript).
+
+QA 2026-09-10 follow-up: Packaged E2E-004 passed three repetitions after serializing link navigation; it verifies one product window and final-link delivery. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

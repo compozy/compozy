@@ -41,8 +41,10 @@ func (s *Service) CreateReady(
 	}
 	select {
 	case <-ctx.Done():
-		return nil, errors.Join(ctx.Err(), s.cancelReadyCreation(ctx, workspaceID, item.ID, operation))
 	case <-operation.done:
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(err, s.cancelReadyCreation(ctx, workspaceID, item.ID, operation))
 	}
 	canceled, operationErr := operation.result()
 	if operationErr != nil {

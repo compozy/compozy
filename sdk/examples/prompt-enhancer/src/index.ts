@@ -91,7 +91,7 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       version: "0.1.0",
       capabilities: { provides: [] },
       permissions: { requires: ["sessions/list"] },
-      supported_hook_events: ["prompt.post_assemble"],
+      supported_hook_events: [{ event: "prompt.post_assemble" }],
     },
     options
   );

@@ -413,18 +413,23 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
 		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if len(messages[5].Parts) != 1 || messages[5].Parts[0].Type != "data-compozy-event" {
-		t.Fatalf("messages[5] = %#v, want queue dispatch marker", messages[5])
+	// Dispatch acknowledgment and agent output are persisted by independent owners.
+	dispatchReceipt, syntheticReply := messages[5], messages[6]
+	if len(dispatchReceipt.Parts) != 1 || dispatchReceipt.Parts[0].Type != "data-compozy-event" {
+		dispatchReceipt, syntheticReply = syntheticReply, dispatchReceipt
+	}
+	if len(dispatchReceipt.Parts) != 1 || dispatchReceipt.Parts[0].Type != "data-compozy-event" {
+		t.Fatalf("dispatchReceipt = %#v, want queue dispatch marker", dispatchReceipt)
 	}
 	var marker acp.AgentEvent
-	if err := json.Unmarshal(messages[5].Parts[0].Data, &marker); err != nil {
+	if err := json.Unmarshal(dispatchReceipt.Parts[0].Data, &marker); err != nil {
 		t.Fatalf("decode queue dispatch marker: %v", err)
 	}
 	if marker.Title != transcript.MarkerPromptAccepted {
 		t.Fatalf("queue dispatch marker = %q, want %q", marker.Title, transcript.MarkerPromptAccepted)
 	}
-	if got := messages[6].Role; got != transcript.UIRoleAssistant {
-		t.Fatalf("messages[6].Role = %q, want %q", got, transcript.UIRoleAssistant)
+	if got := syntheticReply.Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("syntheticReply.Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
 }
 

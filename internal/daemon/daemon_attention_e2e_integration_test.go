@@ -240,7 +240,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 
 		deleted := createFixtureBackedSession(t, ctx, harness, "attention-agent", "deleted-wait-target")
 		for _, args := range [][]string{
-			{"session", "stop", deleted.ID},
+			{"session", "stop", deleted.ID, "--wait"},
 			{"session", "remove", deleted.ID},
 		} {
 			if _, commandStderr, commandErr := harness.CLI.RunInDir(

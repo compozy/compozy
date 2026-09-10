@@ -3,7 +3,6 @@
 package extensionpkg_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	protocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -164,7 +164,7 @@ func runDiscoveredProviderRuntime(
 	if err != nil {
 		return fmt.Errorf("provider %q stdout pipe: %w", provider.Name, err)
 	}
-	var stderr bytes.Buffer
+	var stderr lockedBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start provider %q: %w", provider.Name, err)
@@ -178,6 +178,7 @@ func runDiscoveredProviderRuntime(
 	}
 	domainInstance := bridgepkg.BridgeInstance{
 		ID:             "brg-conformance-" + provider.Name,
+		ProfileID:      store.DefaultProfileID,
 		Platform:       provider.Name,
 		ExtensionName:  provider.Name,
 		DisplayName:    provider.Name + " conformance",

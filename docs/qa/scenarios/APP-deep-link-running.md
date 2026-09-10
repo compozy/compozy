@@ -24,3 +24,5 @@ link (focus + correct view capture), one deleted-entity link (product not-found 
 hostile payload (`compozyos://open/http://evil.com`-class → default view), scripted through
 Playwright `_electron` where the harness supports scheme activation and otherwise manually with
 recorded transcripts.
+
+QA 2026-09-10 follow-up: The shell serializes document loads and retains the last pending deep link. Packaged E2E-004 passed three repetitions on macOS; current-head Linux verification remains required. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

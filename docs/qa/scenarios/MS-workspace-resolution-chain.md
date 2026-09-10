@@ -36,3 +36,5 @@ QA 2026-07-29: the live precedence walk returned positional, flag, env, session_
 from the expected workspaces. CWD selected the nearest nested root across a filesystem case alias;
 the unregistered-directory error named every tier and the registration fix; the catalog stayed at
 11 with no minted subdirectory.
+
+QA 2026-09-10: Concurrent registration now publishes one stable workspace identity and reuses the winner instead of overwriting it. Existing boot/resolver and detached reentry integrations passed three race-enabled repetitions; the identity persistence suite passed 50 repetitions. This covers stable identity lookup during registration, without replacing the prior CLI precedence evidence. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

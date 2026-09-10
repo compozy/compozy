@@ -25,6 +25,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	tailscale "github.com/compozy/compozy/extensions/connectivity/tailscale"
+	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
@@ -404,6 +405,13 @@ func referenceDisableBundledExtensions(t *testing.T, homePaths compozyconfig.Hom
 	}()
 
 	registry := extensionpkg.NewRegistry(db.DB())
+	if err := forgegithub.EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(forge-github) error = %v", err)
+	}
+	if err := registry.Disable(forgegithub.Name); err != nil {
+		t.Fatalf("Disable(forge-github) error = %v", err)
+	}
+
 	if err := speccycle.EnsureManagedInstall(homePaths, registry); err != nil {
 		t.Fatalf("EnsureManagedInstall(spec-cycle) error = %v", err)
 	}

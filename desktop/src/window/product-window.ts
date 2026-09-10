@@ -38,6 +38,7 @@ export class ProductWindow {
   readonly #crashes = new CrashRecoveryBudget();
   #window: BrowserWindow | null = null;
   #ready = false;
+  #navigating = false;
   #zoomLevel = 0;
   #saveTimer: NodeJS.Timeout | null = null;
 
@@ -226,11 +227,19 @@ export class ProductWindow {
 
   #navigatePending(): void {
     const window = this.#window;
-    if (!window || window.isDestroyed()) return;
+    if (!window || window.isDestroyed() || !this.#ready || this.#navigating) return;
     const path = this.#links.setReady();
     if (!path) return;
     const target = productNavigationURL(this.#origin, path);
-    if (window.webContents.getURL() !== target) void window.loadURL(target).catch(this.#onError);
+    if (window.webContents.getURL() === target) return;
+    this.#navigating = true;
+    void window
+      .loadURL(target)
+      .catch(this.#onError)
+      .finally(() => {
+        this.#navigating = false;
+        this.#navigatePending();
+      });
   }
 
   #scheduleSave(): void {

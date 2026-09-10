@@ -109,6 +109,48 @@ func TestEnsureIdentityCreatesLoadsAndValidatesWorkspaceToml(t *testing.T) {
 	})
 }
 
+// Invariant: concurrent creators publish and return one immutable workspace identity.
+// Owner: workspace identity persistence; canonical suite: identity_test.go.
+func TestEnsureIdentityConcurrentCreators(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	start := make(chan struct{})
+	type result struct {
+		identity Identity
+		err      error
+	}
+	const creators = 16
+	results := make(chan result, creators)
+	for range creators {
+		go func() {
+			<-start
+			identity, err := EnsureIdentity(t.Context(), root)
+			results <- result{identity, err}
+		}()
+	}
+	close(start)
+	var first Identity
+	for range creators {
+		select {
+		case got := <-results:
+			if got.err != nil {
+				t.Fatal(got.err)
+			}
+			if first.WorkspaceID == "" {
+				first = got.identity
+			} else if first != got.identity {
+				t.Fatalf("concurrent identities diverged: first=%+v next=%+v", first, got.identity)
+			}
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+	}
+	stored, err := loadIdentityFile(first.Path)
+	if err != nil || first != stored {
+		t.Fatalf("persisted identity = %+v, error = %v, want %+v", stored, err, first)
+	}
+}
+
 func TestEnsureIdentityPropagatesIDGenerationFailure(t *testing.T) {
 	t.Parallel()
 

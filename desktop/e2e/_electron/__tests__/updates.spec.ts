@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type DesktopInstance, type PackagedCopy } from "../fixtures";
@@ -145,12 +146,22 @@ async function startMockFeed(
   };
 }
 
-async function configureFeed(packaged: PackagedCopy, feedURL: string): Promise<void> {
+async function configureFeed(
+  packaged: PackagedCopy,
+  feedURL: string
+): Promise<() => Promise<void>> {
+  const cacheName = `compozyos-e2e-${createHash("sha256").update(packaged.executablePath).digest("hex")}`;
   await writeFile(
     join(packaged.resourcesPath, "app-update.yml"),
-    `provider: generic\nurl: ${feedURL}\nupdaterCacheDirName: compozyos-updater\n`,
+    `provider: generic\nurl: ${feedURL}\nupdaterCacheDirName: ${cacheName}\n`,
     { mode: 0o600 }
   );
+  return async () => {
+    // Linux fixtures already own an isolated HOME; macOS uses the login cache root.
+    if (process.platform === "darwin") {
+      await rm(join(homedir(), "Library", "Caches", cacheName), { recursive: true, force: true });
+    }
+  };
 }
 
 async function artifactDigest(fixture: UpdateFixture): Promise<string> {
@@ -306,8 +317,9 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
   const packaged = await copyPackagedExecutable(fixture.baseline_executable);
   const feed = await startMockFeed(fixture, { holdAsset: true });
   let restoreEnvironment: RestoreEnvironment = () => Promise.resolve();
+  let cleanupCache = () => Promise.resolve();
   try {
-    await configureFeed(packaged, feed.url);
+    cleanupCache = await configureFeed(packaged, feed.url);
     const digest = await artifactDigest(fixture);
     const desktop = await launchDesktop({
       executablePath: packaged.executablePath,
@@ -348,7 +360,11 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
       .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 30_000 })
       .toBe("updated");
   } finally {
-    await closeFixture(feed, restoreEnvironment);
+    try {
+      await closeFixture(feed, restoreEnvironment);
+    } finally {
+      await cleanupCache();
+    }
   }
 });
 
@@ -360,8 +376,9 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
   const packaged = await copyPackagedExecutable(fixture.baseline_executable);
   const feed = await startMockFeed(fixture);
   let restoreEnvironment: RestoreEnvironment = () => Promise.resolve();
+  let cleanupCache = () => Promise.resolve();
   try {
-    await configureFeed(packaged, feed.url);
+    cleanupCache = await configureFeed(packaged, feed.url);
     const digest = await artifactDigest(fixture);
     const desktop = await launchDesktop({
       executablePath: packaged.executablePath,
@@ -396,7 +413,11 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
       .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 30_000 })
       .toBe("updated");
   } finally {
-    await closeFixture(feed, restoreEnvironment);
+    try {
+      await closeFixture(feed, restoreEnvironment);
+    } finally {
+      await cleanupCache();
+    }
   }
 });
 
@@ -408,8 +429,9 @@ test("A staged app update starts while runtime bootstrap is failing", async ({
   const packaged = await copyPackagedExecutable(fixture.baseline_executable);
   const feed = await startMockFeed(fixture, { holdAsset: true });
   let desktop: DesktopInstance | undefined;
+  let cleanupCache = () => Promise.resolve();
   try {
-    await configureFeed(packaged, feed.url);
+    cleanupCache = await configureFeed(packaged, feed.url);
     const digest = await artifactDigest(fixture);
     desktop = await launchDesktop({
       executablePath: packaged.executablePath,
@@ -443,7 +465,11 @@ test("A staged app update starts while runtime bootstrap is failing", async ({
     try {
       await desktop?.closeShell();
     } finally {
-      await feed.close();
+      try {
+        await feed.close();
+      } finally {
+        await cleanupCache();
+      }
     }
   }
 });

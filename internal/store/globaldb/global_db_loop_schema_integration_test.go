@@ -758,6 +758,8 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("upgrade v89 global database error = %v", err)
 		}
+		// Upgrade owns its migration budget; reopen verification starts a fresh phase.
+		ctx = testutil.Context(t)
 		if err := upgraded.Close(ctx); err != nil {
 			t.Fatalf("close upgraded global database error = %v", err)
 		}
