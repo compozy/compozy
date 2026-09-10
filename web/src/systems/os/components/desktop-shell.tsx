@@ -26,6 +26,7 @@ import { OsCommandPalette } from "./os-command-palette";
 import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
+import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
@@ -75,6 +76,7 @@ export function DesktopShell() {
   );
 }
 
+/** Mounts the shell context and its lifecycle confirmation before rendering desktop content. */
 function DesktopChrome({
   firstRun,
   updateAvailable,
@@ -90,6 +92,7 @@ function DesktopChrome({
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
+        <TerminalCloseDialog controller={controller.chrome.terminalClose} />
         <DesktopChromeContent
           client={controller.chrome.client}
           firstRun={firstRun}

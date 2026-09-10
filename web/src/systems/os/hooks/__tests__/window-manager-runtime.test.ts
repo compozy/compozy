@@ -13,6 +13,7 @@ import {
   fetchWindowManagerSnapshot,
   WindowManagerApiError,
 } from "../../adapters/window-manager-api";
+import type { WindowCloseGuard } from "../../lib/window-close-targets";
 import type { OsWindowRoute } from "../../lib/os-types";
 import { createTileSnapTarget } from "../../lib/snap-targets";
 import { windowManagerKeys } from "../../lib/window-manager-query";
@@ -2285,5 +2286,121 @@ describe("WindowManagerRuntime", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Invariant: operator close admission freezes exactly the daemon close scope,
+// never duplicating termination or expanding to newly joined tabs.
+describe("WindowManagerRuntime guarded close", () => {
+  function setup() {
+    const queryClient = new QueryClient();
+    const snapshot = snapshotWithFloatingStack();
+    const key = windowManagerKeys.snapshot("workspace:test", "marketing");
+    queryClient.setQueryData(key, snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents", "app:tasks"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    return { runtime, queryClient, key, snapshot };
+  }
+
+  it.each([
+    ["tab", ["app:tasks"]],
+    ["group", ["app:tasks", "app:agents"]],
+    ["others", ["app:agents"]],
+    ["right", ["app:agents"]],
+  ] as const)("Should confirm only targets in the %s scope", async (scope, ids) => {
+    const { runtime } = setup();
+    const guard = vi.fn<WindowCloseGuard>(async () => false);
+    runtime.setCloseGuard(guard);
+    await expect(runtime.closeWindowScoped("app:tasks", scope)).resolves.toBe(false);
+    expect(guard).toHaveBeenCalledTimes(1);
+    const [targets, isCurrent] = guard.mock.calls[0]!;
+    expect(targets.map(target => target.id)).toEqual(ids);
+    expect(isCurrent).toEqual(expect.any(Function));
+    expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+    runtime.stop();
+  });
+
+  it("Should not terminate pinned tabs through Close others", async () => {
+    const { runtime, queryClient, key, snapshot } = setup();
+    queryClient.setQueryData(key, {
+      ...snapshot,
+      windows: {
+        ...snapshot.windows,
+        "app:agents": { ...snapshot.windows["app:agents"], pinned: true },
+      },
+    });
+    const guard = vi.fn(async () => true);
+    runtime.setCloseGuard(guard);
+    await expect(runtime.closeWindowScoped("app:tasks", "others")).resolves.toBe(false);
+    expect(guard).not.toHaveBeenCalled();
+    runtime.stop();
+  });
+
+  it("Should suppress double clicks and refuse a close after the target changes", async () => {
+    const { runtime, queryClient, key, snapshot } = setup();
+    let finish!: (allowed: boolean) => void;
+    const guard = vi.fn(
+      () =>
+        new Promise<boolean>(resolve => {
+          finish = resolve;
+        })
+    );
+    runtime.setCloseGuard(guard);
+    const pending = runtime.closeWindow("app:tasks");
+    await expect(runtime.closeWindow("app:tasks")).resolves.toBe(false);
+    queryClient.setQueryData(key, {
+      ...snapshot,
+      revision: snapshot.revision + 1,
+      windows: {
+        ...snapshot.windows,
+        "app:tasks": { ...snapshot.windows["app:tasks"], instanceKey: "changed" },
+      },
+    });
+    finish(true);
+    await expect(pending).resolves.toBe(false);
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+    runtime.stop();
+  });
+
+  it("Should fence the confirmed close to the inspected layout revision", async () => {
+    const { runtime, snapshot } = setup();
+    runtime.setCloseGuard(async () => true);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    await expect(runtime.closeWindowScoped("app:tasks", "group")).resolves.toBe(true);
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      snapshot.revision,
+      expect.objectContaining({
+        expectedRevision: snapshot.revision,
+        payload: {
+          window_id: "app:tasks",
+          minimize: false,
+          scope: "group",
+        },
+      })
+    );
+    runtime.stop();
   });
 });

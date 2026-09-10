@@ -18,7 +18,6 @@ export interface TerminalHeaderProps {
   /** The per-project cap, from `[terminal].max_per_workspace`. */
   limit?: number;
   onStop?: () => void;
-  onClose?: () => void;
   onSignal?: () => void;
   onWait?: () => void;
   onStopRecording?: () => void;
@@ -26,8 +25,6 @@ export interface TerminalHeaderProps {
   onNewTerminal?: () => void;
   /** Reveals the journal overlay. */
   onViewJournal?: () => void;
-  /** True while a close is already on its way to the daemon. */
-  closePending?: boolean;
   /**
    * When true, identity and ≤2 actions publish into the OS window head
    * instead of drawing a second identity row under the deck.
@@ -58,13 +55,11 @@ export function TerminalHeader({
   terminalCount,
   limit,
   onStop,
-  onClose,
   onSignal,
   onWait,
   onStopRecording,
   onNewTerminal,
   onViewJournal,
-  closePending = false,
   hostChrome = false,
 }: TerminalHeaderProps) {
   const isPipe = terminal.mode === "pipe";
@@ -73,9 +68,7 @@ export function TerminalHeader({
   const actions = (
     <>
       <TerminalHeaderActions
-        closePending={closePending}
         isPipe={isPipe}
-        onClose={onClose}
         onSignal={onSignal}
         onStop={onStop}
         onStopRecording={onStopRecording}

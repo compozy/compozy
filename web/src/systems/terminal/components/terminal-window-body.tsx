@@ -62,6 +62,7 @@ export function TerminalWindowBody(props: TerminalWindowBodyProps) {
   );
 }
 
+/** Renders the interactive attachment and process controls without owning managed-window closure. */
 function TerminalInteractiveWindowBody({
   terminal,
   viewerId,
@@ -125,10 +126,8 @@ function TerminalInteractiveWindowBody({
   return (
     <>
       <TerminalHeader
-        closePending={actions.closePending}
         hostChrome={hostChrome}
         limit={limit}
-        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}
         onStop={controller.stop}
         onStopRecording={controller.stopRecording}
@@ -171,6 +170,7 @@ function TerminalInteractiveWindowBody({
   );
 }
 
+/** Renders retained pipe output with Wait and Signal controls under the shared window-close flow. */
 function TerminalPipeWindowBody({
   terminal,
   workspaceId,
@@ -188,10 +188,8 @@ function TerminalPipeWindowBody({
   return (
     <>
       <TerminalHeader
-        closePending={actions.closePending}
         hostChrome={hostChrome}
         limit={limit}
-        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onNewTerminal={newTerminal}
         onSignal={
           readOnly || terminal.state !== "running" ? undefined : () => actions.onStop(terminal.id)

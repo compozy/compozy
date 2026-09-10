@@ -33,6 +33,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
+import { terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
 
 const DEFAULT_ROUTE = "/terminal";
@@ -61,6 +62,7 @@ function windowedTerminalKeys(state: TerminalWindowRouteState, currentWindowId: 
   return keys.sort().join("\n");
 }
 
+/** Owns terminal creation, process controls, and retained journal state for one managed window. */
 export function useTerminalWindowControllerState(windowId: string) {
   // Chips are the interaction state; the query reads their projection, so a
   // chip still being typed filters nothing until it carries a value.
@@ -147,6 +149,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   };
 
   const create = useMutation({
+    mutationKey: terminalWindowCreateKey(windowId),
     mutationFn: (identity: TerminalViewerIdentity) =>
       createTerminal(workspaceId, {}, destinationScope.params, identity),
     onSuccess: async terminal => {
@@ -163,8 +166,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   const close = useMutation({
     mutationFn: (terminalId: string) =>
       closeTerminal(workspaceId, terminalId, terminalSelector(terminalId), "HUP"),
-    // The window stays put: the exit bar reads the outcome, and closing the OS
-    // window is the person's own gesture. Nothing retargets or closes for them.
+    // The terminal-limit dialog frees a slot without closing its launcher.
+    // Normal window close is owned by the shell's terminal close guard.
     onSuccess: invalidateTerminalReads,
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to close terminal"),

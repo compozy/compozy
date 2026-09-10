@@ -9,6 +9,7 @@ import { GLOBAL_DESKTOP_WORKSPACE_ID, useWorkspaceScopeMode } from "@/systems/wo
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
+import { TerminalWindowClose } from "../lib/terminal-window-close";
 import {
   resolveLivePaletteClientContext,
   selectPaletteDestinationRoute,
@@ -33,6 +34,7 @@ import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 
 export interface DesktopChromeModel {
+  terminalClose: TerminalWindowClose;
   shell: OsShellHandle;
   query: UseQueryResult<WindowManagerSnapshot, Error>;
   /** The attachment this shell speaks for; the palette projection needs its context. */
@@ -63,7 +65,10 @@ function streamError(error: Error | WindowManagerErrorPayload): Error {
  * that projection atom directly — useDesktop/useOsShell require the provider
  * this hook feeds (BUG-20260813).
  */
-export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChromeModel {
+export function useDesktopChrome(
+  activeWorkspaceId: string | null,
+  terminalWorkspaceId: string | null = activeWorkspaceId
+): DesktopChromeModel {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scope = useWorkspaceScopeMode();
@@ -82,6 +87,14 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const configQuery = useQuery(windowManagerConfigOptions(configWorkspaceId, client.clientId));
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
+  const [terminalClose] = useState(() => new TerminalWindowClose());
+  useEffect(() => {
+    manager.setCloseGuard(terminalClose.guard(terminalWorkspaceId, queryClient));
+    return () => {
+      terminalClose.cancel();
+      manager.setCloseGuard(null);
+    };
+  }, [manager, terminalClose, terminalWorkspaceId, profileId, queryClient]);
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.
   const [clientCommandChannel] = useState(() => new ClientCommandChannel());
@@ -178,6 +191,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   });
 
   return {
+    terminalClose,
     shell,
     query,
     client: client.client,

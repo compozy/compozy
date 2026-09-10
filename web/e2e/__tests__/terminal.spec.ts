@@ -16,6 +16,7 @@ import { reloadDaemonServedPage } from "../fixtures/navigation";
 import {
   focusWindowThroughPalette,
   openAppWindow,
+  setGlobalScope,
   switchWorkspace,
   windowFrame,
 } from "../fixtures/os-navigation";
@@ -369,7 +370,7 @@ test("E2E-001: CLI golden path opens, runs, lists, and journals a terminal", asy
     });
 });
 
-test("E2E-002: browser keeps two terminal windows across reload and reattaches after close", async ({
+test("E2E-002: browser restores terminal tabs and confirms group termination", async ({
   appPage,
   runtime,
 }) => {
@@ -463,12 +464,17 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
     ])
   );
 
-  // Closing the window is a window gesture: both sessions keep running. In a
-  // stacked frame the traffic lights live on the deck row and close the group.
+  // Cancel preserves every process and the complete group. Confirm terminates
+  // exactly these two terminals before the daemon removes their windows.
   const restored = focusedTerminalWindow(appPage);
   await focusWindowThroughPalette(appPage, restored);
+  // Global retains this project's desktop; close must still use its owner.
+  await setGlobalScope(appPage, true);
   await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
-  await expect(restored).toBeHidden();
+  const confirmation = appPage.getByTestId("terminal-close-dialog");
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(restored).toBeVisible();
   const survivors = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
     "list",
     "--workspace",
@@ -481,11 +487,28 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
       terminal => [firstID, secondID].includes(terminal.id) && terminal.state === "running"
     )
   ).toHaveLength(2);
+  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await confirmation.getByRole("button", { name: "Terminate and close" }).click();
+  await expect(restored).toBeHidden();
+  await expect
+    .poll(async () => {
+      const result = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
+        "list",
+        "--workspace",
+        workspace.id,
+        "-o",
+        "json",
+      ]);
+      return result.terminals.filter(
+        terminal => [firstID, secondID].includes(terminal.id) && terminal.state === "running"
+      ).length;
+    })
+    .toBe(0);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]')).toHaveCount(
+    0
+  );
 
-  // Reopening from the dock adopts the newest running session instead of
-  // opening a launcher: the screen is the same one, still intact.
-  const reopened = await openAppWindow(appPage, "Terminal", "terminal");
-  expect(await visibleTerminalPaneID(reopened)).toBe(secondID);
   const firstQuote = await runTerminalCLI<{ quote: string }>(runtime.paths, [
     "quote",
     firstID,
@@ -497,6 +520,70 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
     "json",
   ]);
   expect(firstQuote.quote).toContain("first-screen-intact");
+});
+
+test("E2E-020: terminal window close preserves Stop and retries after disconnect", async ({
+  appPage,
+  runtime,
+}) => {
+  assertLaunchRuntime(runtime);
+  const workspace = await runtimeWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
+  const terminal = await openAppWindow(appPage, "Terminal", "terminal");
+  const terminalID = await visibleTerminalPaneID(terminal);
+  const log = await interactiveTerminalLog(terminal);
+  await log.click();
+  await appPage.keyboard.type("printf 'work-before-stop\\n'");
+  await appPage.keyboard.press("Enter");
+  await expect
+    .poll(async () => (await terminalScreen(runtime, workspace.id, terminalID)).content)
+    .toContain("work-before-stop");
+  await expect(terminal.getByTestId("terminal-close")).toHaveCount(0);
+
+  await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+  const confirmation = appPage.getByTestId("terminal-close-dialog");
+  await expect(confirmation).toBeVisible();
+  await appPage.context().setOffline(true);
+  try {
+    await confirmation.getByRole("button", { name: "Terminate and close" }).click();
+    await expect(appPage.getByText("Could not close terminal", { exact: true })).toBeVisible();
+    await expect(terminal).toBeVisible();
+  } finally {
+    await appPage.context().setOffline(false);
+  }
+  const stillRunning = await runTerminalCLI<TerminalEnvelope>(runtime.paths, [
+    "get",
+    terminalID,
+    "--workspace",
+    workspace.id,
+    "-o",
+    "json",
+  ]);
+  expect(stillRunning.terminal.state).toBe("running");
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const restored = focusedTerminalWindow(appPage);
+  expect(await visibleTerminalPaneID(restored)).toBe(terminalID);
+  await restored.getByTestId("terminal-stop").click();
+  await expect
+    .poll(
+      async () =>
+        (
+          await runTerminalCLI<TerminalEnvelope>(runtime.paths, [
+            "get",
+            terminalID,
+            "--workspace",
+            workspace.id,
+            "-o",
+            "json",
+          ])
+        ).terminal.state
+    )
+    .toBe("exited");
+  await expect(restored).toBeVisible();
+  await setGlobalScope(appPage, true);
+  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await expect(restored).toBeHidden();
+  await expect(confirmation).not.toBeVisible();
 });
 
 test("E2E-007: journal filters update the real browser query", async ({ appPage, runtime }) => {

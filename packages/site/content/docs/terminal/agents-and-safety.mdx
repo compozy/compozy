@@ -19,8 +19,15 @@ shared operator access, durable command history, or recording.
 
 Every interactive terminal an agent opens — `compozy__terminal_open`, or `compozy__terminal_exec`
 with `visible: true` — appears as a Terminal window on the desktop without moving focus, so the
-operator can watch and interact with the work immediately while the agent stays attached. Closing that window never signals the process, and a
-window the operator closed does not reopen for the same terminal. Pipe terminals (yielded
+operator can watch and interact with the work immediately while the agent stays attached. The window's Close action asks before terminating a running terminal and its work, then closes the
+managed window. Cancel preserves the process and window. An exited terminal closes directly; Stop
+ends the terminal while keeping its window open. Closing a tab group confirms all affected running
+terminals together. Failures keep the windows available for retry; saved history follows normal
+retention. Other attached viewers observe the same terminal exit.
+
+Keyboard and window-menu close use the same confirmation. Native `compozy__window_close` and
+CLI/API window close remain view-only; detaching a stream or closing the browser also leaves work
+running. A closed managed window does not reopen automatically for the same terminal. Pipe terminals (yielded
 executions) stay in the catalog as read-only log panes instead.
 
 ## Terminal toolset

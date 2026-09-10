@@ -17,28 +17,18 @@ import type { TerminalHeaderProps } from "./terminal-header";
 /**
  * At most two trailing actions, set off from the chips by a hairline.
  *
- * Wait and Close stay on a pipe terminal's head; Signal moves to overflow so
- * the head never grows a third verb.
+ * Stop and Wait stay available; closing belongs to the OS window chrome.
  */
 export function TerminalHeaderActions({
   isPipe,
   recording,
-  closePending,
   onStop,
-  onClose,
   onSignal,
   onWait,
   onStopRecording,
 }: TerminalHeaderActionsProps) {
   if (isPipe) {
-    return (
-      <TerminalPipeHeaderActions
-        closePending={closePending}
-        onClose={onClose}
-        onSignal={onSignal}
-        onWait={onWait}
-      />
-    );
+    return <TerminalPipeHeaderActions onSignal={onSignal} onWait={onWait} />;
   }
   // Stopping the recording is ghost text; danger stays on the rec dot.
   const quietAction =
@@ -71,40 +61,11 @@ export function TerminalHeaderActions({
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>
     ) : null;
-  // Ending the session is deliberate, so it lives one step away.
-  const overflow = onClose ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label="More actions"
-            data-testid="terminal-overflow"
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          />
-        }
-      >
-        <Ellipsis aria-hidden="true" className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          data-testid="terminal-close"
-          disabled={closePending}
-          onClick={onClose}
-          variant="destructive"
-        >
-          Close terminal
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  ) : null;
-  if (!quietAction && !overflow) return null;
+  if (!quietAction) return null;
   return (
     <>
       <TerminalHeaderRule />
       {quietAction}
-      {overflow}
     </>
   );
 }
@@ -163,27 +124,14 @@ export function TerminalWindowVerbs({
   );
 }
 
+/** Keeps pipe supervision actions available while window chrome owns close confirmation. */
 function TerminalPipeHeaderActions({
-  onClose,
   onSignal,
   onWait,
-  closePending,
-}: Pick<TerminalHeaderActionsProps, "onClose" | "onSignal" | "onWait" | "closePending">) {
+}: Pick<TerminalHeaderActionsProps, "onSignal" | "onWait">) {
   const wait = onWait ? (
     <Button data-testid="terminal-wait" onClick={onWait} size="sm" type="button" variant="ghost">
       Wait
-    </Button>
-  ) : null;
-  const close = onClose ? (
-    <Button
-      data-testid="terminal-close"
-      disabled={closePending}
-      onClick={onClose}
-      size="sm"
-      type="button"
-      variant="ghost"
-    >
-      Close
     </Button>
   ) : null;
   const overflow = onSignal ? (
@@ -208,12 +156,11 @@ function TerminalPipeHeaderActions({
       </DropdownMenuContent>
     </DropdownMenu>
   ) : null;
-  if (!wait && !close && !overflow) return null;
+  if (!wait && !overflow) return null;
   return (
     <>
       <TerminalHeaderRule />
       {wait}
-      {close}
       {overflow}
     </>
   );
@@ -225,5 +172,5 @@ function TerminalHeaderRule() {
 
 type TerminalHeaderActionsProps = Pick<
   TerminalHeaderProps,
-  "recording" | "closePending" | "onStop" | "onClose" | "onSignal" | "onWait" | "onStopRecording"
+  "recording" | "onStop" | "onSignal" | "onWait" | "onStopRecording"
 > & { isPipe: boolean };

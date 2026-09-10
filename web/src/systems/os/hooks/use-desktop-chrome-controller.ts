@@ -13,7 +13,12 @@ import { useActiveWorkspace } from "@/systems/workspace";
 /** Owns the state and supporting models required to mount the desktop chrome. */
 export function useDesktopChromeController() {
   const activeWorkspace = useActiveWorkspace();
-  const chrome = useDesktopChrome(activeWorkspace.desktopWorkspaceId);
+  const chrome = useDesktopChrome(
+    activeWorkspace.desktopWorkspaceId,
+    // Global keeps the project's desktop visible. Its windows still belong
+    // to that project even while the data destination is unscoped.
+    activeWorkspace.desktopWorkspace?.id ?? null
+  );
   const backgroundStreamsEnabled = useAtom(
     chrome.shell.projection,
     backgroundStreamsWithinConnectionBudget
