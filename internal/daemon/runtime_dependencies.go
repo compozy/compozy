@@ -43,7 +43,7 @@ func (d *Daemon) runtimeDeps(
 		Registry:              state.registry,
 		Profiles:              state.profiles,
 		SchemaStreams:         newDaemonSchemaStreamStatusReader(state.registry),
-		MemoryStore:           state.memoryStore,
+		MemoryStore:           state.memoryCatalogStore,
 		MemoryExtractor:       state.memoryExtractor,
 		MemoryProviders:       memoryProviders,
 		MemorySessionLedger:   newDaemonMemorySessionLedgerService(state, d.now),

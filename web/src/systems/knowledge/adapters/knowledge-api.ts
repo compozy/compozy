@@ -89,7 +89,9 @@ export async function listMemories(
   });
   if (apiRequestFailed(response, error)) {
     throw new KnowledgeApiError(
-      defaultApiErrorMessage("Failed to fetch memories", response, error),
+      response.status >= 500
+        ? "Memories are unavailable right now. Try again later."
+        : defaultApiErrorMessage("Failed to fetch memories", response, error),
       response.status
     );
   }

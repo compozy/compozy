@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	_ "modernc.org/sqlite"
 )
@@ -32,6 +34,98 @@ const (
 	roleDreamProviderName = "role-dream"
 	roleDreamModel        = "routed-dream-model"
 )
+
+func TestDaemonE2EKnowledgeWithoutMemoryAutomation(t *testing.T) {
+	t.Parallel()
+	const filename = ".compozy/memory/project.md"
+	content := memoryDocument(
+		"Existing project",
+		"Preserved workspace memory",
+		memcontract.TypeProject,
+		"Keep this memory.",
+	)
+	for _, tc := range []struct {
+		name       string
+		files      map[string]string
+		wantStatus int
+		wantCount  int
+	}{
+		{name: "Should list existing workspace memories", files: map[string]string{filename: content}, wantStatus: http.StatusOK, wantCount: 1},
+		{name: "Should return an empty workspace catalog", wantStatus: http.StatusOK},
+		{name: "Should preserve an inaccessible memory source as a server error", files: map[string]string{".compozy/memory": "unavailable source"}, wantStatus: http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+				Workspace: e2etest.WorkspaceSeedOptions{Files: tc.files},
+				ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+					cfg.Memory.Enabled = false
+					cfg.Session.Compaction.Enabled = false
+				}},
+			})
+			identity, err := workspacepkg.EnsureIdentity(t.Context(), harness.WorkspaceRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := "/api/memory?profile=default&scope=workspace&workspace_id=" + url.QueryEscape(harness.WorkspaceID)
+			for _, transport := range []struct {
+				name   string
+				base   string
+				client *http.Client
+			}{
+				{name: "HTTP", base: harness.HTTPBaseURL, client: harness.HTTPClient},
+				{name: "UDS", base: harness.UDSBaseURL, client: harness.UDSClient},
+			} {
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, transport.base+path, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				response, err := transport.client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, readErr := io.ReadAll(response.Body)
+				closeErr := response.Body.Close()
+				if readErr != nil || closeErr != nil {
+					t.Fatalf("read=%v close=%v", readErr, closeErr)
+				}
+				if response.StatusCode != tc.wantStatus {
+					t.Fatalf("%s status=%d body=%s, want %d", transport.name, response.StatusCode, body, tc.wantStatus)
+				}
+				if tc.wantStatus != http.StatusOK {
+					var failure struct {
+						Code    string `json:"code"`
+						Message string `json:"message"`
+					}
+					if err := json.Unmarshal(body, &failure); err != nil {
+						t.Fatal(err)
+					}
+					if failure.Code != "memory.internal" || failure.Message == "" {
+						t.Fatalf("%s missing error body: %s", transport.name, body)
+					}
+					continue
+				}
+				var page compozycontract.MemoryListResponse
+				if err := json.Unmarshal(body, &page); err != nil {
+					t.Fatal(err)
+				}
+				if len(page.Memories) != tc.wantCount || page.Page.Total != tc.wantCount || page.Page.HasMore {
+					t.Fatalf("%s catalog=%#v, want %d memories", transport.name, page, tc.wantCount)
+				}
+				if tc.wantCount > 0 &&
+					(page.Memories[0].Name != "Existing project" || page.Memories[0].WorkspaceID != identity.WorkspaceID) {
+					t.Fatalf("%s lost memory identity: %#v", transport.name, page.Memories)
+				}
+			}
+			for path, original := range tc.files {
+				preserved, err := os.ReadFile(filepath.Join(harness.WorkspaceRoot, path))
+				if err != nil || string(preserved) != original {
+					t.Fatalf("source %s changed: %v", path, err)
+				}
+			}
+		})
+	}
+}
 
 func TestDaemonE2EMemoryOptInAndExtractorOutput(t *testing.T) {
 	t.Parallel()

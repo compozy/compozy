@@ -31,7 +31,7 @@ type daemonRuntimeState struct {
 	registry               Registry
 	profiles               *profile.Manager
 	memoryStore            *memory.Store
-	checkpointStore        *memory.Store
+	memoryCatalogStore     *memory.Store
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor
 	runtimeWorkers         daemonRuntimeWorkers

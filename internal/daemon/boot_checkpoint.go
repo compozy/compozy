@@ -23,7 +23,7 @@ func (d *Daemon) bootCheckpointSummaryRuntime(
 	}
 	checkpointStore := state.memoryStore
 	if checkpointStore == nil {
-		checkpointStore = state.checkpointStore
+		checkpointStore = state.memoryCatalogStore
 		if checkpointStore == nil {
 			return errors.New("daemon: compaction checkpoint store is unavailable")
 		}

@@ -50,6 +50,34 @@ const validHeader: MemoryHeader = {
 };
 
 describe("useMemories", () => {
+  it("Should expose a failed list after one attempt and allow an explicit retry", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: 3, retryDelay: 0 } },
+    });
+    const failure = new Error("Memories are unavailable right now. Try again later.");
+    vi.mocked(listMemories).mockRejectedValue(failure);
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    const { result, unmount } = renderHook(
+      () => useMemories({ profile: "default", scope: "workspace", workspaceId: "ws" }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBe(failure);
+    expect(listMemories).toHaveBeenCalledTimes(1);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+    expect(listMemories).toHaveBeenCalledTimes(2);
+    unmount();
+    client.clear();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
