@@ -210,6 +210,9 @@ func (r *checkpointSummaryRuntime) run(ctx context.Context) {
 		close(r.done)
 	}()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		job, ok, closing := r.nextJob()
 		if ok {
 			r.process(ctx, job)
@@ -450,9 +453,22 @@ type checkpointMemoryShutdowner struct {
 }
 
 func (s checkpointMemoryShutdowner) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("checkpoint memory shutdown requires context")
+	}
 	var errs []error
 	if s.runtime != nil {
-		errs = append(errs, s.runtime.Shutdown(ctx))
+		// Background summaries must leave time to stop their child and close required resources.
+		runtimeCtx := ctx
+		if deadline, ok := ctx.Deadline(); ok {
+			var cancel context.CancelFunc
+			runtimeCtx, cancel = context.WithDeadline(
+				ctx,
+				deadline.Add(-checkpointSummaryStopTimeout-defaultShutdownTimeout),
+			)
+			defer cancel()
+		}
+		errs = append(errs, s.runtime.Shutdown(runtimeCtx))
 	}
 	if s.provider != nil {
 		errs = append(errs, s.provider.Shutdown(ctx))

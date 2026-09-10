@@ -432,3 +432,94 @@ func (s *checkpointLifecycleStub) OnPreCompress(
 	}
 	return s.onPreCompress(ctx, request)
 }
+
+func TestCheckpointMemoryShutdownBudget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cancel optional work while required cleanup still has a live context", func(t *testing.T) {
+		t.Parallel()
+		started := make(chan struct{})
+		calls := 0
+		provider := &checkpointProviderStub{
+			onSessionEnd: func(ctx context.Context, _ memcontract.SessionEndRecord) error {
+				calls++
+				if calls == 1 {
+					close(started)
+				}
+				<-ctx.Done()
+				return ctx.Err()
+			},
+		}
+		registry := extensionpkg.NewMemoryProviderRegistry()
+		if err := registry.Register(
+			t.Context(),
+			extensionpkg.MemoryProviderRegistration{Name: "fixture", Provider: provider},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.SetActive(t.Context(), "ws-alpha", "fixture"); err != nil {
+			t.Fatal(err)
+		}
+		runtime := newCheckpointSummaryRuntime(
+			&checkpointRuntimeSessionStub{events: []store.SessionEvent{checkpointRuntimeEvent(t, "decision")}},
+			registry,
+			time.Minute,
+			time.Minute,
+			slog.Default(),
+			&checkpointLifecycleStub{},
+		)
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		runtime.OnSessionStopped(
+			t.Context(),
+			&session.Session{
+				ID:          "sess-alpha",
+				AgentName:   "coder",
+				WorkspaceID: "ws-alpha",
+				Workspace:   "/workspace/alpha",
+				Type:        session.SessionTypeUser,
+			},
+		)
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("provider did not start")
+		}
+		runtime.OnSessionStopped(t.Context(), &session.Session{
+			ID: "sess-pending", AgentName: "coder", WorkspaceID: "ws-alpha",
+			Workspace: "/workspace/alpha", Type: session.SessionTypeUser,
+		})
+		cleanupCalled := false
+		shutdown := checkpointMemoryShutdowner{
+			runtime: runtime,
+			provider: checkpointShutdownFunc(func(ctx context.Context) error {
+				cleanupCalled = true
+				if ctx.Err() != nil {
+					t.Errorf("required provider cleanup received expired context: %v", ctx.Err())
+				}
+				return ctx.Err()
+			}),
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		// Optional summarization may report cancellation; the process still must have time to close stores and servers.
+		if err := shutdown.Shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown() error = %v, want optional drain deadline", err)
+		}
+		if calls != 1 {
+			t.Fatalf("processed %d summaries, want pending summary skipped", calls)
+		}
+		if !cleanupCalled || ctx.Err() != nil {
+			t.Fatal("checkpoint work consumed the required cleanup budget")
+		}
+		select {
+		case <-runtime.done:
+		default:
+			t.Fatal("checkpoint worker was not joined")
+		}
+	})
+}
+
+type checkpointShutdownFunc func(context.Context) error
+
+func (f checkpointShutdownFunc) Shutdown(ctx context.Context) error { return f(ctx) }
