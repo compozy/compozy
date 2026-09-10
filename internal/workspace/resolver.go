@@ -131,22 +131,8 @@ func (r *Resolver) resolve(
 	workspaceID := ""
 	defer r.observeResolve(start, &workspaceID, &cacheHit, &resolved, &err)
 
-	if err := checkContext(ctx); err != nil {
-		return ResolvedWorkspace{}, err
-	}
-
-	ws, err := r.lookupWorkspace(ctx, idOrNameOrPath)
-	if err != nil {
-		return ResolvedWorkspace{}, err
-	}
+	ws, identity, err := r.resolveRegistration(ctx, idOrNameOrPath)
 	workspaceID = ws.ID
-
-	ws, err = r.refreshRootDir(ctx, ws)
-	if err != nil {
-		return ResolvedWorkspace{}, err
-	}
-	workspaceID = ws.ID
-	identity, err := ensureIdentity(ctx, ws.RootDir, r.now, NewWorkspaceID)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}

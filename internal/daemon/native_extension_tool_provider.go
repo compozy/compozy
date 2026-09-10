@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -17,9 +18,13 @@ const (
 	specCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__spec_cycle__finalize_review_round"
 )
 
+type daemonExtensionWorkspaceResolver interface {
+	ResolveRegistration(ctx context.Context, ref string) (workspacepkg.Workspace, error)
+}
+
 type daemonExtensionToolProvider struct {
 	inner             toolspkg.Provider
-	workspaceResolver workspacepkg.RuntimeResolver
+	workspaceResolver daemonExtensionWorkspaceResolver
 }
 
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
@@ -27,7 +32,7 @@ var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil
 
 func newDaemonScopedExtensionToolProvider(
 	inner toolspkg.Provider,
-	workspaceResolver workspacepkg.RuntimeResolver,
+	workspaceResolver daemonExtensionWorkspaceResolver,
 ) toolspkg.Provider {
 	if inner == nil {
 		return nil
@@ -103,7 +108,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 			workspacepkg.ErrWorkspaceResolverUnavailable,
 		)
 	}
-	resolved, err := p.workspaceResolver.Resolve(ctx, workspaceRef)
+	resolved, err := p.workspaceResolver.ResolveRegistration(ctx, workspaceRef)
 	if err != nil {
 		return toolspkg.Scope{}, fmt.Errorf(
 			"daemon: resolve extension tool workspace %q: %w",
@@ -111,7 +116,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 			err,
 		)
 	}
-	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	workspaceID, err := extensionWorkspaceRegistrationID(resolved)
 	if err != nil {
 		return toolspkg.Scope{}, fmt.Errorf(
 			"daemon: resolved extension tool workspace %q has no registered runtime id: %w",
@@ -125,7 +130,7 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 
 type daemonExtensionToolHandle struct {
 	inner             toolspkg.Handle
-	workspaceResolver workspacepkg.RuntimeResolver
+	workspaceResolver daemonExtensionWorkspaceResolver
 }
 
 var _ toolspkg.Handle = (*daemonExtensionToolHandle)(nil)
@@ -237,7 +242,7 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			toolspkg.ErrToolInvalidInput,
 		)
 	}
-	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := h.workspaceResolver.ResolveRegistration(ctx, workspaceID)
 	if err != nil {
 		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
 			req.ToolID,
@@ -256,7 +261,7 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			toolspkg.ErrToolInvalidInput,
 		)
 	}
-	req.WorkspaceID, err = nativeResolvedRegistryWorkspaceID(&resolved)
+	req.WorkspaceID, err = extensionWorkspaceRegistrationID(resolved)
 	if err != nil {
 		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
 			req.ToolID,
@@ -266,6 +271,14 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 	}
 	req.TrustedWorkspaceRoot = root
 	return req, nil
+}
+
+func extensionWorkspaceRegistrationID(ws workspacepkg.Workspace) (string, error) {
+	workspaceID := strings.TrimSpace(ws.ID)
+	if workspaceID == "" {
+		return "", errors.New("daemon: resolved workspace registry id is empty")
+	}
+	return workspaceID, nil
 }
 
 func (h *daemonExtensionToolHandle) resolveImportTasksPattern(

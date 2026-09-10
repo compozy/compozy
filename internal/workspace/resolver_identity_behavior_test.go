@@ -7,7 +7,94 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func TestResolveRegistration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve current registration aliases without loading runtime resources", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		link := symlinkWorkspaceRootForTest(t, root)
+		ws := Workspace{ID: "ws_registration", RootDir: link, Name: "repo"}
+		store := newMockWorkspaceStore(ws)
+		resolver := newTestResolver(t, store, WithHomePaths(newTestHomePaths(t)),
+			WithConfigLoader(func(string) (compozyconfig.Config, error) {
+				return compozyconfig.Config{}, errors.New("runtime config must not be loaded for registration")
+			}),
+		)
+		writeFile(t, filepath.Join(root, ".compozy", "skills"), "not a resource directory")
+
+		registered, err := resolver.ResolveRegistration(t.Context(), ws.ID)
+		if err != nil {
+			t.Fatalf("ResolveRegistration() error = %v", err)
+		}
+		canonical := mustCanonicalRoot(t, root)
+		identity, err := loadIdentityFile(identityPath(canonical))
+		if err != nil {
+			t.Fatalf("loadIdentityFile() error = %v", err)
+		}
+		for _, ref := range []string{ws.Name, root, link, identity.WorkspaceID} {
+			got, resolveErr := resolver.ResolveRegistration(t.Context(), ref)
+			if resolveErr != nil {
+				t.Fatalf("ResolveRegistration(%q) error = %v", ref, resolveErr)
+			}
+			if got.ID != registered.ID || got.RootDir != canonical {
+				t.Fatalf("ResolveRegistration(%q) = %#v, want id %q and root %q", ref, got, ws.ID, canonical)
+			}
+		}
+		if updated := store.mustWorkspace(ws.ID); updated.RootDir != canonical {
+			t.Fatalf("persisted root = %q, want canonical %q", updated.RootDir, canonical)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		change func(*testing.T, string)
+		want   error
+	}{
+		{
+			name: "Should reject a removed root after a successful registration lookup",
+			change: func(t *testing.T, root string) {
+				t.Helper()
+				if err := os.RemoveAll(root); err != nil {
+					t.Fatalf("RemoveAll(root) error = %v", err)
+				}
+			},
+			want: ErrWorkspaceRootMissing,
+		},
+		{
+			name: "Should reject invalid identity after a successful registration lookup",
+			change: func(t *testing.T, root string) {
+				t.Helper()
+				writeFile(t, identityPath(root), `workspace_id = "invalid"`)
+			},
+			want: ErrWorkspaceIdentityInvalid,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			ws := Workspace{ID: "ws_registration", RootDir: root, Name: "repo"}
+			resolver := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(newTestHomePaths(t)))
+			if _, err := resolver.ResolveRegistration(t.Context(), ws.ID); err != nil {
+				t.Fatalf("ResolveRegistration(first) error = %v", err)
+			}
+			tc.change(t, root)
+			got, err := resolver.ResolveRegistration(t.Context(), ws.ID)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("ResolveRegistration(after change) error = %v, want %v", err, tc.want)
+			}
+			if got.ID != "" || got.RootDir != "" {
+				t.Fatalf("ResolveRegistration(after change) = %#v, want no workspace on error", got)
+			}
+		})
+	}
+}
 
 func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
 	t.Parallel()

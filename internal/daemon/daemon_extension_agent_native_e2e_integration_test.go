@@ -222,7 +222,7 @@ func newAgentNativeExtensionRegistry(
 	deps *daemonNativeToolsDeps,
 	extensionRegistry *extensionpkg.Registry,
 	manager *extensionpkg.Manager,
-	resolver workspacepkg.RuntimeResolver,
+	resolver daemonExtensionWorkspaceResolver,
 	approvals toolspkg.ApprovalBridge,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
