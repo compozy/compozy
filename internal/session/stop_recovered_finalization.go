@@ -62,6 +62,15 @@ func (m *Manager) settleRecoveredStop(
 	if !outcome.Verified {
 		return nil
 	}
+	meta, err := m.readMetaWithContext(settleCtx, run.recoveredID)
+	if err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
+	info := m.sessionInfoFromMeta(settleCtx, meta)
+	info.StopCause = outcome.Cause
+	if err := m.stopSessionGoals(settleCtx, info); err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
 	if err := m.removeRecoveredStopReceipt(run.recoveredID); err != nil {
 		return err
 	}

@@ -284,7 +284,9 @@ Web timeline use that durable evidence.
 
 Explicitly stopping a session-origin Goal's origin or current bound session cancels its live Run
 through the canonical cancellation path. Removing the session does the same before deleting its
-session history. Run, turn, and task audit records remain available. Catalog Loop origin lineage
+session history. If Goal cancellation fails, the existing stop settlement receipt remains durable;
+retrying the stop or restarting the daemon retries cancellation before settlement completes.
+Run, turn, and task audit records remain available. Catalog Loop origin lineage
 stays informational; stopping that origin does not cancel independent catalog work. Daemon shutdown
 and closing a window or disconnecting a stream do not mean an operator stopped the Goal session.
 

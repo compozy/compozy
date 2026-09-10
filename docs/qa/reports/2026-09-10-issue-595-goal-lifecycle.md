@@ -31,7 +31,7 @@ The first live walk exposed a second defect: a known-context read combined `Afte
 
 Loop supervision previously inferred freshness only from completed coordinator tasks. Initial in-flight action leases and admitted wait deadlines now contribute bounded evidence. Reads do not extend deadlines. Quarantine, approval, and intervention carry explicit attention even when agent progress is fresh; real expired evidence still becomes stale. Goal projections follow terminal Run state and quarantine rather than a stale active checkpoint.
 
-Explicit operator stop/removal now uses canonical Loop cancellation for session-origin Goals. Its existing durable outbox handles session cleanup. Catalog Loop origin lineage remains informational, and daemon shutdown or window-only dismissal does not acquire cancellation semantics. The existing adapter regression suite exposed an early missing-session return that could suppress stop failures; production was corrected without weakening the assertions.
+Explicit operator stop/removal now uses canonical Loop cancellation for session-origin Goals. A cancellation failure retains the existing durable stop receipt and pending settlement; retry and daemon boot recovery repeat cancellation before releasing that receipt. Its existing durable outbox handles session cleanup. Catalog Loop origin lineage remains informational, and daemon shutdown or window-only dismissal does not acquire cancellation semantics. The existing adapter regression suite exposed an early missing-session return that could suppress stop failures; production was corrected without weakening the assertions.
 
 ## Verification
 
@@ -44,6 +44,8 @@ Explicit operator stop/removal now uses canonical Loop cancellation for session-
 - Local gate attempts passed codegen and lint and exposed the adapter regression described above. After correction, the canonical adapter suite and full daemon race suite passed. At the author’s request, remaining delivery gates run in CI; the local global database race suite was interrupted and is not claimed as passed. Current-head CI results are recorded in the PR.
 
 ## Cross-surface impact
+
+Owning audit: [Issue 595 change-impact record](../../_memory/change-impact.md#issue-595--goal-lifecycle-and-attention).
 
 - **Native tools:** Existing `compozy__goal_control`, Goal reads, session stop, and `compozy__loop_cancel` retain their schemas and authorization. Goal status follows terminal Run truth and exposes quarantine as a blocked state.
 - **Extensibility/hooks/config:** No configuration, hook, extension SDK, or tool ID change. Session-origin Goals use canonical cancellation and its durable cleanup outbox. Catalog Loop origin lineage remains informational.

@@ -809,6 +809,63 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	for _, restart := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should retry Goal cancellation settlement with restart %t", restart), func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			cancelErr := errors.New("Goal cancellation unavailable")
+			var fail atomic.Bool
+			fail.Store(true)
+			var calls atomic.Int32
+			handler := &stopGoalHandler{stop: func(_ context.Context, info *Info) error {
+				calls.Add(1)
+				if info.ID != active.ID || info.State != StateStopped || info.StopCause != CauseUserRequested {
+					t.Errorf("Goal cancellation identity = %#v", info)
+				}
+				if fail.Load() {
+					return cancelErr
+				}
+				return nil
+			}}
+			h.manager.SetGoalCommandHandler(handler)
+			if err := h.manager.Stop(t.Context(), active.ID); !errors.Is(err, cancelErr) ||
+				!errors.Is(err, ErrRecoveryPersistence) {
+				t.Fatalf("failed Goal cancellation = %v", err)
+			}
+			if _, err := os.Stat(h.manager.recoveredStopReceiptPath(active.ID)); err != nil {
+				t.Fatalf("pending Goal cancellation lost its receipt: %v", err)
+			}
+			if err := h.manager.Delete(t.Context(), active.ID); !errors.Is(err, ErrRecoveryPersistence) {
+				t.Fatalf("delete bypassed Goal cancellation: %v", err)
+			}
+			manager := h.manager
+			if restart {
+				h.manager.removeActive(active.ID)
+				manager = newManagerWithHarness(t, h, WithGoalCommandHandler(handler))
+				cleanupTestManager(t, manager)
+				if err := manager.RecoverPendingStops(t.Context()); !errors.Is(err, cancelErr) ||
+					!errors.Is(err, ErrRecoveryPersistence) {
+					t.Fatalf("boot lost pending Goal cancellation: %v", err)
+				}
+			}
+			fail.Store(false)
+			if err := manager.Stop(t.Context(), active.ID); err != nil {
+				t.Fatalf("retry Goal cancellation: %v", err)
+			}
+			if calls.Load() < 2 || manager.hasPendingStopSettlement(active.ID) {
+				t.Fatalf("Goal cancellation did not settle: calls=%d", calls.Load())
+			}
+			if _, err := os.Stat(manager.recoveredStopReceiptPath(active.ID)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("settled receipt retained: %v", err)
+			}
+			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 ||
+				h.notifier.stoppedCount() != 1 {
+				t.Fatal("Goal cancellation retry duplicated or omitted terminal settlement")
+			}
+		})
+	}
+
 	t.Run("Should defer the terminal event until its recovery receipt is durable", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -2332,4 +2389,14 @@ func (p *recoveredProcessTestProvider) SignalProcess(
 	ctx context.Context, state sandbox.SessionState, signal sandbox.ProcessSignal,
 ) error {
 	return p.signal(ctx, state, signal)
+}
+
+// stopGoalHandler injects only the daemon cancellation I/O boundary.
+type stopGoalHandler struct {
+	GoalCommandHandler
+	stop func(context.Context, *Info) error
+}
+
+func (h *stopGoalHandler) StopSessionGoals(ctx context.Context, info *Info) error {
+	return h.stop(ctx, info)
 }
