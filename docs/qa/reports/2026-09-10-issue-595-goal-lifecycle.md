@@ -38,6 +38,8 @@ Explicit operator stop/removal now uses canonical Loop cancellation for session-
 - Canonical Goal executor tests and context/compaction telemetry tests passed.
 - Real SQLite checkpoint ownership, Goal projection, Loop work, quarantine/parking, and requeue suites passed.
 - Canonical session work-signal and Goal command tests passed.
+- Review remediation added pre-commit adoption fault injection: retry reuses the exact durable binding and completes; canonical cancellation closes an unadopted binding and stops its real managed session. The deletion rollback case preserves stopped execution and history. These focused regressions passed.
+- Same-process and restarted stop settlement both retain and retry failed Goal cancellation; focused recovery and boot suites passed.
 - Existing public daemon subprocess E2E passed controls, disconnect/restart, and new stop/removal followed by repeated Run cancellation.
 - `bunx turbo run typecheck build --filter=@compozy/site` passed all seven tasks.
 - React Doctor changed-source scan found no changed React source files. Its PR check and all bot findings remain part of delivery.

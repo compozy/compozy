@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -93,6 +95,80 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("initial context checkpoint = %#v; execution error = %v", checkpoint, err)
 		}
 	})
+	// Invariant: failed checkpoint adoption retains durable binding ownership for retry or cancellation.
+	// Owner: managed Goal/store seam; canonical managed runtime integration suite.
+	for _, cancelRun := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should recover failed binding adoption with cancellation %t", cancelRun), func(t *testing.T) {
+			fixture := newLoopGoalManagedRuntimeFixture(t, "adoption-failure", nil, withoutInitialGoalBinding())
+			node := compileManagedGoalDefinition(t, "adoption-failure", fixture.agentName, "adoption-failure").Definition.Graph.Nodes[0]
+			adoptionErr := errors.New("checkpoint adoption unavailable")
+			boundary := &failingGoalBindingAdoption{ExecutorStore: fixture.goalStore, err: adoptionErr}
+			actor, err := taskpkg.DeriveHumanActorContext("adoption-recovery", taskpkg.OriginKindCLI, "cli")
+			if err != nil {
+				t.Fatal(err)
+			}
+			executor, err := goalpkg.NewExecutor(goalpkg.Dependencies{
+				Store: boundary, Binder: fixture.runtime,
+				Judge: loopGoalJudgeEvaluatorFunc(func(context.Context, goalpkg.JudgeRequest) (goalpkg.JudgeResult, error) {
+					return goalpkg.JudgeResult{Verdict: gate.Verdict{Outcome: gate.VerdictOutcomeApproved}}, nil
+				}),
+				Budget: fixture.goalStore, Context: initialGoalContextHealth{fixture.runtime}, Recovery: fixture.runtime,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := looppkg.ActionExecutionInput{
+				WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID,
+				ToolScope: toolspkg.Scope{ProfileID: store.DefaultProfileID}, Actor: &actor,
+				Generation: 1, NodeID: node.ID, CorrelationID: fixture.taskRunID,
+				RuntimeSelection: &looppkg.ActionRuntimeSelection{Catalog: integrationRuntimeCatalog{}},
+				Environment:      &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot}, GoalSegmentEpoch: 1,
+				GoalContextNudgeRatio: new(0.8),
+			}
+			if _, err := executor.Execute(t.Context(), node, input); !errors.Is(err, adoptionErr) {
+				t.Fatalf("adoption error = %v, want %v", err, adoptionErr)
+			}
+			key := goalpkg.BindingKey{WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID, Handle: boundary.request.BindingHandle}
+			binding, err := fixture.goalStore.GetActiveSessionBinding(t.Context(), key)
+			if err != nil || binding.SessionID != boundary.request.SessionID || binding.Ownership != goalpkg.BindingOwnershipRunOwned {
+				t.Fatalf("durable unadopted binding = %#v, %v", binding, err)
+			}
+			checkpoint, err := fixture.goalStore.LoadCheckpoint(t.Context(), fixture.key)
+			if err != nil || checkpoint.BindingEpoch != 0 {
+				t.Fatalf("unadopted checkpoint = %#v, %v", checkpoint, err)
+			}
+			if !cancelRun {
+				if _, err := executor.Execute(t.Context(), node, input); err != nil {
+					t.Fatalf("adoption retry did not complete: %v", err)
+				}
+				checkpoint, err := fixture.goalStore.LoadCheckpoint(t.Context(), fixture.key)
+				if err != nil || checkpoint.SessionID != binding.SessionID || checkpoint.BindingEpoch != binding.BindingEpoch || checkpoint.Status != "complete" {
+					t.Fatalf("retry replaced or lost durable binding: %#v, %v", checkpoint, err)
+				}
+				return
+			}
+			aggregate, err := looppkg.NewService(fixture.goalStore, looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+					return nil, looppkg.ErrDefinitionNotFound
+				}), managedTestGoalRunPolicyResolver(),
+				looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := aggregate.CancelRun(t.Context(), fixture.run.WorkspaceID, fixture.run.ID, "cancel unadopted work", actor); err != nil {
+				t.Fatal(err)
+			}
+			closed, err := fixture.goalStore.GetSessionBindingAttempt(t.Context(), key, binding.BindingEpoch)
+			if err != nil || closed.State != goalpkg.BindingStateClosed {
+				t.Fatalf("canceled binding = %#v, %v", closed, err)
+			}
+			info, err := fixture.manager.Status(t.Context(), binding.SessionID)
+			if err != nil || info.State != session.StateStopped {
+				t.Fatalf("unadopted session survived cancellation: %#v, %v", info, err)
+			}
+		})
+	}
+
 	t.Run(
 		"Should settle a queued Goal prompt when the operator explicitly clears the shared queue",
 		func(t *testing.T) {
@@ -1459,4 +1535,21 @@ func (f loopGoalManagedRuntimeFixture) preparePrompt(
 		},
 		UsageReporter: reporter,
 	})
+}
+
+// failingGoalBindingAdoption injects one pre-commit store failure without changing binding ownership.
+type failingGoalBindingAdoption struct {
+	goalpkg.ExecutorStore
+	err     error
+	request goalpkg.BindCheckpointRequest
+}
+
+func (s *failingGoalBindingAdoption) BindCheckpoint(ctx context.Context, req goalpkg.BindCheckpointRequest) (goalpkg.Checkpoint, error) {
+	if s.err != nil {
+		err := s.err
+		s.err = nil
+		s.request = req
+		return goalpkg.Checkpoint{}, err
+	}
+	return s.ExecutorStore.BindCheckpoint(ctx, req)
 }

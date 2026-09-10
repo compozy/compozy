@@ -139,7 +139,7 @@ change the objective with expected-Run replacement or clear the projection inste
 
 ## Stop, remove, or recover a Goal
 
-Stopping the origin or current bound session explicitly cancels its session Goal. If cancellation fails, stop settlement remains pending and retains its recovery receipt. Retry the stop, or restart the daemon to replay the pending cancellation. Removing that
+Stopping the origin or current bound session explicitly cancels its session Goal. Removal first stops execution; if deleting history later fails, the retained session stays stopped and the Goal stays canceled. If cancellation fails, stop settlement remains pending and retains its recovery receipt. Retry the stop, or restart the daemon to replay the pending cancellation. Removing that
 session cancels its Goal before removing session history. The Run, turns, and task audit stay
 inspectable. Closing only a window, disconnecting a stream, or restarting the daemon does not cancel
 a committed Goal. Informational origins of catalog Loops retain their separate lifecycle.

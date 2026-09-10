@@ -38,21 +38,35 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		}
 		request := goal.BindCheckpointRequest{Key: key, ExpectedControlEpoch: 1, ExpectedPhase: "idle",
 			TaskRunID: "task-bind", SessionID: "session-bind", BindingHandle: "goal:bind", BindingEpoch: 1}
-		for _, mutate := range []func(*goal.BindCheckpointRequest){
-			func(r *goal.BindCheckpointRequest) { r.ExpectedControlEpoch++ },
-			func(r *goal.BindCheckpointRequest) { r.ExpectedBindingEpoch++ },
-			func(r *goal.BindCheckpointRequest) { r.ExpectedPhase = "prompting" },
-			func(r *goal.BindCheckpointRequest) { r.TaskRunID = "foreign-task" },
-			func(r *goal.BindCheckpointRequest) { r.SessionID = "foreign-session" },
-			func(r *goal.BindCheckpointRequest) { r.BindingHandle = "foreign-handle" },
-			func(r *goal.BindCheckpointRequest) { r.BindingEpoch++ },
-			func(r *goal.BindCheckpointRequest) { r.Key.WorkspaceID = "ws-foreign" },
+		for _, tc := range []struct {
+			name   string
+			mutate func(*goal.BindCheckpointRequest)
+			want   error
+			reason looppkg.ReasonCode
+		}{
+			{"control epoch", func(r *goal.BindCheckpointRequest) { r.ExpectedControlEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"checkpoint binding epoch", func(r *goal.BindCheckpointRequest) { r.ExpectedBindingEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"phase", func(r *goal.BindCheckpointRequest) { r.ExpectedPhase = "prompting" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"task", func(r *goal.BindCheckpointRequest) { r.TaskRunID = "foreign-task" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"session", func(r *goal.BindCheckpointRequest) { r.SessionID = "foreign-session" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"handle", func(r *goal.BindCheckpointRequest) { r.BindingHandle = "foreign-handle" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"active binding epoch", func(r *goal.BindCheckpointRequest) { r.BindingEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"workspace", func(r *goal.BindCheckpointRequest) { r.Key.WorkspaceID = "ws-foreign" }, looppkg.ErrRunNotFound, ""},
 		} {
-			invalid := request
-			mutate(&invalid)
-			if _, err := db.BindCheckpoint(ctx, invalid); err == nil {
-				t.Fatalf("accepted foreign binding owner: %#v", invalid)
-			}
+			t.Run("Should reject foreign "+tc.name, func(t *testing.T) {
+				invalid := request
+				tc.mutate(&invalid)
+				_, err := db.BindCheckpoint(ctx, invalid)
+				if !errors.Is(err, tc.want) {
+					t.Fatalf("binding ownership error = %v, want %v", err, tc.want)
+				}
+				if tc.reason != "" {
+					var reason *looppkg.ReasonError
+					if !errors.As(err, &reason) || reason.Code != tc.reason {
+						t.Fatalf("binding ownership reason = %v, want %s", err, tc.reason)
+					}
+				}
+			})
 		}
 		if _, err := db.BindCheckpoint(ctx, request); err != nil {
 			t.Fatal(err)

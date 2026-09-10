@@ -195,6 +195,8 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targe
 			}
 			segment.binding = binding
 			if err := e.bindCheckpoint(ctx, segment); err != nil {
+				// The binding store already owns this durable session. Preserve it for
+				// fenced retry or Run cancellation; a stale executor must not close it.
 				return err
 			}
 			segment.resolvedRuntime = appliedGoalRuntime(

@@ -797,6 +797,17 @@ func (s *fakeExecutorStore) BindCheckpoint(_ context.Context, req BindCheckpoint
 		s.checkpoint.Phase != req.ExpectedPhase {
 		return Checkpoint{}, loop.ErrTransitionConflict
 	}
+	if s.checkpoint.SessionID != req.SessionID || s.checkpoint.BindingHandle != req.BindingHandle ||
+		s.checkpoint.BindingEpoch != req.BindingEpoch {
+		// Model binding activation plus checkpoint adoption. Recovery and context
+		// belong to this binding; turn budgets and judge failure streaks do not.
+		s.checkpoint.RecoveryStreak = 0
+		s.checkpoint.CompactionRecoveryRequired = false
+		s.checkpoint.ContextState = contextStateUnknown
+		s.checkpoint.UsageSequence = nil
+		s.checkpoint.UsagePendingAfterSequence = nil
+		s.checkpoint.CompactionBaselineUsed = nil
+	}
 	s.checkpoint.SessionID = req.SessionID
 	s.checkpoint.BindingHandle = req.BindingHandle
 	s.checkpoint.BindingEpoch = req.BindingEpoch

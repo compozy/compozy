@@ -657,15 +657,25 @@ func TestManagerDelete(t *testing.T) {
 				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
 				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "restore-me")
-				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-					t.Fatalf("Stop() error = %v", err)
-				}
+				// Invariant: deletion rollback restores history without resurrecting stopped execution.
+				// Owner: session deletion; canonical manager deletion rollback case.
+				var goalCanceled atomic.Bool
+				h.manager.SetGoalCommandHandler(&stopGoalHandler{stop: func(_ context.Context, info *Info) error {
+					if info.ID != session.ID || info.StopCause != CauseUserRequested {
+						t.Errorf("deletion stop identity = %#v", info)
+					}
+					goalCanceled.Store(true)
+					return nil
+				}})
 				deleteErr := errors.New("catalog delete failed")
 				catalog.deleteErr = deleteErr
 
 				err := h.manager.Delete(testutil.Context(t), session.ID)
 				if !errors.Is(err, deleteErr) {
 					t.Fatalf("Delete() error = %v, want %v", err, deleteErr)
+				}
+				if !goalCanceled.Load() || session.Info().State != StateStopped {
+					t.Fatal("catalog rollback resurrected execution or omitted Goal cancellation")
 				}
 				if _, err := os.Stat(session.SessionDir()); err != nil {
 					t.Fatalf("Stat(restored session dir) error = %v", err)
