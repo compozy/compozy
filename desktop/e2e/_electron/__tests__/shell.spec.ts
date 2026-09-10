@@ -57,6 +57,8 @@ async function ensureProjectWorkspaceID(desktop: DesktopInstance, product: Page)
   if (added) {
     await product.reload({ waitUntil: "domcontentloaded" });
     await expect(product.getByTestId("os-desktop")).toBeVisible();
+    await product.getByRole("menuitem", { name: /Global/u }).click();
+    await product.getByTestId(`os-workspace-option-${id}`).click();
     await expect
       .poll(async () => {
         return await product.evaluate(async workspaceID => {
@@ -69,8 +71,6 @@ async function ensureProjectWorkspaceID(desktop: DesktopInstance, product: Page)
         }, id);
       })
       .toBe(true);
-    await product.getByRole("menuitem", { name: /Global/u }).click();
-    await product.getByTestId(`os-workspace-option-${id}`).click();
     await expect(product.getByRole("button", { name: /Global scope/u })).toHaveAttribute(
       "aria-pressed",
       "false"
