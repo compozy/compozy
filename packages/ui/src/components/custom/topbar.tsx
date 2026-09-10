@@ -220,7 +220,7 @@ function TopbarTitle({
         <PopoverContent
           align="start"
           aria-label="Full title"
-          className="max-w-[calc(100vw-2rem)] whitespace-pre-wrap select-text [overflow-wrap:anywhere]"
+          className="max-h-64 max-w-[calc(100vw-2rem)] overflow-auto whitespace-pre-wrap select-text [overflow-wrap:anywhere]"
         >
           {children}
         </PopoverContent>
