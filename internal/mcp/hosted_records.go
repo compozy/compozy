@@ -10,9 +10,11 @@ import (
 	"fmt"
 
 	"os"
+	"reflect"
 
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -43,6 +45,7 @@ func (s *HostedService) bindLaunch(
 	launch.established = true
 	launch.bindID = bindID
 	record := &hostedBindRecord{
+		digestMemo:    new(hostedProjectionDigestMemo),
 		bindID:        bindID,
 		sessionID:     launch.sessionID,
 		profileID:     launch.profileID,
@@ -99,15 +102,42 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	return s.projectionForGeneration(ctx, record, registry)
 }
 
-func hostedProjectionResponse(views []tools.ToolView) HostedProjectionResponse {
-	sorted := append([]tools.ToolView(nil), views...)
+func hostedProjectionResponse(views []tools.ToolView, memo *hostedProjectionDigestMemo) HostedProjectionResponse {
+	sorted := cloneToolViews(views)
+	if len(sorted) == 0 {
+		sorted = nil
+	}
 	slices.SortFunc(sorted, func(left, right tools.ToolView) int {
 		return strings.Compare(left.Descriptor.ID.String(), right.Descriptor.ID.String())
 	})
 	return HostedProjectionResponse{
-		Tools:  cloneToolViews(sorted),
-		Digest: hostedProjectionDigest(sorted),
+		Tools:  sorted,
+		Digest: memo.digestFor(sorted),
 	}
+}
+
+type hostedProjectionDigestMemo struct {
+	mu     sync.Mutex
+	views  []tools.ToolView
+	digest string
+}
+
+func (m *hostedProjectionDigestMemo) digestFor(views []tools.ToolView) string {
+	if m == nil {
+		return hostedProjectionDigest(views)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Complete equality avoids repeated JSON schema encoding without omitting present or future view fields.
+	if m.digest != "" && reflect.DeepEqual(m.views, views) {
+		return m.digest
+	}
+	digest := hostedProjectionDigest(views)
+	if digest != "" {
+		m.views = cloneToolViews(views)
+		m.digest = digest
+	}
+	return digest
 }
 
 func (s *HostedService) validatePeer(peer PeerInfo) error {

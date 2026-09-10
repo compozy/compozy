@@ -147,6 +147,7 @@ type hostedLaunchRecord struct {
 }
 
 type hostedBindRecord struct {
+	digestMemo    *hostedProjectionDigestMemo
 	bindID        string
 	sessionID     string
 	profileID     string

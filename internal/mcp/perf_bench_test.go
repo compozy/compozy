@@ -11,6 +11,7 @@ import (
 func BenchmarkHostedProjectionGenerationCache(b *testing.B) {
 	registry := benchmarkHostedRegistry(b, 120)
 	record := &hostedBindRecord{
+		digestMemo:  new(hostedProjectionDigestMemo),
 		bindID:      "bench-bind",
 		sessionID:   "bench-session",
 		workspaceID: "bench-workspace",

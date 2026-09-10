@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -139,7 +140,7 @@ func TestHostedProjectionResponse(t *testing.T) {
 			hostedToolView("compozy__alpha"),
 		}
 
-		projection := hostedProjectionResponse(views)
+		projection := hostedProjectionResponse(views, new(hostedProjectionDigestMemo))
 		if got, want := hostedToolIDs(
 			projection.Tools,
 		), []string{
@@ -155,6 +156,202 @@ func TestHostedProjectionResponse(t *testing.T) {
 			t.Fatalf("registry-owned views = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should preserve empty projection encoding and digest", func(t *testing.T) {
+		t.Parallel()
+
+		memo := new(hostedProjectionDigestMemo)
+		for _, views := range [][]tools.ToolView{nil, {}} {
+			projection := hostedProjectionResponse(views, memo)
+			if projection.Tools != nil {
+				t.Fatalf("empty projection tools = %#v, want nil", projection.Tools)
+			}
+			requireHostedProjectionDigest(t, projection)
+		}
+	})
+
+	t.Run("Should isolate digest snapshots from input and output mutations", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name   string
+			output bool
+		}{
+			{name: "Should isolate backend capabilities supplied by the caller"},
+			{name: "Should isolate backend capabilities returned to the caller", output: true},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				memo := new(hostedProjectionDigestMemo)
+				views := []tools.ToolView{hostedToolView("compozy__alpha")}
+				views[0].Descriptor.Backend.RequiresCapabilities = []string{"files.read"}
+				first := hostedProjectionResponse(views, memo)
+				if testCase.output {
+					views = first.Tools
+				}
+				views[0].Descriptor.Backend.RequiresCapabilities[0] = "files.write"
+				changed := hostedProjectionResponse(views, memo)
+				requireHostedProjectionDigest(t, changed)
+				if changed.Digest == first.Digest {
+					t.Fatal("backend capability mutation retained the previous digest")
+				}
+			})
+		}
+
+		memo := new(hostedProjectionDigestMemo)
+		views := []tools.ToolView{hostedToolView("compozy__alpha")}
+		first := hostedProjectionResponse(views, memo)
+		views[0].Descriptor.DisplayTitle = "Input changed"
+		changed := hostedProjectionResponse(views, memo)
+		requireHostedProjectionDigest(t, changed)
+		if changed.Digest == first.Digest {
+			t.Fatal("input mutation retained the previous digest")
+		}
+		changed.Tools[0].Descriptor.InputSchema = json.RawMessage(`{"type":"array"}`)
+		changed.Tools[0].Decision.ReasonCodes = []tools.ReasonCode{tools.ReasonPolicyDenied}
+		fromOutput := hostedProjectionResponse(changed.Tools, memo)
+		requireHostedProjectionDigest(t, fromOutput)
+		if fromOutput.Digest == changed.Digest {
+			t.Fatal("output mutation retained the previous digest")
+		}
+		fromOutput.Tools[0].Descriptor.InputSchema[0] = '!'
+		invalid := hostedProjectionResponse(fromOutput.Tools, memo)
+		if invalid.Digest != "" {
+			t.Fatalf("mutated raw schema digest = %q, want empty", invalid.Digest)
+		}
+		original := hostedProjectionResponse(first.Tools, memo)
+		if original.Digest != first.Digest {
+			t.Fatalf("original digest = %q, want %q", original.Digest, first.Digest)
+		}
+	})
+
+	t.Run("Should return an empty digest for invalid schema JSON and recover after repair", func(t *testing.T) {
+		t.Parallel()
+
+		memo := new(hostedProjectionDigestMemo)
+		views := []tools.ToolView{hostedToolView("compozy__alpha")}
+		valid := hostedProjectionResponse(views, memo)
+		for _, schema := range []string{`{"type":`, ``, `{"type":`} {
+			views[0].Descriptor.InputSchema = json.RawMessage(schema)
+			projection := hostedProjectionResponse(views, memo)
+			if schema == "" {
+				requireHostedProjectionDigest(t, projection)
+			} else if projection.Digest != "" {
+				t.Fatalf("invalid schema digest = %q, want empty", projection.Digest)
+			}
+		}
+		repaired := hostedProjectionResponse(valid.Tools, memo)
+		if repaired.Digest != valid.Digest {
+			t.Fatalf("repaired digest = %q, want %q", repaired.Digest, valid.Digest)
+		}
+	})
+
+	t.Run("Should keep concurrent digest snapshots isolated", func(t *testing.T) {
+		t.Parallel()
+
+		memo := new(hostedProjectionDigestMemo)
+		var group sync.WaitGroup
+		for _, id := range []tools.ToolID{"compozy__alpha", "compozy__beta"} {
+			group.Go(func() {
+				views := []tools.ToolView{hostedToolView(id)}
+				for range 8 {
+					requireHostedProjectionDigest(t, hostedProjectionResponse(views, memo))
+				}
+			})
+		}
+		group.Wait()
+	})
+
+	cases := []struct {
+		name   string
+		change func(*tools.ToolView)
+	}{
+		{name: "Should detect tool identity changes", change: func(v *tools.ToolView) {
+			v.Descriptor.ID = "compozy__beta"
+		}},
+		{name: "Should detect input schema changes with the same declared digest", change: func(v *tools.ToolView) {
+			v.Descriptor.InputSchema = json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}}}`)
+		}},
+		{name: "Should detect output schema changes with the same declared digest", change: func(v *tools.ToolView) {
+			v.Descriptor.OutputSchema = json.RawMessage(`{"type":"array"}`)
+		}},
+		{name: "Should detect source and workspace identity changes", change: func(v *tools.ToolView) {
+			v.Descriptor.Source.WorkspaceID = "workspace-2"
+			v.Descriptor.Source.ResourceVersion = "version-2"
+		}},
+		{name: "Should detect backend changes", change: func(v *tools.ToolView) {
+			v.Descriptor.Backend.NativeName = "changed_handler"
+		}},
+		{name: "Should detect presentation changes", change: func(v *tools.ToolView) {
+			v.Descriptor.FriendlyVerb = "Reading <details>"
+		}},
+		{name: "Should detect description changes", change: func(v *tools.ToolView) {
+			v.Descriptor.Description = "Changed description"
+		}},
+		{name: "Should detect toolset and search metadata changes", change: func(v *tools.ToolView) {
+			v.Descriptor.Toolsets = []tools.ToolsetID{tools.ToolsetIDCatalog}
+			v.Descriptor.Tags = []string{"changed"}
+			v.Descriptor.SearchHints = []string{"changed hint"}
+		}},
+		{name: "Should detect declared schema digest changes", change: func(v *tools.ToolView) {
+			v.Descriptor.InputSchemaDigest = "changed-input"
+			v.Descriptor.OutputSchemaDigest = "changed-output"
+		}},
+		{name: "Should detect risk and visibility changes", change: func(v *tools.ToolView) {
+			v.Descriptor.Visibility = tools.VisibilityOperator
+			v.Descriptor.Risk = tools.RiskMutating
+			v.Descriptor.ReadOnly = false
+			v.Descriptor.Destructive = true
+			v.Descriptor.OpenWorld = true
+			v.Descriptor.RequiresInteraction = true
+			v.Descriptor.ConcurrencySafe = true
+			v.Descriptor.MaxResultBytes = 2048
+		}},
+		{name: "Should detect live availability changes", change: func(v *tools.ToolView) {
+			v.Availability.Executable = false
+			v.Availability.ReasonCodes = []tools.ReasonCode{tools.ReasonBackendUnhealthy}
+		}},
+		{name: "Should detect live policy changes", change: func(v *tools.ToolView) {
+			v.Decision.Callable = false
+			v.Decision.ApprovalRequired = true
+			v.Decision.SessionPolicyResult = "denied"
+			v.Decision.ReasonCodes = []tools.ReasonCode{tools.ReasonPolicyDenied}
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			memo := new(hostedProjectionDigestMemo)
+			views := []tools.ToolView{hostedToolView("compozy__alpha")}
+			views[0].Descriptor.InputSchemaDigest = "declared-input"
+			views[0].Descriptor.OutputSchemaDigest = "declared-output"
+			first := hostedProjectionResponse(views, memo)
+			requireHostedProjectionDigest(t, first)
+			testCase.change(&views[0])
+			for range 2 {
+				changed := hostedProjectionResponse(views, memo)
+				requireHostedProjectionDigest(t, changed)
+				if changed.Digest == first.Digest {
+					t.Fatal("changed projection retained the previous digest")
+				}
+			}
+		})
+	}
+}
+
+func requireHostedProjectionDigest(t *testing.T, projection HostedProjectionResponse) {
+	t.Helper()
+
+	payload, err := json.Marshal(projection.Tools)
+	if err != nil {
+		t.Fatalf("json.Marshal(projection.Tools) error = %v", err)
+	}
+	want := fmt.Sprintf("%x", sha256.Sum256(payload))
+	if projection.Digest != want {
+		t.Fatalf("projection digest = %q, want canonical JSON SHA256 %q", projection.Digest, want)
+	}
 }
 
 func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
@@ -699,6 +896,23 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
 			t.Fatalf("registry List calls = %d, want %d for unknown generation", got, want)
+		}
+		changedView := hostedToolView("compozy__alpha")
+		changedView.Descriptor.InputSchema = json.RawMessage(`{"type":"object"}`)
+		changedView.Availability.Executable = false
+		changedView.Decision.Callable = false
+		registry.replaceViews([]tools.ToolView{changedView})
+		changed, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(changed without generation) error = %v", err)
+		}
+		requireHostedProjectionDigest(t, changed)
+		if changed.Digest == bind.Digest || changed.Tools[0].Availability.Executable ||
+			changed.Tools[0].Decision.Callable {
+			t.Fatal("projection retained stale schema, availability, or policy without an authoritative generation")
+		}
+		if got, want := registry.listCallCount(), baselineCalls+3; got != want {
+			t.Fatalf("registry List calls = %d, want %d after live changes", got, want)
 		}
 	})
 

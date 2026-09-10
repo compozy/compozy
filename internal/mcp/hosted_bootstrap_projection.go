@@ -34,7 +34,7 @@ func (s *HostedService) bootstrapProjection(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	response := hostedProjectionResponse(views)
+	response := hostedProjectionResponse(views, record.digestMemo)
 	if !known {
 		return response, nil
 	}
