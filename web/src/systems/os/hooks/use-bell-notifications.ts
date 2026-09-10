@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { dashboardKeys } from "@/systems/dashboard";
 import {
   acknowledgeAttentionNotifications,
@@ -14,11 +13,12 @@ import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model
 
 export function useBellNotifications(mutedWorkspaceIds: ReadonlySet<string>) {
   const { destination } = useProfileReadScope();
-  const visible = useDocumentVisible();
   const queryClient = useQueryClient();
   const query = useQuery({
     ...attentionNotificationsOptions(destination),
-    refetchInterval: visible ? 5_000 : false,
+    // The tab title must stay current even when the shell is in the background.
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
   });
   const mutation = useMutation({
     mutationFn: ({ snapshot, id, profile }: { snapshot: string; id?: string; profile: string }) =>
