@@ -13,6 +13,7 @@ import {
   fetchWindowManagerSnapshot,
   WindowManagerApiError,
 } from "../../adapters/window-manager-api";
+import type { WindowCloseGuard } from "../../lib/window-close-targets";
 import type { OsWindowRoute } from "../../lib/os-types";
 import { createTileSnapTarget } from "../../lib/snap-targets";
 import { windowManagerKeys } from "../../lib/window-manager-query";
@@ -2320,13 +2321,13 @@ describe("WindowManagerRuntime guarded close", () => {
     ["right", ["app:agents"]],
   ] as const)("Should confirm only targets in the %s scope", async (scope, ids) => {
     const { runtime } = setup();
-    const guard = vi.fn(async () => false);
+    const guard = vi.fn<WindowCloseGuard>(async () => false);
     runtime.setCloseGuard(guard);
     await expect(runtime.closeWindowScoped("app:tasks", scope)).resolves.toBe(false);
-    expect(guard).toHaveBeenCalledWith(
-      expect.arrayContaining(ids.map(id => expect.objectContaining({ id }))),
-      expect.any(Function)
-    );
+    expect(guard).toHaveBeenCalledTimes(1);
+    const [targets, isCurrent] = guard.mock.calls[0]!;
+    expect(targets.map(target => target.id)).toEqual(ids);
+    expect(isCurrent).toEqual(expect.any(Function));
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();
     runtime.stop();
   });

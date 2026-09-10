@@ -149,6 +149,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   private closeGuard: WindowCloseGuard | null = null;
   private closePending = false;
 
+  /** Installs operator lifecycle admission; replacing it invalidates pending close requests. */
   setCloseGuard(guard: WindowCloseGuard | null): void {
     this.closeGuard = guard;
   }
@@ -230,6 +231,7 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
 
   reopenWindow = (): WindowManagerCommandOutcome => this.dispatch(reopenWindowCommand());
 
+  /** Serializes close admission and fences the final command to the inspected targets and revision. */
   closeWindowScoped = async (windowId: string, scope: OsCloseScope): Promise<boolean> => {
     if (!this.closeGuard) return this.dispatch(closeWindowCommand(windowId, scope)).completion;
     if (this.closePending || !windowManagerCommandsAvailable(this.view)) return false;

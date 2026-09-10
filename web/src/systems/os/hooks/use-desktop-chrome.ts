@@ -89,7 +89,7 @@ export function useDesktopChrome(
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   const [terminalClose] = useState(() => new TerminalWindowClose());
   useEffect(() => {
-    manager.setCloseGuard(terminalClose.guard(terminalWorkspaceId, queryClient, profileId));
+    manager.setCloseGuard(terminalClose.guard(terminalWorkspaceId, queryClient));
     return () => {
       terminalClose.cancel();
       manager.setCloseGuard(null);

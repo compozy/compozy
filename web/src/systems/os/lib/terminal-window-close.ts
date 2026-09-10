@@ -9,18 +9,21 @@ interface CloseConfirmation {
   answer: (confirmed: boolean) => void;
 }
 
-export const terminalWindowCreateKey = (workspaceId: string, profile: string, windowId: string) =>
-  ["terminal-window-create", workspaceId, profile, windowId] as const;
+/** Tracks launcher creation across destination-profile changes. */
+export const terminalWindowCreateKey = (workspaceId: string, windowId: string) =>
+  ["terminal-window-create", workspaceId, windowId] as const;
 
 /** Operator-only orchestration; native window close remains view-only. */
 export class TerminalWindowClose {
   readonly confirmation = createAtom<CloseConfirmation | null>(null);
 
+  /** Rejects a pending confirmation when its shell binding is replaced. */
   cancel(): void {
     this.confirmation.get()?.answer(false);
   }
 
-  guard(workspaceId: string | null, queryClient: QueryClient, profile: string): WindowCloseGuard {
+  /** Admits window removal only after every confirmed terminal close has settled successfully. */
+  guard(workspaceId: string | null, queryClient: QueryClient): WindowCloseGuard {
     return async (targets, isCurrent) => {
       const windows = targets.filter(window => window.app === "terminal");
       if (windows.length === 0) return true;
@@ -32,7 +35,7 @@ export class TerminalWindowClose {
             window =>
               !window.instanceKey &&
               queryClient.isMutating({
-                mutationKey: terminalWindowCreateKey(workspaceId, profile, window.id),
+                mutationKey: terminalWindowCreateKey(workspaceId, window.id),
                 exact: true,
               }) > 0
           )
@@ -69,37 +72,48 @@ export class TerminalWindowClose {
         // treating the dialog's captured status as daemon truth.
         const current = await readTargets();
         if (!isCurrent()) return false;
-        for (const terminal of current) {
-          if (!isCurrent()) return false;
-          if (terminal.state === "exited") continue;
-          if (
-            !running.some(
-              item => item.id === terminal.id && item.profile_name === terminal.profile_name
-            )
-          ) {
-            throw new Error("The terminal changed while closing. Try again.");
-          }
-          try {
-            const exit = await api.closeTerminal(
-              workspaceId,
-              terminal.id,
-              { profile: terminal.profile_name },
-              "HUP",
-              AbortSignal.timeout(15000)
-            );
-            if (exit === null)
-              throw new Error("Terminal termination was not confirmed. Try again.");
-          } catch (error) {
-            if (
-              !(error instanceof api.TerminalApiError && error.domainCode === "terminal_not_found")
-            ) {
-              throw error;
-            }
-          }
+        const toClose = current.filter(terminal => terminal.state !== "exited");
+        // Validate the complete batch before starting any destructive request.
+        if (
+          toClose.some(
+            terminal =>
+              !running.some(
+                item => item.id === terminal.id && item.profile_name === terminal.profile_name
+              )
+          )
+        ) {
+          throw new Error("The terminal changed while closing. Try again.");
         }
+        // Keep close admission locked until every independent request settles,
+        // including after a partial failure, so a retry cannot overlap this batch.
+        const results = await Promise.allSettled(
+          toClose.map(async terminal => {
+            try {
+              const exit = await api.closeTerminal(
+                workspaceId,
+                terminal.id,
+                { profile: terminal.profile_name },
+                "HUP",
+                AbortSignal.timeout(15000)
+              );
+              if (exit === null)
+                throw new Error("Terminal termination was not confirmed. Try again.");
+            } catch (error) {
+              if (
+                !(
+                  error instanceof api.TerminalApiError && error.domainCode === "terminal_not_found"
+                )
+              ) {
+                throw error;
+              }
+            }
+          })
+        );
         await queryClient.invalidateQueries({
           predicate: query => query.queryKey[0] === "terminal" && query.queryKey[2] === workspaceId,
         });
+        const failure = results.find(result => result.status === "rejected");
+        if (failure) throw failure.reason;
         return isCurrent();
       } catch (error) {
         toast.error("Could not close terminal", {

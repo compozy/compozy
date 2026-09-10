@@ -48,7 +48,7 @@ layout/scope checks precede termination; the final close is revision-fenced.
 
 ## Verification
 
-- Focused Turbo unit run: 103 tests passed across four existing suites.
+- Focused Turbo unit run: 105 tests passed across four existing suites.
 - First typecheck found a missing timestamp in the new exit fixture; corrected before final checks.
 - Repository-root Turbo typecheck and production build passed.
 - Final real E2E run: E2E-002, E2E-020 and E2E-019 passed (3 tests), using isolated launch runtimes and the production bundle.
@@ -56,10 +56,19 @@ layout/scope checks precede termination; the final close is revision-fenced.
 - E2E-020 disconnects the actual browser transport before confirmation; visible failure preserves the window and running process. Reconnect/reload restores the same terminal; Stop preserves its window; exited close is direct.
 - Manual browser QA: Cancel receives initial focus; keyboard and window-menu close use the same dialog; two viewers observe a shared exit; Tasks closes normally. A mixed Tasks/alpha/beta group lists only running terminals. Close others cancellation preserves the group, Close right ends beta only, and final group close ends alpha/removes Tasks while an external terminal remains running.
 - Native compatibility probe: CLI window close removes the managed view; a subsequent terminal get still reports running with zero viewers.
-- React Doctor on all 16 committed changed-source files: 93/100; one `async-await-in-loop` advisory. Termination is deliberately sequential so each target is fenced again and the first failure stops further termination. The earlier 100/100 scan included only the 13 already tracked files.
+- React Doctor on all 16 changed-source files: 100/100, no issues. Confirmed independent terminations run concurrently behind an all-settled barrier; partial failure retains all windows until every request completes.
 - Global-scope regression: close resolves the retained desktop's owning project even while the data destination is unscoped; E2E-002 and E2E-020 passed with Global enabled before running/exited close.
 - QA teardown reported `clean: true`, with no surviving registered processes.
-- Delivery commands: `make gate` and current-head required PR checks; their final outcomes are recorded in the pull request.
+- The initial implementation passed `make gate`. After review remediation, the operator explicitly moved full gates to CI; the queued local rerun was canceled before acquiring capacity. Current-head CI owns final full-gate verification, with outcomes recorded in the pull request.
+
+## Review remediation
+
+- React Doctor: replaced sequential termination with a fully validated concurrent batch. The existing controller suite covers partial-failure settlement, retrying only surviving processes, and rejecting unconfirmed owner changes before any termination.
+- CodeRabbit: launcher creation is keyed by workspace/window, so changing the destination profile cannot hide an in-flight creation. The existing controller suite retains the launcher across guard rebinding and allows close after failed creation.
+- CodeRabbit: scope tests now assert one guard call with the exact ordered target IDs, excluding additional or unrelated terminals.
+- CodeRabbit documentation check: documented the lifecycle contracts of the touched controller, guard, dialog, and mutation-key functions.
+- CodeRabbit excluded-path check: manually reviewed all seven excluded documentation, official-skill, and E2E files against issue #594. The scenario matrix and real-run evidence above cover the changed operator contract; native view-only close and retained history remain explicit.
+- Greptile's initial and documentation-follow-up reviews reported 5/5 with no actionable findings. Current-head review and CI outcomes are tracked in the pull request.
 
 ## Runtime limitations
 

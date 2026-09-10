@@ -10,6 +10,7 @@ import {
 } from "@compozy/ui";
 import type { TerminalWindowClose } from "../lib/terminal-window-close";
 
+/** Confirms process termination for the captured close scope, with Cancel focused first. */
 export function TerminalCloseDialog({ controller }: { controller: TerminalWindowClose }) {
   const confirmation = useAtom(controller.confirmation);
   return (

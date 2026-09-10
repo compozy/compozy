@@ -8,7 +8,7 @@
 // stale scope, or failed termination keeps the managed window retryable.
 
 import { QueryClient } from "@tanstack/react-query";
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@compozy/ui";
 import { closeTerminal, fetchTerminals, TerminalApiError } from "@/systems/terminal";
@@ -50,7 +50,9 @@ const terminalExit = {
 beforeEach(() => {
   vi.mocked(fetchTerminals).mockReset().mockResolvedValue([DEV_SERVER_TERMINAL]);
   vi.mocked(closeTerminal).mockReset().mockResolvedValue(terminalExit);
-  vi.spyOn(toast, "error").mockImplementation(() => "toast");
+  vi.spyOn(toast, "error")
+    .mockClear()
+    .mockImplementation(() => "toast");
 });
 
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
@@ -76,7 +78,7 @@ describe("useTerminalWindowControllerState journal and recording host gates", ()
 describe("terminal window close lifecycle", () => {
   function setup() {
     const controller = new TerminalWindowClose();
-    const guard = controller.guard("ws-close", new QueryClient(), "default");
+    const guard = controller.guard("ws-close", new QueryClient());
     return { controller, guard };
   }
 
@@ -108,12 +110,12 @@ describe("terminal window close lifecycle", () => {
     );
   });
 
-  it("Should retain a pending launcher and allow closing it after creation fails", async () => {
+  it("Should retain pending creation across a shell rebind and allow closing after failure", async () => {
     const client = new QueryClient();
     const controller = new TerminalWindowClose();
     let fail!: (error: Error) => void;
     const mutation = client.getMutationCache().build(client, {
-      mutationKey: terminalWindowCreateKey("ws-close", "default", terminalWindow.id),
+      mutationKey: terminalWindowCreateKey("ws-close", terminalWindow.id),
       mutationFn: () =>
         new Promise((_resolve, reject) => {
           fail = reject;
@@ -121,12 +123,93 @@ describe("terminal window close lifecycle", () => {
     });
     const creation = mutation.execute(undefined).catch(() => undefined);
     await waitFor(() => expect(fail).toBeDefined());
-    const guard = controller.guard("ws-close", client, "default");
+    const guard = controller.guard("ws-close", client);
     const launcher = { ...terminalWindow, instanceKey: null };
     await expect(guard([launcher], () => true)).resolves.toBe(false);
+    // Profile switches replace the shell guard, but creation still belongs to
+    // the same workspace/window even while its destination profile changes.
+    controller.cancel();
+    const rebound = controller.guard("ws-close", client);
+    await expect(rebound([launcher], () => true)).resolves.toBe(false);
     fail(new Error("create unavailable"));
     await creation;
-    await expect(guard([launcher], () => true)).resolves.toBe(true);
+    await expect(rebound([launcher], () => true)).resolves.toBe(true);
+    expect(closeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should await all concurrent closes after partial failure before allowing a fresh retry", async () => {
+    const second = { ...DEV_SERVER_TERMINAL, id: "second", profile_name: "second-profile" };
+    vi.mocked(fetchTerminals).mockResolvedValue([DEV_SERVER_TERMINAL, second]);
+    let rejectFirst!: (error: Error) => void;
+    let resolveSecond!: (exit: typeof terminalExit) => void;
+    vi.mocked(closeTerminal)
+      .mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          resolveSecond = resolve;
+        })
+      );
+    const { controller, guard } = setup();
+    const windows = [
+      terminalWindow,
+      { ...terminalWindow, id: "window:second", instanceKey: second.id },
+    ];
+    const settled = vi.fn();
+    const result = guard(windows, () => true).then(settled);
+    await waitFor(() => expect(controller.confirmation.get()).not.toBeNull());
+    controller.confirmation.get()?.answer(true);
+    await waitFor(() => expect(closeTerminal).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      rejectFirst(new Error("first close refused"));
+    });
+    expect(settled).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    resolveSecond(terminalExit);
+    await result;
+    expect(settled).toHaveBeenCalledExactlyOnceWith(false);
+    expect(toast.error).toHaveBeenCalledWith("Could not close terminal", {
+      description: "first close refused",
+    });
+
+    vi.mocked(fetchTerminals).mockResolvedValue([
+      DEV_SERVER_TERMINAL,
+      { ...second, state: "exited" },
+    ]);
+    const retry = guard(windows, () => true);
+    await waitFor(() =>
+      expect(controller.confirmation.get()?.terminals).toEqual([DEV_SERVER_TERMINAL])
+    );
+    controller.confirmation.get()?.answer(true);
+    await expect(retry).resolves.toBe(true);
+    expect(closeTerminal).toHaveBeenCalledTimes(3);
+    expect(closeTerminal).toHaveBeenLastCalledWith(
+      "ws-close",
+      DEV_SERVER_TERMINAL.id,
+      { profile: DEV_SERVER_TERMINAL.profile_name },
+      "HUP",
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should reject the complete batch before terminating any unconfirmed profile", async () => {
+    const second = { ...DEV_SERVER_TERMINAL, id: "second" };
+    vi.mocked(fetchTerminals).mockResolvedValue([DEV_SERVER_TERMINAL, second]);
+    const { controller, guard } = setup();
+    const result = guard(
+      [terminalWindow, { ...terminalWindow, id: "window:second", instanceKey: second.id }],
+      () => true
+    );
+    await waitFor(() => expect(controller.confirmation.get()).not.toBeNull());
+    vi.mocked(fetchTerminals).mockResolvedValue([
+      DEV_SERVER_TERMINAL,
+      { ...second, profile_name: "changed" },
+    ]);
+    controller.confirmation.get()?.answer(true);
+    await expect(result).resolves.toBe(false);
     expect(closeTerminal).not.toHaveBeenCalled();
   });
 

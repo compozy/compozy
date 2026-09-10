@@ -62,6 +62,7 @@ function windowedTerminalKeys(state: TerminalWindowRouteState, currentWindowId: 
   return keys.sort().join("\n");
 }
 
+/** Owns terminal creation, process controls, and retained journal state for one managed window. */
 export function useTerminalWindowControllerState(windowId: string) {
   // Chips are the interaction state; the query reads their projection, so a
   // chip still being typed filters nothing until it carries a value.
@@ -148,7 +149,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   };
 
   const create = useMutation({
-    mutationKey: terminalWindowCreateKey(workspaceId, profile.destination, windowId),
+    mutationKey: terminalWindowCreateKey(workspaceId, windowId),
     mutationFn: (identity: TerminalViewerIdentity) =>
       createTerminal(workspaceId, {}, destinationScope.params, identity),
     onSuccess: async terminal => {
