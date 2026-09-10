@@ -1,8 +1,0 @@
-# Change impact
-
-- Native tools: existing session/prompt/config tools retain the same IDs and fields. Reasoning effort is a provider-owned string, with malformed identifiers rejected and model membership checked during ACP negotiation or Cursor transport selection. CLI/HTTP/UDS share this boundary.
-- Extensibility/hooks/config: existing discovery overrides remain honored. Codex uses native model/list; OpenCode verbose discovery exposes ACP variants; Cursor keeps exact launch bindings. Existing hook fields and extension rows retain their string shape, now accepting future effort IDs.
-- Workspace isolation: existing profile/workspace execution fingerprints and persistence remain authoritative. Native Codex discovery changes its fingerprint to invalidate the former capability-free ACP catalog. OpenCode Zen enrichment uses native opencode/model IDs; discovered rows are rebuilt by the existing source replacement boundary. No SQLite schema or workspace file shape changes.
-- Official skill: runtime reference describes provider-advertised effort values and the distinction between default and explicit none.
-- Web/docs: OpenAPI and SDK generators emit string effort fields and preserve the public ReasoningEffort TypeScript export. The shared selector keeps each model's subset, labels known values and preserves future identifiers. Site documentation and owning QA scenarios describe and verify the behavior.
-- Compatibility: additive accepted values in existing string fields; every previous value remains valid. No routes, keys or tool IDs removed; existing persisted state remains readable without a migration. Configured model metadata intentionally retains precedence over live discovery.
