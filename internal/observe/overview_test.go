@@ -585,7 +585,7 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		}
 		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
 			ID: "neutral-escalation-wake", TaskID: "task-escalated", EventType: "task.wake.requested",
-			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
 			Timestamp: f.now.Add(time.Minute),
 		}); err != nil {
 			t.Fatal(err)
@@ -601,7 +601,7 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		if _, err := f.registry.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
 			TaskID: "task-escalated", Note: "Operator resolved escalation", ClearedAt: f.now.Add(2 * time.Minute),
 			Actor: taskpkg.ActorContext{
-				Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+				Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
 				Authority: taskpkg.Authority{Read: true, Write: true}, Scope: taskpkg.CallerScope{Operator: true},
 			},
 		}); err != nil {
@@ -609,7 +609,7 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		}
 		if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
 			TaskID: "task-escalated", Reason: "New escalation", MarkedAt: f.now.Add(3 * time.Minute),
-			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -671,9 +671,15 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 			}
 			// A wake audit event changes LatestEventSeq, not the pending approval occurrence.
 			if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
-				ID: "event-neutral-wake", TaskID: "task-approval-000", EventType: "task.wake.requested",
-				Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
-				Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(time.Minute),
+				ID:        "event-neutral-wake",
+				TaskID:    "task-approval-000",
+				EventType: "task.wake.requested",
+				Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+				Origin: taskpkg.Origin{
+					Kind: taskpkg.OriginKindHTTP,
+					Ref:  "overview-test",
+				},
+				Timestamp: f.now.Add(time.Minute),
 			}); err != nil {
 				t.Fatalf("CreateTaskEvent() error = %v", err)
 			}
@@ -714,10 +720,16 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 				t.Fatal("expected true: inbox.HasMore")
 			}
 			if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
-				ID: "event-new-approval", TaskID: "task-approval-000", EventType: "task.updated",
-				Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
-				Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(2 * time.Minute),
-				Payload: json.RawMessage(`{"changed_fields":["approval_policy"],"status":"blocked"}`),
+				ID:        "event-new-approval",
+				TaskID:    "task-approval-000",
+				EventType: "task.updated",
+				Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+				Origin: taskpkg.Origin{
+					Kind: taskpkg.OriginKindHTTP,
+					Ref:  "overview-test",
+				},
+				Timestamp: f.now.Add(2 * time.Minute),
+				Payload:   json.RawMessage(`{"changed_fields":["approval_policy"],"status":"blocked"}`),
 			}); err != nil {
 				t.Fatalf("CreateTaskEvent() error = %v", err)
 			}
