@@ -1,4 +1,4 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import { apiClient, apiErrorCode, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   FetchSessionEventsParams,
@@ -91,8 +91,18 @@ export async function fetchSessionHistory(
 }
 
 export class SessionLedgerUnavailableError extends SessionApiError {
-  constructor(id: string) {
-    super(`Session ledger not materialized: ${id}`, 404, id);
+  constructor(
+    id: string,
+    public readonly reason: "not-materialized" | "unsupported" = "not-materialized"
+  ) {
+    super(
+      reason === "unsupported"
+        ? `Session memory unavailable: ${id}`
+        : `Session ledger not materialized: ${id}`,
+      reason === "unsupported" ? 501 : 404,
+      id,
+      reason === "unsupported" ? { code: "memory.unsupported" } : {}
+    );
     this.name = "SessionLedgerUnavailableError";
   }
 }
@@ -112,6 +122,9 @@ export async function fetchSessionLedger(
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
       throw new SessionLedgerUnavailableError(id);
+    }
+    if (response.status === 501 && apiErrorCode(error) === "memory.unsupported") {
+      throw new SessionLedgerUnavailableError(id, "unsupported");
     }
     throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
   }

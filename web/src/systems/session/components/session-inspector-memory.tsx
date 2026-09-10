@@ -54,6 +54,9 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
     );
   }
   if (!memory.ledger) {
+    const unsupported =
+      memory.error instanceof SessionLedgerUnavailableError &&
+      memory.error.reason === "unsupported";
     return (
       <div
         className="flex min-h-full flex-col"
@@ -62,9 +65,13 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
       >
         <Empty
           data-testid="session-inspector-memory-empty"
-          description="The forensic ledger materializes once the session stops. Lineage and ledger event metadata appear here after that."
+          description={
+            unsupported
+              ? "This runtime does not provide session memory."
+              : "The forensic ledger materializes once the session stops. Lineage and ledger event metadata appear here after that."
+          }
           icon={Library}
-          title="No session ledger yet"
+          title={unsupported ? "Session ledger unavailable" : "No session ledger yet"}
         />
       </div>
     );

@@ -10,15 +10,38 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
+
+func (h *BaseHandlers) resolveAuthoredAgentTargetForRequest(
+	c *gin.Context, workspaceRef, agentName string,
+) (authoredAgentTarget, error) {
+	profileName, err := h.agentResourceProfileName(c)
+	if err != nil {
+		return authoredAgentTarget{}, err
+	}
+	return h.resolveAuthoredAgentTarget(c.Request.Context(), workspaceRef, agentName, profileName)
+}
+
+func (h *BaseHandlers) resolveAuthoredAgentTargetForSession(
+	ctx context.Context, info *session.Info,
+) (authoredAgentTarget, error) {
+	profileName, err := h.agentResourceProfileNameForScope(ctx, profilepkg.ReadScope{ProfileID: info.ProfileID})
+	if err != nil {
+		return authoredAgentTarget{}, err
+	}
+	return h.resolveAuthoredAgentTarget(ctx, info.WorkspaceID, info.AgentName, profileName)
+}
 
 func (h *BaseHandlers) resolveAuthoredAgentTarget(
 	ctx context.Context,
 	workspaceRef string,
 	agentName string,
+	profileName string,
 ) (authoredAgentTarget, error) {
 	name := strings.TrimSpace(agentName)
 	if name == "" {
@@ -31,7 +54,7 @@ func (h *BaseHandlers) resolveAuthoredAgentTarget(
 	if h.Workspaces == nil {
 		return authoredAgentTarget{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
-	resolved, err := h.Workspaces.Resolve(ctx, ref)
+	resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, ref, profileName)
 	if err != nil {
 		return authoredAgentTarget{}, err
 	}

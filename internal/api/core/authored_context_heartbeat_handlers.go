@@ -14,8 +14,8 @@ import (
 
 // GetAgentHeartbeat returns the resolved Heartbeat policy for one workspace-visible agent.
 func (h *BaseHandlers) GetAgentHeartbeat(c *gin.Context) {
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		authoredWorkspaceRefFromQuery(c),
 		pathAgentName(c),
 	)
@@ -42,8 +42,8 @@ func (h *BaseHandlers) ValidateAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -84,8 +84,8 @@ func (h *BaseHandlers) PutAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -125,8 +125,8 @@ func (h *BaseHandlers) DeleteAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -157,8 +157,8 @@ func (h *BaseHandlers) ListAgentHeartbeatHistory(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		authoredWorkspaceRefFromQuery(c),
 		pathAgentName(c),
 	)
@@ -212,8 +212,8 @@ func (h *BaseHandlers) RollbackAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)
@@ -251,8 +251,8 @@ func (h *BaseHandlers) GetAgentHeartbeatStatus(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		authoredWorkspaceRefFromQuery(c),
 		pathAgentName(c),
 	)
@@ -312,8 +312,8 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTarget(
-		c.Request.Context(),
+	target, err := h.resolveAuthoredAgentTargetForRequest(
+		c,
 		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
 		agentName,
 	)

@@ -1118,6 +1118,31 @@ describe("fetchSessionLedger", () => {
     });
   });
 
+  it("exposes unsupported session memory as unavailable", async () => {
+    mockJsonResponse(
+      { code: "memory.unsupported", message: "Unsupported memory operation" },
+      { status: 501 }
+    );
+
+    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
+
+    expect(error).toBeInstanceOf(SessionLedgerUnavailableError);
+    expect(error).toMatchObject({ status: 501, code: "memory.unsupported", reason: "unsupported" });
+  });
+
+  it("preserves unrelated not-implemented failures as errors", async () => {
+    mockJsonResponse(
+      { code: "server.unsupported", message: "Unsupported operation" },
+      { status: 501 }
+    );
+
+    const error = await fetchSessionLedger("ws-alpha", "sess-001").catch(error => error);
+
+    expect(error).toBeInstanceOf(SessionApiError);
+    expect(error).not.toBeInstanceOf(SessionLedgerUnavailableError);
+    expect(error).toMatchObject({ status: 501, code: "server.unsupported" });
+  });
+
   it("throws a typed adapter error for non-404 failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
