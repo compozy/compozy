@@ -795,6 +795,25 @@ describe("session timeline derivation", () => {
     expect(foldRow.rows.map(row => row.kind)).toEqual(["work", "data"]);
   });
 
+  it("Should preserve prose across hidden progress ticks and retain every search part", () => {
+    const rows = deriveSessionRows([
+      { ...text("first", "Streaming response ", "turn-stream"), partIndex: 0 },
+      {
+        kind: "data",
+        id: "usage",
+        name: "data-compozy-event",
+        data: { type: "usage" },
+        turnId: "turn-stream",
+      },
+      { ...text("second", "started.", "turn-stream"), partIndex: 2 },
+    ]);
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    if (row?.kind !== "text") throw new Error("expected continuous prose");
+    expect(row.part.text).toBe("Streaming response started.");
+    expect(row.parts.map(part => part.partIndex)).toEqual([0, 2]);
+  });
+
   it("Should keep every text segment visible when a permission splits the response", () => {
     const rows = deriveSessionRows(
       [

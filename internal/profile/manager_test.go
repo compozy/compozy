@@ -14,6 +14,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/notifications"
 	providerpkg "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -692,6 +693,15 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		desktops.byProfile[created.ID] = 2
 		seedMCPAuthProfileLifecycleRows(ctx, t, database, "growth")
+		// Notification history belongs to the deleted profile, not to source work.
+		receiptScope := notifications.AttentionScope{ProfileID: created.ID, ActorKind: "human", ActorID: "operator", Population: "bell"}
+		snapshot, _, err := database.CaptureAttentionSnapshot(ctx, receiptScope, []string{"notification"})
+		if err != nil {
+			t.Fatalf("CaptureAttentionSnapshot() error = %v", err)
+		}
+		if err := database.AcknowledgeAttentionSnapshot(ctx, receiptScope, snapshot, ""); err != nil {
+			t.Fatalf("AcknowledgeAttentionSnapshot() error = %v", err)
+		}
 
 		profileDir := filepath.Join(home.ProfilesDir, "growth")
 		if err := os.WriteFile(
@@ -771,6 +781,16 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if _, err := manager.GetByName(ctx, "growth"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("GetByName(deleted) error = %v, want ErrNotFound", err)
+		}
+
+		for _, table := range []string{"attention_acknowledgements", "attention_snapshots"} {
+			var count int
+			if err := database.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE profile_id = ?", created.ID).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("%s retained %d rows after profile deletion", table, count)
+			}
 		}
 		var eventSummaries int
 		if err := database.DB().QueryRowContext(

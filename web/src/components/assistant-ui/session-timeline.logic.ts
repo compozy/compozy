@@ -102,6 +102,7 @@ interface SessionBaseRow {
 export interface SessionTextRow extends SessionBaseRow {
   kind: "text";
   part: SessionTimelineTextPart;
+  parts: SessionTimelineTextPart[];
 }
 
 export interface SessionReasoningRow extends SessionBaseRow {
@@ -347,7 +348,16 @@ function deriveBaseRows(
 
     flushWorkCluster();
     flushMarkerCluster();
-    rows.push(rowFromPart(part));
+    const previous = rows.at(-1);
+    if (part.kind === "text" && previous?.kind === "text" && previous.turnId === part.turnId) {
+      rows[rows.length - 1] = {
+        ...previous,
+        part: { ...previous.part, text: previous.part.text + part.text, state: part.state },
+        parts: [...previous.parts, part],
+      };
+    } else {
+      rows.push(rowFromPart(part));
+    }
   }
   flushWorkCluster();
   flushMarkerCluster();
@@ -381,6 +391,7 @@ function rowFromPart(
         turnId: part.turnId,
         timestamp: part.timestamp,
         part,
+        parts: [part],
       };
     case "data":
       return dataRowFromCluster([part]);

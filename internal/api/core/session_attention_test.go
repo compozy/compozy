@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
@@ -509,6 +510,13 @@ type notificationRouteObserver struct {
 func (notificationRouteObserver) TaskAttentionItems(context.Context, observe.OverviewQuery) ([]observe.OverviewAttentionItem, error) {
 	return nil, nil
 }
+
+type notificationRouteTerminal struct{ terminalpkg.Manager }
+
+func (notificationRouteTerminal) InputRequests(context.Context, string, store.ReadScope, terminalpkg.ID) ([]terminalpkg.PendingInputRequest, error) {
+	return nil, nil
+}
+
 func TestAttentionNotificationReceipts(t *testing.T) {
 	t.Parallel()
 	t.Run("Should reconcile exact counts and preserve later session revisions after a frozen bulk acknowledgement", func(t *testing.T) {
@@ -552,7 +560,7 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 				return contract.LoopRequestsResponse{}, nil
 			},
 		}
-		fixture.Handlers.Terminal = terminalManagerStub{}
+		fixture.Handlers.Terminal = notificationRouteTerminal{}
 		fixture.Engine.GET("/notifications/attention", fixture.Handlers.AttentionNotifications)
 		fixture.Engine.POST("/notifications/attention/acknowledge", fixture.Handlers.AcknowledgeAttentionNotifications)
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)

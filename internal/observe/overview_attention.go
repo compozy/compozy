@@ -3,12 +3,12 @@ package observe
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/notifications"
 
@@ -87,9 +87,15 @@ func (o *Observer) TaskAttentionItems(ctx context.Context, query OverviewQuery) 
 						continue
 					}
 					item.WorkspaceID = source.Task.WorkspaceID
+					occurrence := item.RunID
+					if item.Kind == OverviewAttentionKindApproval {
+						occurrence, err = o.approvalOccurrence(ctx, item.TaskID)
+						if err != nil {
+							return nil, err
+						}
+					}
 					item.NotificationID = notifications.AttentionIdentity(
-						"task", source.Task.WorkspaceID, source.Task.ID, item.Kind,
-						strconv.FormatInt(source.Task.LatestEventSeq, 10), item.RunID, item.OccurredAt.UTC().Format(time.RFC3339Nano),
+						"task", source.Task.WorkspaceID, source.Task.ID, item.Kind, occurrence,
 					)
 					items = appendAttentionItem(items, seen, item)
 				}
@@ -163,4 +169,32 @@ func failureAttentionItem(item taskpkg.InboxItem) OverviewAttentionItem {
 		}
 	}
 	return attention
+}
+
+// Approval receipts follow approval transitions, not unrelated task audit activity.
+func (o *Observer) approvalOccurrence(ctx context.Context, taskID string) (string, error) {
+	var latest taskpkg.Event
+	for _, kind := range []string{"task.published", "task.updated"} {
+		events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskID, EventType: kind})
+		if err != nil {
+			return "", fmt.Errorf("observe: read approval occurrence: %w", err)
+		}
+		for _, event := range events {
+			if kind == "task.updated" {
+				var payload struct {
+					ChangedFields []string `json:"changed_fields"`
+				}
+				if err := json.Unmarshal(event.Payload, &payload); err != nil {
+					return "", fmt.Errorf("observe: decode approval update: %w", err)
+				}
+				if !slices.Contains(payload.ChangedFields, "approval_policy") {
+					continue
+				}
+			}
+			if latest.ID == "" || event.Timestamp.After(latest.Timestamp) || (event.Timestamp.Equal(latest.Timestamp) && event.ID > latest.ID) {
+				latest = event
+			}
+		}
+	}
+	return latest.ID, nil
 }

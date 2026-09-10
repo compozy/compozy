@@ -1,16 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 
-import { Button, Panel, Section, StatusDot, Time } from "@compozy/ui";
+import { Button, Eyebrow, Panel, Section, StatusDot, Time } from "@compozy/ui";
 
 import type { AttentionNotificationScope } from "@/systems/notifications";
 
-import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
+import type { HomeAttentionActions } from "../hooks/use-home-attention-actions";
 import type { HomeAttentionResolvedKind } from "../hooks/use-home-attention-actions";
 import type { HomeAttention, HomeAttentionItem } from "../types";
 
 export interface HomeAttentionZoneProps {
   attention: HomeAttention;
+  actions: HomeAttentionActions;
   notificationScope?: AttentionNotificationScope;
   scopeLabel?: string;
 }
@@ -135,6 +136,7 @@ function HomeAttentionRow({
  */
 export function HomeAttentionZone({
   attention,
+  actions,
   notificationScope,
   scopeLabel = "Selected scope",
 }: HomeAttentionZoneProps) {
@@ -147,7 +149,7 @@ export function HomeAttentionZone({
     onAcknowledge,
     acknowledgementPending,
     acknowledgementError,
-  } = useHomeAttentionActions({ snapshot: attention.snapshot, scope: notificationScope });
+  } = actions;
   const acknowledgementDisabled =
     acknowledgementPending || !attention.snapshot || !notificationScope;
 
@@ -187,7 +189,9 @@ export function HomeAttentionZone({
   return (
     <Section count={attention.total} label="Needs you" right={inbox}>
       <Panel bodyClassName="p-0" className="overflow-hidden">
-        <p className="px-4 py-2 text-micro text-subtle">{scopeLabel} · notifications only</p>
+        <Eyebrow variant="caps" className="px-4 py-2 text-subtle">
+          {scopeLabel} · notifications only
+        </Eyebrow>
         {acknowledgementError ? (
           <p role="alert" className="px-4 py-2 text-small-body text-danger">
             {acknowledgementError}

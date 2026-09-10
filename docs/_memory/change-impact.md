@@ -93,3 +93,7 @@ Issue #603 delivery also pins the site preview install command to the repository
   bell/Home/title QA scenarios record the new contract. SQLite, overview and existing API/component/
   browser suites own coverage; broad local gates and rendered labs are deferred to CI by explicit
   user instruction for this delivery.
+
+## PRs 607–611 — Main integration remediation
+
+The [integration report](../qa/reports/2026-09-10-pr-607-611-integration.md) records all five guarded squash results, first-round review dispositions, unpublished notification-worktree fixes and CI regressions. Approval receipts follow meaningful approval transitions; profile deletion removes owned receipts and snapshots. Continuous prose retains search indices, and window opening uses the same snapshot revision for identity lookup and command admission. Public wire/config/native-tool shapes and underlying source-state actions remain unchanged. Existing profile, observer, API, transcript and window-manager suites own verification, with delivery gates and rendered journeys in CI under the operator's explicit override.

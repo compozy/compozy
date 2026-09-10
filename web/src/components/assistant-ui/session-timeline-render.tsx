@@ -61,7 +61,14 @@ function isCompozyPermissionData(value: unknown): value is CompozyPermissionData
 // can land on the matched content rather than the message's top edge.
 function SessionTextRowView({ row }: { row: SessionTextRow }) {
   return (
-    <div className="contents" data-part-index={row.part.partIndex}>
+    <div
+      className="contents"
+      data-part-index={row.part.partIndex}
+      data-part-indices={row.parts
+        .map(part => part.partIndex)
+        .filter(index => index !== undefined)
+        .join(" ")}
+    >
       <SessionMessageText text={row.part.text} streaming={row.part.state === "running"} reveal />
     </div>
   );

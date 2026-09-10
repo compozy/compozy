@@ -67,7 +67,11 @@ export function locateFindTarget(
   needle: string
 ): Range | null {
   const part =
-    partIndex === null ? null : row.querySelector<HTMLElement>(`[data-part-index="${partIndex}"]`);
+    partIndex === null
+      ? null
+      : row.querySelector<HTMLElement>(
+          `[data-part-index="${partIndex}"], [data-part-indices~="${partIndex}"]`
+        );
   if (part) {
     const inPart = firstFindRange(part, needle);
     if (inPart) return inPart;

@@ -2,16 +2,15 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
-// Operations returns the canonical REST operation registry in deterministic order.
 func notificationPresetOperations() []OperationSpec {
-	return append(attentionNotificationOperations(), []OperationSpec{
+	return []OperationSpec{
 		listNotificationPresetsOperation(),
 		createNotificationPresetOperation(),
 		getNotificationPresetOperation(),
 		updateNotificationPresetOperation(),
 		deleteNotificationPresetOperation(),
 		setNotificationPresetEnablementOperation(),
-	}...)
+	}
 }
 
 func listNotificationPresetsOperation() OperationSpec {

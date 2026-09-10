@@ -27,6 +27,8 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
       return (
         a.part.text === other.part.text &&
         a.part.state === other.part.state &&
+        a.parts.length === other.parts.length &&
+        a.parts.every((part, index) => part.partIndex === other.parts[index]?.partIndex) &&
         a.turnId === other.turnId &&
         a.timestamp === other.timestamp
       );

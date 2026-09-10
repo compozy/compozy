@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -585,6 +586,14 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		if err := f.observer.AcknowledgeAttentionSnapshot(ctx, OverviewAttentionScope(query), attention.Snapshot, ""); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		// A wake audit event changes LatestEventSeq, not the pending approval occurrence.
+		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+			ID: "event-neutral-wake", TaskID: "task-approval-000", EventType: "task.wake.requested",
+			Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+			Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateTaskEvent() error = %v", err)
+		}
 		after, err := f.observer.overviewAttention(ctx, query)
 		if err := err; err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -611,6 +620,21 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		}
 		if !(inbox.HasMore) {
 			t.Fatal("expected true: inbox.HasMore")
+		}
+		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+			ID: "event-new-approval", TaskID: "task-approval-000", EventType: "task.updated",
+			Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+			Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(2 * time.Minute),
+			Payload: json.RawMessage(`{"changed_fields":["approval_policy"],"status":"blocked"}`),
+		}); err != nil {
+			t.Fatalf("CreateTaskEvent() error = %v", err)
+		}
+		renewed, err := f.observer.overviewAttention(ctx, query)
+		if err != nil {
+			t.Fatalf("overviewAttention() error = %v", err)
+		}
+		if renewed.Total != 2 {
+			t.Fatalf("renewed approval count = %d, want 2", renewed.Total)
 		}
 	})
 	t.Run("Should keep a replay acknowledged and show a new failed run for the same task", func(t *testing.T) {

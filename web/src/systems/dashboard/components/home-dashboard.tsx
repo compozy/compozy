@@ -73,6 +73,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
             <div className="flex flex-col gap-6">
               <HomeAttentionZone
                 attention={overview.attention}
+                actions={model.attentionActions}
                 notificationScope={model.notificationScope}
                 scopeLabel={model.activeWorkspaceName ?? "Selected workspace"}
               />

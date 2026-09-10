@@ -198,33 +198,33 @@ describe("useHomeAttentionActions", () => {
       expect(toast.error).toHaveBeenCalledWith("Approval failed after leaving Home");
     });
   });
-});
 
-// Invariant: acknowledgement captures Home's scope and preserves source operations on failure.
-// Owner: Home mutation hook. Canonical suite: Home attention actions.
-it("Should preserve the clicked snapshot and scope through a switch and report failure", async () => {
-  const scope = {
-    workspace: "ws-a",
-    profile: "default",
-    receipt_profile: "default",
-    surface: "home" as const,
-  };
-  const { result, rerender } = renderHook(
-    ({ snapshot, scope }) => useHomeAttentionActions({ snapshot, scope }),
-    {
-      wrapper: wrapper(),
-      initialProps: { snapshot: "snapshot-a", scope },
-    }
-  );
-  act(() => result.current.onAcknowledge("occurrence-a"));
-  await waitFor(() => expect(result.current.acknowledgementPending).toBe(true));
-  rerender({ snapshot: "snapshot-b", scope: { ...scope, workspace: "ws-b" } });
-  expect(acknowledgeAttentionNotifications).toHaveBeenCalledWith(scope, {
-    snapshot: "snapshot-a",
-    id: "occurrence-a",
+  // Invariant: acknowledgement captures Home's scope and preserves source operations on failure.
+  // Owner: Home mutation hook. Canonical suite: Home attention actions.
+  it("Should preserve the clicked snapshot and scope through a switch and report failure", async () => {
+    const scope = {
+      workspace: "ws-a",
+      profile: "default",
+      receipt_profile: "default",
+      surface: "home" as const,
+    };
+    const { result, rerender } = renderHook(
+      ({ snapshot, scope }) => useHomeAttentionActions({ snapshot, scope }),
+      {
+        wrapper: wrapper(),
+        initialProps: { snapshot: "snapshot-a", scope },
+      }
+    );
+    act(() => result.current.onAcknowledge("occurrence-a"));
+    await waitFor(() => expect(result.current.acknowledgementPending).toBe(true));
+    rerender({ snapshot: "snapshot-b", scope: { ...scope, workspace: "ws-b" } });
+    expect(acknowledgeAttentionNotifications).toHaveBeenCalledWith(scope, {
+      snapshot: "snapshot-a",
+      id: "occurrence-a",
+    });
+    deferreds.get("acknowledgement")?.reject(new Error("Storage unavailable"));
+    await waitFor(() => expect(result.current.acknowledgementError).toBe("Storage unavailable"));
+    expect(result.current.resolvedById).toEqual({});
+    expect(mutationCalls.size).toBe(0);
   });
-  deferreds.get("acknowledgement")?.reject(new Error("Storage unavailable"));
-  await waitFor(() => expect(result.current.acknowledgementError).toBe("Storage unavailable"));
-  expect(result.current.resolvedById).toEqual({});
-  expect(mutationCalls.size).toBe(0);
 });

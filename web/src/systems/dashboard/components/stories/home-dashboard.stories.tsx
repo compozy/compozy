@@ -9,6 +9,7 @@ import { makeHomeOverview } from "../../mocks/fixtures";
 import type { HomeActivityEvent } from "../../types";
 import { HomeActivityFeed } from "../home-activity-feed";
 import { HomeAgentsPanel } from "../home-agents-panel";
+import { useHomeAttentionActions } from "../../hooks/use-home-attention-actions";
 import { HomeAttentionZone } from "../home-attention-zone";
 import { HomeFirstRun } from "../home-first-run";
 import { HomeKpiStrip } from "../home-kpi-strip";
@@ -260,6 +261,7 @@ function HomeDashboardStory({
   workingNowStatus = "ready",
   workingNowErrorMessage,
 }: HomeDashboardStoryProps) {
+  const attentionActions = useHomeAttentionActions();
   const workingNowIsError = workingNowStatus === "error";
   const visibleWorkingNowCards = workingNowIsError ? [] : workingNowCards;
   return (
@@ -267,7 +269,7 @@ function HomeDashboardStory({
       <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
         <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
         <div className="flex flex-col gap-6">
-          <HomeAttentionZone attention={overview.attention} />
+          <HomeAttentionZone attention={overview.attention} actions={attentionActions} />
           <HomeKpiStrip
             overview={overview}
             workingNowDetail="2 sessions · 1 task run"

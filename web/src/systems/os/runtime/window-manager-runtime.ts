@@ -127,10 +127,12 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     target: OsOpenTarget,
     recoverTopologyConflict: boolean
   ): WindowManagerOpenOutcome {
+    // Semantic identity and the command revision must come from the same current snapshot.
+    const state = this.buildView();
     const existing =
       target.forceNewInstance || target.stackTargetWindowId
         ? null
-        : mruWindowInstance(this.view.windows, this.view.client?.focusOrder ?? [], {
+        : mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
             app: target.app,
             instanceKey: target.instanceKey ?? null,
           });
@@ -138,7 +140,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
       const id = existing.id;
       let outcome: WindowManagerCommandOutcome;
       if (existing.minimized) {
-        const authoritative = this.view.snapshot?.windows[id];
+        const authoritative = state.snapshot?.windows[id];
         outcome = authoritative
           ? this.dispatch(restoreWindowCommand(authoritative, target.route))
           : rejectedCommandOutcome();
@@ -152,13 +154,16 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
 
     const desktopId =
       (target.stackTargetWindowId
-        ? this.view.windows[target.stackTargetWindowId]?.desktopId
-        : undefined) ?? this.view.activeDesktopId;
+        ? state.windows[target.stackTargetWindowId]?.desktopId
+        : undefined) ?? state.activeDesktopId;
     const id = randomOsWindowId();
     if (desktopId === null || desktopId === undefined) {
       return { windowId: id, accepted: false, completion: Promise.resolve(false) };
     }
-    const outcome = this.dispatch(openWindowCommand(target, id, desktopId));
+    const outcome = this.dispatch({
+      ...openWindowCommand(target, id, desktopId),
+      expectedRevision: state.snapshot?.revision,
+    });
     this.publish();
     return this.recoverOpenOrFocus(target, id, outcome, recoverTopologyConflict);
   }

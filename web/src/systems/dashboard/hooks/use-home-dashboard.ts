@@ -11,6 +11,7 @@ import type {
   HomeUsageWindow,
   HomeWorkingNowModel,
 } from "../types";
+import { useHomeAttentionActions, type HomeAttentionActions } from "./use-home-attention-actions";
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
 import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
@@ -25,6 +26,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 export interface HomeDashboardModel {
   scope: HomeScope;
   notificationScope?: AttentionNotificationScope;
+  attentionActions: HomeAttentionActions;
   /** The per-profile usage breakdown belongs to the aggregate read alone (S10). */
   profileAggregate: boolean;
   connectionStatus: ConnectionStatus;
@@ -117,14 +119,21 @@ export function useHomeDashboard({
     overview?.system.retention_days
   );
 
+  const notificationScope: AttentionNotificationScope = {
+    ...profileScope,
+    receipt_profile: destination,
+    workspace: scope.workspaceParam || undefined,
+    surface: "home",
+  };
+  const attentionActions = useHomeAttentionActions({
+    snapshot: overview?.attention.snapshot,
+    scope: scopeSettled ? notificationScope : undefined,
+  });
+
   return {
     scope,
-    notificationScope: {
-      ...profileScope,
-      receipt_profile: destination,
-      workspace: scope.workspaceParam || undefined,
-      surface: "home",
-    },
+    notificationScope,
+    attentionActions,
     profileAggregate: aggregate,
     connectionStatus,
     usageWindow,

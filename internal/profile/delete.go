@@ -122,6 +122,8 @@ func deleteProfileOwnedRows(
 		{label: "command palette query hits", statement: `DELETE FROM cmd_palette_query_hits WHERE profile_lens_id = ?`},
 		{label: "command palette pins", statement: `DELETE FROM cmd_palette_pins WHERE profile_lens_id = ?`},
 		{label: "tool approval history", statement: `DELETE FROM tool_approval_pending WHERE profile_id = ?`},
+		{label: "attention receipts", statement: `DELETE FROM attention_acknowledgements WHERE profile_id = ?`},
+		{label: "attention snapshots", statement: `DELETE FROM attention_snapshots WHERE profile_id = ?`},
 		{label: "event summaries", statement: `DELETE FROM event_summaries WHERE profile_id = ?`},
 		{label: "credential requirements", statement: `DELETE FROM profile_credential_requirements WHERE profile_id = ?`},
 		{label: "profile selections", statement: `DELETE FROM profile_selections WHERE profile_id = ?`},

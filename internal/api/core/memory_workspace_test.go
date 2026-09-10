@@ -696,6 +696,9 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 					health.DreamAgent != compozyconfig.BuiltinDreamingCuratorAgentName {
 					t.Fatalf("missing role diagnostic or leaked scoped identity: %#v", health)
 				}
+				if tc.err != nil && !strings.Contains(health.Reason, tc.err.Error()) {
+					t.Fatalf("reason = %q, want resolution error %q", health.Reason, tc.err.Error())
+				}
 			} else if gotWorkspace != workspace || health.DreamAgent != "scoped-curator" || health.Status != "ok" {
 				t.Fatalf("scoped role health=%#v workspace=%q", health, gotWorkspace)
 			}

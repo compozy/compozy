@@ -1,6 +1,7 @@
+import type { ComponentProps } from "react";
 import { Bell, Check, CircleAlert } from "lucide-react";
 
-import { Button, Eyebrow, Icon } from "@compozy/ui";
+import { Button, cn, Eyebrow, Icon } from "@compozy/ui";
 
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
 import { AttentionBellRow } from "./attention-bell-row";
@@ -51,7 +52,7 @@ function BellSection({
   );
 }
 
-export interface AttentionBellProps {
+export interface AttentionBellProps extends Omit<ComponentProps<"div">, "onSelect"> {
   sections: OsAttentionSections;
   total?: number;
   pending?: boolean;
@@ -76,20 +77,21 @@ export function AttentionBell({
   loopRequestsDisconnected = false,
   loading,
   onSelect,
+  className,
+  ...props
 }: AttentionBellProps) {
   const disconnected = sessionsDisconnected || tasksDisconnected || loopRequestsDisconnected;
-  const unavailable = [
-    sessionsDisconnected ? "session" : null,
-    tasksDisconnected ? "task" : null,
-    loopRequestsDisconnected ? "loop request" : null,
-  ].filter((source): source is string => source !== null);
-  const unavailableLabel = unavailable.join(" and ");
-  const empty = sections.needsYou.length === 0 && sections.finished.length === 0;
+  const shown = sections.needsYou.length + sections.finished.length;
+  const empty = shown === 0;
 
   return (
-    <div className="flex min-h-0 flex-col" data-testid="os-attention-bell">
+    <div
+      className={cn("flex min-h-0 flex-col", className)}
+      data-testid="os-attention-bell"
+      {...props}
+    >
       <div className="flex items-center justify-between gap-2 border-b border-line px-1 pb-2">
-        <span className="text-micro text-subtle">All workspaces · all profiles</span>
+        <Eyebrow className="text-micro text-subtle">All workspaces · all profiles</Eyebrow>
         <Button
           size="sm"
           variant="ghost"
@@ -99,27 +101,14 @@ export function AttentionBell({
           {pending ? "Clearing…" : "Clear all"}
         </Button>
       </div>
-      {error ? (
-        <p role="alert" className="px-2 py-2 text-small-body text-danger">
-          {error}
-        </p>
-      ) : null}
-      {total !== undefined && total > sections.needsYou.length + sections.finished.length ? (
-        <p className="px-2 py-2 text-micro text-subtle">
-          Showing {sections.needsYou.length + sections.finished.length} of {total}. Clear all
-          includes every notification.
-        </p>
-      ) : null}
-      {disconnected ? (
-        <div
-          role="status"
-          className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning-tint px-2.5 py-2 text-small-body text-warning"
-          data-testid="os-bell-disconnected"
-        >
-          <Icon as={CircleAlert} size="sm" className="mt-0.5 shrink-0" />
-          <span>{`${unavailableLabel.charAt(0).toUpperCase()}${unavailableLabel.slice(1)} attention ${unavailable.length === 1 ? "is" : "are"} unavailable. Frozen rows do not count.`}</span>
-        </div>
-      ) : null}
+      <BellNotices
+        error={error}
+        total={total}
+        shown={shown}
+        sessionsDisconnected={sessionsDisconnected}
+        tasksDisconnected={tasksDisconnected}
+        loopRequestsDisconnected={loopRequestsDisconnected}
+      />
       <div className="-mx-1 flex max-h-96 min-h-0 flex-col overflow-y-auto">
         <BellSection
           label="Needs you"
@@ -152,5 +141,49 @@ export function AttentionBell({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function BellNotices({
+  error,
+  total,
+  shown,
+  sessionsDisconnected,
+  tasksDisconnected,
+  loopRequestsDisconnected,
+}: Pick<
+  AttentionBellProps,
+  "error" | "total" | "sessionsDisconnected" | "tasksDisconnected" | "loopRequestsDisconnected"
+> & { shown: number }) {
+  const unavailable = [
+    sessionsDisconnected ? "session" : null,
+    tasksDisconnected ? "task" : null,
+    loopRequestsDisconnected ? "loop request" : null,
+  ].filter((source): source is string => source !== null);
+  const unavailableLabel = unavailable.join(" and ");
+  const disconnected = unavailable.length > 0;
+  return (
+    <>
+      {error ? (
+        <p role="alert" className="px-2 py-2 text-small-body text-danger">
+          {error}
+        </p>
+      ) : null}
+      {total !== undefined && total > shown ? (
+        <p className="px-2 py-2 text-micro text-subtle">
+          Showing {shown} of {total}. Clear all includes every notification.
+        </p>
+      ) : null}
+      {disconnected ? (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning-tint px-2.5 py-2 text-small-body text-warning"
+          data-testid="os-bell-disconnected"
+        >
+          <Icon as={CircleAlert} size="sm" className="mt-0.5 shrink-0" />
+          <span>{`${unavailableLabel.charAt(0).toUpperCase()}${unavailableLabel.slice(1)} attention ${unavailable.length === 1 ? "is" : "are"} unavailable. Frozen rows do not count.`}</span>
+        </div>
+      ) : null}
+    </>
   );
 }

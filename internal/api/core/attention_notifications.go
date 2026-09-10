@@ -20,6 +20,8 @@ type attentionNotificationObserver interface {
 	TaskAttentionItems(context.Context, observe.OverviewQuery) ([]observe.OverviewAttentionItem, error)
 }
 
+const attentionNotificationItemCap = 100
+
 // AttentionNotifications lists unread occurrences across all workspaces and source profiles.
 func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "notification inbox") {
@@ -62,7 +64,7 @@ func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 			response.NeedsYou++
 		}
 	}
-	response.Items = items[:min(len(items), 100)]
+	response.Items = items[:min(len(items), attentionNotificationItemCap)]
 	c.JSON(http.StatusOK, response)
 }
 

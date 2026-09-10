@@ -9,7 +9,7 @@ import type { SessionRow } from "./session-timeline.logic";
 export function rowContainsPart(row: SessionRow, partIndex: number): boolean {
   switch (row.kind) {
     case "text":
-      return row.part.partIndex === partIndex;
+      return row.parts.some(part => part.partIndex === partIndex);
     case "reasoning":
       return row.parts.some(part => part.partIndex === partIndex);
     case "data":

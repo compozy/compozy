@@ -1432,6 +1432,10 @@ describe("WindowManagerRuntime", () => {
       route: session.route,
     });
 
+    // A newer snapshot can arrive between semantic lookup and serialized dispatch.
+    // Keep the lookup revision so the daemon refuses and recovery focuses its existing instance.
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), refreshed);
+
     expect(outcome.accepted).toBe(true);
     await expect(outcome.completion).resolves.toBe(true);
     expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
