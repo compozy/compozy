@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
+
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -489,58 +491,62 @@ func TestMemoryHandlersDreamTriggerDisabledAndBadJSON(t *testing.T) {
 
 func TestHealthIncludesMemoryStats(t *testing.T) {
 	t.Parallel()
+	t.Run("Should include effective dream role and memory statistics", func(t *testing.T) {
+		t.Parallel()
 
-	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "health-global.md", memcontract.TypeUser, "global")
-	mustWriteMemory(
-		t,
-		store,
-		memcontract.ScopeWorkspace,
-		workspace,
-		"health-workspace.md",
-		memcontract.TypeProject,
-		"workspace",
-	)
+		store, workspace := newTestMemoryStore(t)
+		mustWriteMemory(t, store, memcontract.ScopeProfile, "", "health-global.md", memcontract.TypeUser, "global")
+		mustWriteMemory(
+			t,
+			store,
+			memcontract.ScopeWorkspace,
+			workspace,
+			"health-workspace.md",
+			memcontract.TypeProject,
+			"workspace",
+		)
 
-	last := time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC)
-	trigger := &stubDreamTrigger{enabled: true, last: last}
-	manager := stubSessionManager{
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			info := newSessionInfo("sess-1")
-			info.Workspace = workspace
-			return []*session.Info{info}, nil
-		},
-	}
-	observer := stubObserver{
-		HealthFn: func(context.Context) (observe.Health, error) {
-			return observe.Health{Status: "ok", ActiveSessions: 1}, nil
-		},
-	}
+		last := time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC)
+		trigger := &stubDreamTrigger{enabled: true, last: last}
+		manager := stubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				info := newSessionInfo("sess-1")
+				info.Workspace = workspace
+				return []*session.Info{info}, nil
+			},
+		}
+		observer := stubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1}, nil
+			},
+		}
 
-	handlers := newTestMemoryHandlers(t, manager, observer, store, trigger)
-	engine := newTestRouter(t, handlers)
+		handlers := newTestMemoryHandlers(t, manager, observer, store, trigger)
+		handlers.Roles = memoryHealthRolesStub{}
+		engine := newTestRouter(t, handlers)
 
-	resp := performRequest(t, engine, http.MethodGet, "/api/status", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
+		resp := performRequest(t, engine, http.MethodGet, "/api/status", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
 
-	var payload struct {
-		Memory memoryHealthPayload `json:"memory"`
-	}
-	decodeJSONResponse(t, resp, &payload)
-	if payload.Memory.GlobalFiles != 1 || payload.Memory.WorkspaceFiles != 1 || !payload.Memory.DreamEnabled {
-		t.Fatalf("memory health = %#v", payload.Memory)
-	}
-	if payload.Memory.LastConsolidation == nil || !payload.Memory.LastConsolidation.Equal(last) {
-		t.Fatalf("last consolidation = %#v, want %s", payload.Memory.LastConsolidation, last)
-	}
-	if !payload.Memory.Enabled || payload.Memory.IndexedFiles != 2 || payload.Memory.OrphanedFiles != 0 {
-		t.Fatalf("memory health catalog stats = %#v, want enabled+indexed stats", payload.Memory)
-	}
-	if payload.Memory.LastReindex == nil {
-		t.Fatalf("last reindex = %#v, want non-nil", payload.Memory.LastReindex)
-	}
+		var payload struct {
+			Memory memoryHealthPayload `json:"memory"`
+		}
+		decodeJSONResponse(t, resp, &payload)
+		if payload.Memory.GlobalFiles != 1 || payload.Memory.WorkspaceFiles != 1 || !payload.Memory.DreamEnabled {
+			t.Fatalf("memory health = %#v", payload.Memory)
+		}
+		if payload.Memory.LastConsolidation == nil || !payload.Memory.LastConsolidation.Equal(last) {
+			t.Fatalf("last consolidation = %#v, want %s", payload.Memory.LastConsolidation, last)
+		}
+		if !payload.Memory.Enabled || payload.Memory.IndexedFiles != 2 || payload.Memory.OrphanedFiles != 0 {
+			t.Fatalf("memory health catalog stats = %#v, want enabled+indexed stats", payload.Memory)
+		}
+		if payload.Memory.LastReindex == nil {
+			t.Fatalf("last reindex = %#v, want non-nil", payload.Memory.LastReindex)
+		}
+	})
 }
 
 func TestMemoryHelpersResolveLocationAndScope(t *testing.T) {
@@ -811,4 +817,10 @@ func escapeJSON(t *testing.T, value string) string {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 	return strings.Trim(string(payload), "\"")
+}
+
+type memoryHealthRolesStub struct{ core.RolesStatusProvider }
+
+func (memoryHealthRolesStub) RoleStatus(context.Context, string, string) (contract.RoleStatus, error) {
+	return contract.RoleStatus{Enabled: true}, nil
 }

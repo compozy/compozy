@@ -404,6 +404,12 @@ Every controller decision and recall outcome is observable.
 `memory.extractor.completed`, `memory.provider.collision`, etc.). They are queryable through the
 event store and feed `compozy memory health` and the web Memory inspector.
 
+`Dream Enabled` reports the effective Dream role for the requested workspace, using the same
+role projection as `compozy roles show dream`. Both `memory.enabled` and
+`roles.dream.enabled` must be true; enabling memory alone leaves dreaming disabled.
+An unscoped API read reports the global role, not whether any other workspace permits dreaming.
+Role-resolution failures remain explicit health diagnostics. Reading health never starts a dream.
+
 The extractor requests `{"no_candidates":true}` for an empty result. It also accepts an empty
 response, `[]`, Markdown JSON/JSONL fences, and conventional empty replies such as `(none)` or
 `No memories to save.`. Unknown prose, malformed JSON, and invalid candidate fields remain failures

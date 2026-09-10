@@ -229,17 +229,8 @@ func (n *daemonNativeTools) memoryAdminHealth(
 		payload.Reason = "memory is disabled"
 		return structuredResult(payload, payload.Status)
 	}
-	if n.deps.DreamTrigger != nil {
-		payload.DreamEnabled = n.deps.DreamTrigger.Enabled()
-		lastConsolidation, err := n.deps.DreamTrigger.LastConsolidatedAt()
-		if err != nil {
-			payload.Status = nativeMemoryHealthStatusDegraded
-			payload.Reason = taskpkg.RedactClaimTokens(err.Error())
-		} else if !lastConsolidation.IsZero() {
-			lastConsolidation = lastConsolidation.UTC()
-			payload.LastConsolidation = &lastConsolidation
-		}
-	}
+	n.populateMemoryDreamHealth(ctx, input.WorkspaceID, &payload)
+
 	profileStore, err := n.profileMemoryStore(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
@@ -374,4 +365,31 @@ func (n *daemonNativeTools) memoryAdminReindex(
 		CompletedAt:  result.CompletedAt.UTC(),
 	}
 	return structuredResult(payload, fmt.Sprintf("indexed %d files", payload.IndexedFiles))
+}
+
+func (n *daemonNativeTools) populateMemoryDreamHealth(
+	ctx context.Context,
+	workspace string,
+	payload *contract.MemoryHealthPayload,
+) {
+	if n.deps.DreamTrigger != nil {
+		role, err := core.MemoryDreamRoleStatus(ctx, n.deps.Roles, workspace)
+		if err != nil {
+			payload.Status = nativeMemoryHealthStatusDegraded
+			payload.Reason = taskpkg.RedactClaimTokens(err.Error())
+		} else {
+			payload.DreamEnabled = role.Enabled
+			if role.Agent != nil {
+				payload.DreamAgent = *role.Agent
+			}
+		}
+		lastConsolidation, err := n.deps.DreamTrigger.LastConsolidatedAt()
+		if err != nil {
+			payload.Status = nativeMemoryHealthStatusDegraded
+			payload.Reason = taskpkg.RedactClaimTokens(err.Error())
+		} else if !lastConsolidation.IsZero() {
+			lastConsolidation = lastConsolidation.UTC()
+			payload.LastConsolidation = &lastConsolidation
+		}
+	}
 }
