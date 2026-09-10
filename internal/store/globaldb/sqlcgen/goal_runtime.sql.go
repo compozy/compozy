@@ -292,7 +292,9 @@ func (q *Queries) GetLoopSessionCleanup(ctx context.Context, cleanupID string) (
 }
 
 const readGoalSessionProjection = `-- name: ReadGoalSessionProjection :one
-SELECT id, status, definition_digest, origin_session_id, goal_context_nudge_ratio, goal_cleared_at
+SELECT id, status, definition_digest, origin_session_id, goal_context_nudge_ratio, goal_cleared_at,
+ EXISTS(SELECT 1 FROM loop_node_controls control WHERE control.loop_run_id = loop_runs.id
+  AND control.quarantined = 1) AS quarantined
 FROM loop_runs
 WHERE workspace_id = ?1
   AND origin_kind = 'session'
@@ -314,6 +316,7 @@ type ReadGoalSessionProjectionRow struct {
 	OriginSessionID       sql.NullString `json:"origin_session_id"`
 	GoalContextNudgeRatio float64        `json:"goal_context_nudge_ratio"`
 	GoalClearedAt         sql.NullTime   `json:"goal_cleared_at"`
+	Quarantined           bool           `json:"quarantined"`
 }
 
 func (q *Queries) ReadGoalSessionProjection(ctx context.Context, arg ReadGoalSessionProjectionParams) (ReadGoalSessionProjectionRow, error) {
@@ -326,6 +329,7 @@ func (q *Queries) ReadGoalSessionProjection(ctx context.Context, arg ReadGoalSes
 		&i.OriginSessionID,
 		&i.GoalContextNudgeRatio,
 		&i.GoalClearedAt,
+		&i.Quarantined,
 	)
 	return i, err
 }

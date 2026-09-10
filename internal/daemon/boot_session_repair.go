@@ -33,6 +33,11 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if state.sessions == nil {
 		return errors.New("daemon: boot session repair requires session manager")
 	}
+	// Stop receipts may still own Goal cancellation. Install its handler before
+	// recovery; server preparation refreshes late-bound runtime dependencies later.
+	if err := d.prepareServerDependencies(ctx, state); err != nil {
+		return err
+	}
 	if recoverer, ok := state.sessions.(sessionPendingStopRecoverer); ok {
 		if err := recoverer.RecoverPendingStops(ctx); err != nil {
 			return fmt.Errorf("daemon: recover pending session stops: %w", err)

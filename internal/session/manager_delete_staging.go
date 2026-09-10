@@ -312,6 +312,14 @@ func (m *Manager) stageSessionDelete(
 			target,
 		)
 	}
+	// Deletion first stops execution irreversibly. A later staging rollback
+	// restores stopped history, never the process or its canceled Goal. This
+	// also settles Goals left live by older versions for an already stopped session.
+	stopInfo := *info
+	stopInfo.StopCause = CauseUserRequested
+	if err := m.stopSessionGoals(ctx, &stopInfo); err != nil {
+		return stagedSessionDelete{}, fmt.Errorf("session: cancel Goals before delete: %w", err)
+	}
 	return m.stageSessionDirectoryDelete(ctx, target, info)
 }
 

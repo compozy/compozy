@@ -364,11 +364,5 @@ func (e *Executor) reseedApprovalBoundary(
 }
 
 func (e *Executor) rotateBinding(ctx context.Context, segment *segmentState) error {
-	oldBinding := segment.binding
-	segment.checkpoint.BindingEpoch = oldBinding.BindingEpoch + 1
-	if err := e.bindSegment(ctx, segment); err != nil {
-		segment.checkpoint.BindingEpoch = oldBinding.BindingEpoch
-		return err
-	}
-	return nil
+	return e.bindSegment(ctx, segment, segment.binding.BindingEpoch+1)
 }

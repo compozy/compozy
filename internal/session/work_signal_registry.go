@@ -95,6 +95,12 @@ func (r *WorkSignalRegistry) Inspect(ctx context.Context, id string, now time.Ti
 func appendInspectedSignals(state *SupervisionState, kind WorkSignalKind, signals []WorkSignal, now time.Time) {
 	status := SignalSourceState{Kind: kind, State: "absent"}
 	for _, signal := range signals {
+		if signal.AttentionReason != "" {
+			state.Sources = append(state.Sources, SignalSourceState{
+				Kind: kind, State: "attention", Ref: signal.Ref,
+				Error: diagnostics.RedactAndBound(signal.AttentionReason, 512),
+			})
+		}
 		if signal.Kind != kind || signal.Since.IsZero() || signal.ValidUntil.IsZero() {
 			state.Sources = append(state.Sources, SignalSourceState{
 				Kind:  kind,
@@ -122,6 +128,6 @@ func appendInspectedSignals(state *SupervisionState, kind WorkSignalKind, signal
 
 func supervisionNeedsAttention(state *SupervisionState) bool {
 	return state != nil && slices.ContainsFunc(state.Sources, func(source SignalSourceState) bool {
-		return source.State == signalSourceUnknown || source.State == "stale"
+		return source.State == signalSourceUnknown || source.State == "stale" || source.State == "attention"
 	})
 }

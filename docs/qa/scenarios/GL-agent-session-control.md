@@ -20,3 +20,7 @@ ENG-148 flag: new typed agent-manageability behavior. Walk the same lifecycle fr
 session to itself and to a descendant, compare direct HTTP/UDS/CLI/native output, then attempt a
 foreign target. Include a runtime override and verify the target's Goal origin/network provenance
 does not change. Record failed binding evidence rather than treating it as an empty projection.
+
+Issue #595 acceptance: activate the session's own Goal during an ordinary Codex prompt after context usage arrives. Read Goal, session supervision, Loop nodes, and task states through CLI and HTTP, then refresh/reconnect. The first context observation must not fail ownership validation; known context reads must resolve their pinned event. Pause/resume and real approval or quarantine retain actionable attention, and recovery clears derived attention. Stop and remove separate live Goal sessions, cancel again by Run, and confirm terminal state with retained audit and unaffected foreign sessions.
+
+Targeted #595 retest evidence and limits: [Goal lifecycle report](../reports/2026-09-10-issue-595-goal-lifecycle.md). This slice does not replace earlier evidence or claim an unrun full-scenario sweep.

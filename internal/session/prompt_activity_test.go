@@ -800,6 +800,43 @@ func storedEventsContainType(events []store.SessionEvent, eventType string) bool
 // Invariant: only fresh authoritative evidence protects a session; source failures remain explicit.
 // Owner: session signal aggregation; canonical activity/supervision suite (UT-058..061, UT-123..126/130).
 func TestWorkSignalRegistryFreshnessAndUnknownSources(t *testing.T) {
+	t.Run("Should preserve real attention during fresh progress and clear it after recovery", func(t *testing.T) {
+		now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		registry := NewWorkSignalRegistry()
+		attention := "Loop node is quarantined; retry after repairing the failure."
+		for _, kind := range WorkSignalKindValues() {
+			registry.Register(WorkSignalSource{Kind: WorkSignalKind(kind), Source: SignalSourceFunc(
+				func(context.Context, string) ([]WorkSignal, error) { return nil, nil },
+			)})
+		}
+		for _, kind := range []WorkSignalKind{WorkSignalAgentProgress, WorkSignalLoopRun} {
+			registry.Register(
+				WorkSignalSource{
+					Kind: kind,
+					Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+						signal := WorkSignal{Kind: kind, Since: now, ValidUntil: now.Add(time.Minute)}
+						if kind == WorkSignalLoopRun {
+							signal.AttentionReason = attention
+						}
+						return []WorkSignal{signal}, nil
+					}),
+				},
+			)
+		}
+		if state := registry.Inspect(
+			t.Context(),
+			"session",
+			now,
+		); !supervisionNeedsAttention(state) ||
+			len(state.WorkSignals) != 2 {
+			t.Fatalf("fresh work hid real attention: %#v", state)
+		}
+		attention = ""
+		if state := registry.Inspect(t.Context(), "session", now); supervisionNeedsAttention(state) {
+			t.Fatalf("recovered run retained attention: %#v", state)
+		}
+	})
+
 	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
 	for _, name := range WorkSignalKindValues() {
 		t.Run(name, func(t *testing.T) {

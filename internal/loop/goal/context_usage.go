@@ -36,3 +36,17 @@ func contextUsageSequence(usage *ContextUsage) *int64 {
 	sequence := usage.Sequence
 	return &sequence
 }
+
+func (e *Executor) bindCheckpoint(ctx context.Context, segment *segmentState) error {
+	updated, err := e.store.BindCheckpoint(ctx, BindCheckpointRequest{
+		Key: segment.key, ExpectedControlEpoch: segment.checkpoint.ControlEpoch,
+		ExpectedBindingEpoch: segment.checkpoint.BindingEpoch, ExpectedPhase: segment.checkpoint.Phase,
+		TaskRunID: segment.input.CorrelationID, SessionID: segment.binding.SessionID,
+		BindingHandle: segment.binding.Handle, BindingEpoch: segment.binding.BindingEpoch,
+	})
+	if err != nil {
+		return err
+	}
+	segment.checkpoint = updated
+	return nil
+}

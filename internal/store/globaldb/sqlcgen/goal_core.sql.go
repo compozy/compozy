@@ -38,6 +38,47 @@ func (q *Queries) ActiveGoalPromptBindingExists(ctx context.Context, arg ActiveG
 	return column_1, err
 }
 
+const bindGoalCheckpoint = `-- name: BindGoalCheckpoint :execrows
+UPDATE loop_goal_checkpoints
+SET session_id = ?1, binding_handle = ?2,
+    binding_epoch = ?3, context_state = 'unknown', usage_sequence = NULL,
+    usage_pending_after_sequence = NULL, compaction_baseline_used = NULL,
+    updated_at = CAST(?4 AS TEXT)
+WHERE loop_run_id = ?5 AND generation = ?6
+  AND node_id = ?7 AND item_index = ?8
+  AND control_epoch = ?9 AND goal_status = 'active' AND phase = 'idle'
+`
+
+type BindGoalCheckpointParams struct {
+	SessionID     sql.NullString `json:"session_id"`
+	BindingHandle sql.NullString `json:"binding_handle"`
+	BindingEpoch  sql.NullInt64  `json:"binding_epoch"`
+	UpdatedAt     string         `json:"updated_at"`
+	LoopRunID     string         `json:"loop_run_id"`
+	Generation    int64          `json:"generation"`
+	NodeID        string         `json:"node_id"`
+	ItemIndex     int64          `json:"item_index"`
+	ControlEpoch  int64          `json:"control_epoch"`
+}
+
+func (q *Queries) BindGoalCheckpoint(ctx context.Context, arg BindGoalCheckpointParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindGoalCheckpoint,
+		arg.SessionID,
+		arg.BindingHandle,
+		arg.BindingEpoch,
+		arg.UpdatedAt,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+		arg.ControlEpoch,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getGoalPromptRow = `-- name: GetGoalPromptRow :one
 SELECT id, session_id, status, text, task_run_id, run_generation,
        loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind,

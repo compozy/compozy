@@ -83,13 +83,20 @@ func composeSessionGoalSnapshot(
 		if strings.TrimSpace(checkpoint.SessionID) != "" {
 			boundSessionID = checkpoint.SessionID
 		}
-		status = checkpoint.Status
+		if projection.RunStatus.Live() && projection.RunStatus != looppkg.StatusPaused {
+			status = checkpoint.Status
+		}
 		turnsUsed = checkpoint.TurnsUsed
 		turnLimit = checkpoint.TurnLimit
 		if checkpoint.ControlCause != "" {
 			value := session.GoalReasonCode(checkpoint.ControlCause)
 			cause = &value
 		}
+	}
+	if projection.RunStatus.Live() && projection.Quarantined {
+		status = goalSnapshotStatusBlocked
+		value := session.GoalReasonCode("node_quarantined")
+		cause = &value
 	}
 	return &session.GoalSnapshot{
 		RunID: string(projection.RunID), NodeID: nodeID, Objective: params.Objective,
@@ -121,7 +128,7 @@ func goalVerdictSummary(turn *goalpkg.Turn) *session.GoalVerdictSummary {
 
 func goalStatusFromRun(status looppkg.Status) string {
 	switch status {
-	case looppkg.StatusPaused:
+	case looppkg.StatusPaused, looppkg.StatusCanceled:
 		return "paused"
 	case looppkg.StatusDone, looppkg.StatusNoOp:
 		return goalSnapshotStatusComplete

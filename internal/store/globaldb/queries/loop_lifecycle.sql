@@ -156,7 +156,17 @@ WHERE loop_run_id = sqlc.arg(loop_run_id)
   AND state = 'pending';
 
 -- name: ListSessionLoopWork :many
-SELECT lr.id, lr.created_at,
+SELECT lr.id, lr.created_at, lr.status,
+ CAST((lr.origin_kind = 'session' AND (lr.origin_session_id = sqlc.arg(session_id)
+  OR EXISTS (SELECT 1 FROM loop_session_bindings binding
+   JOIN loop_goal_checkpoints checkpoint ON checkpoint.loop_run_id = binding.loop_run_id
+    AND checkpoint.binding_handle = binding.handle AND checkpoint.binding_epoch = binding.binding_epoch
+   WHERE binding.loop_run_id = lr.id AND binding.session_id = sqlc.arg(session_id)
+    AND binding.state = 'active'))) AS INTEGER) AS owns_goal,
+ CAST(COALESCE((SELECT MAX(tr.lease_until) FROM task_runs tr
+  WHERE tr.loop_run_id = lr.id AND tr.status IN ('claimed','starting','running')), '') AS TEXT) AS lease_until,
+ EXISTS(SELECT 1 FROM loop_node_controls control WHERE control.loop_run_id = lr.id
+  AND (control.attention_flag != '' OR control.quarantined = 1)) AS needs_attention,
  CAST(COALESCE((SELECT MAX(tr.ended_at) FROM task_runs tr
   WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator' AND tr.status = 'completed'), '') AS TEXT) AS reconciled_at
 FROM loop_runs lr
@@ -164,7 +174,9 @@ WHERE lr.workspace_id = sqlc.arg(workspace_id)
 AND (sqlc.arg(all_profiles) = 1 OR lr.profile_id = sqlc.arg(profile_id))
 AND lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
 AND (lr.origin_session_id = sqlc.arg(session_id) OR lr.id = sqlc.arg(owner_run_id)
- OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = sqlc.arg(session_id)))
+ OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = sqlc.arg(session_id))
+ OR EXISTS (SELECT 1 FROM loop_session_bindings binding WHERE binding.loop_run_id = lr.id
+  AND binding.session_id = sqlc.arg(session_id) AND binding.state = 'active'))
 ORDER BY lr.id;
 
 -- name: ListExpirylessLoopEventWaits :many

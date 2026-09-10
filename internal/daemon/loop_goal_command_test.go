@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/network/participation"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -78,6 +79,80 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: terminal Run truth and live quarantine outrank stale active checkpoints.
+	// Owner: daemon Goal snapshot projection; canonical Goal command suite.
+	t.Run("Should project terminal runs and quarantined live work coherently", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			run         looppkg.Status
+			quarantined bool
+			want        string
+		}{
+			{looppkg.StatusCanceled, false, "paused"}, {looppkg.StatusFailed, false, "blocked"},
+			{looppkg.StatusDone, false, "complete"}, {looppkg.StatusRunning, true, "blocked"},
+			{looppkg.StatusRunning, false, "active"},
+		} {
+			projection := goalpkg.SessionProjection{RunStatus: test.run, Quarantined: test.quarantined,
+				Checkpoint: &goalpkg.Checkpoint{Status: "active", TurnsUsed: 2, TurnLimit: 5}}
+			snapshot := composeSessionGoalSnapshot(
+				projection,
+				dsl.GoalParams{},
+				"goal",
+				"objective",
+				session.GoalContextSnapshot{},
+			)
+			if snapshot.Status != test.want || snapshot.Live != test.run.Live() || snapshot.TurnsUsed != 2 {
+				t.Fatalf("snapshot = %#v for %#v", snapshot, test)
+			}
+			if test.quarantined && (snapshot.Cause == nil || *snapshot.Cause != "node_quarantined") {
+				t.Fatal("quarantine has no actionable cause")
+			}
+		}
+	})
+
+	// Invariant: stopping a Goal origin cancels its run without crossing profile/workspace boundaries.
+	// Owner: daemon Goal lifecycle dispatcher; canonical session Goal command suite.
+	t.Run("Should cancel a stopped session Goal and preserve its terminal history", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		ctx := testutil.Context(t)
+		started, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			session.GoalCommand{Verb: "set", Objective: "Retain history after stopping"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := session.Info{ID: fixture.sessionID, WorkspaceID: fixture.workspaceID, ProfileID: fixture.profileID}
+		for _, foreign := range []session.Info{
+			{ID: info.ID, WorkspaceID: info.WorkspaceID, ProfileID: store.DefaultProfileID},
+			{ID: info.ID, WorkspaceID: "foreign-workspace", ProfileID: info.ProfileID},
+			{ID: "foreign-session", WorkspaceID: info.WorkspaceID, ProfileID: info.ProfileID},
+		} {
+			if err := fixture.service.StopSessionGoals(ctx, &foreign); err != nil {
+				t.Fatal(err)
+			}
+			if !fixture.mustRun(t, started.Result.Snapshot.RunID).Status.Live() {
+				t.Fatal("foreign session canceled the Goal")
+			}
+		}
+		for range 2 {
+			if err := fixture.service.StopSessionGoals(ctx, &info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run := fixture.mustRun(t, started.Result.Snapshot.RunID)
+		if run.Status != looppkg.StatusCanceled {
+			t.Fatalf("run after stop = %#v", run)
+		}
+		snapshot, err := fixture.service.GetSessionGoal(ctx, info.WorkspaceID, info.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snapshot == nil || snapshot.Live || snapshot.Status != "paused" || snapshot.RunStatus != "canceled" {
+			t.Fatalf("canceled snapshot = %#v", snapshot)
+		}
+	})
 
 	t.Run("Should preserve caller and origin identity across set replace controls and clear", func(t *testing.T) {
 		t.Parallel()

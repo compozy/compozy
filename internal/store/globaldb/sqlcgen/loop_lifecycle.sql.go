@@ -741,38 +741,54 @@ func (q *Queries) ListRetryingLoopNodeInventory(ctx context.Context, arg ListRet
 }
 
 const listSessionLoopWork = `-- name: ListSessionLoopWork :many
-SELECT lr.id, lr.created_at,
+SELECT lr.id, lr.created_at, lr.status,
+ CAST((lr.origin_kind = 'session' AND (lr.origin_session_id = ?1
+  OR EXISTS (SELECT 1 FROM loop_session_bindings binding
+   JOIN loop_goal_checkpoints checkpoint ON checkpoint.loop_run_id = binding.loop_run_id
+    AND checkpoint.binding_handle = binding.handle AND checkpoint.binding_epoch = binding.binding_epoch
+   WHERE binding.loop_run_id = lr.id AND binding.session_id = ?1
+    AND binding.state = 'active'))) AS INTEGER) AS owns_goal,
+ CAST(COALESCE((SELECT MAX(tr.lease_until) FROM task_runs tr
+  WHERE tr.loop_run_id = lr.id AND tr.status IN ('claimed','starting','running')), '') AS TEXT) AS lease_until,
+ EXISTS(SELECT 1 FROM loop_node_controls control WHERE control.loop_run_id = lr.id
+  AND (control.attention_flag != '' OR control.quarantined = 1)) AS needs_attention,
  CAST(COALESCE((SELECT MAX(tr.ended_at) FROM task_runs tr
   WHERE tr.loop_run_id = lr.id AND tr.run_kind = 'coordinator' AND tr.status = 'completed'), '') AS TEXT) AS reconciled_at
 FROM loop_runs lr
-WHERE lr.workspace_id = ?1
-AND (?2 = 1 OR lr.profile_id = ?3)
+WHERE lr.workspace_id = ?2
+AND (?3 = 1 OR lr.profile_id = ?4)
 AND lr.status NOT IN ('done','no-op','blocked','failed','exhausted','stalled','canceled')
-AND (lr.origin_session_id = ?4 OR lr.id = ?5
- OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = ?4))
+AND (lr.origin_session_id = ?1 OR lr.id = ?5
+ OR EXISTS (SELECT 1 FROM task_runs bound WHERE bound.loop_run_id = lr.id AND bound.session_id = ?1)
+ OR EXISTS (SELECT 1 FROM loop_session_bindings binding WHERE binding.loop_run_id = lr.id
+  AND binding.session_id = ?1 AND binding.state = 'active'))
 ORDER BY lr.id
 `
 
 type ListSessionLoopWorkParams struct {
+	SessionID   sql.NullString `json:"session_id"`
 	WorkspaceID string         `json:"workspace_id"`
 	AllProfiles any            `json:"all_profiles"`
 	ProfileID   string         `json:"profile_id"`
-	SessionID   sql.NullString `json:"session_id"`
 	OwnerRunID  string         `json:"owner_run_id"`
 }
 
 type ListSessionLoopWorkRow struct {
-	ID           string `json:"id"`
-	CreatedAt    string `json:"created_at"`
-	ReconciledAt string `json:"reconciled_at"`
+	ID             string `json:"id"`
+	CreatedAt      string `json:"created_at"`
+	Status         string `json:"status"`
+	OwnsGoal       int64  `json:"owns_goal"`
+	LeaseUntil     string `json:"lease_until"`
+	NeedsAttention bool   `json:"needs_attention"`
+	ReconciledAt   string `json:"reconciled_at"`
 }
 
 func (q *Queries) ListSessionLoopWork(ctx context.Context, arg ListSessionLoopWorkParams) ([]ListSessionLoopWorkRow, error) {
 	rows, err := q.db.QueryContext(ctx, listSessionLoopWork,
+		arg.SessionID,
 		arg.WorkspaceID,
 		arg.AllProfiles,
 		arg.ProfileID,
-		arg.SessionID,
 		arg.OwnerRunID,
 	)
 	if err != nil {
@@ -782,7 +798,15 @@ func (q *Queries) ListSessionLoopWork(ctx context.Context, arg ListSessionLoopWo
 	items := []ListSessionLoopWorkRow{}
 	for rows.Next() {
 		var i ListSessionLoopWorkRow
-		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.ReconciledAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Status,
+			&i.OwnsGoal,
+			&i.LeaseUntil,
+			&i.NeedsAttention,
+			&i.ReconciledAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

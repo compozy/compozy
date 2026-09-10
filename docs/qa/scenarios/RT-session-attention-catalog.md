@@ -38,3 +38,7 @@ profiles and confirm the counts an operator sees belong to the acting profile, t
 compose rather than replace one another, and that an agent's identity stays confined to
 same-workspace interaction discovery regardless of profile. Cross-profile totals are only available
 through the explicit labeled aggregate, which `ET-profile-aggregate-owner-labels` owns.
+
+Issue #595 acceptance: a self-directed Goal with a current action lease must not gain stale `loop_run` attention solely because no coordinator has completed yet. Expired leases and overdue waits still surface staleness; real quarantine, intervention, and approval remain attention even with fresh agent progress. Reread after recovery and terminal cancellation to confirm derived attention clears without editing stored badges.
+
+Targeted #595 retest evidence and limits: [Goal lifecycle report](../reports/2026-09-10-issue-595-goal-lifecycle.md). This slice does not replace earlier evidence or claim an unrun full-scenario sweep.

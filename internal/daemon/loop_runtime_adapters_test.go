@@ -2160,3 +2160,41 @@ func (r *loopPolicyProfileWorkspaceResolver) ResolveForProfile(
 	}
 	return r.scoped, nil
 }
+
+// Invariant: ongoing leases and admitted waits are fresh, but reads cannot renew expired evidence.
+// Owner: daemon Loop supervision adapter; canonical runtime adapters suite.
+func TestSessionLoopWorkFreshness(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bound ongoing and waiting work by durable evidence", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		work := looppkg.SessionWork{
+			RunID:      "run",
+			Status:     looppkg.StatusRunning,
+			Since:      now.Add(-time.Hour),
+			LeaseUntil: now.Add(time.Minute),
+		}
+		signal := sessionLoopWorkSignal(work)
+		if !signal.ValidUntil.Equal(work.LeaseUntil) || signal.AttentionReason != "" {
+			t.Fatalf("ongoing lease = %#v", signal)
+		}
+		work.LeaseUntil = now.Add(-time.Second)
+		signal = sessionLoopWorkSignal(work)
+		if !signal.ValidUntil.Before(now) || !signal.StaleAttention {
+			t.Fatalf("expired lease renewed: %#v", signal)
+		}
+		deadline := now.Add(time.Hour)
+		work.Waits = []looppkg.NodeWait{{ClaimState: looppkg.WaitClaimWaiting, ResumeAt: &deadline}}
+		if signal = sessionLoopWorkSignal(
+			work,
+		); !signal.ValidUntil.Equal(
+			deadline.Add(2 * defaultMechanicalSchedulerInterval),
+		) {
+			t.Fatalf("wait freshness = %#v", signal)
+		}
+		work.NeedsAttention = true
+		if signal = sessionLoopWorkSignal(work); signal.AttentionReason == "" {
+			t.Fatal("quarantine lost attention")
+		}
+	})
+}

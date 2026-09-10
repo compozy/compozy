@@ -137,6 +137,34 @@ Pause and approval re-entry enqueue one successor segment under a new control ep
 resume/approve calls do not create multiple successors. A terminal `blocked` Run stays terminal;
 change the objective with expected-Run replacement or clear the projection instead of resuming it.
 
+## Stop, remove, or recover a Goal
+
+Stopping the origin or current bound session explicitly cancels its session Goal. Removal first stops execution; if deleting history later fails, the retained session stays stopped and the Goal stays canceled. If cancellation fails, stop settlement remains pending and retains its recovery receipt. Retry the stop, or restart the daemon to replay the pending cancellation. Removing that
+session cancels its Goal before removing session history. The Run, turns, and task audit stay
+inspectable. Closing only a window, disconnecting a stream, or restarting the daemon does not cancel
+a committed Goal. Informational origins of catalog Loops retain their separate lifecycle.
+
+A canceled Goal shows a terminal `run_status: canceled`, `live: false`, and Goal status `paused`,
+including when it stopped before the first work turn. Resume is unavailable. A quarantined Goal
+shows `blocked` with `node_quarantined`; inspect its Run and requeue the node after repairing the
+cause, or cancel it. Previous failed attempts remain in the audit.
+
+If an older Goal outlived a session that was already removed, use its Run controls:
+
+```bash
+compozy loop runs --origin session --origin-session sess_123 -o json
+compozy loop cancel --run-id run_123 -o json
+compozy loop status --run-id run_123 -o json
+```
+
+Cancellation is idempotent and does not require the missing session. A missing-session error on
+session controls and a connection refusal from an unavailable daemon are different failures;
+reconnect to the owning daemon before operating on its Run.
+
+Active task leases keep ongoing Goal work fresh even before its first completed coordinator pass.
+Status reads do not extend those leases or wait deadlines. Real expired work, quarantine, approval,
+and intervention still surface Needs attention, including while the agent produces other progress.
+
 ## Audit turns
 
 Every durably started work prompt consumes one monotonic Goal turn. Compaction does not. Read the

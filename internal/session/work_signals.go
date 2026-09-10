@@ -23,8 +23,9 @@ type WorkSignal struct {
 	Since time.Time      `json:"since"`
 	Ref   string         `json:"ref,omitempty"`
 
-	ValidUntil     time.Time `json:"-"`
-	StaleAttention bool      `json:"-"`
+	ValidUntil      time.Time `json:"-"`
+	StaleAttention  bool      `json:"-"`
+	AttentionReason string    `json:"-"`
 }
 
 // SignalSource inspects one authoritative subsystem without renewing its evidence.

@@ -20,6 +20,16 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND phase = sqlc.arg(phase) AND goal_status = 'active'
   AND session_id = sqlc.arg(session_id) AND binding_handle = sqlc.arg(binding_handle);
 
+-- name: BindGoalCheckpoint :execrows
+UPDATE loop_goal_checkpoints
+SET session_id = sqlc.narg(session_id), binding_handle = sqlc.narg(binding_handle),
+    binding_epoch = sqlc.narg(binding_epoch), context_state = 'unknown', usage_sequence = NULL,
+    usage_pending_after_sequence = NULL, compaction_baseline_used = NULL,
+    updated_at = CAST(sqlc.arg(updated_at) AS TEXT)
+WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
+  AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
+  AND control_epoch = sqlc.arg(control_epoch) AND goal_status = 'active' AND phase = 'idle';
+
 -- name: SettleGoalCompactionCheckpoint :execrows
 UPDATE loop_goal_checkpoints
 SET phase = 'idle', goal_status = 'active', control_cause = NULL,

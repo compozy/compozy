@@ -280,6 +280,35 @@ bounded criterion diagnostics and aggregate warnings. Command criteria include o
 standard output, standard error, blockers, and warnings when present; continuation prompts and the
 Web timeline use that durable evidence.
 
+### Session stop, removal, and recovery
+
+Explicitly stopping a session-origin Goal's origin or current bound session cancels its live Run
+through the canonical cancellation path. Removing the session does the same before deleting its
+session history. If Goal cancellation fails, the existing stop settlement receipt remains durable;
+retrying the stop or restarting the daemon retries cancellation before settlement completes.
+Run, turn, and task audit records remain available. Catalog Loop origin lineage
+stays informational; stopping that origin does not cancel independent catalog work. Daemon shutdown
+and closing a window or disconnecting a stream do not mean an operator stopped the Goal session.
+
+A canceled Run is terminal even when it never reached its first Goal checkpoint. Its Goal projection
+is non-live, with `run_status: canceled` and `status: paused`; it cannot resume. A live quarantined
+Goal reports `status: blocked` and `cause: node_quarantined`. Inspect the node audit and use node
+requeue after repairing the cause, or cancel the Run. Repeated failed generations remain history,
+not new work; the reserved quarantine continuation is parked for explicit recovery.
+
+For older orphaned Goals whose session is already gone, use `compozy loop runs --origin session
+--origin-session <id> -o json`, then `compozy loop cancel --run-id <run-id> -o json`.
+Run cancellation does not require a live session and is idempotent. Verify terminal truth through
+`compozy loop status --run-id <run-id> -o json`; retained turns and node/task audit remain inspectable.
+A missing-session response from a session-scoped control is not evidence that Run cancellation failed.
+Connection refusal means the daemon is unavailable; reconnect to the owning daemon before retrying.
+
+Known context is adopted under the exact active binding before the first Goal prompt and is reread
+from its pinned event sequence. Unknown context remains unknown; pending compaction still requires
+newer evidence. Initial admission, ongoing task leases, and admitted wait deadlines bound Loop work
+freshness. Status reads never extend those bounds. Expired evidence remains stale attention, while
+quarantine, intervention, and approval retain explicit attention even alongside fresh agent progress.
+
 ## Terminal Outcomes And Live States
 
 When a Loop reaches a terminal state, CompozyOS settles its coordinator and cell task records in the

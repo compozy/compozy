@@ -19,6 +19,76 @@ import (
 func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: binding adoption is fenced and cannot erase same-binding context freshness.
+	// Owner: Goal checkpoint store; canonical checkpoint control integration suite.
+	t.Run("Should adopt an active binding before context observation with exact ownership", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-bind", "ws-foreign")
+		insertGoalSchemaLoopRun(t, db, "run-bind", "ws-bind", "catalog", nil)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+		key := goal.TurnKey{WorkspaceID: "ws-bind", LoopRunID: "run-bind", Generation: 1, NodeID: "goal"}
+		seedActiveGoalBindingForTest(t, db, "run-bind", "ws-bind", "goal:bind", 1, "session-bind", now)
+		_, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+			Key: key, TaskRunID: "task-bind", ControlEpoch: 1, Phase: "idle", Status: "active",
+			TurnLimit: 10, ContextState: "unknown", ContextNudgeRatio: 0.8, UpdatedAt: now,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := goal.BindCheckpointRequest{Key: key, ExpectedControlEpoch: 1, ExpectedPhase: "idle",
+			TaskRunID: "task-bind", SessionID: "session-bind", BindingHandle: "goal:bind", BindingEpoch: 1}
+		for _, tc := range []struct {
+			name   string
+			mutate func(*goal.BindCheckpointRequest)
+			want   error
+			reason looppkg.ReasonCode
+		}{
+			{"control epoch", func(r *goal.BindCheckpointRequest) { r.ExpectedControlEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"checkpoint binding epoch", func(r *goal.BindCheckpointRequest) { r.ExpectedBindingEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"phase", func(r *goal.BindCheckpointRequest) { r.ExpectedPhase = "prompting" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"task", func(r *goal.BindCheckpointRequest) { r.TaskRunID = "foreign-task" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeGoalControlStale},
+			{"session", func(r *goal.BindCheckpointRequest) { r.SessionID = "foreign-session" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"handle", func(r *goal.BindCheckpointRequest) { r.BindingHandle = "foreign-handle" }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"active binding epoch", func(r *goal.BindCheckpointRequest) { r.BindingEpoch++ }, looppkg.ErrTransitionConflict, looppkg.ReasonCodeContinuousBindingMismatch},
+			{"workspace", func(r *goal.BindCheckpointRequest) { r.Key.WorkspaceID = "ws-foreign" }, looppkg.ErrRunNotFound, ""},
+		} {
+			t.Run("Should reject foreign "+tc.name, func(t *testing.T) {
+				invalid := request
+				tc.mutate(&invalid)
+				_, err := db.BindCheckpoint(ctx, invalid)
+				if !errors.Is(err, tc.want) {
+					t.Fatalf("binding ownership error = %v, want %v", err, tc.want)
+				}
+				if tc.reason != "" {
+					var reason *looppkg.ReasonError
+					if !errors.As(err, &reason) || reason.Code != tc.reason {
+						t.Fatalf("binding ownership reason = %v, want %s", err, tc.reason)
+					}
+				}
+			})
+		}
+		if _, err := db.BindCheckpoint(ctx, request); err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.RecordContextUsage(ctx, goal.RecordContextUsageRequest{
+			Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1, ExpectedPhase: "idle",
+			SessionID: "session-bind", BindingHandle: "goal:bind",
+			Usage: goal.ContextUsage{Known: true, Used: 5, Size: 10, Sequence: 7, ReportedAt: now},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.ExpectedBindingEpoch = 1
+		checkpoint, err := db.BindCheckpoint(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if checkpoint.ContextState != "known" || checkpoint.UsageSequence == nil || *checkpoint.UsageSequence != 7 {
+			t.Fatalf("binding replay erased context: %#v", checkpoint)
+		}
+	})
+
 	t.Run("Should fence control mutation by the exact checkpoint owner tuple", func(t *testing.T) {
 		t.Parallel()
 
