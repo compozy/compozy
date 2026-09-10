@@ -1,16 +1,18 @@
 import { ChevronRight, Layers } from "lucide-react";
 import { createElement } from "react";
 
-import { SessionToolCallRow } from "@/systems/session/components/tool-call-card";
+import {
+  SessionToolCallRow,
+  SessionSummaryDisclosure,
+  liveToolLabel,
+  parallelToolLabel,
+} from "@/systems/session";
 import type { SessionNavigationReveal } from "./hooks/session-navigation-target-context";
 import { toolMessageFromPart } from "./session-timeline-tool-message";
-
-import { SessionSummaryDisclosure } from "@/systems/session/components/session-summary-disclosure";
 
 import { cn } from "@/lib/utils";
 import { useSessionThreadLiveData } from "./hooks/use-session-thread-live-data";
 import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
-import { liveToolLabel, parallelToolLabel } from "@/systems/session/lib/session-tool-visual-state";
 
 import type { SessionLiveToolRow, SessionTimelineToolPart } from "./session-timeline.logic";
 
