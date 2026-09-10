@@ -93,5 +93,5 @@ func evaluateIndexedDescriptor(
 	if indexed, ok := evaluator.(indexedPolicyEvaluator); ok {
 		return indexed.evaluateIndexed(ctx, scope, descriptor)
 	}
-	return evaluator.Evaluate(ctx, scope, descriptor)
+	return evaluator.Evaluate(ctx, scope, cloneDescriptor(descriptor))
 }

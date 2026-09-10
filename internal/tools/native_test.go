@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -326,16 +327,122 @@ func TestNativeProviderProjectionGeneration(t *testing.T) {
 		if got := handle.Availability(t.Context(), Scope{SessionID: "sess-1"}); got.Executable {
 			t.Fatalf("unavailable handle availability = %#v, want not executable", got)
 		}
+		views, err := registry.SessionProjection(t.Context(), Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("SessionProjection(unavailable) error = %v", err)
+		}
+		requireToolIDs(t, views)
 		available = true
 		if got := handle.Availability(t.Context(), Scope{SessionID: "sess-1"}); !got.Executable {
 			t.Fatalf("available handle availability = %#v, want executable", got)
 		}
+		views, err = registry.SessionProjection(t.Context(), Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("SessionProjection(available) error = %v", err)
+		}
+		requireToolIDs(t, views, descriptor.ID)
+		available = false
+		views, err = registry.SessionProjection(t.Context(), Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("SessionProjection(unavailable again) error = %v", err)
+		}
+		requireToolIDs(t, views)
 
 		generation, known := registry.ProjectionGeneration(t.Context(), Scope{SessionID: "sess-1"})
 		if known || generation != "" {
 			t.Fatalf("ProjectionGeneration() = %q, %t, want unknown", generation, known)
 		}
 	})
+}
+
+func TestNativeProviderDescriptorIsolation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate native descriptors from caller and custom evaluator mutations", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		descriptor.Backend.RequiresCapabilities = []string{"files.read"}
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewNativeProvider() error = %v", err)
+		}
+		listed, err := provider.List(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("NativeProvider.List() error = %v", err)
+		}
+		want := cloneDescriptor(listed[0])
+		want.Backend.RequiresCapabilities = []string{"files.read"}
+		mutateNativeDescriptor(descriptor)
+		mutateNativeDescriptor(listed[0])
+		handle, found, err := provider.Resolve(t.Context(), Scope{}, want.ID)
+		if err != nil || !found {
+			t.Fatalf("NativeProvider.Resolve() found = %t, error = %v", found, err)
+		}
+		mutateNativeDescriptor(handle.Descriptor())
+		requireNativeDescriptor(t, handle.Descriptor(), want)
+		registry, err := NewRegistry(
+			WithProviders(provider),
+			WithPolicyEvaluator(nativeDescriptorMutatingEvaluator{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		for range 2 {
+			views, projectionErr := registry.SessionProjection(t.Context(), Scope{})
+			if projectionErr != nil {
+				t.Fatalf("SessionProjection() error = %v", projectionErr)
+			}
+			requireToolIDs(t, views, want.ID)
+			requireNativeDescriptor(t, views[0].Descriptor, want)
+			mutateNativeDescriptor(views[0].Descriptor)
+		}
+		listed, err = provider.List(t.Context(), Scope{})
+		if err != nil {
+			t.Fatalf("NativeProvider.List(after mutations) error = %v", err)
+		}
+		requireNativeDescriptor(t, listed[0], want)
+	})
+}
+
+type nativeDescriptorMutatingEvaluator struct{}
+
+var _ PolicyEvaluator = nativeDescriptorMutatingEvaluator{}
+
+func (nativeDescriptorMutatingEvaluator) Evaluate(
+	_ context.Context,
+	_ Scope,
+	descriptor Descriptor,
+) (EffectiveToolDecision, error) {
+	mutateNativeDescriptor(descriptor)
+	return EffectiveToolDecision{VisibleToOperator: true, VisibleToSession: true, Callable: true}, nil
+}
+
+func mutateNativeDescriptor(descriptor Descriptor) {
+	descriptor.Backend.RequiresCapabilities[0] = "files.write"
+	descriptor.DisplayTitle = "Changed title"
+	descriptor.InputSchema[0] = '!'
+	descriptor.OutputSchema[0] = '!'
+	descriptor.Toolsets[0] = "compozy__changed"
+	descriptor.Tags[0] = "changed"
+	descriptor.SearchHints[0] = "changed"
+}
+
+func requireNativeDescriptor(t *testing.T, got, want Descriptor) {
+	t.Helper()
+
+	if got.Presentation() != want.Presentation() ||
+		!slices.Equal(got.Backend.RequiresCapabilities, want.Backend.RequiresCapabilities) ||
+		string(got.InputSchema) != string(want.InputSchema) || string(got.OutputSchema) != string(want.OutputSchema) ||
+		!slices.Equal(got.Toolsets, want.Toolsets) || !slices.Equal(got.Tags, want.Tags) ||
+		!slices.Equal(got.SearchHints, want.SearchHints) {
+		t.Fatalf("native descriptor = %#v, want immutable descriptor %#v", got, want)
+	}
 }
 
 func TestNativeProviderValidation(t *testing.T) {

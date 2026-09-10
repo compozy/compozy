@@ -35,6 +35,13 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		if include != nil && !include(provider) {
 			continue
 		}
+		if native, ok := provider.(*NativeProvider); ok {
+			// Native descriptors are validated and privately cloned at construction.
+			for _, id := range native.ids {
+				index.add(native.tools[id].Descriptor, provider)
+			}
+			continue
+		}
 		descriptors, err := provider.List(ctx, scope)
 		if err != nil {
 			return nil, fmt.Errorf("tools: list provider %s: %w", sourceKey(provider.ID()), err)
@@ -47,14 +54,7 @@ func (r *RuntimeRegistry) buildIndexMatching(
 			if err := descriptor.Validate(); err != nil {
 				return nil, indexValidationError(descriptor.ID, err)
 			}
-			if existing, ok := index.byID[descriptor.ID]; ok {
-				reason := conflictReason(&existing.descriptor, descriptor)
-				existing.conflicts = appendReason(existing.conflicts, reason)
-				continue
-			}
-			entry := &registryEntry{descriptor: cloneDescriptor(*descriptor), provider: provider}
-			index.byID[descriptor.ID] = entry
-			index.entries = append(index.entries, entry)
+			index.add(cloneDescriptor(*descriptor), provider)
 		}
 	}
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
@@ -64,6 +64,17 @@ func (r *RuntimeRegistry) buildIndexMatching(
 		r.descriptorMetadata.remember(scope.WorkspaceID, index.entries)
 	}
 	return index, nil
+}
+
+func (i *registryIndex) add(descriptor Descriptor, provider Provider) {
+	if existing, ok := i.byID[descriptor.ID]; ok {
+		reason := conflictReason(&existing.descriptor, &descriptor)
+		existing.conflicts = appendReason(existing.conflicts, reason)
+		return
+	}
+	entry := &registryEntry{descriptor: descriptor, provider: provider}
+	i.byID[descriptor.ID] = entry
+	i.entries = append(i.entries, entry)
 }
 
 func (r *RuntimeRegistry) evaluatorFor(ctx context.Context, scope Scope, ids []ToolID) (PolicyEvaluator, error) {
