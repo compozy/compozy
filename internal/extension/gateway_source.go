@@ -206,8 +206,9 @@ func connectivityReachabilityFromWire(value extensioncontract.ConnectivityReacha
 	for index, endpoint := range value.Endpoints {
 		mapped := gateway.AdvertisedEndpoint{
 			URL: strings.TrimSpace(endpoint.URL), Scheme: strings.TrimSpace(endpoint.Scheme),
-			SchemePolicy: gateway.EndpointSchemePolicy(strings.TrimSpace(endpoint.SchemePolicy)),
-			Stability:    gateway.EndpointStability(strings.TrimSpace(endpoint.Stability)),
+			SchemePolicy:        gateway.EndpointSchemePolicy(strings.TrimSpace(endpoint.SchemePolicy)),
+			Stability:           gateway.EndpointStability(strings.TrimSpace(endpoint.Stability)),
+			VerificationAddress: endpoint.VerificationAddress,
 		}
 		mapped, err := normalizeConnectivityEndpoint(mapped)
 		if err != nil {

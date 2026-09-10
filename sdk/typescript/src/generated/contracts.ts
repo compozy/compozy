@@ -1350,6 +1350,7 @@ export interface ConnectivityAdvertisedEndpoint {
   scheme: string;
   scheme_policy?: string;
   stability: string;
+  verification_address?: string;
 }
 
 export interface ConnectivityEstablishRequest {

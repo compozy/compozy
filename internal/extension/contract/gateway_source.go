@@ -31,10 +31,11 @@ type ConnectivityReachability struct {
 
 // ConnectivityAdvertisedEndpoint is one provider-owned external address.
 type ConnectivityAdvertisedEndpoint struct {
-	URL          string `json:"url"`
-	Scheme       string `json:"scheme"`
-	SchemePolicy string `json:"scheme_policy,omitempty"`
-	Stability    string `json:"stability"`
+	URL                 string `json:"url"`
+	Scheme              string `json:"scheme"`
+	SchemePolicy        string `json:"scheme_policy,omitempty"`
+	Stability           string `json:"stability"`
+	VerificationAddress string `json:"verification_address,omitempty"`
 }
 
 // ConnectivityTeardownResponse acknowledges that the tier stopped forwarding.

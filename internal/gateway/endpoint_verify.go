@@ -100,24 +100,16 @@ func (v *EndpointVerifier) Verify(
 	if timeout <= 0 || resolver == nil || publicResolver == nil || dialer == nil {
 		return errors.New("gateway: endpoint verifier is not configured")
 	}
-	if err := tier.Validate(); err != nil {
-		return err
-	}
-	if err := endpoint.Validate(); err != nil {
-		return fmt.Errorf("%w: invalid endpoint descriptor", ErrEndpointUnverified)
-	}
-	if tier == TierPublic && !strings.EqualFold(endpoint.Scheme, endpointSchemeHTTPS) {
-		return fmt.Errorf("%w: HTTPS is required", ErrEndpointUnverified)
-	}
-	if !strings.HasPrefix(challengePath, ChallengePathPrefix) || strings.TrimSpace(nonce) == "" {
-		return fmt.Errorf("%w: challenge is unavailable", ErrEndpointUnverified)
-	}
-	challengeURL, err := endpointChallengeURL(endpoint, challengePath)
+	challengeURL, err := validateEndpointChallenge(tier, endpoint, challengePath, nonce)
 	if err != nil {
-		return fmt.Errorf("%w: invalid challenge URL", ErrEndpointUnverified)
+		return err
 	}
 	if tier == TierPublic {
 		resolver = publicResolver
+	}
+	if endpoint.VerificationAddress != "" {
+		resolver = verificationRelayResolver{address: netip.MustParseAddrPort(endpoint.VerificationAddress).Addr()}
+		dialer = verificationRelayDialer{address: endpoint.VerificationAddress, dialer: dialer}
 	}
 	client, err := endpointVerificationClient(tier, challengeURL, timeout, resolver, dialer, rootCAs)
 	if err != nil {
@@ -133,7 +125,7 @@ func (v *EndpointVerifier) Verify(
 	request.Close = true
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("%w: endpoint probe failed", ErrEndpointUnverified)
+		return endpointProbeError(err)
 	}
 	body, readErr := readBoundedChallengeBody(response.Body)
 	closeErr := response.Body.Close()
@@ -141,7 +133,7 @@ func (v *EndpointVerifier) Verify(
 		return fmt.Errorf("%w: challenge response is invalid", ErrEndpointUnverified)
 	}
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: challenge returned a non-success status", ErrEndpointUnverified)
+		return fmt.Errorf("%w: challenge returned HTTP %d", ErrEndpointUnverified, response.StatusCode)
 	}
 	if string(body) != nonce {
 		return fmt.Errorf("%w: challenge nonce did not match", ErrEndpointUnverified)
@@ -247,7 +239,7 @@ func endpointVerificationClient(
 		Transport: transport,
 		Timeout:   timeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("gateway: endpoint verification redirects are forbidden")
+			return errEndpointRedirect
 		},
 	}, nil
 }
@@ -279,4 +271,27 @@ func readBoundedChallengeBody(body io.Reader) ([]byte, error) {
 		return nil, errors.New("gateway: challenge response exceeds 64 KiB")
 	}
 	return result, nil
+}
+
+func validateEndpointChallenge(tier Tier, endpoint AdvertisedEndpoint, challengePath, nonce string) (string, error) {
+	if err := tier.Validate(); err != nil {
+		return "", err
+	}
+	if err := endpoint.Validate(); err != nil {
+		return "", fmt.Errorf("%w: invalid endpoint descriptor", ErrEndpointUnverified)
+	}
+	if tier == TierPublic && endpoint.VerificationAddress != "" {
+		return "", fmt.Errorf("%w: public proof cannot use a private verification transport", ErrEndpointUnverified)
+	}
+	if tier == TierPublic && !strings.EqualFold(endpoint.Scheme, endpointSchemeHTTPS) {
+		return "", fmt.Errorf("%w: HTTPS is required", ErrEndpointUnverified)
+	}
+	if !strings.HasPrefix(challengePath, ChallengePathPrefix) || strings.TrimSpace(nonce) == "" {
+		return "", fmt.Errorf("%w: challenge is unavailable", ErrEndpointUnverified)
+	}
+	challengeURL, err := endpointChallengeURL(endpoint, challengePath)
+	if err != nil {
+		return "", fmt.Errorf("%w: invalid challenge URL", ErrEndpointUnverified)
+	}
+	return challengeURL, nil
 }
