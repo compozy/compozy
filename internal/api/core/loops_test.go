@@ -2691,3 +2691,50 @@ func assertLoopStatus(t *testing.T, got int, want int, body string) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, body)
 	}
 }
+
+func TestLoopReadProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, endpoint := range []string{"briefing", "nodes", "timeline"} {
+		t.Run("Should refuse a foreign Profile before reading "+endpoint, func(t *testing.T) {
+			t.Parallel()
+			service := happyLoopService(t)
+			reads := 0
+			service.getLoopRunNodesFn = func(context.Context, string, string, looppkg.RosterQuery) (contract.LoopRunNodesResponse, error) {
+				reads++
+				return contract.LoopRunNodesResponse{}, nil
+			}
+			service.getLoopBriefingFn = func(context.Context, string, string) (contract.LoopBriefingResponse, error) {
+				reads++
+				return contract.LoopBriefingResponse{}, nil
+			}
+			service.getLoopTimelineFn = func(context.Context, string, string, looppkg.TimelineQuery) (contract.LoopTimelineResponse, error) {
+				reads++
+				return contract.LoopTimelineResponse{}, nil
+			}
+			service.getLoopRunFn = func(context.Context, string, string) (contract.LoopRunResponse, error) {
+				run := loopRunPayload("run-1", looppkg.StatusDone)
+				run.ProfileID = "profile-marketing"
+				return contract.LoopRunResponse{Run: *run}, nil
+			}
+			handlers := core.NewBaseHandlers(
+				&core.BaseHandlerConfig{Loops: service, Profiles: sessionProfileServiceStub{}},
+			)
+			engine := gin.New()
+			registerLoopTestRoutes(engine, handlers)
+			path := "/workspaces/ws-1/loop-runs/run-1/" + endpoint
+			foreign := performRequest(t, engine, http.MethodGet, path+"?profile=default", nil)
+			assertLoopStatus(t, foreign.Code, http.StatusNotFound, foreign.Body.String())
+			if !strings.Contains(foreign.Body.String(), `"code":"loop_run_not_found"`) {
+				t.Fatalf("wrong error contract: %s", foreign.Body.String())
+			}
+			if reads != 0 {
+				t.Fatal("foreign Profile reached the projection")
+			}
+			owned := performRequest(t, engine, http.MethodGet, path+"?profile=marketing", nil)
+			assertLoopStatus(t, owned.Code, http.StatusOK, owned.Body.String())
+			if reads != 1 {
+				t.Fatalf("projection reads = %d, want 1", reads)
+			}
+		})
+	}
+}

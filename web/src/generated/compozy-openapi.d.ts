@@ -108882,7 +108882,12 @@ export interface operations {
   };
   getLoopRunBriefing: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -110268,6 +110273,10 @@ export interface operations {
         cursor?: string;
         /** @description Maximum rows to return */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -112973,6 +112982,10 @@ export interface operations {
         limit?: number;
         /** @description Return entries after this per-run sequence */
         after_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {

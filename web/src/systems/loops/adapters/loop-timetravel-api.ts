@@ -1,3 +1,5 @@
+import type { ProfileMutationScopeParams } from "@/systems/profiles";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import {
   apiClient,
   apiRequestFailed,
@@ -56,12 +58,13 @@ function timetravelError(action: string, response: Response, error: unknown): Lo
 export async function diffLoopRun(
   { workspaceId, runId }: RunPath,
   query: LoopDiffQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopDiff> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId }, query },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: { ...query, ...scope } },
       signal,
     }
   );
@@ -72,12 +75,13 @@ export async function diffLoopRun(
 export async function rerunLoopRun(
   { workspaceId, runId }: RunPath,
   body: LoopRerunRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRerunResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body,
       signal,
     }
@@ -91,12 +95,13 @@ export async function rerunLoopRun(
 export async function forkLoopRun(
   { workspaceId, runId }: RunPath,
   body: LoopForkRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopForkResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body,
       signal,
     }
@@ -112,12 +117,13 @@ const AMEND_REASON_STATUSES = new Set([403, 409, 422]);
 export async function amendLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopAmendRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopAmendResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/amend",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }

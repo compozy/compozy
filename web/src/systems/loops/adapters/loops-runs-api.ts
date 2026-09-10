@@ -1,3 +1,5 @@
+import type { ProfileMutationScopeParams } from "@/systems/profiles";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import {
   apiClient,
   apiRequestFailed,
@@ -28,7 +30,8 @@ import type {
 export function buildLoopStreamUrl(
   workspaceId: string,
   runId: string,
-  filters: LoopStreamFilter = {}
+  filters: LoopStreamFilter = {},
+  scope: ProfileScopeParams = { profile: "default" }
 ): string {
   const trimmedWorkspace = workspaceId.trim();
   if (trimmedWorkspace === "") {
@@ -41,9 +44,12 @@ export function buildLoopStreamUrl(
   const path = `/api/workspaces/${encodeURIComponent(trimmedWorkspace)}/loop-runs/${encodeURIComponent(
     trimmedRun
   )}/events`;
-  return filters.after_sequence === undefined
-    ? path
-    : `${path}?after_sequence=${encodeURIComponent(String(filters.after_sequence))}`;
+  const query = new URLSearchParams();
+  if ("profile" in scope) query.set("profile", scope.profile);
+  else query.set("all_profiles", "true");
+  if (filters.after_sequence !== undefined)
+    query.set("after_sequence", String(filters.after_sequence));
+  return `${path}?${query}`;
 }
 
 export async function runLoop(
@@ -139,12 +145,13 @@ export async function listLoopRuns(
 export async function getLoopRun(
   workspaceId: string,
   runId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileScopeParams = { profile: "default" }
 ): Promise<LoopRunDetail> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       signal,
     }
   );
@@ -185,12 +192,13 @@ function loopRunControlError(
 export async function pauseLoopRun(
   workspaceId: string,
   runId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRunActionResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body: {},
       signal,
     }
@@ -204,12 +212,13 @@ export async function pauseLoopRun(
 export async function resumeLoopRun(
   workspaceId: string,
   runId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRunActionResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body: {},
       signal,
     }
@@ -223,12 +232,13 @@ export async function resumeLoopRun(
 export async function cancelLoopRun(
   workspaceId: string,
   runId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRunMutationResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body: {},
       signal,
     }
@@ -243,12 +253,13 @@ export async function approveLoopRun(
   workspaceId: string,
   runId: string,
   body: ApproveLoopRunRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopRunActionResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId }, query: scope },
       body,
       signal,
     }

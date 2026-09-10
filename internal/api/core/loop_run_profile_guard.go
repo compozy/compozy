@@ -17,6 +17,16 @@ func (h *BaseHandlers) requireLoopRunProfileByID(
 	runID string,
 	mutation bool,
 ) bool {
+	return h.requireLoopRunProfileWithResponder(c, service, runID, mutation, h.respondLoopError)
+}
+
+func (h *BaseHandlers) requireLoopRunProfileWithResponder(
+	c *gin.Context,
+	service LoopService,
+	runID string,
+	mutation bool,
+	respond func(*gin.Context, error),
+) bool {
 	var (
 		scope interface{ Matches(string) bool }
 		err   error
@@ -36,11 +46,11 @@ func (h *BaseHandlers) requireLoopRunProfileByID(
 		strings.TrimSpace(runID),
 	)
 	if err != nil {
-		h.respondLoopError(c, err)
+		respond(c, err)
 		return false
 	}
 	if !scope.Matches(response.Run.ProfileID) {
-		h.respondLoopError(c, looppkg.ErrRunNotFound)
+		respond(c, looppkg.ErrRunNotFound)
 		return false
 	}
 	return true

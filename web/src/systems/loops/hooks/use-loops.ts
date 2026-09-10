@@ -54,5 +54,6 @@ export function useLoopRuns(workspaceId: string, filters: LoopRunsFilter = {}, e
 }
 
 export function useLoopRun(workspaceId: string, runId: string, enabled = true) {
-  return useQuery(loopRunDetailOptions(workspaceId, runId, enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(loopRunDetailOptions(workspaceId, runId, enabled, params));
 }

@@ -1,3 +1,4 @@
+import { useLoopRunOwner } from "./use-loop-run-owner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { amendLoopNode, respondLoopRequest } from "../adapters/loops-api";
@@ -35,9 +36,15 @@ function invalidateRequestLifecycle(
 
 export function useRespondLoopRequest() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: RespondParams) =>
-      respondLoopRequest({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: RespondParams) =>
+      respondLoopRequest(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateRequestLifecycle(queryClient, workspaceId, runId),
   });
@@ -45,9 +52,15 @@ export function useRespondLoopRequest() {
 
 export function useAmendLoopNode() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: AmendParams) =>
-      amendLoopNode({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: AmendParams) =>
+      amendLoopNode(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateRequestLifecycle(queryClient, workspaceId, runId),
   });

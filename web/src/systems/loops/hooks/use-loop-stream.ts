@@ -1,3 +1,4 @@
+import { useProfileReadScope } from "@/systems/profiles";
 import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@xstate/store-react";
@@ -130,6 +131,8 @@ export function useLoopStream(
     onError,
   }: UseLoopStreamOptions = {}
 ) {
+  const { params: profileParams } = useProfileReadScope();
+  const profileName = "profile" in profileParams ? profileParams.profile : null;
   const queryClient = useQueryClient();
   const lifecycleStore = useStore(loopStreamLifecycleLogic);
   const trimmedWorkspace = workspaceId.trim();
@@ -159,9 +162,14 @@ export function useLoopStream(
       return undefined;
     }
 
-    const url = buildLoopStreamUrl(trimmedWorkspace, trimmedRun, {
-      after_sequence: afterSequence === undefined ? undefined : String(afterSequence),
-    });
+    const url = buildLoopStreamUrl(
+      trimmedWorkspace,
+      trimmedRun,
+      {
+        after_sequence: afterSequence === undefined ? undefined : String(afterSequence),
+      },
+      profileName === null ? { all_profiles: true } : { profile: profileName }
+    );
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
     const subscription = {
       generation: lifecycleStore.getSnapshot().context.generation + 1,
@@ -217,6 +225,7 @@ export function useLoopStream(
     enabled,
     lifecycleStore,
     queryClient,
+    profileName,
     trimmedRun,
     trimmedWorkspace,
   ]);

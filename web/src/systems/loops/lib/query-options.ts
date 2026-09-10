@@ -1,3 +1,4 @@
+import type { ProfileScopeParams } from "@/systems/profiles";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { listLoopNodes } from "../adapters/loop-nodes-api";
@@ -132,10 +133,15 @@ export function loopRunsOptions(workspaceId: string, filters: LoopRunsFilter = {
   });
 }
 
-export function loopRunDetailOptions(workspaceId: string, runId: string, enabled = true) {
+export function loopRunDetailOptions(
+  workspaceId: string,
+  runId: string,
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
+) {
   return queryOptions({
-    queryKey: loopsKeys.runDetail(workspaceId, runId),
-    queryFn: ({ signal }) => getLoopRun(workspaceId, runId, signal),
+    queryKey: [...loopsKeys.runDetail(workspaceId, runId), scope],
+    queryFn: ({ signal }) => getLoopRun(workspaceId, runId, signal, scope),
     staleTime: LIVE_STALE_TIME,
     // Poll only while the run is live; a terminal run's projection is immutable, so
     // the run page stops refetching once it reaches a terminal state (contract-lane
@@ -151,10 +157,15 @@ export function loopRunDetailOptions(workspaceId: string, runId: string, enabled
  * (Safety Invariant 12). A terminal run's briefing is immutable, so polling stops
  * with the run — the same rule `loopRunDetailOptions` follows.
  */
-export function loopRunBriefingOptions(workspaceId: string, runId: string, enabled = true) {
+export function loopRunBriefingOptions(
+  workspaceId: string,
+  runId: string,
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
+) {
   return queryOptions({
-    queryKey: loopsKeys.runBriefing(workspaceId, runId),
-    queryFn: ({ signal }) => getLoopRunBriefing(workspaceId, runId, signal),
+    queryKey: [...loopsKeys.runBriefing(workspaceId, runId), scope],
+    queryFn: ({ signal }) => getLoopRunBriefing(workspaceId, runId, signal, scope),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: query =>
       isTerminalLoopStatus(query.state.data?.status) ? false : LIVE_REFETCH_INTERVAL,
@@ -175,13 +186,20 @@ export function loopRunRosterOptions(
   workspaceId: string,
   runId: string,
   filters: LoopRosterStableFilter = {},
-  enabled = true
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
 ) {
   const normalizedFilters = { ...filters, limit: filters.limit ?? ROSTER_PAGE_LIMIT };
   return infiniteQueryOptions({
-    queryKey: loopsKeys.runRoster(workspaceId, runId, normalizedFilters),
+    queryKey: [...loopsKeys.runRoster(workspaceId, runId, normalizedFilters), scope],
     queryFn: ({ pageParam, signal }) =>
-      getLoopRunRoster(workspaceId, runId, { ...normalizedFilters, cursor: pageParam }, signal),
+      getLoopRunRoster(
+        workspaceId,
+        runId,
+        { ...normalizedFilters, cursor: pageParam },
+        signal,
+        scope
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.next_cursor || undefined,
     staleTime: LIVE_STALE_TIME,
@@ -208,7 +226,8 @@ export function loopRunTimelineOptions(
   workspaceId: string,
   runId: string,
   filters: LoopTimelineStableFilter = {},
-  enabled = true
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
 ) {
   const normalizedFilters = {
     ...filters,
@@ -216,9 +235,15 @@ export function loopRunTimelineOptions(
     limit: filters.limit ?? TIMELINE_PAGE_LIMIT,
   };
   return infiniteQueryOptions({
-    queryKey: loopsKeys.runTimeline(workspaceId, runId, normalizedFilters),
+    queryKey: [...loopsKeys.runTimeline(workspaceId, runId, normalizedFilters), scope],
     queryFn: ({ pageParam, signal }) =>
-      getLoopRunTimeline(workspaceId, runId, { ...normalizedFilters, cursor: pageParam }, signal),
+      getLoopRunTimeline(
+        workspaceId,
+        runId,
+        { ...normalizedFilters, cursor: pageParam },
+        signal,
+        scope
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.next_cursor || undefined,
     staleTime: LIVE_STALE_TIME,
@@ -269,12 +294,16 @@ export function loopRequestDetailOptions(
   generation: number,
   nodeId: string,
   itemIndex?: number,
-  enabled = true
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
 ) {
   return queryOptions({
-    queryKey: loopsKeys.requestDetail(workspaceId, runId, generation, nodeId, itemIndex),
+    queryKey: [
+      ...loopsKeys.requestDetail(workspaceId, runId, generation, nodeId, itemIndex),
+      scope,
+    ],
     queryFn: ({ signal }) =>
-      getLoopRequest({ workspaceId, runId, generation, nodeId, itemIndex }, signal),
+      getLoopRequest({ workspaceId, runId, generation, nodeId, itemIndex }, signal, scope),
     staleTime: LIVE_STALE_TIME,
     enabled: Boolean(workspaceId) && Boolean(runId) && generation > 0 && Boolean(nodeId) && enabled,
   });
@@ -284,11 +313,12 @@ export function loopRunDiffOptions(
   workspaceId: string,
   runId: string,
   query: LoopDiffQuery = {},
-  enabled = true
+  enabled = true,
+  scope: ProfileScopeParams = { profile: "default" }
 ) {
   return queryOptions({
-    queryKey: loopsKeys.runDiff(workspaceId, runId, query),
-    queryFn: ({ signal }) => diffLoopRun({ workspaceId, runId }, query, signal),
+    queryKey: [...loopsKeys.runDiff(workspaceId, runId, query), scope],
+    queryFn: ({ signal }) => diffLoopRun({ workspaceId, runId }, query, signal, scope),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: settled => {
       const data = settled.state.data;

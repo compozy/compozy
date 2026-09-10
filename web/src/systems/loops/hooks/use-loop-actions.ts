@@ -1,3 +1,4 @@
+import { useLoopRunOwner } from "./use-loop-run-owner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -189,8 +190,10 @@ export function usePutLoopAnnotations() {
 
 export function usePauseLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId }: LoopRunParams) => pauseLoopRun(workspaceId, runId),
+    mutationFn: async ({ workspaceId, runId }: LoopRunParams) =>
+      pauseLoopRun(workspaceId, runId, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });
@@ -198,8 +201,10 @@ export function usePauseLoopRun() {
 
 export function useResumeLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId }: LoopRunParams) => resumeLoopRun(workspaceId, runId),
+    mutationFn: async ({ workspaceId, runId }: LoopRunParams) =>
+      resumeLoopRun(workspaceId, runId, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });
@@ -207,8 +212,10 @@ export function useResumeLoopRun() {
 
 export function useCancelLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId }: LoopRunParams) => cancelLoopRun(workspaceId, runId),
+    mutationFn: async ({ workspaceId, runId }: LoopRunParams) =>
+      cancelLoopRun(workspaceId, runId, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });
@@ -216,9 +223,10 @@ export function useCancelLoopRun() {
 
 export function useApproveLoopRun() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, data }: ApproveLoopRunParams) =>
-      approveLoopRun(workspaceId, runId, data),
+    mutationFn: async ({ workspaceId, runId, data }: ApproveLoopRunParams) =>
+      approveLoopRun(workspaceId, runId, data, undefined, await resolveOwner(workspaceId, runId)),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });

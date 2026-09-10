@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
 
 import type { LoopDefinition, LoopRunDetail, RunLoopResult } from "@/systems/loops";
-import { switchWorkspace } from "../fixtures/os-navigation";
+import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -526,6 +526,7 @@ interface SeededRun {
 interface SeedOptions {
   inputs?: Record<string, unknown>;
   humanGate?: boolean;
+  profile?: string;
 }
 
 function requirePaths(runtime: BrowserRuntime) {
@@ -550,7 +551,7 @@ async function seedRun(
     body: JSON.stringify({ definition }),
   });
   const started = await runtime.requestJSON<RunLoopResult>(
-    `${workspacePath}/loops/${encodeURIComponent(name)}/run`,
+    `${workspacePath}/loops/${encodeURIComponent(name)}/run${options.profile ? `?profile=${encodeURIComponent(options.profile)}` : ""}`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -823,6 +824,65 @@ function rosterRow(
 }
 
 test.describe("Loop run page — two registers", () => {
+  test("Profile-scoped Loop reads and owner-bound controls survive reload and aggregate view", async ({
+    appPage,
+    runtime,
+  }) => {
+    await runtime.requestJSON("/api/profiles", {
+      method: "POST",
+      body: JSON.stringify({ name: "marketing", color: "#2563eb", icon: "briefcase" }),
+    });
+    const { runId, runPath } = await seedRun(appPage, runtime, needsYouDefinition, NEEDS_YOU_LOOP, {
+      humanGate: true,
+      profile: "marketing",
+    });
+    await waitForRun(
+      runtime,
+      `${runPath}?profile=marketing`,
+      detail => (detail.requests ?? []).length > 0
+    );
+    for (const suffix of ["", "/briefing", "/nodes", "/timeline"]) {
+      const foreign = await appPage.request.get(runtime.url(`${runPath}${suffix}?profile=default`));
+      expect(foreign.status()).toBe(404);
+      const owned = await appPage.request.get(runtime.url(`${runPath}${suffix}?profile=marketing`));
+      expect(owned.ok()).toBe(true);
+    }
+    await appPage.getByTestId("os-menubar-profile").click();
+    await appPage.getByTestId("profile-switcher-option-marketing").click();
+    await openRun(appPage, runtime, runId);
+    await expect(appPage.getByTestId("loop-run-briefing-headline")).toBeVisible();
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(appPage.getByTestId("loop-run-briefing-headline")).toBeVisible();
+    await appPage.getByTestId("os-menubar-profile").click();
+    await appPage.getByTestId("profile-switcher-all").click();
+    const loops = await openAppWindow(appPage, "Loops", "loops");
+    await loops.getByTestId("loops-runs-link").click();
+    await loops
+      .getByTestId("loop-run-row")
+      .filter({ hasText: NEEDS_YOU_LOOP })
+      .getByRole("link", { name: NEEDS_YOU_LOOP, exact: true })
+      .click();
+    await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+    const canceled = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith(`/loop-runs/${runId}/cancel`)
+    );
+    await appPage.getByTestId("loop-run-cancel").click();
+    await appPage
+      .getByTestId("loop-run-control-dialog")
+      .getByRole("button", { name: "Cancel run", exact: true })
+      .click();
+    const response = await canceled;
+    expect(response.ok()).toBe(true);
+    expect(new URL(response.url()).searchParams.get("profile")).toBe("marketing");
+    await waitForRun(
+      runtime,
+      `${runPath}?profile=marketing`,
+      detail => detail.run.status === "canceled"
+    );
+  });
+
   test("E2E-012: the default read shows state and usage with identity in About", async ({
     appPage,
     runtime,

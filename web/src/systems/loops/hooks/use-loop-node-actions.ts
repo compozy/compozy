@@ -1,3 +1,4 @@
+import { useLoopRunOwner } from "./use-loop-run-owner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -61,9 +62,15 @@ function invalidateNodeLifecycle(
 
 export function usePauseLoopNode() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: PauseNodeParams) =>
-      pauseLoopNode({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: PauseNodeParams) =>
+      pauseLoopNode(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateNodeLifecycle(queryClient, workspaceId, runId),
   });
@@ -71,9 +78,15 @@ export function usePauseLoopNode() {
 
 export function useResumeLoopNode() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: ResumeNodeParams) =>
-      resumeLoopNode({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: ResumeNodeParams) =>
+      resumeLoopNode(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateNodeLifecycle(queryClient, workspaceId, runId),
   });
@@ -81,9 +94,15 @@ export function useResumeLoopNode() {
 
 export function useCancelLoopNode() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
-      cancelLoopNode({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
+      cancelLoopNode(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateNodeLifecycle(queryClient, workspaceId, runId),
   });
@@ -91,9 +110,15 @@ export function useCancelLoopNode() {
 
 export function useRequeueLoopNode() {
   const queryClient = useQueryClient();
+  const resolveOwner = useLoopRunOwner();
   return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
-      requeueLoopNode({ workspaceId, runId, nodeId }, data),
+    mutationFn: async ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
+      requeueLoopNode(
+        { workspaceId, runId, nodeId },
+        data,
+        undefined,
+        await resolveOwner(workspaceId, runId)
+      ),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateNodeLifecycle(queryClient, workspaceId, runId),
   });

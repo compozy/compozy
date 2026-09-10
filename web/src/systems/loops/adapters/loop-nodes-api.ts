@@ -1,3 +1,4 @@
+import type { ProfileMutationScopeParams } from "@/systems/profiles";
 import {
   apiClient,
   apiRequestFailed,
@@ -82,12 +83,13 @@ export async function listLoopNodes(
 export async function pauseLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopNodePauseRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopNodeMutationResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }
@@ -99,12 +101,13 @@ export async function pauseLoopNode(
 export async function resumeLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopNodeResumeRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopNodeMutationResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }
@@ -116,12 +119,13 @@ export async function resumeLoopNode(
 export async function cancelLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopNodeMutationRequest = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopNodeMutationResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }
@@ -133,12 +137,13 @@ export async function cancelLoopNode(
 export async function requeueLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopNodeMutationRequest = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  scope: ProfileMutationScopeParams = { profile: "default" }
 ): Promise<LoopNodeMutationResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue",
     {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
+      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId }, query: scope },
       body,
       signal,
     }

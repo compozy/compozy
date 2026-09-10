@@ -104,6 +104,11 @@ func (h *BaseHandlers) requireLoopRunReadService(c *gin.Context) (LoopRunReadSer
 	if !ok {
 		return nil, false
 	}
+	if !h.requireLoopRunProfileWithResponder(c, service, c.Param("run_id"), false, func(c *gin.Context, err error) {
+		h.respondLoopRunReadError(c, c.Param("run_id"), err)
+	}) {
+		return nil, false
+	}
 	readService, ok := service.(LoopRunReadService)
 	if !ok {
 		h.respondLoopError(c, errors.New("loop run read service is unavailable"))

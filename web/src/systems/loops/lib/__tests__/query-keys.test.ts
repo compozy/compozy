@@ -115,6 +115,7 @@ describe("loopsKeys", () => {
       "pending",
       "run_1",
       "50",
+      "",
     ]);
     expect(loopsKeys.requests("ws_a", { state: "pending" })).not.toEqual(
       loopsKeys.requests("ws_a", { state: "resolved" })

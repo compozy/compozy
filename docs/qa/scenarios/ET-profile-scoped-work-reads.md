@@ -28,3 +28,16 @@ Walk:
 
 Expected evidence: paired structured CLI responses, HTTP and UDS payloads, native-tool results, and the
 foreign-detail error body.
+
+Regression #573: open a Loop run owned by a non-default Profile and verify its detail, briefing,
+roster, timeline, requests, and event stream load. Switch to another Profile and confirm the run
+and cached content disappear; direct reads of the three projections must return not found.
+From All Profiles, invoke a run control and verify it targets the run owner.
+
+Loop regression verified 2026-09-09 in the daemon-served browser suite:
+`web/e2e/__tests__/loop-run.spec.ts`, “Profile-scoped Loop reads and owner-bound controls survive
+reload and aggregate view”. The owning Profile can read detail, briefing, roster, and timeline;
+default-Profile requests return 404. The run remains readable after reload. Reopening it from
+All Profiles and confirming cancellation sends `profile=marketing` and reaches the canceled state.
+The paired CLI journey `TestDaemonE2ELoopRunReadCLIJourneys` also passes with race detection.
+This verifies the Loop regression; the broader non-Loop scenario above retains its own QA status.

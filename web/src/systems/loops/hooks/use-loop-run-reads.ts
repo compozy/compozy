@@ -1,3 +1,4 @@
+import { useProfileReadScope } from "@/systems/profiles";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -49,7 +50,8 @@ export function useLoopRunBriefing(
   runId: string,
   enabled = true
 ): LoopRunBriefingView {
-  const query = useQuery(loopRunBriefingOptions(workspaceId, runId, enabled));
+  const { params } = useProfileReadScope();
+  const query = useQuery(loopRunBriefingOptions(workspaceId, runId, enabled, params));
   return {
     briefing: query.data ?? null,
     isLoading: query.isPending,
@@ -98,8 +100,9 @@ export function useLoopRunRoster(
   runId: string,
   enabled = true
 ): LoopRunRosterView {
+  const { params } = useProfileReadScope();
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError, error } =
-    useInfiniteQuery(loopRunRosterOptions(workspaceId, runId, {}, enabled));
+    useInfiniteQuery(loopRunRosterOptions(workspaceId, runId, {}, enabled, params));
   const pages = data?.pages ?? [];
   const [allowance, setAllowance] = useState<RosterPageAllowance>(() => ({
     workspaceId,
@@ -177,9 +180,13 @@ export function useLoopRunTimeline(
   view: "notable" | "all" = "notable",
   enabled = true
 ): LoopRunTimelineView {
+  const { params, key: profileKey } = useProfileReadScope();
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isPending, isError, error } =
-    useInfiniteQuery(loopRunTimelineOptions(workspaceId, runId, { view }, enabled));
-  const snapshotKey = loopTimelineSnapshotKey(workspaceId, runId, view);
+    useInfiniteQuery(loopRunTimelineOptions(workspaceId, runId, { view }, enabled, params));
+  const snapshotKey = JSON.stringify([
+    profileKey,
+    loopTimelineSnapshotKey(workspaceId, runId, view),
+  ]);
   const [snapshot, setSnapshot] = useState(() => emptyTimelineSnapshot(snapshotKey));
   // A lifecycle frame invalidates these reads, and a refetch re-reads the newest
   // window unpinned before re-deriving every backward cursor from it — so the
