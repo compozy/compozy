@@ -149,6 +149,27 @@ interface RuntimeLaunchState {
 export async function createBrowserRuntime(
   options: BrowserRuntimeOptions
 ): Promise<BrowserRuntime> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await createBrowserRuntimeAttempt(options);
+    } catch (error) {
+      // Match the Go runtime harness: retry only a confirmed bind collision after
+      // the failed attempt has cleaned up its process, servers, and home.
+      if (
+        attempt >= 3 ||
+        !(error instanceof Error) ||
+        !error.message.startsWith("daemon exited before readiness") ||
+        !/start http server: .*listen tcp .*bind: address already in use/.test(error.message)
+      ) {
+        throw error;
+      }
+    }
+  }
+}
+
+async function createBrowserRuntimeAttempt(
+  options: BrowserRuntimeOptions
+): Promise<BrowserRuntime> {
   const artifactCollector = await ArtifactCollector.create(options.artifactRootDir);
   const env = resolveBrowserRuntimeEnv(options.env);
   const mode = resolveRuntimeMode(env);
@@ -172,7 +193,6 @@ export async function createBrowserRuntime(
   const repoRoot = await findRepoRoot();
   const binaryPath = await ensureDaemonBinary(repoRoot);
   const paths = await createRuntimePaths();
-  const httpPort = await reserveFreePort();
   const boundHost = options.host ?? DEFAULT_HOST;
   const skillMarketplace = await startSkillMarketplaceServer(options.seed?.skillMarketplace);
   let marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>> = undefined;
@@ -191,6 +211,7 @@ export async function createBrowserRuntime(
       },
       options.seed
     );
+    const httpPort = await reserveFreePort();
     await writeFile(
       paths.configFile,
       renderRuntimeConfig({

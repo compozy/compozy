@@ -2282,6 +2282,83 @@ func TestBrokerTerminalDeliverySurvivesSaturatedQueue(t *testing.T) {
 func TestBrokerProgressQueueBackpressure(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain a short burst of tool lifecycles with the default queue", func(t *testing.T) {
+		t.Parallel()
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		transport := &fakeDeliveryTransport{
+			handler: func(ctx context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return DeliveryAck{}, ctx.Err()
+				}
+				return DeliveryAck{DeliveryID: req.Event.DeliveryID, Seq: req.Event.Seq}, nil
+			},
+		}
+		broker := NewBroker(transport)
+		t.Cleanup(broker.Close)
+		t.Cleanup(unblock)
+		reg := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-burst",
+			TurnID:        "turn-burst",
+			ExtensionName: "ext-telegram",
+			RoutingKey:    testRoutingKey("brg-burst", "peer-burst"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-burst",
+				PeerID:           "peer-burst",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		ctx := testutil.Context(t)
+		start := testDeliveryEvent(
+			reg.DeliveryID,
+			reg.BridgeInstanceID,
+			reg.RoutingKey,
+			reg.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"working",
+			false,
+		)
+		if err := broker.Deliver(ctx, start); err != nil {
+			t.Fatal(err)
+		}
+		waitForCalls(t, transport, 1)
+		for index := range 6 {
+			phase := ToolProgressPhaseStarted
+			if index%2 == 1 {
+				phase = ToolProgressPhaseCompleted
+			}
+			event := testProgressDeliveryEvent(reg.DeliveryID, reg.BridgeInstanceID,
+				fmt.Sprintf("call-%d", index/2), "compozy__terminal", phase, int64(index+2), index+1, "tool")
+			event.RoutingKey, event.DeliveryTarget = reg.RoutingKey, reg.DeliveryTarget
+			if err := broker.Deliver(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		final := testDeliveryEvent(
+			reg.DeliveryID,
+			reg.BridgeInstanceID,
+			reg.RoutingKey,
+			reg.DeliveryTarget,
+			8,
+			DeliveryEventTypeFinal,
+			"done",
+			true,
+		)
+		if err := broker.Deliver(ctx, final); err != nil {
+			t.Fatal(err)
+		}
+		unblock()
+		waitForAcks(t, transport, 8)
+		assertDeliveryOrder(t, transport.snapshotCalls(), reg.DeliveryID, []DeliveryEventType{
+			DeliveryEventTypeStart, DeliveryEventTypeProgress, DeliveryEventTypeProgress,
+			DeliveryEventTypeProgress, DeliveryEventTypeProgress, DeliveryEventTypeProgress,
+			DeliveryEventTypeProgress, DeliveryEventTypeFinal,
+		}, []int64{1, 2, 3, 4, 5, 6, 7, 8})
+	})
+
 	t.Run("Should coalesce only the same tool call and phase newest wins", func(t *testing.T) {
 		t.Parallel()
 

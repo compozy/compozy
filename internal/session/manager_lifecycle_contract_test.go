@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
@@ -1950,6 +1951,76 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		h.driver.mu.Unlock()
 		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
 			t.Fatalf("retry late process stop: %v", err)
+		}
+	})
+	t.Run("Should preserve creation identity when stop follows a canceled catalog registration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		h := newHarness(t, WithSessionCatalog(db))
+		now := time.Now().UTC()
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID: h.workspaceID, RootDir: h.workspace, Name: h.workspaceName, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		spec, err := h.manager.prepareCreateStart(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		accepted, err := h.manager.acceptSessionStart(ctx, ctx, &spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer h.manager.finishSessionStartRun(spec.sessionID, accepted.run, nil)
+		accepted.storage, err = h.manager.openSessionStartRecorder(ctx, &spec, accepted.storage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		active := accepted.session
+		active.setRecorder(accepted.storage.recorder)
+		accepted.run.signalRecorderReady()
+		if err := prepareStartCreationIdentityIfEnabled(&spec, accepted.runtime.agent); err != nil {
+			t.Fatal(err)
+		}
+		if err := finalizeStartCreationIdentityIfEnabled(&spec, active); err != nil {
+			t.Fatal(err)
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := h.manager.persistSessionLifecycleState(canceled, active, true); !errors.Is(err, context.Canceled) {
+			t.Fatalf("interrupted registration = %v, want cancellation", err)
+		}
+		if _, _, handled, err := h.manager.prepareStartingSessionStop(
+			ctx,
+			active.ID,
+			CauseShutdown,
+			"manager shutdown",
+		); !handled ||
+			err != nil {
+			t.Fatalf("prepare stop = %t, %v", handled, err)
+		}
+		if err := h.manager.settleCanceledSessionStart(ctx, accepted); err != nil {
+			t.Fatal(err)
+		}
+		identity, err := db.GetSessionCreationIdentity(ctx, active.ID)
+		if err != nil || identity != *spec.creationIdentity {
+			t.Fatalf("stopped creation identity = %+v, %v; want %+v", identity, err, *spec.creationIdentity)
+		}
+		infos, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{ID: active.ID, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+		)
+		if err != nil || len(infos) != 1 || infos[0].State != string(StateStopped) {
+			t.Fatalf("durable stopped session = %+v, %v", infos, err)
 		}
 	})
 	t.Run("Should share an asynchronous stop while the provider is starting", func(t *testing.T) {

@@ -48,7 +48,8 @@ const (
 )
 
 const (
-	defaultDeliveryQueueCapacity  = 4
+	// Leave room for short tool-lifecycle bursts while an adapter request is in flight.
+	defaultDeliveryQueueCapacity  = 64
 	defaultDeliveryRetryDelay     = 25 * time.Millisecond
 	defaultDeliveryRequestTimeout = 5 * time.Second
 )

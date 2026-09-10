@@ -45,3 +45,5 @@ definitions as config-backed. Dynamic definitions remain deletable.
 QA 2026-09-10: The existing store integration verifies that deleting either dynamic parent retains run history in its original profile and excludes other profiles. Migration 108 preserves known ownership, metadata, and unknown orphan rows. This backend evidence does not change the historical browser status. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
 
 QA 2026-09-10 follow-up: Scheduler shutdown cannot cancel an in-progress durable finalization. The existing deferred-fire restart integration passed 15 repetitions after reproducing the stale deferred cursor. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).
+
+QA support 2026-09-10: the existing real automation trigger/history/run integration passed 20 repetitions after repairing identity persistence when shutdown cancels session startup. The session lifecycle suite separately verifies the stopped identity against SQLite. Evidence and cross-surface impact: `docs/qa/reports/2026-09-10-release-integration-repair.md`.

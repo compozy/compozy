@@ -79,7 +79,9 @@ func (m *Manager) prepareStartingSessionStop(
 		return session, run, true, fmt.Errorf("session: prepare starting stop for %q: %w", id, err)
 	}
 	if writeMeta {
-		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+		// Bind any prepared creation identity before the catalog leaves Starting.
+		// A canceled launch may have written metadata without committing the catalog.
+		if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 			persistErr := fmt.Errorf("session: persist starting stop for %q: %w", id, err)
 			if run != nil {
 				run.cancel(persistErr)
