@@ -20,6 +20,10 @@ func mergeWindowManagerRequest(
 	desired := cloneWindowManagerConfig(current)
 	if req.WindowManager != nil {
 		desired = cloneWindowManagerConfig(*req.WindowManager)
+		if req.WindowManagerPreserveShortcuts {
+			desired.Shortcuts = windowmanager.CloneShortcutMap(current.Shortcuts)
+			desired.GlobalShortcuts = windowmanager.CloneGlobalShortcutMap(current.GlobalShortcuts)
+		}
 	}
 	if req.WindowManagerShortcuts != nil {
 		desired.Shortcuts = windowmanager.CloneShortcutMap(*req.WindowManagerShortcuts)

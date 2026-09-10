@@ -27,6 +27,7 @@ import {
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
   settingsReloadBlockedFixture,
+  settingsReloadAppliedFixture,
   settingsRestartRequiredMutationFixture,
   settingsRestartResponseFixture,
   settingsRestartStatusFixture,
@@ -218,10 +219,12 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/settings/window-manager", () =>
     HttpResponse.json(settingsWindowManagerSectionFixture)
   ),
-  // Bindings echo the section the daemon produced, never a write receipt: the
-  // caller has to see the keymap that actually resulted (ADR-006).
+  // Mutations preserve the section echo and expose the daemon apply receipt.
   compozyApiMock.patch("/api/settings/window-manager", () =>
-    HttpResponse.json(settingsWindowManagerSectionFixture)
+    HttpResponse.json({
+      ...settingsWindowManagerSectionFixture,
+      apply: settingsReloadAppliedFixture,
+    })
   ),
 
   compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>

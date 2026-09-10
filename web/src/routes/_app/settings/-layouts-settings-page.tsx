@@ -13,6 +13,7 @@ import {
   useLayoutsSettingsData,
   useSettingsSaveBarState,
   useSettingsTopbar,
+  windowManagerApplyMessage,
   useWindowManagerConfigEditor,
   useWindowManagerKeyboardEditors,
   useWindowManagerLayoutEditor,
@@ -186,11 +187,22 @@ function LayoutsSettingsView({
     clientId
   );
   const saveBarState = useSettingsSaveBarState({
-    isDirty: configEditor.dirty,
+    isDirty: configEditor.dirty || configEditor.error !== null,
     isInvalid: configEditor.problems.length > 0,
     isSaving: configEditor.phase === "saving",
     error: configEditor.error instanceof Error ? configEditor.error.message : null,
-    warnings: configEditor.problems.map(problem => problem.message),
+    warnings: [
+      ...configEditor.problems.map(problem => problem.message),
+      ...(configEditor.result?.apply.warnings ?? []),
+      ...(configEditor.result &&
+      (configEditor.result.apply.next_action !== "none" ||
+        (!configEditor.result.apply.applied && !configEditor.result.apply.skipped))
+        ? [windowManagerApplyMessage(configEditor.result.apply)]
+        : []),
+    ],
+    lastAppliedLabel: configEditor.result
+      ? windowManagerApplyMessage(configEditor.result.apply)
+      : null,
   });
 
   return (

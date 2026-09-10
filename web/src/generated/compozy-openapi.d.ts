@@ -71458,6 +71458,7 @@ export interface operations {
             [key: string]: string;
           } | null;
           overwrite?: boolean;
+          preserve_shortcuts?: boolean;
           shortcuts?: {
             [key: string]: string[] | string;
           } | null;
@@ -71474,6 +71475,78 @@ export interface operations {
           "application/json": {
             aliases: {
               [key: string]: string;
+            };
+            apply: {
+              active_config_hash: string;
+              /** Format: int64 */
+              active_generation: number;
+              agent_name?: string;
+              applied: boolean;
+              apply_record_id: string;
+              /** @enum {string} */
+              lifecycle:
+                | "live"
+                | "live-add"
+                | "live-remove-if-unused"
+                | "restart-required"
+                | "session-rebind";
+              /** @enum {string} */
+              next_action: "none" | "restart-daemon" | "new-session" | "retry";
+              partial_failures?: {
+                diagnostic: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                };
+                subsystem: string;
+              }[];
+              profile?: string;
+              restart_required?: boolean;
+              restart_scope?: string;
+              /** @enum {string} */
+              scope?: "user" | "profile" | "workspace" | "agent";
+              /** @enum {string} */
+              section?:
+                | "general"
+                | "persona"
+                | "memory"
+                | "roles"
+                | "skills"
+                | "automation"
+                | "network"
+                | "window-manager"
+                | "cmd-palette"
+                | "attention"
+                | "shell"
+                | "observability"
+                | "hooks-extensions"
+                | "providers"
+                | "mcp-servers"
+                | "sandboxes"
+                | "hooks";
+              skipped?: boolean;
+              skipped_reason?: string;
+              warnings?: string[];
+              workspace_id?: string;
+              /** @enum {string} */
+              write_target?:
+                | "global-config"
+                | "profile-config"
+                | "workspace-config"
+                | "global-mcp-sidecar"
+                | "profile-mcp-sidecar"
+                | "workspace-mcp-sidecar"
+                | "global-agent-file"
+                | "workspace-agent-file";
             };
             available_scopes: ("user" | "workspace")[];
             commands: {

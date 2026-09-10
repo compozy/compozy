@@ -18,6 +18,16 @@ overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 
 story: As a person running agent work, I can tune window behavior and layouts without accepting a partial or internally conflicting runtime configuration.
 
+## Save recovery and application receipts
+
+2026-09-10, issue #593: verify zero inner spacing, zero outer insets, and all-zero gaps independently,
+then reload and inspect tiled layout geometry. Repeat a save, interrupt the settings request, and
+verify the original draft remains retryable without another edit. Editing or discarding after a
+failure must clear the old error. HTTP/application rejection must remain visible, including the
+daemon's next action and warnings; HTTP 200 alone is not live-apply evidence. Edit shortcuts while a
+behavior draft is open and verify saving that draft preserves the latest shortcut maps and aliases.
+The targeted run is tracked in `docs/qa/reports/2026-09-10-issue-593-layout-settings-save.md`.
+
 qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior defaults, shortcuts, bindings, gaps, snap thresholds, and declarative layout editing; 2026-07-24 added `window_manager.swap_modifier` (default `shift`) across config.toml, settings PATCH, Settings UI, and web gesture resolution; 2026-07-24 rebuilt Settings › Layouts as a direct-manipulation surface (canvas + inspector + docked review gate, diagram choice cards, gap box, snap map, repeat-width track, chord recorder, saved-layout cards) and added the `compozy layout-profile` CLI verbs. Flag only; the next QA cycle owns live retesting.
 
 QA impact 2026-07-25 (deep-review remediation): ratio-track controls now keep stable semantic

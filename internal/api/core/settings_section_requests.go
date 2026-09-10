@@ -330,12 +330,13 @@ func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.Sectio
 		config = &parsed
 	}
 	return settingspkg.SectionUpdateRequest{
-		SectionRequest:               req,
-		WindowManager:                config,
-		WindowManagerShortcuts:       body.Shortcuts,
-		WindowManagerGlobalShortcuts: body.GlobalShortcuts,
-		WindowManagerAliases:         body.Aliases,
-		Overwrite:                    body.Overwrite,
+		SectionRequest:                 req,
+		WindowManager:                  config,
+		WindowManagerPreserveShortcuts: body.PreserveShortcuts,
+		WindowManagerShortcuts:         body.Shortcuts,
+		WindowManagerGlobalShortcuts:   body.GlobalShortcuts,
+		WindowManagerAliases:           body.Aliases,
+		Overwrite:                      body.Overwrite,
 	}, nil
 }
 

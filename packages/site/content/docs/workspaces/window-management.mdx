@@ -96,6 +96,18 @@ on demand.
 
 ## Declarative layouts and recovery
 
+Settings → Layouts accepts zero for the gap between tiles and for each outer inset independently.
+A failed Save keeps your draft and offers retry or discard. The save result distinguishes applied
+settings from saved settings that still need an action, and displays application warnings.
+
+`PATCH /api/settings/window-manager` retains the section fields and adds an `apply` receipt with
+`applied`, `next_action`, `warnings`, and `partial_failures`. A successful HTTP response does not by
+itself mean the configuration became active. Send `preserve_shortcuts: true` with a behavior-only
+`config` to preserve the current shortcut and global-hotkey maps atomically. Explicit top-level
+`shortcuts` or `global_shortcuts` still replace those maps; omitting the flag retains full-config
+replacement behavior. Settings uses preservation so an open spacing draft cannot overwrite a
+separately edited shortcut.
+
 Semantic commands are the normal control surface. A validated layout document is the raw recovery
 escape hatch:
 

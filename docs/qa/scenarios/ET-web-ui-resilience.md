@@ -18,3 +18,9 @@ overlaps: TA-039; NB-045; ET-web-loop-editor-topbar; ET-web-marketplace-landing-
 
 Added by the 2026-07-21 full frontend systems audit. Flag only: the next QA cycle owns live
 keyboard, filters, loading, mutation-race, error-announcement, reduced-motion, and responsive retesting.
+
+2026-09-10, issue #593: shared settings Save bars retain retry and discard actions for a valid dirty
+draft after failure, while invalid drafts remain unsavable. Verify error announcement, retry after
+network recovery, edit-after-failure, and discard in Layouts; keep saving actions disabled in flight.
+Targeted evidence: `docs/qa/reports/2026-09-10-issue-593-layout-settings-save.md` (does not rerun the
+entire resilience scenario).

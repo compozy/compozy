@@ -216,6 +216,7 @@ type SectionUpdateRequest struct {
 	Network                        *compozyconfig.NetworkConfig
 	Gateway                        *compozyconfig.GatewayConfig
 	WindowManager                  *compozyconfig.WindowManagerConfig
+	WindowManagerPreserveShortcuts bool
 	WindowManagerShortcuts         *map[string]windowmanager.ShortcutBinding
 	WindowManagerGlobalShortcuts   *map[string]string
 	WindowManagerAliases           *map[string]string

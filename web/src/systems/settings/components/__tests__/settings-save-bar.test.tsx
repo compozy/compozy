@@ -69,6 +69,25 @@ describe("SettingsSaveBar", () => {
     );
   });
 
+  it("keeps retry and discard available with a recoverable error", () => {
+    const { onSave, onReset } = renderSaveBar({
+      kind: "error",
+      message: "Connection failed",
+      canRetry: true,
+      canDiscard: true,
+    });
+    fireEvent.click(screen.getByTestId("settings-page-general-save"));
+    fireEvent.click(screen.getByTestId("settings-page-general-reset"));
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(onReset).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry an invalid failed draft but permits discard", () => {
+    renderSaveBar({ kind: "error", message: "Save failed", canRetry: false, canDiscard: true });
+    expect(screen.getByTestId("settings-page-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-page-general-reset")).not.toBeDisabled();
+  });
+
   it("renders an explicit saved state without implying unsaved changes", () => {
     renderSaveBar({ kind: "saved", message: "Applied 2 fields" });
 

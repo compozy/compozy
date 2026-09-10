@@ -440,5 +440,6 @@ export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
       bottom_center: config.bindings.bottomCenter,
     },
     shortcuts: config.shortcuts,
+    global_shortcuts: config.globalShortcuts,
   };
 }

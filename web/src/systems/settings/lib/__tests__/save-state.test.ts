@@ -7,6 +7,17 @@ import { describe, expect, it } from "vitest";
 import { deriveSettingsSaveBarState } from "../save-state";
 
 describe("deriveSettingsSaveBarState", () => {
+  it.each([false, true])("preserves recovery actions with validation=%s", isInvalid => {
+    expect(
+      deriveSettingsSaveBarState({
+        isDirty: true,
+        isInvalid,
+        isSaving: false,
+        error: "Save failed",
+        showSaved: false,
+      })
+    ).toEqual({ kind: "error", message: "Save failed", canRetry: !isInvalid, canDiscard: true });
+  });
   it("projects invalid input even when the last valid draft is unchanged", () => {
     expect(
       deriveSettingsSaveBarState({

@@ -142,5 +142,6 @@ export async function updateWindowManagerBindings(
   if (apiRequestFailed(response, error)) {
     throw settingsError(response, error, fallback);
   }
-  return parseSettingsWindowManagerSection(requireResponseData(data, response, fallback));
+  const { apply: _apply, ...section } = requireResponseData(data, response, fallback);
+  return parseSettingsWindowManagerSection(section);
 }

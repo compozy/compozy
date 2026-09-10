@@ -66,14 +66,14 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
             <Pill.Dot className="size-settings-save-dot" tone={dotTone} />
           )}
           <span
-            className={cn("truncate", isError && "text-danger")}
+            className={cn("break-words", isError && "text-danger")}
             data-testid={`settings-page-${slug}-save-message`}
           >
             {messageFor(state)}
           </span>
           {warnings.length > 0 ? (
             <span
-              className="truncate text-form-hint text-warning"
+              className="break-words text-form-hint text-warning"
               data-testid={`settings-page-${slug}-save-warnings`}
             >
               {warnings.join(" · ")}
@@ -82,7 +82,7 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
         </span>
         <Button
           data-testid={`settings-page-${slug}-reset`}
-          disabled={!isDirty || isSaving}
+          disabled={!(isDirty || (state.kind === "error" && state.canDiscard)) || isSaving}
           onClick={onReset}
           size="sm"
           type="button"
@@ -92,7 +92,7 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
         </Button>
         <Button
           data-testid={`settings-page-${slug}-save`}
-          disabled={state.kind !== "dirty"}
+          disabled={state.kind !== "dirty" && !(state.kind === "error" && state.canRetry)}
           onClick={onSave}
           size="sm"
           type="button"

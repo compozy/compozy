@@ -4,7 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
-import { updateWindowManagerSettings } from "../adapters/window-manager-layouts-api";
+import {
+  updateWindowManagerSettings,
+  type WindowManagerSettingsSaveResult,
+} from "../adapters/window-manager-layouts-api";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
 import { type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
 
@@ -25,9 +28,11 @@ export type WindowManagerConfigProblem =
 interface WindowManagerConfigEditorStoreContext {
   baseline: WindowManagerConfig;
   baselineRevision: string;
+  inputRevision: string;
   draft: WindowManagerConfig;
   draftRevision: number;
   error: Error | null;
+  result: WindowManagerSettingsSaveResult | null;
   operation: number;
   phase: WindowManagerConfigEditorPhase;
 }
@@ -41,12 +46,26 @@ type WindowManagerConfigEditorStoreEvents = {
   draftChanged: { draft: WindowManagerConfig };
   resetRequested: {};
   saveFailed: { error: Error; operation: number; revision: string; draftRevision: number };
-  saveRequested: { execute: (draft: WindowManagerConfig) => Promise<void> };
-  saveSucceeded: { operation: number; revision: string; draftRevision: number };
+  saveRequested: {
+    execute: (draft: WindowManagerConfig) => Promise<WindowManagerSettingsSaveResult>;
+  };
+  saveSucceeded: {
+    operation: number;
+    revision: string;
+    draftRevision: number;
+    result: WindowManagerSettingsSaveResult;
+  };
 };
 
 function configRevision(config: WindowManagerConfig): string {
-  return JSON.stringify(config);
+  const {
+    shortcuts: _shortcuts,
+    globalShortcuts: _globalShortcuts,
+    shortcutDefaults: _defaults,
+    effectiveShortcuts: _effective,
+    ...behavior
+  } = config;
+  return JSON.stringify(behavior);
 }
 
 function isCurrentConfig(
@@ -66,9 +85,11 @@ function initialConfigEditorContext(
   return {
     baseline: structuredClone(baseline),
     baselineRevision: configRevision(baseline),
+    inputRevision: configRevision(baseline),
     draft: structuredClone(baseline),
     draftRevision: 0,
     error: null,
+    result: null,
     operation: 0,
     phase: "baseline",
   };
@@ -79,16 +100,17 @@ function reconcileConfigEditorContext(
   baseline: WindowManagerConfig
 ): WindowManagerConfigEditorStoreContext {
   const revision = configRevision(baseline);
-  if (revision === previous.baselineRevision) return previous;
+  if (revision === previous.inputRevision) return previous;
   const clean = configRevision(previous.draft) === previous.baselineRevision;
   const draft = clean ? structuredClone(baseline) : previous.draft;
   return {
     ...previous,
     baseline: structuredClone(baseline),
     baselineRevision: revision,
+    inputRevision: revision,
     draft,
     draftRevision: previous.draftRevision + 1,
-    error: null,
+    error: previous.error,
     phase: configRevision(draft) === revision ? "baseline" : "dirty",
   };
 }
@@ -109,25 +131,26 @@ export const windowManagerConfigEditorLogic = createStoreLogic<
       draft: event.draft,
       draftRevision: context.draftRevision + 1,
       error: null,
-      phase: "dirty",
+      result: null,
+      phase: context.phase === "saving" ? "saving" : "dirty",
     }),
     resetRequested: context => ({
       ...context,
       draft: structuredClone(context.baseline),
       draftRevision: context.draftRevision + 1,
       error: null,
+      result: null,
       phase: "baseline",
     }),
     saveFailed: (
       context,
       event: { error: Error; operation: number; revision: string; draftRevision: number }
     ) => {
-      if (
-        context.operation !== event.operation ||
-        !isCurrentConfig(context, event.revision) ||
-        context.draftRevision !== event.draftRevision
-      )
+      if (context.operation !== event.operation || !isCurrentConfig(context, event.revision))
         return;
+      if (context.draftRevision !== event.draftRevision) {
+        return { ...context, phase: "dirty" };
+      }
       return {
         ...context,
         error: event.error,
@@ -142,27 +165,39 @@ export const windowManagerConfigEditorLogic = createStoreLogic<
       const revision = context.baselineRevision;
       enqueue.effect(async ({ trigger }) => {
         try {
-          await event.execute(draft);
-          trigger.saveSucceeded({ draftRevision, operation, revision });
+          const result = await event.execute(draft);
+          trigger.saveSucceeded({ draftRevision, operation, revision, result });
         } catch (cause) {
           const error =
             cause instanceof Error ? cause : new Error("Unable to save window-manager settings.");
           trigger.saveFailed({ draftRevision, error, operation, revision });
         }
       });
-      return { ...context, error: null, operation, phase: "saving" };
+      return { ...context, error: null, result: null, operation, phase: "saving" };
     },
     saveSucceeded: (
       context,
-      event: { operation: number; revision: string; draftRevision: number }
+      event: {
+        operation: number;
+        revision: string;
+        draftRevision: number;
+        result: WindowManagerSettingsSaveResult;
+      }
     ) => {
-      if (
-        context.operation !== event.operation ||
-        !isCurrentConfig(context, event.revision) ||
-        context.draftRevision !== event.draftRevision
-      )
+      if (context.operation !== event.operation || !isCurrentConfig(context, event.revision))
         return;
-      return { ...context, error: null, phase: "draft" };
+      return {
+        ...context,
+        baseline: structuredClone(event.result.config),
+        baselineRevision: configRevision(event.result.config),
+        draft:
+          context.draftRevision === event.draftRevision
+            ? structuredClone(event.result.config)
+            : context.draft,
+        error: null,
+        result: context.draftRevision === event.draftRevision ? event.result : null,
+        phase: context.draftRevision === event.draftRevision ? "baseline" : "dirty",
+      };
     },
   },
 });
@@ -226,7 +261,7 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
     current => {
       const previousContext = current.store.getSnapshot().context;
       return (
-        previousContext.phase !== "saving" && previousContext.baselineRevision !== baselineRevision
+        previousContext.phase !== "saving" && previousContext.inputRevision !== baselineRevision
       );
     }
   );
@@ -235,8 +270,7 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
 
   const saveMutation = useMutation({
     mutationFn: async (next: WindowManagerConfig) => {
-      await updateWindowManagerSettings(next);
-      return next;
+      return updateWindowManagerSettings(next);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: windowManagerKeys.configs() });
@@ -252,17 +286,19 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
   };
 
   return {
-    canSave: dirty && problems.length === 0 && context.phase !== "saving",
+    canSave:
+      (dirty || context.error !== null) && problems.length === 0 && context.phase !== "saving",
     dirty,
     draft: context.draft,
-    error: context.error ?? saveMutation.error,
+    error: context.error,
+    result: context.result,
     phase: context.phase,
     problems,
     reset: () => store.trigger.resetRequested(),
     save: () =>
       store.trigger.saveRequested({
         execute: async draft => {
-          await saveMutation.mutateAsync(draft);
+          return saveMutation.mutateAsync(draft);
         },
       }),
     setDraft,
