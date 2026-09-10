@@ -7,13 +7,13 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	if r.runtime.RuntimeIdentityPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionRuntimeIdentity)
 	}
-	if r.runtime.SituationPromptSectionEnabled {
+	if r.runtime.SituationPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionSituation)
 	}
 	if r.runtime.MemoryPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionMemory)
 	}
-	if r.runtime.SkillsPromptSectionEnabled {
+	if r.runtime.SkillsPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		sections = append(sections, HarnessPromptSectionSkills)
 	}
 	if r.runtime.ToolsPromptSectionEnabled && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
@@ -27,6 +27,7 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 
 func (r *HarnessContextResolver) resolveAugmenters(
 	surface ResolutionSurface,
+	sessionCtx HarnessSessionContext,
 	turnCtx HarnessTurnContext,
 ) []HarnessAugmenter {
 	if surface != ResolutionSurfaceTurn {
@@ -36,7 +37,7 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if r.runtime.WorkspaceKnowledgeAugmenter {
 		augmenters = append(augmenters, HarnessAugmenterWorkspaceKnowledge)
 	}
-	if r.runtime.SkillsAugmenter {
+	if r.runtime.SkillsAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
 	if turnCtx.Origin == TurnOriginNetwork {
@@ -45,7 +46,7 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if turnCtx.Origin != TurnOriginUser {
 		return augmenters
 	}
-	if r.runtime.SituationAugmenter {
+	if r.runtime.SituationAugmenter && !inputOnlyHarnessRole(sessionCtx.SpawnRole) {
 		augmenters = append(augmenters, HarnessAugmenterSituation)
 	}
 	if r.runtime.DurableMemoryAugmenter {

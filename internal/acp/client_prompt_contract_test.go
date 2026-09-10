@@ -192,6 +192,122 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+func TestPromptCompactsDeliveredSections(t *testing.T) {
+	t.Parallel()
+	for _, native := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should compact startup and confirmed catalogs with native delivery %t", native),
+			func(t *testing.T) {
+				t.Parallel()
+				section := PromptSection{Key: "skills", Content: "<current>alpha</current>",
+					StartupContent: "<startup>alpha</startup>", UnchangedContent: "<unchanged/>"}
+				opts := StartOpts{SystemPrompt: section.StartupContent}
+				if native {
+					opts.SystemPromptDelivery = SystemPromptDeliveryNative
+				}
+				driver := New()
+				proc := startHelperProcess(t, driver, "echo_prompt", "", opts)
+				defer stopProcess(t, driver, proc)
+				for index, change := range []bool{false, false, true, false} {
+					if change {
+						section.Content = "<current>alpha beta</current>"
+						section.StartupContent = "<startup>alpha beta</startup>"
+					}
+					request := PromptRequest{
+						TurnID:   fmt.Sprintf("turn-%d", index),
+						Message:  section.Content + "\nrequest",
+						Sections: []PromptSection{section},
+					}
+					events, err := driver.Prompt(t.Context(), proc, request)
+					if err != nil {
+						t.Fatal(err)
+					}
+					got := collectEvents(t, events)
+					if len(got) == 0 {
+						t.Fatal("missing echoed wire payload")
+					}
+					if strings.Contains(got[0].Text, section.Content) != change ||
+						strings.Contains(got[0].Text, section.UnchangedContent) == change {
+						t.Fatalf("turn %d wire payload = %q", index, got[0].Text)
+					}
+					if request.Message != section.Content+"\nrequest" {
+						t.Fatal("compaction mutated retry input")
+					}
+				}
+			},
+		)
+	}
+	t.Run("Should resend unseen sections after build failure and on a fresh process", func(t *testing.T) {
+		t.Parallel()
+		section := PromptSection{
+			Key:              "skills",
+			Content:          "<current>new</current>",
+			StartupContent:   "<startup>new</startup>",
+			UnchangedContent: "<unchanged/>",
+		}
+		req := PromptRequest{TurnID: "turn", Message: section.Content, Sections: []PromptSection{section}}
+		proc := &AgentProcess{systemPrompt: "<startup>old</startup>"}
+		invalid := req
+		invalid.Attachments = []PromptAttachment{{Name: "image.png", MIMEType: "image/png", Data: []byte("image")}}
+		if _, err := buildWirePromptRequest(proc, invalid); !errors.Is(err, ErrPromptImagesUnsupported) {
+			t.Fatalf("attachment error = %v", err)
+		}
+		for range 2 {
+			wire, err := buildWirePromptRequest(proc, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(wire.Prompt[0].Text.Text, section.Content) {
+				t.Fatal("preparing an unsent request advanced context")
+			}
+		}
+		proc.markPromptSectionsDelivered(req)
+		if got := proc.compactPromptSections(req.Message, req.Sections); got != section.UnchangedContent {
+			t.Fatalf("confirmed context = %q", got)
+		}
+		fresh := &AgentProcess{}
+		if got := fresh.compactPromptSections(req.Message, req.Sections); got != section.Content {
+			t.Fatalf("fresh process reused unseen context: %q", got)
+		}
+		proc.markPromptSectionsDelivered(PromptRequest{Message: "empty", Sections: []PromptSection{{Key: "skills"}}})
+		if got := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+			t.Fatalf("removed context remained current: %q", got)
+		}
+	})
+	for _, scenario := range []string{"prompt_request_error_with_reason", "block_prompt_until_cancel"} {
+		t.Run("Should invalidate uncertain context after "+scenario, func(t *testing.T) {
+			t.Parallel()
+			driver := New()
+			proc := startHelperProcess(t, driver, scenario, "", StartOpts{})
+			defer stopProcess(t, driver, proc)
+			section := PromptSection{Key: "skills", Content: "full catalog", UnchangedContent: "unchanged"}
+			req := PromptRequest{TurnID: "failed-turn", Message: section.Content, Sections: []PromptSection{section}}
+			proc.markPromptSectionsDelivered(req)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			events, err := driver.Prompt(ctx, proc, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "block_prompt_until_cancel" {
+				select {
+				case event := <-events:
+					if event.Text != "blocking" {
+						t.Fatalf("unexpected event: %#v", event)
+					}
+				case <-t.Context().Done():
+					t.Fatal("prompt never started")
+				}
+				cancel()
+			}
+			collectEvents(t, events)
+			if got := proc.compactPromptSections(req.Message, req.Sections); got != section.Content {
+				t.Fatalf("failed delivery retained uncertain context: %q", got)
+			}
+		})
+	}
+}
+
 func TestPromptAttachesSystemPromptDeliveryMetadata(t *testing.T) {
 	t.Parallel()
 
