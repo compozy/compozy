@@ -58,10 +58,11 @@ var _ RuntimeResolver = (*Resolver)(nil)
 var _ ProfileRuntimeResolver = (*Resolver)(nil)
 
 type cachedEntry struct {
-	workspace  Workspace
-	resolved   ResolvedWorkspace
-	snapshots  map[string]filesnap.Snapshot
-	lastAccess time.Time
+	workspace    Workspace
+	resolved     ResolvedWorkspace
+	snapshots    map[string]filesnap.Snapshot
+	skillSources map[string]workspaceSkillScan
+	lastAccess   time.Time
 }
 
 const rollbackDeleteTimeout = 2 * time.Second
@@ -152,8 +153,9 @@ func (r *Resolver) resolve(
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan.snapshots) {
+	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan) {
 		cached.lastAccess = now
+		cached.skillSources = scan.skillSources
 		cacheHit = true
 		resolved = cloneResolvedWorkspace(&cached.resolved)
 		resolved.Workspace = cloneWorkspace(ws)
@@ -179,10 +181,11 @@ func (r *Resolver) resolve(
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
 	r.cache[cacheKey] = &cachedEntry{
-		workspace:  cloneWorkspace(ws),
-		resolved:   cloneResolvedWorkspace(&resolved),
-		snapshots:  cloneSnapshots(scan.snapshots),
-		lastAccess: now,
+		workspace:    cloneWorkspace(ws),
+		resolved:     cloneResolvedWorkspace(&resolved),
+		snapshots:    cloneSnapshots(scan.snapshots),
+		skillSources: scan.skillSources,
+		lastAccess:   now,
 	}
 	r.mu.Unlock()
 
@@ -444,11 +447,11 @@ func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.R
 	return cfg.ResolveSandbox(ref)
 }
 
-func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snapshot) bool {
+func (c *cachedEntry) canReuse(ws Workspace, scan workspaceScan) bool {
 	if c == nil {
 		return false
 	}
-	if !filesnap.Equal(c.snapshots, snapshots) {
+	if !filesnap.Equal(c.snapshots, scan.snapshots) || !slices.Equal(c.resolved.Skills, mergeSkillPaths(scan.skills)) {
 		return false
 	}
 	if strings.TrimSpace(c.workspace.DefaultAgent) != strings.TrimSpace(ws.DefaultAgent) {

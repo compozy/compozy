@@ -31,6 +31,7 @@ type DirectoryResult struct {
 	Snapshots map[string]filesnap.Snapshot
 	RealPaths map[string]string
 	Stats     RootScanStats
+	discovery *directorySnapshot
 }
 
 func emptyDirectoryResult() DirectoryResult {

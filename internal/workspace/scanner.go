@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/fileutil"
-	"github.com/compozy/compozy/internal/skillscan"
 )
 
 const (
@@ -22,6 +20,7 @@ const (
 )
 
 type workspaceScan struct {
+	skillSources        map[string]workspaceSkillScan
 	snapshots           map[string]filesnap.Snapshot
 	agents              []agentCandidate
 	skills              []skillCandidate
@@ -56,6 +55,7 @@ func (r *Resolver) scanWorkspace(
 	}
 
 	scan := workspaceScan{
+		skillSources:        make(map[string]workspaceSkillScan),
 		snapshots:           make(map[string]filesnap.Snapshot),
 		agents:              make([]agentCandidate, 0),
 		skills:              make([]skillCandidate, 0),
@@ -108,9 +108,10 @@ func (r *Resolver) scanWorkspace(
 	for _, root := range skillRoots {
 		trustedSkillRoots = append(trustedSkillRoots, root.spec.Dir)
 	}
+	previousSources := r.cachedSkillSources(ws.ID, profileName)
 	for order, root := range skillRoots {
-		if err := scanSkillSource(
-			root.spec, root.source, order, trustedSkillRoots, scan.snapshots, &scan.skills,
+		if err := scan.scanSkillSource(
+			ctx, root, order, trustedSkillRoots, previousSources[root.spec.Dir],
 		); err != nil {
 			return workspaceScan{}, err
 		}
@@ -290,52 +291,6 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 			return fmt.Errorf("workspace: snapshot agent capability catalog %q: %w", path, err)
 		}
 	}
-	return nil
-}
-
-func scanSkillSource(
-	root compozyconfig.SkillRootSpec,
-	source string,
-	rootOrder int,
-	trustedRoots []string,
-	snapshots map[string]filesnap.Snapshot,
-	dst *[]skillCandidate,
-) error {
-	skillsDir := root.Dir
-	if err := addSnapshotIfExists(skillsDir, snapshots); err != nil {
-		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
-	}
-
-	result, err := skillscan.ScanDirectoryWithin(skillsDir, trustedRoots)
-	if err != nil {
-		return fmt.Errorf("workspace: scan skills directory %q: %w", skillsDir, err)
-	}
-	maps.Copy(snapshots, result.Snapshots)
-
-	for _, skillFile := range result.Paths {
-		skillDir := filepath.Dir(skillFile)
-		skillName, err := loadWorkspaceSkillName(skillFile)
-		if err != nil {
-			if errors.Is(err, errInvalidWorkspaceSkillDefinition) {
-				continue
-			}
-			return fmt.Errorf("workspace: load skill identity %q: %w", skillFile, err)
-		}
-
-		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
-			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
-		}
-		if err := addSnapshotIfExists(filepath.Join(skillDir, compozyconfig.MCPJSONName), snapshots); err != nil {
-			return fmt.Errorf("workspace: snapshot skill MCP sidecar %q: %w", skillDir, err)
-		}
-		*dst = append(*dst, skillCandidate{
-			name:      skillName,
-			dir:       skillDir,
-			source:    source,
-			rootOrder: rootOrder,
-		})
-	}
-
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,17 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 	resolved, err := resolver.Resolve(ctx, registered.ID)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
+	}
+	cached, err := resolver.Resolve(ctx, registered.ID)
+	if err != nil {
+		t.Fatalf("Resolve(cache hit) error = %v", err)
+	}
+	if !slices.Equal(cached.Skills, resolved.Skills) {
+		t.Fatalf(
+			"Resolve(cache hit).Skills = %#v, want unchanged precedence and provenance %#v",
+			cached.Skills,
+			resolved.Skills,
+		)
 	}
 
 	if got, want := resolved.Config.HTTP.Port, 4242; got != want {

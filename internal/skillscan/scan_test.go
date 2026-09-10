@@ -9,7 +9,234 @@ import (
 	"slices"
 	"testing"
 	"testing/fstest"
+	"time"
 )
+
+func TestDirectoryResultUnchanged(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		change func(*testing.T, string, string)
+	}{
+		{
+			name: "Should detect a definition in a previously empty nested directory",
+			change: func(t *testing.T, root, _ string) {
+				t.Helper()
+				writeDefinition(t, root, filepath.Join("empty", "nested", "new", SkillFileName))
+			},
+		},
+		{
+			name: "Should detect definition edits",
+			change: func(t *testing.T, _, definition string) {
+				t.Helper()
+				if err := os.WriteFile(definition, []byte("changed definition content"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "Should detect definition removal",
+			change: func(t *testing.T, _, definition string) {
+				t.Helper()
+				if err := os.Remove(definition); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "Should detect definition renames",
+			change: func(t *testing.T, _, definition string) {
+				t.Helper()
+				if err := os.Rename(definition, definition+".disabled"); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "Should detect replacement with the same size and modification time",
+			change: func(t *testing.T, _, definition string) {
+				t.Helper()
+				info, err := os.Stat(definition)
+				if err != nil {
+					t.Fatal(err)
+				}
+				replacement := filepath.Join(t.TempDir(), SkillFileName)
+				if err := os.WriteFile(replacement, make([]byte, info.Size()), info.Mode()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(replacement, info.ModTime(), info.ModTime()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(replacement, definition); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			definition := writeDefinition(t, root, filepath.Join("original", SkillFileName))
+			if err := os.MkdirAll(filepath.Join(root, "empty", "nested"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			result, err := ScanDirectory(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.Unchanged(t.Context(), root, []string{root}) {
+				t.Fatal("fresh complete discovery is not reusable")
+			}
+			tc.change(t, root, definition)
+			if result.Unchanged(t.Context(), root, []string{root}) {
+				t.Fatal("changed discovery was reported unchanged")
+			}
+		})
+	}
+
+	t.Run(
+		"Should revalidate stable rejected links and detect changed containment through an intermediate link",
+		func(t *testing.T) {
+			t.Parallel()
+
+			root, allowed, outside := t.TempDir(), t.TempDir(), t.TempDir()
+			writeDefinition(t, allowed, SkillFileName)
+			writeDefinition(t, outside, SkillFileName)
+			intermediate := filepath.Join(t.TempDir(), "target")
+			if err := os.Symlink(outside, intermediate); err != nil {
+				t.Skipf("Symlink unavailable: %v", err)
+			}
+			for index := range 5 {
+				if err := os.Symlink(intermediate, filepath.Join(root, fmt.Sprintf("linked-%d", index))); err != nil {
+					t.Fatal(err)
+				}
+			}
+			trusted := []string{root, allowed}
+			for _, target := range []string{outside, allowed, outside} {
+				if err := os.Remove(intermediate); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, intermediate); err != nil {
+					t.Fatal(err)
+				}
+				result, err := ScanDirectoryWithin(root, trusted)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got, want := len(result.Paths), 0; target == outside && got != want {
+					t.Fatalf("outside projection has %d paths, want %d", got, want)
+				}
+				if target == allowed && len(result.Paths) != 1 {
+					t.Fatalf("allowed projection = %#v, want one deduplicated definition", result.Paths)
+				}
+				if !result.Unchanged(t.Context(), root, trusted) {
+					t.Fatal("stable links prevented reuse")
+				}
+				if err := os.Remove(intermediate); err != nil {
+					t.Fatal(err)
+				}
+				other := allowed
+				if target == allowed {
+					other = outside
+				}
+				if err := os.Symlink(other, intermediate); err != nil {
+					t.Fatal(err)
+				}
+				if result.Unchanged(t.Context(), root, trusted) {
+					t.Fatal("changed link containment was reported unchanged")
+				}
+			}
+		},
+	)
+
+	t.Run("Should rescan when a missing root appears", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(t.TempDir(), "missing")
+		result, err := ScanDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeDefinition(t, root, filepath.Join("added", SkillFileName))
+		if result.Unchanged(t.Context(), root, []string{root}) {
+			t.Fatal("new root was reported unchanged")
+		}
+	})
+
+	for _, fileTarget := range []bool{false, true} {
+		name := "Should discover a dangling first-level link when its target appears"
+		if fileTarget {
+			name = "Should discover a first-level link whose file target becomes a directory"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			root, trustedRoot := t.TempDir(), t.TempDir()
+			target := filepath.Join(trustedRoot, "target")
+			if fileTarget {
+				if err := os.WriteFile(target, []byte("plain file"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			link := filepath.Join(root, "linked")
+			if err := os.Symlink(target, link); err != nil {
+				t.Skipf("Symlink unavailable: %v", err)
+			}
+			trusted := []string{root, trustedRoot}
+			result, err := ScanDirectoryWithin(root, trusted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(result.Paths) != 0 || !result.Unchanged(t.Context(), root, trusted) {
+				t.Fatalf("initial discovery = %#v, want reusable empty projection", result.Paths)
+			}
+			if fileTarget {
+				if err := os.Remove(target); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writeDefinition(t, target, SkillFileName)
+			if result.Unchanged(t.Context(), root, trusted) {
+				t.Fatal("new directory target was reported unchanged")
+			}
+			current, err := ScanDirectoryWithin(root, trusted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := []string{filepath.Join(link, SkillFileName)}; !slices.Equal(current.Paths, want) {
+				t.Fatalf("new link projection = %#v, want %#v", current.Paths, want)
+			}
+		})
+	}
+
+	t.Run("Should detect permission changes even when file content metadata stays the same", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		definition := writeDefinition(t, root, filepath.Join("original", SkillFileName))
+		stamp := time.Unix(1_700_000_000, 0)
+		if err := os.Chtimes(definition, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		result, err := ScanDirectory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(definition, 0o444); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(definition, 0o644); err != nil {
+				t.Errorf("restore definition permissions: %v", err)
+			}
+		})
+		if result.Unchanged(t.Context(), root, []string{root}) {
+			t.Fatal("changed file permissions were reported unchanged")
+		}
+	})
+}
 
 func TestScanDirectory(t *testing.T) {
 	t.Parallel()
@@ -81,6 +308,9 @@ func TestScanDirectory(t *testing.T) {
 		}
 		if !result.Stats.Truncated || result.Stats.ScannedCount != MaxCandidates {
 			t.Fatalf("ScanDirectory().Stats = %#v, want truncated count %d", result.Stats, MaxCandidates)
+		}
+		if result.Unchanged(t.Context(), root, []string{root}) {
+			t.Fatal("truncated discovery was reported reusable")
 		}
 		if got, want := filepath.Base(filepath.Dir(result.Paths[0])), "skill-000"; got != want {
 			t.Fatalf("first discovered definition = %q, want %q", got, want)
@@ -175,6 +405,9 @@ func TestScanDirectory(t *testing.T) {
 		}
 		if !result.Stats.Exists || result.Stats.ScannedCount != 0 || len(result.Paths) != 0 {
 			t.Fatalf("ScanDirectory().Stats = %#v, want existing unreadable root with omitted discovery", result.Stats)
+		}
+		if result.Unchanged(t.Context(), root, []string{root}) {
+			t.Fatal("unreadable discovery was reported reusable")
 		}
 	})
 
