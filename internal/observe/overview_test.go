@@ -563,6 +563,64 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 // Owner: observe projection. Canonical suite: overview composition with its real SQLite fixture.
 func TestOverviewAttentionAcknowledgements(t *testing.T) {
 	t.Parallel()
+	t.Run("Should suppress neutral escalation updates and show a renewed escalation", func(t *testing.T) {
+		t.Parallel()
+		f := newOverviewFixture(t)
+		ctx := observeTestContext(t)
+		f.seedTask(t, taskpkg.Task{
+			ID: "task-escalated", Title: "Needs input", Status: taskpkg.TaskStatusNeedsAttention,
+			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref},
+			NeedsAttention: &taskpkg.NeedsAttention{Reason: "Initial escalation", At: f.now, By: f.actor},
+		})
+		query := f.query()
+		query.AcknowledgementProfileID = store.DefaultProfileID
+		before, err := f.observer.overviewAttention(ctx, query)
+		if err != nil || before.Total != 1 {
+			t.Fatalf("initial escalation: total=%d err=%v", before.Total, err)
+		}
+		if err := f.observer.AcknowledgeAttentionSnapshot(
+			ctx, OverviewAttentionScope(query), before.Snapshot, before.Items[0].NotificationID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+			ID: "neutral-escalation-wake", TaskID: "task-escalated", EventType: "task.wake.requested",
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+			Timestamp: f.now.Add(time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		after, err := f.observer.overviewAttention(ctx, query)
+		if err != nil || after.Total != 0 {
+			t.Fatalf("neutral event resurrected escalation: total=%d err=%v", after.Total, err)
+		}
+		source, err := f.registry.GetTask(ctx, "task-escalated")
+		if err != nil || source.Status != taskpkg.TaskStatusNeedsAttention {
+			t.Fatalf("acknowledgement changed source: status=%s err=%v", source.Status, err)
+		}
+		if _, err := f.registry.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			TaskID: "task-escalated", Note: "Operator resolved escalation", ClearedAt: f.now.Add(2 * time.Minute),
+			Actor: taskpkg.ActorContext{
+				Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+				Authority: taskpkg.Authority{Read: true, Write: true}, Scope: taskpkg.CallerScope{Operator: true},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			TaskID: "task-escalated", Reason: "New escalation", MarkedAt: f.now.Add(3 * time.Minute),
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		renewed, err := f.observer.overviewAttention(ctx, query)
+		if err != nil || renewed.Total != 1 {
+			t.Fatalf("new escalation missing: total=%d err=%v", renewed.Total, err)
+		}
+		if renewed.Items[0].NotificationID == before.Items[0].NotificationID {
+			t.Fatal("renewed escalation reused the acknowledged occurrence")
+		}
+	})
 	t.Run(
 		"Should clear beyond the display and inbox page limits while preserving pending approvals",
 		func(t *testing.T) {

@@ -46,14 +46,18 @@ func (o *Observer) overviewNeedsInput(ctx context.Context, query OverviewQuery) 
 			Kind: OverviewAttentionKindNeedsInput, Title: summary.Title, TaskID: summary.ID,
 			WorkspaceID: summary.WorkspaceID, OccurredAt: at, Actions: []string{OverviewActionOpen},
 		}
+		occurrenceAt := summary.CreatedAt
 		if summary.NeedsAttention != nil {
 			item.Detail = strings.TrimSpace(summary.NeedsAttention.Reason)
+			if !summary.NeedsAttention.At.IsZero() {
+				occurrenceAt = summary.NeedsAttention.At
+			}
 		}
 		if summary.ActiveRun != nil {
 			item.RunID, item.SessionID = summary.ActiveRun.ID, summary.ActiveRun.SessionID
 		}
 		item.NotificationID = notifications.AttentionIdentity(
-			"task", summary.WorkspaceID, summary.ID, item.Kind, at.UTC().Format(time.RFC3339Nano), item.RunID,
+			"task", summary.WorkspaceID, summary.ID, item.Kind, occurrenceAt.UTC().Format(time.RFC3339Nano), item.RunID,
 		)
 		items = append(items, item)
 	}
