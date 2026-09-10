@@ -476,6 +476,27 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if err != nil || structured == nil || structured.IsError {
 			t.Fatalf("hostedToolResult(structured) = %#v, %v; want structured result", structured, err)
 		}
+		var textResult any
+		previewPresent := false
+		for _, block := range structured.Content {
+			content, ok := block.(*sdkmcp.TextContent)
+			if !ok {
+				continue
+			}
+			previewPresent = previewPresent || content.Text == "structured fallback"
+			if json.Valid([]byte(content.Text)) {
+				if err := json.Unmarshal([]byte(content.Text), &textResult); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if !previewPresent || !reflect.DeepEqual(textResult, structured.StructuredContent) {
+			t.Fatalf(
+				"text content = %#v, want preview and complete structured result %#v",
+				structured.Content,
+				structured.StructuredContent,
+			)
+		}
 
 		text, err := hostedToolResult(tools.ToolResult{
 			Content: []tools.ToolContent{{Type: "text", Text: "hello"}},

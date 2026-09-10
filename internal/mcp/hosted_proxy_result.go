@@ -20,11 +20,13 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	if len(result.Structured) > 0 {
 		var structured any
 		if err := json.Unmarshal(result.Structured, &structured); err == nil {
+			content := []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}
+			if strings.TrimSpace(result.Preview) != "" {
+				content = append(content, &sdkmcp.TextContent{Text: string(result.Structured)})
+			}
 			converted := &sdkmcp.CallToolResult{
 				StructuredContent: structured,
-				Content: []sdkmcp.Content{
-					&sdkmcp.TextContent{Text: hostedResultFallback(result)},
-				},
+				Content:           content,
 			}
 			return finishHostedToolResult(converted, result, isError)
 		}
