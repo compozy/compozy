@@ -210,7 +210,7 @@ const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
 
 /**
  * Resolve a canonical registry tool id from a streamed or persisted tool name.
- * Accepts exact ids ("Read") and ACP-style titles ("Read routes.go").
+ * Accepts exact ids and the documented hosted-MCP projection; prose remains a title.
  */
 export function resolveRegisteredToolName(toolName: string): string {
   const trimmed = toolName.trim();
@@ -223,11 +223,6 @@ export function resolveRegisteredToolName(toolName: string): string {
   const canonical = canonicalCompozyToolName(trimmed);
   if (REGISTERED_TOOL_NAMES.has(canonical)) {
     return canonical;
-  }
-  for (const registered of REGISTERED_TOOL_NAMES) {
-    if (trimmed.startsWith(`${registered} `)) {
-      return registered;
-    }
   }
   return trimmed;
 }

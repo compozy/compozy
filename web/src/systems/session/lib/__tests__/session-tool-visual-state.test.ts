@@ -76,6 +76,11 @@ it("Should keep identity separate from long descriptive titles and bound agent p
   const title = "Inspect\n" + "ação 👩🏽‍💻 ".repeat(100);
   expect(liveToolLabel("Bash", { command: "ls" }, title)).toMatchObject({ verb: "Running shell" });
   expect(liveToolLabel(title).verb).toBe("Running tool");
+  expect(liveToolLabel("Bash dependency investigation")).toMatchObject({
+    verb: "Running tool",
+    preview: "Bash dependency investigation",
+  });
+  expect(liveToolLabel("Bash", {}, "Bash dependency investigation").verb).toBe("Running shell");
   expect(liveToolLabel(title).preview).not.toContain("\n");
   const label = liveToolLabel("Agent", { prompt: title });
   expect(label.verb).toBe("Running agent");

@@ -14,7 +14,9 @@ The existing 264 px session rail and 96–180 px deck slots already constrain ti
 more tightly and keep their layouts. Display normalization collapses whitespace and
 limits previews to 80 graphemes (existing non-command input summaries stay at 60),
 without slicing Unicode clusters. Free-form titles use the truthful generic tool
-label; known identities retain their action. No shell identity is inferred from prose.
+label; exact identities and documented hosted-MCP identities retain their action.
+A description beginning with a known name (for example, `Bash investigation`)
+stays a description. No tool identity is inferred from prose.
 
 The full original title follows the existing projection into detail and copy flows.
 Live and Working summaries have keyboard/pointer popups. Tool titles and Goal
