@@ -21,13 +21,14 @@ type attentionNotificationObserver interface {
 }
 
 const attentionNotificationItemCap = 100
+const attentionBellPopulation = "bell"
 
 // AttentionNotifications lists unread occurrences across all workspaces and source profiles.
 func (h *BaseHandlers) AttentionNotifications(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "notification inbox") {
 		return
 	}
-	observer, scope, ok := h.attentionNotificationScope(c, "bell")
+	observer, scope, ok := h.attentionNotificationScope(c, attentionBellPopulation)
 	if !ok {
 		return
 	}
@@ -75,9 +76,9 @@ func (h *BaseHandlers) AcknowledgeAttentionNotifications(c *gin.Context) {
 	}
 	population := c.Query("surface")
 	if population == "" {
-		population = "bell"
+		population = attentionBellPopulation
 	}
-	if population != "bell" && population != "home" {
+	if population != attentionBellPopulation && population != "home" {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: notification surface must be bell or home"))
 		return
 	}
@@ -119,8 +120,8 @@ func (h *BaseHandlers) attentionNotificationScope(
 		return nil, notifications.AttentionScope{}, false
 	}
 	scope := observe.OverviewAttentionScope(query)
-	if population == "bell" {
-		scope.Population = "bell"
+	if population == attentionBellPopulation {
+		scope.Population = attentionBellPopulation
 	}
 	return observer, scope, true
 }

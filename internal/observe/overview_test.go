@@ -563,86 +563,129 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 // Owner: observe projection. Canonical suite: overview composition with its real SQLite fixture.
 func TestOverviewAttentionAcknowledgements(t *testing.T) {
 	t.Parallel()
-	t.Run("Should clear beyond the display and inbox page limits while preserving pending approvals", func(t *testing.T) {
-		t.Parallel()
-		f := newOverviewFixture(t)
-		ctx := observeTestContext(t)
-		for i := range 205 {
-			f.seedTask(t, taskpkg.Task{ID: fmt.Sprintf("task-approval-%03d", i), Title: "Pending approval", Status: taskpkg.TaskStatusBlocked, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStatePending})
-		}
-		query := f.query()
-		query.AcknowledgementProfileID = store.DefaultProfileID
-		attention, err := f.observer.overviewAttention(ctx, query)
-		if err := err; err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got, want := attention.Total, 205; !reflect.DeepEqual(got, want) {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-		if got := len(attention.Items); got != overviewAttentionItemCap {
-			t.Fatalf("length = %d, want %d", got, overviewAttentionItemCap)
-		}
-		f.seedTask(t, taskpkg.Task{ID: "task-racing", Title: "New approval", Status: taskpkg.TaskStatusBlocked, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStatePending})
-		if err := f.observer.AcknowledgeAttentionSnapshot(ctx, OverviewAttentionScope(query), attention.Snapshot, ""); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		// A wake audit event changes LatestEventSeq, not the pending approval occurrence.
-		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
-			ID: "event-neutral-wake", TaskID: "task-approval-000", EventType: "task.wake.requested",
-			Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
-			Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(time.Minute),
-		}); err != nil {
-			t.Fatalf("CreateTaskEvent() error = %v", err)
-		}
-		after, err := f.observer.overviewAttention(ctx, query)
-		if err := err; err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got, want := after.Total, 1; !reflect.DeepEqual(got, want) {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-		if got, want := after.ByKind[OverviewAttentionKindApproval], 1; !reflect.DeepEqual(got, want) {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-		if got, want := after.Items[0].TaskID, "task-racing"; !reflect.DeepEqual(got, want) {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-		raw, err := f.registry.GetTask(ctx, "task-approval-000")
-		if err := err; err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got, want := raw.ApprovalState, taskpkg.ApprovalStatePending; !reflect.DeepEqual(got, want) {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-		inbox, err := f.observer.QueryTaskInbox(ctx, TaskInboxQuery{ReadScope: query.ReadScope, Scope: query.TaskScope, Lane: TaskInboxLaneApprovals, Limit: 200}, query.Actor)
-		if err := err; err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !(inbox.HasMore) {
-			t.Fatal("expected true: inbox.HasMore")
-		}
-		if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
-			ID: "event-new-approval", TaskID: "task-approval-000", EventType: "task.updated",
-			Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
-			Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(2 * time.Minute),
-			Payload: json.RawMessage(`{"changed_fields":["approval_policy"],"status":"blocked"}`),
-		}); err != nil {
-			t.Fatalf("CreateTaskEvent() error = %v", err)
-		}
-		renewed, err := f.observer.overviewAttention(ctx, query)
-		if err != nil {
-			t.Fatalf("overviewAttention() error = %v", err)
-		}
-		if renewed.Total != 2 {
-			t.Fatalf("renewed approval count = %d, want 2", renewed.Total)
-		}
-	})
+	t.Run(
+		"Should clear beyond the display and inbox page limits while preserving pending approvals",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newOverviewFixture(t)
+			ctx := observeTestContext(t)
+			for i := range 205 {
+				f.seedTask(
+					t,
+					taskpkg.Task{
+						ID:             fmt.Sprintf("task-approval-%03d", i),
+						Title:          "Pending approval",
+						Status:         taskpkg.TaskStatusBlocked,
+						ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+						ApprovalState:  taskpkg.ApprovalStatePending,
+					},
+				)
+			}
+			query := f.query()
+			query.AcknowledgementProfileID = store.DefaultProfileID
+			attention, err := f.observer.overviewAttention(ctx, query)
+			if err := err; err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got, want := attention.Total, 205; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %#v, want %#v", got, want)
+			}
+			if got := len(attention.Items); got != overviewAttentionItemCap {
+				t.Fatalf("length = %d, want %d", got, overviewAttentionItemCap)
+			}
+			f.seedTask(
+				t,
+				taskpkg.Task{
+					ID:             "task-racing",
+					Title:          "New approval",
+					Status:         taskpkg.TaskStatusBlocked,
+					ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+					ApprovalState:  taskpkg.ApprovalStatePending,
+				},
+			)
+			if err := f.observer.AcknowledgeAttentionSnapshot(
+				ctx,
+				OverviewAttentionScope(query),
+				attention.Snapshot,
+				"",
+			); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			// A wake audit event changes LatestEventSeq, not the pending approval occurrence.
+			if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+				ID: "event-neutral-wake", TaskID: "task-approval-000", EventType: "task.wake.requested",
+				Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+				Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(time.Minute),
+			}); err != nil {
+				t.Fatalf("CreateTaskEvent() error = %v", err)
+			}
+			after, err := f.observer.overviewAttention(ctx, query)
+			if err := err; err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got, want := after.Total, 1; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %#v, want %#v", got, want)
+			}
+			if got, want := after.ByKind[OverviewAttentionKindApproval], 1; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %#v, want %#v", got, want)
+			}
+			if got, want := after.Items[0].TaskID, "task-racing"; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %#v, want %#v", got, want)
+			}
+			raw, err := f.registry.GetTask(ctx, "task-approval-000")
+			if err := err; err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got, want := raw.ApprovalState, taskpkg.ApprovalStatePending; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %#v, want %#v", got, want)
+			}
+			inbox, err := f.observer.QueryTaskInbox(
+				ctx,
+				TaskInboxQuery{
+					ReadScope: query.ReadScope,
+					Scope:     query.TaskScope,
+					Lane:      TaskInboxLaneApprovals,
+					Limit:     200,
+				},
+				query.Actor,
+			)
+			if err := err; err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !(inbox.HasMore) {
+				t.Fatal("expected true: inbox.HasMore")
+			}
+			if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+				ID: "event-new-approval", TaskID: "task-approval-000", EventType: "task.updated",
+				Actor:  taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "tester"},
+				Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP}, Timestamp: f.now.Add(2 * time.Minute),
+				Payload: json.RawMessage(`{"changed_fields":["approval_policy"],"status":"blocked"}`),
+			}); err != nil {
+				t.Fatalf("CreateTaskEvent() error = %v", err)
+			}
+			renewed, err := f.observer.overviewAttention(ctx, query)
+			if err != nil {
+				t.Fatalf("overviewAttention() error = %v", err)
+			}
+			if renewed.Total != 2 {
+				t.Fatalf("renewed approval count = %d, want 2", renewed.Total)
+			}
+		},
+	)
 	t.Run("Should keep a replay acknowledged and show a new failed run for the same task", func(t *testing.T) {
 		t.Parallel()
 		f := newOverviewFixture(t)
 		ctx := observeTestContext(t)
 		f.seedTask(t, taskpkg.Task{ID: "task-failed", Title: "Failed work", Status: taskpkg.TaskStatusFailed})
-		f.seedRun(t, taskpkg.Run{ID: "run-first", TaskID: "task-failed", Status: taskpkg.TaskRunStatusFailed, EndedAt: f.now.Add(-time.Hour)})
+		f.seedRun(
+			t,
+			taskpkg.Run{
+				ID:      "run-first",
+				TaskID:  "task-failed",
+				Status:  taskpkg.TaskRunStatusFailed,
+				EndedAt: f.now.Add(-time.Hour),
+			},
+		)
 		query := f.query()
 		query.AcknowledgementProfileID = store.DefaultProfileID
 		attention, err := f.observer.overviewAttention(ctx, query)
@@ -652,7 +695,12 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		if got, want := attention.Total, 1; !reflect.DeepEqual(got, want) {
 			t.Fatalf("got %#v, want %#v", got, want)
 		}
-		if err := f.observer.AcknowledgeAttentionSnapshot(ctx, OverviewAttentionScope(query), attention.Snapshot, attention.Items[0].NotificationID); err != nil {
+		if err := f.observer.AcknowledgeAttentionSnapshot(
+			ctx,
+			OverviewAttentionScope(query),
+			attention.Snapshot,
+			attention.Items[0].NotificationID,
+		); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		replay, err := f.observer.overviewAttention(ctx, query)
@@ -662,7 +710,17 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		if got := replay.Total; got != 0 {
 			t.Fatalf("got %v, want zero", got)
 		}
-		f.seedRun(t, taskpkg.Run{ID: "run-new", TaskID: "task-failed", Attempt: 2, Status: taskpkg.TaskRunStatusFailed, QueuedAt: f.now, EndedAt: f.now.Add(time.Minute)})
+		f.seedRun(
+			t,
+			taskpkg.Run{
+				ID:       "run-new",
+				TaskID:   "task-failed",
+				Attempt:  2,
+				Status:   taskpkg.TaskRunStatusFailed,
+				QueuedAt: f.now,
+				EndedAt:  f.now.Add(time.Minute),
+			},
+		)
 		next, err := f.observer.overviewAttention(ctx, query)
 		if err := err; err != nil {
 			t.Fatalf("unexpected error: %v", err)

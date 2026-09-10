@@ -32,7 +32,8 @@ func (o *Observer) overviewNeedsInput(ctx context.Context, query OverviewQuery) 
 		triage[state.TaskID] = state
 	}
 	items := make([]OverviewAttentionItem, 0, len(summaries))
-	for _, summary := range summaries {
+	for i := range summaries {
+		summary := &summaries[i]
 		at := summary.LastActivityAt
 		if at.IsZero() {
 			at = summary.UpdatedAt

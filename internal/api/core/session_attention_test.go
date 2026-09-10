@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/notifications"
-	"github.com/compozy/compozy/internal/observe"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -17,8 +14,11 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
@@ -507,93 +507,142 @@ type notificationRouteObserver struct {
 	notifications.AttentionStore
 }
 
-func (notificationRouteObserver) TaskAttentionItems(context.Context, observe.OverviewQuery) ([]observe.OverviewAttentionItem, error) {
+func (notificationRouteObserver) TaskAttentionItems(
+	context.Context,
+	observe.OverviewQuery,
+) ([]observe.OverviewAttentionItem, error) {
 	return nil, nil
 }
 
 type notificationRouteTerminal struct{ terminalpkg.Manager }
 
-func (notificationRouteTerminal) InputRequests(context.Context, string, store.ReadScope, terminalpkg.ID) ([]terminalpkg.PendingInputRequest, error) {
+func (notificationRouteTerminal) InputRequests(
+	context.Context,
+	string,
+	store.ReadScope,
+	terminalpkg.ID,
+) ([]terminalpkg.PendingInputRequest, error) {
 	return nil, nil
 }
 
 func TestAttentionNotificationReceipts(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reconcile exact counts and preserve later session revisions after a frozen bulk acknowledgement", func(t *testing.T) {
-		t.Parallel()
-		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := db.Close(context.Background()); err != nil {
-				t.Errorf("close: %v", err)
+	t.Run(
+		"Should reconcile exact counts and preserve later session revisions after a frozen bulk acknowledgement",
+		func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+			if err != nil {
+				t.Fatal(err)
 			}
-		})
-		revision := int64(1)
-		manager := attentionRouteSessionManager()
-		manager.ListPageFn = func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
-			if !query.AllWorkspaces || !query.ReadScope.AllProfiles || !query.AttentionOnly {
-				t.Fatalf("notification read lost global scope: %+v", query)
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Errorf("close: %v", err)
+				}
+			})
+			revision := int64(1)
+			manager := attentionRouteSessionManager()
+			manager.ListPageFn = func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if !query.AllWorkspaces || !query.ReadScope.AllProfiles || !query.AttentionOnly {
+					t.Fatalf("notification read lost global scope: %+v", query)
+				}
+				start, end := 0, 100
+				if query.Cursor == "page-two" {
+					start, end = 100, 151
+				}
+				items := make([]*session.Info, 0, end-start)
+				for i := start; i < end; i++ {
+					items = append(
+						items,
+						&session.Info{
+							ID:                  fmt.Sprintf("sess-%03d", i),
+							Name:                "Failed work",
+							ProfileID:           store.DefaultProfileID,
+							WorkspaceID:         "ws-1",
+							PendingClarifyCount: 1,
+							AttentionRevision:   revision,
+							UpdatedAt:           time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
+						},
+					)
+				}
+				page := session.ListPage{Sessions: items, HasMore: end == 100}
+				if page.HasMore {
+					page.NextCursor = "page-two"
+				}
+				return page, nil
 			}
-			start, end := 0, 100
-			if query.Cursor == "page-two" {
-				start, end = 100, 151
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+			fixture.Handlers.Observer = notificationRouteObserver{AttentionStore: db}
+			fixture.Handlers.Loops = &stubLoopService{
+				listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+					return contract.LoopNodeInventoryResponse{}, nil
+				},
+				listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+					return contract.LoopRequestsResponse{}, nil
+				},
 			}
-			items := make([]*session.Info, 0, end-start)
-			for i := start; i < end; i++ {
-				items = append(items, &session.Info{ID: fmt.Sprintf("sess-%03d", i), Name: "Failed work", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", PendingClarifyCount: 1, AttentionRevision: revision, UpdatedAt: time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)})
+			fixture.Handlers.Terminal = notificationRouteTerminal{}
+			fixture.Engine.GET("/notifications/attention", fixture.Handlers.AttentionNotifications)
+			fixture.Engine.POST(
+				"/notifications/attention/acknowledge",
+				fixture.Handlers.AcknowledgeAttentionNotifications,
+			)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/notifications/attention?profile=default",
+				nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("list status=%d body=%s", response.Code, response.Body.String())
 			}
-			page := session.ListPage{Sessions: items, HasMore: end == 100}
-			if page.HasMore {
-				page.NextCursor = "page-two"
+			var before contract.AttentionNotificationsResponse
+			testutil.DecodeJSONResponse(t, response, &before)
+			if before.Total != 151 || before.NeedsYou != 151 || len(before.Items) != 100 {
+				t.Fatalf("incomplete notification count: %+v", before)
 			}
-			return page, nil
-		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
-		fixture.Handlers.Observer = notificationRouteObserver{AttentionStore: db}
-		fixture.Handlers.Loops = &stubLoopService{
-			listLoopNodesFn: func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
-				return contract.LoopNodeInventoryResponse{}, nil
-			},
-			listLoopRequestsFn: func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
-				return contract.LoopRequestsResponse{}, nil
-			},
-		}
-		fixture.Handlers.Terminal = notificationRouteTerminal{}
-		fixture.Engine.GET("/notifications/attention", fixture.Handlers.AttentionNotifications)
-		fixture.Engine.POST("/notifications/attention/acknowledge", fixture.Handlers.AcknowledgeAttentionNotifications)
-		response := performRequest(t, fixture.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("list status=%d body=%s", response.Code, response.Body.String())
-		}
-		var before contract.AttentionNotificationsResponse
-		testutil.DecodeJSONResponse(t, response, &before)
-		if before.Total != 151 || before.NeedsYou != 151 || len(before.Items) != 100 {
-			t.Fatalf("incomplete notification count: %+v", before)
-		}
-		body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
-		if err != nil {
-			t.Fatal(err)
-		}
-		revision++ // Every session has a new meaningful occurrence after the captured response.
-		for range 2 {
-			response = performRequest(t, fixture.Engine, http.MethodPost, "/notifications/attention/acknowledge?profile=default", body)
-			if response.Code != http.StatusNoContent {
-				t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
+			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		response = performRequest(t, fixture.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
-		var after contract.AttentionNotificationsResponse
-		testutil.DecodeJSONResponse(t, response, &after)
-		if response.Code != http.StatusOK || after.Total != 151 || after.Snapshot == before.Snapshot {
-			t.Fatalf("new occurrences lost: status=%d total=%d", response.Code, after.Total)
-		}
-		revision-- // Replay the original source revision: its receipts still suppress the rows.
-		response = performRequest(t, fixture.Engine, http.MethodGet, "/notifications/attention?profile=default", nil)
-		testutil.DecodeJSONResponse(t, response, &after)
-		if response.Code != http.StatusOK || after.Total != 0 || len(after.Items) != 0 {
-			t.Fatalf("replay resurrected rows: %+v", after)
-		}
-	})
+			revision++ // Every session has a new meaningful occurrence after the captured response.
+			for range 2 {
+				response = performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/notifications/attention/acknowledge?profile=default",
+					body,
+				)
+				if response.Code != http.StatusNoContent {
+					t.Fatalf("ack status=%d body=%s", response.Code, response.Body.String())
+				}
+			}
+			response = performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/notifications/attention?profile=default",
+				nil,
+			)
+			var after contract.AttentionNotificationsResponse
+			testutil.DecodeJSONResponse(t, response, &after)
+			if response.Code != http.StatusOK || after.Total != 151 || after.Snapshot == before.Snapshot {
+				t.Fatalf("new occurrences lost: status=%d total=%d", response.Code, after.Total)
+			}
+			revision-- // Replay the original source revision: its receipts still suppress the rows.
+			response = performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/notifications/attention?profile=default",
+				nil,
+			)
+			testutil.DecodeJSONResponse(t, response, &after)
+			if response.Code != http.StatusOK || after.Total != 0 || len(after.Items) != 0 {
+				t.Fatalf("replay resurrected rows: %+v", after)
+			}
+		},
+	)
 }

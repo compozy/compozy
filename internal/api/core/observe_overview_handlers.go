@@ -63,7 +63,12 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 	query.TaskScope = taskpkg.CatalogScopeGlobal
 	if workspace := strings.TrimSpace(c.Query("workspace")); workspace != "" {
 		scope := taskpkg.CatalogScopeWorkspace
-		if err := h.resolveTaskCatalogWorkspace(c.Request.Context(), workspace, &scope, &query.WorkspaceID); err != nil {
+		if err := h.resolveTaskCatalogWorkspace(
+			c.Request.Context(),
+			workspace,
+			&scope,
+			&query.WorkspaceID,
+		); err != nil {
 			h.respondError(c, StatusForTaskError(err), err)
 			return false
 		}

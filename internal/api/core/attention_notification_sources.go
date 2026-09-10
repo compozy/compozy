@@ -290,7 +290,8 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 // Normalize only that exact seen fence; subsequent source changes retain their own revision.
 func sessionNotificationRevision(info *session.Info) int64 {
 	revision := info.AttentionRevision
-	if revision > 0 && info.LastSeenAt != nil && revision == info.LastSeenRevision && info.LastSettledRevision < revision {
+	if revision > 0 && info.LastSeenAt != nil && revision == info.LastSeenRevision &&
+		info.LastSettledRevision < revision {
 		return revision - 1
 	}
 	return revision

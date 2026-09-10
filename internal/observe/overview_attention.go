@@ -191,7 +191,8 @@ func (o *Observer) approvalOccurrence(ctx context.Context, taskID string) (strin
 					continue
 				}
 			}
-			if latest.ID == "" || event.Timestamp.After(latest.Timestamp) || (event.Timestamp.Equal(latest.Timestamp) && event.ID > latest.ID) {
+			if latest.ID == "" || event.Timestamp.After(latest.Timestamp) ||
+				(event.Timestamp.Equal(latest.Timestamp) && event.ID > latest.ID) {
 				latest = event
 			}
 		}

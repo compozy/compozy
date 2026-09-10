@@ -37,8 +37,11 @@ type AttentionStore interface {
 
 // AttentionIdentity preserves source boundaries even when identifiers contain separators.
 func AttentionIdentity(parts ...string) string {
-	// A string slice is always JSON encodable.
-	raw, _ := json.Marshal(parts)
+	raw, err := json.Marshal(parts)
+	if err != nil {
+		// []string has no unsupported values, cycles or custom marshalers.
+		panic("notifications: encode attention identity: " + err.Error())
+	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }

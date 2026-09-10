@@ -694,7 +694,12 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		desktops.byProfile[created.ID] = 2
 		seedMCPAuthProfileLifecycleRows(ctx, t, database, "growth")
 		// Notification history belongs to the deleted profile, not to source work.
-		receiptScope := notifications.AttentionScope{ProfileID: created.ID, ActorKind: "human", ActorID: "operator", Population: "bell"}
+		receiptScope := notifications.AttentionScope{
+			ProfileID:  created.ID,
+			ActorKind:  "human",
+			ActorID:    "operator",
+			Population: "bell",
+		}
 		snapshot, _, err := database.CaptureAttentionSnapshot(ctx, receiptScope, []string{"notification"})
 		if err != nil {
 			t.Fatalf("CaptureAttentionSnapshot() error = %v", err)
@@ -785,7 +790,9 @@ func TestManagerProfileLifecycle(t *testing.T) {
 
 		for _, table := range []string{"attention_acknowledgements", "attention_snapshots"} {
 			var count int
-			if err := database.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE profile_id = ?", created.ID).Scan(&count); err != nil {
+			if err := database.DB().
+				QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+" WHERE profile_id = ?", created.ID).
+				Scan(&count); err != nil {
 				t.Fatal(err)
 			}
 			if count != 0 {
