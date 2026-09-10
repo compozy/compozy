@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspace"
 )
 
@@ -193,7 +194,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		})
 	})
 
-	t.Run("Should drop a deleted provenance parent when a managed retry advances", func(t *testing.T) {
+	t.Run("Should preserve a deleted provenance parent as an orphan when a managed retry advances", func(t *testing.T) {
 		var failingManager *failFirstEnsureCreatedManager
 		fixture := newLoopGoalManagedRuntimeFixture(
 			t,
@@ -223,8 +224,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 
 		retryRequest := request
 		retryRequest.TargetBindingEpoch = 2
-		retryRequest.BindingAttemptID = "binding-attempt-goal-managed-provenance-retry-2"
-		retryRequest.DesiredSessionID = "sess-goal-managed-provenance-retry-2"
+		retryRequest.BindingAttemptID, retryRequest.DesiredSessionID = goalpkg.DeriveBindingIdentity(
+			fixture.key,
+			retryRequest.Handle,
+			2,
+		)
 		if err := fixture.runtime.AdvanceActionSessionRetry(testutil.Context(t), &looppkg.ActionSessionRetryRequest{
 			BindRequest:           retryRequest,
 			FailedBinding:         failedBinding,
@@ -235,6 +239,14 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("AdvanceActionSessionRetry() error = %v", err)
 		}
 
+		checkpoint, err := fixture.goalStore.LoadCheckpoint(testutil.Context(t), fixture.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		retryRequest.ExpectedCheckpointPhase = string(checkpoint.Phase)
+		retryRequest.ExpectedCheckpointBindingEpoch = checkpoint.BindingEpoch
+		retryRequest.ExpectedCheckpointSessionID = checkpoint.SessionID
+		retryRequest.ExpectedCheckpointHandle = checkpoint.BindingHandle
 		retryBinding, err := fixture.runtime.BindActionSession(testutil.Context(t), retryRequest)
 		if err != nil {
 			t.Fatalf("BindActionSession(retry) error = %v", err)
@@ -247,7 +259,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				t.Errorf("Delete(retry session) error = %v", err)
 			}
 		})
-		assertSessionProvenanceParent(t, fixture.manager, retryBinding.SessionID, "")
+		assertSessionProvenanceParent(t, fixture.manager, retryBinding.SessionID, parentID)
 	})
 
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
@@ -351,6 +363,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("BindActionSession did not converge after Cancel")
+		}
+
+		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
+			t.Fatalf("late-created root session %q survived binding cancellation", request.DesiredSessionID)
 		}
 
 		relay := &goalSessionOutboxRelay{
@@ -552,6 +568,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		go func() {
 			result, executeErr := executor.Execute(testutil.Context(t), fixture.node, looppkg.ActionExecutionInput{
 				WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID,
+				ToolScope:  toolspkg.Scope{ProfileID: fixture.run.ProfileID},
 				Generation: 1, NodeID: fixture.node.ID, ItemIndex: 0,
 				Actor: &fixture.actor, CorrelationID: fixture.workerClaim.Run.ID,
 				RuntimeSelection: &looppkg.ActionRuntimeSelection{

@@ -358,6 +358,10 @@ When another failure parks a Loop worker task run as `needs_attention`, use
 a linked child and atomically rebinds the same node cell at the next attempt and epoch while
 preserving its workspace and runtime binding.
 
+A missing bound provider credential ends the run as `blocked` with `credential_missing` before
+ACP starts. Bind the required credential in the same profile, then start a new run. This explicit
+dependency failure does not wait for the repeated-failure quarantine threshold.
+
 ## Re-attempt And Succession Semantics
 
 Node failure and gate rejection use different controls:

@@ -103,6 +103,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
 
+	actor.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
 	httpEngine := newExtensionTransportEngine(service, actor, "http")
 	udsEngine := newExtensionTransportEngine(service, actor, "uds")
 	fixtureDir := writeSecretExtensionFixture(t, t.TempDir(), extensionName, "1.0.0")

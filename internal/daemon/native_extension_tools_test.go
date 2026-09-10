@@ -937,7 +937,11 @@ func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope 
 	t.Helper()
 
 	integrationManifestSections := ""
+	runtimeCapabilities := `provides = ["memory.backend"]`
+	runtimePermissions := `requires = ["sessions/list"]`
 	if strings.TrimSpace(channelScope) != "" {
+		runtimeCapabilities = "provides = []"
+		runtimePermissions = "requires = []"
 		integrationManifestSections = fmt.Sprintf(`
 [[resources.skills]]
 path = "skills/"
@@ -957,11 +961,11 @@ description = "Native tool test extension"
 min_compozy_version = "0.5.0"
 
 [capabilities]
-provides = ["memory.backend"]
+%s
 
 [permissions]
-requires = ["sessions/list"]
-%s`, version, integrationManifestSections),
+%s
+%s`, version, runtimeCapabilities, runtimePermissions, integrationManifestSections),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
 	}
 	if strings.TrimSpace(channelScope) != "" {

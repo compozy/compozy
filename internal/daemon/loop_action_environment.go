@@ -141,9 +141,6 @@ func (b *loopActionSessionBinder) stopAndRollbackLoopActionEnvironment(
 	item *worktree.Worktree,
 	cause error,
 ) error {
-	if item == nil {
-		return cause
-	}
 	var stopErr error
 	if stopper, ok := b.sessions.(interface {
 		StopWithCause(context.Context, string, session.StopCause, string) error
@@ -152,7 +149,7 @@ func (b *loopActionSessionBinder) stopAndRollbackLoopActionEnvironment(
 			context.WithoutCancel(ctx),
 			strings.TrimSpace(sessionID),
 			session.CauseFailed,
-			"loop action session failed before worktree binding completed",
+			"loop action session failed before binding completed",
 		)
 	}
 	return b.rollbackLoopActionEnvironment(ctx, req, item, errors.Join(cause, stopErr))

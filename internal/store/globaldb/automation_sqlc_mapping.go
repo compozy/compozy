@@ -47,6 +47,7 @@ func automationRunParams(
 ) sqlcgen.InsertAutomationRunParams {
 	return sqlcgen.InsertAutomationRunParams{
 		ID:            run.ID,
+		ProfileID:     nullableAutomationString(run.ProfileID),
 		JobID:         nullableAutomationString(run.JobID),
 		TriggerID:     nullableAutomationString(run.TriggerID),
 		SessionID:     nullableAutomationString(run.SessionID),

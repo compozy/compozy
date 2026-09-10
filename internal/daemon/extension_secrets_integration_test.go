@@ -28,7 +28,10 @@ import (
 
 func TestExtensionSecrets(t *testing.T) {
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
-	t.Run("Should isolate a development binding from the global instance", testExtensionSecretDevBindingIsolation)
+	t.Run(
+		"Should prefer a development binding and fall back to the profile binding",
+		testExtensionSecretDevBindingIsolation,
+	)
 	t.Run("Should roll back a failed transport batch", testExtensionSecretTransportRollback)
 	t.Run("Should retire global and development bindings by instance", testExtensionSecretBindingRetirement)
 	t.Run("Should preserve remote header binding parity across HTTP and UDS", testExtensionRemoteHeaderBindingParity)
@@ -50,7 +53,7 @@ func testExtensionRemoteHeaderBindingParity(t *testing.T) {
 	}, harness.actor); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
-	secretRef := vault.ExtensionSecretRef(extensionName, "", "DEPLOYMENT_KEY")
+	secretRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "DEPLOYMENT_KEY")
 	if _, err := harness.vault.PutSecret(t.Context(), secretRef, "operator_remote_header", secretValue); err != nil {
 		t.Fatalf("PutSecret(remote header) error = %v", err)
 	}
@@ -119,7 +122,7 @@ func testExtensionRemoteHeaderBindingParity(t *testing.T) {
 		)
 	}
 
-	missingRef := vault.ExtensionSecretRef(extensionName, "", "MISSING_KEY")
+	missingRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "MISSING_KEY")
 	danglingResponse := performExtensionTransportRequest(
 		t,
 		harness.transport,
@@ -264,6 +267,7 @@ func newExtensionSecretIntegrationActor(
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
+		actor.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
 		return actor
 	}
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
@@ -275,6 +279,7 @@ func newExtensionSecretIntegrationActor(
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
+	actor.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
 	return actor
 }
 
@@ -305,7 +310,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	}, harness.actor); err != nil {
 		t.Fatalf("Install(global) error = %v", err)
 	}
-	foreignRef := vault.ExtensionSecretRef(extensionName, "", "FOREIGN_SHARED")
+	foreignRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "FOREIGN_SHARED")
 	if _, err := harness.vault.PutSecret(t.Context(), foreignRef, "foreign_token", foreignValue); err != nil {
 		t.Fatalf("PutSecret(foreign) error = %v", err)
 	}
@@ -320,7 +325,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	); err != nil {
 		t.Fatalf("SetExtensionSecrets(global) error = %v", err)
 	}
-	globalOwnedRef := vault.ExtensionSecretRef(extensionName, "", "BOUND_SECRET")
+	globalOwnedRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "BOUND_SECRET")
 	if _, err := harness.service.Remove(t.Context(), extensionName, harness.actor); err != nil {
 		t.Fatalf("Remove(global) error = %v", err)
 	}
@@ -364,7 +369,12 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	}, devActor); err != nil {
 		t.Fatalf("Dev() error = %v", err)
 	}
-	devForeignRef := vault.ExtensionSecretRef(extensionName, workspaceID, "FOREIGN_SHARED")
+	devForeignRef := vault.ExtensionProfileSecretRef(
+		extensionName,
+		store.DefaultProfileID,
+		workspaceID,
+		"FOREIGN_SHARED",
+	)
 	if _, err := harness.vault.PutSecret(t.Context(), devForeignRef, "foreign_token", foreignValue); err != nil {
 		t.Fatalf("PutSecret(dev foreign) error = %v", err)
 	}
@@ -419,7 +429,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	if strings.Contains(logMatch.matched.Message, "runtime_secret=[REDACTED]") {
 		t.Fatalf("matched dev log = %q, stale binding was injected", logMatch.matched.Message)
 	}
-	devOwnedRef := vault.ExtensionSecretRef(extensionName, workspaceID, "BOUND_SECRET")
+	devOwnedRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, workspaceID, "BOUND_SECRET")
 	if _, err := harness.service.RemoveScoped(t.Context(), extensionName, devActor); err != nil {
 		t.Fatalf("RemoveScoped(dev) error = %v", err)
 	}
@@ -524,7 +534,12 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 		t.Fatalf("ListEnvBindings(workspace) error = %v", err)
 	}
 	if len(workspaceRows) != 1 ||
-		workspaceRows[0].SecretRef != vault.ExtensionSecretRef(extensionName, workspaceID, "BOUND_SECRET") {
+		workspaceRows[0].SecretRef != vault.ExtensionProfileSecretRef(
+			extensionName,
+			store.DefaultProfileID,
+			workspaceID,
+			"BOUND_SECRET",
+		) {
 		t.Fatalf("workspace bindings = %#v, want exact workspace-owned ref", workspaceRows)
 	}
 	globalRows, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
@@ -564,7 +579,7 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 	}
 	latestSequence := logs[len(logs)-1].Sequence
 
-	globalRef := vault.ExtensionSecretRef(extensionName, "", "BOUND_SECRET")
+	globalRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "BOUND_SECRET")
 	if _, err := harness.vault.PutSecret(
 		t.Context(),
 		globalRef,
@@ -575,6 +590,7 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 	}
 	if err := harness.db.ExtensionEnvRepo.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
 		ExtensionName: extensionName,
+		ProfileID:     store.DefaultProfileID,
 		EnvName:       "BOUND_SECRET",
 		SecretRef:     globalRef,
 		Kind:          extensionpkg.ExtensionEnvBindingKind,
@@ -623,11 +639,17 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 	)
 	encoded := string(mustExtensionTransportJSON(t, logMatch.logs))
 	assertSecretsAbsent(t, "dev logs without workspace binding", encoded, []string{devSecret, globalSecret})
-	if strings.Contains(logMatch.matched.Message, "runtime_secret=[REDACTED]") {
-		t.Fatalf(
-			"matched dev log after binding deletion = %q, want empty workspace value despite global row",
-			logMatch.matched.Message,
-		)
+	effective, err := harness.db.ExtensionEnvRepo.ResolveEnvBindings(
+		t.Context(),
+		extensionName,
+		store.DefaultProfileID,
+		workspaceID,
+	)
+	if err != nil || len(effective) != 1 || effective[0].SecretRef != globalRef {
+		t.Fatalf("effective binding after deleting workspace override = %#v/%v, want profile fallback", effective, err)
+	}
+	if !strings.Contains(logMatch.matched.Message, "runtime_secret=[REDACTED]") {
+		t.Fatalf("matched dev log = %q, want injected and redacted profile fallback", logMatch.matched.Message)
 	}
 }
 
@@ -665,7 +687,7 @@ func testExtensionSecretTransportRollback(t *testing.T) {
 	}
 
 	oldA, oldB := "old-a-secret", "old-b-secret"
-	oldBRef := vault.ExtensionSecretRef(extensionName, "", "B_SHARED")
+	oldBRef := vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "B_SHARED")
 	if _, err := harness.vault.PutSecret(
 		t.Context(),
 		oldBRef,
@@ -760,7 +782,7 @@ func testExtensionSecretTransportRollback(t *testing.T) {
 		ref  string
 		want string
 	}{
-		"A_KEY": {ref: vault.ExtensionSecretRef(extensionName, "", "A_KEY"), want: oldA},
+		"A_KEY": {ref: vault.ExtensionProfileSecretRef(extensionName, store.DefaultProfileID, "", "A_KEY"), want: oldA},
 		"B_KEY": {ref: oldBRef, want: oldB},
 	} {
 		got, resolveErr := harness.vault.ResolveRef(t.Context(), state.ref)
@@ -803,12 +825,25 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		)
 	}
 	assertSecretsAbsent(t, "install response", installResponse.Body.String(), []string{secretValue})
-	var installed contract.ExtensionPayload
-	if err := json.Unmarshal(installResponse.Body.Bytes(), &installed); err != nil {
+	var installPayload contract.ExtensionResponse
+	if err := json.Unmarshal(installResponse.Body.Bytes(), &installPayload); err != nil {
 		t.Fatalf("json.Unmarshal(install response) error = %v", err)
 	}
-	if !installed.Enabled || installed.PID != 0 {
-		t.Fatalf("installed extension = %#v, want enabled but inactive before secret binding", installed)
+	installed := installPayload.Extension
+	if !installed.Enabled || len(installed.MissingEnv) != 1 || installed.MissingEnv[0] != "BOUND_SECRET" {
+		t.Fatalf("installed extension = %#v, want missing binding diagnostic", installed)
+	}
+	disabledResponse := performExtensionTransportRequest(t, harness.transport, http.MethodPost,
+		"/extensions/"+extensionName+"/disable", nil)
+	if disabledResponse.Code != http.StatusOK {
+		t.Fatalf("disable: %d/%s", disabledResponse.Code, disabledResponse.Body)
+	}
+	var disabled contract.ExtensionResponse
+	if err := json.Unmarshal(disabledResponse.Body.Bytes(), &disabled); err != nil {
+		t.Fatal(err)
+	}
+	if disabled.Extension.Enabled || disabled.Extension.PID != 0 {
+		t.Fatalf("disabled extension = %#v", disabled.Extension)
 	}
 
 	boundValue := secretValue

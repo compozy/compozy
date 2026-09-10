@@ -420,6 +420,9 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 			workspacepkg.WithHomePaths(homePaths),
 			workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 			workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return cfg, nil },
+			),
 		)
 		if err != nil {
 			t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -492,16 +495,21 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	})
 }
 
-func TestManagerIntegrationResumeClassifiesCrashAndActivates(t *testing.T) {
+func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.T) {
 	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
 
 	session := createSession(t, h)
+	events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind before crash")
+	if err != nil {
+		t.Fatalf("Prompt(): %v", err)
+	}
+	_ = collectEvents(t, events)
+	meta := readMeta(t, session.MetaPath())
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 	waitForStoppedSession(t, h.manager, session)
 
-	meta := readMeta(t, session.MetaPath())
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""
@@ -509,32 +517,30 @@ func TestManagerIntegrationResumeClassifiesCrashAndActivates(t *testing.T) {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
 
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-			t.Fatalf("cleanup Stop() error = %v", err)
-		}
-	})
-
-	if got := resumed.Info().State; got != StateActive {
-		t.Fatalf("resumed state = %q, want %q", got, StateActive)
-	}
-	if got := resumed.Info().StopReason; got != store.StopAgentCrashed {
-		t.Fatalf("resumed stop reason = %q, want %q", got, store.StopAgentCrashed)
-	}
-	if got := resumed.Info().StopDetail; got != resumeStopDetailAgentCrashed {
-		t.Fatalf("resumed stop detail = %q, want %q", got, resumeStopDetailAgentCrashed)
+	h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
+		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		acp.WithStopTimeout(100*time.Millisecond),
+	))))
+	cleanupTestManager(t, h.manager)
+	if err := h.manager.RecoverPendingStops(testutil.Context(t)); err != nil {
+		t.Fatalf("RecoverPendingStops(): %v", err)
 	}
 
-	meta = readMeta(t, resumed.MetaPath())
-	if meta.StopReason == nil {
-		t.Fatal("meta.StopReason = nil, want non-nil")
+	if _, err := h.manager.Resume(testutil.Context(t), session.ID); !errors.Is(err, store.ErrSessionNotAttachable) {
+		t.Fatalf("Resume(crashed runtime) error = %v, want ErrSessionNotAttachable", err)
 	}
-	if *meta.StopReason != store.StopAgentCrashed {
-		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
+	if _, exists := h.manager.Get(session.ID); exists {
+		t.Fatal("Resume materialized a dead runtime")
+	}
+	meta = readMeta(t, session.MetaPath())
+	if meta.StopReason == nil || *meta.StopReason != store.StopAgentCrashed ||
+		meta.StopDetail != resumeStopDetailAgentCrashed {
+		t.Fatalf(
+			"crash classification = %v/%q, want agent_crashed/%q",
+			meta.StopReason,
+			meta.StopDetail,
+			resumeStopDetailAgentCrashed,
+		)
 	}
 }
 

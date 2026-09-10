@@ -66,6 +66,12 @@ func closeTerminalRunAgentBinding(
 	if binding.State == goal.BindingStateFailed {
 		return nil
 	}
+	if binding.State == goal.BindingStateCreating {
+		// A terminal worker revokes its pending creation. The shared transition
+		// queues cleanup and fences a create effect that returns after settlement.
+		_, err := failStaleBindingCreationWithCleanup(ctx, exec, binding, terminalAt)
+		return err
+	}
 	return closeGoalBindingWithCleanup(
 		ctx,
 		exec,

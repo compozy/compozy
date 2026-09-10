@@ -75,13 +75,14 @@ func TestDaemonWorktreeExitJourneyE2E001IT033IT037(t *testing.T) {
 	if session.WorktreeID != created.ID || session.WorkspaceID != harness.WorkspaceID {
 		t.Fatalf("bound session = %#v, want workspace/worktree %s/%s", session, harness.WorkspaceID, created.ID)
 	}
-	if _, err := harness.PromptSession(ctx, session.ID, "write exit journey file"); err != nil {
+	promptEvents, err := harness.PromptSession(ctx, session.ID, "write exit journey file")
+	if err != nil {
 		t.Fatalf("PromptSession(write worktree file) error = %v", err)
 	}
 	markerPath := filepath.Join(ready.Worktree.Path, "agent.txt")
 	marker, err := os.ReadFile(markerPath)
 	if err != nil {
-		t.Fatalf("read bound-agent marker: %v", err)
+		t.Fatalf("read bound-agent marker: %v; prompt events=%+v", err, promptEvents)
 	}
 	if got := string(marker); got != "written by bound agent\n" {
 		t.Fatalf("bound-agent marker = %q", got)

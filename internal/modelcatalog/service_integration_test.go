@@ -16,7 +16,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/store"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	_ "modernc.org/sqlite"
@@ -185,6 +185,12 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
+		if err := service.SetDefaultExecutionContext(modelcatalog.CatalogExecutionContext{
+			Scope: modelcatalog.ExecutionScopeProfile, ProfileID: storepkg.DefaultProfileID,
+		}); err != nil {
+			t.Fatalf("SetDefaultExecutionContext(): %v", err)
+		}
+
 		results := make(chan error, 2)
 		for range 2 {
 			go func() {
@@ -233,6 +239,12 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 
+		if err := service.SetDefaultExecutionContext(modelcatalog.CatalogExecutionContext{
+			Scope: modelcatalog.ExecutionScopeProfile, ProfileID: storepkg.DefaultProfileID,
+		}); err != nil {
+			t.Fatalf("SetDefaultExecutionContext(): %v", err)
+		}
+
 		results := make(chan error, 2)
 		for _, providerID := range []string{"codex", "claude"} {
 			go func(providerID string) {
@@ -275,7 +287,7 @@ func openCatalogGlobalDB(t *testing.T) (*globaldb.GlobalDB, string) {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	path := filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)
 	store, err := globaldb.OpenGlobalDB(ctx, path)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -307,6 +319,10 @@ func newIntegrationBlockingSource(rowsByProvider map[string][]modelcatalog.Model
 		callsCh:        make(chan int, 16),
 		releaseCh:      make(chan struct{}),
 	}
+}
+
+func (*integrationBlockingSource) CatalogExecutionFingerprint() (string, error) {
+	return modelcatalog.CatalogExecutionFingerprint("integration-blocking-source"), nil
 }
 
 func (s *integrationBlockingSource) ID() string {

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +17,7 @@ func reconcileDeclaredExtensionProfiles(
 	ctx context.Context,
 	profiles *profilepkg.Manager,
 	registry *extensionpkg.Registry,
+	logger *slog.Logger,
 ) error {
 	if profiles == nil || registry == nil {
 		return nil
@@ -31,7 +33,8 @@ func reconcileDeclaredExtensionProfiles(
 		}
 		manifest, err := extensionpkg.LoadManifest(filepath.Dir(manifestPath))
 		if err != nil {
-			return fmt.Errorf("daemon: load extension %q declared profiles: %w", info.Name, err)
+			logger.Warn("daemon: skip declared profiles from invalid extension", "extension", info.Name, "error", err)
+			continue
 		}
 		if len(manifest.Profiles) == 0 {
 			continue

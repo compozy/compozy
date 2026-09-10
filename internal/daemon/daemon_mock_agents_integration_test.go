@@ -917,6 +917,11 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		t.Parallel()
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				provider := cfg.Providers["codex"]
+				provider.Models.Discovery.Enabled = new(false)
+				cfg.Providers["codex"] = provider
+			}},
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
 				FixtureAgent: "hosted-native",
@@ -982,6 +987,12 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("CLI provider models refresh = %#v, want builtin status", refresh)
 		}
 
+		baselineStatus, baselineModels := providerModelListHTTP(t, ctx, harness, "codex", "all")
+		if baselineStatus != http.StatusOK {
+			t.Fatalf("HTTP baseline models status = %d", baselineStatus)
+		}
+		baselineSol := requireProviderModelPayload(t, baselineModels.Models, "gpt-5.6-sol")
+
 		var hidden compozycontract.ProviderModelCurationResponse
 		if err := harness.CLI.RunJSON(
 			ctx,
@@ -992,6 +1003,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			"codex",
 			"gpt-5.6-sol",
 			"--hidden=true",
+			"--featured=true",
 			"--default-effort=max",
 			"-o",
 			"json",
@@ -1015,7 +1027,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("HTTP all provider models status = %d, want %d", status, http.StatusOK)
 		}
 		solHTTP := requireProviderModelPayload(t, allHTTP.Models, "gpt-5.6-sol")
-		assertCanonicalHiddenSolPayload(t, solHTTP)
+		assertCanonicalHiddenSolPayload(t, solHTTP, baselineSol)
 
 		var nativeAll compozycontract.ProviderModelListResponse
 		callHostedMCPToolJSON(
@@ -2222,19 +2234,13 @@ func requireProviderModelPayload(
 	return compozycontract.ProviderModelPayload{}
 }
 
-func assertCanonicalHiddenSolPayload(t testing.TB, model compozycontract.ProviderModelPayload) {
+func assertCanonicalHiddenSolPayload(t testing.TB, model, baseline compozycontract.ProviderModelPayload) {
 	t.Helper()
 
-	wantEfforts := []compozycontract.ReasoningEffort{
-		compozycontract.ReasoningEffort("none"),
-		compozycontract.ReasoningEffort("low"),
-		compozycontract.ReasoningEffort("medium"),
-		compozycontract.ReasoningEffort("high"),
-		compozycontract.ReasoningEffort("xhigh"),
-		compozycontract.ReasoningEffort("max"),
-	}
+	wantEfforts := baseline.ReasoningEfforts
+
 	if model.ProviderID != "codex" || model.ModelID != "gpt-5.6-sol" || model.Curated ||
-		!model.Hidden || model.Deprecated || !model.Featured ||
+		!model.Hidden || model.Deprecated != baseline.Deprecated || !model.Featured ||
 		model.ReasoningSource != compozycontract.ReasoningSource("catalog") {
 		t.Fatalf("Sol identity/curation payload = %#v", model)
 	}

@@ -24,6 +24,7 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -900,6 +901,17 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
+	database, err := globaldb.OpenGlobalDB(ctx, runtimeHarness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := database.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	registry := extensionpkg.NewRegistry(database.DB())
+
 	clientLayout := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(clientLayout, ".claude-plugin"), 0o700); err != nil {
 		t.Fatalf("MkdirAll(.claude-plugin) error = %v", err)
@@ -934,6 +946,10 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			before, err := registry.List()
+			if err != nil {
+				t.Fatalf("ListExtensions(before) error = %v", err)
+			}
 			requestBody, err := json.Marshal(compozycontract.InstallExtensionRequest{
 				Source:          compozycontract.InstallExtensionSourceLocalPath,
 				Ref:             testCase.path,
@@ -959,12 +975,12 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 			if payload.Code != testCase.code {
 				t.Fatalf("HTTP install error code = %q, want %q", payload.Code, testCase.code)
 			}
-			installed, err := runtimeHarness.ListExtensions(ctx)
+			installed, err := registry.List()
 			if err != nil {
 				t.Fatalf("ListExtensions() error = %v", err)
 			}
-			if len(installed) != 0 {
-				t.Fatalf("installed extensions = %#v, want registry untouched", installed)
+			if !reflect.DeepEqual(installed, before) {
+				t.Fatalf("installed extensions = %#v, want registry unchanged from %#v", installed, before)
 			}
 		})
 	}

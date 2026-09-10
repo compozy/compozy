@@ -74,7 +74,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
 	}
 
-	stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
@@ -345,7 +345,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 			t.Fatalf("detail.Events = %#v, want task.run_canceled event", detail.Events)
 		}
 
-		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", agentSessionID, "-o", "json")
+		stopOut := stopIntegrationSessionAndRead(t, h.deps, agentSessionID)
 		var stoppedAfterResume SessionRecord
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)

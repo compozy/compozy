@@ -438,6 +438,7 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner-workspace",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -446,6 +447,7 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake-workspace",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -454,12 +456,14 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner-global",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			NetworkParticipation: daemonTestLiveParticipation("global", "ops"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake-global",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -620,6 +624,7 @@ func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -629,6 +634,7 @@ func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -735,6 +741,7 @@ func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -744,6 +751,7 @@ func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeUser,
@@ -818,6 +826,7 @@ func testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -827,6 +836,7 @@ func testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -895,6 +905,7 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 	workspace := resolveDaemonWorkspace(t, firstDaemon.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessionsOne.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -904,6 +915,7 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeSystem,
@@ -970,6 +982,7 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 	sessionsTwo := &fakeSessionManager{
 		infos: []*session.Info{
 			{
+				ProfileID:            store.DefaultProfileID,
 				ID:                   "sess-owner",
 				AgentName:            "coder",
 				Type:                 session.SessionTypeSystem,
@@ -979,6 +992,7 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 				NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 			},
 			{
+				ProfileID:            store.DefaultProfileID,
 				ID:                   "sess-wake",
 				AgentName:            "coder",
 				Type:                 session.SessionTypeSystem,
@@ -1028,6 +1042,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, firstDaemon.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
 	sessionsOne.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-owner",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -1036,6 +1051,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-wake",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -1044,6 +1060,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-runtime",
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -1091,6 +1108,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	sessionsTwo := &fakeSessionManager{
 		infos: []*session.Info{
 			{
+				ProfileID:            store.DefaultProfileID,
 				ID:                   "sess-runtime",
 				Type:                 session.SessionTypeSystem,
 				State:                session.StateActive,
@@ -1204,7 +1222,8 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
-			{ID: "sess-stopped", State: session.StateStopped},
+			{
+				ProfileID: store.DefaultProfileID, ID: "sess-stopped", State: session.StateStopped},
 		},
 	}
 
@@ -2144,7 +2163,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 			Surface:     store.NetworkSurfaceThread,
 			ThreadID:    "thread_builders",
 		},
-		store.NetworkConversationMessageQuery{Limit: 10},
+		store.NetworkConversationMessageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 10},
 	)
 	if err != nil {
 		t.Fatalf("ListConversationMessages(after shutdown) error = %v", err)
@@ -2318,10 +2337,6 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		}
 	})
 
-	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
-		t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
-	}
-
 	payload := hookspkg.SessionPostCreatePayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPostCreate,
@@ -2329,6 +2344,7 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		},
 		SessionContext: hookspkg.SessionContext{
 			SessionID: "sess-good",
+			ProfileID: store.DefaultProfileID,
 			AgentName: "coder",
 			State:     string(session.StateActive),
 		},
@@ -2348,6 +2364,13 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 	if !strings.Contains(string(hookPayload), "sess-good") {
 		t.Fatalf("hook payload = %q, want healthy extension session id", string(hookPayload))
 	}
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() before reading logs error = %v", err)
+	}
+	if !strings.Contains(logBuffer.String(), "extension manager start failed") {
+		t.Fatalf("log output = %q, want extension start failure entry", logBuffer.String())
+	}
+
 }
 
 func TestRunGracefulShutdownViaContextCancellation(t *testing.T) {
@@ -3426,6 +3449,13 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Memory.Dream.CheckInterval = 10 * time.Millisecond
+	if err := os.WriteFile(
+		homePaths.ConfigFile,
+		[]byte("[memory]\nenabled = true\n[roles.dream]\nenabled = true\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspace)
@@ -3438,6 +3468,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
+				ProfileID:   store.DefaultProfileID,
 				ID:          "sess-user",
 				WorkspaceID: resolvedWorkspace.WorkspaceID,
 				Type:        session.SessionTypeUser,
@@ -4393,6 +4424,7 @@ func seedDetachedHarnessSessionIndex(
 			agentName = "daemon-test-agent"
 		}
 		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ProfileID:   info.ProfileID,
 			ID:          info.ID,
 			Name:        info.Name,
 			AgentName:   agentName,
@@ -4422,6 +4454,7 @@ func seedNetworkDeliveryIntegrationSessions(
 	workspaceRoot := filepath.Join(homePaths.HomeDir, workspaceID)
 	manager.infos = []*session.Info{
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-net",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeUser,
@@ -4431,6 +4464,7 @@ func seedNetworkDeliveryIntegrationSessions(
 			NetworkParticipation: daemonTestLiveParticipation(workspaceID, "builders"),
 		},
 		{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   "sess-sender",
 			AgentName:            "coder",
 			Type:                 session.SessionTypeUser,
@@ -4441,6 +4475,19 @@ func seedNetworkDeliveryIntegrationSessions(
 		},
 	}
 	seedDetachedHarnessSessionIndex(t, homePaths, manager.infos)
+	database, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = database.CreateNetworkChannel(t.Context(), store.NetworkChannelEntry{
+		ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, Channel: "builders",
+		Purpose: "Integration delivery", CreatedBy: "operator",
+	})
+	closeErr := database.Close(t.Context())
+	if err != nil || closeErr != nil {
+		t.Fatalf("seed network channel: %v; close: %v", err, closeErr)
+	}
+
 }
 
 func ensureDetachedHarnessWorkspaceIndex(

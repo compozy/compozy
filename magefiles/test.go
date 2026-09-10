@@ -109,9 +109,32 @@ func exactGoTestRunPattern(tests []string) string {
 
 // TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
-	return runGotestsum(context.Background(), nil,
-		"--format", "pkgname", "--", "-race", "-p", goIntegrationPackageLimit, "-parallel=4",
-		"-timeout", goIntegrationTestTimeout, "-tags", "integration", "./...")
+	ctx := context.Background()
+	invocations, err := goIntegrationTestInvocations(ctx)
+	if err != nil {
+		return err
+	}
+	jsonFileDir, err := ensureGoTestJSONFileDir()
+	if err != nil {
+		return err
+	}
+	packageLimit := goIntegrationPackageLimit
+	if strings.TrimSpace(os.Getenv(goTestPackageLimitEnvVar)) != "" {
+		packageLimit = goUnitTestPackageLimit()
+	}
+	for index, invocation := range invocations {
+		args := gotestsumInvocationArgs(jsonFileDir, index)
+		args = append(args, "-race", "-p", packageLimit, "-parallel=4",
+			"-timeout", goIntegrationTestTimeout, "-tags", "integration")
+		if len(invocation.tests) > 0 {
+			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
+		}
+		args = append(args, invocation.packages...)
+		if err := runGotestsum(ctx, nil, args...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {

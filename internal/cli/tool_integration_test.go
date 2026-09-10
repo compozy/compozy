@@ -16,6 +16,8 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -43,6 +45,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(homePaths),
+		udsapi.WithProfileService(newToolIntegrationProfiles(t, homePaths)),
 		udsapi.WithConfig(&cfg),
 		udsapi.WithSocketPath(cfg.Daemon.Socket),
 		udsapi.WithLogger(discardLogger()),
@@ -531,4 +534,22 @@ func limitCLIToolIntegrationViews(views []toolspkg.ToolView, limit int) []toolsp
 		return views
 	}
 	return views[:limit]
+}
+
+func newToolIntegrationProfiles(t *testing.T, home compozyconfig.HomePaths) *profilepkg.Manager {
+	t.Helper()
+	database, err := globaldb.OpenGlobalDB(t.Context(), home.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(): %v", err)
+	}
+	t.Cleanup(func() {
+		if err := database.Close(context.Background()); err != nil {
+			t.Errorf("Close(): %v", err)
+		}
+	})
+	manager, err := profilepkg.NewManager(profilepkg.WithStore(database), profilepkg.WithHomePaths(home))
+	if err != nil {
+		t.Fatalf("NewManager(): %v", err)
+	}
+	return manager
 }

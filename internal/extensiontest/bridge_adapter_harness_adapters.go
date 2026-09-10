@@ -88,6 +88,16 @@ type staticWorkspaceResolver struct {
 	resolved workspacepkg.ResolvedWorkspace
 }
 
+func (r *staticWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	ref, profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if profileName != "default" {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("extensiontest: unknown profile %q", profileName)
+	}
+	return r.Resolve(ctx, ref)
+}
+
 func (r *staticWorkspaceResolver) Resolve(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
 	if r == nil {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound

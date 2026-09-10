@@ -586,7 +586,10 @@ func (r *integrationRuntimeViewReader) GetSession(
 	}
 
 	trimmedSessionID := strings.TrimSpace(sessionID)
-	sessions, err := r.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := r.registry.ListSessions(
+		ctx,
+		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1489,7 +1492,13 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 	if len(runsBefore) != 0 {
 		t.Fatalf("runs before start = %d, want 0", len(runsBefore))
 	}
-	channelsBefore, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	channelsBefore, err := db.ListNetworkChannels(
+		ctx,
+		store.NetworkChannelQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListNetworkChannels(before start) error = %v", err)
 	}
@@ -1507,7 +1516,13 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 	if got, want := execution.Run.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
 		t.Fatalf("StartTask().Run.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
-	channelsAfter, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	channelsAfter, err := db.ListNetworkChannels(
+		ctx,
+		store.NetworkChannelQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListNetworkChannels(after start) error = %v", err)
 	}
@@ -1997,7 +2012,13 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 	})
 
-	channels, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	channels, err := db.ListNetworkChannels(
+		ctx,
+		store.NetworkChannelQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListNetworkChannels() error = %v", err)
 	}
@@ -3855,6 +3876,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	}
 
 	sessionInfo := store.SessionInfo{
+		ProfileID:         store.DefaultProfileID,
 		ID:                run.SessionID,
 		Name:              "Task detail session",
 		AgentName:         "codex",

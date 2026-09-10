@@ -42,3 +42,5 @@ verify exact-reference validation, input provenance, and rejection before ACP sp
 
 QA impact 2026-08-19: runtime speed is closed to `normal|fast` in definitions, task frontmatter,
 config, runtime inputs, and per-run flags. Verify invalid speed fails before ACP spawn.
+
+QA 2026-09-10: The real runtime-selection integration verifies a missing bound credential blocks an admitted Loop before ACP spawn with a safe credential_missing cause. This runtime admission failure is distinct from static preflight rejection, which still creates no run. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

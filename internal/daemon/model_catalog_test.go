@@ -761,6 +761,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t,
 			func(cfg *compozyconfig.Config) {
 				provider := cfg.Providers["codex"]
+				// Rehydration must use persisted rows while the provider is unavailable.
+				provider.Command = filepath.Join(t.TempDir(), "missing-codex")
 				provider.Models = compozyconfig.ProviderModelsConfig{
 					Default: "operator-default-only",
 					Curated: []compozyconfig.ProviderModelConfig{{ID: "gpt-5.6-sol"}},

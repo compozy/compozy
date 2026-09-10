@@ -22,17 +22,19 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
+	"github.com/gin-gonic/gin"
 )
 
 type extensionRegistryTestEnv struct {
-	deps      commandDeps
-	homePaths compozyconfig.HomePaths
+	deps        commandDeps
+	homePaths   compozyconfig.HomePaths
+	httpBaseURL string
 }
 
 type extensionRegistryTestOptions struct {
@@ -70,7 +72,18 @@ func newExtensionRegistryTestEnv(
 			t.Fatalf("daemon stop cleanup error = %v", err)
 		}
 	})
-	return extensionRegistryTestEnv{deps: h.deps, homePaths: h.homePaths}
+	h.runner.mu.Lock()
+	extensions := h.runner.extensions
+	h.runner.mu.Unlock()
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName: "httpapi", Extensions: extensions,
+		Profiles: newToolIntegrationProfiles(t, h.homePaths),
+	})
+	router := gin.New()
+	router.POST("/api/extensions", handlers.InstallExtension)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+	return extensionRegistryTestEnv{deps: h.deps, homePaths: h.homePaths, httpBaseURL: server.URL}
 }
 
 func (s *extensionRegistrySourceStub) Name() string {
@@ -280,10 +293,10 @@ func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
 			Ref:             "acme/portable-marketplace-ext",
 			AllowUnverified: true,
 		}
-		webInstalled := installExtensionOverLoopback(t, env.homePaths, request)
+		webInstalled := installExtensionOverLoopback(t, env.httpBaseURL, request)
 		assertPortableMarketplaceInstall(t, webInstalled)
 
-		client, err := NewClient(LocalClientTarget(env.homePaths.DaemonSocket))
+		client, err := clientFromDeps(env.deps)
 		if err != nil {
 			t.Fatalf("NewClient(portable marketplace parity) error = %v", err)
 		}
@@ -323,15 +336,11 @@ func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
 
 func installExtensionOverLoopback(
 	t *testing.T,
-	homePaths compozyconfig.HomePaths,
+	baseURL string,
 	request contract.InstallExtensionRequest,
 ) contract.ExtensionPayload {
 	t.Helper()
 
-	info, err := compozydaemon.ReadInfo(homePaths.DaemonInfo)
-	if err != nil {
-		t.Fatalf("ReadInfo(portable marketplace parity) error = %v", err)
-	}
 	body, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal(portable marketplace install request) error = %v", err)
@@ -339,7 +348,7 @@ func installExtensionOverLoopback(
 	httpRequest, err := http.NewRequestWithContext(
 		t.Context(),
 		http.MethodPost,
-		fmt.Sprintf("http://127.0.0.1:%d/api/extensions", info.Port),
+		baseURL+"/api/extensions",
 		bytes.NewReader(body),
 	)
 	if err != nil {

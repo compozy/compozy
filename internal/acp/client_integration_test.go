@@ -3,12 +3,18 @@
 package acp
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/workspacedb"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -76,17 +82,19 @@ func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
 	t.Run("Should write read and run terminal commands through the local tool host", func(t *testing.T) {
 		t.Parallel()
 
-		driver := New()
-
 		root := t.TempDir()
+		driver, workspaceID := newIntegrationTerminalDriver(t, root)
 		target := filepath.Join(root, "created.txt")
 		proc := startHelperProcess(t, driver, "fs_write_terminal", target, StartOpts{
+			WorkspaceID: workspaceID,
+			ProfileID:   store.DefaultProfileID,
 			Cwd:         root,
 			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		defer stopProcess(t, driver, proc)
 
 		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			RunID: "run-terminal-integration", Generation: 1,
 			TurnID:  "turn-integration-toolhost",
 			Message: "exercise tool host",
 		})
@@ -242,9 +250,8 @@ func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 
 func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
 	t.Run("Should allow only network-safe tools during network turns", func(t *testing.T) {
-		driver := New()
-
 		root := t.TempDir()
+		driver, workspaceID := newIntegrationTerminalDriver(t, root)
 		target := filepath.Join(root, "network.txt")
 		fakeCompozy := filepath.Join(root, "compozy")
 		if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
@@ -254,6 +261,8 @@ func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
 		t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		proc := startHelperProcess(t, driver, "network_guardrails", target, StartOpts{
+			WorkspaceID: workspaceID,
+			ProfileID:   store.DefaultProfileID,
 			Cwd:         root,
 			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
@@ -261,6 +270,7 @@ func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
 		defer stopProcess(t, driver, proc)
 
 		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			RunID: "run-terminal-integration", Generation: 1,
 			TurnID:  "turn-integration-network-guardrails",
 			Message: "exercise network guardrails",
 		})
@@ -288,4 +298,42 @@ func containsEventText(events []AgentEvent, want string) bool {
 		}
 	}
 	return false
+}
+
+func newIntegrationTerminalDriver(t *testing.T, root string) (*Driver, string) {
+	t.Helper()
+	identity, err := workspacepkg.EnsureIdentity(t.Context(), root)
+	if err != nil {
+		t.Fatalf("EnsureIdentity() error = %v", err)
+	}
+	pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+		return workspacedb.ResolvedRoot{RootDir: root, WorkspaceID: identity.WorkspaceID}, nil
+	})
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := pool.Close(context.Background()); err != nil {
+			t.Errorf("Close(workspace pool): %v", err)
+		}
+	})
+	journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{Databases: pool, HomeDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewJournal() error = %v", err)
+	}
+	manager, err := terminalpkg.NewManager(terminalpkg.WithJournal(journal))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(t.Context()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+	return New(WithTerminalManager(manager)), identity.WorkspaceID
 }

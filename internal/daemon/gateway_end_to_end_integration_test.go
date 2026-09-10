@@ -182,6 +182,9 @@ func TestGatewayBootContinuesLocalOnlyWhenProviderDegraded(t *testing.T) {
 	if len(status.Addresses) != 0 {
 		t.Fatalf("gateway addresses = %#v, want none", status.Addresses)
 	}
+	if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() before reading logs error = %v", err)
+	}
 	if output := logs.String(); !strings.Contains(output, "provider degraded; continuing local-only") {
 		t.Fatalf("gateway degradation log = %q, want local-only continuation", output)
 	}
@@ -247,6 +250,24 @@ func exerciseGatewayDaemonRealListenersAndTransportParity(t *testing.T) {
 	assertGatewayUnpairedGate(t, client, publicBaseURL)
 
 	udsClient := gatewayDaemonUDSClient(homePaths.DaemonSocket)
+	registered := gatewayDaemonRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/workspaces",
+		"",
+		bytes.NewReader(
+			gatewayDaemonMarshalJSON(
+				t,
+				contract.CreateWorkspaceRequest{RootDir: t.TempDir(), Name: "gateway-integration"},
+			),
+		),
+	)
+	var registeredWorkspace contract.WorkspaceResponse
+	gatewayDaemonDecodeBody(t, registered, &registeredWorkspace)
+	if registered.StatusCode != http.StatusCreated {
+		t.Fatalf("register gateway workspace status = %d", registered.StatusCode)
+	}
 	admin := issueGatewayDaemonCredential(t, udsClient, "Admin")
 	assertGatewayPublicIngressStartsLoopE2E(t, client, udsClient, publicBaseURL)
 	assertGatewaySecretByteScans(t, client, udsClient, privateBaseURL, admin.Credential)

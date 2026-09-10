@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -132,6 +133,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	})
 	assertTableColumns(t, globalDB.db, "automation_runs", []string{
 		"id",
+		"profile_id",
 		"job_id",
 		"trigger_id",
 		"session_id",
@@ -810,6 +812,26 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 			if run.ProfileID != profileB {
 				t.Fatalf("ListRuns(foreign) run = %#v, want owner %q", run, profileB)
 			}
+		}
+		if err := globalDB.DeleteJob(ctx, foreignJob.ID); err != nil {
+			t.Fatalf("DeleteJob(foreign) error = %v", err)
+		}
+		if err := globalDB.DeleteTrigger(ctx, foreignTrigger.ID); err != nil {
+			t.Fatalf("DeleteTrigger(foreign) error = %v", err)
+		}
+		retainedRuns, err := globalDB.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: profileB}})
+		if err != nil || len(retainedRuns) != 2 {
+			t.Fatalf("ListRuns(after deleting parents) = %#v, %v; want both foreign runs", retainedRuns, err)
+		}
+		for _, run := range foreignRuns {
+			retained, err := globalDB.GetRun(ctx, run.ID)
+			if err != nil || !reflect.DeepEqual(retained, run) {
+				t.Fatalf("GetRun(after deleting parent) = %#v, %v; want %#v", retained, err, run)
+			}
+		}
+		defaultCount, err := globalDB.CountRuns(ctx, RunQuery{ReadScope: defaultScope})
+		if err != nil || defaultCount != 2 {
+			t.Fatalf("CountRuns(default after deleting foreign parents) = %d, %v; want 2", defaultCount, err)
 		}
 		allRunCount, err := globalDB.CountRuns(ctx, RunQuery{ReadScope: automationAllProfiles})
 		if err != nil || allRunCount != 4 {

@@ -320,7 +320,7 @@ func TestManagerIntegrationInvalidDeliveryResultsAreIndeterminate(t *testing.T) 
 	}
 }
 
-func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t *testing.T) {
+func TestManagerIntegrationWorkspaceExtensionCannotReceiveUserResourceScope(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 
 	env := newRegistryTestEnv(t)
@@ -329,7 +329,7 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t 
 		args:             helperArgs(),
 		withEnv:          helperEnv("default", ""),
 		resourceFamilies: []string{"tools"},
-		resourceMaxScope: "global",
+		resourceMaxScope: "user",
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceWorkspace, true)
 
@@ -365,9 +365,12 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t 
 	}
 	if !slicesEqualResourceScopes(
 		ext.GrantedResourceScopes,
-		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+		[]resources.ResourceScopeKind{
+			resources.ResourceScopeKindWorkspace,
+			resources.ResourceScopeKindWorkspaceProfile,
+		},
 	) {
-		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
+		t.Fatalf("GrantedResourceScopes = %#v, want [workspace workspace_profile]", ext.GrantedResourceScopes)
 	}
 }
 
@@ -385,7 +388,7 @@ func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
 		args:             helperArgs(),
 		withEnv:          helperEnv("default", ""),
 		resourceFamilies: []string{"tools", "mcp_servers"},
-		resourceMaxScope: "global",
+		resourceMaxScope: "user",
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -414,9 +417,12 @@ func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
 	}
 	if !slicesEqualResourceScopes(
 		ext.GrantedResourceScopes,
-		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+		[]resources.ResourceScopeKind{
+			resources.ResourceScopeKindWorkspace,
+			resources.ResourceScopeKindWorkspaceProfile,
+		},
 	) {
-		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
+		t.Fatalf("GrantedResourceScopes = %#v, want [workspace workspace_profile]", ext.GrantedResourceScopes)
 	}
 }
 
@@ -435,7 +441,7 @@ func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *te
 		args:             helperArgs(),
 		withEnv:          helperEnv("record_initialize", markerPath),
 		resourceFamilies: []string{"tools", "mcp_servers"},
-		resourceMaxScope: "global",
+		resourceMaxScope: "user",
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -485,10 +491,10 @@ func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *te
 	}
 	if !slicesEqualStrings(
 		request.Capabilities.GrantedResourceScopes,
-		[]string{string(resources.ResourceScopeKindWorkspace)},
+		[]string{string(resources.ResourceScopeKindWorkspace), string(resources.ResourceScopeKindWorkspaceProfile)},
 	) {
 		t.Fatalf(
-			"initialize granted_resource_scopes = %#v, want [workspace]",
+			"initialize granted_resource_scopes = %#v, want [workspace workspace_profile]",
 			request.Capabilities.GrantedResourceScopes,
 		)
 	}

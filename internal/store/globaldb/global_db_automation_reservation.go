@@ -22,7 +22,7 @@ func (g *AutomationRepo) ReserveRun(
 		return automation.RunReservationResult{}, err
 	}
 
-	normalized, params, err := g.prepareAutomationRunInsert(reservation.Run)
+	normalized, params, err := g.prepareAutomationRunInsert(ctx, reservation.Run)
 	if err != nil {
 		return automation.RunReservationResult{}, err
 	}

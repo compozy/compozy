@@ -33,6 +33,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 	}
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(homePaths),
+		udsapi.WithProfileService(newToolIntegrationProfiles(t, homePaths)),
 		udsapi.WithConfig(&cfg),
 		udsapi.WithSocketPath(cfg.Daemon.Socket),
 		udsapi.WithLogger(discardLogger()),

@@ -178,6 +178,39 @@ func TestShouldRunSDKGoTests(t *testing.T) {
 	})
 }
 
+func TestIntegrationPackageShardsCoverEveryTestOnce(t *testing.T) {
+	t.Parallel()
+	for _, packagePath := range []string{"github.com/compozy/compozy/internal/daemon", "github.com/compozy/compozy/internal/store"} {
+		t.Run(packagePath, func(t *testing.T) {
+			tests := []string{"TestAlpha", "TestBeta", "TestGamma", "TestDelta"}
+			assigned := []string{}
+			for index := range 3 {
+				invocations, err := shardGoPackageTestInvocations(
+					[]string{packagePath},
+					packagePath,
+					tests,
+					nil,
+					goTestShard{index: index, total: 3},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, invocation := range invocations {
+					if !slices.Equal(invocation.packages, []string{packagePath}) || len(invocation.tests) == 0 {
+						t.Fatalf("unbounded split invocation: %+v", invocation)
+					}
+					assigned = append(assigned, invocation.tests...)
+				}
+			}
+			slices.Sort(assigned)
+			slices.Sort(tests)
+			if !slices.Equal(assigned, tests) {
+				t.Fatalf("integration assignments = %v, want exactly %v", assigned, tests)
+			}
+		})
+	}
+}
+
 func TestShardGoUnitTestInvocations(t *testing.T) {
 	t.Parallel()
 

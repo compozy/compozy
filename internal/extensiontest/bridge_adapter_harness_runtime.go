@@ -85,7 +85,7 @@ func buildHarnessRuntime(
 
 	driver := harnessDriver(cfg, now)
 	notifier := extensionpkg.NewBridgeDeliveryNotifier(broker, observer)
-	sessions := newHarnessSessions(t, homePaths, driver, notifier, workspaces, now)
+	sessions := newHarnessSessions(t, homePaths, globalDB, driver, notifier, workspaces, now)
 
 	hostHandler = extensionpkg.NewHostAPIHandler(
 		sessions,
@@ -169,6 +169,7 @@ func harnessDriver(cfg HarnessConfig, now time.Time) session.AgentDriver {
 func newHarnessSessions(
 	t testing.TB,
 	homePaths compozyconfig.HomePaths,
+	globalDB *globaldb.GlobalDB,
 	driver session.AgentDriver,
 	notifier session.Notifier,
 	workspaces workspacepkg.RuntimeResolver,
@@ -182,6 +183,9 @@ func newHarnessSessions(
 	}
 	sessions, err := session.NewManager(
 		session.WithHomePaths(homePaths),
+		session.WithSessionCatalog(globalDB),
+		session.WithSessionInputQueueStore(globalDB),
+		session.WithSessionPromptAdmissionStore(globalDB),
 		session.WithDriver(driver),
 		session.WithNotifier(notifier),
 		session.WithWorkspaceResolver(workspaces),

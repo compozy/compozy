@@ -452,8 +452,8 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetLoopRunByID(active) error = %v", err)
 	}
-	if activeRun.Status != looppkg.StatusRunning || activeRun.Generation != 3 {
-		t.Fatalf("active Loop = %#v, want running generation 3", activeRun)
+	if activeRun.Status != looppkg.StatusRunning || activeRun.Generation != 2 {
+		t.Fatalf("active Loop = %#v, want running generation 2 parked on quarantine", activeRun)
 	}
 	controls, err := db.ListNodeControls(ctx, created.WorkspaceID, created.ID)
 	if err != nil {

@@ -139,6 +139,19 @@ func (d *ScriptedPromptDriver) Cancel(context.Context, *session.AgentProcess) er
 	return nil
 }
 
+// VerifyExit checks the owned completion channel of the in-process driver.
+func (*ScriptedPromptDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return false, errors.New("extensiontest: process is required for exit verification")
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 // Stop implements session.AgentDriver.
 func (d *ScriptedPromptDriver) Stop(_ context.Context, proc *session.AgentProcess) error {
 	d.mu.Lock()

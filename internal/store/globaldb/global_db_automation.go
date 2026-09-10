@@ -38,7 +38,7 @@ func (g *AutomationRepo) CreateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	normalized, params, err := g.prepareAutomationRunInsert(run)
+	normalized, params, err := g.prepareAutomationRunInsert(ctx, run)
 	if err != nil {
 		return automation.Run{}, err
 	}

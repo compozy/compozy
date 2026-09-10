@@ -113,7 +113,7 @@ func (q *Queries) GetAutomationJobOverlay(ctx context.Context, jobID string) (Au
 }
 
 const getAutomationRun = `-- name: GetAutomationRun :one
-SELECT id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+SELECT id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
        status, attempt, scheduled_at, started_at, ended_at, error,
 	   delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
 FROM automation_runs WHERE id = ?1
@@ -121,6 +121,7 @@ FROM automation_runs WHERE id = ?1
 
 type GetAutomationRunRow struct {
 	ID                   string         `json:"id"`
+	ProfileID            sql.NullString `json:"profile_id"`
 	JobID                sql.NullString `json:"job_id"`
 	TriggerID            sql.NullString `json:"trigger_id"`
 	SessionID            sql.NullString `json:"session_id"`
@@ -145,6 +146,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomatio
 	var i GetAutomationRunRow
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.JobID,
 		&i.TriggerID,
 		&i.SessionID,
@@ -328,20 +330,21 @@ func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJ
 
 const insertAutomationRun = `-- name: InsertAutomationRun :exec
 INSERT INTO automation_runs (
-  id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+  id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
 	delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15,
-	?16, ?17, ?18
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+	?17, ?18, ?19
 )
 `
 
 type InsertAutomationRunParams struct {
 	ID                   string         `json:"id"`
+	ProfileID            sql.NullString `json:"profile_id"`
 	JobID                sql.NullString `json:"job_id"`
 	TriggerID            sql.NullString `json:"trigger_id"`
 	SessionID            sql.NullString `json:"session_id"`
@@ -364,6 +367,7 @@ type InsertAutomationRunParams struct {
 func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationRunParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationRun,
 		arg.ID,
+		arg.ProfileID,
 		arg.JobID,
 		arg.TriggerID,
 		arg.SessionID,

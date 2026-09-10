@@ -99,6 +99,7 @@ func (p *localProvider) Prepare(
 		acp.WithLocalTerminalManager(p.terminalManager, acp.LocalTerminalScope{
 			WorkspaceID: req.WorkspaceID, ProfileID: req.ProfileID, SessionID: req.SessionID,
 			Generation: req.RuntimeGeneration, ActorID: req.AgentName,
+			AllowedRoots: append([]string{req.LocalRootDir}, req.LocalAdditionalDirs...),
 		}),
 	)
 	if err != nil {

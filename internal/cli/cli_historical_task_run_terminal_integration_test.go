@@ -215,7 +215,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				}
 			}
 
-			stopWorkerOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+			stopWorkerOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
 			var stoppedWorker SessionRecord
 			if err := json.Unmarshal([]byte(stopWorkerOut), &stoppedWorker); err != nil {
 				t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)

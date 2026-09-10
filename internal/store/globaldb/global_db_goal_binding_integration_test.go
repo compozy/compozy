@@ -461,6 +461,65 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should revoke a creating run-agent binding and persist cleanup when its worker settles", func(t *testing.T) {
+		t.Parallel()
+		const workspaceID = "ws-run-agent-create-failure"
+		const loopRunID = "loop-run-create-failure"
+		const taskRunID = "task-run-create-failure"
+		const handle = "action:create-failure"
+		const sessionID = "session-create-failure"
+		db := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Now().UTC()
+		insertGoalSchemaLoopRun(t, db, loopRunID, workspaceID, "catalog", nil)
+		seedRunAgentCellForTest(t, db, runAgentCellFixture{
+			WorkspaceID: workspaceID, LoopRunID: loopRunID, TaskID: "task-create-failure", TaskRunID: taskRunID,
+			Handle: handle, Generation: 1, Attempt: 1, Epoch: 0,
+		})
+		seedActiveGoalBindingForTest(t, db, loopRunID, workspaceID, handle, 1, sessionID, now)
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE loop_session_bindings SET state = 'creating', activated_at = NULL WHERE loop_run_id = ? AND handle = ?`,
+			loopRunID,
+			handle,
+		); err != nil {
+			t.Fatal(err)
+		}
+		worker, err := db.GetTaskRun(ctx, taskRunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		worker.Status = taskpkg.TaskRunStatusFailed
+		if err := db.withTaskImmediateTransaction(
+			ctx,
+			"settle failed run-agent binding",
+			func(exec taskSQLExecutor) error {
+				return closeTerminalRunAgentBinding(ctx, exec, worker, now.Add(time.Second))
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		binding, err := db.GetSessionBindingAttempt(
+			ctx,
+			goal.BindingKey{WorkspaceID: workspaceID, LoopRunID: loopRunID, Handle: handle},
+			1,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if binding.State != goal.BindingStateFailed || binding.FailureCode != goalBindingFailureControlRevokedInFlight {
+			t.Fatalf("settled binding = %#v", binding)
+		}
+		cleanups, err := db.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
+			cleanups[0].Cause != looppkg.SessionCleanupCauseControlRevoked {
+			t.Fatalf("creating binding cleanup = %#v", cleanups)
+		}
+	})
+
 	t.Run("Should close a completed run-agent binding and publish durable cleanup", func(t *testing.T) {
 		t.Parallel()
 

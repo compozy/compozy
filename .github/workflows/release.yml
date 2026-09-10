@@ -603,13 +603,22 @@ jobs:
 
   # Run the full integration suite on a fresh runner.
   integration:
-    name: Full Integration Suite
+    name: Full Integration Suite (${{ matrix.shard_index }})
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        shard_index: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      COMPOZY_GO_TEST_P: "1"
+      COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
+      COMPOZY_GO_TEST_SHARD_TOTAL: "8"
+      COMPOZY_GO_TEST_JSONFILE_DIR: ${{ runner.temp }}/integration-results
     steps:
       - uses: actions/checkout@v7
         with:
@@ -641,8 +650,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-artifacts
+          name: integration-artifacts-${{ matrix.shard_index }}
           path: |
+            ${{ runner.temp }}/integration-results
             coverage.out
             test-results.xml
             /tmp/compozy-e2e-*

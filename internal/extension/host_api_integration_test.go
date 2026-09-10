@@ -705,6 +705,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 
 	overview, err := env.observer.QueryObserveOverview(testutil.Context(t), observepkg.OverviewQuery{
+		ReadScope:   storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
 		TaskScope:   taskpkg.CatalogScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Actor:       taskpkg.ActorIdentity{Kind: taskpkg.ActorKindExtension, Ref: "ext-reader"},
@@ -855,16 +856,25 @@ func seedHostAPIQuarantinedLoopCell(
 		t.Fatalf("BuildExecutedDefinitionSnapshot(host quarantine Loop) error = %v", err)
 	}
 	run, err := env.registry.CreateLoopRunForStart(ctx, looppkg.Run{
-		ID: "looprun-host-read", WorkspaceID: looppkg.WorkspaceID(env.workspaceID),
-		LoopName: "host read", Status: looppkg.StatusRunning,
-		ReattemptStrategy: looppkg.ReattemptFailedOnly,
-		CreatedAt:         now, StartedAt: now, LastProgressAt: now,
-		DefinitionVersion: resolved.DefinitionVersion, DefinitionDigest: digest,
-		DefinitionSnapshot: snapshot, ActiveHumanCriteria: json.RawMessage(`[]`),
-		StartMetadata: map[string]any{}, IterationCap: 3, BudgetTokens: 10,
-		BudgetWallSec: 60, BudgetOnExceeded: dsl.BudgetExceededHalt,
-		Origin: &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
-		Inputs: map[string]any{"task": "host-read"},
+		ID:                 "looprun-host-read",
+		ProfileID:          storepkg.DefaultProfileID,
+		WorkspaceID:        looppkg.WorkspaceID(env.workspaceID),
+		LoopName:           "host read",
+		Status:             looppkg.StatusRunning,
+		ReattemptStrategy:  looppkg.ReattemptFailedOnly,
+		CreatedAt:          now,
+		StartedAt:          now,
+		LastProgressAt:     now,
+		DefinitionVersion:  resolved.DefinitionVersion,
+		DefinitionDigest:   digest,
+		DefinitionSnapshot: snapshot,
+		StartMetadata:      map[string]any{},
+		IterationCap:       3,
+		BudgetTokens:       10,
+		BudgetWallSec:      60,
+		BudgetOnExceeded:   dsl.BudgetExceededHalt,
+		Origin:             &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
+		Inputs:             map[string]any{"task": "host-read"},
 	}, dsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart(host quarantine Loop) error = %v", err)

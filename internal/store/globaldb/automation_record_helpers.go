@@ -23,11 +23,7 @@ const (
 	 FROM resource_records WHERE kind = 'automation.trigger' AND id = `
 	automationOwnerProfileTriggerTableSQL = `(SELECT profile_id FROM automation_triggers WHERE id = `
 
-	automationRunProfileIDSQL = `COALESCE(` +
-		automationOwnerProfileJobResourceSQL + `automation_runs.job_id),` +
-		automationOwnerProfileJobTableSQL + `automation_runs.job_id),` +
-		automationOwnerProfileTriggerResourceSQL + `automation_runs.trigger_id),` +
-		automationOwnerProfileTriggerTableSQL + `automation_runs.trigger_id))`
+	automationRunProfileIDSQL        = `COALESCE(automation_runs.profile_id, '')`
 	automationWatchEventProfileIDSQL = `COALESCE(` +
 		automationOwnerProfileJobResourceSQL + `awe.job_id),` +
 		automationOwnerProfileJobTableSQL + `awe.job_id),` +

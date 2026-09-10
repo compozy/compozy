@@ -311,6 +311,8 @@ Use the global agents convention.
 		}
 		resolved.Config.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude-acp"}
 		resolved.Config.Roles.Dream.Agent = "ext-agent"
+		resolved.Config.Roles.Dream.Enabled = true
+		resolved.Config.Memory.Enabled = true
 		roleResolver := newRoleResolver(
 			&resolved.Config,
 			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{workspace.ID: resolved.Config}},

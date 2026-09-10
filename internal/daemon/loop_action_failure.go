@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -47,6 +49,12 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 	message := "The action failed before producing an output."
 	recovery := "Review the action input and required services, then retry the run."
 
+	if diagnostic, ok := errors.AsType[*diagnosticspkg.StructuredError](cause); ok &&
+		diagnostic.Item.Code == diagcontract.CodeProviderCredentialUnresolved {
+		return looppkg.NewActionFailure("credential_missing",
+			"A required provider credential is unavailable.",
+			"Bind the required provider credential, then start a new run.")
+	}
 	if provider, ok := errors.AsType[looppkg.SafeActionFailureProvider](cause); ok {
 		failure := provider.SafeActionFailure()
 		if provided := strings.TrimSpace(failure.Code); provided != "" {

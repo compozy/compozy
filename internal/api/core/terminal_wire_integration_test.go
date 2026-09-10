@@ -16,8 +16,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -25,7 +30,57 @@ import (
 func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 	t.Run("Should complete a real terminal lifecycle over HTTP and WebSocket", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
-		manager, err := terminalpkg.NewManager()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(home); err != nil {
+			t.Fatal(err)
+		}
+		database, err := globaldb.OpenGlobalDB(t.Context(), home.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := database.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		resolver, err := workspacepkg.NewResolver(database, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		registered, err := resolver.Register(
+			t.Context(),
+			workspacepkg.RegisterOptions{RootDir: root, Name: "terminal-wire"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := resolver.Resolve(t.Context(), registered.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+			return workspacedb.ResolvedRoot{RootDir: root, WorkspaceID: resolved.WorkspaceID}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := pool.Close(context.Background()); err != nil {
+				t.Errorf("Close(workspace pool): %v", err)
+			}
+		})
+		journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{Databases: pool, HomeDir: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := terminalpkg.NewManager(
+			terminalpkg.WithJournal(journal),
+			terminalpkg.WithWorkspaceResolver(resolver),
+		)
 		if err != nil {
 			t.Fatalf("NewManager() error = %v", err)
 		}
@@ -49,7 +104,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		created := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/workspace-a/terminals", `{"cols":80,"rows":24}`)
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals", `{"cols":80,"rows":24}`)
 		var createResponse struct {
 			Terminal struct {
 				ID string `json:"id"`
@@ -63,7 +118,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		}
 
 		ticketBody := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/workspace-a/terminals/"+createResponse.Terminal.ID+"/attach-ticket",
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals/"+createResponse.Terminal.ID+"/attach-ticket",
 			`{"mode":"write"}`)
 		var ticketResponse struct {
 			Ticket string `json:"ticket"`
@@ -71,7 +126,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if err := json.Unmarshal(ticketBody, &ticketResponse); err != nil {
 			t.Fatalf("decode ticket response: %v", err)
 		}
-		wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/workspaces/workspace-a/terminals/" +
+		wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/workspaces/" + registered.ID + "/terminals/" +
 			createResponse.Terminal.ID + "/stream?mode=write&flow=ack&ticket=" + ticketResponse.Ticket
 		dialer := websocket.Dialer{Subprotocols: []string{terminalwire.Subprotocol}}
 		headers := http.Header{"Origin": []string{server.URL}}
@@ -157,7 +212,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 			}
 		}
 		terminalTestJSONRequest(t, server.Client(), http.MethodDelete,
-			server.URL+"/api/workspaces/workspace-a/terminals/"+createResponse.Terminal.ID, `{"signal":"HUP"}`)
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals/"+createResponse.Terminal.ID, `{"signal":"HUP"}`)
 		for {
 			frame := terminalReadServerFrame(t, conn)
 			if frame.Op == terminalwire.ServerOpExit {
@@ -166,17 +221,20 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		}
 
 		secondCreated := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/workspace-a/terminals", `{"shell":"sh","cols":80,"rows":24}`)
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals", `{"shell":"sh","cols":80,"rows":24}`)
 		if err := json.Unmarshal(secondCreated, &createResponse); err != nil {
 			t.Fatalf("decode second create response: %v", err)
 		}
 		secondTicket := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/workspace-a/terminals/"+createResponse.Terminal.ID+"/attach-ticket",
+			server.URL+"/api/workspaces/"+registered.ID+"/terminals/"+createResponse.Terminal.ID+"/attach-ticket",
 			`{"mode":"read"}`)
 		if err := json.Unmarshal(secondTicket, &ticketResponse); err != nil {
 			t.Fatalf("decode second ticket response: %v", err)
 		}
-		secondURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/workspaces/workspace-a/terminals/" +
+		secondURL := "ws" + strings.TrimPrefix(
+			server.URL,
+			"http",
+		) + "/api/workspaces/" + registered.ID + "/terminals/" +
 			createResponse.Terminal.ID + "/stream?mode=read&flow=drop&ticket=" + ticketResponse.Ticket
 		secondConn, secondResponse, err := dialer.Dial(secondURL, headers)
 		if err != nil {

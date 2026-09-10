@@ -6,12 +6,41 @@ import (
 	"strings"
 	"testing"
 
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T) {
 	t.Parallel()
+
+	t.Run(
+		"Should retain unresolved credentials through session creation errors without exposing secrets",
+		func(t *testing.T) {
+			t.Parallel()
+			cause := &session.CreationError{
+				Effect: session.EffectUnknown,
+				Code:   session.SessionCreationCodeEffectUnknown,
+				Err: diagnosticspkg.NewStructuredError(diagcontract.DiagnosticItem{
+					Code: diagcontract.CodeProviderCredentialUnresolved, Message: "api_key=private-value",
+				}, errors.New("secret=private-value")),
+			}
+			metadata, err := marshalLoopActionFailureMetadata("task_run_enqueued", cause)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var envelope loopActionFailureMetadata
+			if err := json.Unmarshal(metadata, &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if envelope.Failure.Code != "credential_missing" || envelope.Failure.Recovery == "" ||
+				strings.Contains(string(metadata), "private-value") {
+				t.Fatalf("credential failure metadata = %s", metadata)
+			}
+		},
+	)
 
 	t.Run("Should redact and preserve a typed tool failure", func(t *testing.T) {
 		t.Parallel()

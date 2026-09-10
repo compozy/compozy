@@ -231,7 +231,17 @@ func TestPromptInputCompositeIntegrationRefreshesWorkspaceKnowledgeOnSyntheticWa
 		})
 
 		driver := newHarnessIntegrationDriver()
-		manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
+		if err := daemonInstance.registry.InsertWorkspace(
+			testutil.Context(t),
+			resolvedWorkspace.Workspace,
+		); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver,
+			session.WithSessionCatalog(capturedDeps.SessionCatalog),
+			session.WithSessionInputQueueStore(capturedDeps.SessionInputQueue),
+			session.WithSessionPromptAdmissionStore(capturedDeps.SessionPromptAdmission),
+		)
 		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
 			AgentName: resolvedWorkspace.Agents[0].Name,
 			Name:      "knowledge-worker",

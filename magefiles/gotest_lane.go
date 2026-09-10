@@ -196,20 +196,26 @@ func shardGoUnitTestInvocations(
 	census *goTestCensus,
 	shard goTestShard,
 ) ([]goUnitTestInvocation, error) {
+	return shardGoPackageTestInvocations(packages, goSplitTestPackage, splitTests, census, shard)
+}
+
+func shardGoPackageTestInvocations(
+	packages []string, splitPackage string, splitTests []string, census *goTestCensus, shard goTestShard,
+) ([]goUnitTestInvocation, error) {
 	regularPackages := make([]string, 0, len(packages)-1)
 	foundSplitPackage := false
 	for _, packagePath := range packages {
-		if packagePath == goSplitTestPackage {
+		if packagePath == splitPackage {
 			foundSplitPackage = true
 			continue
 		}
 		regularPackages = append(regularPackages, packagePath)
 	}
 	if !foundSplitPackage {
-		return nil, fmt.Errorf("split Go unit-test package %q was not listed", goSplitTestPackage)
+		return nil, fmt.Errorf("split Go unit-test package %q was not listed", splitPackage)
 	}
 	if len(splitTests) == 0 {
-		return nil, fmt.Errorf("split Go unit-test package %q listed no tests", goSplitTestPackage)
+		return nil, fmt.Errorf("split Go unit-test package %q listed no tests", splitPackage)
 	}
 
 	items := make([]goShardItem, 0, len(regularPackages)+len(splitTests))
@@ -242,7 +248,7 @@ func shardGoUnitTestInvocations(
 	}
 	if len(selectedTests) > 0 {
 		invocations = append(invocations, goUnitTestInvocation{
-			packages: []string{goSplitTestPackage},
+			packages: []string{splitPackage},
 			tests:    selectedTests,
 		})
 	}

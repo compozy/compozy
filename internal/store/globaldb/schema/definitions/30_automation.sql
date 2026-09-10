@@ -72,6 +72,7 @@ CREATE TABLE automation_suggestions (
 
 CREATE TABLE automation_runs (
 		id         TEXT PRIMARY KEY,
+		profile_id TEXT REFERENCES profiles(id),
 		job_id     TEXT,
 		trigger_id TEXT,
 		session_id TEXT,

@@ -81,7 +81,14 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 
-	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
+	listResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/sessions?all_workspaces=true&profile=default",
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		t.Fatalf("list sessions status = %d, want %d", listResp.StatusCode, http.StatusOK)
 	}
@@ -379,8 +386,8 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
 	messages := transcript.MessagesFromEntries(payload.Entries)
-	if len(messages) != 6 {
-		t.Fatalf("len(messages) = %d, want 6", len(messages))
+	if len(messages) != 7 {
+		t.Fatalf("len(messages) = %d, want 7", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -406,8 +413,18 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
 		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := messages[5].Role; got != transcript.UIRoleAssistant {
-		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.UIRoleAssistant)
+	if len(messages[5].Parts) != 1 || messages[5].Parts[0].Type != "data-compozy-event" {
+		t.Fatalf("messages[5] = %#v, want queue dispatch marker", messages[5])
+	}
+	var marker acp.AgentEvent
+	if err := json.Unmarshal(messages[5].Parts[0].Data, &marker); err != nil {
+		t.Fatalf("decode queue dispatch marker: %v", err)
+	}
+	if marker.Title != transcript.MarkerPromptAccepted {
+		t.Fatalf("queue dispatch marker = %q, want %q", marker.Title, transcript.MarkerPromptAccepted)
+	}
+	if got := messages[6].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[6].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
 }
 
@@ -420,7 +437,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		http.MethodPost,
 		"http://unix/api/memory",
 		[]byte(
-			`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
+			`{"scope":"profile","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
 		),
 		nil,
 	)
@@ -439,7 +456,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/memory/"+targetFilename+"?scope=global",
+		"http://unix/api/memory/"+targetFilename+"?scope=profile",
 		nil,
 		nil,
 	)
@@ -457,7 +474,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodDelete,
-		"http://unix/api/memory/"+targetFilename+"?scope=global",
+		"http://unix/api/memory/"+targetFilename+"?scope=profile",
 		nil,
 		nil,
 	)
@@ -495,7 +512,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		runtime.client,
 		http.MethodPut,
 		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
@@ -523,7 +540,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(
 			fmt.Sprintf(
-				`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`,
+				`{"scope":{"kind":"user"},"expected_version":%d,"spec":{"enabled":false}}`,
 				created.Record.Version,
 			),
 		),
@@ -564,7 +581,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/resources/integration.fixture?scope_kind=global",
+		"http://unix/api/resources/integration.fixture?scope_kind=user",
 		nil,
 		nil,
 	)
@@ -594,7 +611,7 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 			http.MethodPut,
 			"http://unix/api/resources/tool/lookup",
 			[]byte(`{
-				"scope":{"kind":"global"},
+				"scope":{"kind":"user"},
 				"spec":{
 					"id":" dyn__lookup ",
 					"backend":{"kind":"native_go","native_name":" lookup "},
@@ -666,7 +683,7 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 			http.MethodPut,
 			"http://unix/api/resources/tool/lookup",
 			[]byte(fmt.Sprintf(`{
-				"scope":{"kind":"global"},
+				"scope":{"kind":"user"},
 				"expected_version":%d,
 				"spec":{
 					"id":"dyn__lookup",
@@ -721,7 +738,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		runtime.client,
 		http.MethodPut,
 		"http://unix/api/resources/integration.fixture/demo",
-		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+		[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
@@ -743,7 +760,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(
 			fmt.Sprintf(
-				`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`,
+				`{"scope":{"kind":"user"},"expected_version":%d,"spec":{"enabled":false}}`,
 				created.Record.Version,
 			),
 		),
@@ -916,7 +933,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		http.MethodPut,
 		"http://unix/api/resources/automation.job/"+jobID,
 		[]byte(
-			`{"scope":{"kind":"global"},"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review from resource","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`,
+			`{"scope":{"kind":"user"},"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review from resource","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`,
 		),
 		nil,
 	)
@@ -967,7 +984,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		http.MethodPut,
 		"http://unix/api/resources/automation.job/"+jobID,
 		[]byte(fmt.Sprintf(
-			`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review after resource update","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`,
+			`{"scope":{"kind":"user"},"expected_version":%d,"spec":{"scope":"global","name":"resource-job","agent_name":"coder","prompt":"review after resource update","schedule":{"mode":"every","interval":"1h"},"enabled":true,"source":"dynamic"}}`,
 			createdJobResource.Record.Version,
 		)),
 		nil,
@@ -1012,7 +1029,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		http.MethodPut,
 		"http://unix/api/resources/automation.trigger/"+triggerID,
 		[]byte(
-			`{"scope":{"kind":"global"},"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`,
+			`{"scope":{"kind":"user"},"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`,
 		),
 		nil,
 	)
@@ -1040,7 +1057,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		http.MethodPut,
 		"http://unix/api/resources/automation.trigger/"+triggerID,
 		[]byte(fmt.Sprintf(
-			`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect resource {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`,
+			`{"scope":{"kind":"user"},"expected_version":%d,"spec":{"scope":"global","name":"resource-trigger","agent_name":"coder","prompt":"inspect resource {{ index .Data \"session_id\" }}","event":"session.stopped","enabled":true,"source":"dynamic"}}`,
 			createdTriggerResource.Record.Version,
 		)),
 		nil,
@@ -1381,7 +1398,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		resp, err := client.Get("http://unix/api/sessions")
+		resp, err := client.Get("http://unix/api/sessions?all_workspaces=true&profile=default")
 		if err != nil {
 			errCh <- err
 			return
@@ -1551,7 +1568,14 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	}
 	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 
-	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
+	listResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/sessions?all_workspaces=true&profile=default",
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))

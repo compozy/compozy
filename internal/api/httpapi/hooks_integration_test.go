@@ -526,6 +526,7 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		t.Fatalf("InsertWorkspace() error = %v; Close() error = %v", err, closeErr)
 	}
 	if err := registry.RegisterSession(ctx, store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
 		Provider:      "codex",

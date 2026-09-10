@@ -101,6 +101,10 @@ func startHelperProcess(
 	opts.Launcher = overrides.Launcher
 	opts.ToolHost = overrides.ToolHost
 	opts.ToolGateway = overrides.ToolGateway
+	opts.WorkspaceID = overrides.WorkspaceID
+	opts.ProfileID = overrides.ProfileID
+	opts.CompozySessionID = overrides.CompozySessionID
+	opts.RuntimeGeneration = overrides.RuntimeGeneration
 	opts.ProviderName = overrides.ProviderName
 	opts.ProviderConfig = overrides.ProviderConfig
 	opts.ProviderAuthEnv = overrides.ProviderAuthEnv

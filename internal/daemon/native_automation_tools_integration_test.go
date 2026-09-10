@@ -17,6 +17,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -314,7 +315,10 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 			)
 		}
 
-		page, listErr := manager.ListJobs(ctx, automationpkg.JobListQuery{})
+		page, listErr := manager.ListJobs(
+			ctx,
+			automationpkg.JobListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+		)
 		if listErr != nil {
 			t.Fatalf("manager.ListJobs() error = %v", listErr)
 		}

@@ -41,3 +41,5 @@ to untested; no QA replay ran.
 QA impact 2026-07-18: HTTP/UDS now rejects deletion of config- and package-managed Jobs/Triggers,
 matching native tools, and reports the shared managed-resource cause instead of mislabeling package
 definitions as config-backed. Dynamic definitions remain deletable.
+
+QA 2026-09-10: The existing store integration verifies that deleting either dynamic parent retains run history in its original profile and excludes other profiles. Migration 108 preserves known ownership, metadata, and unknown orphan rows. This backend evidence does not change the historical browser status. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

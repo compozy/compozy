@@ -1359,3 +1359,72 @@ func normalizeSchemaSQL(statement string) string {
 	normalized = strings.ReplaceAll(normalized, "( ", "(")
 	return strings.ReplaceAll(normalized, " )", ")")
 }
+
+// Invariant: upgrading captures proven automation history ownership and preserves
+// orphan rows without exposing them through any profile-scoped catalog.
+// Owning layer: global migration stream; canonical suite: this file.
+func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
+	t.Parallel()
+	ctx := migrationTestContext(t)
+	db := openStreamTestDB(t, "global-run-profile-tail.db")
+	stream := globaldb.MigrationStream()
+	stream.Bootstrap = nil
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 107)); err != nil {
+		t.Fatalf("Apply(global through 00107): %v", err)
+	}
+	const secondary = "01K00000000000000000000091"
+	if _, err := db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+ VALUES (?, 'history', '#8E8EB5', 'circle', 'active', '2026-09-10T00:00:00Z')`, secondary); err != nil {
+		t.Fatalf("seed secondary profile: %v", err)
+	}
+	for _, fixture := range []struct{ kind, id, profile string }{
+		{"automation.job", "job-history", store.DefaultProfileID},
+		{"automation.trigger", "trigger-history", secondary},
+	} {
+		if _, err := db.ExecContext(ctx, `INSERT INTO resource_records
+   (kind, id, version, scope_kind, owner_kind, owner_id, source_kind, source_id, spec_json, created_at, updated_at)
+   VALUES (?, ?, 1, 'user', 'operator', 'operator', 'dynamic', ?, json_object('profile_id', ?),
+    '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')`, fixture.kind, fixture.id, fixture.id, fixture.profile); err != nil {
+			t.Fatalf("seed %s: %v", fixture.id, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO automation_runs (id, job_id, trigger_id, status, metadata_json)
+ VALUES ('run-job', 'job-history', NULL, 'completed', '{"preserved":true}'),
+        ('run-trigger', NULL, 'trigger-history', 'failed', '{"preserved":true}'),
+        ('run-orphan', 'deleted-job', NULL, 'completed', '{"preserved":true}')`); err != nil {
+		t.Fatalf("seed historical runs: %v", err)
+	}
+	if err := store.Apply(ctx, db, stream); err != nil {
+		t.Fatalf("Apply(global owner tail): %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`DELETE FROM resource_records WHERE id IN ('job-history', 'trigger-history')`,
+	); err != nil {
+		t.Fatalf("delete historical parents: %v", err)
+	}
+	for _, fixture := range []struct{ id, profile, status string }{
+		{"run-job", store.DefaultProfileID, "completed"},
+		{"run-trigger", secondary, "failed"},
+		{"run-orphan", "", "completed"},
+	} {
+		var owner sql.NullString
+		var status, metadata string
+		if err := db.QueryRowContext(ctx, `SELECT profile_id, status, metadata_json FROM automation_runs WHERE id = ?`, fixture.id).
+			Scan(&owner, &status, &metadata); err != nil {
+			t.Fatalf("read %s: %v", fixture.id, err)
+		}
+		if owner.String != fixture.profile || owner.Valid != (fixture.profile != "") || status != fixture.status ||
+			metadata != `{"preserved":true}` {
+			t.Fatalf(
+				"run %s = %v/%s/%s; want owner %q and unchanged history",
+				fixture.id,
+				owner,
+				status,
+				metadata,
+				fixture.profile,
+			)
+		}
+	}
+	assertSQLiteIntegrity(t, "global run profile tail", db)
+}

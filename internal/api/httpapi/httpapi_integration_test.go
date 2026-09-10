@@ -348,6 +348,24 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
+	completeTool := make(chan struct{})
+	var completeOnce sync.Once
+	releaseTool := func() { completeOnce.Do(func() { close(completeTool) }) }
+	t.Cleanup(releaseTool)
+	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent, 3)
+		events <- acp.AgentEvent{Type: acp.EventTypeToolCall, SessionID: proc.SessionID,
+			TurnID: req.TurnID, Timestamp: time.Now().UTC(), ToolCallID: "disconnect-tool", Title: "read_file"}
+		go func() {
+			defer close(events)
+			<-completeTool
+			events <- acp.AgentEvent{Type: acp.EventTypeToolResult, SessionID: proc.SessionID,
+				TurnID: req.TurnID, Timestamp: time.Now().UTC(), ToolCallID: "disconnect-tool"}
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.SessionID,
+				TurnID: req.TurnID, Timestamp: time.Now().UTC(), StopReason: "end_turn"}
+		}()
+		return events, nil
+	}
 
 	requestCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -424,6 +442,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	if err := disconnectPrompt(); err != nil {
 		t.Fatalf("disconnect prompt response body: %v", err)
 	}
+	releaseTool()
 	waitForIntegrationTerminalToolEvents(t, terminalEvents)
 
 	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
@@ -435,7 +454,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	}
 }
 
-func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testing.T) {
+func TestHTTPPromptQueuesConcurrentInputWithoutGhostDispatch(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 
@@ -452,12 +471,10 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		events := make(chan acp.AgentEvent, 2)
 		go func() {
 			defer close(events)
-			if req.Message != "first prompt" {
-				return
+			if req.Message == "first prompt" {
+				close(firstPromptEntered)
+				<-releaseFirstPrompt
 			}
-
-			close(firstPromptEntered)
-			<-releaseFirstPrompt
 
 			ts := time.Now().UTC()
 			events <- acp.AgentEvent{
@@ -465,7 +482,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 				SessionID: proc.SessionID,
 				TurnID:    req.TurnID,
 				Timestamp: ts,
-				Text:      "first prompt reply",
+				Text:      req.Message + " reply",
 			}
 			events <- acp.AgentEvent{
 				Type:             acp.EventTypeDone,
@@ -531,27 +548,40 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		t.Fatalf("wait for first prompt admission: %v", firstPromptCtx.Err())
 	}
 
+	var secondRequest contract.SendPromptRequest
+	if err := json.Unmarshal(integrationPromptJSON(t, "second prompt"), &secondRequest); err != nil {
+		t.Fatalf("decode second request: %v", err)
+	}
+	secondRequest.Mode = contract.PromptModeQueue
+	sessionEvents, cancelSessionEvents, err := runtime.manager.SubscribeSessionEvents(t.Context(), sessionID, 0)
+	if err != nil {
+		t.Fatalf("SubscribeSessionEvents() error = %v", err)
+	}
+	defer cancelSessionEvents()
 	secondResp := mustHTTPRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		integrationPromptJSON(t, "second prompt"),
+		mustIntegrationJSON(secondRequest),
 		nil,
 	)
-	if secondResp.StatusCode != http.StatusConflict {
+	if secondResp.StatusCode != http.StatusAccepted {
 		body := readAndCloseHTTPBody(t, secondResp)
 		t.Fatalf(
 			"second prompt status = %d, want %d; body=%s",
 			secondResp.StatusCode,
-			http.StatusConflict,
+			http.StatusAccepted,
 			string(body),
 		)
 	}
-	var secondErr contract.ErrorPayload
-	decodeHTTPJSON(t, secondResp, &secondErr)
-	if !strings.Contains(secondErr.Error, "prompt already in progress") {
-		t.Fatalf("second prompt error = %q, want prompt already in progress", secondErr.Error)
+	var accepted struct {
+		Prompt contract.SendPromptResultPayload `json:"prompt"`
+	}
+	decodeHTTPJSON(t, secondResp, &accepted)
+	if accepted.Prompt.Status != "queued" || accepted.Prompt.Mode != contract.PromptModeQueue ||
+		accepted.Prompt.QueueEntryID == "" {
+		t.Fatalf("second prompt = %#v, want durable queued input", accepted.Prompt)
 	}
 
 	eventsWhileBusy, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
@@ -596,11 +626,26 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		t.Fatalf("last first prompt record = %#v, want [DONE]", firstEvents[len(firstEvents)-1])
 	}
 
+	completionCtx, cancelCompletion := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancelCompletion()
+	for completed := 0; completed < 2; {
+		select {
+		case event, ok := <-sessionEvents:
+			if !ok {
+				t.Fatal("session events closed before both queued turns completed")
+			}
+			if event.Type == acp.EventTypeDone {
+				completed++
+			}
+		case <-completionCtx.Done():
+			t.Fatalf("wait for queued prompt completion: %v", completionCtx.Err())
+		}
+	}
 	eventsAfterRelease, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events(after release) error = %v", err)
 	}
-	if got, want := countSessionEventsByType(eventsAfterRelease, acp.EventTypeUserMessage), 1; got != want {
+	if got, want := countSessionEventsByType(eventsAfterRelease, acp.EventTypeUserMessage), 2; got != want {
 		t.Fatalf("countSessionEventsByType(user_message) after release = %d, want %d", got, want)
 	}
 }
@@ -735,8 +780,8 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
 	messages := transcript.MessagesFromEntries(payload.Entries)
-	if len(messages) != 6 {
-		t.Fatalf("len(messages) = %d, want 6", len(messages))
+	if len(messages) != 7 {
+		t.Fatalf("len(messages) = %d, want 7", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -756,11 +801,21 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
 		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := messages[5].Role; got != transcript.UIRoleAssistant {
-		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.UIRoleAssistant)
+	if len(messages[5].Parts) != 1 || messages[5].Parts[0].Type != "data-compozy-event" {
+		t.Fatalf("messages[5] = %#v, want queue dispatch marker", messages[5])
 	}
-	if !httpTranscriptHasToolPart(messages[5]) {
-		t.Fatalf("messages[5] = %#v, want assistant tool part", messages[5])
+	var marker acp.AgentEvent
+	if err := json.Unmarshal(messages[5].Parts[0].Data, &marker); err != nil {
+		t.Fatalf("decode queue dispatch marker: %v", err)
+	}
+	if marker.Title != transcript.MarkerPromptAccepted {
+		t.Fatalf("queue dispatch marker = %q, want %q", marker.Title, transcript.MarkerPromptAccepted)
+	}
+	if got := messages[6].Role; got != transcript.UIRoleAssistant {
+		t.Fatalf("messages[6].Role = %q, want %q", got, transcript.UIRoleAssistant)
+	}
+	if !httpTranscriptHasToolPart(messages[6]) {
+		t.Fatalf("messages[6] = %#v, want assistant tool part", messages[6])
 	}
 }
 
@@ -950,9 +1005,9 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 			body := readAndCloseHTTPBody(t, streamResp)
 			t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 		}
-		initial := collectLiveSSE(t, streamResp.Body, 6, 2*time.Second)
-		if len(initial) < 6 {
-			t.Fatalf("initial stream events = %d, want 6", len(initial))
+		initial := collectLiveSSE(t, streamResp.Body, 7, 2*time.Second)
+		if len(initial) < 7 {
+			t.Fatalf("initial stream events = %d, want 7", len(initial))
 		}
 		if initial[len(initial)-1].Event != session.EventTypeSessionStopped {
 			t.Fatalf("last event = %q, want %q", initial[len(initial)-1].Event, session.EventTypeSessionStopped)
@@ -975,9 +1030,9 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 			body := readAndCloseHTTPBody(t, replayResp)
 			t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
 		}
-		replayed := collectLiveSSE(t, replayResp.Body, 5, 2*time.Second)
-		if len(replayed) < 5 {
-			t.Fatalf("replayed events = %d, want 5", len(replayed))
+		replayed := collectLiveSSE(t, replayResp.Body, len(initial)-1, 2*time.Second)
+		if len(replayed) != len(initial)-1 {
+			t.Fatalf("replayed events = %d, want %d", len(replayed), len(initial)-1)
 		}
 		if replayed[0].ID != initial[1].ID {
 			t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
@@ -1334,7 +1389,10 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 
 	stopIntegrationSession(t, runtime, sessionID)
 
-	sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	sessions, err := runtime.registry.ListSessions(
+		context.Background(),
+		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
+	)
 	if err != nil {
 		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
 	}
@@ -1487,7 +1545,10 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
 	}
 
-	indexed, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	indexed, err := runtime.registry.ListSessions(
+		context.Background(),
+		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
+	)
 	if err != nil {
 		t.Fatalf("runtime.registry.ListSessions() error = %v", err)
 	}
@@ -1798,7 +1859,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/memory"),
 		[]byte(
-			`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
+			`{"scope":"profile","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
 		),
 		nil,
 	)
@@ -1817,7 +1878,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=global"),
+		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
 		nil,
 		nil,
 	)
@@ -1835,7 +1896,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=global"),
+		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
 		nil,
 		nil,
 	)
@@ -1853,7 +1914,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodDelete,
-		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=global"),
+		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=profile"),
 		nil,
 		nil,
 	)
@@ -1867,7 +1928,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/memory?scope=global"),
+		mustURL(runtime.host, runtime.port, "/api/memory?scope=profile"),
 		nil,
 		nil,
 	)
@@ -3923,6 +3984,15 @@ func countSessionEventsByType(events []store.SessionEvent, want string) int {
 	return count
 }
 
+func (*integrationDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (d *integrationDriver) Cancel(context.Context, *session.AgentProcess) error {
 	return nil
 }
@@ -3988,6 +4058,14 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	cfg.Network.Enabled = false
 	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"codex": {Command: "fake-agent"},
+	}
+	// Profile-aware resolution reads the fixture's actual home configuration.
+	if err := os.WriteFile(
+		homePaths.ConfigFile,
+		[]byte("[providers.codex]\ncommand = \"fake-agent\"\n[network]\nenabled = false\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write integration provider config: %v", err)
 	}
 
 	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
@@ -4510,7 +4588,7 @@ func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, ses
 
 	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(
 		t.Context(),
-		session.CatalogScope{AllWorkspaces: true},
+		session.CatalogScope{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 	)
 	if err != nil {
 		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
@@ -4807,7 +4885,7 @@ func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, session
 
 	catalogEvents, cancel, err := runtime.manager.SubscribeSessionCatalogEvents(
 		t.Context(),
-		session.CatalogScope{AllWorkspaces: true},
+		session.CatalogScope{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 	)
 	if err != nil {
 		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
@@ -4844,7 +4922,10 @@ func integrationRegistryHasStopReason(
 ) bool {
 	t.Helper()
 
-	sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	sessions, err := runtime.registry.ListSessions(
+		context.Background(),
+		store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, State: "stopped"},
+	)
 	if err != nil {
 		t.Fatalf("ListSessions(stopped) error = %v", err)
 	}

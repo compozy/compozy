@@ -600,8 +600,11 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}
-	if len(events) != 10 {
-		t.Fatalf("stored events = %d, want 10", len(events))
+	if len(events) != 12 {
+		t.Fatalf("stored events = %d, want 12", len(events))
+	}
+	if got := countEventType(events, eventspkg.SessionStopEscalated); got != 2 {
+		t.Fatalf("stored stop escalation events = %d, want 2", got)
 	}
 	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
 		t.Fatalf("stored events missing expected types: %#v", events)
@@ -1442,6 +1445,8 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 		"event.post_record:done",
 		"turn.end",
 		"session.pre_stop",
+		"event.pre_record:session.stop_escalated",
+		"event.post_record:session.stop_escalated",
 		"event.pre_record:session_stopped",
 		"event.post_record:session_stopped",
 		"event.pre_record:transcript_marker.created",

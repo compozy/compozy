@@ -526,6 +526,7 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 
 		instance := bridgepkg.BridgeInstance{
 			ID:            "brg-durable-restart",
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: "ext-durable-restart",
@@ -548,14 +549,14 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 			Mode:             bridgepkg.DeliveryModeReply,
 		}
 		checkpointed := make(chan bridgepkg.DeliveryLedgerCheckpoint, 2)
-		store := &signalingDeliveryLedgerStore{
+		ledger := &signalingDeliveryLedgerStore{
 			DeliveryLedgerStore: db,
 			checkpointed:        checkpointed,
 		}
 		firstTransport := &durableRestartDeliveryTransport{remoteMessageID: "remote-durable-restart"}
 		firstBroker := bridgepkg.NewBroker(
 			firstTransport,
-			bridgepkg.WithDeliveryLedgerStore(store),
+			bridgepkg.WithDeliveryLedgerStore(ledger),
 			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now }),
 		)
 		t.Cleanup(firstBroker.Close)

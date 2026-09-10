@@ -36,7 +36,7 @@ func (m *Manager) ProjectForProfile(
 	if err != nil {
 		return nil, false, err
 	}
-	if extension.Manifest == nil {
+	if extension.Manifest == nil && extension.Status.LastError == "" {
 		extension, err = m.inspectProjectionSource(ctx, key)
 		if err != nil {
 			return nil, false, err

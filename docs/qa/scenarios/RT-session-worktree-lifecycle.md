@@ -21,3 +21,5 @@ spawn, memory context, and list filtering. The Phase C walk must compare the sam
 every structured surface and prove that sibling and parent checkout files stay outside its tool root.
 It must also prove a hook cannot rewrite the resolved cwd and a child cannot select or fall back to
 another checkout.
+
+QA 2026-09-10: The existing daemon worktree integration passed real local commands after terminal authorization received the resolved worktree roots. The owning containment assertions remain enabled. See [release integration recovery](../reports/2026-09-10-release-integration-repair.md).

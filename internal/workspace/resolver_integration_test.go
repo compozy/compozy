@@ -238,6 +238,7 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	for _, session := range []storepkg.SessionInfo{
 		{
 			ID:            "sess_reopen_healthy",
+			ProfileID:     storepkg.DefaultProfileID,
 			AgentName:     "coder",
 			WorkspaceID:   "ws_reopen_healthy",
 			State:         "stopped",
@@ -247,6 +248,7 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 		},
 		{
 			ID:            "sess_reopen_missing",
+			ProfileID:     storepkg.DefaultProfileID,
 			AgentName:     "coder",
 			WorkspaceID:   "ws_reopen_missing",
 			State:         "stopped",
@@ -303,14 +305,26 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	) {
 		t.Fatalf("GetWorkspace(pruned after reopen) error = %v, want %v", err, compozyworkspace.ErrWorkspaceNotFound)
 	}
-	healthySessions, err := reopened.ListSessions(ctx, storepkg.SessionListQuery{WorkspaceID: "ws_reopen_healthy"})
+	healthySessions, err := reopened.ListSessions(
+		ctx,
+		storepkg.SessionListQuery{
+			ReadScope:   storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			WorkspaceID: "ws_reopen_healthy",
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListSessions(healthy after reopen) error = %v", err)
 	}
 	if len(healthySessions) != 1 || healthySessions[0].ID != "sess_reopen_healthy" {
 		t.Fatalf("ListSessions(healthy after reopen) = %#v, want healthy session", healthySessions)
 	}
-	missingSessions, err := reopened.ListSessions(ctx, storepkg.SessionListQuery{WorkspaceID: "ws_reopen_missing"})
+	missingSessions, err := reopened.ListSessions(
+		ctx,
+		storepkg.SessionListQuery{
+			ReadScope:   storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
+			WorkspaceID: "ws_reopen_missing",
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListSessions(missing after reopen) error = %v", err)
 	}

@@ -46,6 +46,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/version"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/spf13/cobra"
@@ -136,10 +137,7 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 		t.Fatalf("session events = %d, want at least 2", len(events))
 	}
 
-	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session stop error = %v", err)
-	}
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, created.ID)
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(stop) error = %v", err)
@@ -2115,7 +2113,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,name,agent_name,parent_session_id,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
+		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
@@ -2180,10 +2178,7 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		)
 	}
 
-	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session stop error = %v", err)
-	}
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, created.ID)
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
@@ -2232,7 +2227,7 @@ func TestCLISessionRemoveAndWorkspaceRemoveIntegration(t *testing.T) {
 		assertPathMissing(t, activeDir)
 
 		cascade := createIntegrationSession(t, h, "workspace-cascade", "alpha")
-		cascadeStopOut := mustExecuteRoot(t, h.deps, "session", "stop", cascade.ID, "-o", "json")
+		cascadeStopOut := stopIntegrationSessionAndRead(t, h.deps, cascade.ID)
 		var stoppedCascade SessionRecord
 		if err := json.Unmarshal([]byte(cascadeStopOut), &stoppedCascade); err != nil {
 			t.Fatalf("json.Unmarshal(session stop) error = %v", err)
@@ -2393,10 +2388,7 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 		t.Fatalf("listed runtime provider = %q, want fake-alt", sessionRuntimeProvider(&listed.Sessions[0]))
 	}
 
-	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session stop error = %v", err)
-	}
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, created.ID)
 
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
@@ -2594,6 +2586,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
+	seedIntegrationNetworkChannel(t, h, created, "builders")
 	senderOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -2913,6 +2906,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 
 	sender := newSession("sender")
+	seedIntegrationNetworkChannel(t, h, sender, "builders")
 	receiver := newSession("receiver")
 	receiverPeerID := "coder." + receiver.ID
 
@@ -3116,10 +3110,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		t.Fatalf("network inbox after prompt completion = %#v, want immutable delivered message", inbox)
 	}
 
-	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", receiver.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session stop receiver error = %v", err)
-	}
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, receiver.ID)
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop receiver) error = %v", err)
@@ -3190,17 +3181,18 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Run("Should require install consent and round-trip profile enablement", func(t *testing.T) {
 		t.Parallel()
 
-		h := newIntegrationHarness(t)
-		h.runner.cfg.Extensions.Trust.AllowUnverified = true
-		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-		defer func() {
-			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-				t.Errorf("daemon stop cleanup error = %v", err)
-			}
-			if err := h.runner.waitForExit(); err != nil {
-				t.Errorf("waitForExit() cleanup error = %v", err)
-			}
-		}()
+		runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Extensions.Trust.AllowUnverified = true
+			}},
+		})
+		h := integrationHarness{deps: toolIntegrationDeps(t, runtime.HomePaths, runtime.Config)}
+		h.deps.getwd = func() (string, error) { return runtime.WorkspaceRoot, nil }
+		h.deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) { return runtime.HomePaths, nil }
+		before, err := runtime.ListExtensions(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		dir := writeExtensionFixture(t, "integration-ext", extensionFixtureOptions{})
 		writeExtensionManifest(
@@ -3269,9 +3261,17 @@ channel_scopes = ["team/*"]
 		if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(extension list) error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].Name != "integration-ext" || listed[0].State != "active" ||
-			!listed[0].Enabled {
-			t.Fatalf("listed extensions = %#v, want one active default-on extension", listed)
+		if len(listed) != len(before)+1 {
+			t.Fatalf("extension count = %d, want %d", len(listed), len(before)+1)
+		}
+		found := false
+		for _, item := range listed {
+			if item.Name == "integration-ext" {
+				found = item.State == "active" && item.Enabled
+			}
+		}
+		if !found {
+			t.Fatalf("listed extensions = %#v, want active installed extension", listed)
 		}
 
 		statusOut, _, err := executeRootCommand(t, h.deps, "extension", "status", "integration-ext", "-o", "json")
@@ -4072,7 +4072,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	assertDetachedHarnessMetadata(t, "runs[0].Metadata", runs[0].Metadata)
 
-	stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
 	var stoppedWorker SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
 		t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
@@ -4251,7 +4251,7 @@ func TestCLIHistoricalChannelTaskLeaseAfterDaemonRestartIntegration(t *testing.T
 				t.Fatalf("completed = %#v, want completed historical lease", completed)
 			}
 
-			stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+			stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
 			var stoppedWorker SessionRecord
 			if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
 				t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
@@ -4638,7 +4638,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	}
 	agentSessionID := worker.ID
 
-	stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+	stopOut := stopIntegrationSessionAndRead(t, h.deps, worker.ID)
 	var stopped SessionRecord
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
@@ -4831,7 +4831,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			t.Fatalf("detail.Runs[0] = %#v, want completed persisted historical run", detail.Runs[0])
 		}
 
-		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", agentSessionID, "-o", "json")
+		stopOut := stopIntegrationSessionAndRead(t, h.deps, agentSessionID)
 		var stoppedAfterResume SessionRecord
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
@@ -5016,6 +5016,7 @@ type integrationDaemon struct {
 	manager          *session.Manager
 	tasks            core.TaskService
 	observer         core.Observer
+	extensions       *integrationExtensionService
 	extensionSources []registrypkg.Source
 	extensionTrust   *extensionpkg.MarketplaceTrustEvidence
 }
@@ -5896,6 +5897,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		marketplaceTrust:                 d.extensionTrust,
 	}
 
+	d.mu.Lock()
+	d.extensions = extService
+	d.mu.Unlock()
+
 	automationManager, err := automationpkg.New(
 		automationpkg.WithStore(registry),
 		automationpkg.WithSessions(manager),
@@ -5990,6 +5995,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 			defer cancel()
 			joinRunError(operation, stop(shutdownCtx))
 		}
+		shutdown("shutdown automation manager", automationManager.Shutdown)
 		for _, info := range manager.List() {
 			if info == nil || info.State == session.StateStopped {
 				continue
@@ -6242,8 +6248,8 @@ func (d *integrationDriver) Prompt(
 
 func (d *integrationDriver) releaseBlocked(sessionID string) {
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	release := d.blocked[sessionID]
-	d.mu.Unlock()
 	if release == nil {
 		return
 	}
@@ -6268,7 +6274,8 @@ func (d *integrationDriver) waitForBlocked(sessionID string, timeout time.Durati
 	return false
 }
 
-func (d *integrationDriver) Cancel(context.Context, *session.AgentProcess) error {
+func (d *integrationDriver) Cancel(_ context.Context, proc *session.AgentProcess) error {
+	d.releaseBlocked(proc.SessionID)
 	return nil
 }
 
@@ -6442,5 +6449,48 @@ func waitUntilLeaseExpires(t *testing.T, leaseUntil time.Time, timeout time.Dura
 			t.Fatalf("timed out waiting for lease expiry at %s", leaseUntil.Format(time.RFC3339Nano))
 		case <-ticker.C:
 		}
+	}
+}
+
+// Lifecycle journeys require verified termination before reading final session fields.
+func stopIntegrationSessionAndRead(t *testing.T, deps commandDeps, id string) string {
+	t.Helper()
+	output := mustExecuteRoot(t, deps, "session", "stop", id, "--wait", "-o", "json")
+	var receipt SessionStopRecord
+	if err := json.Unmarshal([]byte(output), &receipt); err != nil {
+		t.Fatalf("decode waited stop: %v", err)
+	}
+	if receipt.SessionID != id || !receipt.Verified || receipt.State != session.StateStopped {
+		t.Fatalf("waited stop = %#v, want verified stopped session %q", receipt, id)
+	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := client.GetSession(t.Context(), id)
+	if err != nil {
+		t.Fatalf("GetSession(after waited stop): %v", err)
+	}
+	payload, err := json.Marshal(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(payload)
+}
+
+// Presence does not create a durable conversation channel; seed its explicit owner.
+func seedIntegrationNetworkChannel(t *testing.T, h integrationHarness, owner SessionRecord, channel string) {
+	t.Helper()
+	database, err := globaldb.OpenGlobalDB(t.Context(), h.homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = database.CreateNetworkChannel(t.Context(), store.NetworkChannelEntry{
+		ProfileID: owner.ProfileID, WorkspaceID: owner.WorkspaceID, Channel: channel,
+		Purpose: "Integration coordination", CreatedBy: "operator",
+	})
+	closeErr := database.Close(t.Context())
+	if err != nil || closeErr != nil {
+		t.Fatalf("seed channel: %v; close: %v", err, closeErr)
 	}
 }

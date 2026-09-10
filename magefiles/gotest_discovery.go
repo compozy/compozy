@@ -24,8 +24,10 @@ type goTestPackageFiles struct {
 	XTestGoFiles []string
 }
 
-func listGoTopLevelTests(ctx context.Context, packagePath string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "go", "list", "-race", "-json", packagePath)
+func listGoTopLevelTests(ctx context.Context, packagePath string, buildFlags ...string) ([]string, error) {
+	args := append([]string{"list", "-race", "-json"}, buildFlags...)
+	args = append(args, packagePath)
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -274,6 +275,7 @@ func newWorkspaceAccessIntegrationSession(
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
 	cfg := compozyconfig.DefaultWithHome(homePaths)
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig("test-workspace-access-driver")
 	resolved := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      workspaceAccessIntegrationHome,
@@ -283,7 +285,7 @@ func newWorkspaceAccessIntegrationSession(
 		Config: cfg,
 		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
-			Provider: "claude",
+			Provider: acpmock.ProviderName,
 			Prompt:   "You are a coding assistant.",
 		}},
 	}
@@ -485,6 +487,16 @@ func (r workspaceAccessIntegrationResolver) Resolve(
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
+func (r workspaceAccessIntegrationResolver) ResolveForProfile(
+	ctx context.Context,
+	ref, profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if profileName != "default" {
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+	return r.Resolve(ctx, ref)
+}
+
 func (r workspaceAccessIntegrationResolver) ResolveOrRegister(
 	ctx context.Context,
 	path string,
@@ -553,6 +565,18 @@ func (*workspaceAccessIntegrationDriver) Prompt(
 
 func (*workspaceAccessIntegrationDriver) Cancel(context.Context, *session.AgentProcess) error {
 	return nil
+}
+
+func (*workspaceAccessIntegrationDriver) VerifyExit(proc *session.AgentProcess) (bool, error) {
+	if proc == nil {
+		return false, errors.New("workspace access integration: process is required")
+	}
+	select {
+	case <-proc.Done():
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func (d *workspaceAccessIntegrationDriver) Stop(_ context.Context, proc *session.AgentProcess) error {
