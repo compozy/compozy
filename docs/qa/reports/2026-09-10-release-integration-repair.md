@@ -88,3 +88,47 @@ PR head `2ceb6d8a224f1e3cb935d294cbb81e8bdc1f129f` passed normal CI. Release int
 Change impact is owned here: session shutdown and bridge progress use existing public CLI/HTTP/UDS and extension delivery surfaces; native tool IDs, hooks/config keys, persisted schema, workspace/profile isolation, and official skill syntax are unchanged. Bridge consumers can receive more intermediate progress during short bursts; sustained saturation retains the existing bounded-queue policy. The browser change affects fixture startup only. Current-head CI/release checks, merge, and publication remain required.
 
 Final local validation passed: `make gate` approved Go lint, the complete affected session/bridge suites, and Web lint/typecheck/tests (`/tmp/compozy-identity-bridge-port-final-gate.log`). Session tests took 139.386 seconds; Web lint reported zero warnings and zero errors.
+
+## Cancellation worker ordering
+
+Main runtime CI at `45c05df1f` and PR Go shard 7 at `f50a486c` exposed two cancellation scheduling gaps. An accepted cancellation could lose its provider signal if the prompt drained before the worker ran. A new cancellation could also replay the old receipt after the prompt had drained while that worker still finalized its journal.
+
+The turn-stop claim now checks active-turn ownership before returning a pending receipt. The termination ladder still sends the cooperative signal for an accepted turn cancellation when the process is alive; prompt drainage alone no longer skips the request. Verified process exit continues to bypass signaling. Existing turn admission fencing keeps the delayed signal away from a later turn.
+
+`TestCancelPrompt` owns the deterministic scheduling-gap regression. With the worker held between claim and execution, the old code returned `canceled` for the drained turn and made zero provider-cancel and scoped-interrupt calls (`/tmp/compozy-turn-cancel-order-red.log`). Existing cancellation assertions remain unchanged. The entire `TestCancelPrompt` suite passed 30 race-enabled repetitions after repair (`/tmp/compozy-turn-cancel-order-green.log`, 44.818 seconds).
+
+Change impact: CLI `session prompt-cancel`, `compozy__session_prompt_cancel`, and their shared HTTP/UDS manager path retain existing outcomes and exit codes. Hooks/configuration, wire shapes, workspace/profile isolation, schema, and official skill instructions are unchanged; the existing instructions already specify `nothing-in-flight` after the turn ends. Web consumers receive the corrected shared cancellation behavior; targeted backend evidence does not claim a separate browser re-walk.
+
+The initial full attention re-walk passed the cancellation journey but failed the bounded-wait outcome. Inspection identified an ambiguous setup: a generic running badge could belong to an earlier turn before the asynchronously launched holding request reached the provider. Twenty isolated bounded-wait repetitions and five subsequent full attention repetitions passed during diagnosis, so this remains a suspected setup cause rather than a deterministic reproduction. The harness now waits for the holding request's own streamed assistant event before inspecting status or waiting. The five-second timeout and exit-75 requirement remain unchanged. All attention journeys then passed ten race-enabled repetitions (`/tmp/compozy-attention-confirmed-hold-integration.log`, 258.213 seconds).
+
+Release integration shard 7 also exposed a contradictory stubborn-process fixture: its first prompt returned when the JSON-RPC request context was canceled, although the scenario requires ignored cancellation and process replacement. The first fixture prompt now remains blocked until its process is killed. The existing real-ACP steer fallback scenario passed twenty repetitions with escalation, process identity replacement, and ordered replacement/queued dispatch assertions intact (`/tmp/compozy-steer-stubborn-integration.log`, 39.962 seconds).
+
+## Thinking indicator deadline
+
+Both main and PR frontend verification failed the first Goal/StrictMode cancellation journey because its pending activity indicator could remain hidden. The flicker-guard timer published its clock once; a callback that ran before the wall-clock deadline left the guard pending with no future update. The hook now re-arms the remaining interval after an early callback and preserves cancellation during cleanup/replay.
+
+The existing `SessionThread thinking guard` suite owns the timing invariant. Its new deterministic case advances timer scheduling ahead of the wall clock under StrictMode: it failed before repair (`/tmp/compozy-thinking-early-timer-red.log`) and passed afterward together with both complete conversation/runtime suites, 189 tests (`/tmp/compozy-thinking-early-timer-green.log`). The existing delayed-effect case and first Goal cancellation assertions are unchanged. Root Turborepo Web build and typecheck passed (`/tmp/compozy-thinking-timer-web-build.log`).
+
+Change impact: this hook only controls the existing Web thinking indicator's 250 ms flicker guard. Native tools, hooks/configuration, public wire surfaces, persistence, workspace/profile isolation, and official skill syntax are unchanged.
+
+The existing E2E-015 browser Stop journey passed three repetitions against the freshly built Web distribution (`/tmp/compozy-cancel-thinking-browser-e2e.log`, 2.6 minutes). It retained stopping-state, double-click, draft, and interrupted-turn assertions. React Doctor scanned the changed Web files with a score of 100/100 and no issues (`/tmp/compozy-thinking-react-doctor.log`). This is controlled-runtime browser evidence, not external-provider validation.
+
+## Lineage migration verification contexts
+
+Release integration shard 6 at PR head `f50a486c` exhausted a five-minute context on the post-reopen lineage query. The test created that context before upgrading the historical database, then reused it after two independently budgeted database opens and their shared migration admission waits. The existing lineage migration/reopen suite now starts a fresh bounded verification context after each open, matching the neighboring migration suites. Default notification, persisted opt-out, complete migration history, and reopen assertions remain unchanged. No production timeout, schema, migration bytes, or query was changed.
+
+The owning real SQLite migration/reopen suite passed five race-enabled repetitions (`/tmp/compozy-lineage-migration-context-integration.log`, 200.550 seconds).
+
+The Go test-shape heuristic passed the attention and lineage files. Its findings in the two session files concern existing untouched tests and helper-process entry points; the added cancellation subtest follows the owning suite's existing shape. Current-head CI/release checks, merge, and publication remain required.
+
+## Catalog rehydration fixture freshness
+
+The final gate exposed a race between the curation fixture's two catalog reads. The first read starts background discovery; the seeded live source had no next-refresh deadline and its intentionally unavailable provider immediately failed discovery. The second read excludes stale rows by contract. A diagnostic refresh reproduced the failure and an include-stale read found the same persisted row with `Stale=true` (`/tmp/compozy-model-rehydrate-stale-diagnostic.log`). This establishes filtering after discovery failure rather than deletion during static rehydration.
+
+The existing `TestDaemonModelCatalogWiring` rehydration fixture now seeds a fresh live discovery status, so background discovery cannot change the row's freshness between its reads. The builtin/config metadata remains the pre-curation input; all curated, default-only, and live-only assertions are unchanged. Diagnostic calls were removed after establishing the cause. Production discovery, stale filtering, persistence, and API behavior are unchanged.
+
+The unchanged rehydration assertions passed ten race-enabled repetitions after fixture repair (`/tmp/compozy-model-rehydrate-fresh-integration.log`, 67.689 seconds).
+
+The complete daemon race suite passed after the fixture repair (`/tmp/compozy-daemon-catalog-fresh-final.log`, 154.026 seconds). Root Turborepo Web lint/typecheck and all 7,117 tests passed (`/tmp/compozy-cancel-thinking-web-final.log`, 2 minutes 42.713 seconds). The earlier gate invocation retains its daemon failure; these are subsequent successful checks, not a relabeling of that run.
+
+The complete affected persistence suites passed, including `globaldb` in 879.689 seconds. Final `make gate` passed Go lint, the affected race suites, code generation verification, and Web lint/typecheck/tests (`/tmp/compozy-cancel-thinking-lineage-repaired-gate.log`). Go lint and Web lint reported zero issues. Remote current-head checks and release publication remain outstanding.

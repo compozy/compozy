@@ -1454,7 +1454,7 @@ func seedPreExplicitCurationRows(
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
-	refreshedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	refreshedAt := time.Now().UTC()
 	liveExecutionContext := preExplicitCurationLiveExecutionContext(t, homePaths, cfg)
 	persist := func(
 		sourceID string,
@@ -1464,8 +1464,11 @@ func seedPreExplicitCurationRows(
 	) {
 		t.Helper()
 		executionContext := modelcatalog.GlobalCatalogExecutionContext()
+		var nextRefresh time.Time
 		if kind == modelcatalog.SourceKindProviderLive {
 			executionContext = liveExecutionContext
+			// Keep discovery fresh while this fixture verifies static rehydration.
+			nextRefresh = refreshedAt.Add(time.Hour)
 		}
 		if err := db.ReplaceSourceRows(ctx, executionContext, sourceID, "codex", rows, modelcatalog.SourceStatus{
 			SourceID:     sourceID,
@@ -1474,6 +1477,7 @@ func seedPreExplicitCurationRows(
 			Priority:     priority,
 			LastRefresh:  refreshedAt,
 			LastSuccess:  refreshedAt,
+			NextRefresh:  nextRefresh,
 			RefreshState: modelcatalog.RefreshStateSucceeded,
 			RowCount:     len(rows),
 		}); err != nil {

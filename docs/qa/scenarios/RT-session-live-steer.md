@@ -39,3 +39,5 @@ QA plan 2026-09-06: the integrated sessions-stability task10 re-walk is scoped b
 the changed queue/transcript/connection behavior has no current integrated verdict yet.
 
 QA 2026-09-06 integrated verdict: Real Claude injected msg_handbook_guidance_02 in the same turn; authored text, identity and Steered provenance survive settlement, cold history and daemon restart. Task01 real capability/fallback evidence remains current. The missing-history and stopped-reader repairs were re-walked; see the integrated report.
+
+QA support 2026-09-10: the real-ACP steer fallback integration passed twenty repetitions after making its stubborn process fixture ignore request cancellation as intended. Escalation, verified process replacement, replacement-before-queued ordering, and preserved active session assertions remain intact. Evidence: `docs/qa/reports/2026-09-10-release-integration-repair.md`.

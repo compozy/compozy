@@ -97,14 +97,15 @@ func (s *Session) claimTurnStop(expected string) (*turnStopRun, bool, error) {
 	if s.State != StateActive {
 		return nil, false, ErrSessionNotActive
 	}
+	// A pending cancellation receipt does not make a drained prompt active.
+	if s.currentTurnID == "" {
+		return nil, false, ErrPromptNotInProgress
+	}
 	if previous := s.turnStop; previous != nil && !signalClosed(previous.done) {
 		if expected != "" && expected != previous.turnID {
 			return nil, false, ErrActiveTurnMismatch
 		}
 		return previous, false, nil
-	}
-	if s.currentTurnID == "" {
-		return nil, false, ErrPromptNotInProgress
 	}
 	if expected != "" && expected != s.currentTurnID {
 		return nil, false, ErrActiveTurnMismatch

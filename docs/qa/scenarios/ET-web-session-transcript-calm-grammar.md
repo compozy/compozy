@@ -61,3 +61,5 @@ Historical evidence above remains scoped to the earlier grammar. New visual acce
 is pending task10 and must follow the task07/task08 normative artboards.
 
 QA 2026-09-06 integrated verdict: Selected new grammar and navigation branches passed: all task07/08 visual rows and substates, actual3,023-message history, unloaded Unicode input and all text/title/output/error/filename fields, exact nested landing, focus/trail/no-match/bottom ownership, full260-line browser download, and generation1→2 archive invalidation while Find remained focused. The report retains each repair/re-walk and the distinction between controlled runtime and deterministic visual fixtures.
+
+QA impact 2026-09-10: the thinking indicator now re-arms an early timer callback until its existing flicker-guard deadline, preventing an indefinitely hidden pending state. The canonical thread-status timing tests and full conversation/runtime suites passed. Evidence and browser verification are owned by `docs/qa/reports/2026-09-10-release-integration-repair.md`.

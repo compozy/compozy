@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -220,14 +221,14 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		)
 		assertAttentionCLIExitCode(t, err, 65, stderr)
 
-		hold := startAttentionPrompt(ctx, harness, target.ID, "hold turn")
+		hold := startAttentionHoldingPrompt(t, ctx, harness, target.ID)
 		waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeRunning)
 		stdout, stderr, err = harness.CLI.RunInDir(
 			ctx,
 			harness.WorkspaceRoot,
 			"session", "wait", target.ID, "--until", "idle", "--timeout", "5s", "-o", "json",
 		)
-		assertAttentionCLIExitCode(t, err, 75, stderr)
+		assertAttentionCLIExitCode(t, err, 75, stderr+"; stdout="+stdout)
 		var timeoutOutcome compozycontract.SessionWaitResponse
 		if decodeErr := json.Unmarshal([]byte(stdout), &timeoutOutcome); decodeErr != nil {
 			t.Fatalf("decode CLI session wait timeout output error = %v; stdout=%s", decodeErr, stdout)
@@ -266,7 +267,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		defer cancel()
 
 		target := createFixtureBackedSession(t, ctx, harness, "attention-agent", "prompt-cancel-journey")
-		prompt := startAttentionPrompt(ctx, harness, target.ID, "hold turn")
+		prompt := startAttentionHoldingPrompt(t, ctx, harness, target.ID)
 		status := waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeRunning)
 		select {
 		case result := <-prompt:
@@ -435,7 +436,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		targetClient := attentionHostedMCPClient(t, ctx, harness, "attention-agent", target.ID)
 		defer closeAttentionMCPClient(t, targetClient)
 
-		prompt := startAttentionPrompt(ctx, harness, caller.ID, "hold turn")
+		prompt := startAttentionHoldingPrompt(t, ctx, harness, caller.ID)
 		waitForAttentionStatus(t, ctx, harness, caller.ID, session.BadgeRunning)
 		waitCall := startAttentionNativeCall(ctx, callerClient, toolspkg.ToolIDSessionWait.String(), map[string]any{
 			"session_id": target.ID,
@@ -799,17 +800,33 @@ func startAttentionPermissionPrompt(
 	return result
 }
 
-func startAttentionPrompt(
+func startAttentionHoldingPrompt(
+	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-	message string,
 ) <-chan attentionPromptResult {
+	t.Helper()
+	ready := make(chan struct{})
+	signalReady := sync.OnceFunc(func() { close(ready) })
 	result := make(chan attentionPromptResult, 1)
 	go func() {
-		_, err := harness.PromptSessionHTTP(ctx, sessionID, message)
+		_, err := harness.PromptSessionHTTPWithEvents(ctx, sessionID, "hold turn", func(event e2etest.SSEEvent) error {
+			// Observe this request's holding response, not another turn's running badge.
+			if event.Event == "agent_message" {
+				signalReady()
+			}
+			return nil
+		})
 		result <- attentionPromptResult{err: err}
 	}()
+	select {
+	case <-ready:
+	case completed := <-result:
+		t.Fatalf("holding prompt completed before readiness: %v", completed.err)
+	case <-ctx.Done():
+		t.Fatalf("holding prompt did not start: %v", ctx.Err())
+	}
 	return result
 }
 

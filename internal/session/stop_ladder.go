@@ -128,7 +128,9 @@ func (m *Manager) runTerminationLadder(
 		outcome.Phase = phase.phase
 		outcome.Escalated = phase.phase != StopPhaseCooperative
 		phaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), phase.budget)
-		if isProcessDone(proc) || (target.turnOnly && signalClosed(target.promptDone)) {
+		// A claimed turn cancellation still owns its cooperative provider signal,
+		// even if the prompt drains before this worker is scheduled.
+		if isProcessDone(proc) {
 			verified, exited, verifyErr := m.verifyTerminationTarget(phaseCtx, proc, target, phase.phase)
 			if verified && verifyErr == nil {
 				cancel()

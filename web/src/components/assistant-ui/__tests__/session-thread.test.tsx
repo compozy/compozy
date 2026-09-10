@@ -5590,6 +5590,24 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
 // Invariant: a pending reply leaves the flicker guard even when commit work
 // delays its effect. Owner: thread status timer; canonical suite: SessionThread.
 describe("SessionThread thinking guard", () => {
+  it("Should reveal pending activity when the timer fires before the wall-clock deadline", async () => {
+    vi.useFakeTimers();
+    const now = vi.spyOn(Date, "now").mockReturnValue(0);
+    const view = renderHook(() => useThinkingGuardElapsed(0), { wrapper: StrictMode });
+    try {
+      now.mockReturnValue(249);
+      await act(() => vi.advanceTimersByTimeAsync(250));
+      expect(view.result.current).toBe(false);
+      now.mockReturnValue(250);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(view.result.current).toBe(true);
+    } finally {
+      view.unmount();
+      now.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("Should reveal pending activity when the effect starts after the guard elapsed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

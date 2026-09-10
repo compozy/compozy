@@ -832,6 +832,49 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 func TestCancelPrompt(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should deliver an accepted cancellation after the provider stream ends without replaying an active turn",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				return source, nil
+			}
+			ctx := testutil.Context(t)
+			output, err := h.manager.Prompt(ctx, active.ID, "cancel before worker dispatch")
+			if err != nil {
+				t.Fatal(err)
+			}
+			run, owned, err := active.claimTurnStop("")
+			if err != nil || !owned {
+				t.Fatalf("claim turn stop = %t, %v", owned, err)
+			}
+			// Reproduce the scheduling gap between the accepted claim and its worker.
+			close(source)
+			collectEvents(t, output)
+			replay, err := h.manager.CancelPrompt(ctx, active.ID)
+			if err != nil || replay.Outcome != PromptCancelOutcomeNothingInFlight {
+				t.Errorf("cancel after prompt drain = %+v, %v; want nothing in flight", replay, err)
+			}
+			h.manager.executeTurnStop(ctx, run, CauseUserRequested)
+			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if got := h.driver.cancelCalls; got != 1 {
+				t.Errorf("provider cancel calls = %d, want 1", got)
+			}
+			if got := len(h.driver.interruptScopes); got != 1 {
+				t.Errorf("scoped interrupt calls = %d, want 1", got)
+			}
+			if run.err != nil || !run.outcome.Quiesced || run.outcome.Escalated {
+				t.Fatalf("turn stop = %+v, %v; want cooperative quiescence", run.outcome, run.err)
+			}
+		},
+	)
+
 	t.Run("Should keep the session active when the canceled provider stream closes without a terminal", func(
 		t *testing.T,
 	) {

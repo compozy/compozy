@@ -912,7 +912,7 @@ type stubbornSessionPrompt struct {
 	Text string `json:"text"`
 }
 
-func (a stubbornSessionACPAgent) Prompt(ctx context.Context, req acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
+func (a stubbornSessionACPAgent) Prompt(_ context.Context, req acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
 	file, err := os.OpenFile(a.path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o600)
 	if err != nil {
 		return acpsdk.PromptResponse{}, err
@@ -932,8 +932,9 @@ func (a stubbornSessionACPAgent) Prompt(ctx context.Context, req acpsdk.PromptRe
 		return acpsdk.PromptResponse{}, err
 	}
 	if info.Size() == 0 {
-		<-ctx.Done()
-		return acpsdk.PromptResponse{}, ctx.Err()
+		// This process fixture must ignore request cancellation as well as SIGTERM.
+		// Only verified process killing may release its first prompt.
+		select {}
 	}
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
