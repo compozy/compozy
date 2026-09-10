@@ -384,6 +384,8 @@ test("Issue 585: internal windows restore and resize across repeated zoom cycles
       );
     await expect(handle).toBeVisible();
     await handle.hover();
+    const zoomRect = await windowRect(appPage, tasks);
+    await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
     const box = await handle.boundingBox();
     if (!box) throw new Error("Maximized window resize handle must have a layout box");
     const x = box.x + box.width / 2;
@@ -402,9 +404,17 @@ test("Issue 585: internal windows restore and resize across repeated zoom cycles
     expect(resized.windows[settingsID]).toEqual(before.windows[settingsID]);
     const desktopID = resized.windows[tasksID]!.desktop_id;
     const signature = layoutSignature(resized, desktopID);
-    expect(
-      resized.desktops.find(desktop => desktop.id === desktopID)!.groups[0]!.frame.width
-    ).toBeLessThan(1);
+    const ownGroup = resized.desktops
+      .find(desktop => desktop.id === desktopID)!
+      .groups.find(group => group.root.window_id === tasksID);
+    expect(ownGroup).toBeDefined();
+    expect(ownGroup!.frame.x).toBeCloseTo(cursor === "col-resize" ? 160 / zoomRect.w : 0, 5);
+    expect(ownGroup!.frame.y).toBe(0);
+    expect(ownGroup!.frame.width).toBeCloseTo(1 - 160 / zoomRect.w, 5);
+    expect(ownGroup!.frame.height).toBeCloseTo(
+      cursor === "se-resize" ? 1 - 100 / zoomRect.h : 1,
+      5
+    );
 
     await tasks.getByRole("button", { name: "Zoom window", exact: true }).click();
     await expect(windowFrame(tasks)).toHaveAttribute("data-zoomed");

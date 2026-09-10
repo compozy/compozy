@@ -52,7 +52,7 @@ maximize/restore/reload of the resized zone. Compare the peer window and source 
 after; no peer may move. Owner: `web/e2e/__tests__/os-shell.spec.ts`, issue #585 regression plus
 E2E-003 and E2E-137. Passed on macOS/Chromium against a worktree-built daemon with isolated
 homes/ports/sockets (2026-09-10): E2E-003 and E2E-137 passed, and the final issue #585 regression
-passed in 4.8s. Logs: `.tmp/issue-585/e2e.log` (existing scenarios) and
+passed in 5.1s, including exact pointer-delta geometry for the window's own tiled group. Logs: `.tmp/issue-585/e2e.log` (existing scenarios) and
 `.tmp/issue-585/e2e-resize.log` (final regression); trace and final screenshot under
 `.tmp/playwright/test-results/__tests__-os-shell-Issue-5-8963a-across-repeated-zoom-cycles/compozy-artifacts/`.
 Fixture teardown completed successfully. Linux and Electron were not run locally.
