@@ -207,7 +207,7 @@ describe("OsWindow", () => {
     const chrome = screen.getByTestId("os-window-frame-window:tasks");
     expect(chrome).toHaveAttribute("data-zoomed", "");
     expect(chrome.parentElement).toHaveStyle({ zIndex: WINDOW_VISUAL_LAYER.zoomed });
-    expect(screen.getByRole("button", { name: "Zoom window" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Restore window" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

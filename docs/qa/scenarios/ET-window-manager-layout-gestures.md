@@ -87,3 +87,17 @@ qa-impact: 2026-09-01 zoom is structural: the zoomed unit is the only full-frame
 qa-impact: 2026-09-01 review remediation keeps stale drag rebases tied to the gesture's captured source node for both snap and free-drop commands, including queued top-center zoom. Reset for a focused stale-gesture walk on the current head.
 
 qa-impact: 2026-09-01 focused current-head walk passed normal top-center zoom, edge snap, lifted-desktop paging, and exact unzoom return through the public web/API/CLI surfaces. The owning hook regressions then changed the live window node mid-gesture and proved free-drop and queued top-center zoom still submit the captured source node and revision.
+
+qa-impact: 2026-09-10 issue #585 exposes all borders and corners while an internal window is
+maximized. The zoom control shows a restore icon and the label "Restore window"; clicking it
+returns the saved floating rect or tiled slot. Dragging a maximized border/corner instead commits
+`window.resize`, ends zoom, and keeps the new tiled zone on the current desktop. Verify repeated
+floating maximize/restore cycles, southeast and west resize gestures while maximized, then
+maximize/restore/reload of the resized zone. Compare the peer window and source layout before and
+after; no peer may move. Owner: `web/e2e/__tests__/os-shell.spec.ts`, issue #585 regression plus
+E2E-003 and E2E-137. Passed on macOS/Chromium against a worktree-built daemon with isolated
+homes/ports/sockets (2026-09-10): E2E-003 and E2E-137 passed, and the final issue #585 regression
+passed in 4.8s. Logs: `.tmp/issue-585/e2e.log` (existing scenarios) and
+`.tmp/issue-585/e2e-resize.log` (final regression); trace and final screenshot under
+`.tmp/playwright/test-results/__tests__-os-shell-Issue-5-8963a-across-repeated-zoom-cycles/compozy-artifacts/`.
+Fixture teardown completed successfully. Linux and Electron were not run locally.

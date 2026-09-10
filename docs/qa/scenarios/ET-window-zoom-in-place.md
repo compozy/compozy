@@ -42,3 +42,17 @@ qa-impact: 2026-09-01 walked on the structural model: A0–A8 pass 11/11 (solo z
 qa-impact: 2026-09-01 review remediation enforces the full-desktop invariant at every durable boundary: opening a separate visible peer ends zoom immediately, minimized zoom desktops survive until restore, restore selects an unoccupied desktop after any competing zoom returns, desktop transfer clears the stale zoom anchor, and the solo-frame traffic light receives the pressed state. Reset for a focused current-head walk.
 
 qa-impact: 2026-09-01 focused current-head walk passed solo zoom and pressed state, visible-peer teardown, edge tiling, lift/pager/unzoom return, and API minimize/restore. The minimized window retained its lifted desktop and zoom return anchor, then restored zoomed on that same unoccupied desktop. The legacy walk's later deck step was not reused because it opens a separate visible peer before grouping, which now intentionally ends zoom; direct tab insertion remains covered by the owning Go suite.
+
+qa-impact: 2026-09-10 issue #585 exposes all borders and corners while an internal window is
+maximized. The zoom control shows a restore icon and the label "Restore window"; clicking it
+returns the saved floating rect or tiled slot. Dragging a maximized border/corner instead commits
+`window.resize`, ends zoom, and keeps the new tiled zone on the current desktop. Verify repeated
+floating maximize/restore cycles, southeast and west resize gestures while maximized, then
+maximize/restore/reload of the resized zone. Compare the peer window and source layout before and
+after; no peer may move. Owner: `web/e2e/__tests__/os-shell.spec.ts`, issue #585 regression plus
+E2E-003 and E2E-137. Passed on macOS/Chromium against a worktree-built daemon with isolated
+homes/ports/sockets (2026-09-10): E2E-003 and E2E-137 passed, and the final issue #585 regression
+passed in 4.8s. Logs: `.tmp/issue-585/e2e.log` (existing scenarios) and
+`.tmp/issue-585/e2e-resize.log` (final regression); trace and final screenshot under
+`.tmp/playwright/test-results/__tests__-os-shell-Issue-5-8963a-across-repeated-zoom-cycles/compozy-artifacts/`.
+Fixture teardown completed successfully. Linux and Electron were not run locally.

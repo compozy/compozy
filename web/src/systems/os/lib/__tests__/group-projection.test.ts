@@ -381,10 +381,10 @@ describe("zoomed frames", () => {
     expect(zoomed?.id).toBe("w-tasks");
     expect(zoomed?.rect).toEqual({ x: 0, y: 0, w: WORK_AREA.w, h: WORK_AREA.h });
     expect(zoomed?.resizableEdges).toEqual({
-      left: false,
-      right: false,
-      top: false,
-      bottom: false,
+      left: true,
+      right: true,
+      top: true,
+      bottom: true,
     });
     const settings = desktopFrames.find(frame => frame.id === "w-settings");
     expect(settings?.zoomed).toBe(false);

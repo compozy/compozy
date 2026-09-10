@@ -44,7 +44,7 @@ export interface OsWindowFrameModel {
   /** Real stack identity for stack commands; null for solo frames. */
   stackId: LayoutNodeId | null;
   minimized: boolean;
-  /** The unit fills the desktop work area; drag and resize are off until it unzooms. */
+  /** The unit fills the desktop work area; resizing commits a new zone and ends zoom. */
   zoomed: boolean;
   /** Pane too small for its split — projection degraded it to a stack. */
   adapted: boolean;
@@ -231,9 +231,9 @@ export function buildDesktopFrames(input: {
 }
 
 /**
- * The unit holding a zoomed window takes the whole layout area and gives up
- * its own drag and resize affordances; every other frame keeps its place so
- * unzooming reveals the tree exactly as it was.
+ * The zoomed unit owns a full-frame island. Keep its edges available: the daemon
+ * ends zoom atomically when window.resize commits the new zone. The zoom
+ * control instead restores the saved return anchor.
  */
 function zoomFrames(
   frames: readonly OsWindowFrameModel[],
@@ -248,7 +248,7 @@ function zoomFrames(
         return window !== undefined && window.zoomed && !window.minimized;
       });
     if (!zoomed) return frame;
-    return { ...frame, rect: { ...zoomRect }, zoomed: true, resizableEdges: NO_EDGES_RESIZABLE };
+    return { ...frame, rect: { ...zoomRect }, zoomed: true, resizableEdges: ALL_EDGES_RESIZABLE };
   });
 }
 

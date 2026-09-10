@@ -73,7 +73,7 @@ describe("OsWindowFrame", () => {
       </OsWindowFrame>
     );
 
-    expect(screen.getByRole("button", { name: "Zoom window" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Restore window" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

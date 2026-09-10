@@ -78,6 +78,12 @@ zoom, and arranging, moving, swapping, resizing, or floating ends it in place. A
 was zoomed comes back zoomed. Bottom-center is reserved for the Dock unless remapped. Both behavior and
 thresholds are validated under `[window_manager]` in `config.toml`.
 
+To restore an internal maximized window, click its **Restore window** control (the zoom button
+changes its icon and label while maximized). This returns the saved size and placement. You can
+also drag any border or corner to resize it directly: resizing ends zoom and saves the new tiled
+size on its current desktop. The same internal window controls serve Web and Electron; they are
+separate from native browser or operating-system fullscreen.
+
 ## Persistent desktops
 
 ```bash
