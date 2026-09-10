@@ -661,7 +661,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		{name: "Should report a disabled dream role with the memory trigger enabled"},
 		{name: "Should report an enabled dream role", enabled: true},
 		{name: "Should degrade health when role status is unavailable", unavailable: true},
-		{name: "Should preserve role resolution failures", err: errors.New("role scope unavailable")},
+		{name: "Should preserve role resolution failures", enabled: true, err: errors.New("role scope unavailable")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -687,12 +687,14 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			}
 			var health contract.MemoryHealthPayload
 			testutil.DecodeJSONResponse(t, response, &health)
-			if health.DreamEnabled != tc.enabled {
-				t.Fatalf("dream enabled=%t want=%t", health.DreamEnabled, tc.enabled)
+			wantEnabled := tc.enabled && tc.err == nil && !tc.unavailable
+			if health.DreamEnabled != wantEnabled {
+				t.Fatalf("dream enabled=%t want=%t", health.DreamEnabled, wantEnabled)
 			}
 			if tc.unavailable || tc.err != nil {
-				if health.Status != "degraded" || health.Reason == "" {
-					t.Fatalf("missing role diagnostic: %#v", health)
+				if health.Status != "degraded" || health.Reason == "" ||
+					health.DreamAgent != compozyconfig.BuiltinDreamingCuratorAgentName {
+					t.Fatalf("missing role diagnostic or leaked scoped identity: %#v", health)
 				}
 			} else if gotWorkspace != workspace || health.DreamAgent != "scoped-curator" || health.Status != "ok" {
 				t.Fatalf("scoped role health=%#v workspace=%q", health, gotWorkspace)

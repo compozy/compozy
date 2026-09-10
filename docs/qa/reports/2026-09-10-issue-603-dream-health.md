@@ -45,3 +45,11 @@ The scoped real-run verification and `env -u COMPOZY_INTERNAL_RESTART_OPERATION_
 - Fixed real run: `CGO_ENABLED=1 go test -race -tags=integration ./internal/daemon -run '^TestDaemonE2EMemoryDreamHealth' -count=1 -v` passes the four-state matrix and the live workspace/Settings comparison.
 - Focused owning tests: core health, HTTP/UDS health, Settings health, native tool health, and role projection suites pass with race detection.
 - Test-shape checker: touched core/daemon suites pass. Transport suites retain pre-existing out-of-scope inline tests; the touched health case now uses a canonical `Should` subtest.
+
+## Review and preview remediation
+
+CodeRabbit review tightened the role-error fixture to return a contradictory enabled role and scoped agent alongside an error. Health must reject that role result while preserving its existing configured-agent fallback. The real live-update journey now names every transition and scope assertion, preserving sequential execution.
+
+The initial Vercel preview used Bun 1.3.14, rejected lockfile version 2, ignored it, and installed newer Fumadocs/Zod/Next.js versions that failed type checking. The unchanged schema passes the repository-root Turbo typecheck and production build with the frozen Bun 1.4.0 dependencies. The site install command now pins Bun 1.4.0 (matching `.bun-version`) and requires the frozen lockfile, following Vercel's documented version-pinning mechanism. Runtime selection, dependencies, and schema remain unchanged.
+
+The initial local gate, scoped race tests, real-daemon replay, and frozen-dependency site build above completed before the delivery policy changed. Per the revised delivery instruction, the final remediation gate runs in GitHub CI. Owned queued/running local gates were canceled; their partial results are not final-head evidence. No second review round is required.

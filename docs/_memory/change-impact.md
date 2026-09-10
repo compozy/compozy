@@ -38,3 +38,5 @@ Owning evidence: [focused QA report](../qa/reports/2026-09-10-issue-603-dream-he
 - **Official skill:** `skills/compozy/references/memory.md` explains both opt-ins and diagnostic-only reads.
 - **Web/Docs:** Memory health/Settings consumers receive corrected existing fields. No rendering or interaction change. The Memory System guide and MS-011 describe the truth table and same-scope comparison.
 - **Compatibility:** Public wire shapes and user state are unchanged; this corrects a boolean projection with no deprecation or migration.
+
+Issue #603 delivery also pins the site preview install command to the repository's Bun 1.4.0 with `--frozen-lockfile`: the preview image previously ignored the newer lockfile and installed unverified dependency versions. This affects dependency installation only; no runtime, wire, configuration, or user-data contract changes.

@@ -202,58 +202,70 @@ func TestDaemonE2EMemoryDreamHealthLiveScope(t *testing.T) {
 				Mutate: func(cfg *compozyconfig.Config) { cfg.Memory.Enabled = true; cfg.Roles.Dream.Enabled = false },
 			},
 		})
-		for _, enabled := range []bool{false, true, false} {
-			var mutation map[string]any
-			if err := harness.CLI.RunJSON(
-				t.Context(),
-				&mutation,
-				"config",
-				"set",
-				"roles.dream.enabled",
-				strconv.FormatBool(enabled),
-				"--scope",
-				"user",
-				"-o",
-				"json",
-			); err != nil {
-				t.Fatal(err)
-			}
-			for _, scope := range []struct {
-				workspace string
-				want      bool
-			}{{want: enabled}, {workspace: harness.WorkspaceID, want: true}} {
-				var health compozycontract.MemoryHealthPayload
-				path := "/api/memory/health?workspace_id=" + url.QueryEscape(scope.workspace)
-				if err := harness.HTTPJSON(t.Context(), http.MethodGet, path, nil, &health); err != nil {
-					t.Fatal(err)
-				}
-				var role compozycontract.RoleStatusResponse
-				if err := harness.UDSJSON(
+		for step, enabled := range []bool{false, true, false} {
+			t.Run(fmt.Sprintf("Should apply live role transition %d to %t", step+1, enabled), func(t *testing.T) {
+				var mutation map[string]any
+				if err := harness.CLI.RunJSON(
 					t.Context(),
-					http.MethodGet,
-					"/api/roles/dream?workspace="+url.QueryEscape(scope.workspace),
-					nil,
-					&role,
+					&mutation,
+					"config",
+					"set",
+					"roles.dream.enabled",
+					strconv.FormatBool(enabled),
+					"--scope",
+					"user",
+					"-o",
+					"json",
 				); err != nil {
 					t.Fatal(err)
 				}
-				if health.Status != "ok" || health.DreamEnabled != scope.want || role.Role.Enabled != scope.want {
-					t.Fatalf("workspace=%q health=%#v role=%#v want=%t", scope.workspace, health, role.Role, scope.want)
+				for _, scope := range []struct {
+					name      string
+					workspace string
+					want      bool
+				}{{name: "Should match the global role", want: enabled}, {name: "Should preserve the workspace override", workspace: harness.WorkspaceID, want: true}} {
+					t.Run(scope.name, func(t *testing.T) {
+						var health compozycontract.MemoryHealthPayload
+						path := "/api/memory/health?workspace_id=" + url.QueryEscape(scope.workspace)
+						if err := harness.HTTPJSON(t.Context(), http.MethodGet, path, nil, &health); err != nil {
+							t.Fatal(err)
+						}
+						var role compozycontract.RoleStatusResponse
+						if err := harness.UDSJSON(
+							t.Context(),
+							http.MethodGet,
+							"/api/roles/dream?workspace="+url.QueryEscape(scope.workspace),
+							nil,
+							&role,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if health.Status != "ok" || health.DreamEnabled != scope.want ||
+							role.Role.Enabled != scope.want {
+							t.Fatalf(
+								"workspace=%q health=%#v role=%#v want=%t",
+								scope.workspace,
+								health,
+								role.Role,
+								scope.want,
+							)
+						}
+					})
 				}
-			}
-			var settings compozycontract.SettingsMemoryResponse
-			if err := harness.HTTPJSON(
-				t.Context(),
-				http.MethodGet,
-				"/api/settings/memory",
-				nil,
-				&settings,
-			); err != nil {
-				t.Fatal(err)
-			}
-			if settings.Health.DreamEnabled != enabled {
-				t.Fatalf("settings dream=%t want=%t", settings.Health.DreamEnabled, enabled)
-			}
+				var settings compozycontract.SettingsMemoryResponse
+				if err := harness.HTTPJSON(
+					t.Context(),
+					http.MethodGet,
+					"/api/settings/memory",
+					nil,
+					&settings,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if settings.Health.DreamEnabled != enabled {
+					t.Fatalf("settings dream=%t want=%t", settings.Health.DreamEnabled, enabled)
+				}
+			})
 		}
 	})
 }
