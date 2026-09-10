@@ -24,7 +24,9 @@ story: As a person running agent work, I can tune window behavior and layouts wi
 then reload and inspect tiled layout geometry. Repeat a save, interrupt the settings request, and
 verify the original draft remains retryable without another edit. Editing or discarding after a
 failure must clear the old error. HTTP/application rejection must remain visible, including the
-daemon's next action and warnings; HTTP 200 alone is not live-apply evidence. Edit shortcuts while a
+daemon's next action and warnings; HTTP 200 alone is not live-apply evidence. When persistence
+succeeds but application fails, retry must reapply the pending layout rather than skip it as an
+unchanged file, and Discard must retain the canonical saved baseline. Edit shortcuts while a
 behavior draft is open and verify saving that draft preserves the latest shortcut maps and aliases.
 The targeted run is tracked in `docs/qa/reports/2026-09-10-issue-593-layout-settings-save.md`.
 

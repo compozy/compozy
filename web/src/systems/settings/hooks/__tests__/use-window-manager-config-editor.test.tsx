@@ -21,6 +21,7 @@ vi.mock("../../adapters/window-manager-layouts-api", async importOriginal => {
   return { ...actual, updateWindowManagerSettings };
 });
 
+import { WindowManagerSettingsApplyError } from "../../adapters/window-manager-layouts-api";
 import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
 import {
   applyTerminalShortcutPreset,
@@ -161,29 +162,64 @@ describe("useWindowManagerConfigEditor", () => {
     expect(result.current.dirty).toBe(action === "edit");
   });
 
-  it("Should keep a newer edit retryable when an in-flight save fails", async () => {
-    let rejectSave!: (error: Error) => void;
-    updateWindowManagerSettings.mockImplementationOnce(
-      () =>
-        new Promise((_, reject) => {
-          rejectSave = reject;
-        })
+  it("Should adopt persisted config after apply failure so discard cannot restore an obsolete baseline", async () => {
+    const saved = { ...CONFIG, gaps: { ...CONFIG.gaps, inner: 0 } };
+    updateWindowManagerSettings.mockRejectedValueOnce(
+      new WindowManagerSettingsApplyError({
+        config: saved,
+        apply: { ...APPLY, applied: false, next_action: "retry" },
+      })
     );
     const { result } = renderEditor();
-    act(() => result.current.setDraft(current => ({ ...current, historyLimit: 101 })));
+    act(() => result.current.setDraft(saved));
     act(() => result.current.save());
-    await waitFor(() => expect(updateWindowManagerSettings).toHaveBeenCalledOnce());
-    act(() => {
-      result.current.setDraft(current => ({ ...current, historyLimit: 102 }));
-      result.current.save();
-    });
-    expect(result.current.canSave).toBe(false);
-    expect(updateWindowManagerSettings).toHaveBeenCalledOnce();
-    await act(async () => rejectSave(new Error("Failed to fetch")));
-    await waitFor(() => expect(result.current.canSave).toBe(true));
-    expect(result.current.draft.historyLimit).toBe(102);
+    await waitFor(() =>
+      expect(result.current.error).toBeInstanceOf(WindowManagerSettingsApplyError)
+    );
+    expect(result.current.dirty).toBe(false);
+    expect(result.current.canSave).toBe(true);
+    expect(result.current.result?.apply.applied).toBe(false);
+    act(() => result.current.reset());
+    expect(result.current.draft.gaps.inner).toBe(0);
     expect(result.current.error).toBeNull();
   });
+
+  it.each(["transport", "application"])(
+    "Should keep a newer edit retryable after an in-flight %s failure",
+    async failure => {
+      let rejectSave!: (error: Error) => void;
+      updateWindowManagerSettings.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectSave = reject;
+          })
+      );
+      const { result } = renderEditor();
+      act(() => result.current.setDraft(current => ({ ...current, historyLimit: 101 })));
+      act(() => result.current.save());
+      await waitFor(() => expect(updateWindowManagerSettings).toHaveBeenCalledOnce());
+      act(() => {
+        result.current.setDraft(current => ({ ...current, historyLimit: 102 }));
+        result.current.save();
+      });
+      expect(result.current.canSave).toBe(false);
+      expect(updateWindowManagerSettings).toHaveBeenCalledOnce();
+      const error =
+        failure === "application"
+          ? new WindowManagerSettingsApplyError({
+              config: { ...CONFIG, historyLimit: 101 },
+              apply: { ...APPLY, applied: false, next_action: "retry" },
+            })
+          : new Error("Failed to fetch");
+      await act(async () => rejectSave(error));
+      await waitFor(() => expect(result.current.canSave).toBe(true));
+      expect(result.current.draft.historyLimit).toBe(102);
+      expect(result.current.error).toBeNull();
+      expect(result.current.result?.apply.next_action).toBe(
+        failure === "application" ? "retry" : undefined
+      );
+    }
+  );
 
   it("Should retain the behavior draft when live shortcut state changes", () => {
     const { result, rerender } = renderEditor();
@@ -240,13 +276,14 @@ describe("useWindowManagerConfigEditor", () => {
     });
     [snapshot] = store.transition(snapshot, {
       type: "saveSucceeded",
-      result: { config: CONFIG, apply: APPLY },
+      result: { config: CONFIG, apply: { ...APPLY, warnings: ["Follow-up required"] } },
       operation: 1,
       revision,
       draftRevision: 1,
     });
 
     expect(snapshot.context.draft.historyLimit).toBe(102);
+    expect(snapshot.context.result?.apply.warnings).toEqual(["Follow-up required"]);
     expect(snapshot.context.phase).toBe("dirty");
   });
 

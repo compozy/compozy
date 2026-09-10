@@ -66,14 +66,14 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
             <Pill.Dot className="size-settings-save-dot" tone={dotTone} />
           )}
           <span
-            className={cn("break-words", isError && "text-danger")}
+            className={cn("min-w-0 break-words", isError && "text-danger")}
             data-testid={`settings-page-${slug}-save-message`}
           >
             {messageFor(state)}
           </span>
           {warnings.length > 0 ? (
             <span
-              className="break-words text-form-hint text-warning"
+              className="min-w-0 break-words text-form-hint text-warning"
               data-testid={`settings-page-${slug}-save-warnings`}
             >
               {warnings.join(" · ")}

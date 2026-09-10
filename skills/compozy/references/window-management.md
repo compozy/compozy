@@ -344,7 +344,8 @@ Workspace layout documents may carry typed overrides without changing other work
 
 The Settings PATCH preserves its section echo and adds `apply`, the daemon's application receipt.
 Inspect `apply.applied`, `next_action`, `warnings`, and `partial_failures`; HTTP success alone does
-not prove live application. For a behavior-only `config` save, pass `preserve_shortcuts: true` to
+not prove live application. An unchanged file still retries a pending scoped live application;
+a global settings reload is not needed to retry a Layouts PATCH. For a behavior-only `config` save, pass `preserve_shortcuts: true` to
 retain the current local and global shortcut maps atomically. Explicit top-level shortcut maps still
 replace their respective maps. Omitting the flag retains full-config replacement semantics.
 Zero is valid for every gap: `inner` controls spacing between tiles; the other four values are insets.

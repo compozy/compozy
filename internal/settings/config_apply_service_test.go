@@ -2316,6 +2316,86 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retry a persisted layout without applying unrelated pending config", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		applier := &fakeConfigRuntimeApplier{failures: []ApplyFailure{{
+			Subsystem: "window-manager",
+			Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+				ID: "config.apply.layout_failure", Code: diagnosticcontract.CodeConfigPartialFailure,
+				Category: diagnosticcontract.CategoryConfig, Title: "Layout apply failed",
+				Message: "Runtime unavailable", Severity: diagnosticcontract.SeverityError,
+				DataFreshness: diagnosticcontract.FreshnessLive,
+			}),
+		}}}
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil), RuntimeApplier: applier,
+		})
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		desired := cfg.WindowManager
+		desired.Gaps.Inner = 0
+		request := SectionUpdateRequest{SectionRequest: SectionRequest{Section: SectionWindowManager},
+			WindowManager: &desired, WindowManagerPreserveShortcuts: true}
+		failed, err := service.ApplySection(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if failed.Applied || failed.NextAction != lifecycle.NextActionRetry || applier.calls != 1 {
+			t.Fatalf("failed layout apply = %#v, calls = %d", failed, applier.calls)
+		}
+		persisted, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.WindowManager.Gaps.Inner != 0 {
+			t.Fatal("failed runtime apply lost persisted zero")
+		}
+		general := generalSettingsFromConfig(&persisted)
+		general.HTTP.Port++
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionGeneral}, General: &general,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		applier.failures = nil
+		retried, err := service.ApplySection(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !retried.Applied || retried.Skipped || applier.calls != 2 {
+			t.Fatalf("retry skipped pending runtime apply: %#v, calls = %d", retried, applier.calls)
+		}
+		active := applier.snapshots[1]
+		if active.WindowManager.Gaps.Inner != 0 || active.HTTP.Port != cfg.HTTP.Port {
+			t.Fatalf(
+				"retry applied the wrong projection: gaps=%#v port=%d",
+				active.WindowManager.Gaps,
+				active.HTTP.Port,
+			)
+		}
+		repeated, err := service.ApplySection(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !repeated.Skipped || applier.calls != 2 || repeated.Record.Generation != retried.Record.Generation {
+			t.Fatalf("unchanged active layout reapplied: %#v, calls = %d", repeated, applier.calls)
+		}
+	})
+
 	t.Run("Should fail apply record without advancing generation when runtime reconcile fails", func(t *testing.T) {
 		t.Parallel()
 

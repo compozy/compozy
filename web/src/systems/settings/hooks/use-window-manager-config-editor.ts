@@ -6,6 +6,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   updateWindowManagerSettings,
+  WindowManagerSettingsApplyError,
   type WindowManagerSettingsSaveResult,
 } from "../adapters/window-manager-layouts-api";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
@@ -148,11 +149,21 @@ export const windowManagerConfigEditorLogic = createStoreLogic<
     ) => {
       if (context.operation !== event.operation || !isCurrentConfig(context, event.revision))
         return;
+      const saved =
+        event.error instanceof WindowManagerSettingsApplyError ? event.error.result : null;
+      const nextContext = saved
+        ? {
+            ...context,
+            baseline: structuredClone(saved.config),
+            baselineRevision: configRevision(saved.config),
+            result: saved,
+          }
+        : context;
       if (context.draftRevision !== event.draftRevision) {
-        return { ...context, phase: "dirty" };
+        return { ...nextContext, phase: "dirty" };
       }
       return {
-        ...context,
+        ...nextContext,
         error: event.error,
         phase: isConflictError(event.error) ? "conflict" : "error",
       };
@@ -195,7 +206,7 @@ export const windowManagerConfigEditorLogic = createStoreLogic<
             ? structuredClone(event.result.config)
             : context.draft,
         error: null,
-        result: context.draftRevision === event.draftRevision ? event.result : null,
+        result: event.result,
         phase: context.draftRevision === event.draftRevision ? "baseline" : "dirty",
       };
     },

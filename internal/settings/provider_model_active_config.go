@@ -56,6 +56,10 @@ func (s *service) recordProjectedMutationApply(
 	ctx = correlatedCtx
 	configLifecycle := mutationLifecycle(result)
 	noChanges := mutationResultHasNoChanges(result)
+	// A Layouts retry must compare its scoped active projection, not only the file diff.
+	if result.Section == SectionWindowManager && result.Scope == ScopeUser {
+		noChanges = noChanges && nextActiveHash == state.hash
+	}
 	record, plan, err := s.persistRuntimeApply(
 		ctx,
 		state,

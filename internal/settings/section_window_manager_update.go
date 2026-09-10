@@ -56,6 +56,12 @@ func (s *service) updateWindowManagerSection(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	// Capture the active baseline before the first write, including a cold-service Save.
+	if loaded.scope == ScopeUser {
+		if _, err := s.ensureActiveConfigState(ctx); err != nil {
+			return MutationResult{}, err
+		}
+	}
 	result, err := s.updateScopedConfigSection(
 		req.Section,
 		changed,

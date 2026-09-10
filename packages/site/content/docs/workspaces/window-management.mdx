@@ -98,7 +98,9 @@ on demand.
 
 Settings → Layouts accepts zero for the gap between tiles and for each outer inset independently.
 A failed Save keeps your draft and offers retry or discard. The save result distinguishes applied
-settings from saved settings that still need an action, and displays application warnings.
+settings from saved settings that still need an action, and displays application warnings. If a save
+reaches disk but application fails, retry applies the pending layout; discard keeps the configuration
+already saved on disk.
 
 `PATCH /api/settings/window-manager` retains the section fields and adds an `apply` receipt with
 `applied`, `next_action`, `warnings`, and `partial_failures`. A successful HTTP response does not by

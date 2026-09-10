@@ -38,6 +38,22 @@ were deliberate disruptions. No application receipt was mocked in the browser. P
 failure, warnings and restart/new-session result interpretation are verified at the owning adapter
 and handler test boundaries, not claimed as live platform failures.
 
+## Application retry follow-up
+
+The application-recovery regression reproduced another defect: after persistence succeeded and
+runtime application failed, repeating the identical Layouts PATCH returned `applied: true` and
+`skipped: true` without calling the runtime again. For user-scoped window-manager saves, the shared projected-apply recorder requires both the persisted
+mutation and the active projection to be unchanged before skipping. A cold-service
+Save captures the active baseline before writing, so the first failed apply is also retryable. The owning
+`TestConfigApplyServiceRecordsRuntimeReconcileFailures` case fails before the fix and passes after
+it, using real config persistence and a runtime-applier I/O stub. It verifies successful retry,
+unchanged-repeat idempotence, and preservation of an unrelated pending HTTP port change.
+
+The editor adopts the canonical saved baseline from an application-error receipt, so Discard cannot
+restore an obsolete pre-save value. A result arriving during another edit retains its warnings while
+preserving the newer draft. A second browser capture, `edit-clears-error.png`, explicitly records
+“Unsaved changes” after editing a transport-failed Save; the second lab teardown is also clean.
+
 ## Change impact
 
 - Native tools: no IDs, toolsets, permissions or CLI commands changed. HTTP/UDS share the settings
@@ -56,7 +72,7 @@ and handler test boundaries, not claimed as live platform failures.
 ## Verification and limits
 
 - Root `bunx turbo run test typecheck build --filter=./web` passed: 771 suites / 7,133 tests,
-  typecheck and build. The final gate passed 771 suites / 7,135 tests.
+  typecheck and build. The final gate passed 771 suites / 7,137 tests.
 - `CGO_ENABLED=1 go test -race ./internal/settings ./internal/api/core` passed; the receipt case also
   passed after extending it to both HTTP and UDS handler shims.
 - Root `bunx turbo run build --filter=./packages/site` passed, including TypeScript and static pages.
@@ -65,7 +81,13 @@ and handler test boundaries, not claimed as live platform failures.
   tracked on the current PR head.
 - Laboratory teardown completed with `clean: true`.
 
-The final `bunx turbo run build --filter=./web` also passed after the pending-action adjustment.
+The final root `bunx turbo run build --filter=./web --filter=./packages/site` passed after the
+receipt-retention and message-wrapping changes. The settings package also passed a fresh
+`go test -race ./internal/settings` after the cold-service retry correction.
+
+An earlier concurrent gate run timed out in two unchanged terminal rendering tests while their lazy
+component was still behind its null Suspense fallback. The unchanged owning suite then passed all
+30 tests in isolation and again in the final complete gate. No test timeout or assertion was changed.
 
 The Web build emitted existing CSS `::highlight` optimizer and bundle-size warnings. The full Web
 suite also emitted unrelated harness warnings. No warning suppression was added. The Go convention
