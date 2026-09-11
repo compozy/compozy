@@ -93,7 +93,8 @@ function ContextRow({ context }: { context: SessionGoalSnapshot["context"] }) {
     <StripRow label="Context">
       <span className="font-mono text-badge text-subtle tabular-nums">
         {context.used !== null && context.size !== null
-          ? `${context.used.toLocaleString()} / ${context.size.toLocaleString()} tokens · ${threshold}`
+          ? // Pin en-US: product copy is English, so digits/separators must not vary by host locale.
+            `${context.used.toLocaleString("en-US")} / ${context.size.toLocaleString("en-US")} tokens · ${threshold}`
           : `${ratioLabel} · ${threshold}`}
       </span>
     </StripRow>

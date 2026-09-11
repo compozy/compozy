@@ -490,6 +490,17 @@ zoomed to return to the saved placement and size. These labels describe internal
 CompozyOS windows, not native browser or application fullscreen. Resizing a zoomed
 window adopts the resized geometry instead of restoring its saved placement.
 
+Loopback-only state (shown when a remote-tier device attempts an action the
+daemon can only execute on its own machine; neutral and informative, never
+error-red; strings live in `web/src/systems/gateway/lib/gateway-copy.ts`):
+
+- Panel title: `Not available from this device`
+- Panel description: `This action can only run on the machine running CompozyOS.`
+- Panel hint: `Open CompozyOS on that machine and run it there.`
+- Banner title: `This action runs on the machine running CompozyOS`
+- Banner description: `You are connected through remote access, so this action cannot run from this device.`
+- Tasks zero-inventory (remote tier): `No tasks yet` / `Create or run tasks from the machine running CompozyOS.`
+
 Use:
 
 - current state, next action, and consequence.

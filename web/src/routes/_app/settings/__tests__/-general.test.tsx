@@ -2,7 +2,9 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { createElement, type ReactNode, type SetStateAction } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 import type {
   SettingsUpdateApplyResult,
@@ -208,7 +210,11 @@ vi.mock("@/systems/tool-approvals", () => ({
     createElement("div", { "data-testid": "settings-page-general-tool-approvals" }),
 }));
 
+let unlatchGatewayTier: () => void;
+
 beforeEach(() => {
+  // The save bar and restart banner render where the tier can execute writes.
+  unlatchGatewayTier = latchGatewayTierForTest("local");
   pageState = {
     isLoading: false,
     error: null,
@@ -271,6 +277,10 @@ beforeEach(() => {
 });
 
 import { GeneralSettingsPage } from "../-general-settings-page";
+
+afterEach(() => {
+  unlatchGatewayTier();
+});
 
 describe("GeneralSettingsPage", () => {
   it("renders a loading indicator while fetching", () => {

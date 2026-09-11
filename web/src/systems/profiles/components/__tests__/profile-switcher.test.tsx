@@ -43,7 +43,7 @@ function renderSwitcher({
   archivedCount = 2,
   manageable = true,
   onSelectProfile = () => {},
-  onSelectAggregate = () => {},
+  onSelectAggregate,
   onCreate = () => {},
   onEditProfile,
   onOpenSettings = () => {},
@@ -58,7 +58,7 @@ function renderSwitcher({
         archivedCount={archivedCount}
         manageable={manageable}
         onSelectProfile={onSelectProfile}
-        onSelectAggregate={onSelectAggregate}
+        {...(onSelectAggregate ? { onSelectAggregate } : {})}
         onCreate={onCreate}
         {...(onEditProfile ? { onEditProfile } : {})}
         onOpenSettings={onOpenSettings}
@@ -159,6 +159,22 @@ describe("ProfileSwitcher", () => {
 
     await user.click(screen.getByTestId("profile-switcher-all"));
     expect(onSelectAggregate).toHaveBeenCalledOnce();
+  });
+
+  // Invariant: the aggregate entry is the same selection write as switching
+  // profiles, so when no handler is offered (remote tier refuses
+  // `PUT /api/profiles/selection`) the entry is absent, never disabled.
+  // Owning layer: the switcher composition (handler presence comes from
+  // `useProfileSwitcher`'s `profileEnablementWrites` gate).
+  // Canonical suite: this ProfileSwitcher interaction suite.
+  it("Should hide the aggregate entry when the tier cannot write the selection", async () => {
+    const user = userEvent.setup();
+    const onSelectAggregate = vi.fn();
+    renderSwitcher({ aggregate: true, onSelectAggregate: undefined });
+
+    await user.click(screen.getByTestId("os-menubar-profile"));
+    expect(screen.queryByTestId("profile-switcher-all")).not.toBeInTheDocument();
+    expect(onSelectAggregate).not.toHaveBeenCalled();
   });
 
   // Invariant: a row's edit affordance raises the canonical identity dialog for

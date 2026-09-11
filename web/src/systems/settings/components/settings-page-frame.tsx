@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@compozy/ui";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import type { SettingsRestartViewState } from "../lib/restart-presentation";
 import type { SettingsSectionSlug } from "../types";
 import { SettingsRestartNotice } from "./settings-restart-notice";
@@ -48,6 +49,10 @@ export function SettingsPageFrame({
   saveBar,
   children,
 }: SettingsPageFrameProps) {
+  // Settings writes (save bar) and daemon restarts are privileged mutations:
+  // on remote tiers their affordances are absent and the read view renders
+  // normally (BR-1).
+  const { privilegedMutations } = useGatewayCapabilities();
   const hasSubhead = Boolean(description || (meta && meta.length > 0));
 
   return (
@@ -80,9 +85,11 @@ export function SettingsPageFrame({
               ))}
             </div>
           ) : null}
-          {restart ? <SettingsRestartNotice restart={restart} slug={slug} /> : null}
+          {privilegedMutations && restart ? (
+            <SettingsRestartNotice restart={restart} slug={slug} />
+          ) : null}
           {children}
-          {saveBar}
+          {privilegedMutations ? saveBar : null}
         </div>
       </div>
     </div>

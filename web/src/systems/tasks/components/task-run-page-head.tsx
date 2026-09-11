@@ -48,7 +48,12 @@ export interface TaskRunPageActionsProps {
   maxAttempts?: number | null;
   isRetryPending?: boolean;
   onOpenSession: (sessionId: string) => void;
-  onRetry: () => void;
+  /**
+   * Absent when the tier cannot execute the run-retry write (a local-only
+   * lifecycle route): the Retry button does not render and the head falls
+   * back to the read affordances (BR-1 — absent, never disabled).
+   */
+  onRetry?: () => void;
 }
 
 /** Opens the live session or retries a failed run when another attempt is available. */
@@ -64,7 +69,7 @@ export function TaskRunPageActions({
   const attemptsRemain =
     maxAttempts !== undefined && (maxAttempts === null || record.attempt < maxAttempts);
 
-  if (record.status === "failed" && attemptsRemain) {
+  if (onRetry && record.status === "failed" && attemptsRemain) {
     return (
       <Button
         data-testid="tasks-run-retry"
@@ -101,6 +106,13 @@ export function TaskRunPageActions({
 export interface TaskRunPageOverflowProps {
   run: TaskRunDetailView;
   canRecover: boolean;
+  /**
+   * Whether the tier's route matrix registers the run-mutation routes
+   * (`registerRunMutationRoutes`, local surface set only). False drops the
+   * cancel/recover/release/force-fail entries while the copy read stays
+   * (BR-1 — absent, never disabled).
+   */
+  lifecycleEnabled?: boolean;
   pending: {
     cancel?: boolean;
     release?: boolean;
@@ -117,6 +129,7 @@ export interface TaskRunPageOverflowProps {
 export function TaskRunPageOverflow({
   run,
   canRecover,
+  lifecycleEnabled = true,
   pending,
   onCancel,
   onRelease,
@@ -125,9 +138,9 @@ export function TaskRunPageOverflow({
   onCopyRunId,
 }: TaskRunPageOverflowProps) {
   const status = run.run.status;
-  const isCancelable = CANCELABLE_STATUSES.has(status);
-  const canRelease = status === "claimed";
-  const canForceFail = status === "queued" || status === "claimed";
+  const isCancelable = lifecycleEnabled && CANCELABLE_STATUSES.has(status);
+  const canRelease = lifecycleEnabled && status === "claimed";
+  const canForceFail = lifecycleEnabled && (status === "queued" || status === "claimed");
 
   return (
     <DropdownMenu>
@@ -139,7 +152,7 @@ export function TaskRunPageOverflow({
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="tasks-run-overflow-menu">
-        {canRecover ? (
+        {lifecycleEnabled && canRecover ? (
           <DropdownMenuItem
             data-testid="tasks-run-recover"
             disabled={pending.recover}

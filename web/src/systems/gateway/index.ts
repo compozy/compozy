@@ -36,6 +36,7 @@ export {
   useRedeemGatewayPairing,
   type RedeemPairingInput,
 } from "./hooks/use-gateway-access";
+export { useGatewayCapabilities, useGatewayLoopbackOnly } from "./hooks/use-gateway-capabilities";
 export {
   useDisableGatewayProvider,
   useEnableGatewayProvider,
@@ -73,6 +74,7 @@ export { GatewayProviderRow } from "./components/gateway-provider-row";
 export { GatewayProviderSection } from "./components/gateway-provider-section";
 export { GatewayPublicConsentDialog } from "./components/gateway-public-consent-dialog";
 export { GatewayStatusChip } from "./components/gateway-status-chip";
+export { LoopbackOnlyState, type LoopbackOnlyStateProps } from "./components/loopback-only-state";
 
 // Utilities
 export {
@@ -95,6 +97,7 @@ export {
   REACHABILITY_COPY,
   SURFACE_LABEL,
   TIER_LABEL,
+  LOOPBACK_ONLY_STATE_COPY,
   type GatewaySignalTone,
 } from "./lib/gateway-copy";
 export {
@@ -117,6 +120,15 @@ export {
   startGatewayAccessObserver,
   type GatewayAccessState,
 } from "./stores/gateway-access-store";
+export {
+  gatewayCapabilityStore,
+  startGatewayCapabilityObserver,
+  type GatewayCapabilityState,
+} from "./stores/gateway-capability-store";
+
+// Capability model (tier → what the listener can execute, per the SurfaceSet matrices)
+export { capabilitiesForTier, type GatewayCapabilities } from "./lib/gateway-capabilities";
+export { classifyGatewayLoopback, type GatewayLoopbackSignal } from "./lib/gateway-loopback";
 
 // API
 export { gatewayApi } from "./adapters/gateway-api";

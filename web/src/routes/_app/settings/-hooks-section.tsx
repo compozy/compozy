@@ -167,13 +167,26 @@ function HookRow({
       </div>
       <div className="flex items-center justify-end gap-2">
         {pending ? <Spinner className="size-3 text-subtle" /> : null}
-        <Switch
-          data-testid={`settings-page-hooks-row-${entry.name}-toggle`}
-          checked={enabled}
-          disabled={pending || !canMutate}
-          onCheckedChange={checked => onToggle(entry, checked)}
-          aria-label={`Toggle hook ${entry.name}`}
-        />
+        {canMutate ? (
+          <Switch
+            data-testid={`settings-page-hooks-row-${entry.name}-toggle`}
+            checked={enabled}
+            disabled={pending}
+            onCheckedChange={checked => onToggle(entry, checked)}
+            aria-label={`Toggle hook ${entry.name}`}
+          />
+        ) : (
+          // Remote tiers register no hook enablement writes: the toggle is
+          // absent; the enablement state stays readable (BR-1).
+          <Pill
+            data-testid={`settings-page-hooks-row-${entry.name}-state`}
+            mono
+            size="xs"
+            tone={enabled ? "success" : "neutral"}
+          >
+            {enabled ? "enabled" : "off"}
+          </Pill>
+        )}
       </div>
     </li>
   );

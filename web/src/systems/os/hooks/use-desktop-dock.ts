@@ -28,6 +28,13 @@ export interface UseDesktopDockOptions {
    * the same open-window rule as every other app (isolated dock tests).
    */
   terminalLive?: boolean;
+  /**
+   * Whether the Terminal launcher belongs in the dock at all. Remote tiers do
+   * not register terminal routes, so the entry is absent — never disabled
+   * (BR-1). Production passes the capability truth; isolated dock tests keep
+   * the local default.
+   */
+  includeTerminal?: boolean;
 }
 
 /**
@@ -37,7 +44,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { onNewSession, terminalLive }: UseDesktopDockOptions
+  { onNewSession, terminalLive, includeTerminal = true }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
@@ -75,6 +82,9 @@ export function useDesktopDock(
     // Catalog seams: Home+Terminal | Agents…Triggers | Marketplace…Knowledge | Sandbox+Vault.
     if (index > 0) entries.push({ id: `sep-${index}`, sep: true });
     for (const app of group) {
+      // Terminal routes only exist on the local surface set, so the launcher is
+      // absent on remote tiers instead of opening a window that cannot work.
+      if (app.id === "terminal" && !includeTerminal) continue;
       const state = windowStates[app.id];
       entries.push({
         id: app.id,

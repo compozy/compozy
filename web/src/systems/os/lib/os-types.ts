@@ -249,5 +249,12 @@ export interface WindowManagerController extends OsDesktopRuntime {
 }
 
 export const OS_COMPACT_BREAKPOINT = 960;
+/**
+ * Touch-tier floor (S6/T1): at this width and below, interactive chrome
+ * reaches the 44px floor (`--height-button-cta-lg`), the same tier the
+ * dialog shell and help tips already use. Below the compact breakpoint,
+ * above it chrome keeps desktop target sizes.
+ */
+export const OS_TOUCH_BREAKPOINT = 760;
 export const OS_WINDOW_MIN_WIDTH = 280;
 export const OS_WINDOW_MIN_HEIGHT = 180;

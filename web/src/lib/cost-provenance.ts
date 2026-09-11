@@ -60,7 +60,8 @@ function currencyFormatter(currency: string, digits: number): Intl.NumberFormat 
   const key = `${currency}:${digits}`;
   const cached = currencyFormatters.get(key);
   if (cached) return cached;
-  const formatter = Intl.NumberFormat(undefined, {
+  // Pin en-US: product copy is English, so digits/separators must not vary by host locale.
+  const formatter = Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: digits,

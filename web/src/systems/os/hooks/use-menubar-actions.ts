@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import { OS_COMPACT_BREAKPOINT, type OsAppId } from "../lib/os-types";
+import { OS_COMPACT_BREAKPOINT, OS_TOUCH_BREAKPOINT, type OsAppId } from "../lib/os-types";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsWindowCommandsModel } from "./use-os-window-commands";
 import { useAgentCreateHost } from "@/systems/agent";
@@ -8,24 +8,33 @@ import { settingsSectionPath } from "@/systems/settings";
 
 /** Below the compact breakpoint the app menus collapse (US-019.EC-3). */
 const COMPACT_QUERY = `(max-width: ${OS_COMPACT_BREAKPOINT - 0.02}px)`;
+/** At or below the touch tier, chrome targets reach the 44px floor (S6/T1). */
+const TOUCH_QUERY = `(max-width: ${OS_TOUCH_BREAKPOINT}px)`;
 
-function subscribeCompact(callback: () => void): () => void {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return () => undefined;
-  }
-  const mql = window.matchMedia(COMPACT_QUERY);
-  if (typeof mql.addEventListener === "function") {
-    mql.addEventListener("change", callback);
-    return () => mql.removeEventListener("change", callback);
-  }
-  mql.addListener(callback);
-  return () => mql.removeListener(callback);
+function subscribeQuery(query: string): (callback: () => void) => () => void {
+  return callback => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return () => undefined;
+    }
+    const mql = window.matchMedia(query);
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", callback);
+      return () => mql.removeEventListener("change", callback);
+    }
+    mql.addListener(callback);
+    return () => mql.removeListener(callback);
+  };
 }
 
-function getCompact(): boolean {
+function readQuery(query: string): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia(COMPACT_QUERY).matches;
+  return window.matchMedia(query).matches;
 }
+
+const subscribeCompact = subscribeQuery(COMPACT_QUERY);
+const getCompact = () => readQuery(COMPACT_QUERY);
+const subscribeTouch = subscribeQuery(TOUCH_QUERY);
+const getTouch = () => readQuery(TOUCH_QUERY);
 
 export interface MenubarActionsModel {
   /**
@@ -34,6 +43,11 @@ export interface MenubarActionsModel {
    * item; the palette still carries every action.
    */
   menusVisible: boolean;
+  /**
+   * Touch tier (S6/T1): at or below `OS_TOUCH_BREAKPOINT` menubar chrome grows
+   * to the 44px floor and the identity chip compresses.
+   */
+  touchViewport: boolean;
   /** The window-manager fence the ⌘K palette uses for the same decisions. */
   canOpenApps: boolean;
   windowCommands: OsWindowCommandsModel;
@@ -54,6 +68,7 @@ export function useMenubarActions(): MenubarActionsModel {
   const agentCreate = useAgentCreateHost();
   const windowCommands = useOsWindowCommands();
   const compact = useSyncExternalStore(subscribeCompact, getCompact, () => false);
+  const touchViewport = useSyncExternalStore(subscribeTouch, getTouch, () => false);
   const canOpenApps = windowCommands.commandsAvailable;
 
   const openApp = (app: OsAppId) => {
@@ -62,6 +77,7 @@ export function useMenubarActions(): MenubarActionsModel {
 
   return {
     menusVisible: !compact,
+    touchViewport,
     canOpenApps,
     windowCommands,
     openApp,

@@ -105,6 +105,8 @@ export function DesktopMenubar({
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
+  // Touch tier rides the same media hook as the compact menu collapse (S6/T1).
+  const touch = actions.touchViewport;
   const scopeModel = desktopMenubarScopeModel({
     activeWorkspace,
     canDisableGlobal,
@@ -125,6 +127,7 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
+      touch={touch}
       workspace={scopeModel.workspace}
       scopeNotice={
         scopeModel.fallback ? (
@@ -156,6 +159,7 @@ export function DesktopMenubar({
       )}
       scopeControl={
         <GlobalScopeToggle
+          touch={touch}
           checked={scopeModel.globalOn}
           locked={scopePending || toggleLocked || (scopeModel.globalOn && !canDisableGlobal)}
           lockedReason={scopeModel.toggleLockedReason}
@@ -200,7 +204,13 @@ export function DesktopMenubar({
           </>
         ) : null
       }
-      profileSwitcher={profileSwitcher}
+      // Touch tier priority call (F3): the profile switcher is the one
+      // trailing control the 390px bar cannot afford — a shrink-0 text row
+      // (~120px) that forced the identity segment under the action cluster.
+      // It is the lowest-priority slot: quiet-until-plural (usually absent),
+      // and profiles stay reachable on touch via Settings → Profiles and the
+      // palette's profiles view. Truthful: absent, not cramped.
+      profileSwitcher={touch ? null : profileSwitcher}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

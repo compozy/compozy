@@ -294,4 +294,102 @@ describe("NotificationPresetsPanel", () => {
 
     expect(screen.getByText("Deliveries for archived profiles are paused.")).toBeInTheDocument();
   });
+
+  it("renders the registry read-only when the tier cannot mutate, with affordances absent", () => {
+    // Remote tiers register no enablement writes: create/toggle/delete go
+    // absent rather than disabled (BR-1); the enablement state stays readable.
+    render(
+      <NotificationPresetsPanel
+        presets={[builtInPreset, customPreset]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate={false}
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-new")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-row-task_terminal-toggle")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-row-custom_failure-delete")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal-state")
+    ).toHaveTextContent("off");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_failure-state")
+    ).toHaveTextContent("enabled");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal")
+    ).toHaveTextContent("built-in");
+  });
+
+  it("removes an open create form when the capability flips off mid-edit", () => {
+    // A tier change while the form is open must not leave disabled controls
+    // on screen (BR-1): the form goes absent with the other create affordances.
+    const { rerender } = render(
+      <NotificationPresetsPanel
+        presets={[]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-new"));
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-createform")
+    ).toBeInTheDocument();
+
+    rerender(
+      <NotificationPresetsPanel
+        presets={[]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate={false}
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-createform")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-new")
+    ).not.toBeInTheDocument();
+
+    // The capability returning restores the affordance; createOpen survives.
+    rerender(
+      <NotificationPresetsPanel
+        presets={[]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-createform")
+    ).toBeInTheDocument();
+  });
 });

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { copyTaskRecordId } from "./copy-record-id";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import {
   computeElapsed,
   type ResolvedTaskDetailSearch,
@@ -39,6 +40,13 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   const page = useTaskDetailPage(taskId, { liveDataEnabled });
   const deleteMutation = useDeleteTask();
   const updateMutation = useUpdateTask();
+  // Origin gate for the controller's task PATCH/DELETE verbs below (and the
+  // execution-profile DELETE behind clear-setup): those routes register only
+  // on the local surface set (`routes.go` `includeTaskMutations`). The
+  // affordances go absent at the composition layer (BR-1); this backstop
+  // mirrors the page-hook verbs in `useTaskDetailPage` so a wiring regression
+  // cannot fire a doomed request on a remote tier.
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const [overlay, setOverlay] = useState<"setup" | "setup_clear" | "fan_out" | "delete" | null>(
     null
   );
@@ -124,6 +132,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const handleDeleteTask = async (id: string) => {
+    if (!localTaskLifecycle) return;
     void coordinator.userOpen({ app: "tasks", route: { pathname: "/tasks", search: {} } });
     try {
       await deleteMutation.mutateAsync({ id });
@@ -134,7 +143,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const handlePriorityChange = async (priority: TaskPriority) => {
-    if (!record || record.priority === priority) return;
+    if (!localTaskLifecycle || !record || record.priority === priority) return;
     try {
       await updateMutation.mutateAsync({ id: record.id, data: { priority } });
     } catch (error) {
@@ -143,7 +152,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const handleAutoEnqueueChange = async (enabled: boolean) => {
-    if (!record || Boolean(record.auto_enqueue_on_ready) === enabled) return;
+    if (!localTaskLifecycle || !record || Boolean(record.auto_enqueue_on_ready) === enabled) return;
     try {
       await updateMutation.mutateAsync({
         id: record.id,
@@ -155,6 +164,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const handleClearSetup = async () => {
+    if (!localTaskLifecycle) return;
     try {
       await operator.handleDeleteProfile();
       setOverlay("setup");

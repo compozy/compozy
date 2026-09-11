@@ -111,6 +111,11 @@ function overflowLabel(control: OverflowControl): string {
 /**
  * Bottom-chrome desktop navigation. The 44px controls remain transparent at rest;
  * only the 6px dots and 14px active pill are visible.
+ *
+ * Compact (touch dock, T9 real-device delta): a single desktop is not a
+ * switcher — the pager renders nothing instead of an orphaned position pill,
+ * and with several desktops it shrink-wraps its pills (capped at half the bar)
+ * instead of reserving 50vw of dead space beside the app launchers.
  */
 export function DesktopPager({
   desktops,
@@ -131,6 +136,7 @@ export function DesktopPager({
   const tabStopKey = rovingKey && visibleKeys.has(rovingKey) ? rovingKey : activeKey;
 
   if (desktops.length === 0) return null;
+  if (compact && desktops.length === 1) return null;
 
   const focusControl = (position: number) => {
     const control = controls[position];
@@ -161,7 +167,7 @@ export function DesktopPager({
       data-presentation={compact ? "compact" : "floating"}
       className={cn(
         "no-scrollbar min-w-0 overflow-x-auto overscroll-x-contain p-0.5",
-        compact ? "w-[50vw] max-w-[50vw]" : "w-full max-w-full",
+        compact ? "w-fit max-w-[50vw]" : "w-full max-w-full",
         className
       )}
       {...props}

@@ -20,7 +20,11 @@ export interface ProfileSwitcherMenuProps {
   aggregate: boolean;
   archivedCount: number;
   onSelectProfile: (name: string) => void;
-  onSelectAggregate: () => void;
+  /**
+   * Absent when the tier cannot execute the aggregate selection write: the
+   * aggregate entry does not render at all (BR-1 — absent, never disabled).
+   */
+  onSelectAggregate?: () => void;
   onCreate: () => void;
   onEditProfile?: (name: string) => void;
   onOpenSettings: () => void;
@@ -44,7 +48,10 @@ export function ProfileSwitcherMenu({
   error = null,
   onRetry,
 }: ProfileSwitcherMenuProps) {
-  const showAggregate = aggregate || rows.length > 1 || archivedCount > 0;
+  // The aggregate entry is a selection write (PUT /api/profiles/selection):
+  // without a handler the tier cannot execute it, so the entry goes absent.
+  const showAggregate =
+    onSelectAggregate !== undefined && (aggregate || rows.length > 1 || archivedCount > 0);
 
   return (
     <Command className="bg-transparent p-0 shadow-none">

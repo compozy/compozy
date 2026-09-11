@@ -1,6 +1,7 @@
 import { Bell, ChevronsUpDown, Command, Settings } from "lucide-react";
 
 import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
+import { DIALOG_TOUCH_TARGET_CLASS, DIALOG_TOUCH_TARGET_SQUARE_CLASS } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -59,6 +60,13 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * slot.
    */
   profileSwitcher?: React.ReactNode;
+  /**
+   * Touch tier (S6/T1): at or below the 760px floor the bar's controls fill the
+   * 44px bar height, the identity chip compresses, and the worktree segment
+   * steps aside (the workspace menu still names it). Desktop rendering passes
+   * nothing and stays pixel-identical.
+   */
+  touch?: boolean;
 }
 
 const WINDOW_DRAG = "[app-region:drag]";
@@ -151,17 +159,27 @@ export function OsMenuBar({
   scopeControl,
   wrapBellTrigger,
   profileSwitcher,
+  touch = false,
   className,
   ...props
 }: OsMenuBarProps) {
   // Compact (<960px, `OS_COMPACT_BREAKPOINT`): the shell stops passing `menus`;
   // mark, globe toggle, and chip stay leading. Hidden actions stay in the palette.
   const wrapMenus = Boolean(logoMenu || workspaceMenu);
+  // Touch tier (S6/T1): the shared 44px floor constants from `@compozy/ui`
+  // (`dialog-shell`) — defined once, consumed here media-scoped and only when
+  // the shell reports the touch viewport.
+  const controlClass = touch ? DIALOG_TOUCH_TARGET_SQUARE_CLASS : undefined;
   const logoControl = (
     <MenuControl
       data-slot="os-menubar-logo"
       aria-label="CompozyOS"
-      className="grid size-7 place-items-center rounded-menubar-control p-0"
+      className={cn(
+        "grid size-7 place-items-center rounded-menubar-control p-0",
+        // The 44px floor is a floor: the mark never gives its width to the squeeze.
+        touch && "shrink-0",
+        controlClass
+      )}
       menu={logoMenu}
     >
       <Logo variant="symbol" decorative className="size-menubar-logo" />
@@ -170,14 +188,28 @@ export function OsMenuBar({
   const workspaceControl = (
     <MenuControl
       data-slot="os-menubar-workspace"
-      className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
+      className={cn(
+        "flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2",
+        touch && DIALOG_TOUCH_TARGET_CLASS,
+        // Touch tier (F3): the chip is the give-way element — it must be
+        // allowed to shrink so the label truncates instead of the identity
+        // segment spilling under the trailing cluster.
+        touch && "min-w-0 px-1.5"
+      )}
       menu={workspaceMenu}
     >
-      <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
+      <span className="grid size-workspace-avatar shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
         {workspace.monogram}
       </span>
-      <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
-      {workspace.worktree ? (
+      <span
+        className={cn(
+          "text-small-body font-semibold text-fg-strong",
+          touch && "min-w-0 max-w-28 truncate"
+        )}
+      >
+        {workspace.name}
+      </span>
+      {touch ? null : workspace.worktree ? (
         <>
           <span aria-hidden="true" className="text-small-body text-faint">
             /
@@ -190,7 +222,7 @@ export function OsMenuBar({
           </span>
         </>
       ) : null}
-      <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
+      <Icon as={ChevronsUpDown} size="sm" className={cn("text-subtle", touch && "shrink-0")} />
     </MenuControl>
   );
 
@@ -214,9 +246,18 @@ export function OsMenuBar({
         )}
       >
         <div className={cn("flex min-w-0 items-center gap-1", WINDOW_NO_DRAG)}>
-          <div data-slot="os-menubar-identity" className="flex items-center gap-1">
+          {/* Touch tier (F3): every wrapper between the shrinking leading div
+              and the scope label needs min-w-0, or the identity segment keeps
+              its content width and paints under the trailing cluster. */}
+          <div
+            data-slot="os-menubar-identity"
+            className={cn("flex items-center gap-1", touch && "min-w-0")}
+          >
             {wrapMenus ? (
-              <Menubar aria-label="System menu" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar
+                aria-label="System menu"
+                className={cn("gap-1", WINDOW_NO_DRAG, touch && "min-w-0")}
+              >
                 {logoControl}
               </Menubar>
             ) : (
@@ -224,7 +265,10 @@ export function OsMenuBar({
             )}
             {scopeControl}
             {wrapMenus ? (
-              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar
+                aria-label="Workspace"
+                className={cn("gap-1", WINDOW_NO_DRAG, touch && "min-w-0")}
+              >
                 {workspaceControl}
               </Menubar>
             ) : (
@@ -242,7 +286,7 @@ export function OsMenuBar({
           ) : null}
         </div>
 
-        <div className={cn("flex items-center gap-2", WINDOW_NO_DRAG)}>
+        <div className={cn("flex items-center gap-2", WINDOW_NO_DRAG, touch && "gap-1")}>
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}
@@ -252,7 +296,10 @@ export function OsMenuBar({
             data-slot="os-menubar-bell"
             aria-label={notifications ? `Attention, ${notifications} waiting` : "Attention"}
             aria-haspopup={wrapBellTrigger ? "true" : undefined}
-            className="relative grid size-7 place-items-center rounded-md text-muted"
+            className={cn(
+              "relative grid size-7 place-items-center rounded-md text-muted",
+              controlClass
+            )}
             wrap={wrapBellTrigger}
           >
             <Icon as={Bell} size="lg" />
@@ -264,7 +311,7 @@ export function OsMenuBar({
             title={
               commandShortcutLabel ? `Command palette · ${commandShortcutLabel}` : "Command palette"
             }
-            className="grid size-7 place-items-center rounded-md text-muted"
+            className={cn("grid size-7 place-items-center rounded-md text-muted", controlClass)}
             onClick={onCommandClick}
           >
             <Icon as={Command} size="lg" />
@@ -277,7 +324,7 @@ export function OsMenuBar({
             data-slot="os-menubar-settings"
             aria-label="Settings"
             title="Settings"
-            className="grid size-7 place-items-center rounded-md text-muted"
+            className={cn("grid size-7 place-items-center rounded-md text-muted", controlClass)}
             onClick={onSettingsClick}
           >
             <Icon as={Settings} size="lg" />

@@ -1,4 +1,4 @@
-import { useGatewayAccessTier } from "@/systems/gateway";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useWorkspaces } from "@/systems/workspace";
 
 import { activeProfiles, archivedProfiles } from "../lib/profile-rows";
@@ -35,7 +35,7 @@ export function useProfilesSettingsPage(): ProfilesSettingsPageModel {
   const selections = useProfileSelectionMap();
   const workspaces = useWorkspaces();
   const view = useActiveProfileView(lens);
-  const tier = useGatewayAccessTier();
+  const { profileEnablementWrites } = useGatewayCapabilities();
 
   const all = profiles.data ?? [];
   const names = new Map((workspaces.data ?? []).map(workspace => [workspace.id, workspace.name]));
@@ -45,7 +45,7 @@ export function useProfilesSettingsPage(): ProfilesSettingsPageModel {
     archived: archivedProfiles(all),
     selections: selections.data ?? [],
     currentName: view.kind === "profile" ? view.profile : "",
-    manageable: tier === "local",
+    manageable: profileEnablementWrites,
     isLoading: profiles.isLoading || selections.isLoading || workspaces.isLoading,
     errorMessage:
       [profiles.error, selections.error, workspaces.error].find(

@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minus, Minimize2, X } from "lucide-react";
 import { Fragment } from "react";
 
 import { cn } from "@/lib/utils";
@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
  * Compact (<960px, os-v2.css mobile block): the zoom control disappears
  * (meaningless in a stack), glyphs grow to 15px, and interactive controls get
  * non-overlapping 44px touch targets. Inert chrome uses the visual 12px gap.
+ *
+ * Touch identification (T10 real-device delta): compact controls render their
+ * glyph at rest — close (X) and minimize (−) — because hover does not exist
+ * on touch and hover tones are the only desktop identification. Same neutral
+ * ink for both: shape identifies, signal color stays hover/focus-only.
  */
 export type OsTrafficLightAction = "close" | "minimize" | "zoom";
 
@@ -47,6 +52,12 @@ export interface OsTrafficLightsProps extends Omit<React.ComponentProps<"div">, 
   zoomed?: boolean;
 }
 
+/** Rest-state identification glyphs for the touch tier — shape, not color. */
+const COMPACT_GLYPH: Partial<Record<OsTrafficLightAction, typeof X>> = {
+  close: X,
+  minimize: Minus,
+};
+
 function Light({
   action,
   onSelect,
@@ -68,6 +79,7 @@ function Light({
   if (!onSelect) {
     return <span aria-hidden="true" data-action={action} className={glyph} />;
   }
+  const CompactGlyph = compact ? COMPACT_GLYPH[action] : undefined;
   return (
     <button
       type="button"
@@ -90,9 +102,18 @@ function Light({
     >
       <span
         aria-hidden="true"
-        className={cn(glyph, ACTION_TONE[action], "grid place-items-center")}
+        className={cn(
+          glyph,
+          ACTION_TONE[action],
+          "grid place-items-center",
+          CompactGlyph && "text-fg-strong"
+        )}
       >
-        {action === "zoom" ? <ZoomIcon className="size-2.5" /> : null}
+        {action === "zoom" ? (
+          <ZoomIcon className="size-2.5" />
+        ) : CompactGlyph ? (
+          <CompactGlyph className="size-2.5" strokeWidth={2.5} />
+        ) : null}
       </span>
     </button>
   );

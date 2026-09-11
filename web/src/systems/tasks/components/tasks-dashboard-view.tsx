@@ -18,6 +18,8 @@ export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;
   dashboardStatus?: "loading" | "ready";
   errorMessage?: string | null;
+  /** False on remote tiers: the scheduler routes do not exist there, so the panel is absent. */
+  schedulerAvailable?: boolean;
   scheduler?: SchedulerStatus | null;
   schedulerBacklog?: SchedulerBacklog | null;
   schedulerStatus?: "loading" | "ready";
@@ -40,6 +42,7 @@ export function TasksDashboardView({
   dashboard,
   dashboardStatus = "ready",
   errorMessage = null,
+  schedulerAvailable = true,
   scheduler = null,
   schedulerBacklog = null,
   schedulerStatus = "ready",
@@ -82,22 +85,24 @@ export function TasksDashboardView({
       className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5"
       data-testid="tasks-dashboard-view"
     >
-      <SchedulerControlsPanel
-        backlog={schedulerBacklog}
-        backlogErrorMessage={schedulerBacklogErrorMessage}
-        errorMessage={schedulerErrorMessage}
-        isBacklogLoading={schedulerBacklogStatus === "loading"}
-        isLoading={schedulerStatus === "loading"}
-        onDrain={onDrainScheduler ? () => onDrainScheduler({ timeoutSeconds: 60 }) : undefined}
-        onPause={onPauseScheduler}
-        onResume={onResumeScheduler}
-        pending={{
-          drain: schedulerPendingActions?.has("drain") ?? false,
-          pause: schedulerPendingActions?.has("pause") ?? false,
-          resume: schedulerPendingActions?.has("resume") ?? false,
-        }}
-        status={scheduler}
-      />
+      {schedulerAvailable ? (
+        <SchedulerControlsPanel
+          backlog={schedulerBacklog}
+          backlogErrorMessage={schedulerBacklogErrorMessage}
+          errorMessage={schedulerErrorMessage}
+          isBacklogLoading={schedulerBacklogStatus === "loading"}
+          isLoading={schedulerStatus === "loading"}
+          onDrain={onDrainScheduler ? () => onDrainScheduler({ timeoutSeconds: 60 }) : undefined}
+          onPause={onPauseScheduler}
+          onResume={onResumeScheduler}
+          pending={{
+            drain: schedulerPendingActions?.has("drain") ?? false,
+            pause: schedulerPendingActions?.has("pause") ?? false,
+            resume: schedulerPendingActions?.has("resume") ?? false,
+          }}
+          status={scheduler}
+        />
+      ) : null}
 
       <TasksDashboardCards dashboard={dashboard} />
 

@@ -1,12 +1,17 @@
 // Suite: task editor local draft identity
 // Invariant: one source identity preserves edits, a new task/workspace source is visible in every
-// render, and each editor admits only one concurrent submission across source changes.
-// Boundary IN: task/profile Query projections, active workspace, and template route search.
+// render, each editor admits only one concurrent submission across source changes, and the submit
+// path no-ops at the origin when the latched tier cannot execute the local-only task create/PATCH
+// routes (BR-1).
+// Boundary IN: task/profile Query projections, active workspace, template route search, and the
+// latched gateway tier.
 // Boundary OUT: mutations and the presentational editor surface.
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 const editorMocks = vi.hoisted(() => ({
   activeWorkspaceId: "ws_alpha" as string | null,
@@ -82,8 +87,14 @@ function buildEditorDetail(id: string, title: string, updatedAt: string) {
   });
 }
 
+let unlatch: () => void;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // The editors' submit paths gate on the latched tier at the origin: latch
+  // `local` so the suite's default shape keeps submitting, and unlatch so
+  // each case starts from a clean store.
+  unlatch = latchGatewayTierForTest("local");
   editorMocks.activeWorkspaceId = "ws_alpha";
   editorMocks.scope = "workspace";
   editorMocks.detail = buildEditorDetail("task_alpha", "Alpha source", "2026-07-25T10:00:00Z");
@@ -94,6 +105,10 @@ beforeEach(() => {
   editorMocks.detailOptions = undefined;
   editorMocks.profileOptions = undefined;
   editorMocks.activeWorkspaceOptions = undefined;
+});
+
+afterEach(() => {
+  unlatch();
 });
 
 /** The create flow resolves the acting profile, which is a server read. */
@@ -312,5 +327,43 @@ describe("task editor state identity", () => {
     expect(renderedTitles.length).toBeGreaterThan(0);
     expect(renderedTitles.every(title => title === "Beta source")).toBe(true);
     expect(result.current.draft.title).toBe("Beta source");
+  });
+
+  // Invariant: task create (POST /api/tasks and the child-task variant) and
+  // task PATCH register only on the local surface set (`routes.go`
+  // `includeTaskMutations`), so the editors' submit paths no-op at the origin
+  // on a remote tier — a wiring regression cannot fire a doomed request (BR-1).
+  // Owning layer: task editor state hooks.
+  // Canonical suite: useTaskCreateState / useTaskEditState hook tests.
+  it("Should no-op the edit submission when the tier cannot execute task mutations", async () => {
+    unlatch();
+    unlatch = latchGatewayTierForTest("private");
+    const { result } = renderHook(() => useTaskEditState("task_alpha", vi.fn()), {
+      wrapper: createWrapper(),
+    });
+    const draft = { ...result.current.draft, title: "Doomed remote edit" };
+
+    await act(async () => {
+      await expect(result.current.handleSubmit(draft)).resolves.toBeNull();
+    });
+
+    expect(editorMocks.update).not.toHaveBeenCalled();
+  });
+
+  it("Should no-op the create submission when the tier cannot execute task mutations", async () => {
+    unlatch();
+    unlatch = latchGatewayTierForTest("private");
+    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()), {
+      wrapper: createWrapper(),
+    });
+    const draft = { ...result.current.draft, title: "Doomed remote create" };
+
+    await act(async () => {
+      await expect(result.current.handleSubmit(draft, true)).resolves.toBeNull();
+    });
+
+    expect(editorMocks.create).not.toHaveBeenCalled();
+    expect(editorMocks.createChild).not.toHaveBeenCalled();
+    expect(editorMocks.enqueue).not.toHaveBeenCalled();
   });
 });

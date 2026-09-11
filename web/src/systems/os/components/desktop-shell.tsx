@@ -8,8 +8,8 @@ import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controller";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
+import { useDesktopShellScopedBody } from "../hooks/use-desktop-shell-scoped-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
@@ -31,6 +31,7 @@ import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
+import { LoopbackOnlyState } from "@/systems/gateway";
 import {
   ProfileLifecycleHost,
   ProfileSwitcherSlot,
@@ -41,9 +42,6 @@ import {
   SessionCreateProvider,
   SessionDeleteDialog,
   SessionRenameDialog,
-  useSessionCreateActions,
-  useSessionLifecycleActions,
-  useSessionListView,
 } from "@/systems/session";
 import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
 import {
@@ -177,15 +175,8 @@ function DesktopShellScopedBody({
   worktreeSelection,
   clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
-  const sessionCreate = useSessionCreateActions();
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
-  const setAutomationEnabled = useProfileAutomationEnablement();
-  // Scope and order are the operator's, persisted by the daemon; the modal
-  // renders them rather than fetching its own.
-  const sessionListView = useSessionListView();
-  const openNewSession = () => {
-    sessionCreate.openForAgent("");
-  };
+  const { loopbackOnly, openNewSession, sessionLifecycle, sessionListView, setAutomationEnabled } =
+    useDesktopShellScopedBody(model);
   const {
     attention,
     desktop,
@@ -270,6 +261,7 @@ function DesktopShellScopedBody({
         onOpenWorktreeContext={worktreeDialogs.requestContext}
         onRemoveWorktree={worktreeDialogs.requestRemove}
       />
+      {loopbackOnly ? <LoopbackOnlyState layout="banner" /> : null}
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
         {model.activeWorkspaceId !== null ? (

@@ -15,6 +15,7 @@ import { TaskDetailOverlays } from "./task-detail-overlays";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
 import { TaskDetailTopbar } from "./task-detail-topbar";
 import { useTaskDetailLocation } from "./use-task-detail-location";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import {
   type ResolvedTaskDetailSearch,
   latestTaskRun,
@@ -80,6 +81,11 @@ export function TaskDetailLocation({
   search: ResolvedTaskDetailSearch;
 }) {
   const controller = useTaskDetailLocation(taskId, search);
+  // Task/run/review lifecycle mutations register only on the local surface
+  // set (`routes.go` `includeTaskMutations`): the page body renders those
+  // affordances only when the tier can execute them (BR-1 — absent, never
+  // disabled), while read affordances stay on every tier.
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const { page, detail, record, command } = controller;
   const completedRun = latestTaskRun(page.runs, "completed");
   const completedRunResult = useTaskRunResult({
@@ -175,11 +181,17 @@ export function TaskDetailLocation({
                     nowHandlers={{
                       onOpenRun: controller.openRun,
                       onOpenTask: controller.openTask,
-                      onApprove: () => void page.handleApproveTask(),
-                      onReject: () => void page.handleRejectTask(),
-                      onResume: () => void page.handleResumeTask(),
-                      onRecover: () => void page.handleRecoverTask(),
-                      onClearBlock: blockId => void page.handleClearBlock(blockId),
+                      onApprove: localTaskLifecycle
+                        ? () => void page.handleApproveTask()
+                        : undefined,
+                      onReject: localTaskLifecycle ? () => void page.handleRejectTask() : undefined,
+                      onResume: localTaskLifecycle ? () => void page.handleResumeTask() : undefined,
+                      onRecover: localTaskLifecycle
+                        ? () => void page.handleRecoverTask()
+                        : undefined,
+                      onClearBlock: localTaskLifecycle
+                        ? blockId => void page.handleClearBlock(blockId)
+                        : undefined,
                       onViewResult: controller.scrollToResult,
                     }}
                     nowPending={{
@@ -204,7 +216,14 @@ export function TaskDetailLocation({
                     errorMessage={page.runsError?.message ?? null}
                     isLoading={page.runsLoading}
                     isStartPending={page.isEnqueuePending}
-                    onStartRun={canStartRun ? () => void page.handleEnqueueRun() : undefined}
+                    // Start run enqueues a local-only run: the affordance
+                    // needs BOTH the tier capability and a start-able command
+                    // state (BR-1 — absent, never disabled).
+                    onStartRun={
+                      localTaskLifecycle && canStartRun
+                        ? () => void page.handleEnqueueRun()
+                        : undefined
+                    }
                     reviewsByRun={reviewsByRun}
                     runDurations={controller.runDurations}
                     runs={page.runs}
@@ -230,12 +249,28 @@ export function TaskDetailLocation({
                     reject: page.isRejectPending,
                   }}
                   detail={detail}
-                  onApprove={() => void page.handleApproveTask()}
-                  onAutoEnqueueChange={enabled => void controller.handleAutoEnqueueChange(enabled)}
-                  onEditSetup={() => controller.setSetupOpen(true)}
+                  onApprove={localTaskLifecycle ? () => void page.handleApproveTask() : undefined}
+                  // Priority/auto-enqueue persist through task PATCH
+                  // (`UpdateTask`), a local-only mutation route: the editors
+                  // go absent on remote tiers while their read rows stay
+                  // (BR-1 — absent, never disabled).
+                  onAutoEnqueueChange={
+                    localTaskLifecycle
+                      ? enabled => void controller.handleAutoEnqueueChange(enabled)
+                      : undefined
+                  }
+                  // Edit setup saves through the execution-profile PUT
+                  // (`SetTaskExecutionProfile`), a local-only mutation route:
+                  // the entry goes absent on remote tiers while the execution
+                  // read rows stay (BR-1 — absent, never disabled).
+                  onEditSetup={localTaskLifecycle ? () => controller.setSetupOpen(true) : undefined}
                   onInspect={() => controller.setInspectOpen(true)}
-                  onPriorityChange={priority => void controller.handlePriorityChange(priority)}
-                  onReject={() => void page.handleRejectTask()}
+                  onPriorityChange={
+                    localTaskLifecycle
+                      ? priority => void controller.handlePriorityChange(priority)
+                      : undefined
+                  }
+                  onReject={localTaskLifecycle ? () => void page.handleRejectTask() : undefined}
                   profile={page.profile}
                   runs={page.runs}
                   updatePending={controller.updatePending}

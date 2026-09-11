@@ -13,7 +13,8 @@ import {
 import type { TaskRunResultPage } from "../types";
 import type { TaskResultPageController } from "./task-result-types";
 
-const NUMBER_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+// Pin en-US: product copy is English, so digits/separators must not vary by host locale.
+const NUMBER_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 export function TaskExternalResult({
   controller,

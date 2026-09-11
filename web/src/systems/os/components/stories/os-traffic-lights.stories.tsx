@@ -56,3 +56,17 @@ export const CompactPresentationOnly: Story = {
     </div>
   ),
 };
+
+/**
+ * Compact interactive (touch tier, T10): close and minimize carry their
+ * identification glyph at rest — hover does not exist on touch, so shape
+ * identifies and the hover tones stay as the focus/hover affordance.
+ */
+export const CompactInteractive: Story = {
+  args: { compact: true, onSelect: fn() },
+  render: args => (
+    <div className="rounded-md border border-line bg-canvas p-4">
+      <OsTrafficLights {...args} />
+    </div>
+  ),
+};

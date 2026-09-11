@@ -352,6 +352,61 @@ func TestRespondErrorFallbackBranches(t *testing.T) {
 	}
 }
 
+// IT-002 (mobile-surface-truth): the loopback guards' 403 envelopes carry the
+// stable wire codes frozen in the workflow DX contract. Stays parallel: its
+// assertions do not depend on the process-global gin mode — CreateTestContext
+// reads that mode only for an output-only debug print (gin v1.12.0), never for
+// behavior, and RespondError is mode-independent — unlike the sibling
+// diagnostic tests that set it serially.
+func TestRespondErrorLoopbackGuardCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		wantErr  string
+		wantCode string
+	}{
+		{
+			name:     "Should mark loopback mutation refusals with the stable wire code",
+			err:      ErrLoopbackMutationRequired,
+			wantErr:  ErrLoopbackMutationRequired.Error(),
+			wantCode: "loopback_mutation_required",
+		},
+		{
+			name:     "Should mark loopback API refusals with the stable wire code",
+			err:      ErrLoopbackAPIRequired,
+			wantErr:  ErrLoopbackAPIRequired.Error(),
+			wantCode: "loopback_api_required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			RespondError(ctx, http.StatusForbidden, tt.err, false)
+
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+			}
+
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			if payload.Error != tt.wantErr {
+				t.Fatalf("payload.Error = %q, want %q", payload.Error, tt.wantErr)
+			}
+			if payload.Code != tt.wantCode {
+				t.Fatalf("payload.Code = %q, want %q", payload.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
 func TestRespondErrorDiagnosticPayload(t *testing.T) {
 	t.Run("Should include redacted diagnostic when error carries one", func(t *testing.T) {
 		// not parallel: gin.SetMode mutates process-global state.

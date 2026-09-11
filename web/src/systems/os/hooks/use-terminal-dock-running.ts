@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useProfileReadScope } from "@/systems/profiles";
 import { terminalCatalogQuery, terminalScope, terminalsRunning } from "@/systems/terminal";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -11,16 +12,18 @@ import { useActiveWorkspace } from "@/systems/workspace";
  *
  * The dock's live mark is catalog truth, not "a Terminal window is open".
  * An empty query or a project that is not ready is idle — never a guess
- * from window state.
+ * from window state. Remote tiers register no terminal routes, so the
+ * catalog is never queried there and the mark stays idle.
  */
 export function useTerminalDockRunning(): boolean {
   const workspace = useActiveWorkspace();
   const profile = useProfileReadScope();
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const workspaceId = workspace.runtimeWorkspaceId ?? "";
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const catalog = useQuery({
     ...terminalCatalogQuery(catalogScope),
-    enabled: workspaceId !== "",
+    enabled: workspaceId !== "" && localTaskLifecycle,
   });
   if (workspaceId === "" || catalog.data === undefined) return false;
   return terminalsRunning(catalog.data);

@@ -3,6 +3,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useUpdateTask } from "./use-task-actions";
 import { useTaskExecutionProfile } from "./use-task-profile";
 import { useTask } from "./use-tasks";
@@ -39,6 +40,13 @@ export function useTaskEditState(
     refetchIntervalMs,
   });
   const updateMutation = useUpdateTask();
+  // Origin gate for the submit path below: task PATCH (`UpdateTask`) registers
+  // only on the local surface set (`routes.go` `includeTaskMutations`), with no
+  // 403 code for the truthful loopback-only state to render (BR-3). The editor
+  // goes absent at the composition layer (BR-1); this gate is the backstop that
+  // keeps a wiring regression from firing a doomed PATCH on a remote tier
+  // (mirrors the task-detail lifecycle verbs).
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const submissionStore = useStore(taskEditorSubmissionLogic);
   const detail = detailQuery.data ?? null;
   const task = detail?.task ?? null;
@@ -61,26 +69,28 @@ export function useTaskEditState(
   };
 
   const handleSubmit = (nextDraft: TaskEditorDraft) =>
-    requestTaskEditorSubmission(
-      submissionStore,
-      async () => {
-        if (!id || !task || !profile) return null;
-        try {
-          await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
-          toast.success("Task updated.");
-          onSaved();
-          return true;
-        } catch (error) {
-          console.error("Failed to update task", error);
-          toast.error("Couldn't save your changes.");
-          return null;
-        }
-      },
-      error => {
-        console.error("Failed to update task", error);
-        toast.error("Couldn't save your changes.");
-      }
-    );
+    localTaskLifecycle
+      ? requestTaskEditorSubmission(
+          submissionStore,
+          async () => {
+            if (!id || !task || !profile) return null;
+            try {
+              await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
+              toast.success("Task updated.");
+              onSaved();
+              return true;
+            } catch (error) {
+              console.error("Failed to update task", error);
+              toast.error("Couldn't save your changes.");
+              return null;
+            }
+          },
+          error => {
+            console.error("Failed to update task", error);
+            toast.error("Couldn't save your changes.");
+          }
+        )
+      : Promise.resolve(null);
 
   return {
     draft,

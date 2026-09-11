@@ -178,65 +178,123 @@ func TestTSNetNodeOperationOwnership(t *testing.T) {
 
 func TestTierForwarderBridgesToDaemonLoopback(t *testing.T) {
 	t.Parallel()
-	target := newTestListener(t)
-	external := newTestListener(t)
-	forwarder, err := newTierForwarder(external, target.Addr().String(), slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if err != nil {
-		t.Fatalf("newTierForwarder() error = %v", err)
-	}
-	forwarder.Start()
-	ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
-	defer cancel()
-	externalConnection, err := (&net.Dialer{}).DialContext(ctx, "tcp", external.Addr().String())
-	if err != nil {
-		t.Fatalf("Dial(external) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := externalConnection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("Close(external connection) error = %v", err)
+
+	t.Run("Should forward tier requests with the browser-facing scheme and host", func(t *testing.T) {
+		t.Parallel()
+		const tierHost = "compozy-gateway.example.ts.net:8443"
+		target := newTestListener(t)
+		captured := make(chan forwardedRequestCapture, 1)
+		backend := &http.Server{
+			Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				captured <- forwardedRequestCapture{
+					host:            request.Host,
+					forwardedProto:  request.Header.Get(forwardedProtoHeader),
+					forwardedHost:   request.Header.Get(forwardedHostHeader),
+					forwardedHeader: request.Header.Get("Forwarded"),
+				}
+				writer.Header().Set("Content-Type", "text/plain")
+				writer.WriteHeader(http.StatusOK)
+				if _, err := writer.Write([]byte("ok")); err != nil {
+					t.Errorf("write backend response error = %v", err)
+				}
+			}),
+		}
+		serveErr := make(chan error, 1)
+		go func() { serveErr <- backend.Serve(target) }()
+		t.Cleanup(func() {
+			if err := backend.Close(); err != nil && !errors.Is(err, net.ErrClosed) &&
+				!errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("Close(backend) error = %v", err)
+			}
+		})
+		external := newTestListener(t)
+		forwarder, err := newTierForwarder(
+			external,
+			target.Addr().String(),
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil {
+			t.Fatalf("newTierForwarder() error = %v", err)
+		}
+		forwarder.Start()
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := forwarder.Close(ctx); err != nil {
+				t.Errorf("Close(forwarder) error = %v", err)
+			}
+		})
+
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
+		defer cancel()
+		// The browser request arrives with a spoofable set of client-supplied
+		// forwarding headers; the provider terminates TLS and owns the
+		// truthful forwarded metadata.
+		request, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			"http://"+external.Addr().String()+"/assets/app.js",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("NewRequestWithContext() error = %v", err)
+		}
+		request.Host = tierHost
+		request.Header.Set("Origin", "https://"+tierHost)
+		request.Header.Set(forwardedProtoHeader, "http")
+		request.Header.Set(forwardedHostHeader, "evil.example.test")
+		request.Header.Set("Forwarded", "for=198.51.100.9")
+		response, err := (&http.Client{}).Do(request)
+		if err != nil {
+			t.Fatalf("forwarded request error = %v", err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			t.Fatalf("read forwarded response error = %v", err)
+		}
+		if response.StatusCode != http.StatusOK || string(body) != "ok" {
+			t.Fatalf("forwarded response = %d/%q, want 200/ok", response.StatusCode, body)
+		}
+		var got forwardedRequestCapture
+		select {
+		case got = <-captured:
+		case <-ctx.Done():
+			t.Fatalf("backend capture error = %v", ctx.Err())
+		}
+		if got.host != tierHost {
+			t.Fatalf("backend request Host = %q, want %q", got.host, tierHost)
+		}
+		if got.forwardedProto != forwardedProto {
+			t.Fatalf(
+				"backend %s = %q, want %q (client value must be overridden)",
+				forwardedProtoHeader,
+				got.forwardedProto,
+				forwardedProto,
+			)
+		}
+		if got.forwardedHost != tierHost {
+			t.Fatalf(
+				"backend %s = %q, want %q (client value must be overridden)",
+				forwardedHostHeader,
+				got.forwardedHost,
+				tierHost,
+			)
+		}
+		if got.forwardedHeader != "" {
+			t.Fatalf("backend Forwarded = %q, want stripped client header", got.forwardedHeader)
+		}
+		if err := forwarder.Close(ctx); err != nil {
+			t.Fatalf("Close(forwarder) error = %v", err)
 		}
 	})
-	type acceptResult struct {
-		connection net.Conn
-		err        error
-	}
-	accepted := make(chan acceptResult, 1)
-	go func() {
-		connection, acceptErr := target.Accept()
-		accepted <- acceptResult{connection: connection, err: acceptErr}
-		close(accepted)
-	}()
-	if _, err := externalConnection.Write([]byte("ping")); err != nil {
-		t.Fatalf("Write(external) error = %v", err)
-	}
-	var result acceptResult
-	select {
-	case result = <-accepted:
-	case <-ctx.Done():
-		t.Fatalf("Accept(target) error = %v", ctx.Err())
-	}
-	if result.err != nil {
-		t.Fatalf("Accept(target) error = %v", result.err)
-	}
-	targetConnection := result.connection
-	if targetConnection == nil {
-		t.Fatal("target connection = nil")
-	}
-	t.Cleanup(func() {
-		if err := targetConnection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("Close(target connection) error = %v", err)
-		}
-	})
-	payload := make([]byte, 4)
-	if _, err := io.ReadFull(targetConnection, payload); err != nil {
-		t.Fatalf("ReadFull(target) error = %v", err)
-	}
-	if string(payload) != "ping" {
-		t.Fatalf("forwarded payload = %q, want ping", payload)
-	}
-	if err := forwarder.Close(ctx); err != nil {
-		t.Fatalf("Close(forwarder) error = %v", err)
-	}
+}
+
+type forwardedRequestCapture struct {
+	host            string
+	forwardedProto  string
+	forwardedHost   string
+	forwardedHeader string
 }
 
 func TestPrivateVerificationRelayLifecycle(t *testing.T) {
@@ -450,6 +508,151 @@ func TestBundledProviderFailureBounds(t *testing.T) {
 	})
 }
 
+func TestTierForwarderServerBoundsWholeRequestRead(t *testing.T) {
+	t.Parallel()
+
+	forwarder, err := newTierForwarder(
+		newTestListener(t),
+		"127.0.0.1:1",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("newTierForwarder() error = %v", err)
+	}
+	if forwarder.server.ReadTimeout != forwardReadTimeout {
+		t.Fatalf(
+			"ReadTimeout = %v, want %v (a stalled request body must release its forward slot)",
+			forwarder.server.ReadTimeout,
+			forwardReadTimeout,
+		)
+	}
+}
+
+func TestTierForwarderReadTimeoutReleasesStalledSlots(t *testing.T) {
+	t.Parallel()
+
+	const readTimeout = 1200 * time.Millisecond
+
+	target := newTestListener(t)
+	backend := &http.Server{
+		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			// Drain whatever body arrives; a stalled forward never completes.
+			_, _ = io.Copy(io.Discard, request.Body)
+			writer.WriteHeader(http.StatusOK)
+		}),
+	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- backend.Serve(target) }()
+	t.Cleanup(func() {
+		if err := backend.Close(); err != nil && !errors.Is(err, net.ErrClosed) &&
+			!errors.Is(err, http.ErrServerClosed) {
+			t.Errorf("Close(backend) error = %v", err)
+		}
+	})
+	external := newTestListener(t)
+	forwarder, err := newTierForwarder(
+		external,
+		target.Addr().String(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("newTierForwarder() error = %v", err)
+	}
+	// Production wires forwardReadTimeout (2m); the release mechanism is the
+	// server's read deadline, so the test drives the identical deadline at
+	// test scale before Serve accepts its first connection.
+	forwarder.server.ReadTimeout = readTimeout
+	forwarder.Start()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := forwarder.Close(ctx); err != nil {
+			t.Errorf("Close(forwarder) error = %v", err)
+		}
+	})
+
+	// Occupy every slot with a request whose body stalls after its headers:
+	// the declared Content-Length never arrives, so without a read deadline
+	// each handler would hold its slot forever.
+	stalled := make([]net.Conn, 0, maxForwardConnections)
+	t.Cleanup(func() {
+		for _, conn := range stalled {
+			_ = conn.Close()
+		}
+	})
+	stallRequest := "POST /stall HTTP/1.1\r\nHost: gateway.example.ts.net\r\n" +
+		"Content-Length: 512\r\n\r\npartial"
+	for range maxForwardConnections {
+		conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(
+			testutil.Context(t), "tcp", external.Addr().String(),
+		)
+		if err != nil {
+			t.Fatalf("stalled dial error = %v", err)
+		}
+		stalled = append(stalled, conn)
+		if _, err := conn.Write([]byte(stallRequest)); err != nil {
+			t.Fatalf("stalled write error = %v", err)
+		}
+	}
+
+	// While the stalled bodies hold the slots, the forwarder refuses new work
+	// instead of queueing it. Poll briefly so a slow accept cannot flake the
+	// saturation observation.
+	var refused *http.Response
+	deadline := time.Now().Add(readTimeout / 2)
+	for {
+		request, requestErr := http.NewRequestWithContext(
+			context.Background(), http.MethodGet,
+			"http://"+external.Addr().String()+"/api/status", http.NoBody,
+		)
+		if requestErr != nil {
+			t.Fatalf("saturated request build error = %v", requestErr)
+		}
+		response, err := (&http.Client{Timeout: time.Second}).Do(request)
+		if err != nil {
+			t.Fatalf("saturated request error = %v", err)
+		}
+		if response.StatusCode == http.StatusServiceUnavailable {
+			refused = response
+			break
+		}
+		_ = response.Body.Close()
+		if time.Now().After(deadline) {
+			t.Fatalf("saturated response = %d, want 503 while slots are stalled", response.StatusCode)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := io.Copy(io.Discard, refused.Body); err != nil {
+		t.Errorf("read saturated response error = %v", err)
+	}
+	if err := refused.Body.Close(); err != nil {
+		t.Errorf("close saturated response error = %v", err)
+	}
+
+	// After the read deadline fires, every stalled slot is released and the
+	// forwarder serves a subsequent request again.
+	time.Sleep(readTimeout + 500*time.Millisecond)
+	postRequest, postRequestErr := http.NewRequestWithContext(
+		context.Background(), http.MethodGet,
+		"http://"+external.Addr().String()+"/api/status", http.NoBody,
+	)
+	if postRequestErr != nil {
+		t.Fatalf("post-deadline request build error = %v", postRequestErr)
+	}
+	recovered, err := (&http.Client{Timeout: 2 * time.Second}).Do(postRequest)
+	if err != nil {
+		t.Fatalf("post-deadline request error = %v", err)
+	}
+	body, readErr := io.ReadAll(recovered.Body)
+	closeErr := recovered.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read post-deadline response error = %v", err)
+	}
+	if recovered.StatusCode != http.StatusOK {
+		t.Fatalf("post-deadline response = %d/%q, want 200", recovered.StatusCode, body)
+	}
+}
+
 func TestTierForwarderFailureHealth(t *testing.T) {
 	t.Parallel()
 
@@ -483,21 +686,39 @@ func TestTierForwarderFailureHealth(t *testing.T) {
 			t.Fatalf("newTierForwarder() error = %v", err)
 		}
 		forwarder.Start()
-		connection, err := (&net.Dialer{}).DialContext(
-			testutil.Context(t),
-			"tcp",
-			external.Addr().String(),
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := forwarder.Close(ctx); err != nil {
+				t.Errorf("Close(forwarder) error = %v", err)
+			}
+		})
+		// The proxy dials the daemon loopback target per request, so drive a
+		// real HTTP request to make the unavailable target observable.
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
+		defer cancel()
+		request, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			"http://"+external.Addr().String()+"/api/status",
+			http.NoBody,
 		)
 		if err != nil {
-			t.Fatalf("Dial(external) error = %v", err)
+			t.Fatalf("NewRequestWithContext() error = %v", err)
 		}
-		if err := connection.Close(); err != nil {
-			t.Fatalf("Close(connection) error = %v", err)
+		response, err := (&http.Client{}).Do(request)
+		if err != nil {
+			t.Fatalf("forwarded request error = %v", err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			t.Fatalf("read forwarded response error = %v", err)
+		}
+		if response.StatusCode != http.StatusBadGateway {
+			t.Fatalf("unreachable-target response = %d/%s, want 502", response.StatusCode, body)
 		}
 		waitForForwarderHealth(t, forwarder, "degraded", "forward target is unavailable")
-		if err := forwarder.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close(forwarder) error = %v", err)
-		}
 	})
 }
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useGatewayCapabilities } from "@/systems/gateway";
 
 import {
   useApproveTask,
@@ -47,6 +48,13 @@ const TIMELINE_PAGE_SIZE = 50;
  * every task-level verb handler.
  */
 function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {}) {
+  // Origin gate for the lifecycle verbs below: approve/reject/resume/recover/
+  // clear-block/start-run/publish/cancel/pause/fan-out/run-retry hit task/run
+  // mutation routes registered only on the local surface set (`routes.go`
+  // `includeTaskMutations`). The affordances go absent at the composition
+  // layer (BR-1); this capability gate is the backstop that keeps a wiring
+  // regression from firing a doomed request on a remote tier.
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const [timelineLimit, setTimelineLimit] = useState<number>(
     options.initialTimelineLimit ?? DEFAULT_TIMELINE_LIMIT
   );
@@ -142,7 +150,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   };
 
   const handlePublishTask = () =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => publishMutation.mutateAsync({ id: taskId }),
           "Task published.",
@@ -151,7 +159,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleCancelTask = () =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => cancelMutation.mutateAsync({ id: taskId }),
           "Task canceled.",
@@ -160,7 +168,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleEnqueueRun = () =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => enqueueMutation.mutateAsync({ id: taskId }),
           "Run queued.",
@@ -169,7 +177,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleApproveTask = () =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => approveMutation.mutateAsync({ id: taskId }),
           "Task approved.",
@@ -178,7 +186,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleRejectTask = () =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => rejectMutation.mutateAsync({ id: taskId }),
           "Task rejected.",
@@ -187,14 +195,16 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleRetryRun = (runId: string) =>
-    notifyTaskMutation(
-      () => retryRunMutation.mutateAsync({ runId }),
-      "Retry queued.",
-      "Failed to retry run"
-    );
+    localTaskLifecycle
+      ? notifyTaskMutation(
+          () => retryRunMutation.mutateAsync({ runId }),
+          "Retry queued.",
+          "Failed to retry run"
+        )
+      : Promise.resolve();
 
   const handleClearBlock = (blockId: string) =>
-    hasTaskId
+    hasTaskId && localTaskLifecycle
       ? notifyTaskMutation(
           () => clearBlockMutation.mutateAsync({ id: taskId, blockId }),
           "Block cleared.",
@@ -203,7 +213,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleFanOutRuns = async (data: FanOutTaskRunsRequest) => {
-    if (!hasTaskId) return undefined;
+    if (!hasTaskId || !localTaskLifecycle) return undefined;
     return submitTaskMutation(
       () => fanOutMutation.mutateAsync({ id: taskId, data }),
       result => {
@@ -215,7 +225,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   };
 
   const handlePauseTask = async (reason: string) => {
-    if (!hasTaskId) return;
+    if (!hasTaskId || !localTaskLifecycle) return;
     await submitTaskMutation(
       () => pauseMutation.mutateAsync({ id: taskId, data: { reason } }),
       "Task paused.",
@@ -224,7 +234,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   };
 
   const handleResumeTask = async () => {
-    if (!hasTaskId) return;
+    if (!hasTaskId || !localTaskLifecycle) return;
     await notifyTaskMutation(
       () => resumeMutation.mutateAsync({ id: taskId }),
       "Task resumed.",
@@ -235,6 +245,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const handleRecoverTask = async () => {
     if (
       !hasTaskId ||
+      !localTaskLifecycle ||
       (activeRunNeedsAttention && !recoverableRunId) ||
       recoverTaskMutation.isPending ||
       recoverRunMutation.isPending

@@ -10,7 +10,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@compozy/ui";
 import {
   closeTerminal,
@@ -19,7 +19,13 @@ import {
   terminalKeys,
   terminalScope,
   TerminalApiError,
+  unlockTerminalJournal,
 } from "@/systems/terminal";
+import {
+  fetchTerminalInputRequestProjection,
+  fetchTerminalJournal,
+  fetchTerminalRecording,
+} from "@/systems/terminal/adapters/terminal-api";
 import { DEV_SERVER_TERMINAL } from "@/systems/terminal/mocks/terminal-fixtures";
 import { TerminalWindowClose, terminalWindowCreateKey } from "../../../lib/terminal-window-close";
 import type { OsWindow } from "../../../lib/os-types";
@@ -33,12 +39,56 @@ import {
 import { parseSettingsWindowManagerSection } from "../../../lib/window-manager-settings-section";
 import { windowManagerClientFixture, windowManagerStorySnapshot } from "../../../mocks/fixtures";
 import { settingsWindowManagerSectionFixture } from "@/systems/settings/mocks/window-manager-fixtures";
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { useTerminalWindowCreation } from "../hooks/use-terminal-window-creation";
+import { useTerminalWindowControllerState } from "../hooks/use-terminal-window-controller-state";
 
 vi.mock("@/systems/terminal/adapters/terminal-api", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/terminal/adapters/terminal-api")>();
-  return { ...actual, fetchTerminals: vi.fn(), closeTerminal: vi.fn(), createTerminal: vi.fn() };
+  return {
+    ...actual,
+    fetchTerminals: vi.fn(),
+    closeTerminal: vi.fn(),
+    createTerminal: vi.fn(),
+    fetchTerminalInputRequestProjection: vi.fn(),
+    fetchTerminalJournal: vi.fn(),
+    fetchTerminalRecording: vi.fn(),
+  };
+});
+
+// The controller host renders inside the OS shell; these suite-local handles
+// keep the hook composition testable without a full desktop provider tree.
+vi.mock("../../../hooks/use-os-shell", () => ({
+  useOsShell: () => ({ coordinator: {}, manager: {} }),
+}));
+vi.mock("../../../hooks/use-desktop", () => ({
+  // A cold desktop: no managed window, no attached client identity.
+  useDesktop: (selector: (state: unknown) => unknown) =>
+    selector({ windows: {}, client: null, clientAttachmentToken: null }),
+}));
+vi.mock("@/systems/terminal/hooks/use-terminal-catalog-stream", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/terminal/hooks/use-terminal-catalog-stream")>();
+  return { ...actual, useTerminalCatalogStream: vi.fn(() => undefined) };
+});
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: vi.fn(() => ({ runtimeWorkspaceId: "ws-atlas" })),
+}));
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: vi.fn(() => ({
+    destination: "work",
+    aggregate: false,
+    destinationOwner: { id: "profile-work" },
+  })),
+}));
+vi.mock("@/systems/profiles/hooks/use-profiles", () => ({
+  useProfiles: vi.fn(() => ({ data: [] })),
+}));
+vi.mock("@/systems/settings/hooks/use-settings-sections", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/settings/hooks/use-settings-sections")>();
+  return { ...actual, useSettingsGeneral: vi.fn(() => ({})) };
 });
 
 vi.mock("../../../adapters/window-manager-api", async importOriginal => {
@@ -72,7 +122,11 @@ const terminalExit = {
   signal: "HUP" as const,
 };
 
+let unlatchGatewayTier: () => void;
+
 beforeEach(() => {
+  // Terminal reads and the window surface render on the local tier only.
+  unlatchGatewayTier = latchGatewayTierForTest("local");
   vi.mocked(createTerminal).mockReset();
   vi.mocked(executeWindowManagerCommand).mockReset();
   vi.mocked(fetchTerminals).mockReset().mockResolvedValue([DEV_SERVER_TERMINAL]);
@@ -80,6 +134,10 @@ beforeEach(() => {
   vi.spyOn(toast, "error")
     .mockClear()
     .mockImplementation(() => "toast");
+});
+
+afterEach(() => {
+  unlatchGatewayTier();
 });
 
 // Invariant: terminal creation completes in its initiating query scope and cannot
@@ -273,6 +331,78 @@ describe("useTerminalWindowControllerState journal and recording host gates", ()
 
     expect(store.getSnapshot().context.unlockedWorkspaces).toEqual({ "ws-atlas": true });
     expect(store.getSnapshot().context.unlockedWorkspaces["ws-other"]).toBeUndefined();
+  });
+
+  const renderController = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const rendered = renderHook(() => useTerminalWindowControllerState("window:terminal"), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    return { ...rendered, client };
+  };
+
+  it("Should not fetch journal or recording reads on a remote tier", async () => {
+    // Regression: an unlocked journal (or a selected replay) enabled its own
+    // query regardless of tier, firing requests at terminal routes a remote
+    // tier never registers before the window renders its loopback-only state.
+    unlatchGatewayTier = latchGatewayTierForTest("private");
+    unlockTerminalJournal("ws-atlas");
+    vi.mocked(fetchTerminalInputRequestProjection).mockReset();
+    vi.mocked(fetchTerminalJournal).mockReset();
+    vi.mocked(fetchTerminalRecording).mockReset();
+
+    const { result, unmount, client } = renderController();
+    try {
+      act(() => {
+        result.current.setReplay({ id: "rec-1", profile: "work", title: "Replay" });
+      });
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+      });
+
+      expect(fetchTerminals).not.toHaveBeenCalled();
+      expect(fetchTerminalInputRequestProjection).not.toHaveBeenCalled();
+      expect(fetchTerminalJournal).not.toHaveBeenCalled();
+      expect(fetchTerminalRecording).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      client.clear();
+    }
+  });
+
+  it("Should fetch the journal and a selected replay on the local tier", async () => {
+    unlockTerminalJournal("ws-atlas");
+    vi.mocked(fetchTerminalInputRequestProjection)
+      .mockReset()
+      .mockResolvedValue({ pending: [], resolved: [] } as never);
+    vi.mocked(fetchTerminalJournal)
+      .mockReset()
+      .mockResolvedValue({ entries: [], next: null } as never);
+    vi.mocked(fetchTerminalRecording)
+      .mockReset()
+      .mockResolvedValue({} as never);
+
+    const { result, unmount, client } = renderController();
+    try {
+      await waitFor(() => expect(fetchTerminalJournal).toHaveBeenCalled());
+      expect(vi.mocked(fetchTerminalJournal).mock.calls[0]?.[0]).toBe("ws-atlas");
+
+      act(() => {
+        result.current.setReplay({ id: "rec-1", profile: "work", title: "Replay" });
+      });
+      await waitFor(() =>
+        expect(fetchTerminalRecording).toHaveBeenCalledExactlyOnceWith(
+          "ws-atlas",
+          "rec-1",
+          { profile: "work" },
+          expect.anything()
+        )
+      );
+    } finally {
+      unmount();
+      client.clear();
+    }
   });
 });
 

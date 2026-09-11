@@ -9,6 +9,7 @@ import {
   useTaskCreateState,
   useTaskEditState,
 } from "@/systems/tasks";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
@@ -24,11 +25,21 @@ export function TaskCreateDialog({
   catalogMode: TaskViewMode;
   search: TaskCreateSearch;
 }) {
+  // Task create registers only on the local surface set (`routes.go`
+  // `includeTaskMutations`) — POST /api/tasks (and the first-run enqueue), with
+  // no 403 code for the truthful loopback-only state to render (BR-3). The
+  // modal goes absent on remote tiers (BR-1 — absent, never disabled), so the
+  // deep link lands on the catalog read view beneath, whose remote branch
+  // already renders the remote-note empty state instead of the local
+  // affordance.
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const navigate = useTasksNavigation();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const backToCatalog = () =>
     navigate({ pathname: "/tasks", search: taskCatalogSearchFor(catalogMode, search) });
   const page = useTaskCreateState(search, navigate, { liveDataEnabled });
+
+  if (!localTaskLifecycle) return null;
 
   return (
     <TaskEditorModal
@@ -62,6 +73,14 @@ export function TaskEditDialog({
   search: ResolvedTaskDetailSearch;
   taskId: string;
 }) {
+  // Task PATCH (`UpdateTask`) registers only on the local surface set
+  // (`routes.go` `includeTaskMutations`), with no 403 code for the truthful
+  // loopback-only state to render (BR-3). The modal goes absent on remote
+  // tiers (BR-1 — absent, never disabled), so the deep link lands on the task
+  // detail read view beneath. The gate is deliberately presence-only (no
+  // redirect): firing a navigation while the tier is still unlatched would
+  // bounce a local operator off the deep link before `/api/status` resolves.
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const navigate = useTasksNavigation();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   // The edit chip echoes the entity's own scope; the list only resolves its name.
@@ -74,6 +93,8 @@ export function TaskEditDialog({
     : page.isInitialized
       ? "ready"
       : "unavailable";
+
+  if (!localTaskLifecycle) return null;
 
   return (
     <TaskEditorModal

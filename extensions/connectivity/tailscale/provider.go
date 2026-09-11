@@ -26,7 +26,7 @@ type activeTier struct {
 	endpoint     compozysdk.ConnectivityAdvertisedEndpoint
 	domain       string
 	forwarder    *tierForwarder
-	verification *tierForwarder
+	verification *verificationRelay
 }
 
 type activeTierEntry struct {
