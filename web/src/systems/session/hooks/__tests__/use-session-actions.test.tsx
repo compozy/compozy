@@ -1211,6 +1211,7 @@ describe("session lifecycle batches", () => {
     expect(result.current.deleteDialog.open).toBe(true);
     expect(selectionChanged).toHaveBeenLastCalledWith(["second"]);
     expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
     act(() => result.current.deleteDialog.onRetry?.());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
     expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([
@@ -1221,26 +1222,52 @@ describe("session lifecycle batches", () => {
     ]);
     expect(selectionChanged).toHaveBeenLastCalledWith([]);
     expect(toast.success).toHaveBeenCalledExactlyOnceWith("3 sessions deleted");
+    expect(toast.error).not.toHaveBeenCalled();
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps only failed ids selected when closing a partial result", async () => {
-    vi.mocked(deleteSession)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error("Busy"));
-    const selectionChanged = vi.fn();
-    const { result } = lifecycle();
-    act(() =>
-      result.current.actions.onDeleteMany?.(
-        [createdSession, { ...createdSession, id: "failed" }],
-        selectionChanged
-      )
-    );
-    act(() => result.current.deleteDialog.onConfirm());
-    await waitFor(() => expect(result.current.deleteDialog.results?.[1]?.status).toBe("failed"));
-    act(() => result.current.deleteDialog.onOpenChange(false));
-    expect(result.current.deleteDialog.open).toBe(false);
-    expect(selectionChanged).toHaveBeenLastCalledWith(["failed"]);
-  });
+  // Feedback invariant: one lifetime-total toast on Close; row errors remain in the dialog.
+  // Owner: lifecycle batch coordinator, this existing suite at the adapter I/O boundary.
+  it.each([0, 1, 2])(
+    "announces %i deleted sessions only when closing a partial result",
+    async deletedCount => {
+      const deleted = Array.from({ length: deletedCount }, (_, index) => ({
+        ...createdSession,
+        id: `deleted-${index}`,
+      }));
+      for (const _session of deleted) vi.mocked(deleteSession).mockResolvedValueOnce(undefined);
+      vi.mocked(deleteSession).mockRejectedValueOnce(new Error("Busy"));
+      const selectionChanged = vi.fn();
+      const { result } = lifecycle();
+      act(() =>
+        result.current.actions.onDeleteMany?.(
+          [...deleted, { ...createdSession, id: "failed" }],
+          selectionChanged
+        )
+      );
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
+      expect(result.current.deleteDialog.results).toEqual([
+        ...deleted.map(session => ({ id: session.id, status: "done" })),
+        { id: "failed", status: "failed", error: "Busy" },
+      ]);
+      expect(result.current.deleteDialog.open).toBe(true);
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      act(() => result.current.deleteDialog.onOpenChange(false));
+      expect(result.current.deleteDialog.open).toBe(false);
+      expect(selectionChanged).toHaveBeenLastCalledWith(["failed"]);
+      if (deletedCount === 0) expect(toast.success).not.toHaveBeenCalled();
+      else
+        expect(toast.success).toHaveBeenCalledExactlyOnceWith(
+          `${deletedCount} ${deletedCount === 1 ? "session" : "sessions"} deleted`
+        );
+      expect(toast.error).not.toHaveBeenCalled();
+      act(() => result.current.deleteDialog.onOpenChange(false));
+      expect(toast.success).toHaveBeenCalledTimes(deletedCount > 0 ? 1 : 0);
+    }
+  );
 
   it("stops only eligible sessions sequentially and announces verified completion once", async () => {
     const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };

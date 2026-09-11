@@ -67,7 +67,7 @@ function reportActionError(action: SessionLifecycleAction, error: unknown): void
 }
 
 function reportBatch(
-  action: "stop" | "archive" | "unarchive" | "delete",
+  action: "stop" | "archive" | "unarchive",
   results: readonly SessionBatchResult[]
 ): void {
   const failures = results.filter(result => result.status === "failed");
@@ -78,6 +78,11 @@ function reportBatch(
   const count = results.filter(result => result.status === "done").length;
   const verb = action === "stop" ? "stopped" : `${action}d`;
   toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
+}
+
+function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
+  const count = results.filter(result => result.status === "done").length;
+  if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
 /**
@@ -207,8 +212,10 @@ export function useSessionLifecycleActions(
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
-    if (failures.length === 0) setDeleteTarget(null);
-    reportBatch("delete", results);
+    if (failures.length === 0) {
+      setDeleteTarget(null);
+      reportDeletedSessions(results);
+    }
   };
 
   const confirmDelete = () => {
@@ -283,12 +290,13 @@ export function useSessionLifecycleActions(
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {
-        if (!open && !remove.isPending && !batchRunning.current) {
+        if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
           if (batchResults.some(result => result.status === "failed")) {
             deleteTarget?.onSelectionChange?.(
               batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
             );
           }
+          if (deleteTarget.bulk) reportDeletedSessions(batchResults);
           setDeleteTarget(null);
         }
       },

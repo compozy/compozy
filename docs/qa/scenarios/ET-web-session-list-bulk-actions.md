@@ -49,8 +49,11 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    real catalog, and selection clears while the host remains open.
 8. For a reproducible daemon failure, verify successful and failed results remain
    visible, the error text names the daemon cause, Close keeps only failed rows
-   selected, and Retry acts only on failed IDs. The deterministic lifecycle suite
-   owns this I/O failure case when a real failure cannot be induced safely.
+   selected, and Retry acts only on failed IDs. A partial result emits no toast
+   while the dialog is open. Close or a successful Retry emits one success toast
+   with the total deleted across all attempts (singular for one, none for zero).
+   The deterministic lifecycle suite owns this I/O failure case when a real
+   failure cannot be induced safely.
 
 Verification ownership: `session-bulk-actions.spec.ts` exercises confirmed deletion
 against an isolated daemon using the existing ACP lifecycle fixture. The selection,
