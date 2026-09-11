@@ -176,7 +176,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
                         <div class="session-context-turns__row"><span class="id">turn-12</span><span class="ctx">89.7K <small>/ 256K</small><br><span class="io">in 15.1K · out 900</span></span><span class="cost">$0.03</span></div>
                         <div class="session-context-turns__row"><span class="id">turn-11</span><span class="ctx">88.9K <small>/ 256K</small><br><span class="io">in 14.8K · out 1.1K</span></span><span class="cost">$0.03</span></div>
                         <div class="session-context-turns__row"><span class="id">turn-10</span><span class="ctx">71.3K <small>/ 256K</small><br><span class="io">in 70.9K · out 400</span></span><span class="cost">$0.03</span></div>
-                        <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compacted at 85% · <b>218K</b> → next report 71.3K</div>
+                        <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compozy compaction · at 85% · <b>218K</b> · replay span archived</div>
                         <div class="session-context-turns__row"><span class="id">turn-9</span><span class="ctx">218K <small>/ 256K</small><br><span class="io">in 41.2K · out 2.0K</span></span><span class="cost">$0.06</span></div>
                       <i class="ss-n ss-n--abs">7</i></div>
                     </section>
@@ -277,7 +277,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
   <section class="lab-sec" id="scs-stale" data-od-id="scs-stale">
     <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Summarized · unchanged · the unknown-agent list</h2><span class="lab-sec__gist">US-005.AC-4 EC-1 EC-3 · US-002 · VC-11</span></div>
     <div class="spec">
-      <div class="spec__note"><b>Rows tell their age.</b> After a compaction (daemon <code>session.compaction_fired</code>, or the agent's <code>used</code> dropping below the injected total) the rows Compozy sent earlier may have been summarized away; they dim and say so until re-delivered. A section re-sent as an "unchanged" stub keeps its original estimate and says "unchanged since turn 1". For an agent that never reports, there is no bar to be proportional to: the same rows render as a plain list under an honest headline.</div>
+      <div class="spec__note"><b>Rows tell their age.</b> When the agent's reported <code>used</code> drops below its previous report (agent-side compaction or truncation evidence) the rows Compozy sent before that report may have been summarized away; they dim and say so until re-delivered in full. Compozy's own replay compaction never marks rows: it does not touch the agent's live window. A section re-sent as an "unchanged" stub keeps its original estimate and says "unchanged since turn 1". For an agent that never reports, there is no bar to be proportional to: the same rows render as a plain list under an honest headline.</div>
       <div class="spec__demo">
         <div class="plain" data-od-id="scs-stale-demo">
           <div class="sc-row" style="align-items:flex-start;gap:18px">
@@ -291,7 +291,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
                     <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">58.9K</span></li>
                     <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">184.7K</span></li>
                   </ul>
-                  <div class="session-context-meter__line"><svg data-lucide="minimize-2"></svg>Compacted on turn 9 · 218K → 71.3K<i class="ss-n ss-n--abs">1</i></div>
+                  <div class="session-context-meter__line"><svg data-lucide="minimize-2"></svg>Compozy compaction on turn 9 · 218K · replay span archived<i class="ss-n ss-n--abs">1</i></div>
                 </section>
                 <section class="session-inspector__sec session-context-injected">
                   <button class="session-context-injected__head" aria-expanded="true"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 12.4K<small>bytes/4</small></span></button>
@@ -324,7 +324,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
           </div>
         </div>
         <ul class="ss-legend">
-          <li><i class="ss-n">1</i><span><b>Meter after compaction</b> <em>headline reads the post-compaction report · Compozy segment at 45% opacity (accent-dim) while stale · line "Compacted on turn 9 · 218K → 71.3K" from <code>session.compaction_fired</code></em></span></li>
+          <li><i class="ss-n">1</i><span><b>Meter after compaction</b> <em>headline reads the post-compaction report · Compozy segment at 45% opacity (accent-dim) while stale · line "Compozy compacted replay history on turn 9 · completed · 218K" from <code>session.compaction_fired</code></em></span></li>
           <li><i class="ss-n">2</i><span><b>Re-sent row</b> <em>full bar again · "re-sent on turn 10" · clears staleness for that key only · spec Business Rules</em></span></li>
           <li><i class="ss-n">3</i><span><b>Unchanged stub</b> <em>original estimate kept · suffix "unchanged since turn 1 · stub ≈ 40 on turn 10" · the stub bytes count on turn 10 only</em></span></li>
           <li><i class="ss-n">4</i><span><b>Unknown headline</b> <em>small-body 510 "Context usage unknown" + the one sentence · no percent, no bar, no chip · SD-007</em></span></li>
@@ -387,7 +387,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
   <section class="lab-sec" id="scs-turns" data-od-id="scs-turns">
     <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Turns — where the window filled, and where Compozy compacted</h2><span class="lab-sec__gist">US-007.AC-1 AC-2 EC-1 · VC-08</span></div>
     <div class="spec">
-      <div class="spec__note"><b>One row per usage row, newest first.</b> Each row shows the reported fill, the turn's tokens in and out, and the cost when the agent sent one. A daemon compaction is a marker row where it fired, with the pressure and the next report. After fifty rows a single "Show earlier turns" loads the rest — the route returns everything.</div>
+      <div class="spec__note"><b>One row per turn that has a usage report or a delivery, ordered by ledger sequence, newest first.</b> Each row shows the reported fill when there is one, the turn's tokens in and out and cache when reported, the cost when the agent sent one, and "≈ N" when Compozy delivered text on that turn (delivery-only and counter-only turns keep their row with dashes elsewhere). A daemon compaction is a marker row where it fired, with the pressure and whether its replay span is archived now. After fifty rows a single "Show earlier turns" loads the rest — the route returns everything.</div>
       <div class="spec__demo">
         <div class="plain" data-od-id="scs-turns-demo">
           <div class="sc-row" style="align-items:flex-start;gap:18px">
@@ -399,7 +399,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
                     <div class="session-context-turns__row"><span class="id">turn-12</span><span class="ctx">89.7K <small>/ 256K</small><br><span class="io">in 15.1K · out 900</span></span><span class="cost">$0.03</span><i class="ss-n ss-n--abs">1</i></div>
                     <div class="session-context-turns__row"><span class="id">turn-11</span><span class="ctx">88.9K <small>/ 256K</small><br><span class="io">in 14.8K · out 1.1K</span></span><span class="cost">$0.03</span></div>
                     <div class="session-context-turns__row"><span class="id">turn-10</span><span class="ctx">71.3K <small>/ 256K</small><br><span class="io">in 70.9K · out 400 · cache 69.8K</span></span><span class="cost">$0.03</span></div>
-                    <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compacted at 85% · <b>218K</b> → next report 71.3K<i class="ss-n ss-n--abs">2</i></div>
+                    <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compozy compaction · at 85% · replay span archived · at 85% · <b>218K</b><i class="ss-n ss-n--abs">2</i></div>
                     <div class="session-context-turns__row"><span class="id">turn-9</span><span class="ctx">218K <small>/ 256K</small><br><span class="io">in 41.2K · out 2.0K</span></span><span class="cost">$0.06</span></div>
                     <div class="session-context-turns__row"><span class="id">turn-8</span><span class="ctx">190K <small>/ 256K</small><br><span class="io">in 22.0K · out 1.4K</span></span><span class="cost"></span><i class="ss-n ss-n--abs">3</i></div>
                   </div>
@@ -424,7 +424,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
         </div>
         <ul class="ss-legend">
           <li><i class="ss-n">1</i><span><b>Turn row</b> <em>grid 52 · 1fr · auto · id mono subtle · "89.7K / 256K" mono fg · in/out micro faint · cost mono · 7px 10px · hairlines between rows · delta</em></span></li>
-          <li><i class="ss-n">2</i><span><b>Compaction marker</b> <em>canvas-soft strip · Minimize2 11px · "Compacted at 85% · 218K → next report 71.3K" · from <code>session.compaction_fired</code> (used/size/pressure/sequence range)</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Compaction marker</b> <em>canvas-soft strip · Minimize2 11px · "Compozy compaction · at 85% · 218K · replay span archived" · from <code>session.compaction_fired</code> + the span's archive fact; never claims the attempt completed nor that the agent's window shrank</em></span></li>
           <li><i class="ss-n">3</i><span><b>No cost reported</b> <em>cell reads "–" in faint, never $0.00</em></span></li>
           <li><i class="ss-n">4</i><span><b>Show earlier turns</b> <em>ghost xs Button with the remaining count · appears after 50 rows · loads the full list once</em></span></li>
         </ul>
@@ -529,7 +529,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
             <tr><td>Meter</td><td><code>context.used/size/state/stale/pressure_threshold</code></td><td>"35%" · "89.7K / 256K" · chips <b>reported</b> · <b>stale</b> · <b>estimated size</b> · <b>near compaction</b> · "as of turn 12" · "Compaction runs at 85%" · "Context usage unknown"</td></tr>
             <tr><td>Compozy context</td><td><code>context.injected</code> (task_04)</td><td>"Compozy context ≈ 12.4K" · rows System prompt · Situation · Memory · Soul · Skills catalog · Tool manuals · Network · Workspace knowledge · Attachments · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N" · "may have been summarized" · "estimate exceeds reported"</td></tr>
             <tr><td>Tokens &amp; cost</td><td><code>usage.*</code> (existing)</td><td>Tokens in · Tokens out · Cache read · Cache write · Total tokens · Total cost + provenance note · "across N turns" · "No usage yet"</td></tr>
-            <tr><td>Turns</td><td><code>GET …/usage/turns</code></td><td>turn id · "used / size" · "in · out · cache" · cost or "–" · "Compacted at 85% · 218K → next report 71.3K" · "Show earlier turns" · "No turns yet"</td></tr>
+            <tr><td>Turns</td><td><code>GET …/usage/turns</code></td><td>turn id · "used / size" or "–" · "in · out · cache" · cost or "–" · "≈ N" or "–" · "Compozy compaction · at 85% · 218K · replay span archived / not archived" · "Show earlier turns" · "No turns yet"</td></tr>
             <tr><td>Activity</td><td>client selectors</td><td>"Working for …" · "Worked for …" · "N agents running" · "N tools · N thoughts" · "N queued" · "Goal · turn a/b · state" · "Runtime warning · …"</td></tr>
           </tbody>
         </table>

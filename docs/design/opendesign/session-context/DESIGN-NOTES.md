@@ -52,6 +52,7 @@ No new `@compozy/ui` primitive. `HoverCard` is not added; the compact hover surf
 | ring used-only | solid track + centre dot `--subtle` | control |
 | state chip `reported` | `Pill` xs neutral | tooltip, meter |
 | state chip `stale` | `Pill` xs warning | tooltip, meter |
+| state chip `unavailable` | `Pill` xs neutral hollow; values stay | meter |
 | state chip `estimated size` | sentence "Window from model catalog." (no chip) | tooltip |
 | state chip `near compaction` | `Pill` xs warning | meter |
 | tier Compozy context ≈ | `StackedProgress` segment tone `accent` (`--color-chart-1` alias) | meter |
@@ -70,11 +71,11 @@ Signal colour marks state only: warning for near-compaction, stale rows, runtime
 
 - Rail title: **Context**. Topbar toggle: "Open context sidebar" / "Close context sidebar".
 - Control labels: "Context 35% used" · "Context 35% used, stale" · "Context 89.7K used" · "Context usage unknown".
-- Tooltip: "35% · 89.7K / 256K" · "reported · as of turn 12" · "Compaction runs at 85%" · "Window from model catalog." · "This agent hasn't reported context usage." · "Usage unavailable".
+- Tooltip: "35% · 89.7K / 256K" · "reported · as of turn 12" · "Compaction runs at 85%" (only with an agent-reported window) · "Window from model catalog." · "This agent hasn't reported context usage." · "Usage unavailable" (keeps the last ring).
 - Meter legend: "Compozy context ≈" · "Agent & conversation" · "Free" · "estimate exceeds reported".
-- Injected rows: "System prompt" · "Situation" · "Memory" · "Soul" · "Skills catalog" · "Tool manuals" · "Network" · "Workspace knowledge" · "Attachments" · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N" · "may have been summarized" · foot "Estimate: bytes ÷ 4 over the text Compozy delivered."
+- Injected rows: "System prompt" · "Agent prompt" · "Situation" · "Memory" · "Soul" · "Skills catalog" · "Tool manuals" · "Network" · "Workspace knowledge" · "Attachments" (name + bytes, no estimate for binary) · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N · last seen turn M" · "may have been summarized" · "modified by a hook" · "included in the startup prompt" (startup-dedup row without an estimate) · foot "Estimate: bytes ÷ 4 over the text Compozy delivered."
 - Tokens & cost: existing labels; "Cache read" · "Cache write"; "No usage yet" kept.
-- Turns: "Compacted at 85% · 218K → next report 71.3K" · "Show earlier turns" · "No turns yet".
+- Turns: "Compozy compaction · at 85% · 218K · replay span archived" ("· replay span not archived" otherwise) · "Show earlier turns" · "No turns yet". One row per turn that has a usage report or a delivery (usage-only, counter-only, delivery-only, both), ordered by ledger sequence. The marker never says the agent's window shrank and never claims the attempt completed; the Compozy rows go stale only when the agent's own `used` drops.
 - Meter empty: "No context report yet" · "The meter fills once the agent reports its first turn."
 
 ## Gaps and authorized deltas
@@ -83,3 +84,8 @@ Signal colour marks state only: warning for near-compaction, stale rows, runtime
 - Injected rows on the sidebar board depend on task_04; task_03 proves the section with fixtures and renders it empty against a daemon without attribution.
 - The drawer specimen is drawn at 760px to fit the page; the breakpoint is 1440 per `DetailInspector`.
 - Numbers, turn ids, and agent names are fixtures; runtime truth owns values.
+
+## Revision log
+
+- 2026-09-11 · peer review round 1 (B-005, B-009): `unavailable` state added; the compaction sentence appears only with an agent-reported window.
+- 2026-09-11 · peer review round 2 (B-015, B-018, B-019, B-020, N-007): compaction marker copy → "Compozy compaction · at N% · replay span archived / not archived" (no completion claim); rows stale only on the agent's `used` drop (never on the daemon marker); Turns = union of usage and delivery rows ordered by sequence; live refresh from the stream's `session_usage_changed` event, not from transcript entries; display tier Compozy = `min(injected, used, size)`; new row states "included in the startup prompt" and "Agent prompt". Board annotations §03/§05/§07 updated in place; the specimens' numbers are unchanged.

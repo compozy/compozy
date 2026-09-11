@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Menus and entry points · Session continue &amp; fork · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../_done/sessions-stability/sessions-stability.css">
+<link rel="stylesheet" href="session-continue-fork.css">
+<!--
+  session-continue-fork-menus · S1 S2 S3 S8 S9 of .compozy/tasks/session-continue-fork/_uiux.md —
+  where "Continue with another agent…", "Fork session…" and "Fork from here" live, plus the two
+  copy deltas on existing surfaces (the dead-runtime notice and the provider-error marker).
+  Authored 2026-09-11 after the spec and the task graph. Visual Contract for task_04
+  (VC-01..03, VC-21, VC-22) and task_06 (VC-04, VC-05, plus the Fork session… items on VC-01/VC-03).
+  Provenance:
+    production — SessionRowActions kebab (Rename · Stop · Archive/Unarchive · Delete),
+                 useSessionTopbarSlot overflow (Rename · Stop · Clear conversation · Delete),
+                 MessageActions row (timestamp · Copy · Rewind to here), SessionResumeFailure on
+                 SessionDangerBanner, ProviderErrorNotice marker. Window shell, thread and message
+                 anatomy from ../sessions-stability (unchanged); rail rows from ../sessions-bulk-actions.
+    delta      — two DropdownMenuItems after Rename in both kebabs; SessionForkMessageAction
+                 before the rewind action; retryLabel "Restart in a new session"; next_action=handoff
+                 sentence + ghost button on the provider-error marker.
+    truth      — items exist only on user sessions (isUserControllableSession) and never on archived
+                 rows; "Fork from here" only on durable user messages; nothing here is disabled to
+                 hint at a capability — capability gating lives inside the dialogs (see dialogs board).
+  Product classes are named after the production component they render (session-continue-fork.css).
+  Lab chrome (.lab-*, .ss-contract, .ss-n, .ss-legend, .ss-tags, .scf-*) is annotation ink.
+-->
+<style>
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.crumb{font-size:12px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.page{max-width:1240px;margin:0 auto;padding:40px 36px 80px}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="scf-menus">
+  <div class="head"><span class="crumb"><a href="index.html">Session continue &amp; fork</a> / menus</span></div>
+  <div class="head"><h1>Menus and entry points</h1></div>
+  <p class="lede"><b>Two verbs in the two places secondary session verbs already live, and one verb on the message.</b> The row kebab and the window's More-actions menu gain <b>Continue with another agent…</b> and <b>Fork session…</b> right after Rename. A user message gains <b>Fork from here</b> beside Rewind to here. Nothing gets a new icon in the head, nothing lands on the composer, nothing joins the bulk bar. Two existing surfaces change copy: the dead-runtime notice says <b>Restart in a new session</b>, and a turn that failed for quota offers Continue instead of only "wait and retry".</p>
+
+  <section class="ss-contract" data-od-id="scf-menus-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>The entry points.</b> Where a person starts a continue or a fork: the row kebab in the session list, the overflow menu in the session window head, and the action row under a user message. Both menu items open a dialog (dialogs board); "Fork from here" opens the Fork dialog with that message as the fork point. The two copy-only deltas on the dead-runtime notice and the provider-error marker are drawn here because they are the other two ways into the same dialogs.</p>
+      <p class="ss-contract__file">session-continue-fork-menus.html · S1 S2 S3 S8 S9 · US-001 US-004 US-006 US-007 US-012 · task_04 VC-01..03 VC-21 VC-22 · task_06 VC-04 VC-05 + fork items</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionRowActions</b><i>web/src/systems/session/components/session-row-actions.tsx:27-94</i>two DropdownMenuItems after "Rename session", before "Stop session" · ArrowRightLeft / GitFork 12px · only when <code>isUserControllableSession(session) &amp;&amp; !archived</code> · disabled with the other items while <code>actions.pendingAction !== null</code></span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionTopbarOverflow</b><i>web/src/systems/session/hooks/use-session-topbar-slot.tsx:94-175</i>same two items after Rename · <code>data-testid="continue-menu-item"</code> / <code>"fork-menu-item"</code> · disabled while <code>controlsBusy</code></span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionForkMessageAction</b><i>web/src/systems/session/components/session-fork-message-action.tsx</i>ghost xs Button "Fork from here" · GitFork · <code>data-testid="user-message-fork"</code> · same gates as the rewind action · opens SessionForkDialog with <code>message_id</code></span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>MessageActions</b><i>web/src/components/assistant-ui/message-actions.tsx:22-75</i>mounts the fork action before SessionRewindMessageAction on <code>align="end"</code> rows</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionWindowContent · SessionResumeFailure</b><i>web/src/systems/os/apps/session/session-window-content.tsx:114-127</i><code>retryLabel="Restart in a new session"</code> · create request adds <code>lineage_kind: "recovery"</code> · landing unchanged (this window)</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>ProviderErrorNotice · provider-error.ts</b><i>web/src/systems/session/components/runtime-activity-notice.tsx:100-160 · lib/provider-error.ts</i><code>handoff</code> joins the whitelist · next step sentence + ghost Button "Continue with another agent…" (<code>data-testid="provider-error-continue"</code>)</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>DropdownMenu · Button · Spinner · Marker</b><i>@compozy/ui and the session marker primitives — unchanged</i></span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>SessionRewindMessageAction · Rewind ConfirmDialog</b><i>session-rewind-message-action.tsx — unchanged, drawn as the neighbour</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#scf-menus-01">Row kebab · user row · items present</a><code>VC-01</code></li>
+        <li><a href="#scf-menus-01">Row kebab · archived row · items absent</a><code>VC-02</code></li>
+        <li><a href="#scf-menus-02">Window overflow · items present</a><code>VC-03</code></li>
+        <li><a href="#scf-menus-03">Fork from here · at rest</a><code>VC-04</code></li>
+        <li><a href="#scf-menus-03">Fork from here · busy</a><code>VC-05</code></li>
+        <li><a href="#scf-menus-04">Dead runtime · Restart in a new session</a><code>VC-21</code></li>
+        <li><a href="#scf-menus-05">Turn failed · Continue offered</a><code>VC-22</code></li>
+        <li><a href="#scf-menus-06">Copy · gates · rules</a><code>§06</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · ROW KEBAB ===== -->
+  <section class="lab-sec" id="scf-menus-01" data-od-id="scf-menus-01">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The row kebab — two new verbs between Rename and Stop</h2><span class="lab-sec__gist">US-001.AC-1 · US-006.AC-1 · US-001.EC-1 EC-2 · VC-01 VC-02</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Same menu, two more lines.</b>
+        <p>The kebab already carries the verbs that act on one session. Continue and Fork are singular verbs that create one child from this row, so they belong here — after Rename (the only other non-lifecycle verb) and before the lifecycle group. Neither is destructive; neither gets a separator of its own.</p>
+        <p>Both items are gated by the same rule as Rename: user-controllable rows only. Spawned workers, coordinators and system sessions keep today's menu. An archived row keeps today's menu too — you unarchive first.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-menus-01-stage">
+          <div class="stage__cell">
+            <span class="stage__cell-t">User row · menu open <code>delta</code></span>
+            <aside class="session-sidebar" aria-label="Sessions" data-od-id="scf-vc-01">
+              <div class="session-list-toolbar"><span class="eyebrow">Sessions</span><button class="btn btn--ghost btn--icon" aria-label="New session"><svg data-lucide="plus"></svg></button></div>
+              <div class="session-list">
+                <div class="session-list-row-host is-hover">
+                  <button class="session-list-row" data-status="idle" aria-current="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Refactor flaky manager tests</span><span class="session-list-row__sub"><b>claude</b> · <span class="session-list-row__word">idle</span></span></span><span class="session-list-row__time">2m ago</span></button>
+                  <div class="session-list-row__trail session-row-actions">
+                    <button class="btn btn--ghost btn--icon is-open" aria-label="More actions for Refactor flaky manager tests" aria-haspopup="menu" aria-expanded="true"><svg data-lucide="ellipsis"></svg></button>
+                    <div class="menu menu--overlay session-row-actions-menu" role="menu" aria-label="Actions for Refactor flaky manager tests">
+                      <button class="menu-item" role="menuitem"><svg data-lucide="pencil"></svg>Rename session</button>
+                      <button class="menu-item" role="menuitem" data-delta="true"><svg data-lucide="arrow-right-left"></svg>Continue with another agent…<i class="ss-n ss-n--abs" style="right:-24px;top:6px">1</i></button>
+                      <button class="menu-item" role="menuitem" data-delta="true"><svg data-lucide="git-fork"></svg>Fork session…<i class="ss-n ss-n--abs" style="right:-24px;top:6px">2</i></button>
+                      <button class="menu-item" role="menuitem"><svg data-lucide="square"></svg>Stop session</button>
+                      <button class="menu-item menu-item--danger" role="menuitem"><svg data-lucide="trash-2"></svg>Delete session<i class="ss-n ss-n--abs" style="right:-24px;top:6px">3</i></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="session-list-row-host">
+                  <button class="session-list-row" data-status="running"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 617 — fallback account</span><span class="session-list-row__sub"><b>codex</b> · <span class="session-list-row__word">running</span></span></span><span class="session-list-row__time">just now</span></button>
+                  <div class="session-list-row__trail"></div>
+                </div>
+                <div class="session-list-row-host">
+                  <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Integrate PRs 602–606</span><span class="session-list-row__sub"><b>claude</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">15h ago</span></button>
+                  <div class="session-list-row__trail"></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+          <div class="stage__cell">
+            <span class="stage__cell-t">Archived row · menu open <code>production, unchanged</code></span>
+            <aside class="session-sidebar" aria-label="Sessions · Archived" data-od-id="scf-vc-02">
+              <div class="session-list-toolbar"><span class="eyebrow">Archived</span></div>
+              <div class="session-list">
+                <div class="session-list-row-host is-hover">
+                  <button class="session-list-row" data-status="archived"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Draft the release notes</span><span class="session-list-row__sub"><b>claude</b> · <span class="session-list-row__word">archived</span></span></span><span class="session-list-row__time">3d ago</span></button>
+                  <div class="session-list-row__trail session-row-actions">
+                    <button class="btn btn--ghost btn--icon is-open" aria-label="More actions for Draft the release notes" aria-haspopup="menu" aria-expanded="true"><svg data-lucide="ellipsis"></svg></button>
+                    <div class="menu menu--overlay session-row-actions-menu" role="menu" aria-label="Actions for Draft the release notes">
+                      <button class="menu-item" role="menuitem"><svg data-lucide="pencil"></svg>Rename session</button>
+                      <button class="menu-item" role="menuitem"><svg data-lucide="rotate-ccw"></svg>Unarchive session<i class="ss-n ss-n--abs" style="right:-24px;top:6px">4</i></button>
+                      <button class="menu-item menu-item--danger" role="menuitem"><svg data-lucide="trash-2"></svg>Delete session</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="session-list-row-host">
+                  <button class="session-list-row" data-status="archived"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Spike: ACP session/fork</span><span class="session-list-row__sub"><b>opencode</b> · <span class="session-list-row__word">archived</span></span></span><span class="session-list-row__time">6d ago</span></button>
+                  <div class="session-list-row__trail"></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Continue with another agent…</b> <em>DropdownMenuItem, default variant · ArrowRightLeft 12px · ellipsis = opens a dialog · <code>data-testid="session-row-continue-{id}"</code> · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Fork session…</b> <em>DropdownMenuItem · GitFork 12px · same gate, same disabled state · <code>data-testid="session-row-fork-{id}"</code> · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>The rest</b> <em>Rename · Stop · Delete (destructive) exactly as production; the new items take the slot after Rename so the lifecycle group stays together · production</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Archived row</b> <em>Rename · Unarchive · Delete — no Continue, no Fork; the menu never shows a verb it will refuse (US-001.EC-2) · production, unchanged</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>menu open · user row · archived row</span><span class="ss-tag"><b>component</b>SessionRowActions · DropdownMenu</span><span class="ss-tag"><b>VC</b>task_04 VC-01 · VC-02</span><span class="ss-tag"><b>tone</b>danger on Delete only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · WINDOW OVERFLOW ===== -->
+  <section class="lab-sec" id="scf-menus-02" data-od-id="scf-menus-02">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The window's More actions — the same two verbs, from inside the session</h2><span class="lab-sec__gist">US-001.AC-2 · US-006.AC-2 · VC-03</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>No new head icon.</b>
+        <p>Superset puts a fork glyph in the pane header. Compozy's head already has an overflow menu for the session's secondary verbs, so the items go there and the head keeps its three icons. The primary head action stays Attach / Stop.</p>
+        <p>The source may be running: the daemon carries over settled turns only, so the items stay enabled. They disable with the rest of the menu while a control is busy (<code>controlsBusy</code>).</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-menus-02-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scf-vc-03" style="--ss-win-h:300px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests</span></div>
+              <span class="ss-head-meta session-status-line"><span class="word">running</span><span class="dotsep"></span><span class="session-status-agent">claude</span><span class="dotsep"></span><span class="prov">claude-code</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon is-open" aria-label="More actions" aria-haspopup="menu" aria-expanded="true"><svg data-lucide="ellipsis"></svg></button><i class="ss-n ss-n--abs" style="right:-2px;top:-8px">1</i></div></div>
+              <div class="menu menu--overlay session-topbar-overflow-menu" role="menu" aria-label="More actions">
+                <button class="menu-item" role="menuitem"><svg data-lucide="pencil"></svg>Rename session</button>
+                <button class="menu-item" role="menuitem" data-delta="true" data-testid="continue-menu-item"><svg data-lucide="arrow-right-left"></svg>Continue with another agent…<i class="ss-n ss-n--abs" style="right:-24px;top:6px">2</i></button>
+                <button class="menu-item" role="menuitem" data-delta="true" data-testid="fork-menu-item"><svg data-lucide="git-fork"></svg>Fork session…</button>
+                <button class="menu-item" role="menuitem"><svg data-lucide="square"></svg>Stop session</button>
+                <button class="menu-item" role="menuitem"><svg data-lucide="eraser"></svg>Clear conversation<i class="ss-n ss-n--abs" style="right:-24px;top:6px">3</i></button>
+                <button class="menu-item menu-item--danger" role="menuitem"><svg data-lucide="trash-2"></svg>Delete session</button>
+              </div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="ss-turn ss-turn--tight">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                  <div class="ss-prose"><p>Reading <code>internal/store</code> retry scheduling before touching anything.</p></div>
+                  <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                </div>
+              </div></div>
+              <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for 12m 04s<span class="sep">·</span>Running shell</div></div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>The head keeps three icons</b> <em>Stop · context sidebar · More actions — the trigger is the same ghost icon Button; no fork glyph joins the head · production</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Continue with another agent… · Fork session…</b> <em>after Rename, before Stop · enabled on a running source (settled turns carry over; the in-flight turn does not, and the dialog says so) · disabled with the rest while <code>controlsBusy</code> · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Stop · Clear conversation · Delete</b> <em>unchanged order and variants · Clear stays the in-place wipe; it is not a fork · production</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>menu open · running source</span><span class="ss-tag"><b>component</b>useSessionTopbarOverflow · DropdownMenu</span><span class="ss-tag"><b>VC</b>task_04 VC-03</span><span class="ss-tag"><b>accent</b>0 (Stop is neutral here)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · FORK FROM HERE ===== -->
+  <section class="lab-sec" id="scf-menus-03" data-od-id="scf-menus-03">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Fork from here — beside Rewind, creates instead of removes</h2><span class="lab-sec__gist">US-007.AC-1 AC-2 · US-007.EC-2 EC-5 · VC-04 VC-05</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Same row, opposite consequence.</b>
+        <p>Rewind to here cuts this session. Fork from here starts a second session that ends at this turn and leaves this one alone. They share the row, the size, the gates: durable user messages only, never an optimistic tail, never a read-only thread, never an assistant message.</p>
+        <p>While the thread runs, a rewind is pending, or a rewind is blocked, both buttons disable together — a moving transcript has no fence to fork from.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-menus-03-stage">
+          <div class="stage__cell" style="width:520px;max-width:100%">
+            <span class="stage__cell-t">At rest · idle thread <code>delta</code></span>
+            <div class="scf-plate scf-plate--tight" data-od-id="scf-vc-04">
+              <div class="ss-thread__inner">
+                <div class="ss-turn ss-turn--tight">
+                  <div class="ss-msg-user">
+                    <div class="ss-msg-user__bubble">Refactor the flaky manager tests so they wait on the lifecycle channel instead of sleeping</div>
+                    <div class="message-actions" data-testid="user-message-actions">
+                      <time datetime="2026-09-11T14:02:00Z">14:02</time>
+                      <button class="btn btn--ghost btn--xs btn--icon" aria-label="Copy message"><svg data-lucide="copy"></svg></button>
+                      <span class="session-fork-message-action"><button class="btn btn--ghost btn--xs" data-testid="user-message-fork"><svg data-lucide="git-fork"></svg>Fork from here</button><i class="ss-n ss-n--abs" style="left:-18px;top:2px">1</i></span>
+                      <span class="session-rewind-message-action"><button class="btn btn--ghost btn--xs" data-testid="user-message-rewind"><svg data-lucide="rotate-ccw"></svg>Rewind to here</button><i class="ss-n ss-n--abs" style="right:-22px;top:2px">2</i></span>
+                    </div>
+                  </div>
+                  <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary></details>
+                  <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="stage__cell" style="width:520px;max-width:100%">
+            <span class="stage__cell-t">Busy · thread running <code>delta</code></span>
+            <div class="scf-plate scf-plate--tight" data-od-id="scf-vc-05">
+              <div class="ss-thread__inner">
+                <div class="ss-turn ss-turn--tight">
+                  <div class="ss-msg-user">
+                    <div class="ss-msg-user__bubble">Now make the same change in the store package</div>
+                    <div class="message-actions" data-testid="user-message-actions">
+                      <time datetime="2026-09-11T14:31:00Z">14:31</time>
+                      <button class="btn btn--ghost btn--xs btn--icon" aria-label="Copy message"><svg data-lucide="copy"></svg></button>
+                      <span class="session-fork-message-action"><button class="btn btn--ghost btn--xs" disabled aria-disabled="true" data-testid="user-message-fork"><svg data-lucide="git-fork"></svg>Fork from here</button><i class="ss-n ss-n--abs" style="left:-18px;top:2px">3</i></span>
+                      <span class="session-rewind-message-action"><button class="btn btn--ghost btn--xs" disabled aria-disabled="true" data-testid="user-message-rewind"><svg data-lucide="rotate-ccw"></svg>Rewind to here</button></span>
+                    </div>
+                  </div>
+                  <div class="ss-prose"><p>Reading <code>internal/store</code> retry scheduling before touching anything.</p></div>
+                  <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Fork from here</b> <em>SessionForkMessageAction · ghost Button size xs · GitFork 12px · <code>text-muted hover:text-fg</code> like the rewind button · mounted before the rewind action · click → SessionForkDialog with this <code>message_id</code> (dialogs §02) · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Rewind to here</b> <em>unchanged · its danger ConfirmDialog stays the only danger surface on the row · production</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Busy</b> <em>both buttons <code>disabled</code> while the thread runs, a rewind is pending, or <code>rewindBlocked</code> — the same hook gates (use-session-rewind-message-action.ts:29-35) · faint ink, no tooltip needed: the running row above explains it · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>rest · busy</span><span class="ss-tag"><b>component</b>MessageActions · SessionForkMessageAction · SessionRewindMessageAction</span><span class="ss-tag"><b>VC</b>task_06 VC-04 · VC-05</span><span class="ss-tag"><b>tone</b>neutral (danger only inside Rewind's confirm)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 · DEAD RUNTIME ===== -->
+  <section class="lab-sec" id="scf-menus-04" data-od-id="scf-menus-04">
+    <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Dead runtime — the notice stops saying "fork"</h2><span class="lab-sec__gist">US-012.AC-1 · VC-21 · copy only</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>One word, so "fork" means one thing.</b>
+        <p>Today the notice offers <code>Fork into a new session</code>, which creates an empty child and lands it in this window. That is a restart, not a fork — nothing is carried over. With Fork session… now meaning "same agent, same conversation", the notice says <b>Restart in a new session</b>. Behaviour, landing, and the danger banner are untouched; the create request records <code>lineage_kind: "recovery"</code> so the child never shows an origin pill.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-menus-04-stage">
+          <div class="stage__cell" style="width:640px;max-width:100%">
+            <span class="stage__cell-t">Attach failed · provider gone <code>copy delta</code></span>
+            <div class="scf-plate scf-plate--tight" data-od-id="scf-vc-21">
+              <div class="session-resume-failure" role="alert" data-testid="session-resume-failure">
+                <div class="session-resume-failure__title" data-testid="session-resume-failure-title">Attach failed: provider no longer available</div>
+                <p class="session-resume-failure__msg">This session was started with provider claude, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.</p>
+                <p class="session-resume-failure__meta">session sess_01J9R2K7M4T1 · agent claude</p>
+                <div class="session-resume-failure__acts">
+                  <button class="btn btn--outline btn--sm" data-testid="session-resume-failure-retry"><svg data-lucide="refresh-cw"></svg>Restart in a new session</button><i class="ss-n ss-n--abs" style="left:190px;bottom:32px">1</i>
+                  <button class="btn btn--ghost btn--sm"><svg data-lucide="x"></svg>Dismiss</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend ss-legend--1">
+          <li><i class="ss-n">1</i><span><b>Restart in a new session</b> <em>Button variant neutral size sm, RefreshCw — the same button, new label · creates an empty child with <code>parent_session_id</code> + <code>lineage_kind: "recovery"</code> and retargets this window (the source is dead) · banner, sentences, meta line and Dismiss are production · copy delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>unrecoverable runtime</span><span class="ss-tag"><b>component</b>SessionResumeFailure · SessionDangerBanner</span><span class="ss-tag"><b>VC</b>task_04 VC-21</span><span class="ss-tag"><b>tone</b>danger banner (production)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 05 · TURN FAILED ===== -->
+  <section class="lab-sec" id="scf-menus-05" data-od-id="scf-menus-05">
+    <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">A turn failed for quota — Continue is offered, never taken for you</h2><span class="lab-sec__gist">US-004.AC-1 AC-2 · VC-22</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>The daemon names the next step; the marker shows the door.</b>
+        <p>When a prompt fails with <code>provider_rate_limited</code> or <code>provider_auth_required</code> on a user session and the daemon's <code>next_action</code> is <code>handoff</code>, the marker's next-step sentence changes and a ghost button opens the Continue dialog with this session as the source. The session stays available, exactly as today. No policy, no timer, no automatic switch — an offer.</p>
+        <p>Other next actions (<code>login</code>, <code>bind_secret</code>, <code>inspect</code>, <code>retry</code>) render as they do now.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-menus-05-stage">
+          <div class="stage__cell" style="width:640px;max-width:100%">
+            <span class="stage__cell-t">Rate limited · next_action = handoff <code>delta</code></span>
+            <div class="scf-plate scf-plate--tight" data-od-id="scf-vc-22">
+              <div class="ss-thread__inner">
+                <div class="ss-turn ss-turn--tight">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Add the migration for lineage_kind and regenerate sqlc</div></div>
+                  <div class="runtime-activity-notice" role="alert" data-testid="provider-error-marker">
+                    <div class="runtime-activity-notice__head"><svg data-lucide="octagon-alert"></svg><span><b>claude is rate limited</b><span class="count"> ×2</span></span><i class="ss-n ss-n--abs" style="right:-20px;top:0">1</i></div>
+                    <div class="runtime-activity-notice__body">
+                      <span>This turn stopped because the provider is limiting requests right now.</span>
+                      <span>Continue this session with another agent or route.</span><i class="ss-n ss-n--abs" style="right:-20px;top:20px">2</i>
+                    </div>
+                    <div class="runtime-activity-notice__acts"><button class="btn btn--ghost btn--xs" data-testid="provider-error-continue"><svg data-lucide="arrow-right-left"></svg>Continue with another agent…</button><i class="ss-n ss-n--abs" style="left:186px;top:2px">3</i></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Subject + cluster count</b> <em><code>{provider} is rate limited</code> · faint ×N when consecutive occurrences clustered · OctagonAlert danger 12px · production</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Next step for handoff</b> <em><code>Continue this session with another agent or route.</code> replaces "Wait for the provider to recover…" only when <code>next_action = "handoff"</code>; the cause sentence above is unchanged · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Continue with another agent…</b> <em>ghost Button xs, ArrowRightLeft · opens SessionContinueDialog (dialogs §01) with this session as source · absent for any other next action · <code>data-testid="provider-error-continue"</code> · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>turn failed · rate limited · handoff</span><span class="ss-tag"><b>component</b>ProviderErrorNotice · Marker · Button</span><span class="ss-tag"><b>VC</b>task_04 VC-22</span><span class="ss-tag"><b>tone</b>danger glyph (production) · neutral button</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 06 · DICTIONARY ===== -->
+  <section class="lab-sec" id="scf-menus-06" data-od-id="scf-menus-06">
+    <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Copy, gates, rules</h2><span class="lab-sec__gist">verbatim strings · what is absent and why</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>Where</th><th>Copy (verbatim)</th></tr></thead>
+          <tbody>
+            <tr><td>Row kebab · window overflow</td><td><code>Continue with another agent…</code> · <code>Fork session…</code> — after <code>Rename session</code>, before <code>Stop session</code></td></tr>
+            <tr><td>Message action</td><td><code>Fork from here</code> — before <code>Rewind to here</code></td></tr>
+            <tr><td>Dead-runtime notice</td><td><code>Restart in a new session</code> — replaces <em>Fork into a new session</em></td></tr>
+            <tr><td>Provider-error next step</td><td><code>Continue this session with another agent or route.</code> + button <code>Continue with another agent…</code></td></tr>
+            <tr><td>aria / testids</td><td><code>session-row-continue-{id}</code> · <code>session-row-fork-{id}</code> · <code>continue-menu-item</code> · <code>fork-menu-item</code> · <code>user-message-fork</code> · <code>provider-error-continue</code></td></tr>
+            <tr><td>Never</td><td><em>handoff</em> (Network channel kind) · <em>branch</em> (git, worktree, Loops) · <em>chat</em></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <ul>
+          <li><b>Present only when true.</b> The items exist for user-controllable, non-archived rows; the message action exists for durable user messages on a non-read-only thread. Absent, not disabled, when the rule fails (US-001.EC-1, US-007.EC-2).</li>
+          <li><b>Disabled only while busy.</b> Pending row action, <code>controlsBusy</code>, running thread, pending or blocked rewind — the same gates the neighbouring verbs use.</li>
+          <li><b>No capability hint here.</b> Native fork versus replay seed is decided by the daemon and shown inside the dialog's context line, never on a menu item.</li>
+          <li><b>No new head icon, no composer item, no bulk verb.</b> Bulk actions stay delete-class verbs pluralised from the kebab (sessions-bulk-actions board).</li>
+          <li><b>Landing after success</b> is the dialog's "Open in" choice — New window by default — so this row and this window stay as they were.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lab-foot" style="margin-top:22px">Reference sources: Superset <span class="mono">TerminalSessionHandoffMenu.tsx</span> (one header menu with both verbs; fork locks the agent), Synara <span class="mono">MessagesTimeline.tsx</span> (always-visible "Fork from here" on settled turns) and <span class="mono">threadHandoff.ts</span> (handoff refused while busy), Codex TUI <span class="mono">/fork</span> (a slash the daemon may catalog later; not a client-invented token). Rejected: a GitFork icon in the window head; items on the bulk bar; a disabled "Fork session…" as a capability hint. Iterate — never regenerate a delivered board.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>if(window.lucide) window.lucide.createIcons();</script>
+</body>
+</html>

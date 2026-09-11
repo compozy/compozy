@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Origin and lineage · Session continue &amp; fork · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../_done/sessions-stability/sessions-stability.css">
+<link rel="stylesheet" href="session-continue-fork.css">
+<!--
+  session-continue-fork-lineage · S6 S7 S10 of .compozy/tasks/session-continue-fork/_uiux.md — how a
+  continued or forked session shows where it came from: the origin pill in the status line, the
+  divider at the top of the child's transcript, and the Origin row in the inspector ledger.
+  Authored 2026-09-11 after the spec and the task graph. Visual Contract for task_04 (VC-16, VC-18..20)
+  and task_06 (VC-17, VC-23).
+  Provenance:
+    production — SessionStatusLine (badge · agent · provider · Archived) in the window head,
+                 SessionListThread nesting under parent_session_id, SessionLedgerMetaPanel rows.
+                 Window shell and thread from ../sessions-stability (unchanged).
+    delta      — SessionOriginPill after the provider (Pill neutral, link when the parent is known);
+                 SessionContinueDivider before the child's first native message; ledger "Origin" row.
+    truth      — the pill and the divider exist only for lineage.kind = continue | fork; spawn,
+                 provenance, recovery and roots show nothing new; a deleted source renders the same
+                 words without a link; the carried context is inside the first prompt and is not
+                 drawn as messages — the divider marks the boundary, not a transcript.
+  Product classes are named after the production component they render (session-continue-fork.css).
+  Lab chrome (.lab-*, .ss-contract, .ss-n, .ss-legend, .ss-tags, .scf-*) is annotation ink.
+-->
+<style>
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.crumb{font-size:12px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.page{max-width:1240px;margin:0 auto;padding:40px 36px 80px}
+.headrow{display:flex;flex-direction:column;gap:14px}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="scf-lineage">
+  <div class="head"><span class="crumb"><a href="index.html">Session continue &amp; fork</a> / lineage</span></div>
+  <div class="head"><h1>Origin and lineage</h1></div>
+  <p class="lede"><b>Three quiet places say where a session came from.</b> A neutral pill after the provider in the status line — <b>Continued from codex</b> or <b>Forked from Refactor flaky manager tests</b> — that links back to the source. A hairline with the same words at the top of the child's transcript, before its first own message. And an <b>Origin</b> row in the ledger after the session stops. The list already nests children under their parent; nothing else changes shape. The source shows no chrome at all: it was not touched, so it says nothing.</p>
+
+  <section class="ss-contract" data-od-id="scf-lineage-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>Origin, shown truthfully.</b> The child of a Continue or a Fork carries a pill in its status line, a divider at the top of its transcript, and an Origin row in its ledger. The words are the same in all three: <b>Continued from {agent}</b> for a continue (the thing that changed is the agent), <b>Forked from {title}</b> for a fork (the thing that changed is the conversation's path). Where the parent is known on the client the pill and the divider link to it; where it is gone they are plain text. Spawned workers, provenance children, recovery restarts and roots get none of this.</p>
+      <p class="ss-contract__file">session-continue-fork-lineage.html · S6 S7 S10 · US-009 US-010 · task_04 VC-16..20 · task_06 VC-23</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionOriginPill</b><i>web/src/systems/session/components/session-origin-pill.tsx</i>Pill neutral · ArrowRightLeft / GitFork 11px · <code>Continued from {origin_agent_name}</code> / <code>Forked from {parent title}</code> · link (attention jump / onSelectSession) when the parent resolves, plain otherwise · <code>data-testid="session-origin-pill"</code></span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionStatusLine</b><i>web/src/systems/session/components/session-status-line.tsx:27-86</i>mounts the pill after the provider, before Archived · absent unless <code>lineage.kind</code> is <code>continue</code> or <code>fork</code></span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContinueDivider</b><i>web/src/systems/session/components/session-continue-divider.tsx</i>hairline · glyph · link with the same words · rendered once by SessionThreadMessages before the child's first message · <code>data-testid="session-origin-divider"</code></span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>sessionOriginLabel</b><i>web/src/systems/session/lib/session-origin.ts</i>one pure function feeding pill, divider and ledger so the three never disagree</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionLedgerMetaPanel</b><i>web/src/systems/session/components/session-inspector-memory.tsx:84-119</i>adds <code>Origin</code> after Lineage depth: <code>continue · codex</code> / <code>fork · through msg_…</code></span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>SessionListThread · session-hierarchy.ts</b><i>web/src/systems/session/components/session-list/session-list-thread.tsx:34-100 · lib/session-hierarchy.ts:46-72</i>children already nest under <code>parent_session_id</code> — unchanged</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Pill · Button</b><i>@compozy/ui — unchanged · Badge does not exist and is not added</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#scf-lineage-01">Pill · Continued from codex</a><code>VC-16</code></li>
+        <li><a href="#scf-lineage-01">Pill · Forked from {title}</a><code>VC-17</code></li>
+        <li><a href="#scf-lineage-01">Pill · narrow head · title truncates first</a><code>VC-18</code></li>
+        <li><a href="#scf-lineage-02">Divider · child with messages</a><code>VC-19</code></li>
+        <li><a href="#scf-lineage-02">Divider · empty child</a><code>VC-20</code></li>
+        <li><a href="#scf-lineage-03">Ledger · Origin row</a><code>VC-23</code></li>
+        <li><a href="#scf-lineage-04">Copy · rules · what stays silent</a><code>§04</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · PILL ===== -->
+  <section class="lab-sec" id="scf-lineage-01" data-od-id="scf-lineage-01">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The origin pill — after the provider, neutral, a link when it can be</h2><span class="lab-sec__gist">US-009.AC-1 AC-2 · US-009.EC-1 · VC-16 VC-17 VC-18</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Information, not status.</b>
+        <p>The status line reads state · agent · provider. The pill sits after the provider: a Pill in the neutral tone with a small glyph, never a signal hue — origin is a fact about the session, not something happening to it.</p>
+        <p>"Continued from" names the agent, because that is what changed. "Forked from" names the source title, because the agent is the same and the path is what changed. When the parent is on the client the pill is a link that lands its window; when the parent was deleted the same words render plain (US-009.EC-1).</p>
+        <p>At narrow widths the window title and the agent truncate before the pill loses its verb.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad headrow" data-od-id="scf-lineage-01-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scf-vc-16" style="--ss-win-h:54px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests</span></div>
+              <span class="ss-head-meta session-status-line" data-testid="session-status-meta"><span class="word">idle</span><span class="dotsep"></span><span class="session-status-agent">codex</span><span class="dotsep"></span><span class="prov">codex</span><span class="dotsep"></span><a class="session-origin-pill" href="#scf-lineage-01" data-kind="continue" data-link="true" data-testid="session-origin-pill" aria-label="Continued from codex. Open the source session"><svg data-lucide="arrow-right-left"></svg>Continued from <em>claude</em></a><i class="ss-n ss-n--abs" style="left:calc(100% + 6px);top:2px">1</i></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+          </section>
+          <section class="win win--inline ss-win" data-od-id="scf-vc-17" style="--ss-win-h:54px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests (fork)</span></div>
+              <span class="ss-head-meta session-status-line" data-testid="session-status-meta"><span class="word">running</span><span class="dotsep"></span><span class="session-status-agent">claude</span><span class="dotsep"></span><span class="prov">claude-code</span><span class="dotsep"></span><a class="session-origin-pill" href="#scf-lineage-01" data-kind="fork" data-link="true" data-testid="session-origin-pill" aria-label="Forked from Refactor flaky manager tests. Open the source session"><svg data-lucide="git-fork"></svg>Forked from <em>Refactor flaky manager tests</em></a><i class="ss-n ss-n--abs" style="left:calc(100% + 6px);top:2px">2</i></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+          </section>
+          <section class="win win--inline ss-win" data-od-id="scf-lineage-01-plain" style="--ss-win-h:54px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="stopped"><span class="status-dot"></span><span class="w2-title">Draft the release notes</span></div>
+              <span class="ss-head-meta session-status-line" data-testid="session-status-meta"><span class="word">stopped</span><span class="dotsep"></span><span class="session-status-agent">codex</span><span class="dotsep"></span><span class="prov">codex</span><span class="dotsep"></span><span class="session-origin-pill" data-kind="continue" data-link="false" data-testid="session-origin-pill"><svg data-lucide="arrow-right-left"></svg>Continued from <em>claude</em></span><i class="ss-n ss-n--abs" style="left:calc(100% + 6px);top:2px">3</i></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Attach session"><svg data-lucide="play"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+          </section>
+          <section class="win win--inline ss-win ss-win--narrow" data-od-id="scf-vc-18" style="--ss-win-h:54px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests (fork)</span></div>
+              <span class="ss-head-meta session-status-line" data-testid="session-status-meta"><span class="word">running</span><span class="dotsep"></span><span class="session-status-agent">claude</span><span class="dotsep"></span><a class="session-origin-pill" href="#scf-lineage-01" data-kind="fork" data-link="true" data-testid="session-origin-pill"><svg data-lucide="git-fork"></svg>Forked from <em>Refactor flaky manager tests</em></a><i class="ss-n ss-n--abs" style="left:calc(100% + 6px);top:2px">4</i></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Continued from claude</b> <em>SessionOriginPill · Pill xs neutral (<code>badge-fill</code>, <code>--muted</code>, hairline inset) · ArrowRightLeft 11px <code>--subtle</code> · agent name in <code>--fg</code> · a link: hover lifts to <code>btn-hover</code>, click lands the source window (attention jump) · after the provider, before Archived · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Forked from Refactor flaky manager tests</b> <em>same pill, GitFork glyph, the source's display title (<code>getSessionDisplayTitle</code>) up to 22ch then ellipsis · running child: nothing in the pill reacts to state · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Source gone</b> <em>same words, <code>data-link="false"</code>: no hover, no cursor, no aria "Open" — the fact stays, the door does not (US-009.EC-1) · delta</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Narrow head (640px)</b> <em>window title truncates to 140px, then the agent; the provider drops out of the line before the pill does; the pill keeps its verb and truncates its title · production truncation order for the head, pill appended · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>continue · fork · plain · narrow</span><span class="ss-tag"><b>component</b>SessionStatusLine · SessionOriginPill · Pill</span><span class="ss-tag"><b>VC</b>task_04 VC-16 · VC-18 · task_06 VC-17</span><span class="ss-tag"><b>tone</b>neutral only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · DIVIDER ===== -->
+  <section class="lab-sec" id="scf-lineage-02" data-od-id="scf-lineage-02">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The divider — the boundary between what was carried and what this session said</h2><span class="lab-sec__gist">US-009.AC-3 · US-010.AC-1 · VC-19 VC-20</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>A hairline, not a transcript.</b>
+        <p>The carried context travels inside the child's first prompt; it is not persisted as messages, so it is not drawn as messages. What the child shows is a single divider row before its first own message, with the same words as the pill and the same link. Synara draws this boundary the same way.</p>
+        <p>A child that has not been prompted yet shows the divider alone above the composer — the carried context is staged, the conversation has not started. Nothing pretends the source's turns are here.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-lineage-02-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scf-vc-19" style="--ss-win-h:400px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests</span></div>
+              <span class="ss-head-meta session-status-line"><span class="word">idle</span><span class="dotsep"></span><span class="session-status-agent">codex</span><span class="dotsep"></span><span class="prov">codex</span><span class="dotsep"></span><a class="session-origin-pill" href="#scf-lineage-02" data-kind="continue" data-link="true"><svg data-lucide="arrow-right-left"></svg>Continued from <em>claude</em></a></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="session-continue-divider" data-kind="continue" data-link="true" data-testid="session-origin-divider" role="separator" aria-label="Continued from Refactor flaky manager tests"><a class="session-continue-divider__link" href="#scf-lineage-02"><svg data-lucide="arrow-right-left"></svg>Continued from <em>Refactor flaky manager tests</em></a></div><i class="ss-n ss-n--abs" style="right:14px;top:22px">1</i>
+                <div class="ss-turn">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Continue from where the previous session stopped; the store package tests are next.</div></div>
+                  <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 1m 40s<span class="dotsep"></span>Ran 3 commands, read 4 files</summary></details>
+                  <div class="ss-prose"><p>Picking up from the carried context: the manager tests are done, the store package is untouched. Starting with <code>retry_scheduler_test.go</code>.</p></div>
+                </div>
+                <i class="ss-n ss-n--abs" style="right:14px;top:96px">2</i>
+              </div></div>
+              <div class="ss-composer-zone">
+                <div class="ss-composer">
+                  <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                  <div class="ss-composer__row">
+                    <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CX</span>codex</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button><span class="ss-hint"><span class="kbd">⏎</span>send</span></div>
+                    <span class="spacer"></span>
+                    <button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="win win--inline ss-win" data-od-id="scf-vc-20" style="--ss-win-h:400px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">Refactor flaky manager tests (fork)</span></div>
+              <span class="ss-head-meta session-status-line"><span class="word">idle</span><span class="dotsep"></span><span class="session-status-agent">claude</span><span class="dotsep"></span><span class="prov">claude-code</span><span class="dotsep"></span><a class="session-origin-pill" href="#scf-lineage-02" data-kind="fork" data-link="true"><svg data-lucide="git-fork"></svg>Forked from <em>Refactor flaky manager tests</em></a></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="session-continue-divider" data-kind="fork" data-link="true" data-testid="session-origin-divider" role="separator" aria-label="Forked from Refactor flaky manager tests"><a class="session-continue-divider__link" href="#scf-lineage-02"><svg data-lucide="git-fork"></svg>Forked from <em>Refactor flaky manager tests</em></a></div>
+                <div class="scf-empty-thread" data-testid="session-thread-empty"><b>Nothing said here yet</b><span>The conversation up to the fork point is carried into your first message.</span></div><i class="ss-n ss-n--abs" style="right:14px;top:70px">3</i>
+              </div></div>
+              <div class="ss-composer-zone">
+                <div class="ss-composer">
+                  <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                  <div class="ss-composer__row">
+                    <div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>claude</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button><span class="ss-hint"><span class="kbd">⏎</span>send</span></div>
+                    <span class="spacer"></span>
+                    <button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>SessionContinueDivider</b> <em>1px <code>--line-soft</code> either side · link in <code>--accent-strong</code> with the glyph in <code>--subtle</code> · <code>role="separator"</code> with the words as aria-label · rendered once, before the first message · same <code>sessionOriginLabel</code> as the pill · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>The child's own turns</b> <em>the first user message is the "First message" typed in the dialog (or the first prompt sent later); the carried context sits inside that prompt on the wire and is not drawn · production message anatomy · truth</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Empty child</b> <em>divider alone, then the compact empty state: <code>Nothing said here yet</code> · <code>The conversation up to the fork point is carried into your first message.</code> (continue: <code>…carried over is sent with your first message.</code>) · no shimmer, no fake turns · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>child with messages · empty child</span><span class="ss-tag"><b>component</b>SessionContinueDivider · SessionThreadMessages · Empty</span><span class="ss-tag"><b>VC</b>task_04 VC-19 · VC-20</span><span class="ss-tag"><b>accent</b>1 (send disc; the link uses accent-strong text, not a plate)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · LEDGER ===== -->
+  <section class="lab-sec" id="scf-lineage-03" data-od-id="scf-lineage-03">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">The ledger — one Origin row after the session stops</h2><span class="lab-sec__gist">US-009.AC-4 · VC-23</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>The inspection surface gets the ids.</b>
+        <p>The status line is plain words; the ledger is where mono ids live. After a stop, the lineage panel already lists workspace, root, parent, depth. It gains one row, <b>Origin</b>: the kind and the anchor — <code>continue · codex</code> for a continue, <code>fork · through msg_…</code> for a fork from a message, <code>fork</code> alone for a whole-session fork.</p>
+        <p>Spawn children, provenance children and recovery restarts keep the panel as it is: no Origin row.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scf-lineage-03-stage">
+          <div class="stage__cell">
+            <span class="stage__cell-t">Ledger · forked from a message <code>delta</code></span>
+            <section class="session-inspector-ledger" aria-label="Session ledger lineage" data-od-id="scf-vc-23">
+              <span class="eyebrow">Lineage</span>
+              <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v">ws_compozy</span></div>
+              <div class="prow"><span class="prow__k">Root session</span><span class="prow__v">sess_01J9R2K7M4T1</span></div>
+              <div class="prow"><span class="prow__k">Parent session</span><span class="prow__v">sess_01J9R2K7M4T1</span></div>
+              <div class="prow"><span class="prow__k">Lineage depth</span><span class="prow__v">1</span></div>
+              <div class="prow" data-delta="true" data-testid="ledger-origin"><span class="prow__k">Origin</span><span class="prow__v"><span class="word">fork</span> · through msg_01J9R3ZQ8PVX</span><i class="ss-n ss-n--abs" style="right:-22px;top:6px">1</i></div>
+              <div class="prow"><span class="prow__k">Created</span><span class="prow__v">2026-09-11 15:02</span></div>
+              <div class="prow"><span class="prow__k">Stopped</span><span class="prow__v">2026-09-11 16:48</span></div>
+              <div class="prow"><span class="prow__k">Path</span><span class="prow__v">…/sessions/sess_01J9R4A1/events.db</span></div>
+            </section>
+          </div>
+          <div class="stage__cell">
+            <span class="stage__cell-t">Ledger · continued <code>delta</code></span>
+            <section class="session-inspector-ledger" aria-label="Session ledger lineage" data-od-id="scf-lineage-03-continue">
+              <span class="eyebrow">Lineage</span>
+              <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v">ws_compozy</span></div>
+              <div class="prow"><span class="prow__k">Root session</span><span class="prow__v">sess_01J9R2K7M4T1</span></div>
+              <div class="prow"><span class="prow__k">Parent session</span><span class="prow__v">sess_01J9R2K7M4T1</span></div>
+              <div class="prow"><span class="prow__k">Lineage depth</span><span class="prow__v">1</span></div>
+              <div class="prow" data-delta="true" data-testid="ledger-origin"><span class="prow__k">Origin</span><span class="prow__v"><span class="word">continue</span> · from claude</span><i class="ss-n ss-n--abs" style="right:-22px;top:6px">2</i></div>
+              <div class="prow"><span class="prow__k">Created</span><span class="prow__v">2026-09-11 15:20</span></div>
+              <div class="prow"><span class="prow__k">Stopped</span><span class="prow__v">2026-09-11 17:05</span></div>
+              <div class="prow"><span class="prow__k">Path</span><span class="prow__v">…/sessions/sess_01J9R4B7/events.db</span></div>
+            </section>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Origin · fork · through msg_…</b> <em>label/value row like its neighbours · kind in <code>--muted</code>, anchor mono · the message id is the durable <code>origin_message_id</code>; a whole-session fork shows <code>fork</code> alone · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Origin · continue · from claude</b> <em><code>origin_agent_name</code> — the source's agent at the time of the continue, kept even if the source is later deleted · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>stopped child · fork · continue</span><span class="ss-tag"><b>component</b>SessionLedgerMetaPanel</span><span class="ss-tag"><b>VC</b>task_06 VC-23</span><span class="ss-tag"><b>tone</b>none</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 · DICTIONARY ===== -->
+  <section class="lab-sec" id="scf-lineage-04" data-od-id="scf-lineage-04">
+    <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Copy, rules, what stays silent</h2><span class="lab-sec__gist">verbatim strings · one label function</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>Where</th><th>Copy (verbatim)</th></tr></thead>
+          <tbody>
+            <tr><td>Pill · continue</td><td><code>Continued from {origin_agent_name}</code> · aria (link) <code>Continued from {agent}. Open the source session</code></td></tr>
+            <tr><td>Pill · fork</td><td><code>Forked from {parent display title}</code> · aria (link) <code>Forked from {title}. Open the source session</code></td></tr>
+            <tr><td>Divider</td><td><code>Continued from {parent display title}</code> · <code>Forked from {parent display title}</code> — the divider always names the source session; the pill names the agent for a continue</td></tr>
+            <tr><td>Empty child</td><td><code>Nothing said here yet</code> · continue: <code>The conversation carried over is sent with your first message.</code> · fork: <code>The conversation up to the fork point is carried into your first message.</code></td></tr>
+            <tr><td>Ledger · Origin</td><td><code>continue · from {agent}</code> · <code>fork · through {message_id}</code> · <code>fork</code></td></tr>
+            <tr><td>Never</td><td><em>Handoff from X</em> · <em>Continued from chat</em> · <em>Branch</em> · a Badge (the primitive is Pill)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <ul>
+          <li><b>One function.</b> <code>sessionOriginLabel(session, parent?)</code> feeds pill, divider and ledger; the three can never disagree.</li>
+          <li><b>Kinds that show nothing.</b> <code>spawn</code>, <code>provenance</code>, <code>recovery</code>, and roots — no pill, no divider, no Origin row. The list nests them as it does today.</li>
+          <li><b>The source is silent.</b> No "has children" chrome, no marker in its transcript, no rewind banner — it was not changed (US-010).</li>
+          <li><b>Link or plain.</b> Link when the parent is on the client (same page or resolvable by id); plain text when it was deleted. Never a broken link, never a spinner in a pill.</li>
+          <li><b>Neutral tone.</b> Origin is information; no signal hue, no accent plate. The divider link uses accent text because it is a link, not because it is a state.</li>
+          <li><b>Nesting is untouched.</b> <code>session-hierarchy.ts</code> already nests any child with <code>parent_session_id</code>; continue and fork children appear under the source with the pill in their status line.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lab-foot" style="margin-top:22px">Reference sources: Synara <span class="mono">ForkSourceDivider.tsx:19-53</span> (hairline + link back to the source, after the last imported row) and <span class="mono">threadHandoff.ts:76-81</span> (an origin badge — rejected wording "Handoff from X"), Codex TUI <span class="mono">session_flow.rs</span> "Thread forked from {name}" banner and <span class="mono">status/card.rs</span> "Forked from" label (the ledger row's ancestor). Rejected: rendering the carried context as ghost messages; a "has forks" counter on the source; a signal-toned pill. Iterate — never regenerate a delivered board.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>if(window.lucide) window.lucide.createIcons();</script>
+</body>
+</html>

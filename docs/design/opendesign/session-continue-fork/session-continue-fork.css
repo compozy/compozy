@@ -1,0 +1,255 @@
+/* ============================================================================
+   session-continue-fork.css — domain lane for docs/design/opendesign/session-continue-fork/
+   Loaded after ../design-system/ds-core.css, ../design-system/ds-shell.css and
+   ../_done/sessions-stability/sessions-stability.css (window shell, thread, composer, message
+   anatomy, lab chrome: .lab-sec .spec .stage .ss-contract .ss-n .ss-legend .ss-tags).
+   Every product class below is named after the production component it renders:
+     .session-row-actions*          → web/src/systems/session/components/session-row-actions.tsx (modify)
+     .session-topbar-overflow*      → web/src/systems/session/hooks/use-session-topbar-slot.tsx overflow menu (modify)
+     .message-actions*              → web/src/components/assistant-ui/message-actions.tsx (modify)
+     .session-fork-message-action   → web/src/systems/session/components/session-fork-message-action.tsx (new)
+     .session-rewind-message-action → session-rewind-message-action.tsx (unchanged, drawn as reference)
+     .session-continue-dialog*      → session-continue-dialog.tsx (new) on @compozy/ui Dialog + EntityDialog*
+     .session-fork-dialog*          → session-fork-dialog.tsx (new) on the same shell
+     .session-derive-preview*       → the context line both dialogs render from GET …/derive/preview
+     .session-derive-placement*     → the "Open in" RadioGroup both dialogs render
+     .session-origin-pill           → session-origin-pill.tsx (new) on @compozy/ui Pill
+     .session-continue-divider*     → session-continue-divider.tsx (new)
+     .session-status-line*          → session-status-line.tsx (modify: pill after provider)
+     .session-resume-failure*       → session-resume-failure.tsx on SessionDangerBanner (copy only)
+     .runtime-activity-notice*      → runtime-activity-notice.tsx ProviderErrorNotice (modify: handoff)
+     .session-inspector-ledger*     → session-inspector-memory.tsx SessionLedgerMetaPanel (modify: Origin row)
+     .session-sidebar / .session-list* → the rail host and rows, copied from sessions-bulk-actions/index.html
+                                       (production session-list*.tsx), unchanged here.
+   Lab-only ink: .scf-* (stage helpers, dictionaries) — never product UI.
+   ============================================================================ */
+
+:root{--scf-menu-w:232px;--scf-dialog-w:448px}
+
+/* ============ 00 · lab extras (annotation ink) ============ */
+.scf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.scf-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.scf-cell{display:flex;flex-direction:column;gap:8px;min-width:0;position:relative}
+.scf-cell-t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px}
+.scf-cell-t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.scf-plate{position:relative;padding:22px 20px 26px;border:1px solid var(--line);border-radius:var(--radius-lg);background:linear-gradient(180deg,var(--canvas-soft),var(--rail) 70%)}
+.scf-plate--tight{padding:14px 14px 16px}
+.scf-note{font-size:11px;line-height:1.5;color:var(--faint)}
+.dict{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dict table{width:100%;border-collapse:collapse;font-size:12px}
+.dict th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:6px 8px;border-bottom:1px solid var(--line)}
+.dict td{padding:7px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+.dict td:first-child{color:var(--fg);font-weight:510;white-space:nowrap}
+.dict code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.dict em{font-style:normal;color:var(--faint)}
+.dict ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.dict li{display:flex;gap:8px;font-size:12px;line-height:1.5;color:var(--muted)}
+.dict li b{color:var(--fg);font-weight:600;flex:none}
+.scf-spin{animation:scf-spin 1s linear infinite}
+@keyframes scf-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.scf-spin{animation:none}}
+
+/* ============ 01 · SessionSidebar host + SessionListRow (production, copied from
+   sessions-bulk-actions/index.html so the row overflow has its real host) ============ */
+.session-sidebar{position:relative;width:264px;flex:none;display:flex;flex-direction:column;padding-top:6px;min-height:300px;background:var(--rail);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:visible}
+.session-sidebar .btn--icon{width:26px;height:26px;padding:0;border-radius:var(--radius)}
+.session-sidebar .btn--icon svg{width:14px;height:14px}
+.session-sidebar .btn--icon.is-open{background:var(--btn-hover);color:var(--fg-strong)}
+.session-list-toolbar{position:relative;display:flex;align-items:center;gap:4px;padding:6px 12px;min-height:38px}
+.session-list-toolbar .eyebrow{margin-right:auto}
+.session-list{display:flex;flex-direction:column;gap:2px;padding:2px 10px 10px;overflow:visible}
+.session-list-row-host{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:4px}
+.session-list-row{position:relative;display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:start;gap:8px;min-width:0;padding:6px 8px;border:0;border-radius:var(--radius);background:transparent;text-align:left;cursor:pointer;color:var(--fg);font:inherit;transition:background var(--dur-fast) var(--ease)}
+.session-list-row:hover,.session-list-row-host.is-hover .session-list-row{background:var(--row-hover)}
+.session-list-row[aria-current="true"]{background:var(--row-selected)}
+.session-list-row[aria-current="true"]::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:var(--radius-pill);background:var(--accent)}
+.session-badge-mark{display:grid;place-items:center;width:8px;height:8px;margin-top:6px}
+.session-badge-mark .status-dot{width:7px;height:7px;flex-basis:7px;background:var(--neutral)}
+.session-list-row[data-status="idle"] .status-dot{background:var(--success)}
+.session-list-row[data-status="running"] .status-dot{background:var(--accent);animation:scf-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+.session-list-row[data-status="stopped"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.session-list-row[data-status="archived"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint);opacity:.6}
+@keyframes scf-pulse{50%{opacity:.5}}
+.session-list-row__body{min-width:0}
+.session-list-row__title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-small-body);color:var(--fg-strong)}
+.session-list-row[aria-current="true"] .session-list-row__title{font-weight:510}
+.session-list-row__sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-micro);color:var(--subtle)}
+.session-list-row__sub b{font-weight:510;color:var(--muted)}
+.session-list-row[data-status="idle"] .session-list-row__word{color:var(--success)}
+.session-list-row[data-status="running"] .session-list-row__word{color:var(--accent-strong)}
+.session-list-row[data-status="stopped"] .session-list-row__word,.session-list-row[data-status="archived"] .session-list-row__word{color:var(--subtle)}
+.session-list-row__time{margin-top:2px;font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
+.session-list-row__trail{display:flex;align-items:center;gap:2px;padding-top:4px;min-height:1px}
+.session-list-thread__children{position:relative;padding-left:20px}
+.session-list-thread__children::before{content:"";position:absolute;left:11px;top:2px;bottom:4px;width:1px;background:var(--line-strong)}
+.session-list-thread-toggle{display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 4px;border:0;border-radius:var(--radius-xs);background:transparent;color:var(--subtle);font:inherit;font-family:var(--font-mono);font-size:var(--text-micro);cursor:pointer}
+.session-list-thread-toggle svg{width:14px;height:14px;transition:transform var(--dur) var(--ease)}
+.session-list-thread-toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
+
+/* ============ 02 · SessionRowActions — DropdownMenu on the row's kebab ============
+   production: DropdownMenuTrigger = ghost icon-sm Button; DropdownMenuContent align=end;
+   items are DropdownMenuItem with a 12px lucide icon; Delete is variant="destructive".
+   delta: two DropdownMenuItems after Rename, before Stop — Continue with another agent…
+   (ArrowRightLeft) and Fork session… (GitFork). Present only on user-controllable,
+   non-archived rows (isUserControllableSession && !archived). */
+.session-row-actions{position:relative;display:inline-flex}
+.session-row-actions-menu{position:absolute;right:0;top:30px;z-index:5;min-width:var(--scf-menu-w)}
+.session-row-actions-menu .menu-item,.session-topbar-overflow-menu .menu-item{border:0;background:transparent;font:inherit;cursor:pointer;width:100%}
+.session-row-actions-menu .menu-item svg,.session-topbar-overflow-menu .menu-item svg{width:12px;height:12px}
+.session-row-actions-menu .menu-item[data-delta="true"],.session-topbar-overflow-menu .menu-item[data-delta="true"]{position:relative}
+.session-row-actions-menu .menu-item:disabled,.session-topbar-overflow-menu .menu-item:disabled{color:var(--faint);cursor:default}
+.session-row-actions-menu .menu-item:disabled svg{color:var(--faint)}
+
+/* ============ 03 · useSessionTopbarOverflow — the window head "More actions" menu ============
+   production: same DropdownMenu primitive, trigger = w2-actions ghost icon Button (ellipsis);
+   items Rename · Stop (conditional) · Clear conversation · Delete, disabled while controlsBusy.
+   delta: Continue with another agent… · Fork session… inserted after Rename. */
+.session-topbar-overflow-menu{position:absolute;right:12px;top:38px;z-index:6;min-width:var(--scf-menu-w)}
+.ss-win .win-head{position:relative}
+
+/* ============ 04 · MessageActions row under a user message ============
+   production (message-actions.tsx align="end"): flex justify-end gap-1, timestamp (time,
+   tabular, subtle) · CopyIconButton (ghost xs, text-muted hover:text-fg) · SessionRewindMessageAction
+   (ghost xs Button "Rewind to here" with RotateCcw). Visible at rest once copyable text exists.
+   delta: SessionForkMessageAction (ghost xs Button "Fork from here" with GitFork) mounted
+   BEFORE the rewind action; same availability gate (durable user message, not read-only) and
+   the same busy gate (thread running · rewind pending · rewindBlocked). */
+.message-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:2px 2px 0;font-size:11.5px;color:var(--subtle)}
+.message-actions time{font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle);font-variant-numeric:tabular-nums;margin-right:2px}
+.message-actions .btn--xs{height:22px;padding:0 6px;font-size:11.5px;color:var(--muted);gap:5px}
+.message-actions .btn--xs svg{width:12px;height:12px}
+.message-actions .btn--xs:hover{color:var(--fg)}
+.message-actions .btn--xs:disabled{color:var(--faint);cursor:default;background:transparent}
+.message-actions .btn--icon.btn--xs{width:22px;padding:0}
+.session-fork-message-action{position:relative}
+.session-rewind-message-action{position:relative}
+
+/* ============ 05 · SessionContinueDialog · SessionForkDialog ============
+   production shell (session-create-dialog.tsx): Dialog sm (448px), unframed, EntityDialogHeader
+   (eyebrow "Operate · Session" · icon · title · close), EntityDialogBody (flex-col gap-4),
+   EntityDialogFooter (hint · Cancel · primary). ds-core .dialog draws the same frame. */
+.session-continue-dialog,.session-fork-dialog{width:min(var(--scf-dialog-w),100%);position:relative;text-align:left}
+.session-continue-dialog .dialog__head,.session-fork-dialog .dialog__head{align-items:flex-start;gap:12px}
+.entity-dialog-header__eyebrow{display:block;margin-bottom:4px}
+.session-continue-dialog .dialog__body,.session-fork-dialog .dialog__body{position:relative;display:flex;flex-direction:column;gap:14px;padding:16px 20px 18px}
+.session-continue-dialog .dialog__foot,.session-fork-dialog .dialog__foot{position:relative}
+.session-continue-dialog .dialog__foot .btn svg,.session-fork-dialog .dialog__foot .btn svg{width:13px;height:13px}
+/* fields — ds-core .ffield/.flabel/.fhint/.ferr, select stand-in = .input with a chevron */
+.scf-select{display:flex;align-items:center;gap:8px;justify-content:space-between;cursor:pointer}
+.scf-select svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.scf-select .agent-avatar{width:16px;height:16px;font-size:8px;flex:none}
+.scf-select > span{display:inline-flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scf-select[aria-disabled="true"]{color:var(--faint);cursor:default}
+.scf-readonly{display:flex;align-items:center;gap:8px;min-height:var(--h-input);padding:0 10px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:transparent;color:var(--fg);font-size:var(--text-form)}
+.scf-readonly .prov{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--faint)}
+.scf-readonly .agent-avatar{width:16px;height:16px;font-size:8px}
+.scf-textarea{min-height:56px;resize:vertical;line-height:1.5;padding-top:7px}
+.scf-textarea::placeholder{color:var(--faint)}
+/* the two RuntimeSelector-ish rows: model chip + reasoning meter, borrowed shape from the
+   composer runtime chip (sessions-stability .ss-chip) — production is RuntimeSelector variant=dialog */
+.scf-runtime{display:flex;align-items:center;gap:8px}
+.scf-runtime .ss-chip{height:var(--h-input);padding:0 10px;border-radius:var(--radius-md)}
+.scf-runtime .ss-chip .mono{color:var(--subtle)}
+/* Fork point (fork dialog only): a sentence row with the quoted message + Change link */
+.session-fork-dialog__point{display:flex;flex-direction:column;gap:4px;font-size:var(--text-form);color:var(--fg)}
+.session-fork-dialog__point q{quotes:"“" "”";color:var(--fg-strong);font-weight:510}
+.session-fork-dialog__point .lnk{align-self:flex-start;font-size:var(--text-micro);color:var(--muted);text-decoration:underline;text-underline-offset:2px;border-radius:var(--radius-xxs)}
+.session-fork-dialog__point .lnk:hover{color:var(--fg-strong)}
+/* Context line — SessionDerivePreview: form-hint subtle; truncated stays the same tone
+   (information, not warning); error = FieldError danger text only. */
+.session-derive-preview{display:flex;align-items:flex-start;gap:7px;font-size:var(--text-form-hint,11.5px);line-height:1.5;color:var(--subtle)}
+.session-derive-preview svg{width:12px;height:12px;flex:none;margin-top:2px;color:var(--faint)}
+.session-derive-preview b{font-weight:510;color:var(--muted)}
+.session-derive-preview[data-state="measuring"] svg{color:var(--subtle)}
+.session-derive-preview[data-state="error"]{color:var(--danger)}
+.session-derive-preview[data-state="error"] svg{color:var(--danger)}
+.session-derive-preview[data-state="native"] svg{color:var(--subtle)}
+.session-derive-preview__stack{display:flex;flex-direction:column;gap:2px}
+/* Open in — RadioGroup, two items, arrow keys; New window is checked by default */
+.session-derive-placement{display:flex;flex-direction:column;gap:6px}
+.session-derive-placement__items{display:flex;gap:18px}
+.scf-radio{display:inline-flex;align-items:center;gap:8px;font-size:var(--text-form);color:var(--fg);cursor:pointer}
+.scf-radio i{width:15px;height:15px;flex:none;border-radius:50%;border:1px solid var(--line-strong);background:var(--input-fill);display:grid;place-items:center;transition:border-color var(--dur-fast) var(--ease)}
+.scf-radio i::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);transform:scale(0);transition:transform var(--dur-fast) var(--ease)}
+.scf-radio[aria-checked="true"] i{border-color:var(--accent)}
+.scf-radio[aria-checked="true"] i::after{transform:scale(1)}
+.scf-radio:hover i{border-color:var(--fg)}
+.scf-radio[aria-disabled="true"]{color:var(--faint);cursor:default}
+/* pending / status line inside the body, as session-create-dialog:183-191 */
+.scf-pending{display:flex;align-items:center;gap:8px;font-size:var(--text-form-hint,11.5px);color:var(--subtle)}
+.scf-pending svg{width:13px;height:13px;color:var(--subtle)}
+
+/* ============ 06 · SessionOriginPill — Pill neutral, after the provider in SessionStatusLine ============
+   production Pill: h-pill, radius pill, badge fill, text-badge; neutral tone. delta: a link
+   variant (ghost Button) when the parent is known on the client; plain span otherwise. */
+.session-status-line{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:var(--text-eyebrow);color:var(--muted);white-space:nowrap}
+.session-status-line .session-status-agent{overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.session-status-line .prov{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--faint)}
+.session-status-line .word{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-status-line .dotsep{flex:none}
+.session-origin-pill{display:inline-flex;align-items:center;gap:5px;height:var(--h-pill-xs,18px);padding:0 7px;border-radius:var(--radius-pill);background:var(--badge-fill);color:var(--muted);font-size:var(--text-badge);font-weight:510;line-height:1;white-space:nowrap;flex:none;text-decoration:none;box-shadow:var(--shadow-hairline-inset)}
+.session-origin-pill svg{width:11px;height:11px;color:var(--subtle)}
+.session-origin-pill em{font-style:normal;color:var(--fg);max-width:22ch;overflow:hidden;text-overflow:ellipsis}
+a.session-origin-pill:hover,button.session-origin-pill:hover{color:var(--fg-strong);background:var(--btn-hover)}
+a.session-origin-pill:focus-visible,button.session-origin-pill:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-origin-pill[data-link="false"]{cursor:default}
+.session-origin-pill[data-link="false"]:hover{background:var(--badge-fill);color:var(--muted)}
+/* window head at narrow width: the title truncates first, then the agent; the pill keeps its verb */
+.ss-win--narrow{--ss-win-w:640px}
+.ss-win--narrow .w2-title{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ss-win--narrow .session-status-line{min-width:0;flex:1}
+.ss-win--narrow .session-status-line .session-status-agent{max-width:80px}
+
+/* ============ 07 · SessionContinueDivider — once, before the child's first native message ============
+   hairline --line-soft · GitFork/ArrowRightLeft glyph --subtle · link text-accent; plain --muted
+   text when the source is gone. Sits inside .ss-thread__inner like a marker row. */
+.session-continue-divider{display:flex;align-items:center;gap:12px;padding:8px 0 14px;font-size:var(--text-eyebrow);color:var(--subtle)}
+.session-continue-divider::before,.session-continue-divider::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+.session-continue-divider__link{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--accent-strong,var(--accent));text-decoration:none;border-radius:var(--radius-xxs)}
+.session-continue-divider__link svg{width:12px;height:12px;color:var(--subtle);flex:none}
+.session-continue-divider__link em{font-style:normal;max-width:36ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-continue-divider__link:hover{text-decoration:underline;text-underline-offset:2px}
+.session-continue-divider__link:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.session-continue-divider[data-link="false"] .session-continue-divider__link{color:var(--muted);cursor:default;text-decoration:none}
+/* empty child: the divider is the only row; Empty (compact) below it */
+.scf-empty-thread{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 0 8px;text-align:center}
+.scf-empty-thread b{font-size:var(--text-form);font-weight:510;color:var(--fg)}
+.scf-empty-thread span{font-size:var(--text-micro);color:var(--subtle);max-width:44ch}
+
+/* ============ 08 · SessionResumeFailure on SessionDangerBanner (copy only) ============
+   production: the one banner the transcript budget allows — 28% danger hairline on a 4% wash,
+   title, plain sentences, mono meta line, actions right. delta: retryLabel → "Restart in a new session". */
+.session-resume-failure{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:var(--radius-md);border:1px solid color-mix(in oklab,var(--danger) 28%,transparent);background:color-mix(in oklab,var(--danger) 4%,transparent);margin:12px 0}
+.session-resume-failure__title{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.session-resume-failure__msg{font-size:var(--text-form);line-height:1.5;color:var(--muted);max-width:68ch}
+.session-resume-failure__meta{font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle)}
+.session-resume-failure__acts{display:flex;align-items:center;gap:8px;margin-top:4px}
+.session-resume-failure__acts .btn svg{width:13px;height:13px}
+
+/* ============ 09 · ProviderErrorNotice (runtime-activity-notice.tsx) — turn-level failure marker ============
+   production: Marker role=alert, danger tone, subject "{provider} is rate limited", cause sentence,
+   next step per next_action, faint ×N cluster count. delta: next_action=handoff → sentence
+   "Continue this session with another agent or route." + ghost Button "Continue with another agent…". */
+.runtime-activity-notice{display:flex;flex-direction:column;gap:3px;padding:4px 4px 6px;font-size:var(--text-eyebrow);line-height:1.5;color:var(--subtle)}
+.runtime-activity-notice__head{display:flex;align-items:flex-start;gap:7px}
+.runtime-activity-notice__head svg{width:12px;height:12px;flex:none;margin-top:2px;color:var(--danger)}
+.runtime-activity-notice__head b{font-weight:510;color:var(--muted)}
+.runtime-activity-notice__head .count{color:var(--faint);font-family:var(--font-mono);font-variant-numeric:tabular-nums;margin-left:2px}
+.runtime-activity-notice__body{padding-left:19px;display:flex;flex-direction:column;gap:2px;color:var(--subtle)}
+.runtime-activity-notice__body code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.runtime-activity-notice__acts{padding-left:19px;margin-top:3px}
+.runtime-activity-notice__acts .btn--xs{height:22px;padding:0 6px;font-size:11.5px;color:var(--muted);gap:5px}
+.runtime-activity-notice__acts .btn--xs svg{width:12px;height:12px}
+.runtime-activity-notice__acts .btn--xs:hover{color:var(--fg)}
+
+/* ============ 10 · SessionLedgerMetaPanel — inspector ledger rows (after stop) ============
+   production: label/value rows (.prow), mono values. delta: "Origin" row when lineage.kind is
+   continue | fork. */
+.session-inspector-ledger{width:320px;display:flex;flex-direction:column;gap:0;padding:12px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+.session-inspector-ledger .eyebrow{display:block;margin-bottom:8px}
+.session-inspector-ledger .prow{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line-soft);font-size:var(--text-form)}
+.session-inspector-ledger .prow:last-child{border-bottom:0}
+.session-inspector-ledger .prow__k{color:var(--subtle)}
+.session-inspector-ledger .prow__v{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-inspector-ledger .prow[data-delta="true"]{position:relative}
+.session-inspector-ledger .prow__v .word{color:var(--muted)}

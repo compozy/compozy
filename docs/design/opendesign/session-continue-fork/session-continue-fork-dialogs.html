@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Continue and Fork dialogs · Session continue &amp; fork · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../_done/sessions-stability/sessions-stability.css">
+<link rel="stylesheet" href="session-continue-fork.css">
+<!--
+  session-continue-fork-dialogs · S4 S5 of .compozy/tasks/session-continue-fork/_uiux.md — the two
+  dialogs the menus open. Authored 2026-09-11 after the spec and the task graph. Visual Contract
+  for task_04 (Continue, VC-06..10) and task_06 (Fork, VC-11..15).
+  Provenance:
+    production — SessionCreateDialog shell (Dialog sm 448px, unframed, EntityDialogHeader eyebrow
+                 "Operate · Session" + icon + title + close, EntityDialogBody gap-4, EntityDialogFooter
+                 hint · Cancel · primary), AgentCommandSelect, RuntimeSelector, FieldError, Spinner,
+                 RadioGroup. Frame drawn with ds-core .dialog.
+    delta      — SessionContinueDialog (agent · runtime · route · first message · context line ·
+                 open in) and SessionForkDialog (locked agent · fork point · context line · open in);
+                 both read GET …/derive/preview before enabling the primary.
+    truth      — every context line comes from the preview response (messages, bytes, truncated,
+                 omitted_count, source_turn_in_progress, native_fork_possible); the primary is
+                 disabled while measuring, on preview error, and on a cut turn in progress; "Uses the
+                 agent's own session clone" appears only when the daemon reports the native seed is
+                 possible. Nothing here is danger-toned: the source is never touched.
+  Product classes are named after the production component they render (session-continue-fork.css).
+  Lab chrome (.lab-*, .ss-contract, .ss-n, .ss-legend, .ss-tags, .scf-*) is annotation ink.
+-->
+<style>
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.crumb{font-size:12px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.page{max-width:1240px;margin:0 auto;padding:40px 36px 80px}
+.dialog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}
+.dialog-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dialog-cell{display:flex;flex-direction:column;gap:8px;min-width:0;position:relative}
+@media (max-width:1100px){.dialog-grid,.dialog-grid--3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="scf-dialogs">
+  <div class="head"><span class="crumb"><a href="index.html">Session continue &amp; fork</a> / dialogs</span></div>
+  <div class="head"><h1>Continue and Fork dialogs</h1></div>
+  <p class="lede"><b>Two small dialogs on the Start-session shell.</b> Continue picks another agent (and, when the agent declares routes, another route), shows exactly how much of this conversation will be carried over, and asks where the new session opens. Fork keeps the agent locked, names the fork point, and shows the same context line — plus one extra sentence when the agent can clone its own session. Both create; neither confirms in red. The source session is never changed by either.</p>
+
+  <section class="ss-contract" data-od-id="scf-dialogs-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>The two dialogs.</b> Continue with another agent: agent picker, runtime, optional route, optional first message, the measured context line, Open in, primary <b>Continue</b>. Fork session: agent read-only, the fork point (whole session or through a quoted message), the context line, Open in, primary <b>Fork session</b>. The context line is the daemon's preview — messages and size, truncation with the omitted count, a running turn that will not be carried, or the native clone sentence — and it decides whether the primary is live.</p>
+      <p class="ss-contract__file">session-continue-fork-dialogs.html · S4 S5 · US-001 US-002 US-003 US-005 US-006 US-007 US-008 US-015 · task_04 VC-06..10 · task_06 VC-11..15</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContinueDialog</b><i>web/src/systems/session/components/session-continue-dialog.tsx</i>Dialog sm + EntityDialogHeader/Body/Footer · AgentCommandSelect · RuntimeSelector (dialog variant) · Select for routes · Textarea · SessionDerivePreview · placement RadioGroup · primary "Continue"</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionForkDialog</b><i>web/src/systems/session/components/session-fork-dialog.tsx</i>same shell · read-only agent row · fork point sentence with Change link · SessionDerivePreview · placement · primary "Fork session"</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>useSessionDerive · useSessionDerivePreview</b><i>web/src/systems/session/hooks/use-session-derive.ts · adapters/session-derive-api.ts</i>preview query (GET …/derive/preview[?message_id]) · continue / fork mutations · placement landing (userOpen vs onSelectSession)</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Dialog · EntityDialogHeader · EntityDialogBody · EntityDialogFooter · FieldError · Spinner · RadioGroup · Select · Textarea · Button</b><i>@compozy/ui — unchanged</i></span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>AgentCommandSelect · RuntimeSelector</b><i>web/src/systems/session/components/agent-command-select.tsx · web/src/systems/runtime/components/runtime-selector/</i>the same pickers Start session and the composer use</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>SessionCreateDialog</b><i>session-create-dialog.tsx:125-215 — untouched; the shell and the pending copy pattern are borrowed, not modified</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#scf-dialogs-01">Continue · default · other agent</a><code>VC-06</code></li>
+        <li><a href="#scf-dialogs-01">Continue · route row present</a><code>VC-07</code></li>
+        <li><a href="#scf-dialogs-01">Continue · truncated preview</a><code>VC-08</code></li>
+        <li><a href="#scf-dialogs-01">Continue · preview error · primary disabled</a><code>VC-09</code></li>
+        <li><a href="#scf-dialogs-01">Continue · pending</a><code>VC-10</code></li>
+        <li><a href="#scf-dialogs-02">Fork · whole session</a><code>VC-11</code></li>
+        <li><a href="#scf-dialogs-02">Fork · from a message</a><code>VC-12</code></li>
+        <li><a href="#scf-dialogs-02">Fork · native clone line</a><code>VC-13</code></li>
+        <li><a href="#scf-dialogs-02">Fork · turn in progress</a><code>VC-14</code></li>
+        <li><a href="#scf-dialogs-02">Fork · transcript changed</a><code>VC-15</code></li>
+        <li><a href="#scf-dialogs-03">Copy · fields · rules</a><code>§03</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · CONTINUE ===== -->
+  <section class="lab-sec" id="scf-dialogs-01" data-od-id="scf-dialogs-01">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Continue with another agent — pick the agent, see what travels, choose the window</h2><span class="lab-sec__gist">US-001 · US-002 · US-003 · US-005 · US-015 · VC-06..10</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>The Start-session shell, with the source already known.</b>
+        <p>Agent defaults to the first agent that is not the source's (Superset's rule). Runtime is the same selector the composer uses, scoped to that agent. Route appears only when the chosen agent declares <code>fallback_chain</code> routes (Spec A); otherwise the row does not exist.</p>
+        <p>The context line is measured when the dialog opens, before you decide. It states messages and size, or how many earlier messages were dropped to fit the budget. Continue is disabled while measuring and when the measurement failed — the size of what you send is on screen before the click.</p>
+        <p>Open in defaults to New window so this session stays visible: the promise is "this session stays unchanged", and you can see that it did.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="dialog-grid" data-od-id="scf-dialogs-01-grid">
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Default · other agent <code>delta</code></span>
+            <div class="dialog session-continue-dialog" role="dialog" aria-labelledby="scf-cd-1-t" data-testid="session-continue-dialog" data-od-id="scf-vc-06">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="arrow-right-left"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-cd-1-t">Continue with another agent</div><p class="dialog__desc">Start a new session for another agent with this conversation carried over. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><label class="flabel" for="scf-cd-1-agent">Agent</label><div class="input scf-select" id="scf-cd-1-agent" role="combobox" aria-expanded="false"><span><span class="agent-avatar">CX</span>codex</span><svg data-lucide="chevron-down"></svg></div><i class="ss-n ss-n--abs" style="right:-22px;top:26px">1</i></div>
+                <div class="ffield"><label class="flabel">Runtime</label><div class="scf-runtime"><span class="ss-chip"><svg data-lucide="cpu"></svg>gpt-5.6-sol<span class="mono">· high</span></span><span class="ss-chip"><svg data-lucide="gauge"></svg>normal</span></div></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-1-msg">First message</label><textarea class="input scf-textarea" id="scf-cd-1-msg" placeholder="Optional. Sent after the carried context."></textarea></div>
+                <div class="session-derive-preview" data-state="ready" data-testid="session-derive-preview"><svg data-lucide="file-text"></svg><span><b>Carries over 42 messages</b> · 61.3 KiB</span><i class="ss-n ss-n--abs" style="right:-22px;top:-2px">2</i></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div><i class="ss-n ss-n--abs" style="right:-22px;top:18px">3</i></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b> · claude</span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary" data-testid="session-continue-submit">Continue</button><i class="ss-n ss-n--abs" style="right:-6px;top:-8px">4</i>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Route row · the agent declares routes <code>delta · needs Spec A</code></span>
+            <div class="dialog session-continue-dialog" role="dialog" aria-labelledby="scf-cd-2-t" data-od-id="scf-vc-07">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="arrow-right-left"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-cd-2-t">Continue with another agent</div><p class="dialog__desc">Start a new session for another agent with this conversation carried over. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><label class="flabel" for="scf-cd-2-agent">Agent</label><div class="input scf-select" id="scf-cd-2-agent" role="combobox" aria-expanded="false"><span><span class="agent-avatar">CC</span>claude</span><svg data-lucide="chevron-down"></svg></div></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-2-route">Route</label><div class="input scf-select" id="scf-cd-2-route" role="combobox" aria-expanded="false"><span>claude · opus <span class="mono">· route 1</span></span><svg data-lucide="chevron-down"></svg></div><span class="fhint">Default uses the agent's own provider, model and account. A route is one of the agent's declared fallback routes.</span><i class="ss-n ss-n--abs" style="right:-22px;top:26px">5</i></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-2-msg">First message</label><textarea class="input scf-textarea" id="scf-cd-2-msg" placeholder="Optional. Sent after the carried context.">Continue from where the previous session stopped; the store package tests are next.</textarea></div>
+                <div class="session-derive-preview" data-state="ready"><svg data-lucide="file-text"></svg><span><b>Carries over 42 messages</b> · 61.3 KiB</span></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b> · claude</span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary">Continue</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Truncated preview · budget reached <code>delta</code></span>
+            <div class="dialog session-continue-dialog" role="dialog" aria-labelledby="scf-cd-3-t" data-od-id="scf-vc-08">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="arrow-right-left"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-cd-3-t">Continue with another agent</div><p class="dialog__desc">Start a new session for another agent with this conversation carried over. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><label class="flabel" for="scf-cd-3-agent">Agent</label><div class="input scf-select" id="scf-cd-3-agent" role="combobox" aria-expanded="false"><span><span class="agent-avatar">CX</span>codex</span><svg data-lucide="chevron-down"></svg></div></div>
+                <div class="ffield"><label class="flabel">Runtime</label><div class="scf-runtime"><span class="ss-chip"><svg data-lucide="cpu"></svg>gpt-5.6-sol<span class="mono">· high</span></span><span class="ss-chip"><svg data-lucide="gauge"></svg>normal</span></div></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-3-msg">First message</label><textarea class="input scf-textarea" id="scf-cd-3-msg" placeholder="Optional. Sent after the carried context."></textarea></div>
+                <div class="session-derive-preview" data-state="truncated"><svg data-lucide="file-text"></svg><span class="session-derive-preview__stack"><span><b>Carries over 30 of 42 messages</b> · 128 KiB</span><span>12 earlier messages omitted to fit the context budget.</span></span><i class="ss-n ss-n--abs" style="right:-22px;top:8px">6</i></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b> · claude</span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary">Continue</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Preview error · primary disabled <code>delta</code></span>
+            <div class="dialog session-continue-dialog" role="dialog" aria-labelledby="scf-cd-4-t" data-od-id="scf-vc-09">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="arrow-right-left"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-cd-4-t">Continue with another agent</div><p class="dialog__desc">Start a new session for another agent with this conversation carried over. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><label class="flabel" for="scf-cd-4-agent">Agent</label><div class="input scf-select" id="scf-cd-4-agent" role="combobox" aria-expanded="false"><span><span class="agent-avatar">CX</span>codex</span><svg data-lucide="chevron-down"></svg></div></div>
+                <div class="ffield"><label class="flabel">Runtime</label><div class="scf-runtime"><span class="ss-chip"><svg data-lucide="cpu"></svg>gpt-5.6-sol<span class="mono">· high</span></span><span class="ss-chip"><svg data-lucide="gauge"></svg>normal</span></div></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-4-msg">First message</label><textarea class="input scf-textarea" id="scf-cd-4-msg" placeholder="Optional. Sent after the carried context."></textarea></div>
+                <div class="session-derive-preview" data-state="error" role="alert"><svg data-lucide="circle-alert"></svg><span>Couldn't measure this session's context.</span><i class="ss-n ss-n--abs" style="right:-22px;top:-2px">7</i></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b> · claude</span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary" disabled aria-disabled="true">Continue</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Pending · daemon accepting <code>delta</code></span>
+            <div class="dialog session-continue-dialog" role="dialog" aria-labelledby="scf-cd-5-t" aria-busy="true" data-od-id="scf-vc-10">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="arrow-right-left"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-cd-5-t">Continue with another agent</div><p class="dialog__desc">Start a new session for another agent with this conversation carried over. This session stays unchanged.</p></div>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><label class="flabel" for="scf-cd-5-agent">Agent</label><div class="input scf-select" id="scf-cd-5-agent" role="combobox" aria-expanded="false" aria-disabled="true"><span><span class="agent-avatar">CX</span>codex</span><svg data-lucide="chevron-down"></svg></div></div>
+                <div class="ffield"><label class="flabel">Runtime</label><div class="scf-runtime"><span class="ss-chip"><svg data-lucide="cpu"></svg>gpt-5.6-sol<span class="mono">· high</span></span><span class="ss-chip"><svg data-lucide="gauge"></svg>normal</span></div></div>
+                <div class="ffield"><label class="flabel" for="scf-cd-5-msg">First message</label><textarea class="input scf-textarea" id="scf-cd-5-msg" disabled placeholder="Optional. Sent after the carried context."></textarea></div>
+                <div class="session-derive-preview" data-state="ready"><svg data-lucide="file-text"></svg><span><b>Carries over 42 messages</b> · 61.3 KiB</span></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" aria-disabled="true"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" aria-disabled="true"><i></i>This window</span></div></div>
+                <p class="scf-pending" role="status" aria-live="polite" data-testid="session-continue-pending-status"><svg data-lucide="loader-circle" class="scf-spin"></svg>Starting the new session…</p><i class="ss-n ss-n--abs" style="right:-22px;bottom:14px">8</i>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b> · claude</span></span>
+                <button class="btn btn--ghost" disabled>Cancel</button>
+                <button class="btn btn--primary" disabled><svg data-lucide="loader-circle" class="scf-spin"></svg>Continue</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Agent</b> <em>AgentCommandSelect — the Start-session picker · default = first agent that is not the source's (else the source's) · changing it re-scopes Runtime and Route · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Context line</b> <em>SessionDerivePreview · <code>Carries over {n} messages · {size}</code> from GET …/derive/preview · form-hint subtle · fetched on open, not on Continue · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Open in</b> <em>RadioGroup, arrow keys · New window (default: <code>coordinator.userOpen</code>) · This window (<code>sidebar.onSelectSession</code>) · never both · delta</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Continue</b> <em>primary — the one accent on the dialog · disabled while measuring, on preview error, without an agent · the foot note names the source so the target is never confused with it · delta</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Route</b> <em>Select, present only when the agent's payload lists <code>fallback_chain</code> routes (Spec A) · "Default" + one item per route "{provider} · {model}" · sends <code>route: n</code> · the hint says what a route is · delta</em></span></li>
+          <li><i class="ss-n">6</i><span><b>Truncated</b> <em><code>Carries over 30 of 42 messages · 128 KiB</code> + <code>12 earlier messages omitted to fit the context budget.</code> · same subtle tone — information, not a warning · Continue stays enabled (US-015) · delta</em></span></li>
+          <li><i class="ss-n">7</i><span><b>Preview error</b> <em><code>Couldn't measure this session's context.</code> as FieldError text, CircleAlert danger 12px · primary disabled — never "0 messages" for a failed read (US-002.EC-2) · delta</em></span></li>
+          <li><i class="ss-n">8</i><span><b>Pending</b> <em><code>Starting the new session…</code> with Spinner, aria-live · fields and radios disabled · close hidden while submitting, as SessionCreateDialog · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>default · route · truncated · preview error · pending</span><span class="ss-tag"><b>component</b>SessionContinueDialog · SessionDerivePreview</span><span class="ss-tag"><b>VC</b>task_04 VC-06..10</span><span class="ss-tag"><b>accent</b>1 (primary)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · FORK ===== -->
+  <section class="lab-sec" id="scf-dialogs-02" data-od-id="scf-dialogs-02">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Fork session — same agent, a named fork point, and the truth about the seed</h2><span class="lab-sec__gist">US-006 · US-007 · US-008 · US-014 · VC-11..15</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Smaller, because there is less to choose.</b>
+        <p>The agent is locked and shown read-only — a fork is the same agent by definition; another agent is a Continue. The fork point is either the whole session or "through" the message you clicked; the point is chosen on the message, so the dialog offers Change, not a picker.</p>
+        <p>The context line is the same line. When the daemon reports the native seed is possible — this agent advertises <code>session/fork</code>, the source is live and bound, and the point is the whole session — one extra sentence says so. Otherwise nothing claims a capability: the replay seed is always available and the line just states the size.</p>
+        <p>Two refusals the daemon can return are drawn: a cut turn that has not settled, and a transcript that changed between opening and submitting.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="dialog-grid" data-od-id="scf-dialogs-02-grid">
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Whole session <code>delta</code></span>
+            <div class="dialog session-fork-dialog" role="dialog" aria-labelledby="scf-fd-1-t" data-testid="session-fork-dialog" data-od-id="scf-vc-11">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="git-fork"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-fd-1-t">Fork session</div><p class="dialog__desc">Start a second session with the same agent and this conversation. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><span class="flabel">Agent</span><div class="scf-readonly"><span class="agent-avatar">CC</span>claude<span class="prov">claude-code</span></div><i class="ss-n ss-n--abs" style="right:-22px;top:26px">1</i></div>
+                <div class="ffield"><span class="flabel">Fork point</span><div class="session-fork-dialog__point"><span>Whole session</span></div><i class="ss-n ss-n--abs" style="right:-22px;top:22px">2</i></div>
+                <div class="session-derive-preview" data-state="ready"><svg data-lucide="file-text"></svg><span><b>Carries over 42 messages</b> · 61.3 KiB</span></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b></span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary" data-testid="session-fork-submit">Fork session</button><i class="ss-n ss-n--abs" style="right:-6px;top:-8px">3</i>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">From a message · opened by Fork from here <code>delta</code></span>
+            <div class="dialog session-fork-dialog" role="dialog" aria-labelledby="scf-fd-2-t" data-od-id="scf-vc-12">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="git-fork"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-fd-2-t">Fork session</div><p class="dialog__desc">Start a second session with the same agent and this conversation. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><span class="flabel">Agent</span><div class="scf-readonly"><span class="agent-avatar">CC</span>claude<span class="prov">claude-code</span></div></div>
+                <div class="ffield"><span class="flabel">Fork point</span><div class="session-fork-dialog__point"><span>Through <q>Refactor the flaky manager tests so they wait on the lifecycle…</q></span><a class="lnk" href="#scf-dialogs-02">Change</a></div><i class="ss-n ss-n--abs" style="right:-22px;top:22px">4</i></div>
+                <div class="session-derive-preview" data-state="ready"><svg data-lucide="file-text"></svg><span><b>Carries over 18 of 42 messages</b> · 24.1 KiB</span></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b></span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary">Fork session</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Native clone possible <code>delta · daemon-reported</code></span>
+            <div class="dialog session-fork-dialog" role="dialog" aria-labelledby="scf-fd-3-t" data-od-id="scf-vc-13">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="git-fork"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-fd-3-t">Fork session</div><p class="dialog__desc">Start a second session with the same agent and this conversation. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><span class="flabel">Agent</span><div class="scf-readonly"><span class="agent-avatar">OC</span>opencode<span class="prov">opencode</span></div></div>
+                <div class="ffield"><span class="flabel">Fork point</span><div class="session-fork-dialog__point"><span>Whole session</span></div></div>
+                <div class="session-derive-preview" data-state="native"><svg data-lucide="copy"></svg><span class="session-derive-preview__stack"><span><b>Carries over 42 messages</b> · 61.3 KiB</span><span>Uses the agent's own session clone.</span></span><i class="ss-n ss-n--abs" style="right:-22px;top:8px">5</i></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Spike: ACP session/fork</b></span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary">Fork session</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Cut turn in progress · primary disabled <code>delta</code></span>
+            <div class="dialog session-fork-dialog" role="dialog" aria-labelledby="scf-fd-4-t" data-od-id="scf-vc-14">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="git-fork"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-fd-4-t">Fork session</div><p class="dialog__desc">Start a second session with the same agent and this conversation. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><span class="flabel">Agent</span><div class="scf-readonly"><span class="agent-avatar">CC</span>claude<span class="prov">claude-code</span></div></div>
+                <div class="ffield"><span class="flabel">Fork point</span><div class="session-fork-dialog__point"><span>Through <q>Now make the same change in the store package</q></span><a class="lnk" href="#scf-dialogs-02">Change</a></div></div>
+                <div class="session-derive-preview" data-state="error" role="alert"><svg data-lucide="circle-alert"></svg><span>That turn hasn't settled yet.</span><i class="ss-n ss-n--abs" style="right:-22px;top:-2px">6</i></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b></span></span>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--primary" disabled aria-disabled="true">Fork session</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Transcript changed after opening <code>delta</code></span>
+            <div class="dialog session-fork-dialog" role="dialog" aria-labelledby="scf-fd-5-t" data-od-id="scf-vc-15">
+              <div class="dialog__head">
+                <span class="dialog__head-icon dialog__head-icon--neutral"><svg data-lucide="git-fork"></svg></span>
+                <div class="dialog__head-main"><span class="eyebrow entity-dialog-header__eyebrow">Operate · Session</span><div class="dialog__title" id="scf-fd-5-t">Fork session</div><p class="dialog__desc">Start a second session with the same agent and this conversation. This session stays unchanged.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <div class="ffield"><span class="flabel">Agent</span><div class="scf-readonly"><span class="agent-avatar">CC</span>claude<span class="prov">claude-code</span></div></div>
+                <div class="ffield"><span class="flabel">Fork point</span><div class="session-fork-dialog__point"><span>Through <q>Refactor the flaky manager tests so they wait on the lifecycle…</q></span><a class="lnk" href="#scf-dialogs-02">Change</a></div></div>
+                <div class="session-derive-preview" data-state="ready"><svg data-lucide="file-text"></svg><span><b>Carries over 18 of 42 messages</b> · 24.1 KiB</span></div>
+                <div class="session-derive-placement" role="radiogroup" aria-label="Open in"><span class="flabel">Open in</span><div class="session-derive-placement__items"><span class="scf-radio" role="radio" aria-checked="true" tabindex="0"><i></i>New window</span><span class="scf-radio" role="radio" aria-checked="false" tabindex="-1"><i></i>This window</span></div></div>
+                <p class="ferr" role="alert" data-testid="session-fork-submit-error">Transcript changed — reopen to fork from the current state.</p><i class="ss-n ss-n--abs" style="right:-22px;bottom:14px">7</i>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>From <b>Refactor flaky manager tests</b></span></span>
+                <button class="btn btn--ghost">Close</button>
+                <button class="btn btn--primary" disabled aria-disabled="true">Fork session</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Agent, read-only</b> <em><code>{agent_name} · {provider}</code> in a hairline row, no picker — a fork is this agent (Superset shows the provider label the same way) · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Fork point · Whole session</b> <em>plain sentence when opened from a menu · the daemon cuts at the last settled turn; an in-flight turn is not carried (the context line says so when it applies) · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Fork session</b> <em>primary, neutral/accent — it creates · foot note names the source · disabled while measuring, on preview error, on an unsettled cut · delta</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Fork point · Through "…"</b> <em>first 60 characters of the clicked message in quotes · <code>Change</code> closes the dialog: the point is chosen on the message, not in a picker (US-007.AC-2) · the count reads "18 of 42" because the cut is turn-inclusive · delta</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Native clone line</b> <em><code>Uses the agent's own session clone.</code> only when the preview reports <code>native_fork_possible</code> (acp_caps <code>supports_fork_session &amp;&amp; supports_load_session</code>, live bound source, whole-session point) · Copy glyph, subtle — no sparkle · absent otherwise, never "unsupported" · delta</em></span></li>
+          <li><i class="ss-n">6</i><span><b>Cut turn in progress</b> <em><code>That turn hasn't settled yet.</code> as FieldError text · primary disabled · the daemon's <code>session_turn_in_progress</code> (409) on submit renders the same line · delta</em></span></li>
+          <li><i class="ss-n">7</i><span><b>Transcript changed</b> <em><code>Transcript changed — reopen to fork from the current state.</code> after <code>session_fence_conflict</code> (409) · primary disabled, Cancel becomes Close · the fences are re-read on reopen, never silently refreshed under you · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>whole · from message · native · turn in progress · fence conflict</span><span class="ss-tag"><b>component</b>SessionForkDialog · SessionDerivePreview</span><span class="ss-tag"><b>VC</b>task_06 VC-11..15</span><span class="ss-tag"><b>accent</b>1 (primary)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · DICTIONARY ===== -->
+  <section class="lab-sec" id="scf-dialogs-03" data-od-id="scf-dialogs-03">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Copy, fields, rules</h2><span class="lab-sec__gist">verbatim strings · what disables the primary</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>Where</th><th>Copy (verbatim)</th></tr></thead>
+          <tbody>
+            <tr><td>Continue · title / description</td><td><code>Continue with another agent</code> · <code>Start a new session for another agent with this conversation carried over. This session stays unchanged.</code></td></tr>
+            <tr><td>Continue · fields</td><td><code>Agent</code> · <code>Runtime</code> · <code>Route</code> (Default · <em>{provider} · {model}</em>) · <code>First message</code> (placeholder <code>Optional. Sent after the carried context.</code>) · <code>Open in</code></td></tr>
+            <tr><td>Fork · title / description</td><td><code>Fork session</code> · <code>Start a second session with the same agent and this conversation. This session stays unchanged.</code></td></tr>
+            <tr><td>Fork · fields</td><td><code>Agent</code> (read-only <em>{agent_name} · {provider}</em>) · <code>Fork point</code>: <code>Whole session</code> / <code>Through "{first 60 chars}"</code> + <code>Change</code> · <code>Open in</code></td></tr>
+            <tr><td>Context line</td><td><code>Carries over {n} messages · {size}</code> · <code>Carries over {k} of {n} messages · {size}</code> + <code>{n−k} earlier messages omitted to fit the context budget.</code> · <code>Measuring…</code> · <code>Couldn't measure this session's context.</code> · <code>A turn is still in progress; it will not be carried over.</code> · <code>Uses the agent's own session clone.</code></td></tr>
+            <tr><td>Refusals</td><td><code>That turn hasn't settled yet.</code> · <code>Transcript changed — reopen to fork from the current state.</code> · daemon messages verbatim for <code>agent_not_found</code>, <code>session_archived</code>, <code>route_not_found</code>, <code>new_work_admission_unavailable</code></td></tr>
+            <tr><td>Open in</td><td><code>New window</code> (default) · <code>This window</code></td></tr>
+            <tr><td>Primary / pending</td><td><code>Continue</code> · <code>Fork session</code> · <code>Starting the new session…</code></td></tr>
+            <tr><td>Foot note</td><td><code>From {source title} · {agent}</code> (Continue) · <code>From {source title}</code> (Fork)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <ul>
+          <li><b>Primary disabled</b> while measuring, on preview error, with no agent (Continue), on a cut turn in progress (Fork), and after a fence conflict until reopened.</li>
+          <li><b>Primary enabled</b> on a truncated preview and on an empty source (0 messages) — both are truthful, neither is an error.</li>
+          <li><b>No danger tone.</b> Both dialogs create; the only red is the FieldError text of a refusal. Rewind keeps its danger ConfirmDialog elsewhere.</li>
+          <li><b>Capability never guessed.</b> The native line is a daemon fact on the preview; without it the replay seed is what runs, and the line states only the size.</li>
+          <li><b>Route row exists only with routes.</b> Without Spec A's <code>fallback_chain</code> on the agent payload, the row is absent — not disabled, not "Default" alone.</li>
+          <li><b>After success</b> the dialog closes, the child lands per Open in, and the source window is untouched (New window) or retargeted (This window).</li>
+          <li><b>Keyboard.</b> Focus trapped; Esc cancels unless pending; radios take arrow keys; Change is a link in the tab order.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lab-foot" style="margin-top:22px">Reference sources: Superset <span class="mono">TerminalSessionHandoffMenu.tsx:33-38,94-117,259-278,327-336</span> (measure on open, "Sends N characters (about T tokens)", Continue disabled on empty or failed fetch; fork shows the provider label, no picker), Synara <span class="mono">handoff.ts</span> (bounded recap with an omitted count) and <span class="mono">acpFork.ts</span> (native fork only when advertised and recoverable, else transcript), Codex <span class="mono">ThreadForkParams.lastTurnId</span> (inclusive cut; in-progress turn refused). Rejected: a "Split pane" option (no session split pane in Compozy); a token estimate computed client-side (<code>chars/3.5</code>) — the daemon measures; a disabled "native fork" toggle. Iterate — never regenerate a delivered board.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>if(window.lucide) window.lucide.createIcons();</script>
+</body>
+</html>

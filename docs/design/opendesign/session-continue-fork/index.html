@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session continue &amp; fork · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../_done/sessions-stability/sessions-stability.css">
+<!--
+  session-continue-fork index · set map for the three boards named in
+  .compozy/tasks/session-continue-fork/_uiux.md (S1–S10). Contract: DESIGN-NOTES.md.
+  Same grammar as session-context / sessions-stability / sessions-bulk-actions: contract block
+  first, numbered callouts + legend per specimen, tag strip, classes named after production components.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1040px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .hub__lede b{color:var(--fg-strong);font-weight:600}
+  .hub__grp{margin-top:36px}
+  .hub__grp-t{font-size:12px;font-weight:510;color:var(--subtle);padding-bottom:10px}
+  .matrix{width:100%;border-collapse:collapse;font-size:12px}
+  .matrix th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .matrix td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+  .matrix td:first-child{font-family:var(--font-mono);color:var(--faint);white-space:nowrap}
+  .matrix td a{color:var(--fg);font-weight:510}
+  .matrix td a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+  .matrix .comp{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0}
+  .matrix .vc{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);text-decoration:none}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__mods{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .howto{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .howto div{padding:12px 14px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;line-height:1.55;color:var(--muted)}
+  .howto b{display:block;font-size:12px;color:var(--fg-strong);font-weight:600;margin-bottom:3px}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:72ch}
+  .mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+  @media (max-width:760px){.cards,.howto{grid-template-columns:1fr}.hub{padding:36px 20px 64px}.matrix .comp{display:none}}
+</style>
+</head>
+<body>
+<div class="hub" data-od-id="scf-index">
+  <h1 data-od-id="scf-index-title">Session continue &amp; fork</h1>
+  <p class="hub__lede">Three boards for <code>.compozy/tasks/session-continue-fork/_uiux.md</code> (S1–S10). Two verbs join the places secondary session verbs already live — the row kebab and the window's More actions — and one verb joins the user message: <b>Continue with another agent…</b>, <b>Fork session…</b>, <b>Fork from here</b>. Each opens a small dialog on the Start-session shell that shows what will be carried over before you decide and where the new session opens. The child says where it came from with a neutral pill, a hairline at the top of its transcript, and an Origin row in its ledger; the source is never touched and says nothing. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="hub__grp" data-od-id="scf-index-howto">
+    <div class="hub__grp-t">How to read a board</div>
+    <div class="howto">
+      <div><b>1 · Contract block</b>Three columns at the top: the surface in plain words · the production files it modifies, adds, deletes, or reuses unchanged · the states on the page, each linked, each with its VC id.</div>
+      <div><b>2 · Callouts + legend</b>Inverted numbers next to the element; the legend under the specimen names the component, the token values, and the authority: <span class="mono">production</span> · <span class="mono">delta</span> · <span class="mono">truth</span>.</div>
+      <div><b>3 · Tag strip</b><span class="mono">state · component · VC · tone/accent</span> per specimen, so a VC id greps straight to its specimen (<span class="mono">data-od-id="scf-vc-NN"</span>).</div>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="scf-index-boards">
+    <div class="hub__grp-t">Boards</div>
+    <div class="cards">
+      <a class="card" href="session-continue-fork-menus.html" data-od-id="scf-index-card-menus">
+        <div class="card__top"><span class="card__name">Menus and entry points</span><span class="card__file">session-continue-fork-menus.html</span></div>
+        <p class="card__sub">Row kebab · window More actions · Fork from here beside Rewind · the dead-runtime notice says Restart · a failed turn offers Continue.</p>
+        <div class="card__mods"><span class="ss-mod ss-mod--modify">modify</span><span class="ss-mod ss-mod--new">new</span><span class="ss-tag"><b>VC</b>01–05 · 21 · 22</span></div>
+      </a>
+      <a class="card" href="session-continue-fork-dialogs.html" data-od-id="scf-index-card-dialogs">
+        <div class="card__top"><span class="card__name">Continue and Fork dialogs</span><span class="card__file">session-continue-fork-dialogs.html</span></div>
+        <p class="card__sub">Agent · runtime · route · first message · the measured context line · Open in · Continue. Fork: locked agent · fork point · the native-clone sentence · two refusals.</p>
+        <div class="card__mods"><span class="ss-mod ss-mod--new">new</span><span class="ss-tag"><b>VC</b>06–15</span></div>
+      </a>
+      <a class="card" href="session-continue-fork-lineage.html" data-od-id="scf-index-card-lineage">
+        <div class="card__top"><span class="card__name">Origin and lineage</span><span class="card__file">session-continue-fork-lineage.html</span></div>
+        <p class="card__sub">The origin pill after the provider · the divider before the child's first message · the ledger's Origin row · what stays silent on the source.</p>
+        <div class="card__mods"><span class="ss-mod ss-mod--new">new</span><span class="ss-mod ss-mod--modify">modify</span><span class="ss-tag"><b>VC</b>16–20 · 23</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="scf-index-matrix">
+    <div class="hub__grp-t">Surface → board → components → Visual Contract</div>
+    <table class="matrix">
+      <thead><tr><th>S</th><th>Surface</th><th>Board · section</th><th>Production components</th><th>VC</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Session row overflow</td><td><a href="session-continue-fork-menus.html#scf-menus-01">menus §01</a></td><td class="comp">SessionRowActions (modify) · DropdownMenu</td><td class="vc">VC-01 VC-02</td></tr>
+        <tr><td>S2</td><td>Window topbar overflow</td><td><a href="session-continue-fork-menus.html#scf-menus-02">menus §02</a></td><td class="comp">useSessionTopbarOverflow (modify)</td><td class="vc">VC-03</td></tr>
+        <tr><td>S3</td><td>Per-message actions</td><td><a href="session-continue-fork-menus.html#scf-menus-03">menus §03</a></td><td class="comp">MessageActions (modify) · SessionForkMessageAction (new) · SessionRewindMessageAction (reuse)</td><td class="vc">VC-04 VC-05</td></tr>
+        <tr><td>S4</td><td>Continue dialog</td><td><a href="session-continue-fork-dialogs.html#scf-dialogs-01">dialogs §01</a></td><td class="comp">SessionContinueDialog (new) · useSessionDerive (new) · AgentCommandSelect · RuntimeSelector · EntityDialog*</td><td class="vc">VC-06 … VC-10</td></tr>
+        <tr><td>S5</td><td>Fork dialog</td><td><a href="session-continue-fork-dialogs.html#scf-dialogs-02">dialogs §02</a></td><td class="comp">SessionForkDialog (new) · useSessionDerive · EntityDialog*</td><td class="vc">VC-11 … VC-15</td></tr>
+        <tr><td>S6</td><td>Origin pill in the status line</td><td><a href="session-continue-fork-lineage.html#scf-lineage-01">lineage §01</a></td><td class="comp">SessionOriginPill (new) · SessionStatusLine (modify) · Pill</td><td class="vc">VC-16 VC-17 VC-18</td></tr>
+        <tr><td>S7</td><td>Transcript divider in the child</td><td><a href="session-continue-fork-lineage.html#scf-lineage-02">lineage §02</a></td><td class="comp">SessionContinueDivider (new) · SessionThreadMessages (modify)</td><td class="vc">VC-19 VC-20</td></tr>
+        <tr><td>S8</td><td>Dead-runtime notice label</td><td><a href="session-continue-fork-menus.html#scf-menus-04">menus §04</a></td><td class="comp">SessionWindowContent · SessionResumeFailure (copy)</td><td class="vc">VC-21</td></tr>
+        <tr><td>S9</td><td>Provider-error marker</td><td><a href="session-continue-fork-menus.html#scf-menus-05">menus §05</a></td><td class="comp">ProviderErrorNotice · provider-error.ts (modify)</td><td class="vc">VC-22</td></tr>
+        <tr><td>S10</td><td>List nesting · inspector ledger</td><td><a href="session-continue-fork-lineage.html#scf-lineage-03">lineage §03</a></td><td class="comp">SessionLedgerMetaPanel (modify) · SessionListThread (reuse)</td><td class="vc">VC-23</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="foot">Authored 2026-09-11 after <span class="mono">_spec.md</span>, <span class="mono">_uiux.md</span> and the task graph (task_04 owns VC-01..03, VC-06..10, VC-16, VC-18..22; task_06 owns VC-04, VC-05, VC-11..15, VC-17, VC-23; task_08 captures the bundles). Chrome comes from <span class="mono">../design-system/ds-core.css</span>, <span class="mono">../design-system/ds-shell.css</span> and <span class="mono">../_done/sessions-stability/sessions-stability.css</span> unmodified; the rail rows are copied from <span class="mono">../sessions-bulk-actions</span>. Domain lane: <span class="mono">session-continue-fork.css</span>. Iterate — never regenerate a delivered board.</p>
+</div>
+</body>
+</html>

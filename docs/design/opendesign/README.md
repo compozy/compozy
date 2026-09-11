@@ -22,6 +22,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Sessions stability (active) | [`sessions-stability/`](sessions-stability/) | [`sessions-stability/index.html`](sessions-stability/index.html) · contract [`DESIGN-NOTES.md`](sessions-stability/DESIGN-NOTES.md) |
 | Marketplace catalog (active · for approval) | [`marketplace-catalog/`](marketplace-catalog/) | [`marketplace-catalog/index.html`](marketplace-catalog/index.html) · contract [`DESIGN-NOTES.md`](marketplace-catalog/DESIGN-NOTES.md) |
 | Session context (active · for approval) | [`session-context/`](session-context/) | [`session-context/index.html`](session-context/index.html) · contract [`DESIGN-NOTES.md`](session-context/DESIGN-NOTES.md) |
+| Session continue & fork (active · for approval) | [`session-continue-fork/`](session-continue-fork/) | [`session-continue-fork/index.html`](session-continue-fork/index.html) · contract [`DESIGN-NOTES.md`](session-continue-fork/DESIGN-NOTES.md) |
 | Sessions bulk actions (active · for approval) | [`sessions-bulk-actions/`](sessions-bulk-actions/) | [`sessions-bulk-actions/index.html`](sessions-bulk-actions/index.html) · single board, contract block inline |
 | Session (retired → `_done/session/`) | [`_done/session/`](_done/session/) | [`_done/session/index.html`](_done/session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](_done/session/SESSION-REDESIGN-SPEC.md) |
 | Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
