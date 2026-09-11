@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,11 +20,30 @@ const (
 	forwardIdleTimeout    = 2 * time.Minute
 )
 
+// forwardedProto is the scheme the provider terminates TLS for on behalf of
+// the daemon tier listener. The daemon listener is plaintext loopback HTTP,
+// so the forwarder must declare the browser-facing scheme per request; the
+// httpapi origin allowance compares canonical origins including scheme.
+const forwardedProto = "https"
+
+// X-Forwarded-Proto and X-Forwarded-Host are the forwarded-target headers the
+// httpapi middleware consumes (requestScheme) and that document the original
+// browser request. ReverseProxy's Rewrite mode strips client-supplied
+// Forwarded/X-Forwarded-* headers before rewriting, so remote clients cannot
+// spoof them.
+const (
+	forwardedProtoHeader = "X-Forwarded-Proto"
+	forwardedHostHeader  = "X-Forwarded-Host"
+)
+
 type tierForwarder struct {
 	listener net.Listener
-	target   string
+	backend  *url.URL
 	logger   *slog.Logger
 	dial     func(context.Context, string, string) (net.Conn, error)
+
+	proxy  *httputil.ReverseProxy
+	server *http.Server
 
 	stopLifecycle context.CancelFunc
 	done          chan struct{}
@@ -31,12 +53,11 @@ type tierForwarder struct {
 	closed        chan struct{}
 	slots         chan struct{}
 
-	mu          sync.RWMutex
-	connections map[net.Conn]struct{}
-	serveErr    error
-	forwardErr  error
-	closing     bool
-	closeErr    error
+	mu         sync.RWMutex
+	serveErr   error
+	forwardErr error
+	closing    bool
+	closeErr   error
 }
 
 func newTierForwarder(listener net.Listener, target string, logger *slog.Logger) (*tierForwarder, error) {
@@ -49,29 +70,32 @@ func newTierForwarder(listener net.Listener, target string, logger *slog.Logger)
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &tierForwarder{
-		listener:    listener,
-		target:      target,
-		logger:      logger,
-		dial:        (&net.Dialer{Timeout: forwardDialTimeout}).DialContext,
-		done:        make(chan struct{}),
-		closed:      make(chan struct{}),
-		slots:       make(chan struct{}, maxForwardConnections),
-		connections: make(map[net.Conn]struct{}),
-	}, nil
+	forwarder := &tierForwarder{
+		listener: listener,
+		backend:  &url.URL{Scheme: "http", Host: target},
+		logger:   logger,
+		dial:     (&net.Dialer{Timeout: forwardDialTimeout}).DialContext,
+		done:     make(chan struct{}),
+		closed:   make(chan struct{}),
+		slots:    make(chan struct{}, maxForwardConnections),
+	}
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	forwarder.stopLifecycle = cancel
+	forwarder.proxy = forwarder.newProxy()
+	forwarder.server = forwarder.newServer(lifecycleCtx)
+	return forwarder, nil
 }
 
+// Start begins accepting tier connections and serving them to the daemon.
 func (f *tierForwarder) Start() {
 	f.start.Do(func() {
-		ctx, cancel := context.WithCancel(context.Background())
 		f.mu.Lock()
-		f.stopLifecycle = cancel
 		closing := f.closing
 		f.mu.Unlock()
 		if closing {
-			cancel()
+			f.stopLifecycle()
 		}
-		go f.serve(ctx)
+		go f.serve()
 	})
 }
 
@@ -112,90 +136,83 @@ func (f *tierForwarder) Close(ctx context.Context) error {
 	}
 }
 
-func (f *tierForwarder) serve(ctx context.Context) {
+func (f *tierForwarder) serve() {
 	defer close(f.done)
 	defer f.wg.Wait()
-	for {
-		connection, err := f.listener.Accept()
-		if err != nil {
-			f.mu.Lock()
-			closing := f.closing
-			if !closing {
-				f.serveErr = fmt.Errorf("accept connection: %w", err)
-			}
-			f.mu.Unlock()
-			if closing {
-				return
-			}
-			return
+	if err := f.server.Serve(f.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		f.mu.Lock()
+		if !f.closing {
+			f.serveErr = fmt.Errorf("accept connection: %w", err)
 		}
-		select {
-		case f.slots <- struct{}{}:
-		default:
-			if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				f.logger.Warn("close excess connectivity connection", "error", err)
-			}
-			continue
-		}
-		f.track(connection)
-		f.wg.Add(1)
-		go f.forward(ctx, connection)
+		f.mu.Unlock()
 	}
 }
 
-func (f *tierForwarder) forward(ctx context.Context, inbound net.Conn) {
-	defer f.wg.Done()
-	defer func() { <-f.slots }()
-	defer f.closeTracked(inbound)
-	dialCtx, cancel := context.WithTimeout(ctx, forwardDialTimeout)
-	defer cancel()
-	upstream, err := f.dial(dialCtx, "tcp", f.target)
-	if err != nil {
-		if ctx.Err() == nil {
-			f.recordForwardFailure()
-			f.logger.Warn("connectivity forward target unavailable")
-		}
+// ServeHTTP proxies one browser request to the daemon tier listener as an
+// HTTP-aware reverse proxy so the daemon observes the forwarded scheme and
+// host of the original TLS request.
+func (f *tierForwarder) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	select {
+	case f.slots <- struct{}{}:
+		defer func() { <-f.slots }()
+	default:
+		http.Error(writer, "tailscale: forward concurrency limit reached", http.StatusServiceUnavailable)
 		return
 	}
-	f.track(upstream)
-	defer f.closeTracked(upstream)
-	inboundIdle := idleDeadlineConn{Conn: inbound, timeout: forwardIdleTimeout}
-	upstreamIdle := idleDeadlineConn{Conn: upstream, timeout: forwardIdleTimeout}
-	results := make(chan error, 2)
-	go copyConnection(results, upstreamIdle, inboundIdle)
-	go copyConnection(results, inboundIdle, upstreamIdle)
-	firstErr := <-results
-	if err := inbound.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		f.logger.Debug("close forwarded inbound connection", "error", err)
+	f.mu.Lock()
+	if f.closing {
+		f.mu.Unlock()
+		http.Error(writer, "tailscale: forwarder is shutting down", http.StatusServiceUnavailable)
+		return
 	}
-	if err := upstream.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		f.logger.Debug("close forwarded upstream connection", "error", err)
-	}
-	secondErr := <-results
-	for _, copyErr := range []error{firstErr, secondErr} {
-		if copyErr != nil && !errors.Is(copyErr, net.ErrClosed) && ctx.Err() == nil {
-			f.logger.Debug("copy forwarded connection", "error", copyErr)
-		}
+	f.wg.Add(1)
+	f.mu.Unlock()
+	defer f.wg.Done()
+	f.proxy.ServeHTTP(writer, request)
+}
+
+func (f *tierForwarder) newProxy() *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(f.backend)
+			// SetURL retargets the outbound Host header at the backend; the
+			// daemon tier listener needs the original browser-facing host to
+			// evaluate its same-origin allowance.
+			pr.Out.Host = pr.In.Host
+			pr.Out.Header.Set(forwardedProtoHeader, forwardedProto)
+			if host := strings.TrimSpace(pr.In.Host); host != "" {
+				pr.Out.Header.Set(forwardedHostHeader, host)
+			}
+		},
+		Transport: &http.Transport{
+			DialContext:         f.dial,
+			MaxIdleConns:        maxForwardConnections,
+			MaxIdleConnsPerHost: maxForwardConnections,
+			IdleConnTimeout:     forwardIdleTimeout,
+			DisableCompression:  true,
+		},
+		// SSE and task streams must not buffer behind the proxy.
+		FlushInterval: -1,
+		ErrorHandler: func(writer http.ResponseWriter, request *http.Request, _ error) {
+			// The proxy error itself is intentionally discarded: the dial
+			// failure is already recorded by recordForwardFailure as the
+			// degraded health reason surfaced through `gateway status`.
+			if request.Context().Err() == nil {
+				f.recordForwardFailure()
+				f.logger.Warn("connectivity forward target unavailable")
+			}
+			http.Error(writer, "tailscale: forward target unavailable", http.StatusBadGateway)
+		},
 	}
 }
 
-type idleDeadlineConn struct {
-	net.Conn
-	timeout time.Duration
-}
-
-func (c idleDeadlineConn) Read(payload []byte) (int, error) {
-	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
-		return 0, err
+func (f *tierForwarder) newServer(lifecycleCtx context.Context) *http.Server {
+	return &http.Server{
+		Handler:           f,
+		BaseContext:       func(net.Listener) context.Context { return lifecycleCtx },
+		ReadHeaderTimeout: forwardIdleTimeout,
+		IdleTimeout:       forwardIdleTimeout,
 	}
-	return c.Conn.Read(payload)
-}
-
-func (c idleDeadlineConn) Write(payload []byte) (int, error) {
-	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
-		return 0, err
-	}
-	return c.Conn.Write(payload)
 }
 
 func (f *tierForwarder) recordForwardFailure() {
@@ -208,62 +225,14 @@ func (f *tierForwarder) recordForwardFailure() {
 
 func (f *tierForwarder) shutdown() {
 	var errs []error
-	f.mu.Lock()
-	connections := make([]net.Conn, 0, len(f.connections))
-	for connection := range f.connections {
-		connections = append(connections, connection)
+	if err := f.server.Close(); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
+		errs = append(errs, fmt.Errorf("tailscale: stop forward server: %w", err))
 	}
-	f.mu.Unlock()
-	for _, connection := range connections {
-		if err := connection.Close(); err != nil && !onlyClosedNetworkError(err) {
-			errs = append(errs, fmt.Errorf("tailscale: close forwarded connection: %w", err))
-		}
-	}
-	if err := f.listener.Close(); err != nil && !onlyClosedNetworkError(err) {
-		errs = append(errs, fmt.Errorf("tailscale: close listener: %w", err))
-	}
+	// f.done closes only after every in-flight proxied request returns.
 	<-f.done
 	f.mu.Lock()
 	f.closeErr = errors.Join(errs...)
 	f.mu.Unlock()
 	close(f.closed)
-}
-
-func onlyClosedNetworkError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		children := joined.Unwrap()
-		if len(children) == 0 {
-			return false
-		}
-		for _, child := range children {
-			if !onlyClosedNetworkError(child) {
-				return false
-			}
-		}
-		return true
-	}
-	return errors.Is(err, net.ErrClosed)
-}
-
-func copyConnection(result chan<- error, destination io.Writer, source io.Reader) {
-	_, err := io.Copy(destination, source)
-	result <- err
-}
-
-func (f *tierForwarder) track(connection net.Conn) {
-	f.mu.Lock()
-	f.connections[connection] = struct{}{}
-	f.mu.Unlock()
-}
-
-func (f *tierForwarder) closeTracked(connection net.Conn) {
-	f.mu.Lock()
-	delete(f.connections, connection)
-	f.mu.Unlock()
-	if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		f.logger.Debug("close tracked forwarded connection", "error", err)
-	}
 }

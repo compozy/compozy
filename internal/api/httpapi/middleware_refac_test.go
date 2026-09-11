@@ -194,6 +194,100 @@ func TestGatewayForwardedOriginProtection(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
 		}
 	})
+
+	// BUG-20260911-private-ui-origin-rejected-on-forwarded-tier: the provider
+	// terminates TLS and relays plaintext HTTP to the loopback tier listener,
+	// so the daemon can only recover the browser scheme from the forwarded
+	// proto header the forwarder sets. These cases mirror that exact wire
+	// shape: a relative request target (no URL scheme, no TLS), a public
+	// request Host, and the forwarder-supplied X-Forwarded-Proto.
+	t.Run("Should accept a same-origin https request relayed with the forwarded proto", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.GET("/assets/app.js", func(c *gin.Context) { c.Status(http.StatusOK) })
+		request := httptest.NewRequestWithContext(
+			context.Background(), http.MethodGet, "/assets/app.js", http.NoBody,
+		)
+		request.Host = "compozy-gateway.example.ts.net:8443"
+		request.Header.Set("Origin", "https://compozy-gateway.example.ts.net:8443")
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusOK,
+				recorder.Body.String(),
+			)
+		}
+		if got := recorder.Header().
+			Get("Access-Control-Allow-Origin"); got != "https://compozy-gateway.example.ts.net:8443" {
+			t.Fatalf("Access-Control-Allow-Origin = %q", got)
+		}
+	})
+
+	t.Run("Should reject a https origin when the forwarded proto is missing", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.GET("/assets/app.js", func(c *gin.Context) { c.Status(http.StatusOK) })
+		request := httptest.NewRequestWithContext(
+			context.Background(), http.MethodGet, "/assets/app.js", http.NoBody,
+		)
+		request.Host = "compozy-gateway.example.ts.net:8443"
+		request.Header.Set("Origin", "https://compozy-gateway.example.ts.net:8443")
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.Error != errOriginNotAllowed.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, errOriginNotAllowed.Error())
+		}
+	})
+
+	t.Run("Should reject a cross-origin request relayed with the forwarded proto", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddlewareWithForwardedTarget("127.0.0.1:43123", true))
+		engine.POST("/api/action", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		request := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/api/action", http.NoBody,
+		)
+		request.Host = "compozy-gateway.example.ts.net:8443"
+		request.Header.Set("Origin", "https://evil.example.test")
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.Error != errOriginNotAllowed.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, errOriginNotAllowed.Error())
+		}
+	})
 }
 
 func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {

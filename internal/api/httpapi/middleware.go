@@ -376,6 +376,18 @@ func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
 	return loopbackGuard(boundHost, core.ErrLoopbackMutationRequired, false)
 }
 
+// remoteTierMutationGuard forbids daemon-authority mutations on every remote
+// tier listener regardless of the listener's bind host: tier listeners are
+// loopback-bound by design because the connectivity provider fronts them, so
+// the bind host cannot express the browser-facing tier. Paired devices get
+// read-only operator access (BR-6) and the refusal never downgrades.
+func remoteTierMutationGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		core.RespondError(c, http.StatusForbidden, core.ErrLoopbackMutationRequired, false)
+		c.Abort()
+	}
+}
+
 func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.HandlerFunc {
 	allowed := isLoopbackHost(canonicalHost(boundHost))
 	return func(c *gin.Context) {

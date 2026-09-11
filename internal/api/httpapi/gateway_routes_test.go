@@ -1032,6 +1032,204 @@ func newGatewaySurfaceTestRouter(
 	return router
 }
 
+// IT-003 (mobile-surface-truth): the remote-mutation policy keys on the
+// listener tier, not the daemon bind host. Tier listeners are loopback-bound
+// by design because the connectivity provider fronts them, so a paired device
+// cookie must never reach a guarded mutation on a remote tier, while the local
+// listener keeps its loopback-bind rules (BR-5).
+func TestGatewayTierListenerMutationPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse a paired device drain on the private tier listener", func(t *testing.T) {
+		t.Parallel()
+
+		authenticator := gatewayHTTPAuthenticatorStub{
+			authenticate: func(context.Context, string) (gateway.DeviceSession, error) {
+				return gateway.DeviceSession{
+					ID: "device-paired", ActorKind: gateway.ActorKindOperatorDevice,
+				}, nil
+			},
+		}
+		router := newGatewaySurfaceTestRouter(SurfaceSetPrivate, gatewayHTTPServiceStub{}, authenticator)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "http://127.0.0.1:2123/api/drain", http.NoBody,
+		)
+		request.Header.Set("Cookie", gatewayDeviceCookieName+"=cpz_gwd_"+strings.Repeat("p", 43))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusForbidden {
+			t.Fatalf(
+				"paired device drain status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusForbidden,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Code != "loopback_mutation_required" {
+			t.Fatalf("error code = %q, want %q", payload.Code, "loopback_mutation_required")
+		}
+	})
+
+	t.Run("Should refuse a paired device settings mutation on the private tier listener", func(t *testing.T) {
+		t.Parallel()
+
+		authenticator := gatewayHTTPAuthenticatorStub{
+			authenticate: func(context.Context, string) (gateway.DeviceSession, error) {
+				return gateway.DeviceSession{
+					ID: "device-paired", ActorKind: gateway.ActorKindOperatorDevice,
+				}, nil
+			},
+		}
+		router := newGatewaySurfaceTestRouter(SurfaceSetPrivate, gatewayHTTPServiceStub{}, authenticator)
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPatch,
+			"http://127.0.0.1:2123/api/settings/general",
+			strings.NewReader(`{"persona":"paired"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Cookie", gatewayDeviceCookieName+"=cpz_gwd_"+strings.Repeat("p", 43))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusForbidden {
+			t.Fatalf(
+				"paired device settings mutation status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusForbidden,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Code != "loopback_mutation_required" {
+			t.Fatalf("error code = %q, want %q", payload.Code, "loopback_mutation_required")
+		}
+	})
+
+	t.Run("Should keep a local loopback drain allowed", func(t *testing.T) {
+		t.Parallel()
+
+		router := newTierMutationPolicyLocalRouter(t, "127.0.0.1:2123")
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "http://127.0.0.1:2123/api/drain", http.NoBody,
+		)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"local drain status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusOK,
+				response.Body.String(),
+			)
+		}
+		var payload contract.DrainStatusResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.State != contract.DrainStateDraining || !payload.AdmissionClosed {
+			t.Fatalf("drain status payload = %#v, want draining with admission closed", payload)
+		}
+	})
+
+	t.Run("Should refuse the guarded API on a local listener bound off loopback", func(t *testing.T) {
+		t.Parallel()
+
+		router := newTierMutationPolicyLocalRouter(t, "0.0.0.0:2123")
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "http://0.0.0.0:2123/api/drain", http.NoBody,
+		)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusForbidden {
+			t.Fatalf(
+				"non-loopback local drain status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusForbidden,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Code != "loopback_api_required" {
+			t.Fatalf("error code = %q, want %q", payload.Code, "loopback_api_required")
+		}
+	})
+}
+
+func newTierMutationPolicyLocalRouter(t *testing.T, boundHost string) *gin.Engine {
+	t.Helper()
+	homePaths := newTestHomePaths(t)
+	cfg := testConfigWithDisabledNetwork(homePaths)
+	cfg.HTTP.Host = boundHost
+	cfg.HTTP.Port = 2123
+	handlers := newHandlers(&handlerConfig{
+		sessions:        stubSessionManager{},
+		tasks:           &stubTaskManager{},
+		observer:        stubObserver{},
+		workspaces:      stubWorkspaceService{},
+		drainController: &stubDaemonDrainController{},
+		gateway:         gatewayHTTPServiceStub{},
+		staticFS:        mustStaticFS(t),
+		homePaths:       homePaths,
+		config:          cfg,
+		boundHost:       boundHost,
+		logger:          discardLogger(),
+		startedAt:       time.Date(2026, 9, 11, 11, 0, 0, 0, time.UTC),
+		now:             func() time.Time { return time.Date(2026, 9, 11, 11, 0, 1, 0, time.UTC) },
+		httpPort:        cfg.HTTP.Port,
+		surfaceSet:      SurfaceSetLocal,
+	})
+	router := gin.New()
+	router.Use(corsMiddleware(boundHost))
+	router.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
+	router.Use(errorMiddleware())
+	RegisterSurfaceRoutes(router, handlers, SurfaceSetLocal)
+	return router
+}
+
+type stubDaemonDrainController struct {
+	draining bool
+}
+
+func (c *stubDaemonDrainController) Drain(context.Context) error {
+	c.draining = true
+	return nil
+}
+
+func (c *stubDaemonDrainController) Undrain(context.Context) error {
+	c.draining = false
+	return nil
+}
+
+func (c *stubDaemonDrainController) DrainState() contract.DrainState {
+	if c.draining {
+		return contract.DrainStateDraining
+	}
+	return contract.DrainStateActive
+}
+
+func (c *stubDaemonDrainController) DrainStatus(context.Context) (contract.DrainStatusResponse, error) {
+	draining := c.draining
+	return contract.DrainStatusResponse{
+		State:           c.DrainState(),
+		AdmissionClosed: draining,
+		SafeToStop:      draining,
+	}, nil
+}
+
 func gatewayRouteKeys(routes gin.RoutesInfo) map[string]struct{} {
 	keys := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
