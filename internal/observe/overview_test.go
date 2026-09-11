@@ -571,12 +571,29 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 			ID: "task-escalated", Title: "Needs input", Status: taskpkg.TaskStatusReady,
 			Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref},
 		})
-		if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
-			TaskID: "task-escalated", Reason: "Initial escalation", MarkedAt: f.now,
-			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
-		}); err != nil {
-			t.Fatal(err)
+		escalate := func(eventID, reason string, at time.Time) {
+			t.Helper()
+			origin := taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"}
+			if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+				TaskID: "task-escalated", Reason: reason, MarkedAt: at, Actor: f.actor, Origin: origin,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Escalation metadata and its event jointly drive the stored task projection.
+			payload, err := json.Marshal(map[string]any{
+				"status": taskpkg.TaskStatusNeedsAttention, "reason": reason, "at": at,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.registry.CreateTaskEvent(ctx, taskpkg.Event{
+				ID: eventID, TaskID: "task-escalated", EventType: "task.needs_attention",
+				Actor: f.actor, Origin: origin, Timestamp: at, Payload: payload,
+			}); err != nil {
+				t.Fatal(err)
+			}
 		}
+		escalate("initial-escalation", "Initial escalation", f.now)
 		query := f.query()
 		query.AcknowledgementProfileID = store.DefaultProfileID
 		before, err := f.observer.overviewAttention(ctx, query)
@@ -612,12 +629,7 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
-			TaskID: "task-escalated", Reason: "New escalation", MarkedAt: f.now.Add(3 * time.Minute),
-			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
-		}); err != nil {
-			t.Fatal(err)
-		}
+		escalate("renewed-escalation", "New escalation", f.now.Add(3*time.Minute))
 		renewed, err := f.observer.overviewAttention(ctx, query)
 		if err != nil || renewed.Total != 1 {
 			t.Fatalf("new escalation missing: total=%d err=%v", renewed.Total, err)
