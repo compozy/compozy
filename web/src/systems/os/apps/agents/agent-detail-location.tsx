@@ -70,6 +70,7 @@ interface AgentDetailContentProps {
   rawSearch: AgentDetailSearch;
 }
 
+/** Present an agent and its sessions, forwarding lifecycle results to the shared confirmation UI. */
 export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
   const page = useAgentDetail(name, rawSearch);
   const search = page.search;

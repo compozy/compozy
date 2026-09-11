@@ -3,6 +3,7 @@ import { CheckIcon, MinusIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 
+/** Render checked and mixed states through Base UI while preserving native checkbox props. */
 function Checkbox({ className, indeterminate, ...props }: CheckboxPrimitive.Root.Props) {
   return (
     <CheckboxPrimitive.Root

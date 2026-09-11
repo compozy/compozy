@@ -87,10 +87,15 @@ export function useSessionSelection(
   useEffect(() => {
     if (sessions) store.trigger.prune({ ids: sessions.map(session => session.id) });
   }, [store, sessions]);
+  const currentIds = sessions ? new Set(sessions.map(session => session.id)) : null;
+  const selectedIds = currentIds
+    ? context.selectedIds.filter(id => currentIds.has(id))
+    : context.selectedIds;
+  const anchorId = currentIds && !currentIds.has(context.anchorId ?? "") ? null : context.anchorId;
   return {
-    selectedIds: context.selectedIds,
-    anchorId: context.anchorId,
-    mode: context.selectedIds.length > 0,
+    selectedIds,
+    anchorId,
+    mode: selectedIds.length > 0,
     toggle: (id: string) => store.trigger.toggle({ id }),
     toggleRange: (toId: string, visibleOrder: readonly string[]) =>
       store.trigger.toggleRange({ toId, visibleOrder }),

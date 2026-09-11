@@ -11,6 +11,8 @@ import {
   Spinner,
 } from "@compozy/ui";
 
+import { cn } from "@/lib/utils";
+
 import type { SessionPayload } from "../types";
 import type { SessionBatchResult } from "../lib/session-batch";
 import { sessionSelectionCounts } from "../hooks/use-session-selection";
@@ -94,6 +96,7 @@ export function SessionDeleteDialogSet({
             </li>
           ) : null}
         </ul>
+        <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
         <DialogFooter className="gap-2">
           {note ? (
             <span
@@ -145,14 +148,20 @@ export function SessionDeleteDialogSet({
 function SessionDeleteResultRow({
   session,
   result,
+  className,
+  ...props
 }: {
   session: SessionPayload;
   result?: SessionBatchResult;
-}) {
+} & React.ComponentProps<"li">) {
   return (
     <li
       data-testid={`delete-dialog-row-${session.id}`}
-      className="grid grid-cols-[8px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-t border-line-soft px-2.5 py-1.5 text-form first:border-t-0"
+      className={cn(
+        "grid grid-cols-[8px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-t border-line-soft px-2.5 py-1.5 text-form first:border-t-0",
+        className
+      )}
+      {...props}
     >
       <SessionBadgeMark badge={session.badge} />
       <span className="truncate">{getSessionDisplayTitle(session)}</span>
@@ -182,4 +191,23 @@ function sessionDeleteNote(isDeleting: boolean, partial: boolean, active: number
   if (isDeleting) return "Don't close the window while this runs.";
   if (partial || active === 0) return null;
   return active === 1 ? "1 of them is active." : `${active} of them are active.`;
+}
+
+/** Disclose every failed target beyond the capped preview without expanding the confirmation list. */
+function SessionDeleteOverflowErrors({
+  sessions,
+  resultsById,
+}: {
+  sessions: readonly SessionPayload[];
+  resultsById: ReadonlyMap<string, SessionBatchResult>;
+}) {
+  return sessions.map(session => {
+    const result = resultsById.get(session.id);
+    if (result?.status !== "failed") return null;
+    return (
+      <p key={session.id} role="alert" className="text-small-body text-danger">
+        {getSessionDisplayTitle(session)}: Couldn't delete: {result.error}
+      </p>
+    );
+  });
 }

@@ -139,6 +139,7 @@ function SessionWindowNoticeContent({
   return null;
 }
 
+/** Compose the active session window and the sidebar-owned single or batch lifecycle dialogs. */
 export function SessionWindowContent({
   windowId,
   agentName,

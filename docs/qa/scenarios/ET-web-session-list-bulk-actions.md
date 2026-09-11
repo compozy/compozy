@@ -51,7 +51,8 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    dialog closes, one toast reports the deleted count, rows disappear from the
    real catalog, and selection clears while the host remains open.
 8. For a reproducible daemon failure, verify successful and failed results remain
-   visible, the error text names the daemon cause, Close keeps only failed rows
+   visible, including the name and error of each failed target beyond the five-row
+   preview. The error text names the daemon cause, Close keeps only failed rows
    selected, and Retry acts only on failed IDs. A partial result emits no toast
    while the dialog is open. Close or a successful Retry emits one success toast
    with the total deleted across all attempts (singular for one, none for zero).

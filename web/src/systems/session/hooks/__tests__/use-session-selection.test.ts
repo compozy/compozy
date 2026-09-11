@@ -1,5 +1,6 @@
+import { useLayoutEffect } from "react";
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import { sessionSelectionCounts, useSessionSelection } from "../use-session-selection";
@@ -39,6 +40,33 @@ describe("useSessionSelection", () => {
     expect(result.current.anchorId).toBeNull();
     act(() => result.current.clear());
     expect(result.current.selectedIds).toEqual([]);
+  });
+
+  it("exposes only current catalog members before passive pruning runs", () => {
+    const onCommit = vi.fn();
+    const sessions = [{ ...primarySessionFixture, id: "a" }];
+    const { result, rerender } = renderHook(
+      ({ catalog }) => {
+        const selection = useSessionSelection("workspace", false, catalog);
+        useLayoutEffect(() => {
+          onCommit({
+            selectedIds: selection.selectedIds,
+            anchorId: selection.anchorId,
+            mode: selection.mode,
+          });
+        });
+        return selection;
+      },
+      { initialProps: { catalog: sessions } }
+    );
+    act(() => result.current.toggle("a"));
+    expect(result.current.mode).toBe(true);
+    onCommit.mockClear();
+    rerender({ catalog: [] });
+    expect(onCommit).toHaveBeenCalled();
+    for (const [snapshot] of onCommit.mock.calls) {
+      expect(snapshot).toEqual({ selectedIds: [], anchorId: null, mode: false });
+    }
   });
 
   it("clears on scope or archive changes and isolates list instances", () => {

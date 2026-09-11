@@ -17,6 +17,7 @@ const SessionRenameDialog = lazy(() =>
   }))
 );
 
+/** Keep catalog actions and their confirmation dialogs available without an active session. */
 export function SessionWindowEmpty({
   windowId,
   workspaceId,

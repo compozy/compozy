@@ -112,14 +112,16 @@ export function SessionListRow({
 function SessionListRowDetails({
   session,
   current,
+  className,
+  ...props
 }: {
   session: SessionPayload;
   current: boolean;
-}) {
+} & React.ComponentProps<"span">) {
   const signal = sessionBadgeSignal(session.badge);
   const maskedNote = maskedAttentionNote(session, signal.label);
   return (
-    <span className="min-w-0">
+    <span className={cn("min-w-0", className)} {...props}>
       <span
         className={cn(
           "block truncate text-small-body",

@@ -111,6 +111,30 @@ describe("SessionDeleteDialog sets", () => {
     expect(screen.getByTestId("delete-dialog-note")).toHaveTextContent("1 of them is active.");
   });
 
+  it("names failed targets beyond the preview and keeps their daemon errors visible", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={sessions}
+        results={sessions.map((session, index) =>
+          index < 5
+            ? { id: session.id, status: "done" }
+            : { id: session.id, status: "failed", error: `Locked ${index}` }
+        )}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onRetry={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getAllByRole("alert").map(alert => alert.textContent)).toEqual([
+      "Work 5: Couldn't delete: Locked 5",
+      "Work 6: Couldn't delete: Locked 6",
+    ]);
+    expect(screen.getByTestId("delete-dialog-retry")).toHaveTextContent("Retry 2");
+  });
+
   it("shows settled and in-flight results and prevents closing during deletion", () => {
     const onOpenChange = vi.fn();
     render(
