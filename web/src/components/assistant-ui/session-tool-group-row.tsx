@@ -71,6 +71,7 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
               <SessionWorkEntryView
                 key={`${entry.kind}:${entry.id}`}
                 entry={entry}
+                disclosed
                 active={row.active}
                 turnFailed={turnFailed}
               />

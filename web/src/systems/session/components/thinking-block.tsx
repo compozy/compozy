@@ -9,6 +9,8 @@ import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 export interface ThinkingBlockProps {
   thinking: string;
   thinkingComplete?: boolean;
+  /** An expanded work group already discloses its reasoning; retain the body on settle. */
+  defaultOpen?: boolean;
   /** The projected part this row renders (`data-part-index`), so find can land on it. */
   partIndex?: number;
   /** A find jump needs the reasoning open; layered over the reader's own toggle. */
@@ -36,13 +38,14 @@ function firstThinkingLine(thinking: string): string {
 export function ThinkingBlock({
   thinking,
   thinkingComplete,
+  defaultOpen = false,
   partIndex,
   revealOpen = false,
   onRevealRelease,
 }: ThinkingBlockProps) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const live = !thinkingComplete;
-  const ownOpen = userOpen ?? live;
+  const ownOpen = userOpen ?? (defaultOpen || live);
   const open = ownOpen || revealOpen;
   const preview = compactSessionSummary(firstThinkingLine(thinking));
 

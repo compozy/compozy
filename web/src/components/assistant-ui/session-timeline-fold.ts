@@ -144,10 +144,12 @@ function foldTurnGroup(
     counts,
     open: cause === "stopped" || cause === "failed",
     // The fold's own sentence already carries the counts: inside it the settled
-    // calls read as their ToolCallRows, never behind a second disclosure
+    // tool-only calls read as their ToolCallRows. Mixed work retains its ordered disclosure
     // (task_07 VC-05 open body).
     rows: rowsInsideFold.map(row =>
-      row.kind === "work" && row.summary ? { ...row, summary: null, expanded: false } : row
+      row.kind === "work" && row.summary && !row.entries.some(entry => entry.kind === "reasoning")
+        ? { ...row, summary: null, expanded: false }
+        : row
     ),
   };
   const visibleRows: SessionRow[] = [];

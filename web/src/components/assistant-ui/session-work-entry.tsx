@@ -15,10 +15,12 @@ export function SessionWorkEntryView({
   entry,
   active,
   turnFailed,
+  disclosed = false,
 }: {
   entry: SessionWorkEntry;
   active: boolean;
   turnFailed: boolean;
+  disclosed?: boolean;
 }) {
   const navigation = useOptionalSessionNavigationTarget();
   const id = entry.kind === "tool" ? `tool:${entry.toolCallId}` : `reasoning:${entry.id}`;
@@ -33,6 +35,7 @@ export function SessionWorkEntryView({
     return (
       <ThinkingBlock
         thinking={entry.text}
+        defaultOpen={disclosed}
         thinkingComplete={!isStreamingState(entry.state)}
         partIndex={entry.partIndex}
         revealOpen={hold.held}

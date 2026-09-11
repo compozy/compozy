@@ -16,6 +16,8 @@ import {
   releaseTrainRunDetail,
 } from "@/systems/loops/mocks";
 import { taskDashboardFixture } from "@/systems/tasks/mocks";
+import { sessionFixtures } from "@/systems/session/mocks";
+import type { AttentionNotification } from "@/systems/notifications";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
 import { loopRequestLocationPath } from "@/systems/loops";
 
@@ -27,6 +29,47 @@ const attentionRequestTargetRoute = loopRequestLocationPath({
   nodeId: "confirm-rollout",
   itemIndex: 0,
 });
+
+const attentionNotifications: AttentionNotification[] = [
+  ...sessionFixtures
+    .filter(
+      session => session.badge === "waiting-for-input" || session.badge === "waiting-for-auth"
+    )
+    .map(session => ({
+      id: `notification:${session.id}`,
+      kind: "session",
+      source_id: session.id,
+      workspace_id: session.workspace_id,
+      workspace_label: session.workspace_id,
+      title: session.name ?? session.id,
+      detail: session.badge,
+      badge: session.badge,
+      agent_name: session.agent_name,
+      occurred_at: session.attention_changed_at ?? session.updated_at,
+      finished: false,
+      item_index: 0,
+      generation: 0,
+      redacted: false,
+    })),
+  ...graphEngPendingRequests.map(request => ({
+    id: `notification:${request.loop_run_id}:${request.node_id}:${request.generation}:${request.item_index}`,
+    kind: "loop-request",
+    source_id: `${primaryWorkspaceFixture.id}:${request.loop_run_id}:${request.node_id}:${request.item_index}`,
+    workspace_id: primaryWorkspaceFixture.id,
+    workspace_label: primaryWorkspaceFixture.name,
+    title: request.node_id,
+    detail: request.prompt,
+    occurred_at: request.opened_at,
+    finished: false,
+    run_id: request.loop_run_id,
+    node_id: request.node_id,
+    item_index: request.item_index,
+    generation: request.generation,
+    loop_name: request.loop_name,
+    request_kind: request.kind,
+    redacted: false,
+  })),
+];
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/loops/routes/LoopRuns",
@@ -83,6 +126,17 @@ export const AttentionRequests: Story = {
   parameters: {
     ...appRouteParameters("/loop-runs"),
     ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/notifications/attention", () =>
+          HttpResponse.json({
+            snapshot: "story-loop-attention",
+            total: attentionNotifications.length,
+            needs_you: attentionNotifications.length,
+            finished: 0,
+            items: attentionNotifications,
+          })
+        ),
+      ],
       workspace: [
         compozyApiMock.get("/api/workspaces", () =>
           HttpResponse.json({ workspaces: [primaryWorkspaceFixture] })

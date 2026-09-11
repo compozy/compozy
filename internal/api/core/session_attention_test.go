@@ -543,8 +543,18 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 			revision := int64(1)
 			manager := attentionRouteSessionManager()
 			manager.ListPageFn = func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
-				if !query.AllWorkspaces || !query.ReadScope.AllProfiles || !query.AttentionOnly {
+				if !query.AllWorkspaces || !query.ReadScope.AllProfiles {
 					t.Fatalf("notification read lost global scope: %+v", query)
+				}
+				if len(query.Badges) == 1 && query.Badges[0] == session.BadgeDone && !query.AttentionOnly {
+					return session.ListPage{Sessions: []*session.Info{{
+						ID: "sess-finished", Name: "Completed work", ProfileID: store.DefaultProfileID,
+						WorkspaceID: "ws-2", State: session.StateActive, LastSettledRevision: revision,
+						AttentionRevision: revision, UpdatedAt: time.Date(2026, 9, 10, 13, 0, 0, 0, time.UTC),
+					}}}, nil
+				}
+				if !query.AttentionOnly || len(query.Badges) != 0 {
+					t.Fatalf("notification read lost its attention population: %+v", query)
 				}
 				start, end := 0, 100
 				if query.Cursor == "page-two" {
@@ -599,8 +609,11 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 			}
 			var before contract.AttentionNotificationsResponse
 			testutil.DecodeJSONResponse(t, response, &before)
-			if before.Total != 151 || before.NeedsYou != 151 || len(before.Items) != 100 {
+			if before.Total != 152 || before.NeedsYou != 151 || before.Finished != 1 || len(before.Items) != 100 {
 				t.Fatalf("incomplete notification count: %+v", before)
+			}
+			if before.Items[0].SourceID != "sess-finished" || !before.Items[0].Finished {
+				t.Fatalf("finished row missing from the notification snapshot: %+v", before.Items[0])
 			}
 			body, err := json.Marshal(contract.AcknowledgeAttentionRequest{Snapshot: before.Snapshot})
 			if err != nil {
@@ -628,7 +641,8 @@ func TestAttentionNotificationReceipts(t *testing.T) {
 			)
 			var after contract.AttentionNotificationsResponse
 			testutil.DecodeJSONResponse(t, response, &after)
-			if response.Code != http.StatusOK || after.Total != 151 || after.Snapshot == before.Snapshot {
+			if response.Code != http.StatusOK || after.Total != 152 || after.NeedsYou != 151 || after.Finished != 1 ||
+				after.Snapshot == before.Snapshot {
 				t.Fatalf("new occurrences lost: status=%d total=%d", response.Code, after.Total)
 			}
 			revision-- // Replay the original source revision: its receipts still suppress the rows.

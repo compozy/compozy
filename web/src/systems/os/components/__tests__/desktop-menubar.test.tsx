@@ -2,6 +2,7 @@
 // Invariant: while scope resolution is pending the globe control is
 // aria-disabled, matching the runtime-workspace query lock at the root.
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -50,24 +51,27 @@ const ATTENTION: OsAttentionModel = {
 
 describe("DesktopMenubar scope control", () => {
   it("Should aria-disable the scope control while scope resolution is pending [RA0289]", () => {
+    const queryClient = new QueryClient();
     render(
-      <UIProvider reducedMotion="always">
-        <CmdPaletteRegistryProvider registry={paletteRegistryFixture([])}>
-          <DesktopMenubar
-            workspaces={[]}
-            activeWorkspace={undefined}
-            scope="workspace"
-            scopePending
-            onSelectWorkspace={vi.fn()}
-            onAddWorkspace={vi.fn()}
-            onRunCommand={vi.fn()}
-            activeOverlay={null}
-            onOverlayOpenChange={vi.fn()}
-            attention={ATTENTION}
-            updateAvailable={false}
-          />
-        </CmdPaletteRegistryProvider>
-      </UIProvider>
+      <QueryClientProvider client={queryClient}>
+        <UIProvider reducedMotion="always">
+          <CmdPaletteRegistryProvider registry={paletteRegistryFixture([])}>
+            <DesktopMenubar
+              workspaces={[]}
+              activeWorkspace={undefined}
+              scope="workspace"
+              scopePending
+              onSelectWorkspace={vi.fn()}
+              onAddWorkspace={vi.fn()}
+              onRunCommand={vi.fn()}
+              activeOverlay={null}
+              onOverlayOpenChange={vi.fn()}
+              attention={ATTENTION}
+              updateAvailable={false}
+            />
+          </CmdPaletteRegistryProvider>
+        </UIProvider>
+      </QueryClientProvider>
     );
 
     expect(screen.getByTestId("os-global-scope-toggle")).toHaveAttribute("aria-disabled", "true");

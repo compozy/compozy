@@ -318,10 +318,14 @@ function deriveBaseRows(
     markerKey = null;
   };
 
+  let hiddenProgress = false;
   for (const part of parts) {
     if (part.kind === "data" && isProgressTick(part)) {
+      hiddenProgress = true;
       continue;
     }
+    const joinsProse = hiddenProgress;
+    hiddenProgress = false;
     if (part.kind === "tool" || part.kind === "reasoning") {
       flushMarkerCluster();
       const previous = workCluster.at(-1);
@@ -349,7 +353,12 @@ function deriveBaseRows(
     flushWorkCluster();
     flushMarkerCluster();
     const previous = rows.at(-1);
-    if (part.kind === "text" && previous?.kind === "text" && previous.turnId === part.turnId) {
+    if (
+      joinsProse &&
+      part.kind === "text" &&
+      previous?.kind === "text" &&
+      previous.turnId === part.turnId
+    ) {
       rows[rows.length - 1] = {
         ...previous,
         part: { ...previous.part, text: previous.part.text + part.text, state: part.state },

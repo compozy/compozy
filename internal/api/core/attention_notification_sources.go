@@ -91,10 +91,35 @@ func (h *BaseHandlers) sessionNotificationItems(ctx context.Context) ([]contract
 	if !ok {
 		return nil, errors.New("api: session notification source is unavailable")
 	}
-	query := session.ListQuery{
-		ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, AttentionOnly: true,
-		Sort: session.ListSortAttention, Limit: session.MaxListLimit,
+	queries := []session.ListQuery{
+		{
+			ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, AttentionOnly: true,
+			Sort: session.ListSortAttention, Limit: session.MaxListLimit,
+		},
+		{
+			ReadScope: store.ReadScope{
+				AllProfiles: true,
+			},
+			AllWorkspaces: true,
+			Badges:        []session.Badge{session.BadgeDone},
+			Sort:          session.ListSortAttention,
+			Limit:         session.MaxListLimit,
+		},
 	}
+	items := make([]contract.AttentionNotificationPayload, 0)
+	for _, query := range queries {
+		rows, err := sessionNotificationQueryItems(ctx, manager, query)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, rows...)
+	}
+	return items, nil
+}
+
+func sessionNotificationQueryItems(
+	ctx context.Context, manager SessionPageManager, query session.ListQuery,
+) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 	for {
 		page, err := manager.ListPage(ctx, query)
