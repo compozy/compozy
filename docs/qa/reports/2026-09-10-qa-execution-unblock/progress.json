@@ -2,9 +2,9 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Goal history repaired/live-replayed; gate passed771files/7213tests. Commit history fix with no-stash checks, then repair streamed Goal draft completion-to-composer handoff. New bug reproduced in sess-ec096d1951e83b23, stopped. See bug diagnosis + PR271 body.18 dispositioned339pending; GL004 adjacent outside357. No ordinary agents active.",
-  "completed_rows": 18,
-  "pending_rows": 339,
+  "cursor": "Goal draft prefill fixed and live-replayed; gate771files/7218tests passed. Commit with no-stash checks next. TA104 fixedverified;19 dispositioned338pending. GL013 exact parse/submit race and TA095 activeGoal/internal-ingress remain pending. Ordinary agents stopped. Historyfix00890e940.",
+  "completed_rows": 19,
+  "pending_rows": 338,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
   "daemon_pid": 2132,
@@ -12,14 +12,14 @@
   "prompt_handle": null,
   "build": {
     "go": "wait-both-edges-build.txt includes start and settled transition publication",
-    "web": "goal-turn-history-build.txt passed; Inspect history retake verified",
+    "web": "goal-draft-prefill-build-retry.txt passed and freshCursorretake verified",
     "head": "b4913cbe6-dirty"
   },
   "active_bug": "BUG-20260911-goal-draft-empty-composer",
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "goal-turn-history-gate-retry.txt all affected lanes passed;771Webfiles/7213tests",
+  "gate": "goal-draft-prefill-gate.txt:all affected lanes passed771files/7218tests",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -89,11 +89,11 @@
     "canary_stopped": true
   },
   "dispositions": {
-    "pending": 339,
+    "pending": 338,
     "blocked-external-runtime": 2,
     "unresolved-defect": 1,
     "verified": 11,
-    "fixed-and-verified": 4
+    "fixed-and-verified": 5
   },
   "cross_deny_session_id": "sess-bc315ce9f46d87a7",
   "cross_read_session_id": "sess-f5db3f09d3263d2e",
@@ -149,5 +149,8 @@
   "goal_history_session": "sess-6c96f86912d1ae77",
   "goal_history_run": "looprun-db7c807f29f666ad",
   "goal_history_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-history-retake-proof.json",
-  "goal_draft_session": "sess-ec096d1951e83b23"
+  "goal_draft_session": "sess-ec096d1951e83b23",
+  "goal_history_fix_commit": "00890e940",
+  "goal_draft_retake_session": "sess-a451bde5b8a3c90b",
+  "goal_draft_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-draft-retake-proof.json"
 }

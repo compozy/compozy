@@ -251,10 +251,30 @@ export function useSessionChatRuntime({
       }
       promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
     },
-    onFinish: ({ isError }) => {
+    onFinish: ({ isError, isAbort, isDisconnect, finishReason, message, messages }) => {
       if (!isError) {
         promptRecovery.acknowledge(recoveryScope);
         attachmentAdapter.acknowledgeSentFiles();
+      }
+      const prompt = promptDispatch.getSnapshot().context.prompt;
+      const submitted = messages.filter(item => item.role === "user").at(-1);
+      if (
+        !isError &&
+        !isAbort &&
+        !isDisconnect &&
+        finishReason === "stop" &&
+        prompt?.answeredStatus === 200 &&
+        submitted?.id === prompt.envelope.identity.messageId &&
+        /^\/goal\s+draft\s+\S/.test(prompt.envelope.text.trim())
+      ) {
+        // Earlier text parts may describe tool work; only the final answer is the proposal.
+        const proposal = message.parts
+          .filter(part => part.type === "text")
+          .at(-1)
+          ?.text.trim();
+        if (proposal) {
+          sessionStore.trigger.goalDraftCompleted({ sessionId, text: `/goal ${proposal}` });
+        }
       }
       runtimeConfig.onFinish();
     },

@@ -37,3 +37,5 @@ Canonical red reproduction: two new Inspect cases failed before the fix. Focused
 Lea confirmed the fix in fresh session sess-6c96f86912d1ae77, Run looprun-db7c807f29f666ad, using real Cursor/Grok4.6 High Fast workers and judge. File1/2/3, two rejections then approval, current pending nullable outcomes, exact blockers and evidence references, live Inspect updates and reload agree with independent CLI/HTTP/UDS reads. Origin stopped. Evidence: docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-history-retake-proof.json. GL-004 passes. Broader TA-101 and LP diagnostic branches remain explicitly unverified.
 
 Root Turbo production build and typecheck passed. Initial gate failed the unchanged TaskStatusProjectionObserver disabled-conversation case during SQLite WAL checkpoint on close; all three focused repetitions passed and existing observer cleanup joins its goroutine. No test or production code was weakened. Required gate retry passed all affected lanes: Go, Web771files/7213tests, typecheck and lint0warnings/0errors (goal-turn-history-gate-retry.txt).
+
+Local fix commit: `00890e940`. Explicit lint-staged --no-stash and commitlint passed before commit.

@@ -198,7 +198,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 83 | CH-046 | J-26 / GL-012 | Lea | Feature Tour | Pass | goal-blocked-proof.json | Direct start after blocked; approved successor and retained predecessor. |
-| 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Pending | | |
+| 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Pending | BUG-20260911-goal-draft-empty-composer | Draft fixed; exact admission race remains pending. |
 | 85 | CH-048 | J-27 / GL-014 | Marina | Feature Tour | Pending | | |
 | 86 | CH-048 | J-27 / GL-015 | Marina | Feature Tour | Pending | | |
 | 87 | CH-048 | J-27 / GL-016 | Marina | Feature Tour | Pending | | |
@@ -456,7 +456,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 339 | CH-untested-032-27-marina-part-1 | J-27 / TA-101 | Marina | Garbage Tour | Pending | | |
 | 340 | CH-untested-031-27-bruno | J-27 / TA-102 | Bruno | Garbage Tour | Pending | | |
 | 341 | CH-untested-032-27-marina-part-1 | J-27 / TA-103 | Marina | Garbage Tour | Pending | | |
-| 342 | CH-untested-030-26-lea | J-26 / TA-104 | Lea | Feature Tour | Pending | | |
+| 342 | CH-untested-030-26-lea | J-26 / TA-104 | Lea | Feature Tour | Fixed | BUG-20260911-goal-draft-empty-composer | Draft and replacement verified; goal-draft-retake-proof.json. |
 | 343 | CH-untested-032-27-marina-part-1 | J-27 / TA-105 | Marina | Garbage Tour | Pending | | |
 | 344 | CH-untested-033-27-marina-part-2 | J-27 / TA-106 | Marina | Garbage Tour | Pending | | |
 | 345 | CH-untested-015-14-marina | J-14 / TA-107 | Marina | Feature Tour | Pending | | |
@@ -726,3 +726,9 @@ Inventory remains18 dispositioned (11verified,4fixed-and-verified,1unresolveddef
 Lea resumed CH046/CH-untested030 in fresh sess-ec096d1951e83b23. An idle /goal draft streamed an expanded objective with real Cursor/Grok. CLI --queue and HTTP submissions while busy were rejected without queue growth. UDS arrived after idle and was admitted; no false busy/race proof is assigned. The first Web draft and a separate uncontended Web retry both left the composer empty. Public Run inventory is empty and Goal snapshot null; session stopped. BUG-20260911-goal-draft-empty-composer owns the missing completion-to-composer handoff. GL013/TA104 fail pending repair;18 inventory dispositions and339 pending remain unchanged.
 
 Goal-history gate retry passed all affected lanes (Go plus771 Webfiles/7213tests, typecheck and lint0warnings/0errors), recorded in goal-turn-history-gate-retry.txt. First SQLite-close failure remains documented; no test weakening or unrelated patch was used.
+
+### Draft handoff repaired and replayed — 2026-09-11
+
+The completed operator draft now emits its final answer to the existing same-session protected composer prefill. No new stream decoder or public contract. The final answer preserves clause newlines and excludes earlier tool-planning prose. One canonical regression reproduced red;209 focused tests pass, including author-text, non-draft, cancelled and incomplete cases. After replacing unsupported Array.findLast, root Turbo build/typecheck and make gate passed771 Webfiles/7218tests with lint0warnings/0errors.
+
+Fresh sess-a451bde5b8a3c90b uses Cursor/Grok4.6 High Fast confirmed at effective and ACP layers. Prefill survives reload exactly, and the protected-text retry captures active_prompt true after typing then retains that note through completion/reload. Goal remains null, Run list empty; session stopped. Screenshots inspected. goal-draft-retake-proof.json excludes mistimed probes and links prior exact replacement evidence. TA104 fixed-and-verified; GL013/TA095 remaining race and ingress branches stay pending. Inventory:19 dispositioned (11verified,5fixed-and-verified,1unresolveddefect,2externalruntime),338pending.
