@@ -19,6 +19,7 @@ import {
   useSettingsHooksExtensions,
 } from "@/systems/settings";
 import { useProfileReadScope } from "@/systems/profiles";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function errorMessage(error: unknown): string | null {
@@ -119,8 +120,12 @@ export function useSettingsHooksPage() {
     errorMessage(createPreset.error) ??
     errorMessage(setPresetEnablement.error) ??
     errorMessage(deletePreset.error);
+  // Hook enablement and preset writes are local-only (ProfileRemoteWriteForbidden
+  // on remote tiers): the mutation affordances go absent, reads stay intact.
+  const { profileEnablementWrites } = useGatewayCapabilities();
   return {
-    canMutateHooks: capabilityQuery.data?.transport_parity?.settings_http !== false,
+    canMutateHooks:
+      capabilityQuery.data?.transport_parity?.settings_http !== false && profileEnablementWrites,
     createNotificationPreset,
     deleteNotificationPreset,
     envelope: query.data ?? null,

@@ -1,5 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 import { SettingsPageFrame } from "../settings-page-frame";
 import { SettingsSaveBar } from "../settings-save-bar";
@@ -18,6 +20,14 @@ function renderFrame(saveBar: React.ReactNode) {
 }
 
 describe("SettingsPageFrame", () => {
+  let unlatch: () => void;
+  beforeEach(() => {
+    // The frame gates the save bar and restart notice on the listener tier;
+    // these tests own the local shape (save bar present when dirty).
+    unlatch = latchGatewayTierForTest("local");
+  });
+  afterEach(() => unlatch());
+
   it("renders the subhead sentence, quiet meta, and body content", () => {
     renderFrame(null);
 
@@ -117,5 +127,26 @@ describe("SettingsPageFrame", () => {
     expect(subhead).toHaveTextContent("1 ready");
     expect(subhead).toHaveTextContent("updated now");
     expect(subhead.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
+  });
+
+  it("hides the save bar while the tier cannot execute settings writes, keeping the read view", () => {
+    const unlatch = latchGatewayTierForTest("private");
+
+    try {
+      renderFrame(
+        <SettingsSaveBar
+          slug="general"
+          state={{ kind: "dirty", warnings: [] }}
+          onSave={() => {}}
+          onReset={() => {}}
+        />
+      );
+
+      // Reads stay intact; the write affordance is absent, never disabled.
+      expect(screen.getByTestId("frame-body-content")).toBeInTheDocument();
+      expect(screen.queryByTestId("settings-page-general-save-bar")).not.toBeInTheDocument();
+    } finally {
+      unlatch();
+    }
   });
 });

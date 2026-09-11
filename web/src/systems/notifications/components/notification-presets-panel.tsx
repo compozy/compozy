@@ -102,18 +102,20 @@ export function NotificationPresetsPanel({
               {profile.name}
             </span>
           ) : null}
-          <Button
-            aria-expanded={createOpen}
-            data-testid="settings-page-hooks-notification-preset-new"
-            disabled={!canMutate || createPending}
-            onClick={() => setCreateOpen(open => !open)}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            <Plus className="size-3.5" />
-            New preset
-          </Button>
+          {canMutate ? (
+            <Button
+              aria-expanded={createOpen}
+              data-testid="settings-page-hooks-notification-preset-new"
+              disabled={createPending}
+              onClick={() => setCreateOpen(open => !open)}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              <Plus className="size-3.5" />
+              New preset
+            </Button>
+          ) : null}
         </div>
       }
     >
@@ -327,22 +329,37 @@ function NotificationPresetRow({
       </div>
       <div className="flex items-center justify-end gap-2">
         {showPending ? <Spinner className="size-3.5 text-muted" /> : null}
-        <Switch
-          aria-label={"Toggle " + preset.name}
-          checked={preset.enabled}
-          disabled={!canMutate || mutationPending}
-          onCheckedChange={next => onToggle(preset, next)}
-          data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
-        />
-        {preset.built_in ? (
-          <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex" />}>
-              {deleteButton}
-            </TooltipTrigger>
-            <TooltipContent>Built-in presets cannot be deleted.</TooltipContent>
-          </Tooltip>
+        {canMutate ? (
+          <>
+            <Switch
+              aria-label={"Toggle " + preset.name}
+              checked={preset.enabled}
+              disabled={mutationPending}
+              onCheckedChange={next => onToggle(preset, next)}
+              data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
+            />
+            {preset.built_in ? (
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex" />}>
+                  {deleteButton}
+                </TooltipTrigger>
+                <TooltipContent>Built-in presets cannot be deleted.</TooltipContent>
+              </Tooltip>
+            ) : (
+              deleteButton
+            )}
+          </>
         ) : (
-          deleteButton
+          // Remote tiers register no enablement writes: the toggle and delete
+          // affordances are absent; the enablement state stays readable.
+          <Pill
+            data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-state"}
+            mono
+            size="xs"
+            tone={preset.enabled ? "success" : "neutral"}
+          >
+            {preset.enabled ? "enabled" : "off"}
+          </Pill>
         )}
       </div>
     </li>

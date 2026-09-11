@@ -294,4 +294,41 @@ describe("NotificationPresetsPanel", () => {
 
     expect(screen.getByText("Deliveries for archived profiles are paused.")).toBeInTheDocument();
   });
+
+  it("renders the registry read-only when the tier cannot mutate, with affordances absent", () => {
+    // Remote tiers register no enablement writes: create/toggle/delete go
+    // absent rather than disabled (BR-1); the enablement state stays readable.
+    render(
+      <NotificationPresetsPanel
+        presets={[builtInPreset, customPreset]}
+        isLoading={false}
+        error={null}
+        pendingName={null}
+        profile={marketingProfile}
+        canMutate={false}
+        onCreate={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-new")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-row-task_terminal-toggle")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-hooks-notification-preset-row-custom_failure-delete")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal-state")
+    ).toHaveTextContent("off");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_failure-state")
+    ).toHaveTextContent("enabled");
+    expect(
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal")
+    ).toHaveTextContent("built-in");
+  });
 });

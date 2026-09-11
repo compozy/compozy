@@ -10,7 +10,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@compozy/ui";
 import {
   closeTerminal,
@@ -33,6 +33,7 @@ import {
 import { parseSettingsWindowManagerSection } from "../../../lib/window-manager-settings-section";
 import { windowManagerClientFixture, windowManagerStorySnapshot } from "../../../mocks/fixtures";
 import { settingsWindowManagerSectionFixture } from "@/systems/settings/mocks/window-manager-fixtures";
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { useTerminalWindowCreation } from "../hooks/use-terminal-window-creation";
 
@@ -72,7 +73,11 @@ const terminalExit = {
   signal: "HUP" as const,
 };
 
+let unlatchGatewayTier: () => void;
+
 beforeEach(() => {
+  // Terminal reads and the window surface render on the local tier only.
+  unlatchGatewayTier = latchGatewayTierForTest("local");
   vi.mocked(createTerminal).mockReset();
   vi.mocked(executeWindowManagerCommand).mockReset();
   vi.mocked(fetchTerminals).mockReset().mockResolvedValue([DEV_SERVER_TERMINAL]);
@@ -80,6 +85,10 @@ beforeEach(() => {
   vi.spyOn(toast, "error")
     .mockClear()
     .mockImplementation(() => "toast");
+});
+
+afterEach(() => {
+  unlatchGatewayTier();
 });
 
 // Invariant: terminal creation completes in its initiating query scope and cannot

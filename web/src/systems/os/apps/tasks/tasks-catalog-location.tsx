@@ -1,13 +1,10 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
 import { BlockLoading, Button, Empty, ListingPage, RouteNav, useTopbarSlot } from "@compozy/ui";
 
-import { useOsShell } from "../../hooks/use-os-shell";
-import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
+import { useTasksCatalogLocation } from "./hooks/use-tasks-catalog-location";
 import {
-  DEFAULT_TASK_TEMPLATE_ID,
-  taskCatalogSearchFor,
   taskModeSearchFor,
   TasksDashboardView,
   TasksEmptyState,
@@ -16,10 +13,7 @@ import {
   TasksListSurface,
   TasksListToolbar,
   type TasksRouteSearch,
-  type TaskTemplateId,
   type TaskViewMode,
-  useTasksPage,
-  validateTasksSearch,
 } from "@/systems/tasks";
 
 const TASK_MODE_ITEMS: ReadonlyArray<{
@@ -34,30 +28,9 @@ const TASK_MODE_ITEMS: ReadonlyArray<{
 ];
 
 export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
-  const { coordinator } = useOsShell();
-  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const routeNavigate = useNavigate();
-  const mode: TaskViewMode = search.mode ?? "list";
-  const page = useTasksPage({
-    liveDataEnabled,
+  const { localTaskLifecycle, mode, navigate, openCreate, page } = useTasksCatalogLocation({
     search,
-    onSearchChange: update => {
-      void routeNavigate({
-        to: "/tasks",
-        search: current => update(validateTasksSearch(current)),
-        replace: true,
-      });
-    },
   });
-  const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
-    void coordinator.userOpen({ app: "tasks", route: { pathname, search } });
-  // The create dialog layers over this catalog, so the active view rides along
-  // and dismissal lands back on the view the operator was reading.
-  const openCreate = (template?: TaskTemplateId) =>
-    navigate("/tasks/new", {
-      ...taskCatalogSearchFor(mode, search),
-      ...(template && template !== DEFAULT_TASK_TEMPLATE_ID ? { template } : {}),
-    });
   const modeNav = (
     <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">
       {TASK_MODE_ITEMS.map(item => (
@@ -87,7 +60,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
   useTopbarSlot({
     glyph: <ListChecks />,
     count: mode === "list" && !page.listLoading ? page.tasksCount : undefined,
-    actions: (
+    actions: localTaskLifecycle ? (
       <Button
         data-testid="tasks-open-create"
         disabled={!page.hasActiveTaskScope}
@@ -98,7 +71,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         <Plus className="size-3" />
         New task
       </Button>
-    ),
+    ) : null,
     // Route views lead the strip on every route (ADR-007/D3): the head stays
     // two-element, strip order views · filters · spacer · display-mode.
     toolbar: (
@@ -156,6 +129,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           schedulerBacklogStatus={page.schedulerBacklogLoading ? "loading" : "ready"}
           schedulerErrorMessage={page.schedulerStatusError?.message ?? null}
           schedulerStatus={page.schedulerStatusLoading ? "loading" : "ready"}
+          schedulerAvailable={page.schedulerAvailable}
           schedulerPendingActions={
             new Set(
               [
@@ -177,15 +151,17 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           isLoading={page.inboxLoading}
           isLoadingMore={page.isLoadingMoreInbox}
           laneFilter={page.inboxLaneFilter}
-          onApprove={page.handleApproveTask}
-          onArchive={page.handleArchiveTask}
-          onDismiss={page.handleDismissTask}
+          // Triage and run mutations are local-only lifecycle routes; without
+          // their handlers the rows render read-only (absent, not disabled).
+          onApprove={localTaskLifecycle ? page.handleApproveTask : undefined}
+          onArchive={localTaskLifecycle ? page.handleArchiveTask : undefined}
+          onDismiss={localTaskLifecycle ? page.handleDismissTask : undefined}
           onLaneChange={page.handleInboxLaneChange}
-          onMarkRead={page.handleMarkTaskRead}
+          onMarkRead={localTaskLifecycle ? page.handleMarkTaskRead : undefined}
           onLoadMore={page.loadMoreInbox}
           onPriorityChange={page.handleInboxPriorityChange}
-          onReject={page.handleRejectTask}
-          onRetry={page.handleRetryRun}
+          onReject={localTaskLifecycle ? page.handleRejectTask : undefined}
+          onRetry={localTaskLifecycle ? page.handleRetryRun : undefined}
           onRetryQuery={page.retryInbox}
           onSearchChange={page.setInboxSearchQuery}
           onStatusChange={page.handleInboxStatusChange}
@@ -203,11 +179,20 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         />
       ) : page.isEmpty ? (
         <ListingPage data-testid="tasks-list-surface">
-          <TasksEmptyState
-            onSelectTemplate={openCreate}
-            profileScopeLabel={page.profile.scopeLabel}
-            workspaceName={page.activeWorkspaceName}
-          />
+          {localTaskLifecycle ? (
+            <TasksEmptyState
+              onSelectTemplate={openCreate}
+              profileScopeLabel={page.profile.scopeLabel}
+              workspaceName={page.activeWorkspaceName}
+            />
+          ) : (
+            <Empty
+              data-testid="tasks-list-remote-empty"
+              description="Create or run tasks from the machine running CompozyOS."
+              icon={ListChecks}
+              title="No tasks yet"
+            />
+          )}
         </ListingPage>
       ) : mode === "kanban" ? (
         <TasksKanbanBoard
@@ -216,7 +201,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           hasMore={page.hasMoreTasks}
           isLoading={page.listLoading}
           isLoadingMore={page.isLoadingMoreTasks}
-          onCreate={() => openCreate()}
+          onCreate={localTaskLifecycle ? () => openCreate() : undefined}
           onRetryLoad={page.retryTasks}
           onRetryTask={page.handleRetryRun}
           onSelectTask={taskId => navigate(`/tasks/${encodeURIComponent(taskId)}`)}

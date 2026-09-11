@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { terminalCatalogQuery, terminalScope, type TerminalInfo } from "@/systems/terminal/parts";
 
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
@@ -24,7 +25,9 @@ export interface UseOsPaletteTerminalSearchOptions {
  * Live terminal jump rows for palette domain search.
  *
  * Each row is a real catalog terminal with its id, title, and state.
- * Create/open lives on `app.open.terminal`, not here.
+ * Create/open lives on `app.open.terminal`, not here. Remote tiers register
+ * no terminal routes, so the section is empty there and the catalog is never
+ * queried (BR-1).
  */
 export function useOsPaletteTerminalSection({
   enabled,
@@ -35,11 +38,12 @@ export function useOsPaletteTerminalSection({
   workspaceLabel,
   limit,
 }: UseOsPaletteTerminalSearchOptions): OsPaletteDomainSection {
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const catalog = useQuery({
     ...terminalCatalogQuery(terminalScope(workspaceId ?? "", profile)),
-    enabled: enabled && workspaceId !== null && workspaceId !== "",
+    enabled: enabled && localTaskLifecycle && workspaceId !== null && workspaceId !== "",
   });
-  if (signals === null) {
+  if (signals === null || !localTaskLifecycle) {
     return { title: "Terminals", rows: [], total: 0, loading: false, error: null };
   }
   return section(

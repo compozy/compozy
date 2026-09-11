@@ -1,3 +1,5 @@
+import { useGatewayCapabilities } from "@/systems/gateway";
+
 import { useDesktopDock } from "../hooks/use-desktop-dock";
 import { useTerminalDockRunning } from "../hooks/use-terminal-dock-running";
 import type { ReactNode } from "react";
@@ -15,6 +17,12 @@ export interface DesktopDockProps {
   badges: OsAttentionBadges;
   /** Catalog truth: a live terminal, independent of an open window. */
   terminalLive?: boolean;
+  /**
+   * Whether the Terminal launcher belongs in the dock at all. Default keeps
+   * isolated dock tests on the local shape; production shell passes the
+   * capability truth (absent, never disabled, on remote tiers).
+   */
+  includeTerminal?: boolean;
   /** Modal overlays own keyboard and pointer interaction until they close. */
   contextMenusEnabled: boolean;
   pager: ReactNode;
@@ -40,10 +48,11 @@ export function DesktopDock({
   contextMenusEnabled,
   pager,
   dormant = false,
+  includeTerminal = true,
 }: DesktopDockProps) {
   const { entries, presentation, magnify, commandsAvailable, handleSelect } = useDesktopDock(
     badges,
-    { onNewSession, terminalLive }
+    { onNewSession, terminalLive, includeTerminal }
   );
   const dormancy = cn(WAKE, dormant && DORMANT);
 
@@ -84,10 +93,17 @@ export function DesktopDock({
 }
 
 /**
- * Production dock: Terminal's live mark reads the catalog, not window-open.
- * Isolated dock tests keep rendering `DesktopDock` without this query.
+ * Production dock: Terminal's live mark reads the catalog, not window-open,
+ * and the Terminal launcher itself is gated by the listener tier — absent on
+ * remote tiers, which register no terminal routes (BR-1). Isolated dock tests
+ * keep rendering `DesktopDock` without this query.
  */
-export function ShellDesktopDock(props: Omit<DesktopDockProps, "terminalLive">) {
+export function ShellDesktopDock(
+  props: Omit<DesktopDockProps, "terminalLive" | "includeTerminal">
+) {
   const terminalLive = useTerminalDockRunning();
-  return <DesktopDock {...props} terminalLive={terminalLive} />;
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  return (
+    <DesktopDock {...props} includeTerminal={localTaskLifecycle} terminalLive={terminalLive} />
+  );
 }

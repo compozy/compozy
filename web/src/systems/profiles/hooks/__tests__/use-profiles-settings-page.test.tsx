@@ -9,7 +9,8 @@ const state = {
 };
 
 vi.mock("@/systems/gateway", () => ({
-  useGatewayAccessTier: () => state.tier,
+  // The capability flag is the gating truth; the tier values below only drive it.
+  useGatewayCapabilities: () => ({ profileEnablementWrites: state.tier === "local" }),
 }));
 
 vi.mock("@/systems/workspace", () => ({

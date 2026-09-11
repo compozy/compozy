@@ -14,7 +14,7 @@ import { OsPaletteViewShell } from "@/systems/os/components/os-palette-view-shel
 import type { PaletteViewDefinition } from "@/systems/os/lib/palette-view-registry";
 
 vi.mock("@/systems/gateway", () => ({
-  useGatewayAccessTier: () => "local",
+  useGatewayCapabilities: () => ({ profileEnablementWrites: true }),
 }));
 
 import { profileKeys } from "../../lib/query-keys";

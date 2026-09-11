@@ -13,7 +13,7 @@ import { openProfileDialog } from "../stores/profile-dialog-store";
 import type { ProfileLens } from "../types";
 import { useActiveProfileView, useSwitchProfile } from "./use-profile-selection";
 import { useProfiles } from "./use-profiles";
-import { useGatewayAccessTier } from "@/systems/gateway";
+import { useGatewayCapabilities } from "@/systems/gateway";
 
 /**
  * Row contract of the palette view stack, restated structurally.
@@ -71,12 +71,12 @@ export function useProfilesPaletteView({
   const profiles = useProfiles();
   const view = useActiveProfileView(lens);
   const switchProfile = useSwitchProfile(lens);
-  const tier = useGatewayAccessTier();
+  const { profileEnablementWrites } = useGatewayCapabilities();
 
   const all = profiles.data ?? [];
   const currentName = view.kind === "profile" ? view.profile : "";
   const catalogReady = !profiles.isLoading && !profiles.isError;
-  const manageable = tier === "local" && !profiles.isLoading && !profiles.isError;
+  const manageable = profileEnablementWrites && !profiles.isLoading && !profiles.isError;
   const active = catalogReady
     ? toProfileRows(activeProfiles(all), currentName).filter(row => matches(row, query))
     : [];
@@ -164,7 +164,7 @@ export function useProfilesPaletteView({
     ),
     note: null,
     backHint: "Profiles",
-    resetKey: `${currentName}|${all.length}|${archived.length}|${tier ?? "unknown"}|${profiles.status}`,
+    resetKey: `${currentName}|${all.length}|${archived.length}|${profileEnablementWrites ? "writable" : "read-only"}|${profiles.status}`,
     onEmptyQueryBackspace: () => false,
   };
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import {
   SettingsApiError,
   type SettingsHooksExtensionsSection,
@@ -47,6 +48,8 @@ export function useSettingsExtensionsPage() {
   const query = useSettingsHooksExtensions();
   const mutation = useUpdateSettingsHooksExtensions();
   const page = useSettingsPage({ currentSlug: "extensions" });
+  // Extension policy writes are privileged mutations; absent on remote tiers.
+  const { privilegedMutations } = useGatewayCapabilities();
   const envelope = query.data ?? null;
   const [draftOverride, setDraftOverride] = useState<PolicyConfig | undefined>();
   const draft = draftOverride ?? (envelope ? clonePolicy(envelope.config) : null);
@@ -57,7 +60,7 @@ export function useSettingsExtensionsPage() {
     mutation.mutate(body);
   };
   return {
-    canMutatePolicy: envelope?.transport_parity?.settings_http !== false,
+    canMutatePolicy: envelope?.transport_parity?.settings_http !== false && privilegedMutations,
     draft,
     envelope,
     error: query.error,

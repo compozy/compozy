@@ -20,6 +20,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
+
 import {
   clearChooseSessionTerminalQuote,
   holdChooseSessionTerminalQuote,
@@ -695,11 +697,15 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
 }
 
 describe("useOsPaletteRoot", () => {
+  let unlatch: () => void;
   beforeEach(() => {
+    // Terminal palette rows exist only on the local surface set.
+    unlatch = latchGatewayTierForTest("local");
     resetPaletteHarness();
   });
 
   afterEach(() => {
+    unlatch();
     vi.clearAllMocks();
   });
 

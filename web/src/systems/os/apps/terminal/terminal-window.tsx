@@ -1,6 +1,7 @@
 import { BlockLoading, Button, Empty, toast } from "@compozy/ui";
 import { AlertCircle, FolderOpen, TerminalSquare } from "lucide-react";
 
+import { LoopbackOnlyState, useGatewayCapabilities } from "@/systems/gateway";
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
   TerminalJournalPanel,
@@ -55,6 +56,13 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
 
 function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
   const { catalog, inputRequests, workspaceId } = useTerminalWindowControllerContext();
+  // Remote tiers register no terminal routes, so the surface never renders
+  // here — a stale dock entry, palette row, or deep link lands in the truthful
+  // loopback-only state instead of queries that can only refuse (S2, BR-3).
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  if (!localTaskLifecycle) {
+    return <LoopbackOnlyState data-testid="terminal-window-loopback-only" />;
+  }
   if (workspaceId === "") {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">

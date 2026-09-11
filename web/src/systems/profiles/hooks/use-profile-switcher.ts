@@ -10,7 +10,7 @@ import {
 } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import type { ProfileLens } from "../types";
-import { useGatewayAccessTier } from "@/systems/gateway";
+import { useGatewayCapabilities } from "@/systems/gateway";
 
 export interface ProfileSwitcherModel {
   rows: ProfileRow[];
@@ -37,8 +37,8 @@ export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
   const profiles = useProfiles();
   const view = useActiveProfileView(lens);
   const switchProfile = useSwitchProfile(lens);
-  const tier = useGatewayAccessTier();
 
+  const { profileEnablementWrites } = useGatewayCapabilities();
   const all = profiles.data ?? [];
   const activeName = view.kind === "profile" ? view.profile : PERMANENT_PROFILE;
 
@@ -49,13 +49,15 @@ export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
     quiet: isQuiet(all),
     archivedCount: archivedProfiles(all).length,
     selectProfile: name => {
-      if (tier === "local") switchProfile.mutate({ kind: "profile", profile: name });
+      if (profileEnablementWrites) switchProfile.mutate({ kind: "profile", profile: name });
     },
     selectAggregate: () => switchProfile.mutate({ kind: "aggregate" }),
     create: () => {
-      if (tier === "local") openProfileDialog({ flow: "create" });
+      if (profileEnablementWrites) openProfileDialog({ flow: "create" });
     },
-    manageable: tier === "local" && !profiles.isLoading && !profiles.isError,
+    // Profile management is a local-only write surface: on remote tiers the
+    // affordances go absent (manageable=false hides the create/edit entries).
+    manageable: profileEnablementWrites && !profiles.isLoading && !profiles.isError,
     isLoading: profiles.isLoading,
     error: profiles.error instanceof Error ? profiles.error : null,
     retry: () => void profiles.refetch(),

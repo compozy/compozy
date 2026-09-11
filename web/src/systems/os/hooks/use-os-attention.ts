@@ -1,6 +1,7 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useQuery } from "@tanstack/react-query";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -238,7 +239,10 @@ function useTerminalAttentionSources({
   workspaceId: string | null;
 }) {
   const profile = useProfileReadScope();
-  const enabled = workspaceId !== null;
+  // Remote tiers register no terminal routes: no badge, no rows, no queries
+  // that could only ever refuse.
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  const enabled = workspaceId !== null && localTaskLifecycle;
   const terminalReadScope = terminalScope(workspaceId ?? "", profile.destination);
   const terminalRequests = useQuery({
     ...terminalInputRequestsQuery(terminalReadScope),

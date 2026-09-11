@@ -4,8 +4,9 @@
 // Canonical suite: TasksCatalogLocation component tests.
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 const mocks = vi.hoisted(() => ({
@@ -173,7 +174,10 @@ function renderCatalog(mode?: "dashboard" | "kanban") {
 }
 
 describe("TasksCatalogLocation", () => {
+  let unlatch: () => void;
   beforeEach(() => {
+    // Task creation and lifecycle affordances render on the local tier.
+    unlatch = latchGatewayTierForTest("local");
     mocks.emptyStateProps = null;
     mocks.listSurfaceProps = null;
     mocks.page.isEmpty = false;
@@ -182,6 +186,7 @@ describe("TasksCatalogLocation", () => {
     mocks.page.profile.scopeLabel = "default";
     mocks.userOpen.mockReset();
   });
+  afterEach(() => unlatch());
 
   it("Should lead the strip with List and Kanban views while keeping them out of the head [UT-130]", () => {
     renderCatalog();

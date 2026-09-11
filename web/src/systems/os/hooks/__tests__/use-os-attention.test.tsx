@@ -5,7 +5,9 @@
 // and vanish when it is stale rather than reporting a page total.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
 import { renderHook as renderReactHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -162,7 +164,10 @@ function workspaceForCall(call: number): string | null | undefined {
 }
 
 describe("useOsAttention", () => {
+  let unlatch: () => void;
   beforeEach(() => {
+    // Terminal attention reads exist only on the local surface set.
+    unlatch = latchGatewayTierForTest("local");
     vi.clearAllMocks();
     notificationResponse = { snapshot: "snapshot", total: 0, needs_you: 0, finished: 0, items: [] };
     notificationStale = false;
@@ -201,6 +206,7 @@ describe("useOsAttention", () => {
     });
     vi.mocked(useLoopNodeExists).mockImplementation(() => false);
   });
+  afterEach(() => unlatch());
 
   it("Should read the archive only through the modal catalog leg", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
