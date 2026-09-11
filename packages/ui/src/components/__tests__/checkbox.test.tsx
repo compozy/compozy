@@ -5,6 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import { Checkbox } from "../checkbox";
 
 describe("Checkbox", () => {
+  it("Should expose mixed selection with the minus indicator", () => {
+    render(<Checkbox aria-label="Select all" indeterminate />);
+    const box = screen.getByRole("checkbox", { name: "Select all" });
+    expect(box).toHaveAttribute("aria-checked", "mixed");
+    expect(box.querySelector("svg.lucide-minus")).not.toBeNull();
+  });
+
   it("Should render with the data-slot attribute", () => {
     const { container } = render(<Checkbox aria-label="accept" />);
     expect(container.querySelector("[data-slot=checkbox]")).not.toBeNull();
