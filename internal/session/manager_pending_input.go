@@ -18,19 +18,21 @@ func (m *Manager) ListPendingInputs(ctx context.Context, id string) ([]PendingIn
 	if ctx == nil {
 		return nil, errors.New("session: list pending inputs context is required")
 	}
+	info, err := m.Status(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if m.inputQueue == nil {
 		return []PendingInput{}, nil
 	}
-	session, err := m.lookupPromptSession(ctx, id)
+	entries, err := m.inputQueue.List(ctx, info.ID)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := m.inputQueue.List(ctx, session.ID)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.projectInputClearTraces(ctx, session); err != nil {
-		return nil, err
+	if session, active := m.Get(info.ID); active {
+		if err := m.projectInputClearTraces(ctx, session); err != nil {
+			return nil, err
+		}
 	}
 	inputs := make([]PendingInput, 0, len(entries))
 	for index := range entries {

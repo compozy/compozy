@@ -623,6 +623,15 @@ jobs:
           CI: "true"
           COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/4
 
+      - name: Upload session lifecycle QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: session-lifecycle-evidence-shard-${{ matrix.shard }}
+          path: .tmp/playwright/test-results/*session-harden*/compozy-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload web E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7

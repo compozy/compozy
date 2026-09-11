@@ -99,6 +99,35 @@ func TestManagerInputClearObservability(t *testing.T) {
 }
 
 func TestManagerBusyInputQueue(t *testing.T) {
+	// Invariant: persisted stopped queues remain readable without acquiring a runtime;
+	// prompt mutations still require a promptable session. Owner: session manager queue suite.
+	t.Run("Should read a stopped session queue without making it promptable", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		inputs, err := h.manager.ListPendingInputs(t.Context(), sess.ID)
+		if err != nil || len(inputs) != 0 {
+			t.Fatalf("stopped queue = %#v, error = %v", inputs, err)
+		}
+		if _, active := h.manager.Get(sess.ID); active {
+			t.Fatal("queue read rebound the stopped runtime")
+		}
+		if _, err := h.manager.ReplacePendingInput(
+			t.Context(), sess.ID, "missing", ReplacePendingInputOpts{Text: "replacement"},
+		); !errors.Is(err, ErrSessionNotActive) {
+			t.Fatalf("stopped queue mutation error = %v", err)
+		}
+		if _, err := h.manager.ListPendingInputs(t.Context(), "sess-missing"); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("missing session queue error = %v", err)
+		}
+	})
+
 	t.Run("Should replay an empty interrupt without canceling preserved follow-ups", func(t *testing.T) {
 		t.Parallel()
 		database := openManagerInputQueueStore(t)

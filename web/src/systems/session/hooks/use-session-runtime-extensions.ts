@@ -68,16 +68,15 @@ export function useSessionRuntimeExtensions({
     enabled: liveTailEnabled,
     refetchInterval: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
   });
-  const inputs = useSessionInputs(workspaceId, sessionId, {
-    enabled: liveTailEnabled,
+  const session = useQuery({
+    ...sessionDetailOptions(workspaceId, sessionId),
+    enabled: liveTailEnabled && !liveTailSuppressed,
     ...(controlPolling ? { refetchInterval: PROMPT_POST_CONTROL_POLL_MS } : {}),
   });
-  // The session resource (state, activity, stop cause, queue summary) rides the
-  // same bounded cadence; this observer exists only for the POST's duration.
-  useQuery({
-    ...sessionDetailOptions(workspaceId, sessionId),
-    enabled: controlPolling,
-    refetchInterval: PROMPT_POST_CONTROL_POLL_MS,
+  const inputs = useSessionInputs(workspaceId, sessionId, {
+    enabled: liveTailEnabled,
+    sessionState: session.data?.state,
+    ...(controlPolling ? { refetchInterval: PROMPT_POST_CONTROL_POLL_MS } : {}),
   });
   const { expiredInteractions, resolvedInteractions, rewindBlocked } = useSessionDecisionState({
     transcript,

@@ -503,7 +503,7 @@ const graphStatesDefinition: LoopDefinition = {
         result_contract: { failure_field: "error", message_field: "error" },
         params: {
           agent: QUARANTINE_AGENT,
-          prompt: "quarantine probe generation {{ .generation }}",
+          prompt: "graph failure generation {{ .generation }}",
           output_schema: AGENT_OUTPUT_SCHEMA,
         },
       },

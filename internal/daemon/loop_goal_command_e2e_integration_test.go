@@ -219,6 +219,16 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 					if snapshot.Status == "active" {
 						t.Fatalf("stopped session kept an active Goal: %#v", snapshot)
 					}
+					var queue compozycontract.SessionInputListResponse
+					if err := harness.UDSJSON(ctx, http.MethodGet, path+"/prompt/queue", nil, &queue); err != nil {
+						t.Fatal(err)
+					}
+					if len(queue.Inputs) != 0 {
+						t.Fatalf("stopped session queue = %#v", queue)
+					}
+					if err := harness.UDSJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+						t.Fatalf("delete persisted stopped Goal session: %v", err)
+					}
 				}
 				runPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loop-runs/" + started.Snapshot.RunID
 				runBeforeCancel, err := getGoalLoopRun(ctx, harness, started.Snapshot.RunID)
@@ -370,6 +380,38 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		assertGoalJudgeOutcomes(t, restartedTurns, []string{"rejected", "rejected", "approved"})
 		assertGoalTurnsCLIParity(ctx, t, restarted, restartedTurns, rejectionSnapshot.RunID)
 		waitForGoalJudgeSessionIDs(ctx, t, restarted, judgeSessionIDsBeforeRestart)
+		// Invariant: persisted stopped history with a completed Goal survives restart and can be deleted.
+		// Owner: public daemon lifecycle E2E; the same fixture retains independent Loop audit history.
+		path := "/api/workspaces/" + url.PathEscape(restarted.WorkspaceID) + "/sessions/" + rejectionSessionID
+		var queue compozycontract.SessionInputListResponse
+		if err := restarted.HTTPJSON(ctx, http.MethodGet, path+"/prompt/queue", nil, &queue); err != nil {
+			t.Fatal(err)
+		}
+		if len(queue.Inputs) != 0 {
+			t.Fatalf("restarted stopped queue = %#v", queue)
+		}
+		if err := restarted.HTTPJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+			t.Fatalf("delete restarted stopped session: %v", err)
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, restarted.HTTPURL(path), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := restarted.HTTPClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != http.StatusNotFound {
+			t.Fatalf("deleted session status = %d, want 404", response.StatusCode)
+		}
+		retained, err := getGoalTurns(ctx, restarted, rejectionSnapshot.RunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGoalJudgeOutcomes(t, retained, []string{"rejected", "rejected", "approved"})
 	})
 }
 

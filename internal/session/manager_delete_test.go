@@ -152,6 +152,56 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: failed Goal settlement preserves stopped history and attachments for a safe retry.
+	// Owner: session deletion; canonical manager lifecycle suite with the Goal I/O boundary injected.
+	for _, restart := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should settle pending deletion after restart %t", restart), func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			attachmentPath := writeSessionAttachmentFixture(t, h, active.ID, "retain-until-commit")
+			settlementErr := errors.New("Goal settlement unavailable")
+			handler := &stopGoalHandler{stop: func(context.Context, *Info) error { return settlementErr }}
+			h.manager.SetGoalCommandHandler(handler)
+			if err := h.manager.Stop(t.Context(), active.ID); !errors.Is(err, ErrRecoveryPersistence) ||
+				!errors.Is(err, settlementErr) {
+				t.Fatalf("partial stop error = %v", err)
+			}
+			if !h.manager.hasPendingStopSettlement(active.ID) {
+				t.Fatal("partial stop lost its recovery receipt")
+			}
+			manager := h.manager
+			if restart {
+				h.manager.removeActive(active.ID)
+				manager = newManagerWithHarness(t, h, WithGoalCommandHandler(handler))
+				cleanupTestManager(t, manager)
+			}
+			if err := manager.Delete(t.Context(), active.ID); !errors.Is(err, settlementErr) ||
+				!errors.Is(err, ErrRecoveryPersistence) {
+				t.Fatalf("delete error = %v", err)
+			}
+			wantState := StateStopping
+			if restart {
+				wantState = StateStopped
+			}
+			if info, err := manager.Status(t.Context(), active.ID); err != nil || info.State != wantState {
+				t.Fatalf("preserved session = %#v, error = %v", info, err)
+			}
+			if meta := readMeta(t, active.MetaPath()); meta.State != string(StateStopped) {
+				t.Fatalf("persisted history state = %q, want stopped", meta.State)
+			}
+			if content, err := os.ReadFile(attachmentPath); err != nil || string(content) != "retain-until-commit" {
+				t.Fatalf("preserved attachment = %q, error = %v", content, err)
+			}
+			manager.SetGoalCommandHandler(&stopGoalHandler{stop: func(context.Context, *Info) error { return nil }})
+			if err := manager.Delete(t.Context(), active.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.Status(t.Context(), active.ID); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("deleted status error = %v", err)
+			}
+		})
+	}
 	t.Run("Should reject stop requests after deleting a previously stopped session", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
