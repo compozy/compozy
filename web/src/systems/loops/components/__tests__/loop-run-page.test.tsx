@@ -1615,6 +1615,7 @@ describe("LoopRunRegisters Goal turn history", () => {
     ended_at: "2026-09-11T19:00:30Z",
   }));
 
+  /** Renders the Goal history disclosure with deterministic turns and observable pagination. */
   function renderHistory(overrides = {}) {
     const onLoadMore = vi.fn();
     render(

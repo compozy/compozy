@@ -406,6 +406,7 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
         params.id,
         promptRequestFromAction(params, params.mode)
       ),
+    /** Projects typed Goal outcomes before refreshing authoritative session reads. */
     onSettled: (data, error, params) => {
       const goal =
         error instanceof SessionGoalCommandError

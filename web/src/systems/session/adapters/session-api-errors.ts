@@ -43,6 +43,7 @@ export class SessionNotFoundError extends SessionApiError {
 }
 
 export class SessionGoalCommandError extends SessionApiError {
+  /** Retains the structured Goal refusal alongside its transport error. */
   constructor(
     public readonly result: SessionGoalCommandResult,
     status: number,

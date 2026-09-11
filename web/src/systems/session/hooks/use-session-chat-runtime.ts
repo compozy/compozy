@@ -252,6 +252,7 @@ export function useSessionChatRuntime({
       }
       promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
     },
+    /** Emits a draft handoff only for the matching successful operator prompt. */
     onFinish: ({ isError, isAbort, isDisconnect, finishReason, message, messages }) => {
       if (!isError) {
         promptRecovery.acknowledge(recoveryScope);

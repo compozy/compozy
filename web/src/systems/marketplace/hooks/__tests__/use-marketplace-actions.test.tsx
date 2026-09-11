@@ -274,6 +274,7 @@ describe("marketplace acquisition cache boundaries", () => {
   });
 
   it("Should replace a pre-install initial search with authoritative installed state", async () => {
+    /** Builds server responses that distinguish stale and authoritative installation state. */
     const listing = (installed: boolean) =>
       Response.json({
         kind: "skill",

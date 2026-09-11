@@ -91,6 +91,7 @@ export async function fetchSessionHistory(
 }
 
 export class SessionLedgerUnavailableError extends SessionApiError {
+  /** Preserves the distinction between absent ledger data and unsupported memory. */
   constructor(
     id: string,
     public readonly reason: "not-materialized" | "unsupported" = "not-materialized"

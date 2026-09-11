@@ -28,9 +28,11 @@ export function useGoalTurns(
     isError: query.isError,
     hasMore: query.hasNextPage,
     isLoadingMore: query.isFetchingNextPage,
+    /** Loads the next server cursor into the existing ordered history. */
     onLoadMore: () => {
       void query.fetchNextPage();
     },
+    /** Retries the current history read after a recoverable failure. */
     onRetry: () => {
       void query.refetch();
     },

@@ -99,6 +99,7 @@ export const sessionStore = createStore({
   },
   context: initialSessionContext,
   on: {
+    /** Forwards the proposal to composer subscribers without persisting draft state. */
     goalDraftCompleted: (context, event: { sessionId: string; text: string }, enqueue) => {
       enqueue.emit.goalDraftCompleted(event);
       return context;

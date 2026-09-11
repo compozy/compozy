@@ -102,6 +102,7 @@ export const loopsKeys = {
   runReadsRoot: () => [...loopsKeys.all, "run-reads"] as const,
   runReads: (workspaceId: string, runId: string) =>
     [...loopsKeys.runReadsRoot(), workspaceId, runId] as const,
+  /** Scopes Goal history pages by workspace, Run identity and page size. */
   goalTurns: (workspaceId: string, runId: string, limit = 50) =>
     [...loopsKeys.runReads(workspaceId, runId), "goal-turns", limit] as const,
   runBriefing: (workspaceId: string, runId: string) =>

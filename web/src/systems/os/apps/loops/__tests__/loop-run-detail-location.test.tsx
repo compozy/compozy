@@ -129,6 +129,7 @@ vi.mock("@/systems/loops", async () => ({
   LoopRunOverflowMenu: () => null,
   LoopRunPageBody: (props: Record<string, unknown>) => loopRunPageBodySpy(props),
   LoopStatusPill: () => null,
+  /** Keeps Goal history idle while these cases exercise route composition. */
   useGoalTurns: () => ({
     turns: [],
     hasMore: false,

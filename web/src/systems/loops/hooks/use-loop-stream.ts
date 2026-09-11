@@ -178,6 +178,7 @@ export function useLoopStream(
     };
     lifecycleStore.trigger.subscriptionOpened({ subscription });
 
+    /** Accepts frames from the active subscription and refreshes affected Run reads. */
     const handleFrame = (event: MessageEvent) => {
       if (lifecycleStore.getSnapshot().context.activeSubscription !== subscription) {
         return;

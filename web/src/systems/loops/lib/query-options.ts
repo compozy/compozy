@@ -342,9 +342,11 @@ export function goalTurnsOptions(
 ) {
   return infiniteQueryOptions({
     queryKey: [...loopsKeys.goalTurns(workspaceId, runId), profileKey],
+    /** Reads a cursor page with cancellation from the owning Query observer. */
     queryFn: ({ pageParam, signal }) =>
       listGoalTurns(workspaceId, runId, { limit: 50, after_seq: pageParam }, signal),
     initialPageParam: undefined as number | undefined,
+    /** Stops pagination when the server omits the continuation cursor. */
     getNextPageParam: page => page.next_after_seq ?? undefined,
     staleTime: LIVE_STALE_TIME,
     refetchInterval: isLive ? LIVE_REFETCH_INTERVAL : false,
