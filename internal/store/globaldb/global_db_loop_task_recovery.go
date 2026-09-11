@@ -142,6 +142,8 @@ func loadBoundLoopTaskRunCell(
 	}
 }
 
+// applyLoopTaskRecovery advances the owned cell and records its new attempt
+// and cleared attention in the same transaction.
 func applyLoopTaskRecovery(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -168,7 +170,7 @@ func applyLoopTaskRecovery(
 			loopRun,
 			continuation.ID,
 			metadata,
-			args.queuedAt,
+			args,
 		); err != nil {
 			return err
 		}
@@ -238,6 +240,7 @@ func clearLoopTaskRecoveryAttention(
 	return attentionFlag, nil
 }
 
+// appendLoopTaskRecoveryAttempt records the stopped cell attempt with its actual operator or supervision cause.
 func appendLoopTaskRecoveryAttempt(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -248,12 +251,13 @@ func appendLoopTaskRecoveryAttempt(
 	if _, err := exec.ExecContext(ctx, `INSERT INTO loop_node_attempts (
 		loop_run_id, generation, node_id, item_index, attempt, failure_code,
 		cause, disposition, started_at, ended_at
-	) VALUES (?, ?, ?, ?, ?, 'operator_recovery', ?, 'resumed', ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, 'resumed', ?, ?)`,
 		source.LoopRunID,
 		metadata.Generation,
 		metadata.NodeID,
 		metadata.ItemIndex,
 		metadata.Attempt,
+		loopTaskRecoveryCause(args),
 		args.reason,
 		args.queuedAt,
 		args.queuedAt,
@@ -263,13 +267,22 @@ func appendLoopTaskRecoveryAttempt(
 	return nil
 }
 
+// loopTaskRecoveryCause preserves operator history while distinguishing automatic supervised recovery.
+func loopTaskRecoveryCause(args retryTaskRunArgs) string {
+	if args.reason == taskpkg.SupervisedSilenceReason {
+		return taskpkg.SupervisedSilenceReason
+	}
+	return "operator_recovery"
+}
+
+// appendLoopTaskRecoveryAttentionClearedEvent attributes cleared attention to the action that advanced the cell.
 func appendLoopTaskRecoveryAttentionClearedEvent(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	loopRun looppkg.Run,
 	continuationID string,
 	metadata loopNodeRunMetadata,
-	at time.Time,
+	args retryTaskRunArgs,
 ) error {
 	return appendLoopRunEventWithExecutor(
 		ctx,
@@ -282,9 +295,9 @@ func appendLoopTaskRecoveryAttentionClearedEvent(
 			loopRunEventPayloadKeyNodeID:     metadata.NodeID,
 			loopRunEventPayloadKeyItemIndex:  metadata.ItemIndex,
 			loopRunEventPayloadKeyTaskRunID:  continuationID,
-			loopRunEventPayloadKeyReason:     "operator_recovery",
+			loopRunEventPayloadKeyReason:     loopTaskRecoveryCause(args),
 		},
-		at,
+		args.queuedAt,
 	)
 }
 

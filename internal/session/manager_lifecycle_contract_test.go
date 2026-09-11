@@ -809,6 +809,66 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	t.Run("Should replay supervised work recovery from the same verified stop receipt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		failure := errors.New("task recovery unavailable")
+		var stopEventID string
+		h.manager.SetSupervisedWorkRecovery(func(_ context.Context, info *Info, eventID string) error {
+			if info.State != StateStopped || info.StopCause != CauseInactivity {
+				t.Errorf("stop identity = %#v", info)
+			}
+			stopEventID = eventID
+			return failure
+		})
+		active.mu.Lock()
+		active.supervisionStopAt = h.manager.now().Add(-time.Second)
+		active.mu.Unlock()
+		if err := h.manager.StopWithCause(
+			t.Context(),
+			active.ID,
+			CauseInactivity,
+			"inactivity",
+		); !errors.Is(err, failure) ||
+			!errors.Is(err, ErrRecoveryPersistence) {
+			t.Fatalf("stop = %v", err)
+		}
+		if stopEventID == "" {
+			t.Fatal("recovery did not receive the durable stop identity")
+		}
+		h.manager.removeActive(active.ID)
+		manager := newManagerWithHarness(t, h)
+		cleanupTestManager(t, manager)
+		var replayed bool
+		manager.SetSupervisedWorkRecovery(func(_ context.Context, info *Info, eventID string) error {
+			replayed = true
+			if info.StopCause != CauseInactivity || eventID != stopEventID {
+				t.Errorf("replayed identity = %v/%q", info.StopCause, eventID)
+			}
+			return nil
+		})
+		if err := manager.RecoverPendingStops(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if !replayed || manager.hasPendingStopSettlement(active.ID) {
+			t.Fatal("supervised recovery did not settle")
+		}
+		if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 {
+			t.Fatal("replay duplicated terminal stop")
+		}
+	})
+	t.Run("Should never recover work after an explicit session cancellation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		h.manager.SetSupervisedWorkRecovery(func(context.Context, *Info, string) error {
+			return errors.New("explicit cancellation entered supervised recovery")
+		})
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
 	for _, restart := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should retry Goal cancellation settlement with restart %t", restart), func(t *testing.T) {
 			t.Parallel()

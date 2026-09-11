@@ -181,7 +181,11 @@ Wait for the next runtime wake instead of releasing
 an unrelated lease. Global task runs and Network wake runs do not consume this workspace limit.
 
 Action nodes have no inherited duration limit. Only `timeout` or lifecycle deadlines written on the
-node bound execution time; silence can raise attention but never fails or cancels the work. Recovered expired leases
+node bound execution time; the Loop silence window raises attention without canceling work.
+Session supervision independently stops sessions whose evidence has expired when configured
+`stop_grace` elapses. After verified exit, owned task work consumes the next available attempt,
+preserving its task identity and linking the new run. Exhaustion becomes `needs_attention` with
+`supervised_silence_exhausted`; explicit cancellation is never retried. Recovered expired leases
 increment the run's `recovery_count`; once `attempt + recovery_count` reaches `max_attempts`, the run
 and task move to `needs_attention` with `lease_recovery_exhausted` instead of reclaiming forever.
 Inspect the run before retrying.

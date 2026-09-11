@@ -152,6 +152,8 @@ type Manager struct {
 	managedInputMu             sync.Mutex
 	managedInputLeases         map[string]managedInputLease
 	goalCommandMu              sync.RWMutex
+	supervisedRecoveryMu       sync.RWMutex
+	supervisedWorkRecovery     SupervisedWorkRecovery
 	promptAdmissionMu          sync.Mutex
 	promptAdmissionLocks       map[string]*promptAdmissionLock
 	resumeReplayMu             sync.Mutex

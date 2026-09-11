@@ -377,7 +377,12 @@ run or addressed node. A missing managed session is already stopped. Failed stop
 and retry after transient failures or daemon restart; origin-borrowed sessions are excluded. A
 canceled run cannot resume; use rerun to start a new generation.
 
-Silence raises attention and never auto-kills or auto-pauses. Confirmed process/transport death may
+The Loop silence window raises attention and never auto-kills or auto-pauses. Separately, configured
+session supervision can stop a session after all work evidence expires and `stop_grace` elapses.
+A verified supervised stop recovers its authoritative task work within `max_attempts`; an owned
+`run-agent` cell advances to the linked task attempt and next epoch. Explicit cancellation,
+paused/quarantined cells, and borrowed Goal bindings are not automatically requeued.
+Confirmed process/transport death may
 resume from progress through the bounded death-streak authority; parked nodes are never
 death-resumed. Paused nodes, durable waits, approval waits, and quarantined cells suspend node
 clocks and the run wall-clock work budget; token spend still counts.

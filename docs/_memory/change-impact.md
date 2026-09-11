@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+## Issue 616 — Supervised work recovery
+
+- **Native tools:** existing session stop, task inspection/recovery and Loop status IDs and schemas
+  stay unchanged. Only verified inactivity settlement queues a bounded linked task attempt.
+  `task.run_recovered` carries `reason=supervised_silence`, stop identity and attempt counters;
+  its existing `requeue` action contributes to the existing Requeued projection.
+- **Extensibility/hooks/config:** no new configuration, hook family, SDK or permission. Existing
+  `quiet_after`, `stop_grace` and `max_attempts` own policy. The task enqueue hook observes the
+  committed successor. Zero grace remains warning-only. No general session auto-restart.
+- **Workspace data isolation:** session/profile/workspace ownership and the exact task lease fence
+  gate the atomic write. Success, cancellation, deletion, a pending terminal command or a new owner
+  wins over stale recovery. The successor preserves worktree, participation and capability selectors;
+  Loop recovery validates the node epoch and owned binding. Borrowed Goals retain their controls.
+- **Compatibility:** no database shape change, migration, user-file rollback or public removal.
+  The existing verified stop receipt remains until task settlement succeeds, including after restart.
+  Multiple owned runs settle independently; a failed candidate does not roll back recovered work,
+  and replay selects only the remaining active bindings.
+  Prior lease recoveries remain charged; exhausted work is parked for attention. Committed outputs
+  remain intact; external partial effects require application-specific reconciliation/idempotency.
+- **Official skill:** runtime, tasks and Loop references distinguish Loop silence attention from
+  configured session inactivity stop and document retry limits and side-effect boundaries.
+- **Web/Docs/QA:** existing Tasks/Loop history and attention consume corrected durable state;
+  no Web layout or controls change. Session health docs and `TA-action-run-liveness` are updated.
+  Existing store/lifecycle suites plus the CI-only disposable ACP integration own verification.
+  Local gates, builds and runtime labs are deferred under the explicit delivery instruction.
+
 Use for changed runtime behavior, public contracts, config, or feature documentation. Record this analysis once in the owning spec/task/PR and link it from implementation slices; update only the affected entries. A small change needs only concise findings. Editorial changes with no runtime contract may state `not applicable — editorial only`.
 
 - **Native tools:** changed `compozy__*` IDs, toolsets, descriptors, schemas/digests, risk flags, capability gates, diagnostics, and CLI/API fallbacks.

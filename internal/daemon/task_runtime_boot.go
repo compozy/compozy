@@ -11,6 +11,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// bootTasks installs the configured task service, recovery hook and scheduler after durable session stop replay.
 func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.sessions == nil {
 		return nil
@@ -43,6 +44,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootC
 	if err := bootSubprocessHealthEscalator(state, store, manager); err != nil {
 		return err
 	}
+	installSupervisedWorkRecovery(state, manager)
 	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: store})
 	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
 		return err

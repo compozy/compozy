@@ -18,6 +18,25 @@ answers four questions without ever calling the model:
   /api/workspaces/:workspace_id/sessions/:session_id/health|status|inspect`.
 </OperatorNote>
 
+## Recovering supervised work
+
+Session supervision warns after `session.supervision.quiet_after` (30 minutes by default) when no
+fresh work evidence remains. A positive `stop_grace` (10 minutes by default) then permits a verified
+process-tree stop. Valid work signals and unknown signal sources prevent this stop.
+
+After a verified stop, an authoritative task binding can recover through one linked queued attempt.
+The existing `max_attempts` budget includes previous lease recoveries; setting it to `1` disables
+automatic retry. Exhausted work remains visible as `needs_attention` with
+`supervised_silence_exhausted`. Explicit cancellation and sessions without task ownership never
+create a retry. Recovery history uses `task.run_recovered`, reason `supervised_silence`, and action
+`requeue`; the existing Requeued total includes it.
+
+The replacement keeps the task, profile, workspace, worktree and participation. Owned Loop
+`run-agent` work advances its node epoch; paused, quarantined and borrowed Goal bindings retain
+their existing control requirements. Committed files remain available. Workers must inspect partial
+external effects before repeating them and use the destination's idempotency mechanism where
+available; automatic recovery does not make external effects exactly once.
+
 ## What health describes
 
 Health is stored alongside the session and maintained by the daemon. The wake service reads it,

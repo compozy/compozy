@@ -36,7 +36,8 @@ func (m *Manager) finishRecoveredStop(ctx context.Context, id string, cause Stop
 	return errors.Join(sandboxErr, ledgerErr, networkErr)
 }
 
-// settleRecoveredStop replays persistence and Goal cancellation before releasing the durable stop receipt.
+// settleRecoveredStop replays persistence, Goal cancellation and task recovery
+// before releasing the durable stop receipt.
 func (m *Manager) settleRecoveredStop(
 	ctx context.Context,
 	run *sessionStopRun,
@@ -71,6 +72,9 @@ func (m *Manager) settleRecoveredStop(
 	info.StopCause = outcome.Cause
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
+	}
+	if err := m.recoverSupervisedWork(settleCtx, info, settlement.turnID); err != nil {
+		return err
 	}
 	if err := m.removeRecoveredStopReceipt(run.recoveredID); err != nil {
 		return err

@@ -882,6 +882,18 @@ the warning. Zero quiet disables both actions; zero grace keeps warning only. A 
 Canonical events are `session.supervision_warning`, `session.supervision_stopped`, and
 `session.supervision_source_error`. Persisted inactivity stop metadata remains timeout/inactivity.
 
+After verified process-tree exit, the durable stop receipt settles authoritative task work before
+session reuse. Each owned run settles independently, so replay can finish remaining candidates
+without duplicating successors already committed. A remaining task attempt queues one linked run
+with `previous_run_id`, preserving
+profile, workspace, worktree, participation, capabilities, and metadata. Existing lease recovery
+counts remain charged. `max_attempts = 1` disables retry; exhaustion leaves `needs_attention` with
+`supervised_silence_exhausted`. Recovery emits `task.run_recovered` with reason `supervised_silence`
+and action `requeue`, contributing to the existing Requeued total without a daemon-boot label.
+Explicit cancellation and sessions without authoritative task ownership never create retry work.
+Committed files remain in place. A replacement worker must reconcile partial external effects and
+use operation-specific idempotency; recovery does not guarantee exactly-once side effects.
+
 Expiryless event waits use the pinned admission horizon (default 168h), including upgrade from
 their original creation time. Live's aggregate wall budget defaults to zero; per-wake, count,
 token and depth limits remain independent. Old inactivity config keys remain deprecated through
