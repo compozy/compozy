@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// normalizeClaimCriteriaForActor normalizes workspace selection and rejects claims outside the trusted actor scope.
 func (m *Service) normalizeClaimCriteriaForActor(
 	ctx context.Context,
 	criteria ClaimCriteria,

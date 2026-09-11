@@ -17,6 +17,7 @@ type SessionWaitRecord = contract.SessionWaitResponse
 // SessionPromptCancelRecord is the stable idempotent cancellation outcome.
 type SessionPromptCancelRecord = contract.SessionPromptCancelResponse
 
+// WaitSession waits for a matching session badge using the caller deadline and streaming transport.
 func (c *daemonClient) WaitSession(
 	ctx context.Context,
 	workspaceID string,

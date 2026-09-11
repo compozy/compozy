@@ -23,6 +23,7 @@ type daemonMemorySessionLedgerService struct {
 	now              func() time.Time
 }
 
+// newDaemonMemorySessionLedgerService enables ledger reads only when memory and its ledger root are configured.
 func newDaemonMemorySessionLedgerService(state *bootState, now func() time.Time) core.MemorySessionLedgerService {
 	if state == nil || !state.cfg.Memory.Enabled {
 		return nil

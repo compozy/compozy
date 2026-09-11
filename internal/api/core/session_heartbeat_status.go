@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
+// availableHeartbeatStatusForHealth omits enrichment for a deleted agent and preserves other read failures.
 func (h *BaseHandlers) availableHeartbeatStatusForHealth(
 	ctx context.Context,
 	health contract.SessionHealthPayload,
@@ -26,6 +27,7 @@ func (h *BaseHandlers) availableHeartbeatStatusForHealth(
 	return &status, nil
 }
 
+// heartbeatStatusForHealth reads Heartbeat policy and wake state in the session owner Profile.
 func (h *BaseHandlers) heartbeatStatusForHealth(
 	ctx context.Context,
 	health contract.SessionHealthPayload,

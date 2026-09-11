@@ -131,6 +131,7 @@ func (n *daemonNativeTools) sessionHealth(
 	return structuredResult(map[string]any{nativeToolsHealthKey: payload}, string(payload.Health))
 }
 
+// agentHeartbeatStatus reads policy and wake state for the agent in the caller Profile.
 func (n *daemonNativeTools) agentHeartbeatStatus(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -187,6 +188,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	return structuredResult(map[string]any{"heartbeat": payload}, string(payload.ValidationStatus))
 }
 
+// agentHeartbeatWake requests a Heartbeat wake using the caller Profile and workspace identity.
 func (n *daemonNativeTools) agentHeartbeatWake(
 	ctx context.Context,
 	scope toolspkg.Scope,

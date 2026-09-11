@@ -8,6 +8,7 @@ import type { InspectorMemoryState } from "./session-inspector-types";
 
 const LEDGER_EVENT_LIMIT = 20;
 
+/** Shows available session memory or an explicit capability and read-state explanation. */
 export function SessionInspectorMemorySection({ memory }: { memory: InspectorMemoryState }) {
   if (memory.isLoading) {
     return (

@@ -332,6 +332,7 @@ export function loopRunDiffOptions(
   });
 }
 
+/** Keeps Goal turn cursors and live polling within the owning Profile query cache. */
 export function goalTurnsOptions(
   workspaceId: string,
   runId: string,

@@ -175,6 +175,7 @@ func (m *Manager) handlePromptPumpRun(
 	return stop
 }
 
+// finishPromptPump settles prompt activity and attention before publishing the final lifecycle edge.
 func (m *Manager) finishPromptPump(
 	lifecycleCtx context.Context,
 	session *Session,

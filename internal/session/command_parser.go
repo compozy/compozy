@@ -7,6 +7,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
+// preparePromptSkillInvocations leaves Goal syntax to its control parser and resolves ordinary skill commands.
 func (m *Manager) preparePromptSkillInvocations(ctx context.Context, req *promptRequest) error {
 	if req == nil {
 		return nil

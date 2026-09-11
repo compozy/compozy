@@ -28,15 +28,18 @@ const RESULT_TONE: Record<string, PillTone> = {
   ambiguous: "warning",
 };
 
+/** Formats machine result tokens as readable labels without changing their meaning. */
 function sentenceCase(value: string): string {
   const normalized = value.replaceAll("_", " ").replaceAll("-", " ");
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+/** Maps reported turn outcomes to semantic tones, retaining neutral styling for unknown outcomes. */
 function resultTone(turn: GoalTurn): PillTone {
   return turn.result_status === null ? "accent" : (RESULT_TONE[turn.result_status] ?? "neutral");
 }
 
+/** Distinguishes pending, completed, failed, and uncertain turn outcomes visually. */
 function ResultIcon({ turn }: { turn: GoalTurn }) {
   if (turn.result_status === null) return <Clock3 className="size-3" aria-hidden="true" />;
   if (turn.result_status === "completed") {
@@ -51,6 +54,7 @@ function ResultIcon({ turn }: { turn: GoalTurn }) {
   return <FileWarning className="size-3" aria-hidden="true" />;
 }
 
+/** Pairs a structural label with its operational value in the turn details. */
 function TurnFact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
@@ -68,6 +72,7 @@ const STREAM_LABEL: Record<"stdout" | "stderr", string> = {
   stderr: "Errors",
 };
 
+/** Renders available judge output streams with bounded scrolling and preserved whitespace. */
 function CriterionOutput({ label, value }: { label: "stdout" | "stderr"; value?: string }) {
   if (!value) return null;
   return (
@@ -87,6 +92,7 @@ function CriterionOutput({ label, value }: { label: "stdout" | "stderr"; value?:
   );
 }
 
+/** Shows judge criteria, their output, and warnings without hiding failed evaluations. */
 function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
   if (turn.criteria.length === 0 && turn.warnings.length === 0) return null;
   return (
@@ -150,6 +156,7 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
   );
 }
 
+/** Presents one historical Goal turn with its outcome, blockers, evidence, and usage. */
 function GoalTurnRow({ turn }: { turn: GoalTurn }) {
   const tone = resultTone(turn);
   const resultLabel = turn.result_status ? sentenceCase(turn.result_status) : "In progress";
@@ -221,7 +228,7 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
       <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-line-soft pt-2 text-form-hint text-subtle">
         {turn.evidence_ref ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
-            Evidence
+            <Eyebrow>Evidence</Eyebrow>
             <MonoId value={turn.evidence_ref} className="max-w-table-cell-sm text-info" />
           </span>
         ) : (
@@ -229,7 +236,7 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
         )}
         {turn.reason_code ? (
           <span className="inline-flex min-w-0 items-center gap-1.5">
-            Cause
+            <Eyebrow>Cause</Eyebrow>
             <MonoId value={turn.reason_code} className="max-w-table-cell-sm text-warning" />
           </span>
         ) : null}

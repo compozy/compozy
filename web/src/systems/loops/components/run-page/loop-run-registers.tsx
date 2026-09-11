@@ -180,6 +180,90 @@ export function LoopRunRegisters({
       }
     : undefined;
 
+  const footNotes = buildInspectFootnotes({
+    lane,
+    registers,
+    reachNote,
+    onLoadMoreRoster,
+    isLoadingMoreRoster,
+  });
+
+  return (
+    <LoopRunInspectRegister
+      loadedEventCount={registers.loadedEventCount}
+      foot={footNotes.length > 0 ? footNotes : undefined}
+      generationCount={generations.length}
+      isLive={isLive}
+      isReconnecting={isReconnecting}
+      lane={lane}
+      loadedNodeCount={registers.reach.loadedCount}
+      reach={registers.reach}
+      onLaneChange={changeLane}
+      onOpenChange={onOpenChange}
+      open={open}
+    >
+      {lane === "graph" ? (
+        <LoopRunDag
+          dag={registers.dag}
+          onSelect={onSelectionChange}
+          read={rosterRead}
+          selection={selection}
+        />
+      ) : null}
+      {lane === "nodes" ? (
+        <LoopNodeRoster
+          onRoundChange={next => setRoundChoice(next === null ? "all" : next)}
+          onSelect={selectRosterRow}
+          renderActions={renderRosterActions}
+          read={rosterRead}
+          round={round}
+          roster={roster}
+          selectedKey={
+            selection
+              ? rosterRowKey({
+                  generation: selection.generation,
+                  node_id: selection.nodeId,
+                  item_index: selection.itemIndex,
+                })
+              : null
+          }
+        />
+      ) : null}
+      {lane === "generations" ? (
+        <LoopGenerationHistory
+          onCompare={onCompareGeneration}
+          onFork={onForkGeneration}
+          rows={generationRows}
+        />
+      ) : null}
+      {lane === "events" ? (
+        <LoopRunEventsLane read={inspectEventsRead(events, registers.beats)} />
+      ) : null}
+      <LoopRunSelectedNodePanel
+        panel={lane === "events" ? null : panel}
+        verbTarget={verbTarget}
+        renderNodeActions={renderNodeActions}
+      />
+      {goalTurns ? <LoopRunTurnsDisclosure read={goalTurns} isLive={isLive} /> : null}
+      {watchEvents ? <LoopRunWatch watchEvents={watchEvents} /> : null}
+    </LoopRunInspectRegister>
+  );
+}
+
+/** Collects only actionable footer notes so an uneventful register has no empty footer. */
+function buildInspectFootnotes({
+  lane,
+  registers,
+  reachNote,
+  onLoadMoreRoster,
+  isLoadingMoreRoster,
+}: {
+  lane: LoopInspectLane;
+  registers: LoopRunRegistersModel;
+  reachNote: ReturnType<typeof loopRosterReachNote>;
+  onLoadMoreRoster?: () => void;
+  isLoadingMoreRoster: boolean;
+}): ReactNode[] {
   const focusNote =
     lane === "graph" && registers.dag.focusReason ? registers.dag.focusReason : null;
   // Collected rather than nested, so "no notes at all" is a value the register
@@ -232,80 +316,42 @@ export function LoopRunRegisters({
     );
   }
 
+  return footNotes;
+}
+
+/** Shows the selected node's details and actions without affecting register lane state. */
+function LoopRunSelectedNodePanel({
+  panel,
+  verbTarget,
+  renderNodeActions,
+}: {
+  panel: ReturnType<typeof selectNodePanel>;
+  verbTarget: ReturnType<typeof resolveNodeVerbTarget>;
+  renderNodeActions?: LoopRunRegistersProps["renderNodeActions"];
+}) {
+  if (!panel) return null;
   return (
-    <LoopRunInspectRegister
-      loadedEventCount={registers.loadedEventCount}
-      foot={footNotes.length > 0 ? footNotes : undefined}
-      generationCount={generations.length}
-      isLive={isLive}
-      isReconnecting={isReconnecting}
-      lane={lane}
-      loadedNodeCount={registers.reach.loadedCount}
-      reach={registers.reach}
-      onLaneChange={changeLane}
-      onOpenChange={onOpenChange}
-      open={open}
-    >
-      {lane === "graph" ? (
-        <LoopRunDag
-          dag={registers.dag}
-          onSelect={onSelectionChange}
-          read={rosterRead}
-          selection={selection}
-        />
-      ) : null}
-      {lane === "nodes" ? (
-        <LoopNodeRoster
-          onRoundChange={next => setRoundChoice(next === null ? "all" : next)}
-          onSelect={selectRosterRow}
-          renderActions={renderRosterActions}
-          read={rosterRead}
-          round={round}
-          roster={roster}
-          selectedKey={
-            selection
-              ? rosterRowKey({
-                  generation: selection.generation,
-                  node_id: selection.nodeId,
-                  item_index: selection.itemIndex,
-                })
-              : null
-          }
-        />
-      ) : null}
-      {lane === "generations" ? (
-        <LoopGenerationHistory
-          onCompare={onCompareGeneration}
-          onFork={onForkGeneration}
-          rows={generationRows}
-        />
-      ) : null}
-      {lane === "events" ? (
-        <LoopRunEventsLane
-          read={
-            events
-              ? { ...events, view: "all" }
-              : {
-                  beats: registers.beats,
-                  view: "notable",
-                  hasOlder: false,
-                  isLoading: false,
-                  isError: false,
-                  isLoadingOlder: false,
-                }
-          }
-        />
-      ) : null}
-      {panel && lane !== "events" ? (
-        <div className="border-t border-line-soft p-4">
-          <LoopNodePanel
-            actions={verbTarget && renderNodeActions ? renderNodeActions(verbTarget) : undefined}
-            panel={panel}
-          />
-        </div>
-      ) : null}
-      {goalTurns ? <LoopRunTurnsDisclosure read={goalTurns} isLive={isLive} /> : null}
-      {watchEvents ? <LoopRunWatch watchEvents={watchEvents} /> : null}
-    </LoopRunInspectRegister>
+    <div className="border-t border-line-soft p-4">
+      <LoopNodePanel
+        actions={verbTarget && renderNodeActions ? renderNodeActions(verbTarget) : undefined}
+        panel={panel}
+      />
+    </div>
   );
+}
+
+/** Preserves the distinction between a complete events read and the notable-story fallback. */
+function inspectEventsRead(
+  events: LoopRunRegistersProps["events"],
+  beats: LoopRunRegistersModel["beats"]
+): LoopRunEventsRead {
+  if (events) return { ...events, view: "all" };
+  return {
+    beats,
+    view: "notable",
+    hasOlder: false,
+    isLoading: false,
+    isError: false,
+    isLoadingOlder: false,
+  };
 }

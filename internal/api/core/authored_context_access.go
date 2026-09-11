@@ -62,6 +62,7 @@ func (h *BaseHandlers) rejectExpectedDigestHeader(
 	return true
 }
 
+// sessionHealthPayloadForRoute checks workspace ownership before projecting session health and lifecycle state.
 func (h *BaseHandlers) sessionHealthPayloadForRoute(
 	c *gin.Context,
 ) (contract.SessionHealthPayload, session.Badge, *session.Info, bool) {

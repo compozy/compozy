@@ -1,13 +1,21 @@
 import { ChevronDown } from "lucide-react";
-import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, Spinner } from "@compozy/ui";
+import {
+  Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Eyebrow,
+  Spinner,
+} from "@compozy/ui";
 import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { GoalTurnTimeline } from "./goal-turn-timeline";
 
+/** Exposes paginated Goal history with loading, retry, and retained-data states. */
 export function LoopRunTurnsDisclosure({ read, isLive }: { read: GoalTurnsRead; isLive: boolean }) {
   return (
     <Collapsible className="border-t border-line-soft p-4">
       <CollapsibleTrigger className="group inline-flex min-h-6 items-center gap-1.5 rounded-xs px-1 text-badge font-medium text-muted hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring">
-        Goal turns
+        <Eyebrow className="text-muted">Goal turns</Eyebrow>
         <span className="font-mono text-mono-id tabular-nums text-faint">
           {read.turns.length}
           {read.hasMore ? "+" : ""}

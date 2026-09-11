@@ -13,6 +13,7 @@ export interface GoalTurnsRead {
   onRetry?: () => void;
 }
 
+/** Projects profile-scoped Goal pages into ordered history and continuation controls. */
 export function useGoalTurns(
   workspaceId: string,
   runId: string,

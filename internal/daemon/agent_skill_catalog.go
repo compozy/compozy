@@ -214,6 +214,7 @@ func (c *resourceAgentCatalog) ResolveAgentArtifacts(
 	return artifacts, nil
 }
 
+// ResolveHeartbeatPolicy selects package-owned policy in the requested workspace and Profile scopes.
 func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 	ctx context.Context,
 	target heartbeat.AuthoringTarget,

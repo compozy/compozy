@@ -200,6 +200,7 @@ function buildSessionRuntimeConfig(
   };
 }
 
+/** Connects session dispatch and recovery to chat streaming and session-scoped completion events. */
 export function useSessionChatRuntime({
   sessionId,
   workspaceId,

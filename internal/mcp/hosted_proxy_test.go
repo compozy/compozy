@@ -477,6 +477,22 @@ func TestHostedProxyHelpers(t *testing.T) {
 			t.Fatalf("hostedToolResult(identical preview) = %#v, %v; want one text result", identical, err)
 		}
 
+		precise, err := hostedToolResult(tools.ToolResult{
+			Structured: json.RawMessage(`{"n":9007199254740992}`),
+			Preview:    `{"n":9007199254740993}`,
+		})
+		if err != nil || precise == nil || len(precise.Content) != 2 {
+			t.Fatalf(
+				"hostedToolResult(adjacent large integers) = %#v, %v; want distinct preview and exact result",
+				precise,
+				err,
+			)
+		}
+		exact, ok := precise.Content[1].(*sdkmcp.TextContent)
+		if !ok || exact.Text != `{"n":9007199254740992}` {
+			t.Fatalf("exact structured text = %#v, want original integer", precise.Content[1])
+		}
+
 		structured, err := hostedToolResult(tools.ToolResult{
 			Structured: json.RawMessage(`{"ok":true}`),
 			Preview:    "structured fallback",

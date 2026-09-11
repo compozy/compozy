@@ -17,6 +17,7 @@ export interface UseLoopRunDetailResult {
   events: ReturnType<typeof useLoopRunEventsRead>;
 }
 
+/** Coordinates run state, node controls, requests, time travel, and Goal history reads. */
 export function useLoopRunDetail(
   workspaceId: string,
   runId: string,

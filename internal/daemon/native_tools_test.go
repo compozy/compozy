@@ -16056,6 +16056,43 @@ func (nativeEmptyHeartbeatStore) ListHeartbeatWakeState(
 
 func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject a non-default profile without its reader", func(t *testing.T) {
+		t.Parallel()
+		resolvedWorkspace := false
+		workspace := apitest.StubWorkspaceService{
+			ResolveForProfileFn: func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+				resolvedWorkspace = true
+				return workspacepkg.ResolvedWorkspace{}, nil
+			},
+		}
+		status, err := heartbeat.NewManagedHeartbeatStatusService(nativeEmptyHeartbeatStore{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces:        nativeNetworkTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			HomePaths:         apitest.NewTestHomePaths(t),
+			WorkspaceResolver: workspace,
+			HeartbeatStatus:   status,
+		}, nativeApproveAllPolicyInputs())
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: "profile-marketing"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
+				Input:  json.RawMessage(`{"workspace":"ws-1","agent_name":"coder"}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeBackendFailed || toolErr.Err == nil ||
+			!strings.Contains(toolErr.Err.Error(), "profile reader is required") {
+			t.Fatalf("Heartbeat status error = %#v, want missing profile reader", err)
+		}
+
+		if resolvedWorkspace {
+			t.Fatal("non-default profile fell back to workspace resolution")
+		}
+	})
 	for _, profileName := range []string{"default", "marketing"} {
 		t.Run("Should read the caller policy from "+profileName, func(t *testing.T) {
 			t.Parallel()

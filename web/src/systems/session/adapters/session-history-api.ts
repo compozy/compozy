@@ -107,6 +107,7 @@ export class SessionLedgerUnavailableError extends SessionApiError {
   }
 }
 
+/** Reads a session ledger while distinguishing unsupported memory from an absent ledger. */
 export async function fetchSessionLedger(
   workspaceId: string,
   id: string,

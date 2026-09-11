@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// resolveAuthoredAgentTargetForRequest uses the request Profile to locate authored agent resources.
 func (h *BaseHandlers) resolveAuthoredAgentTargetForRequest(
 	c *gin.Context, workspaceRef, agentName string,
 ) (authoredAgentTarget, error) {
@@ -27,6 +28,7 @@ func (h *BaseHandlers) resolveAuthoredAgentTargetForRequest(
 	return h.resolveAuthoredAgentTarget(c.Request.Context(), workspaceRef, agentName, profileName)
 }
 
+// resolveAuthoredAgentTargetForSession uses the owning session Profile to locate authored agent resources.
 func (h *BaseHandlers) resolveAuthoredAgentTargetForSession(
 	ctx context.Context, info *session.Info,
 ) (authoredAgentTarget, error) {
@@ -37,6 +39,7 @@ func (h *BaseHandlers) resolveAuthoredAgentTargetForSession(
 	return h.resolveAuthoredAgentTarget(ctx, info.WorkspaceID, info.AgentName, profileName)
 }
 
+// resolveAuthoredAgentTarget resolves workspace and Profile context before selecting agent artifacts.
 func (h *BaseHandlers) resolveAuthoredAgentTarget(
 	ctx context.Context,
 	workspaceRef string,
@@ -113,6 +116,7 @@ func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	}
 }
 
+// heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
 		WorkspaceID:   t.storageWorkspaceID(),

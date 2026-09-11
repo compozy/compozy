@@ -79,6 +79,7 @@ func (m *terminalManager) create(
 	return acpsdk.CreateTerminalResponse{TerminalId: string(info.ID)}, nil
 }
 
+// actor binds terminal processes to the Compozy session while retaining run ownership.
 func (m *terminalManager) actor(ownership terminalOwnership) terminalpkg.Actor {
 	if ownership.systemOwned {
 		return terminalpkg.Actor{

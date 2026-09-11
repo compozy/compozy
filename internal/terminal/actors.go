@@ -2,6 +2,7 @@ package terminal
 
 import "strings"
 
+// processEnvironment copies caller overrides and enforces the originating agent identity fields.
 func processEnvironment(actor Actor, overrides map[string]string) map[string]string {
 	env := cloneStringMap(overrides)
 	if actor.Kind != ActorKindAgent {

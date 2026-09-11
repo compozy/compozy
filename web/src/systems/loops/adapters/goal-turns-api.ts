@@ -8,6 +8,7 @@ import {
 import type { GoalTurnFilter, GoalTurnPage } from "../types";
 import { LoopsApiError } from "./loops-api-errors";
 
+/** Reads one cursor page of Goal turns through the shared authenticated API client. */
 export async function listGoalTurns(
   workspaceId: string,
   runId: string,

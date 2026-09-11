@@ -35,6 +35,7 @@ export interface SessionComposerState {
   isRunning: boolean;
 }
 
+/** Keeps composer input scoped to its session and protects edits during Goal draft handoff. */
 export function useSessionComposerState(sessionId: string): SessionComposerState {
   const aui = useAui();
   const draftText = useSessionComposerDraft(sessionId);

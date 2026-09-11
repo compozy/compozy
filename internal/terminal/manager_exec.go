@@ -183,6 +183,7 @@ func ValidateExecYieldDuration(duration time.Duration) error {
 	return nil
 }
 
+// startExec reserves command ownership and starts an exec process with the validated actor environment.
 func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []string) (*execRun, error) {
 	cwd, workspaceID := request.Cwd, request.WS
 	var err error

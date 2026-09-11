@@ -16,6 +16,7 @@ type terminalLaunch struct {
 	startLabel  string
 }
 
+// launchTerminal starts an owned terminal with workspace settings and actor-bound process identity.
 func (m *Service) launchTerminal(
 	ctx context.Context,
 	launch terminalLaunch,

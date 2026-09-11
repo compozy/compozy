@@ -97,6 +97,7 @@ func filterHookDeclsBySource(decls []hookspkg.HookDecl, source hookspkg.HookSour
 	return filtered
 }
 
+// scopeWorkspaceHookDecls binds workspace hook declarations to the registered runtime identity.
 func scopeWorkspaceHookDecls(
 	decls []hookspkg.HookDecl,
 	resolved *workspacepkg.ResolvedWorkspace,

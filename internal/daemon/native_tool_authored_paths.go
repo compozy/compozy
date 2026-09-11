@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/skills"
 
@@ -59,6 +60,7 @@ func (n *daemonNativeTools) skillsFor(
 	return n.deps.Skills.ForWorkspace(ctx, resolved)
 }
 
+// nativeSkillWorkspace resolves native resource reads without silently changing a non-default Profile.
 func (n *daemonNativeTools) nativeSkillWorkspace(
 	ctx context.Context,
 	profileID string,
@@ -67,6 +69,9 @@ func (n *daemonNativeTools) nativeSkillWorkspace(
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" && workspaceID == "" {
 		return nil, nil
+	}
+	if profileID != "" && profileID != store.DefaultProfileID && n.deps.Profiles == nil {
+		return nil, errors.New("daemon: profile reader is required for non-default profile")
 	}
 	profileName := compozyconfig.DefaultProfileDirName
 	if n.deps.Profiles != nil {
@@ -233,6 +238,7 @@ type nativeAuthoredAgentTarget struct {
 	heartbeatConfig compozyconfig.HeartbeatConfig
 }
 
+// authoredAgentTarget resolves the native caller Profile and registered workspace before selecting agent paths.
 func (n *daemonNativeTools) authoredAgentTarget(
 	ctx context.Context,
 	toolID toolspkg.ToolID,
@@ -274,6 +280,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	}, nil
 }
 
+// heartbeatAuthoringTarget preserves resolved workspace and Profile identity for Heartbeat operations.
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
 		ProfileID:     t.profileID,

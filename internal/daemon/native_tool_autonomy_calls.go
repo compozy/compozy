@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// autonomyClaimNext validates native claim scope and delegates leasing to the task service.
 func (n *daemonNativeTools) autonomyClaimNext(
 	ctx context.Context,
 	scope toolspkg.Scope,

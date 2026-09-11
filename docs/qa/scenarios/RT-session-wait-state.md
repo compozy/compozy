@@ -34,3 +34,7 @@ Retest 2026-09-11: fixed in06c5e9e10. Real fresh session returned idle immediate
 QA 2026-09-11 follow-up: the90s live Goal wait exposed a separate missing settled edge when the session is visible. The transport fix remains verified. New waiter notification regression is under repair; no full current pass is claimed.
 
 Retest 2026-09-11: both activity boundaries now publish the canonical attention transition. Real CLI/HTTP/UDS pre-registered running waits reached running after24s, and the unchanged settled path retains its immediately preceding33s three-surface retake. Catalog records one idle→running→idle pair. The approved Goal survives Web reload; origin stop is confirmed. Canonical visible/unseen wait and hook regression passes with race detection. See wait-both-edges-proof.json; make gate passed all affected lanes.
+
+## PR review follow-up
+
+PR #624 review coverage includes a prompt rejected during provider startup or delivery preparation: an already registered idle waiter receives the settled edge after runtime activity cleanup. This extends the canonical badge-wait failure-path proof without changing the broader scenario disposition.

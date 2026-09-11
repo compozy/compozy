@@ -32,3 +32,7 @@ The existing TestWaitForBadgeMatchesSnapshotsAndEdges suite owns the invariant: 
 Real Cursor Grok 4.6 High Fast sessions confirmed CLI/HTTP/UDS settled waits after about 33 seconds, then all three pre-registered running waits after about 24 seconds. The final catalog stream contains exactly idle → running → idle; the Goal completed with one approved turn and retained Done/settled after Web reload. Origin stop is confirmed. The final run reuses the immediately preceding settled-wait acceptance because the subsequent start publication does not change finalization. Evidence: wait-both-edges-proof.json and its linked raw captures. No claim of a fresh final-run idle registration or a new replay of every historical wait branch.
 
 Fix commit: 6149b72cf. All affected make gate lanes and explicit no-stash pre-commit checks passed.
+
+## PR review follow-up
+
+PR #624 review extended the correction to failed prompt setup. A shared deferred publisher balances the running edge after startup, managed attachment or delivery cleanup; normal persistence-pump completion remains the success owner. The badge-wait suite reproduces and verifies startup and delivery rejection, including an already registered idle waiter.

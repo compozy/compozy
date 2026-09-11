@@ -31,3 +31,7 @@ The [MCP tools specification](https://modelcontextprotocol.io/specification/2025
 ## PR integration correction
 
 PR #624 portable-extension E2E exposed duplicate text blocks when the preview already contains the complete structured JSON. The hosted adapter now avoids appending that identical payload twice (comparing decoded JSON values, including reordered object keys), while retaining a distinct preview plus complete JSON when the preview is a summary. The existing hosted-proxy helper suite covers both branches; the portable-extension daemon E2E retains its one-result contract.
+
+## PR review follow-up
+
+Review found that default JSON decoding can merge adjacent integers above 2^53. Exact-number decoding now preserves their distinction in both structured content and text deduplication. The hosted-proxy regression retains both differing payloads and rejects trailing data during comparison.

@@ -28,6 +28,59 @@ type waitCallResult struct {
 func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 	t.Parallel()
 
+	for _, failurePoint := range []string{"startup", "delivery"} {
+		t.Run("Should publish idle after prompt "+failurePoint+" fails", func(t *testing.T) {
+			t.Parallel()
+			edges := make(chan hookspkg.SessionAttentionChangedPayload, 8)
+			h, session, _ := newWaitTestHarness(t, WithHookSet(HookSet{
+				Attention: attentionHookFunc(
+					func(_ context.Context, event hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+						edges <- event
+						return event, nil
+					},
+				),
+			}))
+			for len(edges) > 0 {
+				<-edges
+			}
+			startupErr := errors.New("provider could not start prompt")
+			var waiting <-chan waitCallResult
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				waiting = startBadgeWait(t, h.manager, WaitRequest{
+					SessionID: session.ID, Until: []Badge{BadgeIdle}, Timeout: time.Minute,
+				})
+				awaitWaitRegistrationCount(t, h.manager, session.ID, 1)
+				if failurePoint == "startup" {
+					return nil, startupErr
+				}
+				source := make(chan acp.AgentEvent)
+				close(source)
+				return source, nil
+			}
+			if _, err := h.manager.PromptWithOpts(t.Context(), session.ID, PromptOpts{
+				Message:         "Read the workspace note",
+				PrepareDelivery: func(context.Context, PromptDelivery) error { return startupErr },
+			}); !errors.Is(err, startupErr) {
+				t.Fatalf("Prompt() error = %v, want startup failure", err)
+			}
+			if len(edges) != 2 {
+				t.Fatalf("attention edges = %d, want running and settled idle", len(edges))
+			}
+			<-edges
+			settled := <-edges
+			if settled.From != string(BadgeRunning) || settled.To != string(BadgeIdle) {
+				t.Fatalf("settled edge = %s -> %s, want running -> idle", settled.From, settled.To)
+			}
+			if info := session.Info(); info.Liveness != nil && info.Liveness.Activity != nil {
+				t.Fatal("failed prompt retained runtime activity after settlement")
+			}
+			got := awaitWaitCall(t, waiting)
+			if got.err != nil || got.outcome.Outcome != WaitResultStateReached || got.outcome.State != BadgeIdle {
+				t.Fatalf("WaitForBadge() = %#v, error = %v, want settled idle", got.outcome, got.err)
+			}
+		})
+	}
+
 	t.Run("Should publish one settled prompt edge with or without visible presence", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {

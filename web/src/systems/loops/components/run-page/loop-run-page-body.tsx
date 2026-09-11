@@ -152,6 +152,7 @@ function shortDigest(digest: string): string {
   return digest.replace(/^sha256:/, "").slice(0, 7);
 }
 
+/** Composes run content from the page model while keeping data reads and controls with its owner. */
 export function LoopRunPageBody({
   goalTurns,
   run,
