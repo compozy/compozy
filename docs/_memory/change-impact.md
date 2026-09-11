@@ -97,3 +97,32 @@ Issue #603 delivery also pins the site preview install command to the repository
 ## PRs 607–611 — Main integration remediation
 
 The [integration report](../qa/reports/2026-09-10-pr-607-611-integration.md) records all five guarded squash results, first-round review dispositions, unpublished notification-worktree fixes and CI regressions. Approval receipts follow meaningful approval transitions; profile deletion removes owned receipts and snapshots. Continuous prose retains search indices, and window opening uses the same snapshot revision for identity lookup and command admission. Public wire/config/native-tool shapes and underlying source-state actions remain unchanged. Existing profile, observer, API, transcript and window-manager suites own verification, with delivery gates and rendered journeys in CI under the operator's explicit override.
+
+## Spec mobile-surface-truth — remote/mobile operator surface truth
+
+Owning delivery: spec set `.compozy/tasks/mobile-surface-truth/` on branch
+`mobile-browser-pwa` (PR pending). Downstream tasks cite and update this
+entry instead of restating it.
+
+- **Native tools:** unchanged — checked `compozy__gateway` and all
+  `compozy__*` IDs: the change adds machine codes to two existing 403
+  envelopes and gates SPA affordances; no tool IDs, schemas, digests, or
+  capability gates change.
+- **Extensibility and hooks:** unchanged — extension manifests, hooks,
+  bridge SDKs, MCP sidecars, and registries checked; remote mutation
+  reachability was already 403 (`loopbackMutationGuard`); config lifecycle
+  unaffected (no `config.toml` keys). SD-013: additive wire codes
+  auto-migrate (public surface ladder); no delete targets; the internal
+  sentinel re-home hard-cuts with all consumers updated together.
+- **Workspace data isolation:** unaffected — no data paths, storage, or
+  workspace scoping change; capability state is client-side, derived from
+  the latched listener tier.
+- **Official Compozy skill:** unchanged — checked `skills/compozy/`: no
+  public behavior, CLI path, hook, capability, resource, or tool semantics
+  change; the additive codes do not alter documented CLI/API journeys.
+- **Web/Docs:** `web/src/systems/{gateway,os,terminal,settings,extensions,tasks,notifications,profiles}`
+  and `web/src/lib/{api-client,gateway-access-signal}.ts` per the spec's
+  `_uiux.md`; verification owner is the QA tail pair (qa-report →
+  qa-execution) plus the owning Go/web suites. `packages/site` docs
+  unaffected; the API error-code addition is documented via the spec's
+  `_dx.md`.
