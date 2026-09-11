@@ -39,7 +39,7 @@ const attentionNotifications: AttentionNotification[] = [
       id: `notification:${session.id}`,
       kind: "session",
       source_id: session.id,
-      workspace_id: session.workspace_id,
+      workspace_id: session.workspace_id ?? "",
       workspace_label: session.workspace_id ?? "Global",
       title: session.name ?? session.id,
       detail: session.badge,
