@@ -12,6 +12,7 @@ import {
   renameSession,
   resumeSession,
   SessionApiError,
+  SessionGoalCommandError,
   sendSessionPrompt,
   stopSession,
   unarchiveSession,
@@ -405,7 +406,25 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
         params.id,
         promptRequestFromAction(params, params.mode)
       ),
-    onSettled: (_data, _error, params) => {
+    onSettled: (data, error, params) => {
+      const goal =
+        error instanceof SessionGoalCommandError
+          ? error.result
+          : data && "outcome" in data
+            ? data
+            : null;
+      if (goal) {
+        sessionStore.trigger.goalCommandReported({
+          sessionId: params.id,
+          command: params.message,
+          result: goal,
+        });
+        if (workspaceId && (goal.snapshot !== null || goal.outcome === "cleared")) {
+          queryClient.setQueryData(sessionKeys.goal(workspaceId, params.id), {
+            goal: goal.snapshot,
+          });
+        }
+      }
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });

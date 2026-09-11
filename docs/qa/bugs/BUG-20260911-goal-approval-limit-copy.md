@@ -20,3 +20,5 @@ The shared card fallback asserted unchanged limits for every approval kind. Repl
 ## Validation
 
 Owning surface: Loop Run Needs you card. Existing suite: web/src/systems/loops/components/__tests__/loop-run-page.test.tsx. No prose-only assertion is added; before/after real replay owns copy proof. Rebuilt Web passed. Fresh catalog Run looprun-c02be787f8926b20 reached needs-approval with its independent counter1; corrected fallback is visible after reload in goal-approval-copy-fixed-ready.png. Reject & halt produced blocked with no second turn; refreshed Web and independent file match. The idle worker was explicitly stopped. Original approval acceptance remains valid. Final make gate passed all affected lanes, including the existing Loop run-page suite and all7205 Web tests.
+
+Fix commit: cb7867d9a.

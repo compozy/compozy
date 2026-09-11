@@ -4,6 +4,8 @@ import {
   apiErrorQueueCap,
   defaultApiErrorMessage,
 } from "@/lib/api-client";
+import { describeGoalCommandFailure } from "../lib/session-goal-chat-transport";
+import type { SessionGoalCommandResult } from "../types";
 
 export interface SessionApiErrorDetail {
   /** Deterministic daemon error code, e.g. `active_turn_mismatch`. */
@@ -37,6 +39,22 @@ export class SessionNotFoundError extends SessionApiError {
   constructor(id: string) {
     super(`Session not found: ${id}`, 404, id);
     this.name = "SessionNotFoundError";
+  }
+}
+
+export class SessionGoalCommandError extends SessionApiError {
+  constructor(
+    public readonly result: SessionGoalCommandResult,
+    status: number,
+    sessionId: string
+  ) {
+    super(
+      describeGoalCommandFailure(result.reason_code) ?? "Goal command failed.",
+      status,
+      sessionId,
+      result.reason_code ? { code: result.reason_code } : {}
+    );
+    this.name = "SessionGoalCommandError";
   }
 }
 

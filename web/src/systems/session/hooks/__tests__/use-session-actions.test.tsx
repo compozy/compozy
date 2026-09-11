@@ -26,6 +26,7 @@ import {
 import { sessionKeys } from "../../lib/query-keys";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
+  SessionGoalCommandResult,
   SessionInputPayload,
   SessionInputsResponse,
   SessionMessage,
@@ -79,6 +80,7 @@ import {
   stopSession,
   unarchiveSession,
 } from "../../adapters/session-api";
+import { SessionGoalCommandError } from "../../adapters/session-api-errors";
 import { toast } from "sonner";
 import { notifyUser } from "@/lib/user-feedback";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
@@ -929,6 +931,74 @@ describe("session actions", () => {
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
   });
+
+  it.each(["started", "error"] as const)(
+    "publishes scoped Goal feedback for a busy %s result while retaining rejection semantics",
+    async outcome => {
+      const goal: SessionGoalCommandResult = {
+        outcome,
+        reason_code: outcome === "error" ? "goal_replace_required" : null,
+        replaced_run_id: null,
+        snapshot: {
+          run_id: "run-current",
+          node_id: "goal",
+          objective: "Keep current work",
+          origin_session_id: createdSession.id,
+          bound_session_id: createdSession.id,
+          status: "active",
+          run_status: "running",
+          turns_used: 1,
+          turn_limit: 20,
+          live: true,
+          cause: null,
+          contract_summary: "Complete the objective",
+          last_verdict: null,
+          context: {
+            state: "unknown",
+            used: null,
+            size: null,
+            ratio: null,
+            nudge_ratio: 0.8,
+            reported_at: null,
+          },
+        },
+      };
+      const failure = new SessionGoalCommandError(goal, 409, createdSession.id);
+      if (outcome === "error") vi.mocked(sendSessionPrompt).mockRejectedValue(failure);
+      else vi.mocked(sendSessionPrompt).mockResolvedValue(goal);
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const foreignGoal = { goal: { ...goal.snapshot, run_id: "foreign-run" } };
+      queryClient.setQueryData(sessionKeys.goal("ws_beta", createdSession.id), foreignGoal);
+      const { result } = renderHook(() => useSendSessionPrompt(), {
+        wrapper: createWrapper(queryClient),
+      });
+      const message = "/goal New objective";
+
+      await act(async () => {
+        const pending = result.current.mutateAsync({
+          id: createdSession.id,
+          message,
+          mode: "steer",
+        });
+        if (outcome === "error") await expect(pending).rejects.toBe(failure);
+        else await expect(pending).resolves.toBe(goal);
+      });
+
+      expect(sessionStore.getSnapshot().context.goalFeedback[createdSession.id]).toMatchObject({
+        command: message,
+        result: goal,
+        errorVisible: outcome === "error",
+      });
+      expect(queryClient.getQueryData(sessionKeys.goal(WORKSPACE_ID, createdSession.id))).toEqual({
+        goal: goal.snapshot,
+      });
+      expect(queryClient.getQueryData(sessionKeys.goal("ws_beta", createdSession.id))).toEqual(
+        foreignGoal
+      );
+    }
+  );
 
   it("useSendSessionPrompt builds the canonical durable request with the resolved busy verb", async () => {
     vi.mocked(sendSessionPrompt).mockResolvedValue({

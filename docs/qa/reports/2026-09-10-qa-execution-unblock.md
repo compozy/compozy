@@ -192,11 +192,11 @@ All rows initialized Pending before first product interaction. Existing charters
 | 75 | CH-046 | J-26 / GL-003 | Lea | Feature Tour | Pending | | |
 | 76 | CH-047 | J-26 / GL-005 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
 | 77 | CH-047 | J-26 / GL-006 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
-| 78 | CH-047 | J-26 / GL-007 | Bruno | Interrupt Tour | Pending | | |
+| 78 | CH-047 | J-26 / GL-007 | Bruno | Interrupt Tour | Fixed | goal-extension-proof.json | Public retake and refreshed Web confirmed. |
 | 79 | CH-047 | J-26 / GL-008 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
-| 80 | CH-046 | J-26 / GL-009 | Lea | Feature Tour | Pending | | |
-| 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pending | | |
-| 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pending | | |
+| 80 | CH-046 | J-26 / GL-009 | Lea | Feature Tour | Fixed | busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
+| 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
+| 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 83 | CH-046 | J-26 / GL-012 | Lea | Feature Tour | Pending | | |
 | 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Pending | | |
 | 85 | CH-048 | J-27 / GL-014 | Marina | Feature Tour | Pending | | |
@@ -686,3 +686,19 @@ The canonical wait suite covers visible idle and unseen done, plus exact hook ed
 Bruno completed GL007 through a workspace-only catalog fork, max_turns1 and on_exhausted:escalate. The first real Cursor turn wrote counter1 and was rejected by the command criterion. Web approval won concurrent CLI approval; exactly one successor segment retained session/binding epoch1, increased the effective limit1→2, and completed approved turn2 with counter2. Done survives reload. Public synthetic prompts, turn audit, SSE and independent files establish the transition; goal-extension-proof.json retains the exact evidence.
 
 The approval fallback incorrectly promised unchanged limits. A one-string repair now states only that approval lets work continue and rejection ends the run. A fresh rebuilt-Web replay reached its own approval at counter1 and displayed the correction after reload; Reject & halt ended blocked with no second turn. Both workers are stopped, with explicit cleanup for the rejection worker. Final gate passed all affected lanes (goal-approval-copy-gate.txt). Inventory:14 dispositioned (8verified,3fixed-and-verified,1unresolveddefect,2externalruntime),343pending of357.
+
+### Expected-Run replacement — 2026-09-11
+
+Lea verified new Goal rejection with exact current Run over CLI/HTTP/UDS, stale identity rejection, and invalid-runtime preparation preserving one paused Run and queue0. A fresh expanded-Goal walk isolated missing replacement feedback only on busy sends; idle send displays Draft replacement. Its nonempty-draft guard prevented overwriting; clearing the authored draft enabled the exact expected-Run prefill. Web replacement switched to one successor, which completed approved with Cursor/Grok4.6 High Fast. Forty sampled public snapshots contain only old or new Run, never null. Old Run is failed (not a claimed cancellation), new Run done; stale old Web command preserves the successor and gives guidance. Refresh retains completion; origins stopped. See goal-replacement-proof.json.
+
+BUG-20260911-busy-goal-replacement-feedback owns the remaining Web boundary failure. The busy adapter discards typed error feedback, while idle chat retains it. Canonical adapter/action regressions are running before the behavior fix. Inventory remains14 dispositioned/343pending while this coherent slice is repaired.
+
+### Busy Goal replacement feedback repaired — 2026-09-11
+
+The HTTP adapter retains typed Goal failures and the busy action publishes them to the existing feedback owner and workspace-scoped Goal envelope without accepting the failed send. Four new canonical cases failed before repair; all101 adapter/action tests then passed. The new test request was corrected to the existing durable messages/identity contract after typecheck; final root Turbo typecheck and build pass. Required gate remains running.
+
+Lea repeated the original failure in fresh session sess-a0ef67c2d1664e37. Both public status reads surrounding Steer report active_prompt true; the expanded Goal displays human rejection and Draft replacement. The same Run/objective remains and queue0/no candidate Run is independently confirmed. Exact Run prefill survives reload and its successor completes approved with Cursor/Grok4.6 High Fast; independent kickoff.md identity agrees, Done survives reload, and session stop is confirmed. Screenshots were visually inspected. Proof: busy-goal-feedback-proof.json, with earlier cross-transport rejections and finite snapshot-continuity observations reused from goal-replacement-proof.json.
+
+GL009 is fixed-and-verified; GL010/011 verified. Inventory:17 dispositioned (10verified,4fixed-and-verified,1unresolveddefect,2externalruntime),340pending. TA094 daemon restart and TA104 streamed-draft branches remain pending.
+
+Busy-feedback delivery gate passed all affected lanes:771 Web files/7209 tests, typecheck and lint (0warnings/0errors). Evidence: busy-goal-feedback-gate.txt. No CI or push was requested.

@@ -16,6 +16,7 @@ import type {
 } from "../types";
 import {
   SessionApiError,
+  SessionGoalCommandError,
   SessionNotFoundError,
   throwSessionRequestError,
 } from "./session-api-errors";
@@ -35,7 +36,11 @@ export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcr
 export type { SessionStreamCursor } from "./session-transcript-api";
 export { rewindSession } from "./session-rewind-api";
 export type { SessionRewindRequest, SessionRewindResult } from "./session-rewind-api";
-export { SessionApiError, SessionNotFoundError } from "./session-api-errors";
+export {
+  SessionApiError,
+  SessionGoalCommandError,
+  SessionNotFoundError,
+} from "./session-api-errors";
 export {
   answerSessionClarification,
   ClarificationNotAnswerableError,
@@ -238,6 +243,9 @@ export async function sendSessionPrompt(
     }
   );
   if (apiRequestFailed(response, error)) {
+    if (error && "prompt" in error && error.prompt.goal) {
+      throw new SessionGoalCommandError(error.prompt.goal, response.status, id);
+    }
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
   const body = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
