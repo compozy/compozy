@@ -66,6 +66,8 @@ func (h *BaseHandlers) resolveAuthoredAgentTarget(
 		workspaceID:        strings.TrimSpace(resolved.WorkspaceID),
 		sessionWorkspaceID: strings.TrimSpace(resolved.ID),
 		workspaceRoot:      root,
+		profileID:          resolved.ProfileID,
+		profileName:        resolved.ProfileName,
 		agentName:          name,
 		agentPath:          authoredAgentPath(&resolved, name),
 		soulConfig:         resolved.Config.Agents.Soul,
@@ -115,6 +117,8 @@ func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarge
 	return heartbeat.AuthoringTarget{
 		WorkspaceID:   t.storageWorkspaceID(),
 		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
+		ProfileID:     t.profileID,
+		ProfileName:   t.profileName,
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,

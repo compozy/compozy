@@ -224,6 +224,8 @@ func (n *daemonNativeTools) workspaceID(ctx context.Context, ref string) (string
 }
 
 type nativeAuthoredAgentTarget struct {
+	profileID       string
+	profileName     string
 	workspaceID     string
 	workspaceRoot   string
 	agentName       string
@@ -262,6 +264,8 @@ func (n *daemonNativeTools) authoredAgentTarget(
 		return nativeAuthoredAgentTarget{}, err
 	}
 	return nativeAuthoredAgentTarget{
+		profileID:       resolved.ProfileID,
+		profileName:     resolved.ProfileName,
 		workspaceID:     resolvedWorkspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
@@ -272,6 +276,8 @@ func (n *daemonNativeTools) authoredAgentTarget(
 
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		ProfileID:     t.profileID,
+		ProfileName:   t.profileName,
 		WorkspaceID:   t.workspaceID,
 		WorkspaceRoot: nativeAuthoredSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,

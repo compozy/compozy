@@ -469,6 +469,14 @@ func TestHostedProxyHelpers(t *testing.T) {
 	t.Run("Should convert canonical results and errors", func(t *testing.T) {
 		t.Parallel()
 
+		identical, err := hostedToolResult(tools.ToolResult{
+			Structured: json.RawMessage(`{"ok":true,"value":42}`),
+			Preview:    "  {\"value\":42, \"ok\":true}\n",
+		})
+		if err != nil || identical == nil || len(identical.Content) != 1 {
+			t.Fatalf("hostedToolResult(identical preview) = %#v, %v; want one text result", identical, err)
+		}
+
 		structured, err := hostedToolResult(tools.ToolResult{
 			Structured: json.RawMessage(`{"ok":true}`),
 			Preview:    "structured fallback",

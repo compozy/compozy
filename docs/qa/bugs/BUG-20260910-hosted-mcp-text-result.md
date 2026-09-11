@@ -27,3 +27,7 @@ The [MCP tools specification](https://modelcontextprotocol.io/specification/2025
 - Workspace isolation: scope authorization and bounded result/artifact handling occur upstream and remain unchanged. No new reads or persisted shape changes.
 - Official skill: tools-and-skills reference explains the text projection. Existing native tool invocation instructions remain valid.
 - Web/Docs: Web consumes the existing canonical tool result, not this MCP text adapter. No Web DTO or route change. This bug and the affected QA scenario record the diagnostic and retest limits.
+
+## PR integration correction
+
+PR #624 portable-extension E2E exposed duplicate text blocks when the preview already contains the complete structured JSON. The hosted adapter now avoids appending that identical payload twice (comparing decoded JSON values, including reordered object keys), while retaining a distinct preview plus complete JSON when the preview is a summary. The existing hosted-proxy helper suite covers both branches; the portable-extension daemon E2E retains its one-result contract.

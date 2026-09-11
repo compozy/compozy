@@ -229,6 +229,8 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	workspace := &workspacepkg.ResolvedWorkspace{
+		ProfileID:   strings.TrimSpace(target.ProfileID),
+		ProfileName: strings.TrimSpace(target.ProfileName),
 		Workspace: workspacepkg.Workspace{
 			ID:      strings.TrimSpace(target.WorkspaceID),
 			RootDir: strings.TrimSpace(target.WorkspaceRoot),

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -21,7 +22,9 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		var structured any
 		if err := json.Unmarshal(result.Structured, &structured); err == nil {
 			content := []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}
-			if strings.TrimSpace(result.Preview) != "" {
+			var previewValue any
+			if preview := strings.TrimSpace(result.Preview); preview != "" &&
+				(json.Unmarshal([]byte(preview), &previewValue) != nil || !reflect.DeepEqual(previewValue, structured)) {
 				content = append(content, &sdkmcp.TextContent{Text: string(result.Structured)})
 			}
 			converted := &sdkmcp.CallToolResult{

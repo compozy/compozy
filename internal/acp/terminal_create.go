@@ -85,9 +85,10 @@ func (m *terminalManager) actor(ownership terminalOwnership) terminalpkg.Actor {
 			Kind: terminalpkg.ActorKindSystem, ID: localToolHostActorID, ProfileID: m.scope.ProfileID,
 		}
 	}
-	sessionID := strings.TrimSpace(ownership.ownerSessionID)
+	// ACP ownership uses the provider session ID; terminal actors use the Compozy session.
+	sessionID := strings.TrimSpace(m.scope.SessionID)
 	if sessionID == "" {
-		sessionID = strings.TrimSpace(m.scope.SessionID)
+		sessionID = strings.TrimSpace(ownership.ownerSessionID)
 	}
 	return terminalpkg.Actor{
 		Kind: terminalpkg.ActorKindAgent, ID: m.scope.ActorID, ProfileID: m.scope.ProfileID,

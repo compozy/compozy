@@ -91,3 +91,7 @@ The prior MCP text and managed-terminal identity defects were repaired and retes
 The approve-reads CLI spawn/coordination/peers branches independently verified exit77 with the canonical hint and matching audits. A clean task-next retry exited77 without the hint. Approve-all native exact claim returned empty while the run remained queued for over a minute; diagnosis identified stable-vs-registration workspace identity confusion. [Claim boundary repair](../bugs/BUG-20260910-task-claim-workspace-identity.md) is in progress.
 
 Claim boundary repair is now fixed and retested: fresh approve-all native foreign-name claim completed the exact run/file; fresh approve-reads CLI task-next returned77 with the canonical hint. Independent task inspect, target file, terminal journal, and workspace audits agree (`claim-retest-proof.json`). Both sessions stopped. The full scenario remains fail because the independent Cursor deny-all diagnostic defect remains open; unwalked HTTP/UDS branches are not awarded passes.
+
+### PR integration validation boundary
+
+PR #624 additionally repairs ACP terminal identity selection (Compozy scope versus provider session ID) and avoids duplicating an already complete MCP JSON preview. These corrections are exercised by the existing ACP conformance, hosted-proxy and daemon runtime E2E suites. They do not close the remaining real-provider workspace permission matrix; its unresolved disposition is unchanged.

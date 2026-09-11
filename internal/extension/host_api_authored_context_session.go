@@ -114,6 +114,8 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 		return hostAPIAuthoredAgentTarget{}, err
 	}
 	return hostAPIAuthoredAgentTarget{
+		profileID:       resolved.ProfileID,
+		profileName:     resolved.ProfileName,
 		workspaceID:     workspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
@@ -136,6 +138,8 @@ func (t hostAPIAuthoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 
 func (t hostAPIAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
+		ProfileID:     t.profileID,
+		ProfileName:   t.profileName,
 		WorkspaceID:   t.workspaceID,
 		WorkspaceRoot: t.workspaceRoot,
 		AgentName:     t.agentName,
