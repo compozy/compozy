@@ -1,205 +1,263 @@
 ---
-title: "Autonomous Coding Agents: Permissions, Spawn, and Review Gates"
-description: "Configure CompozyOS permission modes, resolve explicit approvals, bound child sessions with a TTL, and record task-run reviews without confusing their authority."
+title: "Coding Agent Task Briefs You Can Actually Review"
+description: "Write a coding agent task brief with concrete acceptance criteria, staged permissions, and a review record. Work through a pagination bug from prompt to proof."
 date: 2026-09-11
+updated: 2026-09-11
 category: runtime
 tags:
+  - coding-agents
+  - code-review
   - permissions
-  - autonomy
-  - sessions
-  - review-gates
-  - safe-spawn
+  - developer-workflow
 author: pedronauck
+cover: ../covers/reviewable-agent-work.webp
 ---
 
-A coding agent needs more than permission to continue. You need to know which actions it can
-take, how long delegated work may run, and what evidence is required before accepting a result.
-CompozyOS treats those as separate controls: session permissions, bounded child sessions, and
-task-run review gates.
+“Fix pagination” sounds like a small assignment. An agent can change a query, add a passing test,
+and return a confident summary. You open the application, select a filter, click Next, and discover
+that page two contains records you explicitly excluded.
 
-This guide configures those controls for a repository review. It assumes an installed CompozyOS
-daemon and an authenticated provider; use the [installation guide](/docs/getting-started/installation)
-first. Behavior was checked against the implementation on September 11, 2026.
+The patch may implement exactly the behavior its test describes. The missing piece is the agreement
+about what the user should experience. A more capable model might infer that agreement, but a
+reviewer should not have to infer it a second time from the finished diff.
 
-The execution boundary matters. The default local sandbox runs on the host. Daemon checks govern
-the operations routed through them; they are not a claim that arbitrary native executables are
-contained against every possible action. If you require a separate execution environment, evaluate
-the [sandbox configuration](/docs/sandbox) along with tool policy.
+A useful coding agent task brief sets a clear finish line, asks for evidence at that finish line, and gives
+the reviewer enough context to reject a plausible but incomplete result. Here is a workflow you can
+adapt to your own repository, followed by the CompozyOS controls that support it. The pagination
+example is illustrative; it is not a reported CompozyOS bug or a measured agent run.
 
-## Start with the permission mode you intend
+## Write the acceptance example before the instructions
 
-The built-in configuration defaults to `approve-all`. For a reviewer that should read first and
-request approval for other eligible operations, create
-`.compozy/agents/bounded-reviewer/AGENT.md` in the repository:
+Start with a situation someone can reproduce. For our example, an issue list has a status filter
+and pagination. The reported failure is: select Closed, move to page two, and open issues appear.
+The desired behavior is: navigation preserves the selected filter, including when a person opens
+the page-two URL directly.
+
+That last clause changes the task. A patch that keeps `status` in local component state could
+appear to work during one browser session while a shared URL still returns the wrong results.
+Putting direct navigation in the brief tells the implementer and reviewer where the behavior
+belongs: the route's state must describe the requested result set.
+
+This does not require prescribing a particular router or state library. Name the behavior, then
+ask the agent to find the repository's existing owner. The distinction matters because specifying
+an implementation too early can make the agent prove your proposed design instead of solving the
+reported problem.
+
+Use the following brief as a starting point. Replace the illustrative paths and scenario with
+verified facts from your project before submitting it.
+
+```text
+Task: Preserve the issue status filter across pagination.
+
+Problem
+At /issues?status=closed, clicking Next loses the status filter.
+A person expecting closed issues sees open issues on page two.
+
+Expected behavior
+1. Select Closed and click Next: the URL and results remain filtered.
+2. Open that page-two URL directly: it returns the same filtered page.
+3. Use Back, then Forward: the selected filter matches the URL/results.
+4. Select a filter with no results: show the existing empty state.
+5. Change the filter while on page two: use the repository's existing
+   rule for resetting or retaining the page; identify that rule first.
+
+Scope
+Inspect the issue-list route, query construction, and pagination control.
+Likely files: src/routes/issues.tsx and src/issues/query.ts.
+These paths are starting points, not an instruction to ignore callers.
+Preserve unrelated working-tree changes. Do not add a dependency,
+change the API, or redesign the list to resolve this bug.
+
+First response
+Locate the owner of filter/page state and the existing test suite.
+Explain how the filter is lost, with file references.
+If the reported failure is absent, show the reproduction result.
+Do not make edits during this diagnosis phase.
+
+Implementation and verification
+After the diagnosis is accepted, make the smallest coherent fix.
+Add coverage for the behavior in its existing owning suite.
+Run the repository's required checks and the browser scenario above.
+If a required check cannot run, report it as unverified with the cause.
+
+Delivery
+Return the changed behavior, changed files, verification commands and
+results, the revision checked, remaining uncertainty, and a link/path
+to the evidence. Do not commit, push, merge, or publish this task.
+```
+
+A brief this size is worthwhile for a behavior that crosses a URL, component, and data query. A
+one-line typo correction should have a much shorter brief. Scale the instructions to the number
+of decisions the agent would otherwise have to guess.
+
+When choosing between tools, give each candidate the same brief. The
+[coding agent comparison guide](/blog/cursor-vs-claude-code/) adds isolated starting points
+and a scorecard that counts human review and repair.
+
+## Make the first checkpoint a diagnosis
+
+Before editing, have the agent trace one failing request through the application. Where does the
+filter enter? Which value does Next preserve? What does the data loader receive? A useful diagnosis
+might identify that a pagination link creates a new query string containing only `page`, dropping
+the existing `status` value.
+
+“The pagination code needs refactoring” is weaker. It offers no failure condition and leaves the
+reviewer unable to tell whether the proposed refactor addresses the report. Ask for the smallest
+explanation that connects an action to its incorrect result.
+
+This checkpoint is also where the agent should find the existing suite. In the example, a test of
+an issue-query helper may verify that a supplied status becomes a request parameter. That test
+cannot establish that the pagination control supplied the status in the first place. The
+navigation contract needs coverage at the layer that owns navigation.
+
+Avoid prescribing a new end-to-end test file as the default answer. There may already be a route
+integration suite that exercises this exact interaction. Use it, then walk the real application
+to confirm the experience. Two checks of different claims are useful; multiple tests asserting
+the same internal helper call are usually less so.
+
+## Put authority in configuration
+
+The brief's “do not edit” instruction helps the model understand the phase. Runtime policy decides
+which governed operations are allowed. In CompozyOS, you can create a reusable diagnosis agent at
+`.compozy/agents/change-investigator/AGENT.md`:
 
 ```markdown
 ---
-name: bounded-reviewer
+name: change-investigator
 permissions: approve-reads
 ---
 
-Review the requested changes and cite concrete failure conditions.
-Read the relevant files. Ask before editing or running a command.
-Return findings with evidence; do not publish or merge changes.
+Investigate the requested behavior before proposing a change.
+Cite the relevant files and explain a concrete failure condition.
+Identify the existing verification suite and any reproduction gaps.
+Do not edit files during diagnosis. Request a decision if the task
+requires authority that the current session does not have.
 ```
 
-The permission field is the policy. The body is task guidance. A prompt saying “do not edit” is
-useful, but it does not replace the policy or the provider's execution boundary.
-
-The current ACP policy behaves as follows:
-
-| Mode            | Built-in file and terminal operations                              | ACP permission requests                                  |
-| --------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
-| `deny-all`      | Direct read, write, and terminal operations are blocked            | Rejected without asking                                  |
-| `approve-reads` | Direct reads are allowed; writes and terminal creation are blocked | Recognized reads auto-allow; other eligible requests ask |
-| `approve-all`   | Read, write, and terminal creation auto-allow                      | Eligible requests auto-allow                             |
-
-Direct host operations and interactive provider permission requests are different paths. An
-approval request is not a promise that a blocked direct operation can bypass its own checks.
-The policy also validates declared paths against the allowed roots. The implementation is in
-[`internal/acp/permission.go`](https://github.com/compozy/compozy/blob/f94f1fc68233627e32274a3adbeb8d956bd4e0b6/internal/acp/permission.go).
-
-In particular, **`deny-all` is not an “ask about everything” mode**. Use `approve-reads` for the
-interactive review pattern above. A `deny-all` agent cannot perform a useful ordinary file review
-through the blocked operations unless its input is supplied through another permitted path.
-
-## Understand the workspace boundary
-
-CompozyOS checks file paths, including symlink resolution, against the workspace's configured
-roots. A working directory alone is not equivalent to those checks, and a Git worktree is a
-checkout rather than a process sandbox.
-
-Cross-workspace native operations have a separate policy decision using the session mode.
-`approve-all` permits crossing. `deny-all` denies it. `approve-reads` can ask at the native-tool
-boundary; other boundaries deny unless an applicable session consent already exists. A permissive
-mode therefore should not be described as “fully isolated to this repository.” See
-[workspace permissions](/docs/sessions/permissions#cross-workspace-access).
-
-This policy applies to agent sessions. Operator authority and extension permissions have their
-own contracts. Changing an agent's mode is not a way to change every actor's access at once.
-
-## Create the session and inspect requests before answering
-
-From the repository root:
+This uses the configured provider. It assumes an installed daemon and an authenticated provider;
+the [installation guide](/docs/getting-started/installation) covers that setup. From the repository
+root, create a session and submit the diagnosis task:
 
 ```bash
-compozy session new --cwd "$PWD" --agent bounded-reviewer --name bounded-review
-```
-
-Replace `sess_1234` with the returned ID, then submit the task and inspect interactions:
-
-```bash
+compozy session new --cwd "$PWD" --agent change-investigator --name pagination-diagnosis
 compozy session prompt sess_1234 \
-  "Review the current implementation diff and explain any correctness risks."
-compozy session interactions sess_1234 -o json
+  "Diagnose why the issue status filter is lost on pagination. Read the task brief and relevant source; return the cause and owning test suite without editing."
 ```
 
-Session creation is promptless; the first prompt binds the provider runtime. If a permission
-request is pending, read the requested action and its scope. The explicit approval form is:
+Replace `sess_1234` with the returned session ID, and give the agent the actual brief as part of
+your prompt or a readable repository file. Creating the session allocates its record; the first
+prompt starts provider work.
+
+The policy has a detail worth knowing before you depend on it. With `approve-reads`, CompozyOS's
+direct ACP file-read operation is allowed, while direct writes and terminal creation are blocked.
+On the separate ACP permission-request path, recognized reads are allowed and other eligible
+requests can ask for a decision. **A blocked direct operation does not become executable merely
+because you intended to approve it later.** This behavior is visible in the
+[permission implementation](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/acp/permission.go#L152).
+
+When a request is actually pending, inspect it before deciding:
 
 ```bash
+compozy session interactions sess_1234 -o json
 compozy session approve sess_1234 \
   --request-id req_1234 \
   --turn-id turn_1234 \
   --decision allow-once
 ```
 
-All three IDs are placeholders from the actual session and pending request. Do not reuse a request
-from another turn. The decision vocabulary is `allow-once`, `allow-always`, `reject-once`, and
-`reject-always`; choose the narrow decision that matches the action you reviewed.
+Use the IDs and offered decision from that request. The request identifies the action being
+authorized; it does not approve the eventual patch. On these ACP paths, `deny-all` rejects instead
+of asking, while `approve-all` permits eligible actions automatically. Other native-tool and
+cross-workspace decisions have their own rules in the [permission guide](/docs/sessions/permissions).
+Choose the mode you intend for implementation instead of treating a diagnosis policy as a universal
+editing mode.
 
-Approval does not mean the proposed action is correct. It authorizes the particular boundary
-represented by that request. Keep publication or merge decisions tied to their actual output.
+For example, after accepting the diagnosis, create a separate implementation agent with an
+appropriate policy and pass it the brief plus the diagnosis. Reusing the same workspace preserves
+the files; the new session still needs the task context. If you choose `approve-all`, the brief's
+no-publish rule remains an instruction, not an enforcement claim about every executable the
+provider might run.
 
-## Know which approval state survives
+A Git worktree helps separate the patch from other development. The default local execution
+environment still runs on the host. Evaluate the [sandbox configuration](/docs/sandbox) if you need
+another execution boundary, and inspect the [cross-workspace policy](/docs/sessions/permissions#cross-workspace-access)
+before assuming a permission mode confines all work to one repository.
 
-Several records can be called an “approval,” but their lifetime differs:
+## Review the route that the green test missed
 
-| Record                                  | Lifetime and meaning                                                       |
-| --------------------------------------- | -------------------------------------------------------------------------- |
-| Pending interaction                     | Durable; may become orphaned if its provider turn disappears after restart |
-| Cross-workspace session consent         | In memory; cleared on session stop or daemon restart                       |
-| Native-tool gateway remembered decision | Persisted for an exact workspace, agent, tool, and input digest            |
-| Provider-native “always” option         | Its lasting meaning depends on the option offered by that provider         |
-
-The [permission guide](/docs/sessions/permissions) documents these distinctions. Inspect persisted
-native-tool grants through [tool approvals](/docs/cli/tool/approvals). Resolving an orphaned
-interaction records a decision after restart; it does not revive the disappeared provider turn.
-
-For the first walkthrough, `allow-once` makes the scope easier to reason about. Use remembered
-decisions only after you understand which store owns them and how to revoke them.
-
-## Bound child sessions at creation
-
-Safe spawn is a managed-session operation. The caller needs daemon-issued session identity;
-merely copying a parent ID into a normal terminal does not establish that identity.
-From an eligible CompozyOS-managed parent context:
-
-```bash
-compozy spawn \
-  --agent bounded-reviewer \
-  --role reviewer \
-  --ttl-seconds 1800 \
-  --prompt-overlay "Review the implementation diff and return findings only."
-```
-
-The required TTL is 1,800 seconds, or 30 minutes. The default spawn budget allows depth 1 and up
-to 5 children per parent. The child must stay within the parent's permission atoms for tools,
-skills, MCP servers, workspace paths, channels, and sandbox profiles. A widening request is
-rejected rather than silently rewritten.
-
-By default, children stop when their parent stops. The daemon also owns expiry and cleanup.
-The [safe-spawn reference](/docs/autonomy/safe-spawn) documents configurable limits and the
-registered-workspace requirement when selecting another workspace.
+Suppose the agent reports that its issue-query test passed. The following illustrative assertions
+could all be true while the user still gets the wrong page:
 
 ```text
-managed parent identity
-    -> validate TTL, budget, target, and permission subset
-    -> create bounded child session
-    -> supervise child lifetime and cleanup
+Query helper receives status=closed -> sends status=closed: PASS
+Pagination link includes page=2: PASS
+Rendered issue row shows the supplied title: PASS
 ```
 
-Spawn creates a session; it does not automatically create or claim a task run. Conversely,
-`session new --parent` records provenance without safe-spawn governance. Use the operation whose
-contract matches the work you intend to delegate.
+The missing connection is visible in one browser action:
 
-## Review the task run, not just the final message
+```text
+Before clicking Next: /issues?status=closed&page=1
+After clicking Next:  /issues?page=2
+Expected:            /issues?status=closed&page=2
+```
 
-A review gate belongs to a **task run**. An ordinary session becoming idle does not automatically
-create a task review. The policies are `none`, `on_success`, `on_failure`, and `always`.
+The reviewer now has a specific rejection: the implementation drops a user-selected constraint
+at navigation. “Needs more tests” would send the agent hunting. “Preserve the filter in the
+page-two URL and exercise direct navigation to it” tells it what remains wrong and how to prove
+the repair.
 
-For an existing terminal task run, an operator can request and inspect a review:
+Run the scenario against the actual changed revision. If the agent makes another relevant edit
+after the browser check, that check no longer establishes the final behavior. Conversely, an
+unrelated wording edit does not require rerunning the whole application suite. Evidence is useful
+when you know exactly which inputs it checked.
+
+## Ask for an acceptance record you can challenge
+
+If the session ends before that record exists, inspect the retained work before starting another
+writer. The [session recovery guide](/blog/defining-agent-sessions-compozyos/) shows how to
+separate a stopped process from a preserved patch and an unfinished check.
+
+A final message should let another developer continue the review without reconstructing the
+agent's entire conversation. This is a reusable format, with deliberately unfilled results:
+
+```text
+Task: Preserve issue filters across pagination
+Revision / working-tree reference: [exact revision and diff]
+
+Behavior changed:
+[What a person now observes, including direct navigation]
+
+Evidence:
+- Owning regression suite: [command, result, checked revision]
+- Required repository checks: [commands, results]
+- Browser scenario: [steps, observed URLs/results, evidence path]
+
+Review:
+- Scope stayed within: [files/modules]
+- Unverified: [specific claim, or none]
+- Remaining work: [concrete action, or none]
+- Acceptance decision: [pending / accepted / rejected, with reason]
+```
+
+Keep “pending” until someone has assessed the evidence. A test command written in a message is
+not its result, a screenshot of page one does not prove pagination, and an idle session does not
+mean a patch is accepted.
+
+If the work belongs to a CompozyOS **task run**, the runtime can retain the review decision against
+that run. Ordinary session work does not automatically create a task-run review. For an existing
+terminal run, an operator can request and inspect one:
 
 ```bash
-compozy task review request run_1234 --policy on_success --reason "Verify delivery evidence"
+compozy task review request run_1234 --policy on_success \
+  --reason "Check filter preservation against the acceptance brief"
 compozy task review list --run run_1234 -o json
-compozy task review show review_1234 -o json
 ```
 
-Use the returned run and review IDs. After evaluating the evidence, submit the appropriate typed
-verdict. This example illustrates a rejection; replace the reason and missing-work item with
-your actual findings:
+A rejected task-run verdict can enqueue a linked continuation; the
+[review-gate reference](/docs/autonomy/review-gate) documents submission, reviewer binding, and
+idempotency. Supply the missing behavior in that verdict so the continuation has a precise job.
 
-```bash
-compozy task review submit review_1234 \
-  --run run_1234 \
-  --outcome rejected \
-  --confidence 0.8 \
-  --reason "Required behavior has not been verified" \
-  --missing-work "Run the agreed integration scenario and attach its result" \
-  --delivery-id review_1234-attempt-1 \
-  -o json
-```
-
-The confidence value is part of the illustrative verdict, not a measured confidence score. Keep
-the same delivery identity for an exact retry of that submission. A rejected verdict enqueues one
-linked continuation through the review transaction; outcomes such as `blocked`, `error`, and
-`timeout` express different situations. Use `approved` only when the evidence warrants it.
-
-Operator CLI/API submission and the reviewer-bound native tool both go through the task service's
-verdict contract. The read-only Web review view is an inspection surface. The
-[review-gate guide](/docs/autonomy/review-gate) explains routing, binding, and idempotency.
-
-Permissions govern actions, TTLs govern child lifetime, and reviews govern acceptance of task-run
-results. Keeping those decisions separate gives you a concrete answer when work stops: it may
-need authorization, a new bounded execution, or missing delivery evidence.
+The practical finish line for this task is small: the filtered page-two URL works, the owning
+regression check covers it, and the evidence belongs to the patch under review. The agent's
+confidence is no longer the thing you have to evaluate. You can open the URL and inspect the result.

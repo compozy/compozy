@@ -1,0 +1,207 @@
+/* ============================================================================
+   session-context.css — domain lane for docs/design/opendesign/session-context/
+   Loaded after ../design-system/ds-core.css, ../design-system/ds-shell.css and
+   ../sessions-stability/sessions-stability.css (window shell, composer anatomy,
+   lab chrome: .lab-sec .spec .stage .plain .ss-contract .ss-n .ss-legend .ss-tags).
+   Every product class below is named after the production component it renders:
+     .session-context-control*   → web/src/systems/session/components/session-context-control.tsx (new)
+     .session-context-tip*       → Tooltip content rendered by SessionContextControl
+     .session-inspector*         → session-inspector.tsx on packages/ui DetailInspector (title "Context", no tabs)
+     .session-context-meter*     → session-context-meter-section.tsx (new)
+     .stacked-progress*          → packages/ui StackedProgress (unchanged)
+     .status-breakdown*          → packages/ui StatusBreakdown (unchanged)
+     .session-context-injected*  → session-context-injected-section.tsx (new)
+     .session-inspector-usage*   → session-inspector-sections.tsx SessionInspectorUsageSection (kept) on Metric
+     .session-context-turns*     → session-context-turns-section.tsx (new)
+     .session-activity*          → session-activity-section.tsx (new)
+   Lab-only ink: .sc-* (stage helpers) — never product UI.
+   ============================================================================ */
+
+:root{--sc-rail-w:320px;--sc-ring:16px}
+
+/* ============ 01 · SessionContextControl (composer left cluster) ============
+   production host: session-composer-action-row.tsx left cluster after environmentControl.
+   Ghost icon Button, 24×24 (btn--xs btn--icon), one 16px SVG ring. Track = line,
+   progress = fg; warning tone only at ratio ≥ pressure_threshold; unknown = dashed
+   track, no arc; used-only = solid track, no arc, faint dot; stale = dotted arc. */
+.session-context-control{position:relative;display:inline-grid;place-items:center;width:24px;height:24px;flex:none;border-radius:var(--radius);color:var(--muted)}
+.session-context-control:hover,.session-context-control:focus-visible{background:var(--ghost-hover);color:var(--fg)}
+.session-context-control:focus-visible{box-shadow:var(--focus-ring);outline:none}
+.session-context-control__ring{width:var(--sc-ring);height:var(--sc-ring);display:block;transform:rotate(-90deg)}
+.session-context-control__ring .track{fill:none;stroke:var(--line-strong);stroke-width:2}
+.session-context-control__ring .arc{fill:none;stroke:var(--fg);stroke-width:2;stroke-linecap:round;stroke-dasharray:40.84;stroke-dashoffset:calc(40.84 * (1 - var(--ratio,0)));transition:stroke-dashoffset var(--dur-slow) var(--ease)}
+.session-context-control[data-state="warning"] .arc{stroke:var(--warning)}
+.session-context-control[data-state="warning"]{color:var(--warning)}
+.session-context-control[data-state="unknown"] .track{stroke-dasharray:2 2.2;stroke:var(--faint)}
+.session-context-control[data-state="unknown"] .arc{display:none}
+.session-context-control[data-state="used-only"] .arc{display:none}
+.session-context-control[data-state="used-only"] .dot{fill:var(--subtle)}
+.session-context-control__ring .dot{display:none}
+.session-context-control[data-state="used-only"] .dot{display:block}
+.session-context-control[data-state="stale"] .arc{stroke-dasharray:1.6 2.4;stroke:var(--subtle)}
+.session-context-control[data-state="estimated"] .arc{stroke:var(--fg)}
+.session-context-control.is-open{background:var(--btn-hover);color:var(--fg-strong)}
+
+/* ============ 02 · Tooltip content (hover / focus) ============
+   production: @compozy/ui Tooltip; content width ≤ 280px; three lines max.
+   Drawn flush in the board (position handled by the stage). */
+.session-context-tip{
+  display:flex;flex-direction:column;gap:5px;min-width:212px;max-width:280px;padding:9px 11px 10px;
+  border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);
+  font-size:var(--text-eyebrow);line-height:1.45;color:var(--muted);
+}
+.session-context-tip__num{display:flex;align-items:baseline;gap:6px;color:var(--fg-strong)}
+.session-context-tip__num b{font-size:var(--text-small-body);font-weight:600;letter-spacing:var(--track-tight);font-variant-numeric:tabular-nums}
+.session-context-tip__num span{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums}
+.session-context-tip__row{display:flex;align-items:center;gap:6px;color:var(--subtle)}
+.session-context-tip__row .pill{flex:none}
+.session-context-tip__row .sep{color:var(--faint)}
+.session-context-tip__row[data-kind="warning"]{color:var(--warning)}
+.session-context-tip__row[data-kind="warning"] svg{width:12px;height:12px;flex:none}
+.session-context-tip__sentence{color:var(--muted);text-wrap:pretty}
+.session-context-tip--unknown .session-context-tip__num b{font-weight:510;color:var(--fg)}
+
+/* ============ 03 · DetailInspector host — the "Context" rail ============
+   production: packages/ui detail-inspector.tsx inline aside: 320px, border-l line,
+   bg canvas-soft; header px-4 py-3 text-small-body font-medium fg-strong border-b line
+   (rendered because title="Context" is now passed); body overflow-auto. No Tabs. */
+.session-inspector{
+  width:var(--sc-rail-w);flex:none;display:flex;flex-direction:column;min-height:0;
+  border-left:1px solid var(--line);background:var(--canvas-soft);
+}
+.session-inspector__head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.session-inspector__head .mono{margin-left:auto}
+.session-inspector__body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:18px;padding:16px}
+.session-inspector__sec{position:relative;display:flex;flex-direction:column;gap:9px;min-width:0}
+.session-inspector__sec > .eyebrow{display:flex;align-items:center;gap:6px}
+.session-inspector__sec > .eyebrow .mono{margin-left:auto;font-size:9.5px;color:var(--faint)}
+/* drawer variant (viewport < 1440): production Sheet side=right, same 320px, shadow-overlay, scrim */
+.session-inspector--drawer{position:absolute;right:0;top:0;bottom:0;z-index:7;border-left:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);background:var(--canvas-soft)}
+.session-inspector--drawer .session-inspector__head .btn--icon{margin-left:auto;width:24px;height:24px;padding:0}
+.session-inspector--drawer .session-inspector__head .btn--icon svg{width:13px;height:13px}
+.sc-scrim{position:absolute;inset:0;z-index:6;background:var(--scrim)}
+
+/* ============ 04 · SessionContextMeterSection ============
+   headline: percent (kpi compact 17px, tabular) + "used / size" mono + state Pill xs;
+   bar: StackedProgress h-1.5 (6px) rounded-pill on canvas-tint, segments accent /
+   neutral / (track = free); threshold tick 1px warning at pressure_threshold;
+   legend: StatusBreakdown-style rows (label · bar · value). */
+.session-context-meter__headline{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.session-context-meter__pct{font-size:var(--text-kpi-compact);font-weight:620;letter-spacing:var(--track-tight);line-height:1;color:var(--fg-strong);font-variant-numeric:tabular-nums}
+.session-context-meter__pct[data-tone="warning"]{color:var(--warning)}
+.session-context-meter__pct[data-tone="unknown"]{font-size:var(--text-small-body);font-weight:510;color:var(--fg)}
+.session-context-meter__nums{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums}
+.session-context-meter__chip{margin-left:auto}
+.session-context-meter__line{position:relative;display:flex;align-items:center;gap:6px;font-size:var(--text-micro);color:var(--subtle)}
+.session-context-meter__line[data-kind="warning"]{color:var(--warning)}
+.session-context-meter__line svg{width:11px;height:11px;flex:none}
+.stacked-progress{position:relative;display:flex;height:6px;width:100%;overflow:visible;border-radius:var(--radius-pill);background:var(--canvas-tint)}
+.stacked-progress__seg{height:100%}
+.stacked-progress__seg:first-child{border-radius:var(--radius-pill) 0 0 var(--radius-pill)}
+.stacked-progress__seg[data-tone="accent"]{background:var(--accent)}
+.stacked-progress__seg[data-tone="neutral"]{background:var(--neutral)}
+.stacked-progress__seg[data-tone="warning"]{background:var(--warning)}
+.stacked-progress__tick{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--warning);opacity:.9}
+.status-breakdown{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.status-breakdown__row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;font-size:var(--text-form);color:var(--muted)}
+.status-breakdown__row .lbl{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.status-breakdown__row .lbl i{width:8px;height:8px;border-radius:2px;flex:none;background:var(--neutral)}
+.status-breakdown__row .lbl i[data-tone="accent"]{background:var(--accent)}
+.status-breakdown__row .lbl i[data-tone="free"]{background:var(--canvas-tint);box-shadow:var(--shadow-hairline-inset)}
+.status-breakdown__row .lbl b{font-weight:510;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status-breakdown__row .lbl em{font-style:normal;font-size:var(--text-micro);color:var(--faint)}
+.status-breakdown__row .val{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.status-breakdown__row .val small{color:var(--faint);margin-left:4px}
+.status-breakdown__row .note{grid-column:1/-1;font-size:var(--text-micro);color:var(--warning);margin-top:-2px}
+.status-breakdown__row .note--muted{color:var(--faint)}
+
+/* ============ 05 · SessionContextInjectedSection (Collapsible) ============
+   head: chevron + "Compozy context" + ≈ total + estimate word; rows: StatusBreakdown
+   (label w-24 · bar · value) + a suffix line "sent on turn N" / stale / unchanged. */
+.session-context-injected__head{position:relative;display:flex;align-items:center;gap:6px;width:100%;padding:0;border:0;background:transparent;font:inherit;cursor:pointer;color:var(--fg);text-align:left}
+.session-context-injected__head svg{width:13px;height:13px;color:var(--subtle);transition:transform var(--dur) var(--ease)}
+.session-context-injected__head[aria-expanded="true"] svg{transform:rotate(90deg)}
+.session-context-injected__head b{font-weight:510;font-size:var(--text-form)}
+.session-context-injected__head .val{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums}
+.session-context-injected__head .val small{color:var(--faint);margin-left:4px}
+.session-context-injected__rows{display:flex;flex-direction:column;gap:7px;margin:0;padding:2px 0 0 19px;list-style:none}
+.session-context-injected__row{position:relative;display:grid;grid-template-columns:96px minmax(0,1fr) 52px;align-items:center;gap:10px;font-size:var(--text-form)}
+.session-context-injected__row .lbl{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-context-injected__row .bar{position:relative;height:6px;border-radius:var(--radius-pill);background:var(--canvas-tint);overflow:hidden}
+.session-context-injected__row .bar i{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:var(--accent)}
+.session-context-injected__row[data-stale="true"] .bar i{background:var(--accent-dim)}
+.session-context-injected__row .val{text-align:right;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);font-variant-numeric:tabular-nums}
+.session-context-injected__row .sub{grid-column:1/-1;margin-top:-4px;font-size:var(--text-micro);color:var(--faint)}
+.session-context-injected__row[data-stale="true"] .sub{color:var(--warning)}
+.session-context-injected__foot{padding-left:19px;font-size:var(--text-micro);color:var(--faint)}
+/* unknown-agent variant: plain list, no proportional bars */
+.session-context-injected--list .session-context-injected__row{grid-template-columns:minmax(0,1fr) auto}
+.session-context-injected--list .session-context-injected__row .bar{display:none}
+
+/* ============ 06 · SessionInspectorUsageSection (kept) — Metric grid ============
+   production: grid-cols-2 gap-2, Metric p-3 (label form · value kpi-compact 620 · subtext) */
+.session-inspector-usage{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.session-inspector-usage .metric{position:relative;display:flex;flex-direction:column;gap:5px;padding:10px 12px;border-radius:var(--radius-lg);background:var(--canvas);border:1px solid var(--line-soft)}
+.session-inspector-usage .metric--span{grid-column:1/-1}
+.session-inspector-usage .metric__l{font-size:var(--text-form);color:var(--muted)}
+.session-inspector-usage .metric__v{font-size:var(--text-kpi-compact);font-weight:620;letter-spacing:var(--track-tight);line-height:1;color:var(--fg-strong);font-variant-numeric:tabular-nums}
+.session-inspector-usage .metric__sub{font-size:var(--text-micro);color:var(--subtle)}
+.session-inspector-usage__turns{grid-column:1/-1}
+
+/* ============ 07 · SessionContextTurnsSection ============
+   rows newest first: turn id (mono) · used/size · in/out · cost; marker row for
+   session.compaction_fired; "Show earlier turns" ghost button after 50. */
+.session-context-turns{position:relative;display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas)}
+.session-context-turns__row{position:relative;display:grid;grid-template-columns:60px minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 10px;font-size:var(--text-form);color:var(--muted)}
+.session-context-turns__row + .session-context-turns__row,.session-context-turns__row + .session-context-turns__marker,.session-context-turns__marker + .session-context-turns__row{border-top:1px solid var(--line-soft)}
+.session-context-turns__row .id{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle)}
+.session-context-turns__row .ctx{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--fg);font-variant-numeric:tabular-nums}
+.session-context-turns__row .ctx small{color:var(--faint)}
+.session-context-turns__row .io{font-size:var(--text-micro);color:var(--faint)}
+.session-context-turns__row .cost{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted);text-align:right}
+.session-context-turns__row .cost:empty::before{content:"–";color:var(--faint)}
+.session-context-turns__marker{position:relative;display:flex;align-items:center;gap:7px;padding:6px 10px;font-size:var(--text-micro);color:var(--subtle);background:var(--canvas-soft)}
+.session-context-turns__marker svg{width:11px;height:11px;flex:none;color:var(--subtle)}
+.session-context-turns__marker b{font-family:var(--font-mono);font-weight:500;color:var(--muted)}
+.session-context-turns__more{display:flex;justify-content:center;padding:6px;border-top:1px solid var(--line-soft)}
+
+/* ============ 08 · SessionActivitySection ============
+   rows exist only when the selector has a value; icon well 14px + sentence. */
+.session-activity{position:relative;display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.session-activity__row{position:relative;display:grid;grid-template-columns:14px minmax(0,1fr);align-items:start;gap:8px;font-size:var(--text-form);color:var(--muted);line-height:1.45}
+.session-activity__row svg{width:13px;height:13px;color:var(--subtle);margin-top:2px}
+.session-activity__row b{font-weight:510;color:var(--fg)}
+.session-activity__row .mono-id{margin-left:4px}
+.session-activity__row[data-kind="warning"] svg{color:var(--warning)}
+.session-activity__row .ss-dots{margin-right:2px}
+
+/* ============ empties (production Empty, compact in a 320 rail) ============ */
+.session-inspector .empty{position:relative;padding:18px 12px;gap:8px;border:1px dashed var(--line-soft)}
+.session-inspector .empty__well{width:32px;height:32px;border-radius:var(--radius-md)}
+.session-inspector .empty__well svg{width:15px;height:15px}
+.session-inspector .empty__title{font-size:var(--text-form)}
+.session-inspector .empty p{font-size:var(--text-micro);max-width:24rem}
+
+/* ============ lab helpers ============ */
+.sc-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sc-cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sc-cell-t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sc-cell-t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.sc-composer-only{width:min(560px,100%)}
+.sc-rail-only{width:var(--sc-rail-w);height:auto;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+.sc-rail-only .session-inspector{border-left:0;height:auto}
+.sc-win-split{display:flex;min-height:0;flex:1}
+.sc-win-split .ss-thread{flex:1;min-width:0}
+.sc-main{display:flex;flex-direction:column;flex:1;min-width:0}
+.sc-tip-anchor{position:relative;display:inline-block}
+.sc-tip-anchor .session-context-tip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:5}
+@media (max-width:960px){.sc-win-split{flex-direction:column}.session-inspector{width:100%;border-left:0;border-top:1px solid var(--line)}}
+@media (prefers-reduced-motion:reduce){.session-context-control__ring .arc{transition:none}}
+
+/* lab: tooltip demo cells need room for a 212–280px tooltip above a 24px anchor */
+.sc-tip-cell{min-width:250px}
+/* lab: callout markers inside the rail are absolutely placed so they never push the layout */
+.session-inspector .ss-n--abs{right:-2px;top:-7px}
+.session-context-injected__head > .ss-n--abs{top:-16px}
+.session-context-injected__row > .ss-n--abs{left:-19px;right:auto;top:0}
+.session-inspector-usage > .ss-n--abs{top:auto;bottom:-7px}

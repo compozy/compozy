@@ -68,7 +68,7 @@ describe("public heading hierarchy", () => {
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
     render(await BlogIndexPage());
-    expectSingleH1("How CompozyOS is built, operated, and released.");
+    expectSingleH1("Practical engineering for working with AI agents.");
     cleanup();
 
     const category =

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateMetadata, generateStaticParams } from "@/app/blog/categories/[category]/page";
 import { categoryLabel } from "@/components/blog/format";
-import { BLOG_CATEGORIES } from "../blog";
+import { BLOG_CATEGORIES, postsByCategory } from "../blog";
 
 function pageProps(category: string) {
   return {
@@ -29,6 +29,10 @@ describe("blog category routes", () => {
       );
       expect(metadata.twitter?.title, category).toBe(`${label} posts`);
       expect(metadata.twitter?.description, category).toBe(`Posts filed under ${label}.`);
+      expect(metadata.robots, category).toEqual({
+        index: postsByCategory(category).length > 0,
+        follow: true,
+      });
     }
   });
 

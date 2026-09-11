@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Context sidebar · Session context · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../sessions-stability/sessions-stability.css">
+<link rel="stylesheet" href="session-context.css">
+<!--
+  session-context-sidebar · S3 + S5 of .compozy/tasks/session-context/_uiux.md — the session
+  rail becomes one tab-less "Context" body. Authored 2026-09-11 after the spec. Visual Contract
+  for task_03 rows VC-06..09 and task_04 rows VC-10..11.
+  Provenance:
+    production — packages/ui DetailInspector (320px inline aside at ≥1440, Sheet drawer below;
+                 header px-4 py-3 when a title is passed), Metric grid of the former Usage tab,
+                 Empty, Eyebrow, Pill, StackedProgress, StatusBreakdown, Collapsible, Button.
+    delta      — title "Context", no Tabs; five sections: meter · Compozy context · Tokens & cost ·
+                 Turns · Activity. Memory / Files / Vault tabs are deleted (ADR-005).
+    truth      — used/size/state/threshold from GET …/usage `context`; rows from `injected`
+                 (task_04) marked ≈; turns and compactions from GET …/usage/turns; activity rows
+                 only from selectors the client already computes. Absent means absent, never 0.
+  Product classes are named after the production component they render (session-context.css).
+-->
+<style>
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.crumb{font-size:12px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.dict{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dict table{width:100%;border-collapse:collapse;font-size:12px}
+.dict th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:6px 8px;border-bottom:1px solid var(--line)}
+.dict td{padding:7px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+.dict td:first-child{color:var(--fg);white-space:nowrap}
+.dict td code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.rules li{display:flex;align-items:flex-start;gap:8px}
+.rules li::before{content:"—";flex:none;width:18px;color:var(--faint)}
+.rules li > span{min-width:0}
+.rules b{color:var(--fg);font-weight:600}
+@media (max-width:960px){.dict{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="scs-page">
+  <div class="head">
+    <span class="crumb"><a href="index.html">Session context</a> /</span>
+    <h1 data-od-id="scs-title">Context sidebar</h1>
+    <span class="crumb mono">session-context-sidebar.html · S3 · S5 · 2026-09-11</span>
+  </div>
+  <p class="lede"><b>One rail, one subject.</b> The Usage / Memory / Files / Vault tabs go; the right rail is titled <b>Context</b> and reads top to bottom: how full the window is and what the number is worth; what Compozy itself put in (≈, per section, per turn); tokens and cost with their provenance; the turn-by-turn history with compaction markers; and what the session is doing right now. Same 320px rail, same drawer below 1440. Content is illustrative; runtime truth owns values.</p>
+
+  <section class="ss-contract" data-od-id="scs-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>The session's context and observability rail.</b> A three-tier bar that segments only what has a truthful owner — <b>Compozy context ≈</b>, <b>Agent &amp; conversation</b>, <b>Free</b> — with the compaction threshold drawn as a tick. Below it, the sections Compozy can stand behind. Where the agent never reports, the meter says so and the Compozy rows become a plain list. Nothing here is a control except the collapse chevron, "Show earlier turns", and the drawer's close.</p>
+      <p class="ss-contract__file">session-context-sidebar.html · S3 S5 · US-004..009 · task_03 VC-06..09 · task_04 VC-10..11</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionInspector</b><i>web/src/systems/session/components/session-inspector.tsx</i>DetailInspector with <code>title="Context"</code> and no <code>tabs</code>; renders the five sections; props <code>memory</code> / <code>vault*</code> / <code>files</code> removed</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContextMeterSection</b><i>web/src/systems/session/components/session-context-meter-section.tsx</i>headline · state Pill · StackedProgress (accent / neutral / track) · threshold tick · legend rows</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContextInjectedSection</b><i>web/src/systems/session/components/session-context-injected-section.tsx</i>Collapsible; StatusBreakdown rows per delivered section with ≈ tokens, "sent on turn N", stale and unchanged suffixes</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionInspectorUsageSection</b><i>web/src/systems/session/components/session-inspector-sections.tsx</i>Metric grid kept; Cache read / Cache write tiles when reported; Files section deleted from the file</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContextTurnsSection</b><i>web/src/systems/session/components/session-context-turns-section.tsx</i>rows newest first · compaction marker rows · "Show earlier turns" after 50</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionActivitySection</b><i>web/src/systems/session/components/session-activity-section.tsx</i>rows from session-working-status · timeline summary · queue · goal · runtime notice — present only with a value</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>useSessionUsageTurns</b><i>web/src/systems/session/hooks/use-session-usage-turns.ts</i>query over GET …/usage/turns; invalidated on stream <code>done</code></span></li>
+        <li><span class="ss-mod ss-mod--delete">delete</span><span><b>SessionInspectorMemorySection · SessionInspectorFilesSection · deriveFileReads · tab strip</b><i>session-inspector-memory.tsx · session-inspector-sections.tsx · session-inspector.logic.ts · session-inspector.tsx</i>ADR-005; ledger stays on <code>getMemorySessionLedger</code>, files in the transcript roll-up, secrets at /vault</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>DetailInspector · Metric · Empty · Eyebrow · Pill · StackedProgress · StatusBreakdown · Collapsible · Button</b><i>@compozy/ui — unchanged</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#scs-full">Full rail, inline at 1440</a><code>VC-06</code></li>
+        <li><a href="#scs-tiers">Three tiers · rows expanded · estimate exceeds reported</a><code>VC-10</code></li>
+        <li><a href="#scs-stale">Rows summarized · unchanged · unknown-agent list</a><code>VC-11</code></li>
+        <li><a href="#scs-usage">Tokens &amp; cost with cache rows</a><code>VC-07</code></li>
+        <li><a href="#scs-turns">Turns · compaction marker · Show earlier turns</a><code>VC-08</code></li>
+        <li><a href="#scs-activity">Activity live and stopped · empties · drawer</a><code>VC-09</code></li>
+        <li><a href="#scs-dict">Copy · sections · rules</a><code>§08</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · FULL RAIL ===== -->
+  <section class="lab-sec" id="scs-full" data-od-id="scs-full">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Full rail — inline at 1440, opened from the composer control</h2><span class="lab-sec__gist">US-004.AC-1 AC-2 · US-005.AC-1 · VC-06</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Same rail, one body.</b> DetailInspector keeps its 320px and its border; because a title is passed now, the production header renders "Context". The composer control reads <b>is-open</b> and the topbar toggle reads pressed — one preference. Sections are separated by rhythm and eyebrows, never by tabs or cards; the only card-like surfaces are the Metric tiles and the Turns list, both production recipes.</div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scs-full-stage" style="--ss-win-w:1040px">
+          <section class="win win--inline is-focused ss-win" data-od-id="scs-full-win" style="--ss-win-h:640px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+              <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon is-open" aria-label="Close context sidebar" aria-pressed="true" style="background:var(--btn-hover);color:var(--fg-strong)"><svg data-lucide="panel-right"></svg></button><i class="ss-n ss-n--abs" style="right:64px;top:26px">1</i><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="sc-win-split">
+                <div class="sc-main">
+                  <div class="ss-thread"><div class="ss-thread__inner">
+                    <div class="ss-turn ss-turn--tight">
+                      <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                      <div class="ss-prose"><p>Reading <code>internal/store</code> retry scheduling before touching anything.</p></div>
+                      <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                    </div>
+                  </div></div>
+                  <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for 49m 20s<span class="sep">·</span>Running shell</div></div>
+                  <div class="ss-composer-zone">
+                    <div class="ss-composer">
+                      <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                      <div class="ss-composer__row">
+                        <div class="ss-composer__cluster">
+                          <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                          <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                          <button class="session-context-control is-open" data-state="reported" style="--ratio:.35" aria-label="Context 35% used"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg><i class="ss-n ss-n--abs">2</i></button>
+                          <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                          <span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span>
+                        </div>
+                        <span class="spacer"></span>
+                        <div class="ss-composer__busy"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="scissors"></svg>Interrupt</button></div>
+                        <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <aside class="session-inspector" aria-label="Context" data-od-id="scs-full-rail">
+                  <div class="session-inspector__head">Context<i class="ss-n">3</i></div>
+                  <div class="session-inspector__body">
+                    <section class="session-inspector__sec session-context-meter" data-od-id="scs-full-meter">
+                      <div class="session-context-meter__headline"><span class="session-context-meter__pct">35%</span><span class="session-context-meter__nums">89.7K / 256K</span><span class="session-context-meter__chip pill pill--xs" data-tone="neutral">reported</span><i class="ss-n">4</i></div>
+                      <div class="stacked-progress" role="img" aria-label="Compozy context 12.4K, agent and conversation 77.3K, free 166.3K of 256K"><span class="stacked-progress__seg" data-tone="accent" style="width:4.8%"></span><span class="stacked-progress__seg" data-tone="neutral" style="width:30.2%"></span><span class="stacked-progress__tick" data-label="85%" style="left:85%"></span></div>
+                      <ul class="status-breakdown">
+                        <li class="status-breakdown__row"><span class="lbl"><i data-tone="accent"></i><b>Compozy context</b><em>≈</em></span><span class="val">12.4K</span></li>
+                        <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">77.3K</span></li>
+                        <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">166.3K</span></li>
+                      </ul>
+                      <div class="session-context-meter__line"><svg data-lucide="clock"></svg>as of turn 12 · 18:03:01<span class="dotsep"></span>Compaction runs at 85%</div>
+                    </section>
+                    <section class="session-inspector__sec session-context-injected" data-od-id="scs-full-injected">
+                      <button class="session-context-injected__head" aria-expanded="true"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 12.4K<small>bytes/4</small></span><i class="ss-n ss-n--abs">5</i></button>
+                      <ul class="session-context-injected__rows">
+                        <li class="session-context-injected__row"><span class="lbl">System prompt</span><span class="bar"><i style="width:49%"></i></span><span class="val">≈ 6.1K</span><span class="sub">sent on turn 1</span></li>
+                        <li class="session-context-injected__row"><span class="lbl">Skills catalog</span><span class="bar"><i style="width:25%"></i></span><span class="val">≈ 3.1K</span><span class="sub">sent on turn 1</span></li>
+                        <li class="session-context-injected__row"><span class="lbl">Memory</span><span class="bar"><i style="width:19%"></i></span><span class="val">≈ 2.4K</span><span class="sub">sent on turn 1</span></li>
+                        <li class="session-context-injected__row"><span class="lbl">Tool manuals</span><span class="bar"><i style="width:7%"></i></span><span class="val">≈ 800</span><span class="sub">sent on turn 1</span></li>
+                      </ul>
+                    </section>
+                    <section class="session-inspector__sec" data-od-id="scs-full-usage">
+                      <span class="eyebrow">Tokens &amp; cost<span class="mono">across 12 turns</span></span>
+                      <div class="session-inspector-usage">
+                        <div class="metric"><span class="metric__l">Tokens in</span><span class="metric__v">61,204</span></div>
+                        <div class="metric"><span class="metric__l">Tokens out</span><span class="metric__v">9,880</span></div>
+                        <div class="metric"><span class="metric__l">Cache read</span><span class="metric__v">55,600</span></div>
+                        <div class="metric"><span class="metric__l">Cache write</span><span class="metric__v">13,900</span></div>
+                        <div class="metric metric--span"><span class="metric__l">Total cost</span><span class="metric__v">$0.41</span><span class="metric__sub">Reported by the agent</span></div>
+                      <i class="ss-n ss-n--abs">6</i></div>
+                    </section>
+                    <section class="session-inspector__sec" data-od-id="scs-full-turns">
+                      <span class="eyebrow">Turns<span class="mono">newest first</span></span>
+                      <div class="session-context-turns">
+                        <div class="session-context-turns__row"><span class="id">turn-12</span><span class="ctx">89.7K <small>/ 256K</small><br><span class="io">in 15.1K · out 900</span></span><span class="cost">$0.03</span></div>
+                        <div class="session-context-turns__row"><span class="id">turn-11</span><span class="ctx">88.9K <small>/ 256K</small><br><span class="io">in 14.8K · out 1.1K</span></span><span class="cost">$0.03</span></div>
+                        <div class="session-context-turns__row"><span class="id">turn-10</span><span class="ctx">71.3K <small>/ 256K</small><br><span class="io">in 70.9K · out 400</span></span><span class="cost">$0.03</span></div>
+                        <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compacted at 85% · <b>218K</b> → next report 71.3K</div>
+                        <div class="session-context-turns__row"><span class="id">turn-9</span><span class="ctx">218K <small>/ 256K</small><br><span class="io">in 41.2K · out 2.0K</span></span><span class="cost">$0.06</span></div>
+                      <i class="ss-n ss-n--abs">7</i></div>
+                    </section>
+                    <section class="session-inspector__sec" data-od-id="scs-full-activity">
+                      <span class="eyebrow">Activity</span>
+                      <ul class="session-activity">
+                        <li class="session-activity__row"><svg data-lucide="loader-circle"></svg><span><b>Working for 49m 20s</b> · Running shell</span></li>
+                        <li class="session-activity__row"><svg data-lucide="wrench"></svg><span>38 tools · 12 thoughts this session</span></li>
+                        <li class="session-activity__row"><svg data-lucide="list-plus"></svg><span>1 queued</span></li>
+                        <li class="session-activity__row"><svg data-lucide="target"></svg><span>Goal · turn 0/20 · active</span></li>
+                      <i class="ss-n ss-n--abs">8</i></ul>
+                    </section>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Topbar toggle · pressed</b> <em>SessionPanelToggle panel=inspector, aria "Close context sidebar" · production, copy only</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Composer control · is-open</b> <em>btn-hover plate while the rail is open · same store · delta</em></span></li>
+          <li><i class="ss-n">3</i><span><b>DetailInspector header</b> <em>"Context" · px-4 py-3 small-body 510 fg-strong · border-b line · 320px aside, bg canvas-soft · production (renders because a title is passed)</em></span></li>
+          <li><i class="ss-n">4</i><span><b>SessionContextMeterSection</b> <em>percent kpi-compact 620 · "used / size" mono · Pill xs neutral "reported" · StackedProgress 6px: accent 4.8% + neutral 30.2% on canvas-tint · tick 1px warning at 85% (no label; the line below names it) · legend rows · delta</em></span></li>
+          <li><i class="ss-n">5</i><span><b>SessionContextInjectedSection</b> <em>Collapsible head "Compozy context ≈ 12.4K bytes/4" · rows label 96 · bar accent · value mono · "sent on turn 1" · task_04 data</em></span></li>
+          <li><i class="ss-n">6</i><span><b>SessionInspectorUsageSection</b> <em>Metric grid 2-col p-3, kpi-compact values · Cache read / write only when reported · cost subtext = provenance note · production, kept</em></span></li>
+          <li><i class="ss-n">7</i><span><b>SessionContextTurnsSection</b> <em>rows: turn id mono · used/size · in/out micro · cost · marker row canvas-soft with Minimize2 · delta</em></span></li>
+          <li><i class="ss-n">8</i><span><b>SessionActivitySection</b> <em>rows only when the selector has a value (working, tools/thoughts, queue, goal) · icons 13px subtle · delta</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>open · inline · reported · running</span><span class="ss-tag"><b>component</b>SessionInspector · 5 sections</span><span class="ss-tag"><b>VC</b>task_03 VC-06</span><span class="ss-tag"><b>accent</b>chart-1 segment + injected bars · warning tick ×1</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · THREE TIERS ===== -->
+  <section class="lab-sec" id="scs-tiers" data-od-id="scs-tiers">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Three tiers — the bar segments only what has an owner</h2><span class="lab-sec__gist">US-005.AC-1 AC-2 AC-3 · US-003.AC-1 · VC-10</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Compozy ≈ · Agent &amp; conversation · Free.</b> The first is the daemon's estimate of the text it sent (bytes/4, labelled ≈). The second is the reported <code>used</code> minus that estimate — one bucket because the agent's own prompt, tools, MCP catalog, rules and subagent definitions are invisible to Compozy. The third is the window left. When the estimate is larger than <code>used</code>, the Compozy segment is clamped and the legend says so. At 88% the headline and tick carry the warning; the segments stay magnitude colours.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scs-tiers-demo">
+          <div class="sc-row" style="align-items:flex-start;gap:18px">
+            <div class="sc-cell"><span class="sc-cell-t">Reported · rows expanded <code>35%</code></span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec session-context-meter">
+                  <div class="session-context-meter__headline"><span class="session-context-meter__pct">35%</span><span class="session-context-meter__nums">89.7K / 256K</span><span class="session-context-meter__chip pill pill--xs" data-tone="neutral">reported</span><i class="ss-n">1</i></div>
+                  <div class="stacked-progress" role="img" aria-label="Compozy context 12.4K, agent and conversation 77.3K, free 166.3K of 256K"><span class="stacked-progress__seg" data-tone="accent" style="width:4.8%"></span><span class="stacked-progress__seg" data-tone="neutral" style="width:30.2%"></span><span class="stacked-progress__tick" data-label="85%" style="left:85%"></span></div>
+                  <ul class="status-breakdown">
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="accent"></i><b>Compozy context</b><em>≈</em></span><span class="val">12.4K</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">77.3K</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">166.3K</span></li>
+                  </ul>
+                  <div class="session-context-meter__line"><svg data-lucide="clock"></svg>as of turn 12 · 18:03:01<span class="dotsep"></span>Compaction runs at 85%</div>
+                </section>
+                <section class="session-inspector__sec session-context-injected">
+                  <button class="session-context-injected__head" aria-expanded="true"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 12.4K<small>bytes/4</small></span><i class="ss-n ss-n--abs">2</i></button>
+                  <ul class="session-context-injected__rows">
+                    <li class="session-context-injected__row"><span class="lbl">System prompt</span><span class="bar"><i style="width:49%"></i></span><span class="val">≈ 6.1K</span><span class="sub">sent on turn 1 · first-turn prefix</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Skills catalog</span><span class="bar"><i style="width:25%"></i></span><span class="val">≈ 3.1K</span><span class="sub">sent on turn 1</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Memory</span><span class="bar"><i style="width:19%"></i></span><span class="val">≈ 2.4K</span><span class="sub">sent on turn 1</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Tool manuals</span><span class="bar"><i style="width:7%"></i></span><span class="val">≈ 800</span><span class="sub">sent on turn 1</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Attachments</span><span class="bar"><i style="width:2%"></i></span><span class="val">≈ 240</span><span class="sub">sent on turn 7</span></li>
+                  </ul>
+                  <div class="session-context-injected__foot">Estimate: bytes ÷ 4 over the text Compozy delivered. The agent's own prompt and tools are not counted here.</div>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Warning · estimate exceeds reported <code>88%</code></span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec session-context-meter">
+                  <div class="session-context-meter__headline"><span class="session-context-meter__pct" data-tone="warning">88%</span><span class="session-context-meter__nums">225K / 256K</span><span class="session-context-meter__chip pill pill--xs" data-tone="warning">near compaction</span><i class="ss-n">3</i></div>
+                  <div class="stacked-progress" role="img" aria-label="Compozy context 225K clamped, agent and conversation 0, free 31K of 256K"><span class="stacked-progress__seg" data-tone="accent" style="width:87.9%"></span><span class="stacked-progress__tick" data-label="85%" style="left:85%"></span></div>
+                  <ul class="status-breakdown">
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="accent"></i><b>Compozy context</b><em>≈</em></span><span class="val">225K<small>of ≈ 231K</small></span><span class="note">estimate exceeds reported</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">0</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">31K</span></li>
+                  </ul>
+                  <div class="session-context-meter__line" data-kind="warning"><svg data-lucide="minimize-2"></svg>Compaction runs at 85%<span class="dotsep"></span>as of turn 31</div>
+                </section>
+                <section class="session-inspector__sec session-context-injected">
+                  <button class="session-context-injected__head" aria-expanded="false"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 231K<small>bytes/4</small></span><i class="ss-n ss-n--abs">4</i></button>
+                </section>
+              </div></aside></div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>StackedProgress · three tiers</b> <em>segments accent (chart-1) · neutral (<code>--neutral</code>) · track canvas-tint = Free · 6px, rounded-pill · tick 1px <code>--warning</code> at <code>pressure_threshold</code> (the sentence below the bar carries the number) · legend rows label · swatch 8px · mono value · production primitive</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Injected rows expanded</b> <em>StatusBreakdown grammar: label 96 · bar (share of the injected total, accent) · "≈ 6.1K" · suffix "sent on turn 1 · first-turn prefix" · foot sentence names the method · spec ADR-003</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Warning headline · clamp</b> <em>percent and chip <code>--warning</code> ("near compaction") · Compozy segment clamped to <code>used</code>, Agent reads 0 · note "estimate exceeds reported" in warning ink · spec Business Rules</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Collapsed head</b> <em>chevron right · same head, total only</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>reported · warning · clamp</span><span class="ss-tag"><b>component</b>SessionContextMeterSection · SessionContextInjectedSection</span><span class="ss-tag"><b>VC</b>task_04 VC-10</span><span class="ss-tag"><b>tone</b>warning ×1 per rail (state present)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · STALE / UNCHANGED / UNKNOWN LIST ===== -->
+  <section class="lab-sec" id="scs-stale" data-od-id="scs-stale">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Summarized · unchanged · the unknown-agent list</h2><span class="lab-sec__gist">US-005.AC-4 EC-1 EC-3 · US-002 · VC-11</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Rows tell their age.</b> After a compaction (daemon <code>session.compaction_fired</code>, or the agent's <code>used</code> dropping below the injected total) the rows Compozy sent earlier may have been summarized away; they dim and say so until re-delivered. A section re-sent as an "unchanged" stub keeps its original estimate and says "unchanged since turn 1". For an agent that never reports, there is no bar to be proportional to: the same rows render as a plain list under an honest headline.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scs-stale-demo">
+          <div class="sc-row" style="align-items:flex-start;gap:18px">
+            <div class="sc-cell"><span class="sc-cell-t">After a compaction <code>injected.stale = true</code></span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec session-context-meter">
+                  <div class="session-context-meter__headline"><span class="session-context-meter__pct">28%</span><span class="session-context-meter__nums">71.3K / 256K</span><span class="session-context-meter__chip pill pill--xs" data-tone="neutral">reported</span></div>
+                  <div class="stacked-progress" role="img" aria-label="Compozy context 12.4K may have been summarized, agent and conversation 58.9K, free 184.7K"><span class="stacked-progress__seg" data-tone="accent" style="width:4.8%;opacity:.45"></span><span class="stacked-progress__seg" data-tone="neutral" style="width:23%"></span><span class="stacked-progress__tick" data-label="85%" style="left:85%"></span></div>
+                  <ul class="status-breakdown">
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="accent"></i><b>Compozy context</b><em>≈</em></span><span class="val">12.4K</span><span class="note">may have been summarized</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">58.9K</span></li>
+                    <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">184.7K</span></li>
+                  </ul>
+                  <div class="session-context-meter__line"><svg data-lucide="minimize-2"></svg>Compacted on turn 9 · 218K → 71.3K<i class="ss-n ss-n--abs">1</i></div>
+                </section>
+                <section class="session-inspector__sec session-context-injected">
+                  <button class="session-context-injected__head" aria-expanded="true"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 12.4K<small>bytes/4</small></span></button>
+                  <ul class="session-context-injected__rows">
+                    <li class="session-context-injected__row" data-stale="true"><span class="lbl">System prompt</span><span class="bar"><i style="width:49%"></i></span><span class="val">≈ 6.1K</span><span class="sub">sent on turn 1 · may have been summarized</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Skills catalog</span><span class="bar"><i style="width:25%"></i></span><span class="val">≈ 3.1K</span><span class="sub">re-sent on turn 10</span><i class="ss-n ss-n--abs">2</i></li>
+                    <li class="session-context-injected__row" data-stale="true"><span class="lbl">Memory</span><span class="bar"><i style="width:19%"></i></span><span class="val">≈ 2.4K</span><span class="sub">sent on turn 1 · may have been summarized</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Tool manuals</span><span class="bar"><i style="width:7%"></i></span><span class="val">≈ 800</span><span class="sub">unchanged since turn 1 · stub ≈ 40 on turn 10</span><i class="ss-n ss-n--abs">3</i></li>
+                  </ul>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Unknown agent · rows as a list</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec session-context-meter">
+                  <div class="session-context-meter__headline"><span class="session-context-meter__pct" data-tone="unknown">Context usage unknown</span></div>
+                  <div class="session-context-meter__line">This agent hasn't reported context usage.<i class="ss-n ss-n--abs">4</i></div>
+                </section>
+                <section class="session-inspector__sec session-context-injected session-context-injected--list">
+                  <button class="session-context-injected__head" aria-expanded="true"><svg data-lucide="chevron-right"></svg><b>Compozy context</b><span class="val">≈ 9.2K<small>bytes/4</small></span></button>
+                  <ul class="session-context-injected__rows">
+                    <li class="session-context-injected__row"><span class="lbl">System prompt</span><span class="val">≈ 5.8K</span><span class="sub">sent on turn 1 · native</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Skills catalog</span><span class="val">≈ 2.6K</span><span class="sub">sent on turn 1</span></li>
+                    <li class="session-context-injected__row"><span class="lbl">Tool manuals</span><span class="val">≈ 800</span><span class="sub">sent on turn 1</span></li>
+                  <i class="ss-n ss-n--abs">5</i></ul>
+                  <div class="session-context-injected__foot">No window reported, so there is nothing to draw the rows against.</div>
+                </section>
+              </div></aside></div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Meter after compaction</b> <em>headline reads the post-compaction report · Compozy segment at 45% opacity (accent-dim) while stale · line "Compacted on turn 9 · 218K → 71.3K" from <code>session.compaction_fired</code></em></span></li>
+          <li><i class="ss-n">2</i><span><b>Re-sent row</b> <em>full bar again · "re-sent on turn 10" · clears staleness for that key only · spec Business Rules</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Unchanged stub</b> <em>original estimate kept · suffix "unchanged since turn 1 · stub ≈ 40 on turn 10" · the stub bytes count on turn 10 only</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Unknown headline</b> <em>small-body 510 "Context usage unknown" + the one sentence · no percent, no bar, no chip · SD-007</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Rows as a list</b> <em><code>session-context-injected--list</code>: label + value only, no proportional bars · "native" suffix when the system prompt went through the provider channel</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>stale · unchanged · unknown</span><span class="ss-tag"><b>component</b>SessionContextMeterSection · SessionContextInjectedSection</span><span class="ss-tag"><b>VC</b>task_04 VC-11</span><span class="ss-tag"><b>tone</b>warning text ×2 (stale rows)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 · TOKENS & COST ===== -->
+  <section class="lab-sec" id="scs-usage" data-od-id="scs-usage">
+    <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Tokens &amp; cost — the Usage grid, kept, with cache rows</h2><span class="lab-sec__gist">US-006.AC-1 AC-2 EC-1 · VC-07</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Nothing you could read before disappears.</b> The Metric grid of the former Usage tab moves under an eyebrow. Cache read and cache write tiles appear only when the agent reported them (they do now — task_01 fixed the decoder). Cost keeps its provenance note: actual, estimated with its source, included, or unknown — never an invented amount.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scs-usage-demo">
+          <div class="sc-row" style="align-items:flex-start;gap:18px">
+            <div class="sc-cell"><span class="sc-cell-t">Reported · cache rows · cost actual</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec">
+                  <span class="eyebrow">Tokens &amp; cost<span class="mono">across 12 turns</span></span>
+                  <div class="session-inspector-usage">
+                    <div class="metric"><span class="metric__l">Tokens in</span><span class="metric__v">61,204</span></div>
+                    <div class="metric"><span class="metric__l">Tokens out</span><span class="metric__v">9,880</span></div>
+                    <div class="metric"><span class="metric__l">Cache read</span><span class="metric__v">55,600</span><i class="ss-n ss-n--abs">1</i></div>
+                    <div class="metric"><span class="metric__l">Cache write</span><span class="metric__v">13,900</span></div>
+                    <div class="metric metric--span"><span class="metric__l">Total tokens</span><span class="metric__v">71,084</span></div>
+                    <div class="metric metric--span"><span class="metric__l">Total cost</span><span class="metric__v">$0.41</span><span class="metric__sub">Reported by the agent</span><i class="ss-n ss-n--abs">2</i></div>
+                  </div>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">No cache fields · cost included</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec">
+                  <span class="eyebrow">Tokens &amp; cost<span class="mono">across 3 turns</span></span>
+                  <div class="session-inspector-usage">
+                    <div class="metric"><span class="metric__l">Tokens in</span><span class="metric__v">18,410</span></div>
+                    <div class="metric"><span class="metric__l">Tokens out</span><span class="metric__v">2,102</span></div>
+                    <div class="metric metric--span"><span class="metric__l">Total tokens</span><span class="metric__v">20,512</span></div>
+                    <div class="metric metric--span"><span class="metric__l">Total cost</span><span class="metric__v" style="font-size:var(--text-small-body);font-weight:510;color:var(--fg)">Included</span><span class="metric__sub">Native subscription · no amount</span><i class="ss-n ss-n--abs">3</i></div>
+                  </div>
+                </section>
+              </div></aside></div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Cache read / Cache write</b> <em>Metric tiles present only when <code>cache_read_tokens</code> / <code>cache_write_tokens</code> are reported · production Metric p-3</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Total cost · actual</b> <em>value $0.41 · subtext = provenance note from <code>describeCost</code> · production</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Total cost · included</b> <em>the provenance word in the value cell, never a fabricated amount · RT-session-cost-provenance</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>reported · included</span><span class="ss-tag"><b>component</b>SessionInspectorUsageSection</span><span class="ss-tag"><b>VC</b>task_03 VC-07</span><span class="ss-tag"><b>accent</b>0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 05 · TURNS ===== -->
+  <section class="lab-sec" id="scs-turns" data-od-id="scs-turns">
+    <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Turns — where the window filled, and where Compozy compacted</h2><span class="lab-sec__gist">US-007.AC-1 AC-2 EC-1 · VC-08</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>One row per usage row, newest first.</b> Each row shows the reported fill, the turn's tokens in and out, and the cost when the agent sent one. A daemon compaction is a marker row where it fired, with the pressure and the next report. After fifty rows a single "Show earlier turns" loads the rest — the route returns everything.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scs-turns-demo">
+          <div class="sc-row" style="align-items:flex-start;gap:18px">
+            <div class="sc-cell"><span class="sc-cell-t">Rows · compaction marker</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec">
+                  <span class="eyebrow">Turns<span class="mono">newest first</span></span>
+                  <div class="session-context-turns">
+                    <div class="session-context-turns__row"><span class="id">turn-12</span><span class="ctx">89.7K <small>/ 256K</small><br><span class="io">in 15.1K · out 900</span></span><span class="cost">$0.03</span><i class="ss-n ss-n--abs">1</i></div>
+                    <div class="session-context-turns__row"><span class="id">turn-11</span><span class="ctx">88.9K <small>/ 256K</small><br><span class="io">in 14.8K · out 1.1K</span></span><span class="cost">$0.03</span></div>
+                    <div class="session-context-turns__row"><span class="id">turn-10</span><span class="ctx">71.3K <small>/ 256K</small><br><span class="io">in 70.9K · out 400 · cache 69.8K</span></span><span class="cost">$0.03</span></div>
+                    <div class="session-context-turns__marker"><svg data-lucide="minimize-2"></svg>Compacted at 85% · <b>218K</b> → next report 71.3K<i class="ss-n ss-n--abs">2</i></div>
+                    <div class="session-context-turns__row"><span class="id">turn-9</span><span class="ctx">218K <small>/ 256K</small><br><span class="io">in 41.2K · out 2.0K</span></span><span class="cost">$0.06</span></div>
+                    <div class="session-context-turns__row"><span class="id">turn-8</span><span class="ctx">190K <small>/ 256K</small><br><span class="io">in 22.0K · out 1.4K</span></span><span class="cost"></span><i class="ss-n ss-n--abs">3</i></div>
+                  </div>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">120 turns · Show earlier turns</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec">
+                  <span class="eyebrow">Turns<span class="mono">latest 50 of 120</span></span>
+                  <div class="session-context-turns">
+                    <div class="session-context-turns__row"><span class="id">turn-120</span><span class="ctx">201K <small>/ 256K</small><br><span class="io">in 9.4K · out 600</span></span><span class="cost">$0.02</span></div>
+                    <div class="session-context-turns__row"><span class="id">turn-119</span><span class="ctx">198K <small>/ 256K</small><br><span class="io">in 8.9K · out 800</span></span><span class="cost">$0.02</span></div>
+                    <div class="session-context-turns__row" style="opacity:.55"><span class="id">…</span><span class="ctx"><span class="io">47 more rows</span></span><span class="cost"></span></div>
+                    <div class="session-context-turns__row"><span class="id">turn-71</span><span class="ctx">96.0K <small>/ 256K</small><br><span class="io">in 12.1K · out 900</span></span><span class="cost">$0.02</span></div>
+                    <div class="session-context-turns__more"><button class="btn btn--ghost btn--xs">Show earlier turns<span class="mono" style="margin-left:6px">70</span></button><i class="ss-n ss-n--abs">4</i></div>
+                  </div>
+                </section>
+              </div></aside></div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Turn row</b> <em>grid 52 · 1fr · auto · id mono subtle · "89.7K / 256K" mono fg · in/out micro faint · cost mono · 7px 10px · hairlines between rows · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Compaction marker</b> <em>canvas-soft strip · Minimize2 11px · "Compacted at 85% · 218K → next report 71.3K" · from <code>session.compaction_fired</code> (used/size/pressure/sequence range)</em></span></li>
+          <li><i class="ss-n">3</i><span><b>No cost reported</b> <em>cell reads "–" in faint, never $0.00</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Show earlier turns</b> <em>ghost xs Button with the remaining count · appears after 50 rows · loads the full list once</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>rows · marker · capped</span><span class="ss-tag"><b>component</b>SessionContextTurnsSection</span><span class="ss-tag"><b>VC</b>task_03 VC-08</span><span class="ss-tag"><b>accent</b>0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 06 · ACTIVITY · EMPTIES · DRAWER ===== -->
+  <section class="lab-sec" id="scs-activity" data-od-id="scs-activity">
+    <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Activity live and stopped · empties · the drawer below 1440</h2><span class="lab-sec__gist">US-008.AC-1 AC-2 EC-1 · US-004.EC-1 EC-2 · VC-09</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Only what the client already knows.</b> Activity rows come from selectors that exist today: the working timer, the running tool or child agents, settled tool and thought counts, the queue, the Goal state, the latest runtime warning. A signal that is absent has no row. A fresh session shows three honest empties. Below 1440 the same body opens as the production Sheet.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scs-activity-demo">
+          <div class="sc-row" style="align-items:flex-start;gap:18px">
+            <div class="sc-cell"><span class="sc-cell-t">Live · warning row</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec"><span class="eyebrow">Activity</span>
+                  <ul class="session-activity">
+                    <li class="session-activity__row"><svg data-lucide="loader-circle"></svg><span><b>Working for 49m 20s</b> · Running tool — Guardian Review</span></li>
+                    <li class="session-activity__row"><svg data-lucide="users"></svg><span>2 agents running · reviewer, scout</span><i class="ss-n ss-n--abs">1</i></li>
+                    <li class="session-activity__row"><svg data-lucide="wrench"></svg><span>38 tools · 12 thoughts this session</span></li>
+                    <li class="session-activity__row"><svg data-lucide="list-plus"></svg><span>1 queued</span></li>
+                    <li class="session-activity__row"><svg data-lucide="target"></svg><span>Goal · turn 0/20 · active</span></li>
+                    <li class="session-activity__row" data-kind="warning"><svg data-lucide="triangle-alert"></svg><span>Runtime warning · provider slow to respond<span class="mono-id">3m ago</span></span><i class="ss-n ss-n--abs">2</i></li>
+                  </ul>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Stopped</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec"><span class="eyebrow">Activity</span>
+                  <ul class="session-activity">
+                    <li class="session-activity__row"><svg data-lucide="circle-stop"></svg><span><b>Worked for 1h 12m</b> · stopped by you</span><i class="ss-n ss-n--abs">3</i></li>
+                    <li class="session-activity__row"><svg data-lucide="wrench"></svg><span>38 tools · 12 thoughts</span></li>
+                  </ul>
+                </section>
+              </div></aside></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Fresh session · empties</span>
+              <div class="sc-rail-only"><aside class="session-inspector" aria-label="Context"><div class="session-inspector__head">Context</div><div class="session-inspector__body">
+                <section class="session-inspector__sec"><div class="empty"><span class="empty__well"><svg data-lucide="gauge"></svg></span><span class="empty__title">No context report yet</span><p>The meter fills once the agent reports its first turn.</p><i class="ss-n ss-n--abs">4</i></div></section>
+                <section class="session-inspector__sec"><span class="eyebrow">Tokens &amp; cost</span><div class="empty"><span class="empty__well"><svg data-lucide="coins"></svg></span><span class="empty__title">No usage yet</span><p>Token counts and cost land here once the agent reports its first turn.</p></div></section>
+                <section class="session-inspector__sec"><span class="eyebrow">Turns</span><div class="empty"><span class="empty__well"><svg data-lucide="list"></svg></span><span class="empty__title">No turns yet</span></div></section>
+              </div></aside></div>
+            </div>
+          </div>
+          <div class="sc-row" style="margin-top:18px">
+            <div class="sc-cell" style="width:100%"><span class="sc-cell-t">Drawer · viewport 1280 <code>Sheet side=right · 320px</code></span>
+              <div class="stage stage--pad" style="min-height:0;padding:20px" data-od-id="scs-drawer-stage">
+                <section class="win win--inline is-focused ss-win" style="--ss-win-w:760px;--ss-win-h:380px;position:relative">
+                  <header class="win-head">
+                    <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                    <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                    <span class="w2-flex" aria-hidden="true"></span>
+                    <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Close context sidebar" aria-pressed="true" style="background:var(--btn-hover);color:var(--fg-strong)"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+                  </header>
+                  <div class="win-body" style="position:relative">
+                    <div class="ss-thread"><div class="ss-thread__inner"><div class="ss-turn"><div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div><div class="ss-prose"><p>Done — 14 tests updated.</p></div></div></div></div>
+                    <div class="sc-scrim"></div>
+                    <aside class="session-inspector session-inspector--drawer" aria-label="Context" style="width:320px">
+                      <div class="session-inspector__head">Context<button class="btn btn--ghost btn--icon" aria-label="Close"><svg data-lucide="x"></svg></button></div><i class="ss-n ss-n--abs" style="right:44px;top:12px">5</i>
+                      <div class="session-inspector__body">
+                        <section class="session-inspector__sec session-context-meter">
+                          <div class="session-context-meter__headline"><span class="session-context-meter__pct">35%</span><span class="session-context-meter__nums">89.7K / 256K</span><span class="session-context-meter__chip pill pill--xs" data-tone="neutral">reported</span></div>
+                          <div class="stacked-progress" role="img" aria-label="Compozy context 12.4K, agent and conversation 77.3K, free 166.3K of 256K"><span class="stacked-progress__seg" data-tone="accent" style="width:4.8%"></span><span class="stacked-progress__seg" data-tone="neutral" style="width:30.2%"></span><span class="stacked-progress__tick" data-label="85%" style="left:85%"></span></div>
+                          <ul class="status-breakdown">
+                            <li class="status-breakdown__row"><span class="lbl"><i data-tone="accent"></i><b>Compozy context</b><em>≈</em></span><span class="val">12.4K</span></li>
+                            <li class="status-breakdown__row"><span class="lbl"><i></i><b>Agent &amp; conversation</b></span><span class="val">77.3K</span></li>
+                            <li class="status-breakdown__row"><span class="lbl"><i data-tone="free"></i><b>Free</b></span><span class="val">166.3K</span></li>
+                          </ul>
+                        </section>
+                      </div>
+                    </aside>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Activity rows · live</b> <em>working timer from SessionThinkingRow's formatter · child agents from supervision work signals · counts from the timeline fold summary · production selectors, new rows</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Runtime warning row</b> <em>TriangleAlert in <code>--warning</code> — the only toned row, and only when a warning exists (RuntimeActivityNotice logic)</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Stopped</b> <em>"Worked for 1h 12m · stopped by you" from the frozen fold · counts stay · no queue, no goal row (absent, not 0)</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Empties</b> <em>production Empty, compacted for the rail: 32px well, form-size title, micro description · "No context report yet" · "No usage yet" (kept) · "No turns yet"</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Drawer</b> <em>Sheet side=right, 320px, shadow-overlay + scrim, header with Close (Esc) · same body · production DetailInspector below the 1440 breakpoint</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>live · stopped · empty · drawer</span><span class="ss-tag"><b>component</b>SessionActivitySection · Empty · DetailInspector</span><span class="ss-tag"><b>VC</b>task_03 VC-09</span><span class="ss-tag"><b>tone</b>warning ×1 (runtime warning present)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 07 · DICTIONARY ===== -->
+  <section class="lab-sec" id="scs-dict" data-od-id="scs-dict">
+    <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Copy · sections · rules</h2><span class="lab-sec__gist">_uiux.md S3 S5 · _dx.md · ADR-001 ADR-005</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>Section</th><th>Source</th><th>Copy</th></tr></thead>
+          <tbody>
+            <tr><td>Meter</td><td><code>context.used/size/state/stale/pressure_threshold</code></td><td>"35%" · "89.7K / 256K" · chips <b>reported</b> · <b>stale</b> · <b>estimated size</b> · <b>near compaction</b> · "as of turn 12" · "Compaction runs at 85%" · "Context usage unknown"</td></tr>
+            <tr><td>Compozy context</td><td><code>context.injected</code> (task_04)</td><td>"Compozy context ≈ 12.4K" · rows System prompt · Situation · Memory · Soul · Skills catalog · Tool manuals · Network · Workspace knowledge · Attachments · "sent on turn N" · "re-sent on turn N" · "unchanged since turn N" · "may have been summarized" · "estimate exceeds reported"</td></tr>
+            <tr><td>Tokens &amp; cost</td><td><code>usage.*</code> (existing)</td><td>Tokens in · Tokens out · Cache read · Cache write · Total tokens · Total cost + provenance note · "across N turns" · "No usage yet"</td></tr>
+            <tr><td>Turns</td><td><code>GET …/usage/turns</code></td><td>turn id · "used / size" · "in · out · cache" · cost or "–" · "Compacted at 85% · 218K → next report 71.3K" · "Show earlier turns" · "No turns yet"</td></tr>
+            <tr><td>Activity</td><td>client selectors</td><td>"Working for …" · "Worked for …" · "N agents running" · "N tools · N thoughts" · "N queued" · "Goal · turn a/b · state" · "Runtime warning · …"</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <ul class="rules">
+          <li><span><b>Rail.</b> DetailInspector, <code>title="Context"</code>, no <code>tabs</code>; 320px inline ≥ 1440, Sheet below; preference store unchanged (<code>compozy:session:inspector:v2</code>).</span></li>
+          <li><span><b>Tiers.</b> <code>compozy = min(injected, used)</code> · <code>agent = used − compozy</code> · <code>free = size − used</code>; segments accent / neutral / track; tick at the threshold.</span></li>
+          <li><span><b>Colour.</b> Signal hues mark state only: warning for near-compaction, stale rows, runtime warnings. Nothing else in the rail is toned.</span></li>
+          <li><span><b>Absent.</b> No row, tile, or segment for a value the runtime did not report; empties for whole sections.</span></li>
+          <li><span><b>Removed.</b> Memory · Files · Vault tabs and their sections; homes: <code>getMemorySessionLedger</code>, transcript roll-up (RT-060), <code>/vault</code>.</span></li>
+          <li><span><b>Queries.</b> usage (ungated, 5s while live, invalidated on <code>done</code>) · usage/turns (same) · nothing else runs from the rail.</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="lab-foot" style="margin-top:22px">Reference sources: Synara <span class="mono">contextWindow.ts</span> (null after compaction → drawn here as stale rows), T3 Code <span class="mono">MessagesTimeline</span> compaction separator (→ marker row), Emdash <span class="mono">live-models.ts</span> (last-known usage retained), Pi footer (lifetime billed vs current occupancy → Tokens &amp; cost vs Meter), Claude Code <span class="mono">/context</span> (categories exist only inside the agent → one "Agent &amp; conversation" bucket). Iterate — never regenerate a delivered board.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>if(window.lucide) window.lucide.createIcons();</script>
+</body>
+</html>

@@ -32,11 +32,11 @@ export default async function BlogIndexPage() {
             <Eyebrow className="text-muted">Field notes from CompozyOS</Eyebrow>
           </div>
           <h1 className="mt-6 max-w-[20ch] font-display text-site-blog-title font-normal leading-none tracking-tight text-fg">
-            How CompozyOS is built, operated, and released.
+            Practical engineering for working with AI agents.
           </h1>
           <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted">
-            Engineering notes on durable agent work, extensibility, Compozy Network, and the
-            releases that connect them. Read in any order.
+            Experiments, guides, and reusable tools for reviewing agent work, recovering interrupted
+            tasks, and building automation you can inspect.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-2">
             <CategoryPill label="All" count={posts.length} href="/blog" active />

@@ -11,7 +11,7 @@ import {
 } from "@/app/og/[...slug]/route";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
-import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
+import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 import { NextRequest } from "next/server";
 
@@ -145,8 +145,18 @@ describe("public route metadata", () => {
       absoluteUrl("/changelog/v0.3.0-beta.1/"),
     ]);
     for (const category of BLOG_CATEGORIES) {
-      expect(urls).toContain(absoluteUrl(`/blog/categories/${category}/`));
+      expect(urls.includes(absoluteUrl(`/blog/categories/${category}/`)), category).toBe(
+        postsByCategory(category).length > 0
+      );
     }
+    for (const post of allPosts()) {
+      expect(
+        entries.find(entry => entry.url === absoluteUrl(canonicalPath(post.permalink)))
+      ).toMatchObject({
+        lastModified: post.updated ?? post.date,
+      });
+    }
+    expect(entries.find(entry => entry.url === absoluteUrl("/"))?.lastModified).toBeUndefined();
   });
 
   it("points robots.txt at the canonical sitemap", () => {
@@ -236,7 +246,7 @@ describe("public route metadata", () => {
     expect(response.headers.get("cache-control")).toBe(
       "s-maxage=3600, stale-while-revalidate=86400"
     );
-    expect(document.querySelector("channel > link")?.textContent).toBe(absoluteUrl("/blog"));
+    expect(document.querySelector("channel > link")?.textContent).toBe(absoluteUrl("/blog/"));
     expect(document.getElementsByTagName("atom:link")[0]?.getAttribute("href")).toBe(
       absoluteUrl("/blog/feed.xml")
     );
@@ -246,7 +256,7 @@ describe("public route metadata", () => {
       items.map(item => item.getElementsByTagName("link")[0]?.textContent ?? "")
     );
     for (const post of posts) {
-      const link = absoluteUrl(post.permalink);
+      const link = absoluteUrl(canonicalPath(post.permalink));
       expectSiteUrl(link);
       expect(feedLinks).toContain(link);
     }
@@ -268,14 +278,14 @@ describe("public route metadata", () => {
 
     items.forEach((item, index) => {
       const post = posts[index];
-      const link = absoluteUrl(post.permalink);
+      const link = absoluteUrl(canonicalPath(post.permalink));
       const guid = item.getElementsByTagName("guid")[0];
       const pubDate = textOf(item, "pubDate");
       const category = textOf(item, "category");
 
       expect(textOf(item, "title"), post.slug).toBe(post.title);
       expect(textOf(item, "link"), post.slug).toBe(link);
-      expect(guid?.textContent, post.slug).toBe(link);
+      expect(guid?.textContent, post.slug).toBe(absoluteUrl(post.permalink));
       expect(guid?.getAttribute("isPermaLink"), post.slug).toBe("true");
       expect(pubDate, post.slug).toBe(new Date(post.date).toUTCString());
       expect(Number.isNaN(Date.parse(pubDate)), post.slug).toBe(false);

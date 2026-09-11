@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
+import { BLOG_CATEGORIES, allPosts, postsByCategory } from "@/lib/blog";
 import { entriesForKind, MARKETPLACE_KINDS } from "@/lib/marketplace-catalog";
 import { BUNDLED_SPEC_CYCLE_PATH } from "@/lib/marketplace-bundled";
 import { docsSource } from "@/lib/source";
@@ -21,8 +21,12 @@ function pageEntry(path: string): MetadataRoute.Sitemap[number] {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const docsPaths = docsSource.getPages().map(page => page.url);
-  const blogPaths = allPosts().map(post => post.permalink);
-  const categoryPaths = BLOG_CATEGORIES.map(category => `/blog/categories/${category}`);
+  const posts = allPosts();
+  const blogPaths = posts.map(post => post.permalink);
+  const blogModified = new Map(posts.map(post => [post.permalink, post.updated ?? post.date]));
+  const categoryPaths = BLOG_CATEGORIES.flatMap(category =>
+    postsByCategory(category).length > 0 ? [`/blog/categories/${category}`] : []
+  );
   const changelog = await loadChangelogReleases();
   const releasePaths =
     changelog.status === "ready"
@@ -52,5 +56,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ])
   ).sort();
 
-  return paths.map(pageEntry);
+  return paths.map(path => ({
+    ...pageEntry(path),
+    ...(blogModified.has(path) ? { lastModified: blogModified.get(path) } : {}),
+  }));
 }

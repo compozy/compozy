@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { createPageMetadata } from "@/lib/site-config";
 
 export const blogMetadata: Metadata = createPageMetadata({
-  title: "Blog",
+  title: "AI Agent Engineering Guides and Experiments",
   description:
-    "Field notes on building, operating, and extending CompozyOS: loops, automation, memory, permissions, and the runtime behind them.",
+    "Practical experiments, guides, and reusable tools for reviewing AI agent work, recovering interrupted tasks, and building automation you can inspect.",
   path: "/blog",
 });

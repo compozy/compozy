@@ -66,12 +66,19 @@ Acceptance for this replacement slice:
    All six revised articles show their own generated abstract cover, title, and reading time.
 2. `/blog/what-is-an-os-for-ai-agents/` permanently redirects to the session-recovery article;
    `/blog/orca-vs-openhands/` permanently redirects to the agent-evaluation article.
+   The former `crewai-alternatives`, `langchain-alternatives-production-ai-agents`, and
+   `langgraph-alternatives` URLs redirect directly to `git-repository-briefing-python`,
+   `agent-framework-architecture`, and `ai-agent-retries-idempotency`, respectively.
 3. Both desktop and 390px mobile layouts render loaded covers, one H1, useful section links,
    readable code/tables, and no document-wide overflow. Decorative covers have empty alt text.
 4. All reader downloads are served and match the examples described by their articles. The
    retry lab and repository briefing collector execute with the documented local prerequisites.
 5. Canonical metadata, Article JSON-LD, OpenGraph/Twitter covers, RSS, sitemap, and related reading
-   use the six retained article routes; retired routes do not remain in discovery surfaces.
+   use the six current article routes; retired routes do not remain in discovery surfaces.
+   Article identity matches the canonical URL, author identity links to the visible author
+   profile, and sitemap modification dates come from editorial metadata. Empty categories
+   remain navigable but use `noindex, follow` and are absent from the sitemap.
 
-Validation status is recorded in the rework report. This slice does not reclassify historical
+Validation status is recorded in the rework report and the [SEO follow-up](../reports/2026-09-11-blog-seo.md).
+This slice does not reclassify historical
 brand journeys or claim real-provider execution or a comparative coding-agent benchmark.

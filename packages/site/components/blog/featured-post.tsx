@@ -62,7 +62,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
         {cover ? (
           <FeaturedCover
             src={cover.src}
-            alt={cover.alt}
+            alt={post.cover ? "" : cover.alt}
             width={cover.width}
             height={cover.height}
           />

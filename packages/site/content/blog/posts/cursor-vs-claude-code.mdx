@@ -1,194 +1,228 @@
 ---
-title: "Cursor vs Claude Code: Running Both in CompozyOS"
-description: "Compare the Cursor Agent and Claude Code integrations, configure their providers, and inspect a CompozyOS session before and after its first prompt."
+title: "How to Compare Coding Agents on Your Repository"
+description: "Compare Cursor, Claude Code, or other coding agents on your repository with a shared baseline, reusable task brief, and scorecard for correctness and review time."
 date: 2026-09-11
+updated: 2026-09-11
+cover: ../covers/coding-agent-evaluation.webp
 category: engineering
 tags:
-  - cursor
-  - claude-code
-  - providers
-  - sessions
-  - acp
+  - coding-agents
+  - evaluation
+  - developer-workflow
+  - git
 author: pedronauck
 ---
 
-If you already use Cursor or Claude Code, trying CompozyOS does not require moving your project
-to a new agent implementation. You select a provider, create a session, and send a prompt. CompozyOS
-keeps the session history and manages execution around the selected agent.
+An agent finishes a change in four minutes. Another takes twelve. Which one saved more work?
 
-The integration has a detail worth understanding before you configure it: **Cursor Agent has an
-ACP entry point; the Claude Code integration uses an ACP adapter built on the Claude Agent SDK.**
-The two launch paths differ even though CompozyOS presents them through the same session commands.
-See [Cursor's ACP documentation](https://cursor.com/docs/cli/acp) and the
-[Claude Agent ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp).
+You cannot tell until someone reviews both patches. The faster attempt might have removed an
+important validation check, introduced an unnecessary dependency, or passed only the test it
+wrote itself. The slower attempt might be ready to merge. Timing the conversation stops the
+measurement before the expensive part is over.
 
-This is a setup comparison from the CompozyOS project, checked against its implementation and the
-linked upstream documentation on September 11, 2026. It does not rank coding quality, speed, or cost.
+If you are choosing between Cursor, Claude Code, or another coding agent, evaluate the work you
+would actually assign next week. This guide gives you a repeatable trial, a
+[task brief you can reuse](/blog-examples/agent-evaluation/evaluation-brief.md), and a
+[blank scorecard](/blog-examples/agent-evaluation/scorecard.csv). It measures whether a change is
+correct, how much human attention it needs, and what remains outside the requested scope.
 
-## Compare the integration you will actually run
+There is no product ranking here. The Git setup was checked in a disposable repository; no
+model runs were performed for this article. The outcome of your trial belongs in the scorecard.
 
-Here, “Cursor” means the **Cursor Agent CLI**. Opening the Cursor editor does not launch a provider
-inside a CompozyOS session.
+## Pick a task that can actually fail
 
-| Detail                   | Claude Code integration                               | Cursor Agent integration                           |
-| ------------------------ | ----------------------------------------------------- | -------------------------------------------------- |
-| CompozyOS provider ID    | `claude`, with alias `claude-code`                    | `cursor`                                           |
-| Built-in launch command  | `npx -y @agentclientprotocol/claude-agent-acp@latest` | `cursor-agent acp`                                 |
-| Authentication owner     | Provider-native login                                 | Provider-native login                              |
-| Default model selection  | CompozyOS ships a curated provider default            | No built-in model default; Cursor chooses          |
-| Explicit model selection | Use a supported catalog ID                            | Use a fresh model ID advertised by Cursor over ACP |
+“Improve the codebase” is a poor trial. A large cleanup creates plenty to admire and very little
+agreement about what success means. Use a bounded problem with an observable result: an input
+accepted incorrectly, a loading state that never clears, or a command that reports the wrong
+exit status. Prefer a real backlog item whose surrounding code you understand.
 
-These values come from the CompozyOS [provider registry](https://github.com/compozy/compozy/blob/f94f1fc68233627e32274a3adbeb8d956bd4e0b6/internal/config/provider_builtin.go).
-Local configuration can override them; [provider inspection](/docs/cli/provider/inspect) shows
-the effective setup on your machine.
+Before launching an agent, write the reproduction, expected behavior, and compatibility
+requirements. State the permitted module and the check that owns the behavior. This preparation
+makes review possible even if the agent produces a convincing explanation of a different task.
 
-Choose the provider whose account and CLI you already use for the first walkthrough. Once that
-works, testing the second provider becomes a small configuration change with an understandable
-failure boundary. An authentication failure then points at the provider setup, while a session
-creation failure points at the CompozyOS definition or workspace.
-
-## Prepare the runtime and provider login
-
-Install CompozyOS using the [installation guide](/docs/getting-started/installation). The CLI path
-on a supported macOS or Linux host is:
-
-```bash
-curl -fsSL https://compozy.com/install.sh | sh
-compozy install
-compozy daemon start
-compozy version
-compozy config validate
-```
-
-The installer downloads the distribution; `compozy install` bootstraps its home and configuration.
-It can update existing bootstrap configuration, so this walkthrough assumes a fresh installation
-or an installation whose setup you intend to review. Existing agent files are preserved.
-
-For the Claude integration, make sure Node.js and `npx` are available to the daemon, and complete
-the provider login:
-
-```bash
-compozy provider auth login claude
-compozy provider inspect claude -o json
-```
-
-For Cursor, install and authenticate its Agent CLI using
-[Cursor's CLI setup](https://cursor.com/docs/cli/overview). Confirm the executable that CompozyOS
-expects is available:
-
-```bash
-command -v cursor-agent
-compozy provider inspect cursor -o json
-```
-
-Both built-ins use `native_cli` authentication: CompozyOS does not require a separate API key
-preflight for them. The provider still needs working credentials, and model use remains subject
-to that provider's account and billing. A local CompozyOS daemon does not imply local inference.
-
-## Define an agent without changing your existing general agent
-
-From the repository you want to use, create `.compozy/agents/provider-check/AGENT.md` with this
-content. The directory name and the frontmatter `name` must match:
-
-```markdown
----
-name: provider-check
-provider: claude
-permissions: approve-reads
----
-
-Explain this repository's structure using file paths as evidence.
-Read the relevant files before drawing conclusions.
-Ask before making changes or running commands that need approval.
-```
-
-The Markdown body is required. `permissions: approve-reads` selects the daemon policy; the final
-sentence explains the desired behavior to the model. Those are separate mechanisms. For the
-permission boundary and its limits, read the
-[autonomous coding setup](/blog/autonomous-coding-agent-setup).
-
-To make Cursor the definition's default, change only `provider: claude` to `provider: cursor`.
-Leave `model` absent for this initial check. A model name copied from an older article may no
-longer be a valid choice for the installed provider.
-
-## Create first, bind on the first prompt
-
-Run these commands from the repository root:
-
-```bash
-compozy session new --cwd "$PWD" --agent provider-check --name provider-check
-compozy session list -o json
-```
-
-Creation should return an active logical session with an unbound runtime. That distinction lets
-you verify workspace and definition resolution before spending a model turn. The following is a
-schematic of the lifecycle, not captured command output:
+For example, this is a task _shape_, not a claim about a particular repository:
 
 ```text
-session new
-    -> active session, stable ID, runtime unbound
-session prompt
-    -> provider selection, ACP launch, model turn
-session history / recap
-    -> reads of the retained session record
+The page-size parser accepts 0 and negative integers.
+It should accept integers from 1 through 100, inclusive.
+Reject other inputs using the existing validation error type.
+An omitted value must keep the existing default of 20.
+
+Work in the parser and its existing unit-test file.
+Do not change dependencies or the public command syntax.
+Use the repository's canonical parser test command.
 ```
 
-Copy the returned ID. In the next examples, replace `sess_1234` with that ID. Choose one of these
-first-prompt commands:
+That brief supplies boundaries on both sides of the change. An implementation that fixes
+negative inputs while changing the default has failed a stated requirement. An implementation
+that rejects everything except integers still needs examination for its treatment of empty
+strings, whitespace, or values arriving from the real caller.
+
+Keep acceptance criteria visible to every candidate. You can reserve independently chosen
+examples for review, but do not add new requirements after seeing the patches. A surprise test
+should expose an error in the stated behavior, not reward a private interpretation of the task.
+
+For an initial pilot, choose a few different task classes: a bug fix, a small feature in a
+familiar module, and an explanation of unfamiliar code. Keep results separate. A good
+explanation does not establish that the same setup will make safe changes.
+
+## Freeze the repository before comparing attempts
+
+A second agent must not inherit the first agent's solution. Resolve the starting revision once,
+then create a separate working tree for each attempt. Run the following from the repository you
+want to evaluate; the temporary directory holds only the trial checkouts:
 
 ```bash
-compozy session prompt sess_1234 \
-  "Map the repository's main modules and cite their entry files." \
-  --provider claude
+baseline=$(git rev-parse --verify HEAD)
+trial_dir=$(mktemp -d "${TMPDIR:-/tmp}/coding-agent-trial.XXXXXX")
+
+git worktree add --detach "$trial_dir/candidate-a" "$baseline"
+git worktree add --detach "$trial_dir/candidate-b" "$baseline"
+
+git -C "$trial_dir/candidate-a" rev-parse HEAD
+git -C "$trial_dir/candidate-b" rev-parse HEAD
 ```
 
-```bash
-compozy session prompt sess_1234 \
-  "Map the repository's main modules and cite their entry files." \
-  --provider cursor
-```
+The two printed commit IDs must equal the recorded baseline. Detached working trees are useful
+for disposable attempts because no evaluation branch name is needed. They contain the committed
+snapshot, so any uncommitted local fix or ignored configuration from your original directory
+must be accounted for separately. Git documents the behavior in its
+[worktree reference](https://git-scm.com/docs/git-worktree).
 
-The explicit provider belongs to this prompt's runtime selection. It does not rewrite `AGENT.md`.
-Later prompts can select another runtime, but that is a process transition, not a guarantee that
-every provider-specific behavior or conversation feature transfers identically.
+Run the project's normal preparation and focused checks in both directories before the trial.
+Record pre-existing failures. If one attempt starts with installed dependencies and another
+spends ten minutes downloading them, decide whether installation is part of the experience you
+are evaluating. Either choice is reasonable when recorded; silently mixing them is not.
 
-Inspect what happened:
+Preserve the completed trial directories until you have saved the patches and evidence. To
+repeat an attempt, create a fresh directory from the original baseline. Reusing a repaired
+attempt makes it harder to know what the next agent received.
 
-```bash
-compozy session status sess_1234 -o json
-compozy session history sess_1234
-compozy session recap sess_1234
-```
+## Separate file isolation from runtime isolation
 
-Use `compozy session events sess_1234 --follow` when you want a live event stream; it keeps running
-until you stop following it. History and recap are bounded reads suited to checking a finished turn.
+A working tree gives each attempt its own checked-out files and index. It does not give each
+process a separate machine. Git's object store and many repository settings are shared, and
+ordinary processes can still reach other host resources. A worktree is not a sandbox.
 
-## Diagnose model selection separately
+This distinction matters when the task launches an application. Both copies may default to the
+same database path, port, browser profile, or provider account. Two terminals can show different
+working directories while their applications modify the same state.
 
-If the default works and you need a specific model, refresh the relevant catalog:
+Record the relevant resources before running the trial:
 
-```bash
-compozy provider models list claude --refresh -o json
-compozy provider models list cursor --refresh -o json
-```
+| Resource                | What to hold constant or separate                                        |
+| ----------------------- | ------------------------------------------------------------------------ |
+| Source files            | Same baseline; a different working tree per attempt                      |
+| Agent conversation      | A fresh session with the same task and repository instructions           |
+| Application state       | Separate data directory or disposable database when the app writes state |
+| Ports and sockets       | Distinct values, or run attempts sequentially                            |
+| Credentials and network | Same approved access; record any difference                              |
+| Review artifacts        | Separate logs, original patches, and reviewer notes                      |
 
-Cursor discovery may start a short ACP inspection process. CompozyOS requires an explicit Cursor
-model to match fresh advertised values; human-friendly aliases from another CLI command are not
-necessarily accepted identifiers. A stale catalog is useful diagnostic context, not proof that a
-model can be selected now. The [model catalog guide](/docs/agents/model-catalog) describes freshness
-and source precedence.
+If you want to evaluate an agent's reasoning, reduce differences in the surrounding setup. If
+you want to evaluate the whole product experience, include setup and approval friction in the
+record. A desktop environment, a model, and an execution service contribute different things.
+Your result should identify the combination that was tested.
 
-If a launch fails, first check the executable, login, effective provider configuration, and model
-selection. Repeatedly creating sessions will not repair any of those prerequisites.
+## Give both attempts the same contract
 
-## Compare the results on the same repository
+If your task is still a vague request, use the [worked pagination brief](/blog/autonomous-coding-agent-setup/)
+to turn it into observable acceptance criteria before sharing it with the candidates.
 
-For a meaningful local comparison, create a separate session for each provider at the same Git
-revision. Use the same prompt and permission mode. Record the selected model, the files each answer
-cites, any incorrect claims, and the approvals needed. Do not let the first agent's edits become
-the second agent's starting point.
+Download the [evaluation brief](/blog-examples/agent-evaluation/evaluation-brief.md), fill it out,
+and keep an unchanged copy with the results. Record the agent version, selected model, effective
+permission policy, tools, and time limit. When an interface chooses a model automatically and
+does not expose the final choice, record that field as unknown.
 
-That exercise answers whether the provider fits your work. CompozyOS gives both attempts the same
-place to inspect their history, but a shared protocol does not make their answers equivalent.
-Continue with [agents, sessions, and optional souls](/blog/defining-agent-sessions-compozyos)
-when you want reusable definitions for those different working styles.
+Do not force different products to use similarly named settings and assume equivalence. A
+permission label is not evidence of identical authority. Record what each attempt could read,
+write, execute, and access over the network. A configuration mismatch can explain a result
+without being a defect in either agent.
+
+Set an intervention rule before starting. For example, allow one clarification that repeats an
+existing requirement, with every follow-up copied into the notes. If you debug candidate A's
+patch yourself while candidate B receives no help, the outputs measure different amounts of
+human work. The help may be worthwhile; it must be counted.
+
+Use a stopping rule as well. A time limit, a completed response, or a blocked tool call should
+leave an identifiable original result. Save that state before giving repair advice. Otherwise a
+successful assisted recovery can erase evidence that the initial attempt failed.
+
+## Review correctness before assigning a score
+
+Start with the acceptance criteria, then inspect the diff. Run the canonical checks yourself
+and retain their output. An agent's statement that tests passed is a lead to verify, not the
+verification record.
+
+A practical review sequence is:
+
+1. Reproduce the original failure against the baseline, where possible.
+2. Exercise the required behavior against the candidate's unchanged final output.
+3. Read the affected callers and the patch for compatibility problems.
+4. Check that the change stayed within scope and that tests were not weakened.
+5. Record any repair separately, including the time it required.
+
+Passing the relevant tests and reading the patch answer different questions. A test can miss an
+unrequested change in another file. A plausible implementation can miss a boundary case that an
+independent check exposes. Neither activity can be replaced by the candidate's confidence.
+
+For an explanation task, review the cited files and specific claims instead. Count a fabricated
+entry point or an incorrect dependency relationship as an error. A polished repository map
+with false details creates work for the next person who trusts it.
+
+For an evidence-gathering task, the [Python repository briefing collector](/blog/git-repository-briefing-python/)
+offers a bounded input you can inspect before evaluating an agent's interpretation of it.
+
+Keep blocked attempts visible. “Could not authenticate,” “required service unavailable,” and
+“implemented incorrectly” need different labels. Infrastructure failures affect usefulness,
+but mixing them with code defects makes the next decision harder.
+
+For an interrupted attempt, record what survived before deciding how to continue. The
+[session recovery guide](/blog/defining-agent-sessions-compozyos/) separates retained conversation,
+workspace edits, and process state; its CompozyOS commands apply when that is your trial environment.
+
+## Count the human minutes
+
+The scorecard deliberately separates agent wall time from human intervention, review, and repair.
+Wall time measures elapsed waiting. Human time measures attention that could have gone elsewhere.
+They can overlap, so do not add them together and call the result elapsed delivery time.
+
+For each attempt, record:
+
+| Measure            | Recording rule                                               |
+| ------------------ | ------------------------------------------------------------ |
+| Correctness        | Pass, partial, fail, or blocked against the written criteria |
+| Agent wall time    | Prompt submission to the agreed stopping point, in minutes   |
+| Human intervention | Active assistance while the attempt runs                     |
+| Human review       | Time spent checking the original result                      |
+| Human repair       | Time spent fixing or steering repairs after review           |
+| Scope violations   | Specific unwanted changes, with paths                        |
+| Cost               | Amount, currency, and source, or unknown                     |
+
+The cost field may remain unknown when an interface reports only account-wide subscription
+usage. Do not turn that missing value into zero, or divide a monthly bill into a precise
+per-task price without explaining the allocation.
+
+Avoid a weighted “agent score” in the first pilot. A short review time should not compensate
+numerically for a wrong implementation. First ask whether each candidate produced acceptable
+work. Then compare the attention and waiting needed to get there.
+
+## Make a decision the evidence can support
+
+One attempt is useful for finding setup problems and obvious failure modes. It cannot establish
+that a product is generally better. Repeat representative tasks from fresh sessions, alternate
+which candidate goes first, and retain every result. Repeating the same easy task many times
+still tells you little about the rest of your backlog.
+
+When reporting results, include denominators and conditions: how many attempts, which task
+classes, which configurations, and how blocked runs were handled. Keep the individual rows
+available even if you summarize them. A single average can conceal a candidate that finishes
+quickly most of the time and occasionally needs a complete rewrite.
+
+A useful decision might be to use one setup for repository exploration while keeping a different
+one for small fixes in a well-tested module. It might also be to keep your current tool because
+the alternative adds review work. Neither conclusion needs a universal winner.
+
+Leave the trial with a completed brief, original patches, check output, and a scorecard whose
+unknowns are visible. The next comparison can then reuse your method instead of starting with
+another impressive conversation.

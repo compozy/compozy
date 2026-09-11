@@ -1,9 +1,44 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { TechArticleJsonLd } from "../structured-data";
+import { ArticleJsonLd, TechArticleJsonLd } from "../structured-data";
 
 describe("structured data JSON-LD", () => {
+  it.each(["/blog/recovery", "/blog/recovery/"])(
+    "uses one canonical article identity and the supplied author profile for %s",
+    path => {
+      const markup = renderToStaticMarkup(
+        <ArticleJsonLd
+          title="Recover an interrupted agent"
+          path={path}
+          imageUrl="/static/blog/recovery.webp"
+          datePublished="2026-08-01T00:00:00.000Z"
+          dateModified="2026-09-11T00:00:00.000Z"
+          authorName="Pedro Nauck"
+          authorUrl="https://github.com/pedronauck"
+        />
+      );
+      const document = new DOMParser().parseFromString(markup, "text/html");
+      const data = JSON.parse(
+        document.querySelector('script[type="application/ld+json"]')!.textContent!
+      );
+
+      expect(data).toMatchObject({
+        "@type": "Article",
+        url: "https://compozy.com/blog/recovery/",
+        mainEntityOfPage: { "@id": "https://compozy.com/blog/recovery/" },
+        image: "https://compozy.com/static/blog/recovery.webp",
+        datePublished: "2026-08-01T00:00:00.000Z",
+        dateModified: "2026-09-11T00:00:00.000Z",
+        author: {
+          "@type": "Person",
+          name: "Pedro Nauck",
+          url: "https://github.com/pedronauck",
+        },
+      });
+    }
+  );
+
   it("escapes script-breaking characters while preserving JSON content", () => {
     const lineSeparator = String.fromCharCode(0x2028);
     const paragraphSeparator = String.fromCharCode(0x2029);

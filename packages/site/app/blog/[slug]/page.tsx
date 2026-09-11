@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
@@ -39,7 +40,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const post = postBySlug(slug);
   if (!post) return {};
   const cover = blogPostCover(post);
-  return createPageMetadata({
+  const author = authorByHandle(post.author);
+  const metadata = createPageMetadata({
     title: post.title,
     description: post.description,
     path: post.permalink,
@@ -53,6 +55,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       : undefined,
     keywords: post.tags,
   });
+  return {
+    ...metadata,
+    authors: [{ name: author?.name ?? post.author, url: author?.github }],
+    openGraph: {
+      ...metadata.openGraph,
+      type: "article",
+      publishedTime: post.date,
+      modifiedTime: post.updated ?? post.date,
+      authors: author?.github ? [author.github] : undefined,
+      section: categoryLabel(post.category),
+      tags: post.tags,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, "max-image-preview": "large" },
+    },
+  };
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
@@ -81,6 +101,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         datePublished={post.date}
         dateModified={post.updated ?? post.date}
         authorName={author?.name ?? post.author}
+        authorUrl={author?.github}
         keywords={post.tags}
       />
       <BreadcrumbListJsonLd items={breadcrumbs} />
@@ -115,12 +136,25 @@ export default async function BlogPostPage({ params }: PageProps) {
             <div className="mt-9 flex items-center justify-between gap-4">
               <AuthorMeta
                 handle={author?.name ?? post.author}
+                href={author?.github}
                 initial={initial}
                 role={author?.role}
                 size="md"
                 layout="stacked"
               />
             </div>
+            {cover && (
+              <div className="relative mt-9 aspect-video overflow-hidden rounded-xl border border-line bg-rail">
+                <Image
+                  src={cover.src}
+                  alt={post.cover ? "" : cover.alt}
+                  fill
+                  loading="eager"
+                  sizes="(min-width: 800px) 760px, calc(100vw - 2rem)"
+                  className="object-cover"
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>

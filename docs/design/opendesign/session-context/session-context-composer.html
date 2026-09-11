@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Composer context control · Session context · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../sessions-stability/sessions-stability.css">
+<link rel="stylesheet" href="session-context.css">
+<!--
+  session-context-composer · S1 + S2 of .compozy/tasks/session-context/_uiux.md — the context
+  control in the composer's left cluster and its hover/focus tooltip. Authored 2026-09-11 after
+  the spec. Visual Contract for task_03 rows VC-01..05.
+  Provenance:
+    production — session-composer.tsx card (elevated, highlight), session-composer-action-row.tsx
+                 left cluster (runtime chip with IntensityMeter · environment chip · attach · ⏎ hint),
+                 spacer, busy verbs / primary disc (sessions-stability composer lane, unchanged).
+    delta      — SessionContextControl (new): ghost icon Button 24px with a 16px ring; hover/focus
+                 Tooltip; click opens the Context rail through useSessionInspectorState.setOpen.
+    truth      — every number comes from GET …/usage `context` (agent-reported used/size) or the
+                 latest transcript usage part; `unknown` is drawn as unknown; warning tone only at
+                 ratio ≥ session.compaction.pressure_threshold (0.85 default).
+  Product classes are named after the production component they render (session-context.css).
+  Lab chrome (.lab-*, .ss-contract, .ss-n, .ss-legend, .ss-tags, .sc-*) is annotation ink.
+-->
+<style>
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.crumb{font-size:12px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.dict{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dict table{width:100%;border-collapse:collapse;font-size:12px}
+.dict th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:6px 8px;border-bottom:1px solid var(--line)}
+.dict td{padding:7px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+.dict td:first-child{color:var(--fg);white-space:nowrap}
+.dict td code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.rules li{display:flex;align-items:flex-start;gap:8px}
+.rules li::before{content:"—";flex:none;width:18px;color:var(--faint)}
+.rules li > span{min-width:0}
+.rules b{color:var(--fg);font-weight:600}
+@media (max-width:960px){.dict{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="scc-page">
+  <div class="head">
+    <span class="crumb"><a href="index.html">Session context</a> /</span>
+    <h1 data-od-id="scc-title">Composer context control</h1>
+    <span class="crumb mono">session-context-composer.html · S1 · S2 · 2026-09-11</span>
+  </div>
+  <p class="lede"><b>How full is the window, at a glance.</b> A 16px ring joins the composer's left cluster, after the model and folder chips. It fills with what the agent last reported (<code class="mono">used / size</code>), turns warning-toned only when Compozy is about to compact, and stays plainly <b>unknown</b> for agents that never report. Hover or focus reads the numbers; a click opens the Context rail. Read the contract block, the five specimens, then the dictionary. Content is illustrative; runtime truth owns values.</p>
+
+  <section class="ss-contract" data-od-id="scc-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>The context meter in the composer and its tooltip.</b> One ghost icon button with a ring. The arc is the agent's reported fill; the tooltip is three lines at most: numbers, state and turn, and the compaction sentence when it applies. Nothing on the row moves: the control takes the slot after the environment chip and wraps with the cluster. It never shows 0% for an agent that has not reported — the ring is dashed and the label says so.</p>
+      <p class="ss-contract__file">session-context-composer.html · S1 S2 · US-001 US-002 US-003 · task_03 VC-01..05</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionContextControl</b><i>web/src/systems/session/components/session-context-control.tsx</i>ghost icon Button 24px · 16px SVG ring · states reported / warning / unknown / stale / estimated / used-only · Tooltip on hover and focus · click → <code>useSessionInspectorState.setOpen(true)</code></span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>useSessionContext</b><i>web/src/systems/session/hooks/use-session-context.ts</i>ungated usage query + latest transcript usage part as freshness bridge; tiers, warning, formatting</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposerActionRow</b><i>web/src/components/assistant-ui/session-composer-action-row.tsx</i>mounts the control in the left cluster after <code>environmentControl</code>; new prop <code>contextControl</code></span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionComposer · SessionThread · SessionWindowContent</b><i>web/src/components/assistant-ui/session-composer.tsx · session-thread.tsx · systems/os/apps/session/session-window-content.tsx</i>plumb the view model and the sidebar opener</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionWindowController</b><i>web/src/systems/os/apps/session/use-session-window-controller.tsx</i>usage query enabled while the window is live, not only when the rail is open</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Button · Tooltip · Pill · Kbd</b><i>@compozy/ui — unchanged · no HoverCard is added</i></span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>IntensityMeter</b><i>runtime-selector/trigger.tsx — untouched; it means reasoning effort, not context</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#scc-reported">Reported · 35% of 256K</a><code>VC-01</code></li>
+        <li><a href="#scc-warning">Warning · 88% ≥ threshold</a><code>VC-02</code></li>
+        <li><a href="#scc-unknown">Unknown · agent never reported</a><code>VC-03</code></li>
+        <li><a href="#scc-variants">Stale · estimated size · used-only · stopped</a><code>VC-04</code></li>
+        <li><a href="#scc-tip">Tooltip · reported and unknown</a><code>VC-05</code></li>
+        <li><a href="#scc-dict">Copy · states · rules</a><code>§06</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · REPORTED ===== -->
+  <section class="lab-sec" id="scc-reported" data-od-id="scc-reported">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Reported — the ring reads the agent's last report</h2><span class="lab-sec__gist">US-001.AC-1 · AC-3 · AC-5 · VC-01</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Nothing else on the row changes.</b> The control sits after the folder chip, before Attach. Its arc is <code>used / size</code> from the daemon's usage read (or the newer transcript part), so it has data while the rail is closed. The rail's topbar toggle stays; both write the same per-session preference. Idle session, so the primary disc is Send — the one accent on the row.</div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scc-reported-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scc-reported-win" style="--ss-win-h:440px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+              <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar" aria-pressed="false"><svg data-lucide="panel-right"></svg></button><i class="ss-n ss-n--abs" style="right:60px;top:26px">3</i><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="ss-turn">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+                  <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary></details>
+                  <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps; it waits on the lifecycle channel instead.</p></div>
+                </div>
+              </div></div>
+              <div class="ss-composer-zone">
+                <div class="ss-composer" data-od-id="scc-reported-composer">
+                  <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                  <div class="ss-composer__row">
+                    <div class="ss-composer__cluster">
+                      <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                      <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                      <button class="session-context-control" data-state="reported" style="--ratio:.35" aria-label="Context 35% used" data-od-id="scc-reported-control"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/><circle class="dot" cx="8" cy="8" r="1.6"/></svg></button><i class="ss-n">1</i>
+                      <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                      <span class="ss-hint"><span class="kbd">⏎</span>send</span><i class="ss-n">2</i>
+                    </div>
+                    <span class="spacer"></span>
+                    <button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>SessionContextControl · reported</b> <em>ghost icon Button 24px · ring 16px, track <code>--line-strong</code> 2px, arc <code>--fg</code> at 35% · aria "Context 35% used" · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>The rest of the cluster</b> <em>runtime chip, folder chip, Attach, ⏎ hint — production, unchanged; the control takes one 24px slot + 8px gap</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Topbar toggle stays</b> <em>SessionPanelToggle panel=inspector · aria "Open context sidebar" (copy only) · same store as the control's click · production</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>reported · idle</span><span class="ss-tag"><b>component</b>SessionContextControl</span><span class="ss-tag"><b>VC</b>task_03 VC-01</span><span class="ss-tag"><b>accent</b>1 (send disc)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · WARNING ===== -->
+  <section class="lab-sec" id="scc-warning" data-od-id="scc-warning">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Warning — at or above the compaction threshold</h2><span class="lab-sec__gist">US-003.AC-1 · VC-02</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>One warning, one meaning.</b> The arc and the glyph switch to <code>--warning</code> exactly when <code>ratio ≥ pressure_threshold</code> — the ratio at which the daemon's pressure compaction runs (0.85 by default, read from the usage contract, never hard-coded). No amber-then-red ladder: there is one runtime state behind the colour. The session is busy, so the disc is Stop and the verbs are live.</div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scc-warning-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scc-warning-win" style="--ss-win-h:440px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+              <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar" aria-pressed="false"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="ss-turn ss-turn--tight">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                  <div class="ss-prose"><p>Reading <code>internal/store</code> retry scheduling before touching anything — the package is large, so I am loading the tests first.</p></div>
+                  <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry</span></div>
+                </div>
+              </div></div>
+              <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for 49m 20s<span class="sep">·</span>Running shell</div></div>
+              <div class="ss-composer-zone">
+                <div class="ss-composer" data-od-id="scc-warning-composer">
+                  <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…">Only touch the lifecycle tests, skip the store package</div>
+                  <div class="ss-composer__row">
+                    <div class="ss-composer__cluster">
+                      <span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span>
+                      <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                      <button class="session-context-control" data-state="warning" style="--ratio:.88" aria-label="Context 88% used" data-od-id="scc-warning-control"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">1</i>
+                      <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                      <span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span>
+                    </div>
+                    <span class="spacer"></span>
+                    <div class="ss-composer__busy">
+                      <button class="btn btn--ghost btn--sm"><svg data-lucide="list-plus"></svg>Queue</button>
+                      <button class="btn btn--ghost btn--sm"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                      <button class="btn btn--ghost btn--sm"><svg data-lucide="scissors"></svg>Interrupt</button>
+                    </div>
+                    <button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>SessionContextControl · warning</b> <em>arc + glyph <code>--warning</code> at 88% · threshold 0.85 from <code>context.pressure_threshold</code> · the only signal hue on the row · spec ADR-004</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>warning · running · draft</span><span class="ss-tag"><b>component</b>SessionContextControl</span><span class="ss-tag"><b>VC</b>task_03 VC-02</span><span class="ss-tag"><b>accent</b>0 (stop is neutral) · warning ×1</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · UNKNOWN ===== -->
+  <section class="lab-sec" id="scc-unknown" data-od-id="scc-unknown">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Unknown — the agent has not reported context</h2><span class="lab-sec__gist">US-002.AC-1 · VC-03</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Never a fake zero.</b> Gemini CLI, Kimi and Cursor CLI send no <code>usage_update</code>; some agents send it only after the first turn. The control stays in its slot with a dashed track and no arc; its label says "Context usage unknown". It still opens the rail, where the daemon's own rows (what Compozy sent) can be read as a list.</div>
+      <div class="spec__demo">
+        <div class="stage stage--pad" data-od-id="scc-unknown-stage">
+          <section class="win win--inline is-focused ss-win" data-od-id="scc-unknown-win" style="--ss-win-h:360px">
+            <header class="win-head">
+              <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+              <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">docs-sweep</span></div>
+              <span class="ss-head-meta">Gemini CLI<span class="dotsep"></span><span class="prov">gemini</span></span>
+              <span class="w2-flex" aria-hidden="true"></span>
+              <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Sessions sidebar"><svg data-lucide="panel-left"></svg></button><button class="btn btn--ghost btn--icon" aria-label="Open context sidebar" aria-pressed="false"><svg data-lucide="panel-right"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+            </header>
+            <div class="win-body">
+              <div class="ss-thread"><div class="ss-thread__inner">
+                <div class="ss-turn">
+                  <div class="ss-msg-user"><div class="ss-msg-user__bubble">Rewrite the sessions guide for the new sidebar</div></div>
+                  <div class="ss-prose"><p>Drafted the three sections; the screenshots need to be retaken once the rail ships.</p></div>
+                </div>
+              </div></div>
+              <div class="ss-composer-zone">
+                <div class="ss-composer" data-od-id="scc-unknown-composer">
+                  <div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                  <div class="ss-composer__row">
+                    <div class="ss-composer__cluster">
+                      <span class="ss-chip"><span class="agent-avatar">GM</span>Gemini CLI</span>
+                      <span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span>
+                      <button class="session-context-control" data-state="unknown" aria-label="Context usage unknown" data-od-id="scc-unknown-control"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">1</i>
+                      <button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button>
+                      <span class="ss-hint"><span class="kbd">⏎</span>send</span>
+                    </div>
+                    <span class="spacer"></span>
+                    <button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>SessionContextControl · unknown</b> <em>dashed track <code>--faint</code> (2 / 2.2), no arc, no percent anywhere · aria "Context usage unknown" · still clickable · spec SD-007</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>unknown</span><span class="ss-tag"><b>component</b>SessionContextControl</span><span class="ss-tag"><b>VC</b>task_03 VC-03</span><span class="ss-tag"><b>accent</b>1 (send disc)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 · VARIANTS ===== -->
+  <section class="lab-sec" id="scc-variants" data-od-id="scc-variants">
+    <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Stale · estimated size · used-only · stopped — the ring tells which number it has</h2><span class="lab-sec__gist">US-001.EC-1 EC-2 EC-3 EC-5 · US-002.EC-1 · VC-04</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Four honest variants of the same control.</b> <b>Stale</b>: the last report belongs to an older turn — dotted arc, subtle ink, the tooltip says "stale · as of turn 11". <b>Estimated size</b>: the agent sent <code>used</code> but no window; the daemon filled <code>size</code> from the model catalog — the arc is normal, the tooltip adds "window from model catalog". <b>Used-only</b>: no size at all — solid track, a centre dot, no percent. <b>Stopped</b>: last report kept, no polling. Over 100% the arc caps; the tooltip keeps the raw numbers.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scc-variants-demo">
+          <div class="sc-row">
+            <div class="sc-cell"><span class="sc-cell-t">Stale <code>as of turn 11</code></span>
+              <div class="ss-composer sc-composer-only"><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><button class="session-context-control" data-state="stale" style="--ratio:.35" aria-label="Context 35% used, stale"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">1</i><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Estimated size <code>size_source=catalog</code></span>
+              <div class="ss-composer sc-composer-only"><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">OC</span>OpenCode</span><button class="session-context-control" data-state="estimated" style="--ratio:.45" aria-label="Context 45% used, window from model catalog"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">2</i><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div>
+            </div>
+          </div>
+          <div class="sc-row" style="margin-top:14px">
+            <div class="sc-cell"><span class="sc-cell-t">Used-only <code>no size</code></span>
+              <div class="ss-composer sc-composer-only"><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">GS</span>Goose</span><button class="session-context-control" data-state="used-only" aria-label="Context 89.7K used"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/><circle class="dot" cx="8" cy="8" r="1.6"/></svg></button><i class="ss-n">3</i><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files"><svg data-lucide="paperclip"></svg></button></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div>
+            </div>
+            <div class="sc-cell"><span class="sc-cell-t">Stopped · over 100% <code>281.6K / 256K</code></span>
+              <div class="ss-composer ss-composer--inactive sc-composer-only"><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><button class="session-context-control" data-state="warning" style="--ratio:1" aria-label="Context 100% used, as of turn 31"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">4</i><button class="btn btn--ghost btn--xs btn--icon" aria-label="Attach files" disabled><svg data-lucide="paperclip"></svg></button></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-disabled="true" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>stale</b> <em>arc dotted (1.6 / 2.4) in <code>--subtle</code> at the last ratio · <code>context.stale = true</code> · delta</em></span></li>
+          <li><i class="ss-n">2</i><span><b>estimated size</b> <em>normal arc · denominator from the model catalog · tooltip "window from model catalog" · spec Business Rules</em></span></li>
+          <li><i class="ss-n">3</i><span><b>used-only</b> <em>solid track, centre dot <code>--subtle</code>, no arc · aria carries the count, never a percent</em></span></li>
+          <li><i class="ss-n">4</i><span><b>stopped · clamp</b> <em>arc capped at 100% (warning, ratio 1.1) · composer inactive at 60% opacity (production) · tooltip shows "281.6K / 256K" raw</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>stale · estimated · used-only · stopped</span><span class="ss-tag"><b>component</b>SessionContextControl</span><span class="ss-tag"><b>VC</b>task_03 VC-04</span><span class="ss-tag"><b>tone</b>warning ×1 (clamped)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 05 · TOOLTIP ===== -->
+  <section class="lab-sec" id="scc-tip" data-od-id="scc-tip">
+    <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Tooltip — three lines, then the rail</h2><span class="lab-sec__gist">US-001.AC-2 · US-002.AC-1 · US-003.AC-1 · VC-05</span></div>
+    <div class="spec">
+      <div class="spec__note"><b>Hover reads, click opens.</b> The tooltip is production <code>Tooltip</code> content, not a panel: the numbers, the state chip with the turn, and — only when it applies — the compaction sentence. No controls inside; the click on the trigger opens the Context rail. Unknown gets one sentence. Focus shows the same content as hover.</div>
+      <div class="spec__demo">
+        <div class="plain" data-od-id="scc-tip-demo" style="padding:72px 16px 16px">
+          <div class="sc-row" style="gap:20px;align-items:flex-end">
+            <div class="sc-cell sc-tip-cell"><span class="sc-cell-t">Reported <code>35%</code></span>
+              <span class="sc-tip-anchor">
+                <div class="session-context-tip" role="tooltip" data-od-id="scc-tip-reported">
+                  <div class="session-context-tip__num"><b>35%</b><span>89.7K / 256K</span></div>
+                  <div class="session-context-tip__row"><span class="pill pill--xs" data-tone="neutral">reported</span><span class="sep">·</span>as of turn 12</div>
+                </div>
+                <button class="session-context-control is-open" data-state="reported" style="--ratio:.35" aria-label="Context 35% used"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">1</i>
+              </span>
+            </div>
+            <div class="sc-cell sc-tip-cell"><span class="sc-cell-t">Warning <code>88%</code></span>
+              <span class="sc-tip-anchor">
+                <div class="session-context-tip" role="tooltip" data-od-id="scc-tip-warning">
+                  <div class="session-context-tip__num"><b style="color:var(--warning)">88%</b><span>225K / 256K</span></div>
+                  <div class="session-context-tip__row"><span class="pill pill--xs" data-tone="neutral">reported</span><span class="sep">·</span>as of turn 31</div>
+                  <div class="session-context-tip__row" data-kind="warning"><svg data-lucide="minimize-2"></svg>Compaction runs at 85%</div>
+                </div>
+                <button class="session-context-control is-open" data-state="warning" style="--ratio:.88" aria-label="Context 88% used"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">2</i>
+              </span>
+            </div>
+            <div class="sc-cell sc-tip-cell"><span class="sc-cell-t">Stale · estimated size</span>
+              <span class="sc-tip-anchor">
+                <div class="session-context-tip" role="tooltip" data-od-id="scc-tip-stale">
+                  <div class="session-context-tip__num"><b>45%</b><span>89.7K / 200K</span></div>
+                  <div class="session-context-tip__row"><span class="pill pill--xs" data-tone="warning">stale</span><span class="sep">·</span>as of turn 11</div>
+                  <div class="session-context-tip__sentence">Window from model catalog.</div>
+                </div>
+                <button class="session-context-control is-open" data-state="stale" style="--ratio:.45" aria-label="Context 45% used, stale"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">3</i>
+              </span>
+            </div>
+            <div class="sc-cell sc-tip-cell"><span class="sc-cell-t">Unknown</span>
+              <span class="sc-tip-anchor">
+                <div class="session-context-tip session-context-tip--unknown" role="tooltip" data-od-id="scc-tip-unknown">
+                  <div class="session-context-tip__num"><b>Context usage unknown</b></div>
+                  <div class="session-context-tip__sentence">This agent hasn't reported context usage.</div>
+                </div>
+                <button class="session-context-control is-open" data-state="unknown" aria-label="Context usage unknown"><svg class="session-context-control__ring" viewBox="0 0 16 16" aria-hidden="true"><circle class="track" cx="8" cy="8" r="6.5"/><circle class="arc" cx="8" cy="8" r="6.5"/></svg></button><i class="ss-n">4</i>
+              </span>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Tooltip · reported</b> <em>line 1 percent (small-body 600) + mono "used / size" · line 2 Pill xs neutral "reported" · "as of turn 12" · width ≤ 280 · elevated, line-strong, shadow-overlay · production Tooltip</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Tooltip · warning</b> <em>percent in <code>--warning</code> · third line Minimize2 12px + "Compaction runs at 85%" (threshold from the contract) · ADR-004</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Tooltip · stale + catalog</b> <em>Pill xs warning "stale" · sentence "Window from model catalog." only when <code>size_source = catalog</code></em></span></li>
+          <li><i class="ss-n">4</i><span><b>Tooltip · unknown</b> <em>one bold line + one sentence from <code>_dx.md</code> §Errors · no numbers</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>hover / focus · four variants</span><span class="ss-tag"><b>component</b>SessionContextControl · Tooltip</span><span class="ss-tag"><b>VC</b>task_03 VC-05</span><span class="ss-tag"><b>tone</b>warning ×2 (state present)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 06 · DICTIONARY ===== -->
+  <section class="lab-sec" id="scc-dict" data-od-id="scc-dict">
+    <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Copy · states · rules</h2><span class="lab-sec__gist">_dx.md §Errors · _uiux.md S1 S2</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>State</th><th>Ring</th><th>Label · tooltip</th></tr></thead>
+          <tbody>
+            <tr><td><code>reported</code></td><td>arc <code>--fg</code> at ratio</td><td>"Context 35% used" · "35% · 89.7K / 256K" · reported · as of turn N</td></tr>
+            <tr><td><code>warning</code></td><td>arc + glyph <code>--warning</code></td><td>same + "Compaction runs at 85%"</td></tr>
+            <tr><td><code>stale</code></td><td>dotted arc <code>--subtle</code></td><td>"Context 35% used, stale" · chip <b>stale</b> · as of turn N</td></tr>
+            <tr><td><code>estimated_size</code></td><td>arc <code>--fg</code></td><td>same + "Window from model catalog."</td></tr>
+            <tr><td><code>used-only</code></td><td>track + centre dot, no arc</td><td>"Context 89.7K used" · "89.7K used"</td></tr>
+            <tr><td><code>unknown</code></td><td>dashed track, no arc</td><td>"Context usage unknown" · "This agent hasn't reported context usage."</td></tr>
+            <tr><td><code>unavailable</code></td><td>last rendered state</td><td>tooltip "Usage unavailable" after a failed read</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <ul class="rules">
+          <li><span><b>Slot.</b> Left cluster, after <code>environmentControl</code>, before Attach; 24px; wraps with the cluster; reserved while the first read is pending.</span></li>
+          <li><span><b>Data.</b> <code>useSessionContext</code>: usage query (enabled while the window is live) + the latest transcript usage part for <code>used/size/turn</code>; every other field from the query.</span></li>
+          <li><span><b>Click.</b> <code>useSessionInspectorState(sessionId).setOpen(true)</code> — the topbar toggle reads pressed; no second flag.</span></li>
+          <li><span><b>Warning.</b> <code>ratio ≥ context.pressure_threshold</code>; absent threshold → no tone, no sentence.</span></li>
+          <li><span><b>Never.</b> 0% for unknown; percent without both numbers; a HoverCard; reuse of IntensityMeter.</span></li>
+          <li><span><b>Format.</b> 89.7K · 1.2M · percent rounded, one decimal under 10%; <code>lib/context-format.ts</code>.</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="lab-foot" style="margin-top:22px">Reference sources: emdash <span class="mono">context-usage-indicator.tsx</span> (donut + <code>size &gt; 0</code> gate), t3code <span class="mono">ContextWindowMeter.logic.ts</span> (reserve the slot), Zed <span class="mono">thread_view.rs render_token_usage</span> (ring + tooltip rows, 0.85 warning), Synara <span class="mono">contextWindow.ts</span> (latest snapshot). Rejected: click-popover as the detail surface (Compozy clicks open the rail); seven-category rows (fabricated for every agent Compozy runs). Iterate — never regenerate a delivered board.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>if(window.lucide) window.lucide.createIcons();</script>
+</body>
+</html>

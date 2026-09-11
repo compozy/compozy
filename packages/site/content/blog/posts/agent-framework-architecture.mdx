@@ -1,0 +1,229 @@
+---
+title: "Agent Frameworks: Find the Failing Boundary"
+description: "Decide which part of your agent architecture needs to change. Work through approval, retries, and duplicate delivery with a failure drill and decision worksheet."
+date: 2026-09-11
+updated: 2026-09-11
+category: engineering
+tags:
+  - agent-architecture
+  - langchain
+  - durable-execution
+  - engineering-decisions
+author: pedronauck
+cover: ../covers/agent-architecture.webp
+---
+
+The agent drafted the right answer. A person approved it. The worker sent the answer to the
+ticketing system, lost its connection, and tried again. Now the customer has two replies.
+
+Which part would you replace?
+
+That small example exposes the problem with shopping for “LangChain alternatives.” A model
+library, a workflow engine, and a coding-agent environment can all appear in the same comparison.
+They own different parts of this failure. Rewriting the prompt loop might leave the duplicate
+reply untouched. Adding durable execution might make the duplicate happen more reliably.
+
+Let's work through an architecture decision for that support agent. The scenario is illustrative;
+the product capabilities below come from their linked documentation, checked September 11, 2026.
+You will finish with a small decision record and a failure drill, rather than a winner selected
+from a feature matrix. There is also a [blank worksheet](/blog-examples/agent-architecture/decision-record.md)
+to use with your own application.
+
+## Describe the failure without naming a framework
+
+“Our agent is unreliable” is too broad to guide a change. In this example, the desired behavior is
+more specific: after approval, deliver that exact reply once, or expose an unresolved delivery
+state to an operator. Generating a different reply on retry would also violate the requirement.
+
+Draw the work as events someone could inspect:
+
+```text
+ticket received
+  → draft saved as proposal P, revision 3
+  → reviewer approves revision 3
+  → delivery requested for P:3
+  → ticketing service accepts reply R
+  → connection disappears before R is recorded locally
+```
+
+Everything through approval may be working. The uncertainty is between two independent systems:
+the sender doesn't know whether the receiver committed the write. A local checkpoint saying
+“about to publish” cannot answer that question. Neither can the next model call.
+
+The first investigation is therefore the receiving API. Does it accept an idempotency key? Can you
+look up a reply by a stable identifier you supplied? Does it reject a reused key with different
+content? If none of those exist, the design needs an explicit uncertain state and a reconciliation
+procedure. Blind retry is a product decision with consequences, even if a library makes it one line.
+
+This description has already eliminated one expensive distraction: there is no evidence yet
+that the agent framework caused the duplicate.
+
+## Give each fact a home
+
+The support agent has at least three kinds of state. They are easy to collapse into a conversation
+history because the history contains references to all of them.
+
+**Reasoning context** includes the ticket, retrieved documents, tool results, and draft messages.
+It helps the next model invocation continue the task. It can include mistakes and abandoned ideas.
+
+**Business state** says which proposal exists, who approved which revision, and whether delivery
+is pending, confirmed, or uncertain. A service must be able to inspect it without asking a model
+to interpret the transcript.
+
+**External state** includes the reply actually stored in the ticketing system. Your local record
+is evidence about that state; it isn't the state itself.
+
+For this workflow, a compact record might look like this. It is a design example, not a schema
+accepted by a particular framework:
+
+```json
+{
+  "ticket_id": "ticket-42",
+  "proposal_id": "proposal-17",
+  "revision": 3,
+  "approved_revision": 3,
+  "delivery_key": "proposal-17:3",
+  "delivery_state": "uncertain",
+  "external_reply_id": null
+}
+```
+
+The revision check is useful only if revisions are immutable. If the body can change underneath
+revision 3, also bind approval to a digest of the exact content and enforce that check at delivery.
+Treat an edited reply as a new proposal revision. Otherwise an approval screen can show one thing
+while the publisher sends another.
+
+This record doesn't need to know whether the draft came from LangChain, a direct model call, or a
+person. Keeping that independence gives you room to change the drafting implementation later.
+
+## Replace the part whose contract you actually need
+
+There are several reasonable places to make a change. The useful distinction is the work each
+one makes you responsible for.
+
+If the difficulty is **understanding the model's control flow**, start inside the agent. A short
+loop may be easier to inspect than an unnecessary abstraction. A graph may be clearer when there
+are several legitimate branches and pauses. Current LangChain supplies `create_agent` and builds
+its agents on LangGraph; it is inaccurate to treat that ecosystem as stateless chains without
+human intervention. [Its overview](https://docs.langchain.com/oss/python/langchain/overview)
+describes the relationship. You can simplify the agent without replacing the surrounding service.
+
+If the difficulty is **continuing application state after interruption**, inspect the persistence
+configuration before migrating. LangGraph checkpoints use a thread identifier to associate state
+with an execution. A new identifier or an in-memory backend can explain “the agent forgot” without
+implicating graph control flow. [The persistence guide](https://docs.langchain.com/oss/python/langgraph/persistence)
+describes the checkpoint model. In the support example, restarting with the wrong thread ID could
+create a new drafting conversation while the previously approved proposal still exists elsewhere.
+
+If the process must **wait across worker lifetimes and coordinate business actions**, a durable
+workflow system is worth evaluating. With Temporal, external work belongs in Activities, and
+Activities need to be designed for their execution and retry semantics. That boundary allows a
+workflow to call existing drafting code rather than requiring every prompt to be rewritten.
+[Temporal's Activity contract](https://docs.temporal.io/activities) is the relevant starting point.
+It still leaves the ticketing API's ambiguous write to solve.
+
+If the work is **an event-driven application function**, Inngest's recorded steps offer another
+way to place retry boundaries around ordinary code. Saving the draft and delivering an approved
+draft should be separate steps with stable inputs. [The step model](https://www.inngest.com/docs/learn/inngest-steps)
+explains what is recorded and retried. A function's successful completion should not be your only
+record of whether an external reply exists.
+
+If the awkward part is **representing specialist roles and handoffs**, CrewAI may provide a more
+natural vocabulary. Its [Flows](https://docs.crewai.com/en/concepts/flows) also support state and
+control around crews. That is a different reason to adopt it from “we need somewhere to save a
+reply ID.” For a short support response, adding a researcher, writer, and critic needs a quality
+benefit you can demonstrate; the extra handoffs alone are not progress.
+
+If the workflow is already **a collection of internal scripts**, Windmill's
+[scripts and flows](https://www.windmill.dev/docs/getting_started/flows_quickstart) may fit the way
+your team operates it. The model can be one bounded step. Keep the approval and delivery contract
+visible instead of hiding it inside a script called `ask_agent`.
+
+These choices can coexist. A business workflow can invoke an agent graph. A script platform can
+call an existing service. The integration cost then comes from the boundary between them: input
+versions, timeouts, identities, retry ownership, and the records an operator needs to reconcile.
+
+## Keep coding-agent operation a separate decision
+
+A support application calls your code for a business task. Operating an existing coding agent
+starts somewhere else: you want to keep an agent working on a repository, inspect its sessions,
+and control how it accesses tools and files.
+
+That is the starting point for CompozyOS, the project publishing this article. Its daemon manages
+sessions around Agent Client Protocol integrations. The provider executes the agent turn; the
+surrounding system owns session records and operator controls. The
+[session recovery walkthrough](/blog/defining-agent-sessions-compozyos/) explains exactly what that
+separation preserves and what can still be lost.
+
+It would be a poor recommendation to replace the support application's Python graph with
+CompozyOS just because both systems describe their work as agents. There is no implied importer
+for the graph, its checkpoints, or its application tools. You would first need an explicit reason
+to change the unit of work and a plan for those existing records.
+
+For a developer reviewing repository changes, managed sessions can be the relevant abstraction.
+For our support example, they are not the missing delivery contract. Product categories should
+help narrow the investigation, not manufacture a migration.
+
+## Run a failure drill that can change your decision
+
+A demo usually follows the successful path. A useful evaluation interrupts the path where your
+current design becomes ambiguous. Use a disposable ticket or a local receiver, and keep the
+input and expected behavior identical across candidates.
+
+| Interruption                         | Evidence to inspect                      | Passing behavior for this example                              |
+| ------------------------------------ | ---------------------------------------- | -------------------------------------------------------------- |
+| After the draft is saved             | Proposal ID, revision, stored body       | Recover the same proposal without silently replacing it        |
+| While waiting for approval           | Approval record and pending action       | Continue waiting; don't treat a restart as approval            |
+| After the receiver accepts the reply | Receiver record and local delivery state | Reconcile the accepted reply or stop with explicit uncertainty |
+| After the draft is edited            | Approved revision and delivery input     | Refuse delivery under the old approval                         |
+
+For each run, record the input ID, the interruption point, the records left in both systems, and
+the action taken on recovery. “The job eventually went green” is insufficient if two replies were
+sent along the way. Conversely, a run that pauses for reconciliation can satisfy your requirement
+better than a run that retries until it appears successful.
+
+You can reproduce the hardest window without installing any orchestration framework. The
+[retry laboratory](/blog/ai-agent-retries-idempotency/) runs a receiver and a caller with separate SQLite
+stores, terminates the caller after the receiver commits, and then retries. It compares a plain
+write with receiver-enforced idempotency. That small experiment gives the team a shared failure
+model before anyone starts a migration branch.
+
+## Write down what would make you change your mind
+
+Here is a filled decision record for the illustrative support workflow. It assumes the receiver
+offers a documented idempotency contract; if that assumption is false, the decision must change.
+
+```text
+Problem
+  A connection loss after delivery can produce duplicate ticket replies.
+
+Required result
+  Deliver the exact approved revision once, or expose uncertainty for review.
+
+Decision
+  Keep the current drafting agent. Add a durable proposal/delivery record.
+  Use a stable delivery key derived from immutable proposal identity.
+  Reconcile the receiver before retrying an uncertain delivery.
+
+Why this is enough for now
+  The observed defect is at delivery. Draft generation and approval waiting
+  have not shown a failure that requires a different orchestration system.
+
+Revisit when
+  Recovery loses approval state, workflow waits exceed the current host's
+  lifecycle, or operators cannot locate unfinished work reliably.
+
+Required evidence before release
+  Recovery drills pass at all four interruption points above.
+  The receiver's key retention and changed-payload rules are documented.
+```
+
+This record leaves room for a future workflow engine without making it today's answer. It also
+gives a reviewer something concrete to reject: perhaps approval state is already lost, perhaps
+the receiving API expires keys too quickly, or perhaps the application has no operator who can
+resolve uncertainty. Each objection points to missing evidence or a specific design change.
+
+Use the [worksheet](/blog-examples/agent-architecture/decision-record.md) on one failure from your
+own system. If you cannot name the record a replacement would preserve, the decision is probably
+still about a feature label. Once you can name it, the shortlist—and the work you can leave
+alone—becomes much smaller.

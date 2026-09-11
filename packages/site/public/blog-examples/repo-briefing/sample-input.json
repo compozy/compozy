@@ -1,0 +1,73 @@
+{
+    "schema": "repository-briefing-input/v1",
+    "baseline": "efd680301580b84d99ef446edcbde2737476db03",
+    "revision": "a654211d0c78286bbc1ec8190ff6fc35461bb901",
+    "window": {
+        "since_inclusive": "2026-09-10T00:00:00+00:00",
+        "until_exclusive": "2026-09-11T00:00:00+00:00",
+        "clock": "committer timestamp; not merge, deployment, or review time"
+    },
+    "literal_paths": ["."],
+    "scope": {
+        "commit_inventory": "all repository commits in baseline..revision within the time window",
+        "file_inventory": "net baseline-to-revision change in selected paths, regardless of timestamp",
+        "content": "no file bodies, patches, commit messages, author identities, or untracked files"
+    },
+    "counts": {
+        "commits_since_baseline": 4,
+        "commits_in_window": 3,
+        "commits_outside_window": 1,
+        "commits_omitted_by_limit": 0,
+        "files_after_exclusions": 4,
+        "files_excluded_by_name": 1,
+        "files_omitted_by_limit": 0
+    },
+    "commits": [
+        {
+            "source_id": "C:7765e4375f696e404308dd94b7b34d080250f547",
+            "commit": "7765e4375f696e404308dd94b7b34d080250f547",
+            "committed_at": "2026-09-10T09:00:00Z"
+        },
+        {
+            "source_id": "C:5dcd0da5470e9dbf7aa182d4e40b9c6ed9b29854",
+            "commit": "5dcd0da5470e9dbf7aa182d4e40b9c6ed9b29854",
+            "committed_at": "2026-09-10T12:00:00Z"
+        },
+        {
+            "source_id": "C:fa09b73fa7489e4f94215af899fef39a574f7450",
+            "commit": "fa09b73fa7489e4f94215af899fef39a574f7450",
+            "committed_at": "2026-09-10T13:00:00Z"
+        }
+    ],
+    "net_changes": [
+        {
+            "path": "docs/note\twith\nwhitespace.md",
+            "added_lines": 1,
+            "deleted_lines": 0,
+            "binary": false,
+            "source_id": "D1"
+        },
+        {
+            "path": "src/limits.py",
+            "added_lines": 1,
+            "deleted_lines": 1,
+            "binary": false,
+            "source_id": "D2"
+        },
+        {
+            "path": "src/outside.py",
+            "added_lines": 1,
+            "deleted_lines": 0,
+            "binary": false,
+            "source_id": "D3"
+        },
+        {
+            "path": "tests/test_limits.py",
+            "added_lines": 1,
+            "deleted_lines": 0,
+            "binary": false,
+            "source_id": "D4"
+        }
+    ],
+    "unknowns": ["behavior and intent", "test results", "deployment state", "owners and urgency"]
+}

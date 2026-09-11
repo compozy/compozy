@@ -1,4 +1,4 @@
-import { absoluteUrl, siteConfig } from "@/lib/site-config";
+import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 
 interface JsonLdScriptProps {
   data: Record<string, unknown>;
@@ -103,6 +103,7 @@ export interface ArticleJsonLdProps {
   datePublished: string;
   dateModified?: string;
   authorName?: string;
+  authorUrl?: string;
   keywords?: readonly string[];
 }
 
@@ -114,20 +115,22 @@ export function ArticleJsonLd({
   datePublished,
   dateModified,
   authorName,
+  authorUrl,
   keywords,
 }: ArticleJsonLdProps) {
+  const url = absoluteUrl(canonicalPath(path));
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: title,
     name: title,
-    url: absoluteUrl(path),
+    url,
     inLanguage: "en",
     datePublished,
     dateModified: dateModified ?? datePublished,
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": absoluteUrl(path),
+      "@id": url,
     },
     publisher: {
       "@type": "Organization",
@@ -141,6 +144,7 @@ export function ArticleJsonLd({
     data.author = {
       "@type": "Person",
       name: authorName,
+      ...(authorUrl ? { url: authorUrl } : {}),
     };
   }
   if (keywords && keywords.length > 0) data.keywords = keywords.join(", ");

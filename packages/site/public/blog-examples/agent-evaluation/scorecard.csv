@@ -1,0 +1,1 @@
+task_id,attempt,candidate,version,model,baseline_commit,permission_mode,wall_minutes,human_intervention_minutes,human_review_minutes,human_repair_minutes,followups,correctness,acceptance_check,scope_violations,cost_amount,cost_currency,cost_source,evidence_path,notes

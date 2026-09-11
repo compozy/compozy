@@ -103,6 +103,12 @@
             "sourceType": "github",
             "computedHash": "ee53d65b163cd7eb953a930c95841cfe398cc2c0bd24c06508bbaa07c432be35"
         },
+        "exa-search": {
+            "source": "exa-labs/agent-skills",
+            "sourceType": "github",
+            "skillPath": "skills/exa-search/SKILL.md",
+            "computedHash": "a17794b791526225e07ff123b51b0b925bd80469cab5c751f1f6454a5472ffbb"
+        },
         "exa-web-search-free": {
             "source": "pedronauck/skills",
             "sourceType": "github",

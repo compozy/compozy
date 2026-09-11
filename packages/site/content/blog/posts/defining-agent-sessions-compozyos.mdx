@@ -1,212 +1,294 @@
 ---
-title: "CompozyOS Sessions: Agents, Providers, and Optional Souls"
-description: "Define AGENT.md and optional SOUL.md files, select an ACP provider, and understand which session state CompozyOS retains when execution stops."
+title: "Agent Session Recovery: What Survives a Stop?"
+description: "Recover an interrupted AI agent session in CompozyOS. Inspect process state, preserve edits, and choose a continuation path with a diagnosis tree and handoff."
 date: 2026-09-11
+updated: 2026-09-11
 category: runtime
 tags:
   - sessions
-  - providers
-  - agent-definitions
+  - recovery
+  - coding-agents
   - memory
-  - acp
+  - runtime
 author: pedronauck
+cover: ../covers/session-continuity.webp
 ---
 
-A CompozyOS session can exist before an agent process starts. That is intentional: the session is
-the durable record of work, while the provider is the process that executes a turn. Keeping those
-two objects separate makes it possible to create a session, inspect it, choose a provider, and
-retain the record after execution stops.
+Your agent was halfway through a change when the window disappeared. The repository contains a
+new implementation and two modified tests. There is no final message. Before saying “continue,”
+you need to know whether the original agent is still working, which checks finished, and whether
+the next prompt will reach the same process.
 
-This guide builds a repository reviewer to explain four pieces of the setup: `AGENT.md`, the
-provider, the session, and optional `SOUL.md`. The behavior described here was checked against the
-CompozyOS implementation on September 11, 2026. The
-[session lifecycle reference](/docs/sessions/lifecycle) owns the complete transition rules.
+Those questions have different answers. A conversation can remain readable after its process is
+gone. A file edit can survive even when the result of the command that made it was never recorded.
+And a new session can know the project's conventions without knowing where this particular task
+stopped.
 
-## Give each file one job
+This guide follows agent session recovery through CompozyOS. You will end with a way to choose
+between inspecting, attaching, continuing, and starting a linked session—and a handoff that makes
+the unfinished work explicit. The commands describe the implementation checked on September 11,
+2026; the interrupted change is an illustrative scenario, not a captured crash report.
 
-| Object     | What it defines                                                              | What it does not establish                           |
-| ---------- | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `AGENT.md` | Agent name, required instructions, optional provider and permission settings | A running subprocess                                 |
-| Provider   | How CompozyOS launches and authenticates an ACP integration                  | The whole session lifecycle                          |
-| Session    | Workspace association, history, runtime state, and stable identity           | A guarantee that a subprocess survives a reboot      |
-| `SOUL.md`  | Optional persona and communication principles                                | Tool grants, provider choice, or execution authority |
+## Start with three reads
 
-The provider communicates through the **Agent Client Protocol**, or ACP. CompozyOS hosts that
-connection over JSON-RPC and stdio. Some providers speak ACP directly; others use an adapter.
-[Provider documentation](/docs/agents/providers) records which command each built-in launches.
+Resist the urge to submit the original task again. If the first process is still alive, a second
+attempt could overlap its edits. If the process died after an external action, repeating that
+action could repeat the effect. The [Python retry lab](/blog/ai-agent-retries-idempotency/)
+reproduces that missing-receipt problem and shows why a local record alone cannot settle it.
 
-An agent definition is reusable across sessions. A session records one continuing unit of work.
-Changing the definition file should therefore be an explicit authoring decision, not a way to
-assume you have edited every already-running session.
-
-## Set up the runtime before defining the reviewer
-
-Use an installed CompozyOS beta on macOS or Linux and a configured, authenticated provider. For a
-fresh CLI installation:
+Find the original session in the session list, then inspect its status, recap, and history. Replace
+`sess_1234` with the actual ID:
 
 ```bash
-curl -fsSL https://compozy.com/install.sh | sh
-compozy install
-compozy daemon start
-compozy config validate
-```
-
-Bootstrap writes configuration under `~/.compozy` by default and creates the editable `general`
-agent if it is missing. If you already have an installation, inspect your setup before rerunning
-bootstrap: existing agent files are preserved, but bootstrap configuration can be updated.
-The [installation guide](/docs/getting-started/installation) also covers desktop setup.
-
-The examples below inherit the configured provider. They do not require Claude Code specifically.
-For a concrete choice between two integrations, use the
-[Cursor and Claude Code walkthrough](/blog/cursor-vs-claude-code).
-
-## Create a workspace-local agent
-
-In the repository you want reviewed, create `.compozy/agents/repo-reviewer/AGENT.md`:
-
-```markdown
----
-name: repo-reviewer
-permissions: approve-reads
----
-
-Review the requested code paths for correctness and maintainability.
-For each finding, cite the file, explain the failure condition,
-and distinguish a confirmed defect from an unanswered question.
-Read before proposing changes. Do not edit files during a review.
-```
-
-`name` matches the directory. The body supplies the actual review instructions; an empty body is
-invalid. The permission field controls the daemon's policy. The instruction to avoid edits is
-additional task guidance and should not be mistaken for an operating-system sandbox.
-
-Provider selection can remain in the existing configuration:
-
-```toml
-[defaults]
-agent = "general"
-provider = "claude"
-```
-
-That snippet shows the relevant configuration shape, not a complete file to paste over your home.
-An explicit `provider` in `AGENT.md` overrides the default for that definition, and a prompt can
-select its runtime explicitly. Model IDs must be valid for the selected provider.
-
-Agent discovery checks the workspace root, then registered additional roots, then the CompozyOS
-home. The first matching definition wins; lower-priority files are not merged into it. This is
-useful for project-specific reviewers, but it also explains why editing a home-level file may not
-affect a workspace with its own definition.
-
-Inspect the resolved catalog:
-
-```bash
-compozy agent list --workspace "$PWD" -o json
-```
-
-The [AGENT.md reference](/docs/configuration/agent-md) documents the supported fields and
-discovery rules. Unknown fields fail validation rather than becoming arbitrary prompt metadata.
-
-## Add persona only when it adds something useful
-
-The reviewer already has enough instructions to work. If its communication style should be reused
-across tasks, add `.compozy/agents/repo-reviewer/SOUL.md` beside the definition:
-
-```markdown
----
-version: 1
-role: "Repository reviewer"
-tone:
-  - direct
-  - calm
-principles:
-  - "Lead with defects that can change the result."
-  - "State uncertainty when evidence is incomplete."
----
-
-Explain the smallest concrete example that demonstrates each defect.
-Keep preferences separate from correctness findings.
-```
-
-This file shapes persona. Putting `provider`, `tools`, `permissions`, or task scheduling fields
-here is invalid. Its `constraints` and `memory_policy` fields, when used, are persona guidance;
-they do not grant access or configure a memory backend.
-
-CompozyOS resolves and snapshots the soul at session start. The recorded snapshot and digest make
-that persona identifiable later. Editing `SOUL.md` does not silently rewrite an active session;
-new sessions use the latest valid file. If the file is absent, the session proceeds without soul
-injection. See the [soul contract](/docs/agents/soul) for validation and size bounds.
-
-## Observe creation before execution
-
-From the repository root:
-
-```bash
-compozy session new --cwd "$PWD" --agent repo-reviewer --name initial-review
 compozy session list -o json
+compozy session status sess_1234 -o json
+compozy session recap sess_1234 --limit 20
+compozy session history sess_1234
 ```
 
-`--cwd` supplies the absolute workspace path and can register it. The expected initial state is
-`active` with `runtime.status: "unbound"`. This describes the contract; the following diagram is
-not a captured response:
+Status answers what the runtime currently believes about the session. Recap gives a bounded,
+deterministic view of recent retained messages and markers. History lets you inspect the
+conversation beyond that summary. A recap is not another model's claim that everything looks
+fine; it is assembled from persisted records and reports its bounded view.
+
+Look for the last completed tool result, an interrupted turn, a pending request, and the session's
+failure classification. Then compare the conversation to the checkout. In a Git repository, these
+read-only commands give you the current files and revision to compare with the recorded work:
+
+```bash
+git status --short
+git diff --stat
+git diff
+git rev-parse HEAD
+```
+
+Do not attribute every modified file to the missing agent. Some may predate the task or belong to
+another developer. Use the task's starting state and retained history where available, and leave
+uncertain ownership explicit. Recovery should preserve the evidence you already have.
+
+## The session owns the record; the process does the work
+
+In CompozyOS, creating a session allocates a durable ID, workspace association, permission policy,
+and storage. It does not immediately launch the provider. A newly created session can be `active`
+with `runtime.status: "unbound"`; the first prompt binds its execution runtime.
+
+That is why “active” alone cannot tell you that a model is generating text. It describes the
+logical session's lifecycle. The daemon also exposes runtime and activity information so clients
+do not have to infer liveness from an old assistant message.
+
+The pieces fit together like this:
 
 ```text
-AGENT.md + optional SOUL.md + workspace
-                  |
-                  v
-          durable session created
-          state: active / runtime: unbound
-                  |
-               first prompt
-                  |
-                  v
-          provider process bound
-          events written during execution
+CLI, Web, or desktop
+        |
+        v
+CompozyOS daemon
+  session identity + metadata + retained events
+        |
+        | ACP connection, when a runtime is bound
+        v
+Agent provider process
+        |
+        v
+Configured model service
 ```
 
-Replace `sess_1234` with the ID returned by creation, then request a review:
+This is an ownership diagram, not a deployment requirement. The local daemon manages the session;
+the selected provider determines how agent execution and model access happen. Running a local
+runtime does not imply local model inference.
+
+An `AGENT.md` file supplies reusable instructions and configuration. An optional `SOUL.md` supplies
+persona. Neither is the running process or the conversation archive. CompozyOS snapshots the soul
+at session creation, so editing that file is not a way to rewrite the persona of an existing
+session. See the [agent definition](/docs/configuration/agent-md) and [soul](/docs/agents/soul)
+contracts when changing those inputs.
+
+This separation is the useful part of the “operating system for AI agents” idea: the interface can
+come and go while one runtime owns the record and the operations on it. It also gives recovery a
+place to start. You can ask the daemon what happened even when there is no provider process left
+to answer.
+
+## If only the interface closed, attach to the live session
+
+A browser refresh or a closed CLI does not by itself mean the daemon's session stopped. Check for
+an eligible live session:
+
+```bash
+compozy session list --resumable
+compozy session resume sess_1234
+```
+
+Despite its name, **`session resume` is an attach operation**. It acquires a holder lease on an
+eligible live session. It does not launch a replacement provider, load a stopped session, or start
+another attempt at your task.
+
+The distinction is easy to verify in the
+[CLI client](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/cli/client_sessions.go#L152):
+`ResumeSession` sends a request to the session's `/attach` endpoint. The
+[manager](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/session/manager_attach.go#L11)
+acquires the attach lock and updates the live session snapshot.
+
+If another holder has a live lease, attach can be refused. That is a reason to inspect the existing
+work and holder, not to create a duplicate worker. If the record is still busy, determine what it
+is doing before issuing more instructions. The [attach reference](/docs/sessions/resume) covers
+lease duration and conflicts.
+
+## If the session stopped normally, continuation uses a prompt
+
+A deliberate stop ends the provider runtime while preserving the session's directory, metadata,
+events, and selected runtime. If you need to stop an agent before handing the checkout to another
+worker, request a stop and wait for its reported result:
+
+```bash
+compozy session stop sess_1234 --wait -o json
+```
+
+Read that result. A requested stop and verified process termination are different facts. CompozyOS
+first requests cooperative cancellation and can escalate to stopping or killing the process.
+When it cannot verify termination, it reports that uncertainty instead of declaring the work
+stopped. Do not start a competing writer on the assumption that clicking Stop was sufficient.
+
+For an eligible stopped session, a **normal prompt** is the continuation path:
 
 ```bash
 compozy session prompt sess_1234 \
-  "Review the error handling in the repository's main entry point. Cite the relevant files."
-compozy session history sess_1234
-compozy session recap sess_1234
+  "Continue from the retained history. First inspect the current diff and identify the last completed verification. Do not repeat an external action without checking its result."
 ```
 
-A successful creation proves that CompozyOS accepted the logical session. Only the prompt tests
-provider launch, authentication, and the model turn. This separation is useful when diagnosing an
-installation: you can identify which stage failed instead of treating every error as an agent error.
+The implementation routes a normal prompt through
+[`lookupOrResumePromptSession`](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/session/manager_prompt_request.go#L75),
+which can restore an eligible stopped session before submitting work. This keeps the CompozyOS
+session ID and retained history. It is a different path from the public attach command.
 
-## Know what remains after a stop
+Restoration still depends on valid workspace and provider infrastructure. Preserving an ID does
+not guarantee that credentials remain valid, that a directory still exists, or that every
+provider can reproduce its private execution state. Inspect a restoration failure rather than
+interpreting it as evidence that the retained conversation disappeared.
 
-Live events are stored in the session's `events.db`. After stop, CompozyOS materializes an
-operator-readable forensic `ledger.jsonl`. That ledger is history: it is not a memory scope and
-the recall pipeline does not ingest it as memory. The
-[memory documentation](/docs/memory) explains the separate storage and recall model.
+## If the provider died, preserve the failed attempt
 
-The commands for continuing and inspecting work have different purposes:
+An unexpected provider exit can leave a terminal `process_exit` failure. That session remains
+available as read-only history; ordinary prompting and attach do not revive its dead runtime.
+The [resume guard](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/session/manager_resume.go#L140)
+checks terminal process failure against session health before allowing restoration.
 
-| Operation              | Purpose                                                              |
-| ---------------------- | -------------------------------------------------------------------- |
-| `session history`      | Read the retained conversation                                       |
-| `session recap`        | Read a bounded reorientation summary                                 |
-| `session resume`       | Acquire an attach lease on an eligible live session                  |
-| `session prompt`       | Submit work; eligible stopped sessions can restore through this path |
-| `session new --parent` | Create a new session with same-workspace parent provenance           |
+A daemon crash requires another check: did the provider die too? The implementation
+[classifies interrupted metadata](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/session/liveness.go#L21)
+using process-exit verification. If it cannot prove the process ended, the session can remain
+`stopping` with a verification failure. An unbound session has no process to lose and is treated
+differently. These details are why recovery should use current status instead of assuming that
+all records visible after a restart are safe to rerun.
 
-Closing a terminal is different from losing the daemon or provider process. Retained history does
-not promise that a live subprocess survives either. A terminal `process_exit` remains read-only;
-inspect its status and create a new session linked to it when needed:
+For a confirmed terminal failure, create a new session in the **same workspace**, linked to the
+old one:
 
 ```bash
-compozy session status sess_1234 -o json
-compozy session recap sess_1234
-compozy session new --cwd "$PWD" --agent repo-reviewer --parent sess_1234
+compozy session new --cwd "$PWD" --agent general \
+  --parent sess_1234 --name pagination-continuation
 ```
 
-That parent link is provenance. It does not apply the TTL and permission narrowing of
-[safe spawn](/docs/autonomy/safe-spawn), and it is not proof that every provider's private context
-was transferred. Supply the continuation task explicitly.
+Run this from the original repository and select the agent you intend to use. The parent link
+records provenance: this attempt follows that attempt. It does not copy every piece of provider
+context, transfer an acceptance decision, or apply the lifetime and permission restrictions of
+[safe spawn](/docs/autonomy/safe-spawn). Give the new session a continuation brief explicitly.
 
-You now have a reusable reviewer definition and a way to distinguish its instructions, persona,
-execution, and history. Those boundaries make later automation easier: a scheduled job can select
-the same agent without turning the agent file into a transcript, scheduler, or credential store.
+If the conversation ends with a dangling tool call, you can first inspect planned transcript
+repairs:
+
+```bash
+compozy session repair sess_1234 --dry-run
+```
+
+The repair operation can append interrupted results and a terminal error for unfinished turns.
+It does not finish the command or undo its side effects. A repaired transcript saying “interrupted”
+therefore leaves a real question: what happened to the file, job, or external system involved?
+Inspect that result directly before deciding whether to repeat the operation.
+
+## Keep history, memory, and the checkout separate
+
+Live session events are retained in `events.db`. On stop, CompozyOS materializes `ledger.jsonl` as
+an operator-readable projection. The ledger is forensic history, not a memory scope; the recall
+pipeline does not ingest it as reusable memory. The event store remains the source used to
+reconstruct the conversation. [Session storage](/docs/sessions) and the
+[memory system](/docs/memory/system) document those boundaries.
+
+For the pagination task, those records answer different questions. History may say the agent
+changed the pagination link. The current diff shows whether the change is still present. Memory
+might supply the project's rule that URL state owns filters. None of those facts establishes
+that the browser scenario passed on the current patch.
+
+There is also a workspace checkpoint, `project_checkpoint_summary.md`, that can carry a generated
+summary of previous session work into a new session. You can inspect it from the original workspace:
+
+```bash
+compozy memory show project_checkpoint_summary.md --scope workspace
+```
+
+This helps with continuity, but it is historical context. A failed checkpoint update leaves the
+previous version intact, so its description of work may predate the interruption you are diagnosing.
+Compare it with the session history and current files. The checkpoint's own
+[injection contract](https://github.com/compozy/compozy/blob/9a792f51a72009645eb063c6a33a4eb0efc66b3a/internal/memory/checkpoint_summary.go#L32)
+treats historical asks as stale unless renewed by the current request. It cannot decide that an
+old task should resume or that an unverified patch is accepted.
+
+The same distinction applies to authority. A prior approval in a transcript is evidence of a
+decision at that time, not a universal grant for the next session. Pending interactions can survive
+while their provider turn disappears; resolving an orphaned interaction does not revive that
+turn. Check the [permission contract](/docs/sessions/permissions) before relying on a remembered
+or resumed approval.
+
+## Leave the next attempt a concrete handoff
+
+Carry over the original acceptance criteria, not just the last conversation summary. The
+[coding agent task brief](/blog/autonomous-coding-agent-setup/) gives a worked example of the
+behavior and evidence a reviewer needs at the end of the next attempt.
+
+A useful handoff is shorter than the transcript and more specific than “pick up where we left off.”
+Fill this template from the retained evidence and the actual checkout. The placeholders are
+intentional; do not fill a missing test result with an inference from the final message.
+
+```text
+Continuation task: Preserve issue filters across pagination
+
+Previous attempt
+Session: [original session ID]
+Workspace: [absolute path and workspace identity]
+Stopped because: [status/failure observed, with timestamp]
+Original process: [verified stopped / unresolved]
+
+Current artifact
+Revision: [commit ID]
+Uncommitted changes: [files and relevant diff]
+Unrelated changes to preserve: [known list, or ownership unknown]
+
+What is established
+[Completed edits and the evidence for each]
+[Checks with actual results and the revision they checked]
+
+What remains uncertain
+[Last incomplete tool call or missing result]
+[External action whose outcome still needs inspection]
+
+Next step
+Inspect the current diff, then verify the page-two filtered URL.
+Reuse the existing route suite and browser scenario from the brief.
+Do not redo completed work without a reason grounded in the current files.
+
+Done when
+[Original acceptance criteria and required evidence]
+```
+
+You can now choose the next operation from the evidence:
+
+```text
+Is the original runtime confirmed live?
+  Yes -> inspect it; attach if eligible.
+  Uncertain / stopping -> resolve liveness before another writer starts.
+  No -> inspect the stopped record.
+        Eligible normal stop -> send an explicit continuation prompt.
+        Terminal process_exit -> create a linked session with a handoff.
+```
+
+In the opening example, the useful recovery result is not merely a chat window that opens again.
+It is a known process state, a preserved patch, an honest list of unfinished checks, and one next
+action that will move the work toward its original acceptance criteria.

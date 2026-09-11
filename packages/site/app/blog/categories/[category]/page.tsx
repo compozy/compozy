@@ -29,11 +29,14 @@ function isCategory(slug: string): slug is BlogCategory {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { category } = await params;
   if (!isCategory(category)) return {};
-  return createPageMetadata({
-    title: `${categoryLabel(category)} posts`,
-    description: `Posts filed under ${categoryLabel(category)}.`,
-    path: `/blog/categories/${category}`,
-  });
+  return {
+    ...createPageMetadata({
+      title: `${categoryLabel(category)} posts`,
+      description: `Posts filed under ${categoryLabel(category)}.`,
+      path: `/blog/categories/${category}`,
+    }),
+    robots: { index: postsByCategory(category).length > 0, follow: true },
+  };
 }
 
 export default async function CategoryArchivePage({ params }: PageProps) {

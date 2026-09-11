@@ -21,6 +21,7 @@ coverage.html
 .codex/security-reports/*
 .codex/prompts
 .codex/artifacts
+.codex/research
 .resources/
 .old_project/
 node_modules/

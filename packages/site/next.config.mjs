@@ -12,6 +12,35 @@ const config = {
   reactCompiler: true,
   reactStrictMode: true,
   trailingSlash: true,
+  redirects() {
+    return [
+      {
+        source: "/blog/crewai-alternatives/",
+        destination: "/blog/git-repository-briefing-python/",
+        permanent: true,
+      },
+      {
+        source: "/blog/langchain-alternatives-production-ai-agents/",
+        destination: "/blog/agent-framework-architecture/",
+        permanent: true,
+      },
+      {
+        source: "/blog/langgraph-alternatives/",
+        destination: "/blog/ai-agent-retries-idempotency/",
+        permanent: true,
+      },
+      {
+        source: "/blog/what-is-an-os-for-ai-agents/",
+        destination: "/blog/defining-agent-sessions-compozyos/",
+        permanent: true,
+      },
+      {
+        source: "/blog/orca-vs-openhands/",
+        destination: "/blog/cursor-vs-claude-code/",
+        permanent: true,
+      },
+    ];
+  },
   turbopack: {
     root: repoRoot,
   },

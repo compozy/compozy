@@ -3,6 +3,7 @@ import { BlogAvatar } from "./avatar";
 
 export interface AuthorMetaProps {
   handle: string;
+  href?: string;
   initial: string;
   role?: string;
   size?: "sm" | "md" | "lg";
@@ -12,18 +13,31 @@ export interface AuthorMetaProps {
 
 export function AuthorMeta({
   handle,
+  href,
   initial,
   role,
   size = "sm",
   layout = "row",
   className,
 }: AuthorMetaProps) {
+  const name = href ? (
+    <a
+      href={href}
+      rel="author"
+      className="underline decoration-line underline-offset-4 hover:decoration-current"
+    >
+      {handle}
+    </a>
+  ) : (
+    handle
+  );
+
   if (layout === "stacked") {
     return (
       <div className={cn("flex items-center gap-3", className)}>
         <BlogAvatar initial={initial} size={size} />
         <div>
-          <p className="font-sans text-sm font-medium text-fg">{handle}</p>
+          <p className="font-sans text-sm font-medium text-fg">{name}</p>
           {role && <Eyebrow className="text-muted">{role}</Eyebrow>}
         </div>
       </div>
@@ -33,7 +47,7 @@ export function AuthorMeta({
   return (
     <div className={cn("inline-flex items-center gap-2.5", className)}>
       <BlogAvatar initial={initial} size={size} />
-      <Eyebrow className="text-muted">{handle}</Eyebrow>
+      <Eyebrow className="text-muted">{name}</Eyebrow>
     </div>
   );
 }

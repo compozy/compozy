@@ -1,5 +1,9 @@
 # Blog editorial rework
 
+The subsequent [SEO audit](2026-09-11-blog-seo.md) updates six titles/descriptions, moves three
+misleading comparison URLs with permanent redirects, and records the latest verification.
+The route names and validation below describe the editorial checkpoint before that follow-up.
+
 ## Outcome and scope
 
 Reworked the eight articles introduced by `9a792f51a720` into six distinct reader tasks.
@@ -108,8 +112,32 @@ article discovery, two permanent URL redirects, and reader downloads. The owning
 
 ## Validation
 
-Validation is in progress. Final results will replace this paragraph after the affected site
-gate, production build, and browser/HTTP checks complete.
+- Changed content, UI diff, test adjustments, and downloadable examples were reviewed. The corpus
+  reader performed a final editorial acceptance check; no unresolved editorial blockers remain.
+- `make gate`: passed the affected `js-packages-site` lane with zero lint warnings/errors,
+  successful typechecking, and **56 test files / 330 tests**. `make gate-status` reported
+  `CURRENT-PASS`. Log: `.cache/blog-rework-gate.log`.
+- `bunx turbo run build --filter=./packages/site`: passed after the final content/test corrections.
+  Log: `.cache/blog-rework-final-build.log`.
+- `npx react-doctor@latest --verbose --diff`: **100/100**, no issues across the changed React
+  files. Log: `.cache/blog-rework-react-doctor.log`.
+- Real HTTP checks against the final production build: all eight current articles return 200,
+  with one correct H1, canonical, Article JSON-LD, valid section anchors, and available cover
+  images. The six new covers are used by OpenGraph and Twitter metadata. Both retired routes
+  return 308 to their replacements; requests without trailing slashes also reach the replacement.
+  RSS and sitemap contain all eight current articles and neither retired route. All six downloads
+  return 200 with byte-identical content. Evidence: `.cache/blog-rework-http.json`.
+- Browser checks at 390px: all six revised routes have one H1, a decoded cover with empty alt,
+  and document width equal to viewport width. Evidence: `.cache/blog-rework-mobile.json`.
+  Desktop review at 1440px confirmed index hierarchy, distinct loaded cover cards, and the
+  featured retry article. Copy-code feedback displayed `Copied`; no browser page errors were
+  reported. Screenshots: `.cache/blog-rework-index-desktop.png`,
+  `.cache/blog-rework-cards-desktop.png`, and `.cache/blog-rework-article-mobile.png`.
+- Article-local docs/blog/download links resolve to current source files. The parent reran the
+  retry lab and reproduced the published output. `git diff --check` passed.
+
+The browser used for QA is closed after capture. A loopback-only site preview is intentionally
+available at `http://127.0.0.1:43191/blog/` for the user's review; this is not a deployment.
 
 Limits: no live coding-agent comparison, provider authentication/model execution, production
 session interruption, or runtime scheduling was performed. The posts do not claim those results.

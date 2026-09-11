@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { generateMetadata, generateStaticParams } from "../../app/blog/[slug]/page";
-import { allPosts } from "../blog";
+import { allPosts, authorByHandle } from "../blog";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -31,6 +31,22 @@ describe("blog metadata", () => {
       expect(metadata.openGraph?.title, post.slug).toBe(post.title);
       expect(metadata.openGraph?.description, post.slug).toBe(post.description);
       expect(metadata.openGraph?.url, post.slug).toBe(`https://compozy.com${post.permalink}/`);
+      const author = authorByHandle(post.author);
+      expect(metadata.authors, post.slug).toEqual([
+        { name: author?.name ?? post.author, url: author?.github },
+      ]);
+      expect(metadata.openGraph, post.slug).toMatchObject({
+        type: "article",
+        publishedTime: post.date,
+        modifiedTime: post.updated ?? post.date,
+        authors: author?.github ? [author.github] : undefined,
+        tags: post.tags,
+      });
+      expect(metadata.robots, post.slug).toEqual({
+        index: true,
+        follow: true,
+        googleBot: { index: true, follow: true, "max-image-preview": "large" },
+      });
       expect(metadata.twitter?.title, post.slug).toBe(post.title);
       expect(metadata.twitter?.description, post.slug).toBe(post.description);
     }

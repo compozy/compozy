@@ -1,0 +1,231 @@
+---
+title: "AI Agent Retries: Prevent Duplicate Actions"
+description: "Make AI agent retries safe with receiver-enforced idempotency. Run a Python crash lab, reproduce duplicate comments, and test recovery after an external write."
+date: 2026-09-11
+updated: 2026-09-11
+category: engineering
+featured: true
+tags:
+  - langgraph
+  - python
+  - reliability
+  - agent-orchestration
+cover: ../covers/agent-retries.webp
+author: pedronauck
+---
+
+An agent has finished reviewing a pull request. You approve its comment. The publishing API
+accepts the request, creates comment 417, and returns a response. Before your worker saves that
+response, its process dies.
+
+The worker restarts. Its database says the comment has no receipt. Should it publish again?
+
+If it does, the reviewer may see the same comment twice. If it skips publication, that same
+recovery rule would lose a comment when the first request never reached the API. Both histories
+look identical from the caller's database: a pending operation with no recorded result.
+
+AI agent retries need an answer to this ambiguity. You can reproduce it without an LLM or an agent framework. The
+[downloadable Python lab](/blog-examples/retry-lab/retry_lab.py) below creates two SQLite databases,
+kills a worker at the awkward point, and retries. Then it runs the same failure with a receiver
+that recognizes repeated requests. The difference is one remote comment versus two.
+
+This is a deliberately constructed example, not a production incident. Its value is that you can
+move the failure point and inspect exactly what survives.
+
+## Make the failure happen on purpose
+
+Download [retry_lab.py](/blog-examples/retry-lab/retry_lab.py), save it in an empty directory, and run:
+
+```bash
+python3 retry_lab.py
+```
+
+The script uses Python's standard library. It makes no network requests, needs no credentials,
+and creates temporary databases that it removes when the demonstration finishes. These are local
+stand-ins for an agent's database and a separate publishing service; the script does not call a
+real pull request API.
+
+Each scenario starts a fresh worker process. The caller has already saved the operation ID and
+comment body. The receiver commits the comment to its own database. The worker then terminates
+with `os._exit(23)`, before writing a receipt to the caller's database. A second process opens those
+same files and tries to finish the operation.
+
+Here is the complete output from a run with Python 3.14.7 on September 11, 2026:
+
+```text
+naive: after crash -> comments=1, local_receipt=None
+naive: after retry -> comments=2, local_receipt=2
+naive: after another run -> comments=2, local_receipt=2
+idempotent: after crash -> comments=1, local_receipt=None
+idempotent: after retry -> comments=1, local_receipt=1
+idempotent: after another run -> comments=1, local_receipt=1
+idempotent: changed payload rejected -> same key, different body
+All assertions passed. Temporary databases removed.
+```
+
+The first line is the failure worth studying. One comment exists, and the caller knows about
+none. The second line shows recovery creating another comment and saving its ID, `2`. The third
+shows why checking for a local receipt remains useful: later runs stop creating comments. It just
+starts protecting the operation one request too late.
+
+The second scenario loses the same response. Its retry returns the ID of the existing comment,
+`1`, instead of creating a new one. The script asserts both outcomes and rejects reuse of that
+operation ID with different content. These counts describe the constructed failure; they are not
+a reliability measurement for a deployed system.
+
+## The database is telling the truth, but only its own truth
+
+The publishing worker in the lab follows this order. This is an excerpt; the download includes
+database setup, process management, and assertions.
+
+```python
+key = operation_id if mode == "idempotent" else None
+receipt = publish(root, key, body)
+if crash:
+    os._exit(CRASH_EXIT)  # Deliberately terminate without caller cleanup.
+with transaction(root / "caller.db") as db:
+    db.execute("UPDATE operations SET receipt = ? WHERE id = ?", (receipt, operation_id))
+```
+
+`publish()` commits to `receiver.db` before returning. The later update commits to `caller.db`.
+There is no transaction covering both. The missing receipt means the caller did not record
+completion. It does not tell you whether the receiver performed the action.
+
+Moving the local write earlier changes the failure. Mark the operation complete before calling
+the receiver, then stop the process between those steps: recovery sees completion even though no
+comment exists. A `sending` state gives operators a more honest description, but it cannot reveal
+what happened at the receiver either.
+
+A shorter interval between the two commits still leaves an interval. A longer retry delay leaves
+the same missing information. A lock around the caller can prevent two workers from competing,
+but cannot make a dead worker's unrecorded response reappear. These techniques may solve other
+problems; none lets this caller decide whether the first comment exists.
+
+This is why the lab uses separate databases. Putting publication and the receipt in one SQLite
+transaction would demonstrate a different, easier problem: two writes under one owner's atomic
+commit. A remote publishing API is outside that transaction.
+
+## Give the receiver enough information to recognize a retry
+
+In the repaired scenario, the caller sends the persisted operation ID as the idempotency key.
+The receiver keeps that key alongside the comment. On a repeated request, it looks up the
+original result and checks that the content still matches.
+
+The receiver's decision is small enough to read in full:
+
+```python
+with transaction(root / "receiver.db") as db:
+    db.execute("BEGIN IMMEDIATE")
+    prior = db.execute("SELECT id, body FROM comments WHERE key = ?", (key,)).fetchone()
+    if prior:
+        if prior[1] != body:
+            raise ValueError("same key, different body")
+        return prior[0]
+    cursor = db.execute("INSERT INTO comments (key, body) VALUES (?, ?)", (key, body))
+    comment_id = cursor.lastrowid
+```
+
+The `transaction()` helper commits on success, rolls back on errors, and closes the connection.
+The comment table has a unique key column. Within this simulation, the receiver's transaction
+covers both recognizing an existing operation and creating a new comment. `BEGIN IMMEDIATE`
+acquires SQLite's write transaction before that decision; the unique constraint also belongs to
+the receiver. The lab drives requests sequentially and does not claim a concurrency stress test.
+
+After the crash, the caller sends `review-42/comment-1` again. The receiver finds it and returns the
+saved comment ID. It does not need the caller to have received the first response.
+
+Three details matter when adapting this pattern. Generate and persist the operation ID **before**
+the first request. Reuse it when retrying that operation. Create a new ID when the user intentionally
+requests a new publication, even if the body happens to be identical. A content hash alone cannot
+distinguish two legitimate requests to send the same text.
+
+The receiving API also has to implement this contract. Adding a header named `Idempotency-Key`
+to an arbitrary service does not establish it. For a concrete example of a documented contract,
+[Stripe's API](https://docs.stripe.com/api/idempotent_requests) stores the initial result for a key,
+checks subsequent parameters, and describes when records may be pruned. Once a key has been pruned,
+reusing it can create a new request. Retention is part of the retry policy you must design around.
+
+## Keep approval attached to the thing being sent
+
+The retry problem becomes harder if the agent generates a fresh comment while resuming. An
+operation approved as “Please add a timeout” could return as a different recommendation after a
+new model call. Even a receiver that suppresses duplicates cannot tell whether a human approved
+the new words.
+
+Save an immutable proposal before asking for approval. Include the destination, operation type,
+and exact content in what the reviewer sees. Persist the approval against that proposal's version
+or digest, then publish the same saved object. Reopening a mutable draft after approval reintroduces
+the gap.
+
+A dispatch boundary can express the check like this. This is pseudocode for the application
+contract, separate from the runnable retry lab:
+
+```python
+proposal = load_immutable_proposal(proposal_id)
+approval = load_approval(proposal_id)
+
+require_authorized_approver(approval.actor, proposal.destination)
+if approval.proposal_digest != digest(proposal.canonical_bytes):
+    raise ValueError("This version needs approval")
+
+publish(proposal.destination, proposal.body, idempotency_key=proposal.operation_id)
+```
+
+The digest establishes which bytes the decision covered; it does not establish who had permission
+to decide. Both checks matter. Define the serialization once so the approval screen and dispatcher
+hash the same representation. Include the destination: an unchanged comment sent to a different
+repository is a different action.
+
+For edits, create a new proposal version and obtain approval for it. Retries of an already approved,
+unchanged proposal keep its operation ID. Avoid generating a new ID just because a worker has
+restarted; that would tell the receiver to treat the retry as a new publication.
+
+## Where LangGraph fits
+
+LangGraph already supports the pause and persistence this workflow needs. Its
+[checkpointers](https://docs.langchain.com/oss/python/langgraph/persistence) retain thread-scoped graph
+state, while stores handle data outside that state. A persistent checkpointer and a stable thread
+ID address recovery of the graph. They do not make the external API participate in its commit.
+
+One replay rule is especially relevant: when a LangGraph interrupt resumes, execution restarts
+at the beginning of the interrupted node. Code before `interrupt()` runs again. The
+[interrupt documentation](https://docs.langchain.com/oss/python/langgraph/interrupts) describes this
+explicitly, including the need for side effects before an interrupt to tolerate repetition.
+
+Give the graph a saved proposal to review. Keep the approval node focused on that proposal and
+its decision. Put publication in a subsequent step that uses the receiver's retry contract. That
+separation makes approval easier to inspect, but publication still needs protection against the
+crash reproduced above.
+
+If your graph otherwise serves the application, this failure alone gives you no reason to replace
+it. Another orchestrator would still need a recovery policy for this same API call. Evaluate the
+boundary before spending a migration on the wrong layer.
+
+The [agent architecture decision guide](/blog/agent-framework-architecture/) works through
+that choice with an approval and delivery record, then defines when a workflow engine would help.
+
+## When the receiver cannot help
+
+The lab's fix is strongest because the simulated receiver owns the comment and its deduplication
+record in the same transaction. If that receiver instead sent an email through another service,
+then wrote its own record, the ambiguity would move one hop downstream.
+
+For an API without idempotency support, look for a client-supplied identifier that the service
+stores and lets you query. After an uncertain result, reconciliation can locate the object before
+another create request. Check the lookup's guarantees: an eventually consistent search may report
+nothing while the original object already exists. Searching for matching text also confuses a
+retry with an intentional second comment.
+
+Where there is no reliable identifier or lookup, record the operation as having an unknown outcome
+and surface that uncertainty for reconciliation. The appropriate policy depends on the action:
+leaving a draft pending has different consequences from repeating an irreversible external write.
+A blind retry policy cannot remove that choice.
+
+Before enabling automatic retries, adapt the downloadable lab's failure point to a disposable
+instance of your actual integration. Stop the worker after the service accepts a write and before
+your application records the response. Restart with the same persisted operation, inspect the
+external objects, and check which receipt recovery stores. Then change the content while retaining
+the key and verify that the receiver rejects it.
+
+That exercise leaves you with a concrete answer when a user asks whether their agent published
+twice. A green “completed” badge cannot provide it on its own.

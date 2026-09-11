@@ -11,18 +11,18 @@ describe("static public route metadata", () => {
   it("publishes canonical metadata for the blog index", async () => {
     const { blogMetadata: metadata } = await import("@/app/blog/metadata");
 
-    expect(metadata.title).toBe("Blog");
+    expect(metadata.title).toBe("AI Agent Engineering Guides and Experiments");
     expect(metadata.description).toBe(
-      "Field notes on building, operating, and extending CompozyOS: loops, automation, memory, permissions, and the runtime behind them."
+      "Practical experiments, guides, and reusable tools for reviewing AI agent work, recovering interrupted tasks, and building automation you can inspect."
     );
     expect(metadata.alternates?.canonical).toBe("/blog/");
-    expect(metadata.openGraph?.title).toBe("Blog");
+    expect(metadata.openGraph?.title).toBe(metadata.title);
     expect(metadata.openGraph?.description).toBe(metadata.description);
     expect(metadata.openGraph?.url).toBe("https://compozy.com/blog/");
     expect(metadata.openGraph?.siteName).toBe(siteConfig.name);
     expect(metadata.twitter).toMatchObject({
       card: "summary_large_image",
-      title: "Blog",
+      title: metadata.title,
       description: metadata.description,
     });
   });

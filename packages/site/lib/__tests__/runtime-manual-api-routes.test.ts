@@ -123,11 +123,20 @@ function normalizeDocumentedRoute(raw: string): string {
 
 function extractDocumentedAPIRoutes(content: string): string[] {
   const routes = new Set<string>();
-  // `(?<!\/docs)` keeps the generated reference URLs (`/docs/api/...`) out of the daemon-route scan.
+  // Consume absolute URLs whole so another site's /api path cannot be mistaken for ours.
+  // `(?<!\/docs)` keeps generated reference links out of the relative daemon-route scan.
   for (const match of content.matchAll(
-    /(?:https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?)?(?<!\/docs)(\/api\/[A-Za-z0-9_:$<>{}./?-]+)/g
+    /https?:\/\/[^\s"'`<>()]+|(?<!\/docs)\/api\/[A-Za-z0-9_:$<>{}./?-]+/g
   )) {
-    const normalized = normalizeDocumentedRoute(match[1] ?? "");
+    let raw = match[0];
+    if (/^https?:\/\//.test(raw)) {
+      const url = new URL(raw);
+      if (!["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "compozy.com"].includes(url.hostname)) {
+        continue;
+      }
+      raw = url.pathname;
+    }
+    const normalized = normalizeDocumentedRoute(raw);
     if (
       normalized.startsWith("/api/") &&
       !ignoredExternalPrefixes.some(prefix => normalized.startsWith(prefix))
@@ -149,6 +158,20 @@ function isCoveredByRegisteredRoute(
 }
 
 describe("manual API route references", () => {
+  it("distinguishes external API citations from local daemon routes", () => {
+    const routes = extractDocumentedAPIRoutes(`
+      [Stripe](https://docs.stripe.com/api/idempotent_requests)
+      [Nested external API](https://example.org/reference/api/unknown)
+      [Generated reference](/docs/api/sessions)
+      GET /api/sessions
+      GET http://localhost:4318/api/sessions/sess_1
+      GET https://compozy.com/api/missing-route
+    `);
+
+    expect(routes).toEqual(["/api/missing-route", "/api/sessions", "/api/sessions/sess_1"]);
+    expect(isCoveredByRegisteredRoute("/api/missing-route", implementedRoutes())).toBe(false);
+  });
+
   it("points documented CompozyOS /api routes at implemented HTTP or UDS handlers", () => {
     const registeredRoutes = implementedRoutes();
     const violations = listManualDocs(contentRoot).flatMap(doc =>
