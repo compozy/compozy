@@ -21,11 +21,11 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-paired-device | Iris | Truthful Surface Tour | Blocked (needs human verify) | | |
-| 2 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-operator-surface-truth | Iris | Truthful Surface Tour | Blocked (needs human verify) | | |
-| 3 | CH-mobile-shell-touch-tier | J-operate-desktop-shell / APP-mobile-touch-tier | Marina | Touch Tier Tour | Fixed | BUG-20260911-session-rail-docks-on-touch-tier | |
+| 1 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-paired-device | Iris | Truthful Surface Tour | Fail | BUG-20260911-private-ui-origin-rejected-on-forwarded-tier | |
+| 2 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-operator-surface-truth | Iris | Truthful Surface Tour | Fail | BUG-20260911-private-tier-loopback-guard-inert | |
+| 3 | CH-mobile-shell-touch-tier | J-operate-desktop-shell / APP-mobile-touch-tier | Marina | Touch Tier Tour | Fail | BUG-20260911-session-rail-docks-on-touch-tier | |
 
-Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
+Status legend: `Pending | Pass | Fixed | Fail | Skipped | Blocked (needs human verify) | Blocked (human decision)` — `Fail` = walked, expected observable not confirmed, fix pending (tracker `fail` / `blocked-verify` per row; see Session Debriefs and the addendum for which applies and why). Rows 1–2 verdicts come from the remote-leg addendum below (earlier same-day blocked-verify runs retained in scenario history).
 
 > Row 3 updated by the repair re-walk addendum at the end of this report.
 
@@ -117,6 +117,52 @@ None this run. BUG-20260911-session-rail-docks-on-touch-tier is recorded with ev
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 1 · Cosmetic 0
 - **Coverage:** 2/2 charters walked to a recorded verdict; 3/3 in-scope scenarios settled (1 fail, 2 blocked-verify); T8, stream-ticket, remote-admission, and live-stream legs disclosed as not reachable in-lab (named blockers).
 - **Verdict: not ready** — the changed operator surface is truthful locally and the touch-tier chrome holds except T6: fix and re-walk `BUG-20260911-session-rail-docks-on-touch-tier`; the remote-tier legs stay blocked-verify pending the user-provisioned authorized `TS_AUTHKEY`.
+
+---
+
+## Addendum — 2026-09-11 (later): remote-leg walk with authorized provider
+
+- **Scope:** the previously blocked remote-tier legs of `CH-gateway-paired-operator-surface` (Truthful Surface Tour), after the user provisioned an authorized Tailscale auth key. Branch renamed `mobile-surface-truth`; build rebuilt at HEAD `b74d29927` (daemon + web bundle).
+- **Environment:** fresh isolated lab `compozy-mobile-surface-truth-remote-20260911-125112-264736` — daemon `http://127.0.0.1:32821`, lab `COMPOZY_HOME` `/tmp/compozyqa-924e1a6ed906/runtime`; bundled tailscale extension installed with network confirmation recorded; `TS_AUTHKEY` bound through the product's extension-secret vault (`extension secrets set … --value-stdin`; never echoed, never persisted in logs or evidence — verified by byte-scan). Browser driver: Playwright 1.62.1 Chromium as before.
+- **Secret handling:** the key was read only into the lab daemon's environment and the extension vault binding; `/tmp/opencode/ts-authkey` was deleted after the walk; device-credential cookie jars were deleted with it; no log, evidence file, report, or memory file contains the key or the issued device credentials (byte-level scan performed).
+- **Teardown:** manifest `TEARDOWN_COMMAND` executed with `clean: true`; the lab runtime home was additionally purged (`PURGE=1`) because it held the secret binding and tailscale node state.
+
+### Bring-up recipe deltas vs the blocked-run expectations
+
+1. `--digest` on `gateway provider enable` must be the extension's **network-participation requirement digest** (`c014…`, echoed by the install confirmation), not the extension.json checksum.
+2. `--source` must be the registry's own source string (`user` for a local-path install), not a filesystem path — otherwise reconcile fails `gateway provider trust stale` and the provider never establishes.
+3. The daemon env alone satisfies `missing_env` but the provider subprocess only receives `TS_AUTHKEY` through the **extension secret binding**; after binding, bounce the extension (`disable` → `enable`) so the subprocess re-reads it.
+4. Provider establishment needs several recovery cycles (`observed: down → establishing → degraded → up`); `gateway status` is the wait signal.
+
+### Per-leg outcomes
+
+| Leg (must-try) | Outcome |
+|---|---|
+| Verified private address advertised and reachable | **Verified** — provider `up/healthy`; `addresses[0].live: true` (`https://compozy-gateway…ts.net:8443`); unauthenticated `GET /api/gateway/status` → 401 `gateway_device_unauthenticated` with `X-Compozy-Gateway-Tier: private`; UI document serves 200 |
+| Mint pairing with QR + copyable link | **Verified** — dialog shows the QR and the full link `https://…ts.net:8443/#pair=cpz_gwp_…` with expiry; posture card reads "Reachable — Verified: this address was proven to reach this machine" |
+| Redeem over the private endpoint → paired session | **Split** — redeem verified through the documented API (`actor_kind=operator_device` → 200 + `Secure; HttpOnly; SameSite=Lax` cookie; reuse → 409 `gateway_pairing_spent`); the **link-open UI path is broken**: the page boots blank because every `/assets/*` ES-module request is refused `403 {"error":"origin not allowed"}` → `BUG-20260911-private-ui-origin-rejected-on-forwarded-tier` (Blocks-Completion) |
+| BR-1 walk on the paired remote session (absent affordances, read-only views, truthful loopback-only strip / T8) | **Blocked (in-product defect)** — the paired UI cannot boot (origin bug above); the UI-level walk is unreachable until it is fixed |
+| **Server-side enforcement behind those surfaces (BR-6)** | **FAILED — new defect** — with the paired device credential, guarded mutations execute over the private tier: `POST /api/drain` → 200 with real state change (`admission_closed: true`, confirmed by an independent local read; restored via remote `undrain` 200), and a guarded `PATCH /api/settings/general` passed the loopback mutation guard into handler validation instead of refusing `loopback_mutation_required`. The private-tier listener is by design bound to `127.0.0.1`, which makes the bind-host-keyed guard inert → `BUG-20260911-private-tier-loopback-guard-inert` (Trust-Damage, High/P1) |
+| Streams: single-use tickets, reconnect re-mints | **Verified (API-level)** — ticket mint 201 with TTL; connect consumed the ticket (reuse → 401 `gateway_stream_ticket_invalid`); re-mint issues a fresh ticket |
+| Device inventory agreement across Web/HTTP/UDS/CLI | **Verified** — same device id/name across all four surfaces plus a device-authenticated read over the private endpoint |
+| Revocation closes live work, then rejects the credential | **Verified** — `device revoke` closed an open SSE catalog-stream mid-flight (`canceled: 1`; curl exited immediately, not at timeout) and the cookie then refused 401 `gateway_device_unauthenticated` |
+| Local BR-5 regression canary on the new build | **Verified** — local shell, onboarding, settings, and Remote access pages render normally on `b74d29927` |
+
+### New bugs filed this addendum
+
+- `BUG-20260911-private-ui-origin-rejected-on-forwarded-tier` — Blocks-Completion/Critical/P0: paired private-tier operator UI never loads (origin check rejects ES-module requests on the forwarded hop).
+- `BUG-20260911-private-tier-loopback-guard-inert` — Trust-Damage/High/P1: paired devices can execute guarded daemon mutations (drain/undrain, settings) over the private tier; the loopback mutation guard keys on the loopback bind and never refuses remote paired clients.
+
+### Addendum verdicts
+
+- `RT-gateway-paired-device` → **fail** (fix pending): lifecycle + admission + revocation verified over the real private tier, but the product's own QR/link pairing flow dead-ends in a blank page (origin bug); both new bugs linked.
+- `RT-gateway-operator-surface-truth` → **blocked-verify** (fix pending): live-address presentation now verified in-product; the paired operator surface walk (BR-1 absences, truthful loopback-only strip/T8) is unreachable behind the origin bug, and the enforcement behind those surfaces is absent (guard bug). Both linked.
+
+### Addendum final status
+
+- **Issues by user impact (addendum):** Blocks-Completion 1 · Data-Loss 0 · Trust-Damage 1 · Friction 0 · Cosmetic 0
+- **Secret disposition:** authorized `TS_AUTHKEY` deleted from `/tmp/opencode/ts-authkey` after the walk; zero occurrences in any persisted artifact (byte-scan); lab runtime purged. The user should revoke the key at the tailscale tailnet as it was live during the session.
+- **Verdict (addendum): not ready** — the remote-tier story is architecturally alive (provider establishes, pairing/admission/streams/revocation all behave), but two P0/P1-class defects (UI origin refusal; missing server-side enforcement) must be fixed and the paired session re-walked before the surface-truth promise holds.
 
 ## Repair Re-walk Addendum — 2026-09-11 (BUG-20260911-session-rail-docks-on-touch-tier)
 

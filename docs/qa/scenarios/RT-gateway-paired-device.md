@@ -6,12 +6,12 @@ persona: Iris
 journey: J-expose-and-pair-gateway
 expected: A one-time local pairing shown as both QR and copyable text admits exactly one named device, device state agrees across web, HTTP, UDS, and CLI, and revocation closes live work before rejecting the credential.
 entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; compozy device list -o json
-qa_status: blocked-verify
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20260911-private-ui-origin-rejected-on-forwarded-tier;BUG-20260911-private-tier-loopback-guard-inert
+fix_status: pending
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-09-11-mobile-surface-truth/i-13-pairing-code-minted.png;docs/qa/evidence/2026-09-11-mobile-surface-truth/i-14-devices-listed.png;docs/qa/evidence/2026-09-11-mobile-surface-truth/i-18-after-revoke.png;docs/qa/evidence/2026-09-11-mobile-surface-truth/i-19-after-revoke-web.png
+evidence: docs/qa/evidence/2026-09-11-mobile-surface-truth/ts-02-pairing-with-address.png;docs/qa/evidence/2026-09-11-mobile-surface-truth/ts-03-second-device-redeem.png
 last_report: docs/qa/reports/2026-09-11-mobile-surface-truth.md
 overlaps: RT-gateway-local-only-boot
 ---
@@ -42,3 +42,21 @@ remains for the remote-tier admission legs: the private-tier listener never bind
 authorized provider (reconciler preflight/establish fails-closed before binding — recovery retries
 keep the tier `down`, surface `off`), so the redeemed device credential cannot be exercised against
 a gateway listener in-lab (named blocker: user-provisioned authorized `TS_AUTHKEY`).
+
+Remote-leg walk 2026-09-11 with the authorized provider (lab
+`compozy-mobile-surface-truth-remote-20260911-125112-264736`): the private tier established —
+provider `up/healthy`, verified live address advertised (`live: true`), operator_ui surface `on`,
+and the Web card shows "Reachable — Verified: this address was proven to reach this machine". The
+pairing dialog now shows QR + copyable link backed by that address. Over the private HTTPS endpoint
+the lifecycle verified through the documented API: redeem (`actor_kind=operator_device`) → 200 with
+`Secure; HttpOnly; SameSite=Lax` device cookie; device-authenticated reads latch
+`X-Compozy-Gateway-Tier: private` (401 `gateway_device_unauthenticated` without); artifact reuse
+refused `409 gateway_pairing_spent`; inventory agreed across Web/HTTP/UDS/CLI and the
+private-endpoint read; revocation closed live work server-side (`canceled: 1` — an open SSE
+catalog-stream was closed mid-flight) before the credential started refusing (401). FAILS on the
+product's own pairing UX: opening the pairing link on the second device renders a blank page —
+every ES-module asset is refused `403 {"error":"origin not allowed"}` on the forwarded private tier
+(BUG-20260911-private-ui-origin-rejected-on-forwarded-tier), so pairing cannot be completed through
+the QR/link flow. Also linked: the paired device's credential executes guarded daemon mutations
+over the private tier (BUG-20260911-private-tier-loopback-guard-inert). Verdict `fail` — fix both
+bugs, then re-walk the link-open pairing flow and the paired session.
