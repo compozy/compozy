@@ -26,6 +26,7 @@ describe("agent query keys/options", () => {
       "catalog",
       "ws_alpha",
       {
+        profile: "default",
         q: "release",
         category: "Engineering / Release",
         status: "active",
@@ -42,6 +43,7 @@ describe("agent query keys/options", () => {
       "detail",
       "coder",
       "ws_alpha",
+      "default",
       "soul",
     ]);
     expect(
@@ -51,6 +53,7 @@ describe("agent query keys/options", () => {
       "detail",
       "coder",
       "ws_alpha",
+      "default",
       "heartbeat",
       "status",
       "sess-1",

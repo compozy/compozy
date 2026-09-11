@@ -16853,6 +16853,8 @@ export interface operations {
       query?: {
         /** @description Workspace id, name, or path used to resolve workspace-local agents */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -16979,7 +16981,10 @@ export interface operations {
   };
   createAgent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -17333,6 +17338,8 @@ export interface operations {
         cursor?: string;
         /** @description Agents per page (1-100; default 50) */
         limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path?: never;
@@ -17606,6 +17613,8 @@ export interface operations {
       query?: {
         /** @description Workspace id, name, or path used to resolve a workspace-local agent */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -17765,7 +17774,10 @@ export interface operations {
   };
   updateAgent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -17894,6 +17906,36 @@ export interface operations {
       };
       /** @description Invalid agent definition request */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Package-owned agent definition is read-only */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -18109,6 +18151,8 @@ export interface operations {
       query?: {
         /** @description Workspace id, name, or path used to resolve the effective definition */
         workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -18131,6 +18175,36 @@ export interface operations {
             origin: "global" | "workspace";
             /** @enum {string} */
             unshadowed_origin?: "global" | "workspace";
+          };
+        };
+      };
+      /** @description Package-owned agent definition is read-only */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            current_turn_id?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -18258,7 +18332,10 @@ export interface operations {
   };
   duplicateAgent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Source agent name */

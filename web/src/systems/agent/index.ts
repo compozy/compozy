@@ -207,6 +207,7 @@ export {
   useDeleteAgent,
   useDuplicateAgent,
   useUpdateAgent,
+  type CreateAgentVariables,
   type DeleteAgentVariables,
   type DuplicateAgentVariables,
   type UpdateAgentVariables,

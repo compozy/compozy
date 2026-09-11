@@ -26,18 +26,18 @@ export function agentCatalogOptions(workspace: string, filters: AgentCatalogStab
   });
 }
 
-export function agentsListOptions(workspace?: string | null) {
+export function agentsListOptions(workspace?: string | null, profile = "default") {
   return queryOptions({
-    queryKey: agentKeys.list(workspace),
-    queryFn: ({ signal }) => fetchAgents(workspace, signal),
+    queryKey: agentKeys.list(workspace, profile),
+    queryFn: ({ signal }) => fetchAgents(workspace, signal, profile),
     staleTime: 60_000,
   });
 }
 
-export function agentDetailOptions(name: string, workspace?: string | null) {
+export function agentDetailOptions(name: string, workspace?: string | null, profile = "default") {
   return queryOptions({
-    queryKey: agentKeys.detail(name, workspace),
-    queryFn: ({ signal }) => fetchAgent(name, workspace, signal),
+    queryKey: agentKeys.detail(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgent(name, workspace, signal, profile),
     staleTime: 60_000,
     enabled: !!name,
   });

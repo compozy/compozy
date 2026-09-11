@@ -39,7 +39,12 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
   if (!agentWorkspaceId) return;
 
   await settleRouteQueries([
-    queryClient.ensureQueryData(agentsListOptions(agentWorkspaceId)),
+    queryClient.ensureQueryData(
+      agentsListOptions(
+        agentWorkspaceId,
+        actingProfile(readProfileView(queryClient, readProfileLens()))
+      )
+    ),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
         ...homeWorkingNowSessionFilters(),

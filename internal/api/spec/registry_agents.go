@@ -10,6 +10,7 @@ func registryAgentOperations() []OperationSpec {
 		Summary:     "Create a global or workspace-local AGENT.md definition",
 		Tags:        []string{specAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.CreateAgentRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.AgentResponse{}},
@@ -29,13 +30,13 @@ func registryAgentOperations() []OperationSpec {
 			Summary:     "List all readable agent definitions, optionally resolved for a workspace",
 			Tags:        []string{specAgentsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				queryParam(
 					specWorkspaceKey,
 					"Workspace id, name, or path used to resolve workspace-local agents",
 					false,
 				),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.AgentsResponse{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -48,14 +49,14 @@ func registryAgentOperations() []OperationSpec {
 			Summary:     "Get one agent definition by name, optionally resolved for a workspace",
 			Tags:        []string{specAgentsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("name", "Agent name"),
 				queryParam(
 					specWorkspaceKey,
 					"Workspace id, name, or path used to resolve a workspace-local agent",
 					false,
 				),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.AgentResponse{}},
 				{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},

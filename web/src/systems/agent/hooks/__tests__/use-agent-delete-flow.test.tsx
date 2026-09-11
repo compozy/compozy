@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 
@@ -53,7 +55,9 @@ function renderFlow(ui: ReactNode) {
 }
 
 describe("useAgentDeleteFlow", () => {
+  afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
+    resetProfileViews();
     mockNavigate.mockReset();
     mockMutate.mockReset();
     mockToastSuccess.mockReset();
@@ -75,6 +79,7 @@ describe("useAgentDeleteFlow", () => {
   });
 
   it("Should toast with unshadowed_origin and navigate to /agents on success", async () => {
+    setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
     const user = userEvent.setup();
     mockMutate.mockImplementation((_vars, opts) => {
       opts.onSuccess({
@@ -96,6 +101,10 @@ describe("useAgentDeleteFlow", () => {
         })
       );
     });
+    expect(mockMutate).toHaveBeenCalledWith(
+      { name: primaryAgentFixture.name, workspace: "ws_test", profile: "open-design" },
+      expect.any(Object)
+    );
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/agents" });
   });
 });

@@ -35,7 +35,7 @@
         ],
         "skills": [
             {
-                "path": "skills/agent-browser/SKILL.md",
+                "path": "skills/open-design-browser/SKILL.md",
                 "profile": "open-design"
             },
             {
@@ -55,6 +55,7 @@
                 },
                 "concurrency_safe": true,
                 "description": "Run the original OpenDesign heuristic design linter on HTML files under the trusted workspace's docs/design directory. Returns original P0/P1/P2 findings, fixes, file digests, and feedback. Requires Node.js. No files are changed.",
+                "display_title": "Lint design artifact",
                 "handler": "lint_artifact",
                 "input_schema": {
                     "type": "object",

@@ -89,8 +89,12 @@
                 "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
                 "$TURBO_ROOT$/extensions/spec-cycle/extension.json",
                 "$TURBO_ROOT$/extensions/spec-cycle/loops/*/loop.yaml",
-                "$TURBO_ROOT$/extensions/spec-cycle/agents/*",
-                "$TURBO_ROOT$/extensions/spec-cycle/skills/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/agents/*/AGENT.md",
+                "$TURBO_ROOT$/extensions/spec-cycle/skills/*/SKILL.md",
+                "$TURBO_ROOT$/extensions/open-design/extension.json",
+                "$TURBO_ROOT$/extensions/open-design/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/open-design/agents/*/AGENT.md",
+                "$TURBO_ROOT$/extensions/open-design/skills/*/SKILL.md",
                 "$TURBO_ROOT$/skills/*/SKILL.md"
             ],
             "outputs": ["out/**", ".next/**", "!.next/cache/**"]
@@ -120,8 +124,12 @@
                 "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
                 "$TURBO_ROOT$/extensions/spec-cycle/extension.json",
                 "$TURBO_ROOT$/extensions/spec-cycle/loops/*/loop.yaml",
-                "$TURBO_ROOT$/extensions/spec-cycle/agents/*",
-                "$TURBO_ROOT$/extensions/spec-cycle/skills/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/agents/*/AGENT.md",
+                "$TURBO_ROOT$/extensions/spec-cycle/skills/*/SKILL.md",
+                "$TURBO_ROOT$/extensions/open-design/extension.json",
+                "$TURBO_ROOT$/extensions/open-design/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/open-design/agents/*/AGENT.md",
+                "$TURBO_ROOT$/extensions/open-design/skills/*/SKILL.md",
                 "$TURBO_ROOT$/skills/*/SKILL.md"
             ],
             "outputs": []

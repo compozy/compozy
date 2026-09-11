@@ -9,18 +9,36 @@ import {
 import { Bot, Clock, FileCode, PackageOpen, Repeat, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
 import { MarketplaceInstallCommand } from "@/components/marketplace/marketplace-install-command";
-import { BUNDLED_SPEC_CYCLE_PATH, specCycleExtension } from "@/lib/marketplace-bundled";
-import { bundledSpecCycleDescription } from "@/lib/marketplace-copy";
+import { bundledExtensions } from "@/lib/marketplace-bundled";
+import { bundledExtensionDescription } from "@/lib/marketplace-copy";
 import { docsSource } from "@/lib/source";
 import { createPageMetadata } from "@/lib/site-config";
 
-export const metadata: Metadata = createPageMetadata({
-  title: `${specCycleExtension.displayName} — Marketplace`,
-  description: bundledSpecCycleDescription(specCycleExtension.description),
-  path: BUNDLED_SPEC_CYCLE_PATH,
-});
+interface PageProps {
+  params: Promise<{ name: string }>;
+}
+
+export function generateStaticParams() {
+  return bundledExtensions.map(extension => ({ name: extension.name }));
+}
+
+function findExtension(name: string) {
+  const extension = bundledExtensions.find(candidate => candidate.name === name);
+  if (!extension) notFound();
+  return extension;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const extension = findExtension((await params).name);
+  return createPageMetadata({
+    title: `${extension.displayName} — Marketplace`,
+    description: bundledExtensionDescription(extension.description),
+    path: extension.path,
+  });
+}
 
 function SectionHead({
   id,
@@ -59,15 +77,16 @@ function Chip({ icon: Icon, children }: { icon: typeof FileCode; children: strin
   );
 }
 
-export default function BundledSpecCyclePage() {
-  const { loops, skills, agents, tools } = specCycleExtension;
+export default async function BundledExtensionPage({ params }: PageProps) {
+  const extension = findExtension((await params).name);
+  const { loops, skills, agents, tools } = extension;
   const walkthroughs = new Map(
     loops.map(loop => [loop.name, docsSource.getPage(["examples", `${loop.name}-loop`])?.url])
   );
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl px-4 pt-12 pb-20">
-      <MarketplaceCrumbs leaf={specCycleExtension.displayName} />
+      <MarketplaceCrumbs leaf={extension.displayName} />
 
       <header className="mt-6 flex items-start gap-4">
         <span className="mt-1 inline-flex size-11.5 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-elevated text-fg">
@@ -75,14 +94,14 @@ export default function BundledSpecCyclePage() {
         </span>
         <div className="min-w-0">
           <h1 className="text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
-            {specCycleExtension.displayName}
+            {extension.displayName}
           </h1>
-          <p className="mt-2.5 text-site-doc-lead text-muted">{specCycleExtension.description}</p>
+          <p className="mt-2.5 text-site-doc-lead text-muted">{extension.description}</p>
         </div>
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
-        <code className="font-mono text-badge text-subtle">v{specCycleExtension.version}</code>
+        <code className="font-mono text-badge text-subtle">v{extension.version}</code>
         <Pill size="sm">
           <ShieldCheck aria-hidden className="size-3" />
           Official
@@ -91,20 +110,18 @@ export default function BundledSpecCyclePage() {
         <span className="inline-flex items-center gap-1.5">
           <Clock aria-hidden className="size-3.5 text-subtle" />
           Requires{" "}
-          <strong className="font-medium text-fg">
-            CompozyOS ≥ {specCycleExtension.minCompozyVersion}
-          </strong>
+          <strong className="font-medium text-fg">CompozyOS ≥ {extension.minCompozyVersion}</strong>
         </span>
       </div>
 
       <div className="mt-7 rounded-lg border border-line bg-canvas-soft p-4">
         <p className="text-small-body leading-relaxed text-muted">
-          <strong className="font-medium text-fg">No install needed.</strong> Spec Cycle is compiled
-          into the compozy binary and enrolled the first time the daemon starts, so it is already
-          present in your runtime. Installing your own extension under the same name takes
-          precedence over the bundled copy.
+          <strong className="font-medium text-fg">No install needed.</strong>{" "}
+          {extension.displayName} is compiled into the compozy binary and enrolled the first time
+          the daemon starts, so it is already present in your runtime. Installing your own extension
+          under the same name takes precedence over the bundled copy.
         </p>
-        <MarketplaceInstallCommand command={specCycleExtension.statusCommand} className="mt-3.5" />
+        <MarketplaceInstallCommand command={extension.statusCommand} className="mt-3.5" />
       </div>
 
       <section aria-labelledby="whats-inside" className="mt-12">
@@ -112,7 +129,7 @@ export default function BundledSpecCyclePage() {
           What&apos;s inside
         </SectionHead>
 
-        <InventoryLabel>{`${loops.length} loops · compozy.loop/v1`}</InventoryLabel>
+        <InventoryLabel>{`${loops.length} ${loops.length === 1 ? "loop" : "loops"} · compozy.loop/v1`}</InventoryLabel>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {loops.map(loop => {
             const walkthroughUrl = walkthroughs.get(loop.name);
@@ -214,7 +231,7 @@ export default function BundledSpecCyclePage() {
           <MetadataListRow>
             <MetadataListTerm>Provides</MetadataListTerm>
             <MetadataListValue className="flex flex-wrap gap-1.5">
-              {specCycleExtension.provides.map(capability => (
+              {extension.provides.map(capability => (
                 <Pill key={capability} size="sm" mono>
                   {capability}
                 </Pill>
@@ -225,19 +242,19 @@ export default function BundledSpecCyclePage() {
             <MetadataListTerm>Repository</MetadataListTerm>
             <MetadataListValue className="font-mono">
               <a
-                href={specCycleExtension.repositoryUrl}
+                href={extension.repositoryUrl}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
               >
-                {specCycleExtension.repositoryUrl.replace(/^https:\/\//, "")}
+                {extension.repositoryUrl.replace(/^https:\/\//, "")}
               </a>
             </MetadataListValue>
           </MetadataListRow>
           <MetadataListRow>
             <MetadataListTerm>Min runtime</MetadataListTerm>
             <MetadataListValue className="font-mono">
-              compozy ≥ {specCycleExtension.minCompozyVersion}
+              compozy ≥ {extension.minCompozyVersion}
             </MetadataListValue>
           </MetadataListRow>
         </MetadataList>

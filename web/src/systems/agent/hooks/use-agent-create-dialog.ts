@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 import { useCreateAgent, useDuplicateAgent } from "./use-agents";
 import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
 import {
@@ -73,6 +75,7 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
+  const { destination } = useProfileReadScope();
   const createAgent = useCreateAgent();
   const duplicateAgent = useDuplicateAgent();
   const settingsProviders = useSettingsProviders();
@@ -206,6 +209,7 @@ export function useAgentCreateDialog({
         duplicateAgent.mutateAsync({
           sourceName: flow.source.name,
           params: request,
+          profile: destination,
         });
       failureMessage = "Failed to duplicate agent.";
     } else {
@@ -218,7 +222,7 @@ export function useAgentCreateDialog({
         dialogStore.trigger.submissionRejected({ error: message });
         return;
       }
-      execute = () => createAgent.mutateAsync(request);
+      execute = () => createAgent.mutateAsync({ params: request, profile: destination });
       failureMessage = "Failed to create agent.";
     }
 

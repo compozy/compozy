@@ -1,5 +1,5 @@
 ---
-name: agent-browser
+name: open-design-browser
 description: Inspect and exercise local HTML design artifacts with the existing agent-browser CLI, including screenshots and keyboard or interaction checks. Use when rendered evidence helps author or review a design; excludes browser installation, remote services, and unrelated browser automation.
 ---
 

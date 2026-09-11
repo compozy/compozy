@@ -21,6 +21,9 @@ func Codegen() error {
 	if err := DaytonaSidecars(); err != nil {
 		return err
 	}
+	if err := OpenDesignGenerate(); err != nil {
+		return err
+	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "host-api"); err != nil {
 		return err
 	}
@@ -63,6 +66,9 @@ func CodegenCheck() error {
 		return err
 	}
 	if err := daytonaSidecarsCheckStamped(); err != nil {
+		return err
+	}
+	if err := OpenDesignCheck(); err != nil {
 		return err
 	}
 	if err := runCommandInDir(
@@ -110,6 +116,23 @@ func CodegenCheck() error {
 		return err
 	}
 	return markCodegenChecked()
+}
+
+// OpenDesignGenerate refreshes the bundled extension from its local sources.
+func OpenDesignGenerate() error {
+	return runCommandInDir(context.Background(), ".", "go", "generate", "./extensions/open-design")
+}
+
+// OpenDesignCheck verifies bundled artifacts without modifying the working tree.
+func OpenDesignCheck() error {
+	if err := runCommandInDir(
+		context.Background(), "extensions/open-design", "bun", "scripts/build-lint.ts", "--check",
+	); err != nil {
+		return err
+	}
+	return runCommandInDir(
+		context.Background(), "extensions/open-design", "go", "run", "scripts/generate-manifest.go", "--check",
+	)
 }
 
 // MigrationGuideCheck verifies parity between the root and site migration guides.

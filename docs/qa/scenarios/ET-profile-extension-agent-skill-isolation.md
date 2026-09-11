@@ -39,3 +39,29 @@ same-named Agent-local Skill selected distinct global, default Profile, finance 
 Workspace+Profile descriptions, source paths, and bodies. Empty `for_agent` and an unknown Agent
 were rejected without disturbing the successful reads. The strict evidence audit passed, and the
 literal bootstrap teardown receipt recorded `clean: true` with no survivors or socket.
+
+## Web profile entry and definition operations
+
+With the bundled `open-design` extension enabled, select its Profile in an isolated workspace.
+Open Agents and verify both extension agents; open the designer detail and create a session from
+the normal picker. The session must bind the selected Profile and load `open-design` and
+`open-design-browser` through the native skill reader. Switching to `default` must show only its
+own effective catalog, and returning to `open-design` must restore the extension entries.
+
+Duplicate the extension designer into a disposable authored agent. The copied definition must be
+editable in the selected Profile and must not appear in `default`. Edit and delete the authored
+copy, checking the selected Profile's detail/cache each time. Editing or deleting the original
+managed extension definition must be rejected without changing its files. A pending mutation
+retains its original Profile for both the HTTP request and completion cache, including when it is
+paused offline and the operator switches Profiles before reconnecting.
+
+QA 2026-09-11 continuation: the current Web build passed catalog/detail/picker reads, default vs
+open-design isolation, and native skill loading in `sess-2dd9be79c4d1d76e`. Evidence resides in
+`/Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-20260911-223928-759363-lab/qa-artifacts/qa`
+(`profile-agents-final.png`, `profile-default-snapshot.txt`, `ui-session-history.json`). Definition
+mutation re-walk passed: UI duplicate/edit/delete and cross-profile isolation, plus 19 public HTTP
+steps protecting the managed original and independently verifying the authored copy. Receipts:
+`ui-copy-edited.txt`, `ui-copy-absent-default.txt`, `ui-copy-deleted.txt`,
+`managed-agent-api-qa-summary.json`. The existing mutation suite covers in-flight and offline
+profile switches. Final gate, strict evidence audit and teardown passed; `teardown.json` records
+`clean: true`. This supplements the unchanged CLI/API precedence evidence from 2026-09-01.

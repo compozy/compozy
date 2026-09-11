@@ -6,10 +6,10 @@ persona: Ada
 journey: J-extension-kit-lifecycle
 expected: The open-design profile supports conversational HTML design and an explicitly requested independent review Loop using the OpenDesign-derived linter and curated local guidance, with workspace-contained files and accurate evidence.
 entry_points: Profile open-design; session agent open-design-designer; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
-qa_status: blocked-verify
+qa_status: pass
 bug_ids: none
-fix_status: pending
-retest_status: pending
+fix_status: fixed
+retest_status: pass
 fix_commits: none
 evidence: /Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-lab/qa-artifacts/qa
 last_report: 2026-09-11
@@ -32,12 +32,12 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
    Check the selected artifact guidance and project design authority, related-state grouping, readable copy,
    local asset paths, and four appropriate HTML outputs. Do not count catalog presence as evidence
    that a deliverable was generated.
-5. With agent-browser available, capture and inspect current rendering at an appropriate
+5. With the uniquely named `open-design-browser` skill and agent-browser CLI available, capture and inspect current rendering at an appropriate
    viewport; distinguish source checks from image inspection. Verify the agent reports browser
    unavailability without claiming a screenshot or adding a mandatory preview service.
 6. Explicitly request `open-design-review` against an existing board. Validate and dry-run the
-   published Loop with the skill's per-run limits (3 iterations, 2 revisions, full_body); confirm
-   those effective values before starting, then observe designer → lint of every HTML → independent critic. Confirm a
+   published Loop with the skill's per-run limits (3 iterations, full_body); confirm
+   those effective values before starting, then observe designer → lint of every HTML → independent critic → native digest verification. Confirm a
    concrete correction is passed to the next complete generation, bounded to three passes, and
    that approval cites applicable checks and any source-backed exception. Terminal status and
    remaining findings must match durable run detail; no invented rollback or best-version claim.
@@ -51,14 +51,25 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
   findings and the exact file digest. Managed session `sess-07b905eb3b6fe45e` created a compact
   bulk-actions HTML and inspected interaction screenshots; desktop/mobile and confirmation were
   independently checked in an isolated browser.
-- Session `sess-e2ecb4007e6cf2a2` checked the existing site/deck/document from `_uiux.md`. Parent
-  verified rendering and slide navigation, but the site hero needs a wider text measure. The
-  session selected global browser-use; the final skill now requires isolated agent-browser and
-  the craft reference explains text-element measures. Those prompt changes await a real re-walk.
-- Native per-run overrides verified `iteration_cap: 3`, `gate_max_revisions: 2`, and `full_body`.
-  Run `looprun-76a2e94190969814` could not reach lint/critic because Claude hit its account limit;
-  it was canceled. A successful independent review and correction generation remain unverified.
-- The single requested Fable 5.1/xhigh code-review session `sess-726ee0230a5c74f7` hit the same
-  provider limit before its verdict. Its retained history is not a completed review. No PR yet.
-- The task-owned browser was closed; bootstrap teardown completed with `clean: true`.
-- Final `make gate` passed all affected local Go and JavaScript lanes; CI is not yet available.
+- Final `_uiux.md` session `sess-39e3ad66d4f5b2db` refined the site, slides, and one-page document,
+  used isolated agent-browser, and loaded actual images. Desktop 1440px, mobile 375px, keyboard
+  interaction, slide navigation, and print layouts were checked. Four-format public lint returned
+  zero findings with file digests. Evidence: the original lab's `lint-four-formats-final.json`,
+  session history, and final screenshots. The PDF generator used Letter despite the document's
+  A4 CSS; that print-environment limitation is retained in the evidence.
+- The single requested Claude Fable 5.1/xhigh code review, `sess-726ee0230a5c74f7`, completed.
+  Its corrections include fail-closed typed critique, bounded completion cost, a unique browser
+  skill name, site inventory, subprocess diagnostics, and canonical codegen drift checks.
+- Native preflight now exercises executed snapshot construction and hydration in the existing
+  resource suite. The live dry-run passed with `iteration_cap: 3` and `full_body`; the critic is
+  an isolated tool-capable agent and final lint verifies unchanged file digests.
+- Final run `looprun-8878f4f32a5fa63e` completed after two generations: the independent critic
+  found a clipped heading, the designer repaired it, and final critique approved with zero blockers.
+  All four nodes succeeded; native verification and the on-disk file had the same SHA-256.
+  Evidence: `review-final-receipt.json` and the final critic history.
+- Selected-profile Web catalog/detail/picker/reload and authored-agent duplicate/edit/delete
+  passed. The public HTTP walk passed all 19 steps, protecting the original managed source.
+  The final canonical gate passed, including 7,245 Web tests; production Web and Site builds passed.
+  The continuation lab's strict evidence audit and exact teardown passed with `clean: true`.
+- Original lab teardown recorded `clean: true`. Continuation evidence is under
+  `/Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-20260911-223928-759363-lab/qa-artifacts/qa`.

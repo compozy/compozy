@@ -55,7 +55,9 @@ export function preloadSettingsDefaultsRoute(queryClient: QueryClient): Promise<
 
 export function preloadSettingsSkillsRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([
-    queryClient.ensureQueryData(agentsListOptions()),
+    queryClient.ensureQueryData(
+      agentsListOptions(undefined, actingProfile(readProfileView(queryClient, readProfileLens())))
+    ),
     queryClient.ensureQueryData(workspacesListOptions()),
     queryClient.ensureQueryData(settingsSkillsOptions({ scope: "user" })),
   ]);

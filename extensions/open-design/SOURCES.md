@@ -33,7 +33,7 @@ motion against the W3C explanations for [contrast minimum](https://www.w3.org/WA
 Source: [vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2](https://github.com/vercel-labs/agent-browser/tree/8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2),
 `skills/agent-browser/SKILL.md`, and its official CLI guidance. Apache-2.0.
 
-`skills/agent-browser/SKILL.md` is a small, locally maintained adaptation for opening workspace
+`skills/open-design-browser/SKILL.md` is a small, locally maintained adaptation for opening workspace
 HTML, interacting with it, capturing screenshots, and closing an isolated browser session.
 It requires an existing CLI/browser and actual image inspection before a visual claim. It does
 not install dependencies, fetch skill text, or depend on OpenDesign's browser service.

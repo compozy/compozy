@@ -1,28 +1,17 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { siteConfig } from "./site-config";
 
-/**
- * What ships inside the binary, read from the same manifests the daemon reads.
- *
- * `extensions/spec-cycle` is enrolled by `speccycle.EnsureManagedInstall` at daemon boot with
- * `extensionpkg.SourceBundled` (`internal/daemon/boot_automation_bundles.go`). It therefore has no
- * catalog entry, no artifact URL, and no install command — publishing one would both misstate how it
- * arrives and collide with that managed install. The same is true of the skills embedded under
- * `skills/`: they are compiled in, not fetched from a registry.
- *
- * Counts are derived, never written down twice: the inventory is the directory listing plus the
- * manifest's own tool map.
- */
-
+/** Read built-in resources from the same manifests enrolled at daemon boot. */
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const specCycleRoot = resolve(repoRoot, "extensions", "spec-cycle");
 const bundledSkillsRoot = resolve(repoRoot, "skills");
-
-export const BUNDLED_SPEC_CYCLE_PATH = "/marketplace/bundled/spec-cycle";
+const bundledDefinitions = [
+  { name: "spec-cycle", displayName: "Spec Cycle" },
+  { name: "open-design", displayName: "Open Design" },
+];
 
 const toolSchema = z.object({
   display_title: z.string().min(1),
@@ -42,7 +31,7 @@ const resourcePathsSchema = z
   .array(resourcePathSchema)
   .transform(resources => resources.map(resource => resource.path));
 
-const specCycleManifestSchema = z.object({
+const bundledManifestSchema = z.object({
   extension: z.object({
     name: z.string().min(1),
     version: z.string().min(1),
@@ -105,6 +94,7 @@ export interface BundledExtension {
   agents: string[];
   tools: BundledTool[];
   repositoryUrl: string;
+  path: string;
   /** The only command that applies: it is already installed, so you can only inspect it. */
   statusCommand: string;
 }
@@ -115,30 +105,20 @@ export interface BundledSkill {
   repositoryUrl: string;
 }
 
-interface ManifestDirectory {
-  parent: string;
-  name: string;
+function listResourceFiles(root: string, paths: string[], filename: string): string[] {
+  return paths
+    .flatMap(path => {
+      const resourcePath = resolve(root, path);
+      if (statSync(resourcePath).isFile()) return [resourcePath];
+      return readdirSync(/* turbopackIgnore: true */ resourcePath, { withFileTypes: true }).flatMap(
+        entry => (entry.isDirectory() ? [resolve(resourcePath, entry.name, filename)] : [])
+      );
+    })
+    .sort();
 }
 
-function listDirectories(root: string, parents: string[]): ManifestDirectory[] {
-  const directories: ManifestDirectory[] = [];
-  for (const parent of parents) {
-    for (const entry of readdirSync(/* turbopackIgnore: true */ resolve(root, parent), {
-      withFileTypes: true,
-    })) {
-      if (entry.isDirectory()) {
-        directories.push({ parent, name: entry.name });
-      }
-    }
-  }
-  return directories.sort(
-    (left, right) => left.parent.localeCompare(right.parent) || left.name.localeCompare(right.name)
-  );
-}
-
-function readLoop(parent: string, loopName: string): BundledLoop {
-  const raw = readFileSync(resolve(specCycleRoot, parent, loopName, "loop.yaml"), "utf8");
-  const { meta } = loopMetaSchema.parse(parseYaml(raw));
+function readLoop(path: string): BundledLoop {
+  const { meta } = loopMetaSchema.parse(parseYaml(readFileSync(path, "utf8")));
   return {
     name: meta.name,
     description: meta.description,
@@ -147,21 +127,25 @@ function readLoop(parent: string, loopName: string): BundledLoop {
   };
 }
 
-function readSpecCycle(): BundledExtension {
-  const manifest = specCycleManifestSchema.parse(
-    JSON.parse(readFileSync(resolve(specCycleRoot, "extension.json"), "utf8"))
+function readBundledExtension(definition: (typeof bundledDefinitions)[number]): BundledExtension {
+  const root = resolve(repoRoot, "extensions", definition.name);
+  const manifest = bundledManifestSchema.parse(
+    JSON.parse(readFileSync(resolve(root, "extension.json"), "utf8"))
   );
-  const loopDirectories = listDirectories(specCycleRoot, manifest.resources.loops);
   return {
     name: manifest.extension.name,
-    displayName: "Spec Cycle",
+    displayName: definition.displayName,
     version: manifest.extension.version,
     description: manifest.extension.description,
     minCompozyVersion: manifest.extension.min_compozy_version,
     provides: manifest.capabilities.provides,
-    loops: loopDirectories.map(({ parent, name }) => readLoop(parent, name)),
-    skills: listDirectories(specCycleRoot, manifest.resources.skills).map(({ name }) => name),
-    agents: listDirectories(specCycleRoot, manifest.resources.agents).map(({ name }) => name),
+    loops: listResourceFiles(root, manifest.resources.loops, "loop.yaml").map(readLoop),
+    skills: listResourceFiles(root, manifest.resources.skills, "SKILL.md")
+      .map(path => parseBundledSkillFrontmatter(readFileSync(path, "utf8")).name)
+      .sort(),
+    agents: listResourceFiles(root, manifest.resources.agents, "AGENT.md").map(path =>
+      basename(dirname(path))
+    ),
     tools: Object.entries(manifest.resources.tools)
       .map(([name, tool]) => ({
         name,
@@ -173,7 +157,8 @@ function readSpecCycle(): BundledExtension {
         visibility: tool.visibility,
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
-    repositoryUrl: `${siteConfig.repoUrl}/tree/${siteConfig.repoBranch}/extensions/spec-cycle`,
+    repositoryUrl: `${siteConfig.repoUrl}/tree/${siteConfig.repoBranch}/extensions/${definition.name}`,
+    path: `/marketplace/bundled/${manifest.extension.name}`,
     statusCommand: `compozy extension status ${manifest.extension.name}`,
   };
 }
@@ -206,5 +191,5 @@ function readBundledSkills(): BundledSkill[] {
   return skills.sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export const specCycleExtension: BundledExtension = readSpecCycle();
+export const bundledExtensions: BundledExtension[] = bundledDefinitions.map(readBundledExtension);
 export const bundledSkills: BundledSkill[] = readBundledSkills();

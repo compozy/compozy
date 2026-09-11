@@ -304,6 +304,7 @@ describe("public search index", () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { entriesForKind, MARKETPLACE_KINDS } = await import("@/lib/marketplace-catalog");
     const { bridgeProviders } = await import("@/lib/marketplace-bridges");
+    const { bundledExtensions } = await import("@/lib/marketplace-bundled");
 
     const marketplace = (await buildPublicSearchIndexes()).filter(
       index => index.tag === "Marketplace"
@@ -321,7 +322,9 @@ describe("public search index", () => {
     for (const provider of bridgeProviders) {
       expect(urls.has(`/marketplace/bridges#${provider.platform}`)).toBe(true);
     }
-    expect(urls.has("/marketplace/bundled/spec-cycle")).toBe(true);
+    for (const extension of bundledExtensions) {
+      expect(urls.has(extension.path)).toBe(true);
+    }
   });
 
   it("wires the live GET handler instead of the static export handler", async () => {

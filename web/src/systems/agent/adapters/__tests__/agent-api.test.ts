@@ -41,6 +41,7 @@ describe("fetchAgentCatalog", () => {
       fetchAgentCatalog(
         {
           workspace: "ws_alpha",
+          profile: "open-design",
           q: "release",
           category: "Engineering / Release",
           status: "active",
@@ -52,7 +53,7 @@ describe("fetchAgentCatalog", () => {
     ).resolves.toEqual(validResponse);
 
     await expectFetchRequest({
-      path: "/api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50&cursor=next-page",
+      path: "/api/agents/catalog?workspace=ws_alpha&profile=open-design&q=release&category=Engineering%20%2F%20Release&status=active&limit=50&cursor=next-page",
       signal: controller.signal,
     });
   });
@@ -113,12 +114,12 @@ describe("fetchAgents", () => {
     });
   });
 
-  it("passes workspace context to the daemon", async () => {
+  it("passes the selected profile and workspace context to the daemon", async () => {
     mockJsonResponse(validResponse);
 
-    await fetchAgents("ws_alpha");
+    await fetchAgents("ws_alpha", undefined, "open-design");
 
-    await expectFetchRequest({ path: "/api/agents?workspace=ws_alpha" });
+    await expectFetchRequest({ path: "/api/agents?workspace=ws_alpha&profile=open-design" });
   });
 
   it("throws on non-ok response", async () => {
@@ -162,12 +163,14 @@ describe("fetchAgent", () => {
     await expectFetchRequest({ path: "/api/agents/claude-agent" });
   });
 
-  it("passes workspace context when fetching one agent", async () => {
+  it("passes the selected profile and workspace when fetching one agent", async () => {
     mockJsonResponse(validResponse);
 
-    await fetchAgent("claude-agent", "ws_alpha");
+    await fetchAgent("claude-agent", "ws_alpha", undefined, "open-design");
 
-    await expectFetchRequest({ path: "/api/agents/claude-agent?workspace=ws_alpha" });
+    await expectFetchRequest({
+      path: "/api/agents/claude-agent?workspace=ws_alpha&profile=open-design",
+    });
   });
 
   it("throws 404 error for unknown agent", async () => {
@@ -227,11 +230,11 @@ describe("createAgent", () => {
   it("posts the create-agent payload and returns the created agent", async () => {
     mockJsonResponse(response, { status: 201 });
 
-    const result = await createAgent(request);
+    const result = await createAgent(request, undefined, "open-design");
 
     expect(result).toEqual(response.agent);
     await expectFetchRequest({
-      path: "/api/agents",
+      path: "/api/agents?profile=open-design",
       method: "POST",
       body: request,
     });
@@ -297,11 +300,11 @@ describe("updateAgent", () => {
   it("Should put the update payload and return the agent", async () => {
     mockJsonResponse(response);
 
-    const result = await updateAgent("claude-agent", params);
+    const result = await updateAgent("claude-agent", params, undefined, "open-design");
 
     expect(result).toEqual(response.agent);
     await expectFetchRequest({
-      path: "/api/agents/claude-agent",
+      path: "/api/agents/claude-agent?profile=open-design",
       method: "PUT",
       body: params,
     });
@@ -366,7 +369,7 @@ describe("deleteAgent", () => {
       unshadowed_origin: "global",
     });
 
-    const result = await deleteAgent("claude-agent", "ws_alpha");
+    const result = await deleteAgent("claude-agent", "ws_alpha", undefined, "open-design");
 
     expect(result).toEqual({
       name: "claude-agent",
@@ -374,7 +377,7 @@ describe("deleteAgent", () => {
       unshadowed_origin: "global",
     });
     await expectFetchRequest({
-      path: "/api/agents/claude-agent?workspace=ws_alpha",
+      path: "/api/agents/claude-agent?workspace=ws_alpha&profile=open-design",
       method: "DELETE",
     });
   });
@@ -413,11 +416,11 @@ describe("duplicateAgent", () => {
   it("Should post duplicate and return the new agent", async () => {
     mockJsonResponse(response, { status: 201 });
 
-    const result = await duplicateAgent("claude-agent", params);
+    const result = await duplicateAgent("claude-agent", params, undefined, "open-design");
 
     expect(result).toEqual(response.agent);
     await expectFetchRequest({
-      path: "/api/agents/claude-agent/duplicate",
+      path: "/api/agents/claude-agent/duplicate?profile=open-design",
       method: "POST",
       body: params,
     });

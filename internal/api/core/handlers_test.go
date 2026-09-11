@@ -3120,6 +3120,136 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should duplicate effective package agents while preserving managed sources", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := t.TempDir()
+		sourcePath := filepath.Join(t.TempDir(), "managed", "agents", "designer", compozyconfig.AgentDefinitionFileName)
+		source, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
+			Name: "designer", Provider: "codex", Prompt: "Package design instructions.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(source) error = %v", err)
+		}
+		before, err := os.ReadFile(sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(source) error = %v", err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(source)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest(source) error = %v", err)
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != "alpha" || profile != "marketing" {
+						t.Fatalf("workspace resolution = %q, %q", ref, profile)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						ProfileID: "profile-marketing", ProfileName: "marketing",
+					}, nil
+				},
+			}, nil, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			listForWorkspace: func(resolved *workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				if resolved.ProfileName != "marketing" {
+					return nil, nil
+				}
+				return []core.AgentCatalogEntry{
+					{Def: source, Origin: contract.AgentOriginGlobal, PackageOwned: true},
+				}, nil
+			},
+		}
+		syncer := &recordingAgentDefinitionSync{}
+		soulPurger := &recordingSoulHistoryPurger{}
+		heartbeatPurger := &recordingHeartbeatHistoryPurger{}
+		fixture.Handlers.AgentDefinitionSync = syncer
+		fixture.Handlers.SoulHistoryPurger = soulPurger
+		fixture.Handlers.HeartbeatHistoryPurger = heartbeatPurger
+		read := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/designer?workspace=alpha&profile=marketing",
+			nil,
+		)
+		if read.Code != http.StatusOK {
+			t.Fatalf("read status = %d; body=%s", read.Code, read.Body.String())
+		}
+		for _, workspaceRef := range []string{"", "alpha"} {
+			query := "?profile=marketing"
+			if workspaceRef != "" {
+				query += "&workspace=" + workspaceRef
+			}
+			update := performRequest(t, fixture.Engine, http.MethodPut, "/agents/designer"+query,
+				mustJSON(t, contract.UpdateAgentRequest{Workspace: workspaceRef, ExpectedDigest: digest,
+					Agent: contract.CreateAgentPayload{Name: "designer", Prompt: "Do not persist this."}}))
+			deleted := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/designer"+query, nil)
+			for _, response := range []struct {
+				code int
+				body string
+			}{
+				{update.Code, update.Body.String()}, {deleted.Code, deleted.Body.String()},
+			} {
+				if response.code != http.StatusForbidden || !strings.Contains(response.body, "package-owned") {
+					t.Fatalf("managed mutation status = %d; body=%s", response.code, response.body)
+				}
+			}
+		}
+		if syncer.calls != 0 || soulPurger.name != "" || heartbeatPurger.name != "" {
+			t.Fatalf(
+				"managed mutation touched projections/history: sync=%d, soul=%q, heartbeat=%q",
+				syncer.calls,
+				soulPurger.name,
+				heartbeatPurger.name,
+			)
+		}
+		duplicated := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/designer/duplicate?profile=marketing",
+			mustJSON(
+				t,
+				contract.DuplicateAgentRequest{
+					Name:      "designer-copy",
+					Scope:     contract.AgentCreateScopeWorkspace,
+					Workspace: "alpha",
+				},
+			),
+		)
+		if duplicated.Code != http.StatusCreated {
+			t.Fatalf("duplicate status = %d; body=%s", duplicated.Code, duplicated.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, duplicated.Body.Bytes(), &payload)
+		if payload.Agent.Name != "designer-copy" || payload.Agent.Origin != contract.AgentOriginWorkspace ||
+			payload.Agent.WorkspaceID != "ws-1" {
+			t.Fatalf("duplicate payload = %#v", payload.Agent)
+		}
+		copyPath := filepath.Join(
+			workspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"marketing",
+			compozyconfig.AgentsDirName,
+			"designer-copy",
+			compozyconfig.AgentDefinitionFileName,
+		)
+		copied, err := compozyconfig.LoadAgentDefFile(copyPath)
+		if err != nil || copied.Prompt != source.Prompt {
+			t.Fatalf("copied definition = %#v, %v", copied, err)
+		}
+		after, err := os.ReadFile(sourcePath)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("managed source changed: %v", err)
+		}
+		if syncer.calls != 1 {
+			t.Fatalf("Sync() calls = %d, want 1 for the authored copy", syncer.calls)
+		}
+	})
+
 	t.Run("Should replace a global definition with CAS and a fresh digest", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(

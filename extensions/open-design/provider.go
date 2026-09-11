@@ -26,7 +26,7 @@ func newProvider(options ...compozysdk.Option) (*compozysdk.Extension, error) {
 			Skills: []compozysdk.DescribeResourcePath{
 				{Path: "skills/open-design/SKILL.md", Profile: Name},
 				{Path: "skills/open-design-review/SKILL.md", Profile: Name},
-				{Path: "skills/agent-browser/SKILL.md", Profile: Name},
+				{Path: "skills/open-design-browser/SKILL.md", Profile: Name},
 			},
 			Agents: []compozysdk.DescribeResourcePath{{Path: "agents", Profile: Name}},
 			Loops:  []compozysdk.DescribeResourcePath{{Path: "loops", Profile: Name}},

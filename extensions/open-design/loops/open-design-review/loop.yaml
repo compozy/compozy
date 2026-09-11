@@ -28,6 +28,19 @@ inputs:
 contract:
   goal: "Create or improve the HTML artifact at {{ .inputs.artifact_path }} for this brief: {{ .inputs.brief }}"
   definition_of_done: "The requested HTML files exist, the design linter ran on every board, and the independent critic approved all applicable findings or documented source-backed exceptions."
+  stop_when:
+    on_eval_error: fail
+    expr: >-
+      nodes.design.status == 'succeeded' && nodes.lint.status == 'succeeded' &&
+      nodes.critique.status == 'succeeded' && nodes.verify.status == 'succeeded' &&
+      nodes.design.output.primary_html_path == inputs.artifact_path &&
+      inputs.artifact_path in nodes.design.output.artifact_paths &&
+      nodes.critique.output.verdict == 'approved' &&
+      size(nodes.critique.output.blocking_issues) == 0 &&
+      nodes.lint.output.artifacts.map(artifact, [artifact.path, artifact.sha256]) ==
+      nodes.verify.output.artifacts.map(artifact, [artifact.path, artifact.sha256]) &&
+      nodes.critique.output.artifacts.map(reviewed, [reviewed.path, reviewed.sha256]) ==
+      nodes.lint.output.artifacts.map(artifact, [artifact.path, artifact.sha256])
   iteration_cap: 3
   no_progress:
     window: 3
@@ -57,9 +70,10 @@ graph:
           references, and the active project design authority before authoring.
 
           {{ if .previous.generation }}
-          Address the prior gate blockers before returning:
-          {{ .previous.verdicts.quality.blocking_issues }}
-          {{ .previous.verdicts.quality.criteria }}
+          {{ if .previous.nodes.critique.output.verdict }}
+          Address the previous critic's blockers and evidence before returning:
+          {{ toJson .previous.nodes.critique.output }}
+          {{ end }}
           {{ end }}
 
           Run ext__open_design__lint_artifact on the actual HTML path when available and inspect
@@ -102,43 +116,133 @@ graph:
       params:
         paths: "{{ .nodes.design.output.artifact_paths }}"
       timeout: 45s
+      retry:
+        max_attempts: 2
 
-    - id: quality
-      class: control
-      kind: gate
-      criteria:
-        - id: critique
-          type: agent-judge
-          agent: "{{ .inputs.critic }}"
-          rubric: |
-            Independently review the current HTML at
-            {{ .nodes.design.output.primary_html_path }} and every path in
-            {{ .nodes.design.output.artifact_paths }} against this brief:
-            {{ .inputs.brief }}
+    - id: critique
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.critic }}"
+        prompt: |
+          Independently review the current HTML at {{ .nodes.design.output.primary_html_path }}
+          and every path in {{ toJson .nodes.design.output.artifact_paths }} against this brief:
+          {{ .inputs.brief }}
 
-            The deterministic lint results for these exact file digests are:
-            {{ .nodes.lint.output.artifacts }}
+          Deterministic lint for the exact candidate files:
+          {{ toJson .nodes.lint.output.artifacts }}
 
-            Read the actual source and the open-design skill's applicable references. Inspect every
-            lint finding, preserving its ID and severity. An applicable P0 must be fixed. The design
-            linter is heuristic: an intentional conflict with the user's brief or active project
-            design system needs a specific source-backed exception in your evidence. Do not suppress
-            a finding or accept a generic claim that a problem is intentional. Use
-            agent-browser for a lightweight screenshot only when that skill and a browser are
-            available; a missing screenshot is not an automatic rejection. Judge craft, purpose
-            and relevant states, active design-system fidelity, accessibility, and copy. Preserve
-            source-backed exceptions instead of applying generic defaults blindly. Do not edit the
-            artifact. Pass only when no applicable actionable issue remains. Return stable
-            snake_case blocking issue IDs and concrete notes for every revision; a passing verdict
-            needs non-empty evidence tied to the artifact and the brief.
-      verdict_policy: revise_until_clean
-      on_result:
-        fail: next_generation
-      max_revisions: 2
+          Read the actual files and the open-design skill's applicable references. Review only;
+          do not modify the HTML, its assets, project instructions, or application source. Load open-design-browser and use
+          the agent-browser CLI in a task-owned session for rendered inspection when useful and available.
+          Load the actual screenshot before making a visual claim. A missing screenshot alone is
+          not a rejection; disclose unavailable checks in limitations. Close your browser session.
+
+          Judge craft, purpose and relevant states, active design-system fidelity, accessibility,
+          and copy. Preserve lint IDs and severity. Every applicable actionable finding blocks
+          approval. For an intentional conflict with the brief or project authority, record an
+          exception with the lint ID, severity, specific source, and reason. Generic assertions that
+          a problem is intentional are insufficient; every remaining lint finding needs an
+          exception before approval, regardless of severity. Preserve the lint input's artifact
+          order in your result.
+
+          Return the requested structured result. Include every reviewed path with the SHA-256
+          digest from the lint input and nonempty evidence of what you actually checked. Use stable
+          snake_case IDs and concrete corrections for blocking issues. Return approved only when
+          every artifact was read and no applicable actionable issue remains. Return revise for
+          unresolved findings or missing required evidence. A second native lint verifies that the
+          reviewed files did not change; never start another Loop or fix the files yourself.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [verdict, artifacts, blocking_issues, limitations]
+          properties:
+            verdict:
+              type: string
+              enum: [approved, revise]
+            artifacts:
+              type: array
+              minItems: 1
+              maxItems: 32
+              items:
+                type: object
+                additionalProperties: false
+                required: [path, sha256, evidence, exceptions]
+                properties:
+                  path:
+                    type: string
+                    pattern: '^docs/design/.+\.html$'
+                  sha256:
+                    type: string
+                    pattern: "^[0-9a-f]{64}$"
+                  evidence:
+                    type: string
+                    pattern: '\S'
+                  exceptions:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [id, severity, source, reason]
+                      properties:
+                        id:
+                          type: string
+                          pattern: '\S'
+                        severity:
+                          type: string
+                          enum: [P0, P1, P2]
+                        source:
+                          type: string
+                          pattern: '\S'
+                        reason:
+                          type: string
+                          pattern: '\S'
+            blocking_issues:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [id, path, severity, evidence, correction]
+                properties:
+                  id:
+                    type: string
+                    pattern: "^[a-z][a-z0-9_]*$"
+                  path:
+                    type: string
+                    pattern: '^docs/design/.+\.html$'
+                  severity:
+                    type: string
+                    enum: [P0, P1, P2]
+                  evidence:
+                    type: string
+                    pattern: '\S'
+                  correction:
+                    type: string
+                    pattern: '\S'
+            limitations:
+              type: array
+              items:
+                type: string
+                pattern: '\S'
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: verify
+      class: action
+      kind: ext__open_design__lint_artifact
+      params:
+        paths: "{{ .nodes.design.output.artifact_paths }}"
+      timeout: 45s
+      retry:
+        max_attempts: 2
 
   edges:
     - { from: design, to: lint }
-    - { from: lint, to: quality }
+    - { from: lint, to: critique }
+    - { from: critique, to: verify }
 
 start:
   - kind: manual

@@ -29,7 +29,7 @@ A subprocess extension that publishes layouts directly declares the generic Host
 
 The bundled `open-design` extension creates or binds the `open-design` profile. Its default agent
 is `open-design-designer`; `open-design-critic` provides independent review. The profile includes
-`open-design`, `open-design-review`, and adapted `agent-browser` skills, the `open-design-review`
+`open-design`, `open-design-review`, and `open-design-browser` skills, the `open-design-review`
 Loop, and the read-only `ext__open_design__lint_artifact` tool. Two local references cover craft
 and the four artifact formats; there is no upstream library, download, or synchronization step.
 
@@ -40,10 +40,10 @@ require OpenDesign's app, daemon, or MCP server. It does not implement productio
 
 The lint tool accepts `paths: string[]` and obtains its root from authenticated workspace context.
 It requires Node.js, preserves original findings, reports file digests, and never writes artifacts.
-Its `passed` means zero original P0 findings. The optional review Loop runs lint and an independent
-critic. Its skill passes per-run `config_overrides` of `iteration_cap: 3`,
-`gate_max_revisions: 2`, and `reattempt_strategy: full_body` so runtime defaults cannot replace
-the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
+Its `passed` means zero original P0 findings. The optional review Loop uses an independent
+critic session and verifies the approved file digests before completion. Its skill passes per-run
+`config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` so runtime defaults
+cannot replace the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
 specific source-backed exceptions. A normal design request does not start the Loop automatically.
 Use its skill and this reference's normal lifecycle surfaces to inspect or operate it.
 

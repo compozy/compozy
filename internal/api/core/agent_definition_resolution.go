@@ -99,12 +99,15 @@ func (h *BaseHandlers) resolveWorkspaceAgentDefinition(
 	if err != nil {
 		return resolvedAgentDefinition{}, err
 	}
-	for _, agent := range resolved.Agents {
-		if compozyconfig.NormalizeAgentName(agent.Name) != target {
+	entries, err := h.workspaceDetailAgentEntries(ctx, &resolved)
+	if err != nil {
+		return resolvedAgentDefinition{}, err
+	}
+	for _, entry := range entries {
+		if compozyconfig.NormalizeAgentName(entry.Def.Name) != target {
 			continue
 		}
 		workspaceID := strings.TrimSpace(resolved.ID)
-		entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 		resolvedProfileName := strings.TrimSpace(resolved.ProfileName)
 		if resolvedProfileName == "" {
 			resolvedProfileName = strings.TrimSpace(profileName)

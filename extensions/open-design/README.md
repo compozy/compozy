@@ -19,10 +19,11 @@ opens the HTML directly and requests changes in the same session. Drawing a feat
 authorize changing production application code.
 
 For a complete independent review, ask the designer to use `open-design-review`. Its native Loop
-runs designer → original lint → independent critic. The skill supplies per-run limits of three
-complete passes and two refinements.
+runs designer → original lint → independent critic → digest verification. It completes only
+after the critic approves the exact checked files; rejection starts another full pass. The skill
+supplies a per-run limit of three passes, allowing at most two refinements.
 Compozy runtime defaults can override values declared by a Loop; when starting it directly,
-supply `iteration_cap: 3`, `gate_max_revisions: 2`, and `reattempt_strategy: full_body` through
+supply `iteration_cap: 3` and `reattempt_strategy: full_body` through
 `config_overrides` (or the CLI's `--config-file`). The critic covers craft, purpose/states, brand,
 accessibility, and copy. It must resolve
 applicable findings and cite the source for intentional exceptions. An exhausted or failed run
@@ -30,20 +31,21 @@ retains its actual outcome and latest files; it does not restore an earlier file
 
 ## Resources and prerequisites
 
-| Resource                                                    | Purpose                                                        |
-| ----------------------------------------------------------- | -------------------------------------------------------------- |
-| Profile `open-design`                                       | Default designer and extension resource placement              |
-| Agents `open-design-designer`, `open-design-critic`         | Authoring and independent review                               |
-| Skills `open-design`, `open-design-review`, `agent-browser` | Curated guidance, explicit review workflow, browser inspection |
-| Loop `open-design-review`                                   | Bounded, opt-in refinement                                     |
-| Tool `ext__open_design__lint_artifact`                      | Read-only original design lint on workspace HTML               |
+| Resource                                                          | Purpose                                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| Profile `open-design`                                             | Default designer and extension resource placement              |
+| Agents `open-design-designer`, `open-design-critic`               | Authoring and independent review                               |
+| Skills `open-design`, `open-design-review`, `open-design-browser` | Curated guidance, explicit review workflow, browser inspection |
+| Loop `open-design-review`                                         | Bounded, opt-in refinement                                     |
+| Tool `ext__open_design__lint_artifact`                            | Read-only original design lint on workspace HTML               |
 
 Use an authenticated agent provider configured in CompozyOS. This extension does not choose a
 provider/model or create credentials. The linter requires Node.js on the CompozyOS process PATH.
 The bundled JavaScript needs no npm packages or OpenDesign service. Bun is a development/codegen
 dependency only.
 
-Visual inspection uses a compact local adaptation of the official `agent-browser` guidance
+Visual inspection uses the `open-design-browser` skill, a compact local adaptation of the official
+`agent-browser` guidance
 and a separately installed CLI/browser. Opening a local file may require
 `agent-browser --allow-file-access open file:///absolute/path/to/index.html`. The agent captures
 a screenshot and loads that image through its harness's image-reading capability. Text snapshots

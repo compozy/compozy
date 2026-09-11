@@ -146,6 +146,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		catalog.Replace(5, []resources.Record[compozyconfig.AgentDef]{
 			{
 				ID:    "global:alpha",
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "test-extension"},
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  compozyconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
 			},
@@ -238,6 +239,9 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		if len(workspaceEntries) != 4 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
 			workspaceEntries[1].WorkspaceID != "ws-1" {
 			t.Fatalf("workspace entries = %#v", workspaceEntries)
+		}
+		if !workspaceEntries[0].PackageOwned || workspaceEntries[1].PackageOwned {
+			t.Fatalf("workspace entries lost package ownership: %#v", workspaceEntries)
 		}
 		coder, err := dependency.ResolveAgent("coder", resolved)
 		if err != nil {

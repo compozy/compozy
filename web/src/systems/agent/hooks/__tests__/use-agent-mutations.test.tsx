@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resetProfileViews, setProfileView, useProfileReadScope } from "@/systems/profiles";
 
 import type { AgentPayload } from "../../types";
 import { agentKeys } from "../../lib/query-keys";
@@ -67,6 +69,7 @@ function makeAgent(overrides: Partial<AgentPayload> = {}): AgentPayload {
 
 describe("use-agent-mutations", () => {
   beforeEach(() => {
+    resetProfileViews();
     mockUpdateAgent.mockReset();
     mockDeleteAgent.mockReset();
     mockDuplicateAgent.mockReset();
@@ -74,6 +77,117 @@ describe("use-agent-mutations", () => {
     mockFetchAgents.mockReset();
     mockFetchAgent.mockReset();
   });
+
+  afterEach(() =>
+    act(() => {
+      onlineManager.setOnline(true);
+      resetProfileViews();
+    })
+  );
+
+  it.each(
+    (["create", "update", "delete", "duplicate"] as const).flatMap(operation =>
+      (["in flight", "offline"] as const).map(phase => ({ operation, phase }))
+    )
+  )(
+    "Should bind $operation requests and completion caches to the starting profile while $phase",
+    async ({ operation, phase }) => {
+      setProfileView({ scope: "global" }, { kind: "profile", profile: "open-design" });
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const defaultKey = agentKeys.detail("coder", "ws_alpha", "default");
+      const selectedKey = agentKeys.detail("coder", "ws_alpha", "open-design");
+      const defaultAgent = makeAgent({ prompt: "Default profile" });
+      const selectedAgent = makeAgent({ prompt: "Selected profile" });
+      const updated = makeAgent({ prompt: "Changed", definition_digest: "d2" });
+      queryClient.setQueryData(defaultKey, defaultAgent);
+      queryClient.setQueryData(selectedKey, selectedAgent);
+      let finish!: (value: AgentPayload) => void;
+      const pending = new Promise<AgentPayload>(resolve => {
+        finish = resolve;
+      });
+      const adapter = {
+        create: mockCreateAgent,
+        update: mockUpdateAgent,
+        delete: mockDeleteAgent,
+        duplicate: mockDuplicateAgent,
+      }[operation];
+      adapter.mockReturnValue(pending);
+      const { result, unmount } = renderHook(
+        () => ({
+          profile: useProfileReadScope().destination,
+          create: useCreateAgent(),
+          update: useUpdateAgent(),
+          delete: useDeleteAgent(),
+          duplicate: useDuplicateAgent(),
+        }),
+        { wrapper: createWrapper(queryClient) }
+      );
+      const run = () => {
+        switch (operation) {
+          case "create":
+            return result.current.create.mutateAsync({
+              profile: result.current.profile,
+              params: {
+                scope: "workspace",
+                workspace: "ws_alpha",
+                agent: { name: updated.name, prompt: updated.prompt },
+              },
+            });
+          case "update":
+            return result.current.update.mutateAsync({
+              profile: result.current.profile,
+              name: "coder",
+              cacheWorkspace: "ws_alpha",
+              params: {
+                workspace: "ws_alpha",
+                expected_digest: "d1",
+                agent: { name: updated.name, prompt: updated.prompt },
+              },
+            });
+          case "delete":
+            return result.current.delete.mutateAsync({
+              profile: result.current.profile,
+              name: "coder",
+              workspace: "ws_alpha",
+            });
+          case "duplicate":
+            return result.current.duplicate.mutateAsync({
+              profile: result.current.profile,
+              sourceName: "source",
+              params: { name: "coder", scope: "workspace", workspace: "ws_alpha" },
+            });
+        }
+      };
+      let completion!: ReturnType<typeof run>;
+      act(() => {
+        onlineManager.setOnline(phase !== "offline");
+        completion = run();
+      });
+      if (phase === "offline") {
+        await waitFor(() => expect(result.current[operation].isPaused).toBe(true));
+        expect(adapter).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+      }
+      act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "default" }));
+      await waitFor(() => expect(result.current.profile).toBe("default"));
+      act(() => onlineManager.setOnline(true));
+      await waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+      await act(async () => {
+        finish(updated);
+        await completion;
+      });
+      expect(adapter.mock.calls[0]?.at(-1)).toBe("open-design");
+      expect(queryClient.getQueryData(defaultKey)).toEqual(defaultAgent);
+      expect(queryClient.getQueryData(selectedKey)).toEqual(
+        operation === "delete" ? undefined : updated
+      );
+      unmount();
+      queryClient.clear();
+    }
+  );
 
   it("Should load agents via useAgents", async () => {
     const queryClient = new QueryClient({
@@ -84,14 +198,19 @@ describe("use-agent-mutations", () => {
       wrapper: createWrapper(queryClient),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockFetchAgents).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal));
+    expect(mockFetchAgents).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal), "default");
 
     mockFetchAgent.mockResolvedValue(makeAgent());
     const detail = renderHook(() => useAgent("coder", "ws_alpha"), {
       wrapper: createWrapper(queryClient),
     });
     await waitFor(() => expect(detail.result.current.isSuccess).toBe(true));
-    expect(mockFetchAgent).toHaveBeenCalledWith("coder", "ws_alpha", expect.any(AbortSignal));
+    expect(mockFetchAgent).toHaveBeenCalledWith(
+      "coder",
+      "ws_alpha",
+      expect.any(AbortSignal),
+      "default"
+    );
   });
 
   it("Should cache created agents on create success", async () => {
@@ -105,9 +224,12 @@ describe("use-agent-mutations", () => {
     });
     await act(async () => {
       await result.current.mutateAsync({
-        scope: "workspace",
-        workspace: "ws_alpha",
-        agent: { name: "new-agent", provider: "claude", prompt: "Ship carefully." },
+        profile: "default",
+        params: {
+          scope: "workspace",
+          workspace: "ws_alpha",
+          agent: { name: "new-agent", provider: "claude", prompt: "Ship carefully." },
+        },
       });
     });
     expect(queryClient.getQueryData(agentKeys.detail("new-agent", "ws_alpha"))).toEqual(created);
@@ -127,6 +249,7 @@ describe("use-agent-mutations", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
+        profile: "default",
         name: "coder",
         cacheWorkspace: "ws_alpha",
         params: {
@@ -172,6 +295,7 @@ describe("use-agent-mutations", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
+        profile: "default",
         name: "fraud-ops-agent",
         // Matches useAgent(name, activeWorkspaceId) even when origin is global.
         cacheWorkspace: "ws_alpha",
@@ -207,6 +331,7 @@ describe("use-agent-mutations", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
+          profile: "default",
           name: "coder",
           cacheWorkspace: "ws_alpha",
           params: {
@@ -243,6 +368,7 @@ describe("use-agent-mutations", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
+          profile: "default",
           name: "fraud-ops-agent",
           cacheWorkspace: "ws_alpha",
           params: {
@@ -281,6 +407,7 @@ describe("use-agent-mutations", () => {
     let response: unknown;
     await act(async () => {
       response = await result.current.mutateAsync({
+        profile: "default",
         name: "coder",
         workspace: "ws_alpha",
       });
@@ -309,6 +436,7 @@ describe("use-agent-mutations", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
+        profile: "default",
         sourceName: "coder",
         params: {
           name: "coder-copy",

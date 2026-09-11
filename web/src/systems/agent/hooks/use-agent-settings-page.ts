@@ -22,6 +22,8 @@ import type { RuntimeModelOption } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
 import { useActiveWorkspace, useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 export interface UseAgentSettingsPageOptions {
   name: string;
   section: AgentSettingsSection;
@@ -29,6 +31,7 @@ export interface UseAgentSettingsPageOptions {
 
 export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOptions) {
   const navigate = useNavigate();
+  const { destination } = useProfileReadScope();
   const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
   const agentQuery = useAgent(name, runtimeWorkspaceId);
   const updateAgent = useUpdateAgent();
@@ -37,7 +40,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     enabled: runtimeWorkspaceId !== null,
   });
 
-  const resourceKey = JSON.stringify([runtimeWorkspaceId, name]);
+  const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
   const { store } = useStoreBinding(
     resourceKey,
     () =>
@@ -115,7 +118,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     onSave: () =>
       store.trigger.saveRequested({
         name,
-        save: updateAgent.mutateAsync,
+        save: input => updateAgent.mutateAsync({ ...input, profile: destination }),
         workspaceId: runtimeWorkspaceId,
       }),
     onDiscard: () => store.trigger.discardRequested(),

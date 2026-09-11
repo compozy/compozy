@@ -2,7 +2,9 @@
 // Invariant: The runtime selector explains and recovers from failures in its active provider source.
 // Boundary IN: Agent runtime controller composition and provider-query selection.
 // Boundary OUT: Provider transport behavior, owned by the settings and workspace query suites.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,10 +27,6 @@ const mocks = vi.hoisted(() => ({
     isLoading: false,
     refetch: vi.fn(),
   },
-}));
-
-vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn(), refetchQueries: vi.fn() }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -89,6 +87,11 @@ vi.mock("../../hooks/use-agents", () => ({
   useUpdateAgent: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
+function renderControl(ui: ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.settings.data = undefined;
@@ -104,7 +107,7 @@ describe("AgentRuntimeControl provider sources", () => {
   it("Should display the effective runtime for an agent with blank authored fields", () => {
     mocks.workspace.data = { providers: [] };
 
-    render(
+    renderControl(
       <AgentRuntimeControl
         agent={{
           ...primaryAgentFixture,
@@ -136,7 +139,7 @@ describe("AgentRuntimeControl provider sources", () => {
     const user = userEvent.setup();
     mocks.settings.error = new Error("Global providers unavailable");
 
-    render(
+    renderControl(
       <AgentRuntimeControl
         agent={{ ...primaryAgentFixture, origin: "global" }}
         workspaceId={null}
@@ -154,7 +157,7 @@ describe("AgentRuntimeControl provider sources", () => {
     const user = userEvent.setup();
     mocks.workspace.error = new Error("Workspace providers unavailable");
 
-    render(
+    renderControl(
       <AgentRuntimeControl
         agent={{ ...primaryAgentFixture, origin: "workspace" }}
         workspaceId="workspace-a"

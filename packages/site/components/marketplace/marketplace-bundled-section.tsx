@@ -1,22 +1,10 @@
 import { Eyebrow } from "@compozy/ui";
-import {
-  BUNDLED_SPEC_CYCLE_PATH,
-  bundledSkills,
-  specCycleExtension,
-} from "@/lib/marketplace-bundled";
+import { bundledExtensions, bundledSkills, type BundledExtension } from "@/lib/marketplace-bundled";
 import { BundledExtensionCard, BundledSkillCard } from "./marketplace-bundled-card";
 
-/**
- * The runtime arrives with capabilities already installed, and the catalog cannot represent them:
- * `spec-cycle` is enrolled from the binary at first boot, and the bundled skills are compiled in. The
- * section therefore shows no install command — the honest action is to inspect what you already
- * have.
- */
-
-function inventorySummary(): string {
-  const { loops, skills, agents, tools } = specCycleExtension;
+function inventorySummary({ loops, skills, agents, tools }: BundledExtension): string {
   return [
-    `${loops.length} loops`,
+    `${loops.length} ${loops.length === 1 ? "loop" : "loops"}`,
     `${skills.length} skills`,
     `${agents.length} agents`,
     `${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
@@ -42,15 +30,18 @@ export function MarketplaceBundledSection() {
       </div>
 
       <div className="flex flex-col gap-4">
-        <BundledExtensionCard
-          href={BUNDLED_SPEC_CYCLE_PATH}
-          name={specCycleExtension.displayName}
-          version={specCycleExtension.version}
-          description={specCycleExtension.description}
-          inventory={inventorySummary()}
-          minCompozyVersion={specCycleExtension.minCompozyVersion}
-          statusCommand={specCycleExtension.statusCommand}
-        />
+        {bundledExtensions.map(extension => (
+          <BundledExtensionCard
+            key={extension.name}
+            href={extension.path}
+            name={extension.displayName}
+            version={extension.version}
+            description={extension.description}
+            inventory={inventorySummary(extension)}
+            minCompozyVersion={extension.minCompozyVersion}
+            statusCommand={extension.statusCommand}
+          />
+        ))}
         {bundledSkills.map(skill => (
           <BundledSkillCard key={skill.name} name={skill.name} description={skill.description} />
         ))}

@@ -167,6 +167,16 @@ func TestLint(t *testing.T) {
 		if len(buffer.Bytes()) != 0 {
 			t.Fatal("expected empty output")
 		}
+		diagnostics := diagnosticBuffer{remaining: 4096}
+		message := "Node diagnostic: " + strings.Repeat("x", 8192)
+		for _, input := range []string{message, "additional diagnostic"} {
+			if n, err := diagnostics.Write([]byte(input)); err != nil || n != len(input) {
+				t.Fatalf("diagnostic write = %d, %v", n, err)
+			}
+		}
+		if got, want := diagnostics.String(), message[:4096]+"\n[stderr truncated]"; got != want {
+			t.Fatalf("bounded diagnostics = %q, want %q", got, want)
+		}
 	})
 	t.Run("Should explain the missing Node dependency", func(t *testing.T) {
 		// not parallel: t.Setenv isolates process PATH for this dependency failure.
@@ -191,11 +201,62 @@ func TestLint(t *testing.T) {
 		if err := json.Unmarshal(result, &got); err != nil || !got.Passed || len(got.Artifacts) != 0 {
 			t.Fatalf("result = %s, error = %v", result, err)
 		}
+		node, err := exec.LookPath("node")
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := exec.CommandContext(t.Context(), node, "-e",
+			"process.stdout.write(String(process.env.NODE_OPTIONS) + '/' + String(process.env.NODE_PATH))")
+		command.Env = lintEnvironment([]string{
+			"NODE_OPTIONS=" + os.Getenv("NODE_OPTIONS"),
+			"NODE_PATH=" + os.Getenv("NODE_PATH"),
+		})
+		output, err := command.CombinedOutput()
+		if err != nil || string(output) != "undefined/undefined" {
+			t.Fatalf("empty filtered environment inherited Node settings: output=%s, error=%v", output, err)
+		}
 	})
 }
 
 func TestLintWorkspaceBoundary(t *testing.T) {
 	t.Parallel()
+	// Invariant: trusted-root failures are internal; caller artifact mistakes remain invalid params.
+	// Owner: native lint handler error boundary; reuse the workspace-boundary suite.
+	t.Run("Should distinguish unavailable workspace infrastructure from invalid artifact paths", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		missingDesign := t.TempDir()
+		if err := os.Mkdir(filepath.Join(missingDesign, "docs"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		valid := lintWorkspace(t)
+		for _, tc := range []struct {
+			scope *compozysdk.ExtensionToolWorkspaceScope
+			path  string
+			code  int
+		}{
+			{nil, "docs/design/index.html", -32603},
+			{&compozysdk.ExtensionToolWorkspaceScope{ID: "workspace", Root: filepath.Join(root, "missing")}, "docs/design/index.html", -32603},
+			{&compozysdk.ExtensionToolWorkspaceScope{ID: "workspace", Root: root}, "docs/design/index.html", -32603},
+			{&compozysdk.ExtensionToolWorkspaceScope{ID: "workspace", Root: missingDesign}, "docs/design/index.html", -32603},
+			{valid, "../index.html", -32602},
+			{valid, "docs/design/missing.html", -32602},
+		} {
+			_, err := handleLint(t.Context(), compozysdk.ToolRequest[lintInput]{
+				TrustedWorkspace: tc.scope, Input: lintInput{Paths: []string{tc.path}},
+			})
+			rpcErr, ok := errors.AsType[*compozysdk.RPCError](err)
+			if !ok || rpcErr.Code != tc.code || len(rpcErr.Data) == 0 {
+				t.Fatalf(
+					"scope=%+v path=%s: error=%+v, want JSON-RPC code %d with diagnostic",
+					tc.scope,
+					tc.path,
+					err,
+					tc.code,
+				)
+			}
+		}
+	})
 	t.Run("Should reject untrusted and out-of-scope paths", func(t *testing.T) {
 		t.Parallel()
 		scope := lintWorkspace(t)

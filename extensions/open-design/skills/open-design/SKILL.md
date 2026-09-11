@@ -18,7 +18,7 @@ Load only the reference sections needed for this artifact, relative to this skil
 - [craft.md](references/craft.md): hierarchy, composition, content, and color for a new direction; semantics, focus, and states for interactive work; language and motion when affected.
 - [artifacts.md](references/artifacts.md): the matching lane for an interface, site, HTML slide deck, or visual document, including its relevant delivery checks.
 
-Use `compozy__skill_view` with `name: open-design` and `file: references/craft.md` or `references/artifacts.md` when available. If the harness has no native skill-reading tool, read from the installed skill directory; never bypass an explicit denial. Reuse already-read guidance while it remains relevant.
+Use `compozy__skill_view` with `name: open-design` and `file: references/craft.md` or `references/artifacts.md` when available. If the native skill reader is unavailable or denies access, report the reference as unavailable; do not bypass the managed-session reader. Reuse already-read guidance while it remains relevant.
 
 ## Author a directly openable artifact
 
@@ -34,7 +34,7 @@ Refine the same files in place, preserving approved decisions and unrelated cont
 
 Read back the changed HTML, check local assets and content completeness, and exercise the primary interaction when tooling permits. Invoke `ext__open_design__lint_artifact` with the actual workspace-relative HTML paths. Inspect its findings, fix applicable defects, and explain an intentional exception with the specific user or project authority. Report unavailable lint tooling as unverified.
 
-When rendered inspection would resolve a visual or interaction risk, use the bundled `agent-browser` skill with an isolated task-owned CLI session. Do not substitute `browser-use`, attach to an existing browser, or operate the user's live browsing session. Load the resulting screenshot through the harness's image-reading capability before claiming visual inspection; an accessibility snapshot or screenshot path is not visual proof. Keep checks proportional to the change. Missing browser support need not block an HTML sketch, and does not justify an automatic installation.
+When rendered inspection would resolve a visual or interaction risk, use the bundled `open-design-browser` skill with an isolated task-owned CLI session. Do not substitute `browser-use`, attach to an existing browser, or operate the user's live browsing session. Load the resulting screenshot through the harness's image-reading capability before claiming visual inspection; an accessibility snapshot or screenshot path is not visual proof. Keep checks proportional to the change. Missing browser support need not block an HTML sketch, and does not justify an automatic installation.
 
 Link the actual HTML files and briefly describe the result, checks performed, and material limitations. Do not repeat their source in chat. Recheck affected areas after corrections and reuse valid evidence for unchanged areas.
 

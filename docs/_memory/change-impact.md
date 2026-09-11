@@ -199,12 +199,14 @@ The HTTP/UDS hook catalog handler now resolves alias/name/path input to Resolved
 ## Built-in open-design extension
 
 - **Native tools:** adds extension-owned `ext__open_design__lint_artifact`; no `compozy__*` IDs or
-  core API/CLI schemas change. Its typed paths input, original findings output, file digests, and
+  core CLI schemas change. Its typed paths input, original findings output, file digests, and
   read-only/read-risk descriptor publish through the existing provider and tool invocation surfaces.
 - **Extensibility and hooks:** boot reconciles the new bundled extension and its declared profile;
   it uses the existing managed-install lifecycle unchanged. Two agents, three explicit skills,
-  two curated design references, and one opt-in native Loop are added. The review skill supplies
-  explicit per-run limits through existing config_overrides; no loop-engine changes are needed.
+  two curated design references, and one opt-in native Loop are added. An isolated, tool-capable
+  critic returns a typed verdict; a second native lint confirms file digests before fail-closed
+  completion. The review skill supplies explicit per-run limits through existing config_overrides;
+  no loop-engine changes are needed.
   All guidance and lint code is maintained locally, with no upstream download or sync. No
   hook/config keys, sidecars, viewer, custom capture service, or artifact registry are introduced.
 - **Workspace data isolation:** HTML belongs to the active workspace under `docs/design/`.
@@ -214,7 +216,19 @@ The HTTP/UDS hook catalog handler now resolves alias/name/path input to Resolved
 - **Official Compozy skill:** `skills/compozy/references/extensions.md` documents profile resources,
   design/review behavior, Node/browser prerequisites, and locally maintained guidance.
 - **Web/Docs:** existing profile, session, extension inventory, and Loop inspector surfaces expose
-  the resources. No Web component change. The new extension guide and ET-open-design scenario own
+  the resources. Existing agent catalogs and session pickers bind their reads to the selected
+  profile, allowing this profile to be used through the normal session workflow. Existing agent
+  definition mutations, conflict refetches, and edit drafts preserve that profile identity; pending
+  mutations update only their original profile cache. OpenAPI and the generated Web client now
+  describe the seven optional profile query selectors already supported by these handlers.
+  Definition mutation lookup now reuses the effective catalog: managed extension agents can be
+  duplicated into authored definitions, while update/delete return an explicit 403 before any
+  managed file or history change. Internal package ownership is preserved at the catalog projection.
+  The existing Marketplace bundled catalog, detail route, search, sitemap, and build inputs include
+  Open Design alongside Spec Cycle. No new viewer or Web component is introduced. The new extension guide and ET-open-design scenario own
   user guidance and runtime/visual QA; package tests own original-lint parity and resource compilation.
 - **Compatibility:** additive built-in resources and tool namespace, no persisted user-data schema
-  or public replacement. Existing managed-install policies preserve operator-owned installations.
+  or public replacement. Profile query documentation is additive; existing handler semantics remain
+  unchanged for authored definitions. Managed extension update/delete now have a documented 403
+  instead of an incidental missing-definition error; duplication is supported without modifying the
+  original. Existing managed-install policies preserve operator-owned installations.

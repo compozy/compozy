@@ -4,7 +4,7 @@
 // Boundary OUT: HTTP adapters, which have their own contract suites.
 import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgent, useAgentCatalog, useAgents } from "@/systems/agent";
@@ -1156,6 +1156,72 @@ describe("route query preloading", () => {
     }
   );
 
+  it("Should keep agent discovery and detail in the acting profile across preload and switches", async () => {
+    const queryClient = createQueryClient();
+    const lens = { scope: "workspace" as const, workspaceId: workspace.id };
+    setProfileView(lens, { kind: "profile", profile: "open-design" });
+    adapterMocks.fetchAgents.mockImplementation((_workspace, _signal, profile) =>
+      Promise.resolve([{ name: profile === "open-design" ? "open-design-designer" : "general" }])
+    );
+
+    await invokeLoader(AppRoute, context(queryClient));
+    await invokeLoader(AgentDetailRoute, {
+      ...context(queryClient),
+      location: { pathname: "/agents/open-design-designer" },
+      params: { name: "open-design-designer" },
+    });
+    const mounted = renderHook(
+      () => ({
+        list: useAgents(workspace.id),
+        catalog: useAgentCatalog(workspace.id, { limit: 1 }),
+        detail: useAgent("open-design-designer", workspace.id),
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() =>
+      expect(mounted.result.current.list.data?.[0]?.name).toBe("open-design-designer")
+    );
+    expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgents).toHaveBeenLastCalledWith(
+      workspace.id,
+      expect.any(AbortSignal),
+      "open-design"
+    );
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspace: workspace.id, profile: "open-design" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.fetchAgent).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgent).toHaveBeenLastCalledWith(
+      "open-design-designer",
+      workspace.id,
+      expect.any(AbortSignal),
+      "open-design"
+    );
+
+    act(() => setProfileView(lens, { kind: "aggregate" }));
+    await waitFor(() => expect(mounted.result.current.list.data?.[0]?.name).toBe("general"));
+    expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(2);
+    expect(adapterMocks.fetchAgents).toHaveBeenLastCalledWith(
+      workspace.id,
+      expect.any(AbortSignal),
+      "default"
+    );
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.fetchAgent).toHaveBeenLastCalledWith(
+      "open-design-designer",
+      workspace.id,
+      expect.any(AbortSignal),
+      "default"
+    );
+    mounted.unmount();
+    queryClient.clear();
+  });
+
   it("Should preload a Loop run within the selected Profile and reuse it on mount", async () => {
     const queryClient = createQueryClient();
     setProfileView(
@@ -1327,7 +1393,8 @@ describe("route query preloading", () => {
     expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(1);
     expect(adapterMocks.fetchAgents).toHaveBeenCalledWith(
       selectedWorkspace.id,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      "default"
     );
 
     const unmount = mountQueries(queryClient, () => {

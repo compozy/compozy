@@ -33,6 +33,8 @@ const (
 //go:embed lint.gen.mjs
 var lintProgram string
 
+var errWorkspaceUnavailable = errors.New("open-design: trusted workspace unavailable")
+
 type lintInput struct {
 	Paths []string `json:"paths"`
 }
@@ -48,6 +50,9 @@ func handleLint(ctx context.Context, req compozysdk.ToolRequest[lintInput]) (com
 	if err != nil {
 		if ctx.Err() != nil {
 			return compozysdk.ToolResult{}, ctx.Err()
+		}
+		if errors.Is(err, errWorkspaceUnavailable) {
+			return compozysdk.ToolResult{}, compozysdk.NewInternalError(err.Error())
 		}
 		return compozysdk.ToolResult{}, compozysdk.NewInvalidParamsError(err.Error(), nil)
 	}
@@ -73,7 +78,7 @@ func readArtifacts(
 	paths []string,
 ) (documents []lintDocument, err error) {
 	if scope == nil || scope.ID == "" || !filepath.IsAbs(scope.Root) {
-		return nil, errors.New("open-design: a trusted workspace is required")
+		return nil, fmt.Errorf("%w: a trusted workspace is required", errWorkspaceUnavailable)
 	}
 	if len(paths) == 0 || len(paths) > maxArtifacts {
 		return nil, fmt.Errorf("open-design: paths must contain 1 to %d HTML files", maxArtifacts)
@@ -85,21 +90,21 @@ func readArtifacts(
 	// subsequently opened relative to held directory handles without symlinks.
 	canonicalRoot, err := filepath.EvalSymlinks(scope.Root)
 	if err != nil {
-		return nil, fmt.Errorf("open-design: resolve workspace: %w", err)
+		return nil, fmt.Errorf("%w: resolve workspace: %w", errWorkspaceUnavailable, err)
 	}
 	root, err := fileutil.OpenDirectory(canonicalRoot)
 	if err != nil {
-		return nil, fmt.Errorf("open-design: open workspace: %w", err)
+		return nil, fmt.Errorf("%w: open workspace: %w", errWorkspaceUnavailable, err)
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 	docs, err := root.OpenDirectory("docs")
 	if err != nil {
-		return nil, fmt.Errorf("open-design: open workspace docs: %w", err)
+		return nil, fmt.Errorf("%w: open workspace docs: %w", errWorkspaceUnavailable, err)
 	}
 	defer func() { err = errors.Join(err, docs.Close()) }()
 	designs, err := docs.OpenDirectory("design")
 	if err != nil {
-		return nil, fmt.Errorf("open-design: open workspace docs/design: %w", err)
+		return nil, fmt.Errorf("%w: open workspace docs/design: %w", errWorkspaceUnavailable, err)
 	}
 	defer func() { err = errors.Join(err, designs.Close()) }()
 	documents = make([]lintDocument, 0, len(paths))
@@ -176,18 +181,12 @@ func executeLint(ctx context.Context, input []byte) (json.RawMessage, error) {
 	runCtx, cancel := context.WithTimeout(ctx, lintTimeout)
 	defer cancel()
 	command := exec.CommandContext(runCtx, node, "--input-type=module", "-e", lintProgram, "--", "--stdio")
-	// Node preload settings must not inject code into the embedded linter.
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if !strings.EqualFold(key, "NODE_OPTIONS") && !strings.EqualFold(key, "NODE_PATH") {
-			command.Env = append(command.Env, entry)
-		}
-	}
+	command.Env = lintEnvironment(os.Environ())
 	command.Stdin = bytes.NewReader(input)
 	command.WaitDelay = time.Second
 	output := &limitedBuffer{remaining: maxResultBytes}
 	command.Stdout = output
-	stderr := &limitedBuffer{remaining: 4096}
+	stderr := &diagnosticBuffer{remaining: 4096}
 	command.Stderr = stderr
 	if err := command.Run(); err != nil {
 		if runCtx.Err() != nil {
@@ -199,6 +198,18 @@ func executeLint(ctx context.Context, input []byte) (json.RawMessage, error) {
 		return nil, errors.New("open-design: linter returned invalid JSON")
 	}
 	return json.RawMessage(output.Bytes()), nil
+}
+
+func lintEnvironment(environ []string) []string {
+	// A non-nil empty slice prevents os/exec from restoring filtered parent variables.
+	filtered := make([]string, 0, len(environ))
+	for _, entry := range environ {
+		key, _, _ := strings.Cut(entry, "=")
+		if !strings.EqualFold(key, "NODE_OPTIONS") && !strings.EqualFold(key, "NODE_PATH") {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 type limitedBuffer struct {
@@ -213,4 +224,25 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	n, err := b.Buffer.Write(p)
 	b.remaining -= n
 	return n, err
+}
+
+type diagnosticBuffer struct {
+	content   []byte
+	remaining int
+	truncated bool
+}
+
+func (b *diagnosticBuffer) Write(p []byte) (int, error) {
+	n := min(len(p), b.remaining)
+	b.content = append(b.content, p[:n]...)
+	b.remaining -= n
+	b.truncated = b.truncated || n < len(p)
+	return len(p), nil
+}
+
+func (b *diagnosticBuffer) String() string {
+	if b.truncated {
+		return string(b.content) + "\n[stderr truncated]"
+	}
+	return string(b.content)
 }

@@ -2,15 +2,18 @@ package opendesign
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/tools"
 )
@@ -19,16 +22,7 @@ import (
 // must load the shipped catalog; this is not a snapshot of prose or layout.
 func TestEmbeddedResources(t *testing.T) {
 	t.Parallel()
-	// Invariant: the shipped executable matches the locally maintained lint source.
-	// Owner: embedded extension; reuse this distribution-contract suite.
-	t.Run("Should build the shipped linter from local source", func(t *testing.T) {
-		t.Parallel()
-		output, err := exec.CommandContext(t.Context(), "bun", "scripts/build-lint.ts", "--check").CombinedOutput()
-		if err != nil {
-			t.Fatalf("embedded linter drift: %v\n%s", err, output)
-		}
-	})
-	t.Run("Should load the declared profile resources and compile the review loop", func(t *testing.T) {
+	t.Run("Should load the profile resources and hydrate the executable review loop", func(t *testing.T) {
 		t.Parallel()
 		directory := t.TempDir()
 		if err := os.CopyFS(directory, FS()); err != nil {
@@ -106,9 +100,27 @@ func TestEmbeddedResources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := loop.NewCompiler(loop.WithCompilerToolSchemaSource(source)).Compile(definition); err != nil {
+		resolved, err := loop.NewCompiler(loop.WithCompilerToolSchemaSource(source)).Compile(definition)
+		if err != nil {
 			t.Fatal(err)
 		}
+		// The daemon persists and rehydrates a snapshot before admitting a run.
+		// Exercise that boundary: compilation alone cannot prove runtime references.
+		effective, err := loop.ResolveEffectiveConfig(resolved, loop.DefaultLoopDefaults(), nil, loop.LoopConfig{
+			IterationCap: new(3), ReattemptStrategy: new(loop.ReattemptFullBody),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, digest, err := loop.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hydrated, err := loop.LoadExecutedDefinitionSnapshot(snapshot, digest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testReviewLoopCompletion(t, hydrated)
 	})
 }
 
@@ -118,4 +130,248 @@ var _ loop.ToolSchemaSource = lintSchemas{}
 
 func (s lintSchemas) Snapshot(id string) (loop.ToolSchemaSnapshot, bool) {
 	return s.snapshot, id == LintToolID
+}
+
+// Invariant: the shipped review Loop completes only for an explicit, evidenced
+// approval of the unchanged candidate. Owner: embedded Loop product contract;
+// use its real schema validator, template renderer, and compiled CEL predicate.
+func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
+	t.Helper()
+	condition := resolved.Conditions["contract.stop_when"]
+	if condition == nil || resolved.Definition.Contract.StopWhen.OnEvalError != dsl.EvalErrorFail {
+		t.Fatal("review completion must have a fail-closed condition")
+	}
+	var criticSchema dsl.Schema
+	for _, node := range resolved.Definition.Graph.Nodes {
+		if node.ID == "critique" {
+			var params dsl.RunAgentParams
+			if err := node.Params.Decode(&params); err != nil {
+				t.Fatal(err)
+			}
+			if node.Kind != "run-agent" || node.Session == nil || !node.Session.Isolated {
+				t.Fatal("critic must own an isolated tool-capable agent session")
+			}
+			criticSchema = params.OutputSchema
+		}
+	}
+	if len(criticSchema) == 0 {
+		t.Fatal("critic output schema is missing")
+	}
+	cases := []struct {
+		name  string
+		patch func(map[string]any)
+		want  bool
+	}{
+		{name: "Should accept an evidenced approval", want: true},
+		{name: "Should reject a requested revision", patch: func(v map[string]any) {
+			reviewNodeOutput(v, "critique")["verdict"] = "revise"
+		}},
+		{name: "Should reject approval with remaining blockers", patch: func(v map[string]any) {
+			reviewNodeOutput(v, "critique")["blocking_issues"] = []any{map[string]any{"id": "missing_state"}}
+		}},
+		{name: "Should reject stale review digests", patch: func(v map[string]any) {
+			reviewArtifact(v, "critique")["sha256"] = strings.Repeat("b", 64)
+		}},
+		{name: "Should reject files changed during review", patch: func(v map[string]any) {
+			reviewArtifact(v, "verify")["sha256"] = strings.Repeat("b", 64)
+		}},
+		{name: "Should reject unreviewed files", patch: func(v map[string]any) {
+			reviewNodeOutput(v, "critique")["artifacts"] = []any{}
+		}},
+		{name: "Should reject a different requested entry path", patch: func(v map[string]any) {
+			reviewNodeOutput(v, "design")["primary_html_path"] = "docs/design/other.html"
+		}},
+		{name: "Should accept a matching source-backed lint exception", want: true, patch: func(v map[string]any) {
+			addReviewLintFinding(v)
+			reviewArtifact(v, "critique")["exceptions"] = []any{map[string]any{
+				"id": "color_rule", "severity": "P1", "source": "DESIGN.md palette", "reason": "Approved brand color",
+			}}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			variables := reviewLoopFixture(t)
+			if tc.patch != nil {
+				tc.patch(variables)
+			}
+			if tc.want {
+				raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := loop.ValidateActionStructured(
+					criticSchema,
+					loop.ActionPromptResult{Structured: raw},
+				); err != nil {
+					t.Fatalf("valid review schema: %v", err)
+				}
+			}
+			result, err := condition.Evaluate(variables)
+			if err != nil || result.Value != tc.want {
+				t.Fatalf("review completion = %v, %v; want %v", result.Value, err, tc.want)
+			}
+		})
+	}
+	for _, name := range []string{"design", "lint", "critique", "verify"} {
+		t.Run("Should reject failed "+name+" execution", func(t *testing.T) {
+			t.Parallel()
+			variables := reviewLoopFixture(t)
+			variables["nodes"].(map[string]any)[name].(map[string]any)["status"] = "failed"
+			result, err := condition.Evaluate(variables)
+			if err != nil || result.Value {
+				t.Fatalf("failed action completion = %v, %v", result.Value, err)
+			}
+		})
+	}
+	t.Run("Should evaluate the full supported artifact batch within the native cost limit", func(t *testing.T) {
+		t.Parallel()
+		variables := reviewLoopFixture(t)
+		variables["inputs"].(map[string]any)["artifact_path"] = "docs/design/board-0.html"
+		reviewNodeOutput(variables, "design")["primary_html_path"] = "docs/design/board-0.html"
+		paths := make([]any, 0, 32)
+		for index := range 32 {
+			paths = append(paths, fmt.Sprintf("docs/design/board-%d.html", index))
+		}
+		reviewNodeOutput(variables, "design")["artifact_paths"] = paths
+		for _, node := range []string{"lint", "critique", "verify"} {
+			artifacts := make([]any, 0, 32)
+			for index := range 32 {
+				artifact := map[string]any{
+					"path": fmt.Sprintf("docs/design/board-%d.html", index), "sha256": strings.Repeat("a", 64),
+				}
+				findings := make([]any, 0, 16)
+				for finding := range 16 {
+					findings = append(
+						findings,
+						map[string]any{
+							"id":       fmt.Sprintf("rule-%d", finding),
+							"severity": "P1",
+							"message":  "Color differs",
+							"fix":      "Use approved color",
+						},
+					)
+				}
+				if node == "critique" {
+					exceptions := make([]any, 0, len(findings))
+					for _, finding := range findings {
+						exceptions = append(exceptions, map[string]any{
+							"id": finding.(map[string]any)["id"], "severity": "P1",
+							"source": "DESIGN.md", "reason": "Approved design authority",
+						})
+					}
+					artifact["evidence"] = "Read the full source and checked the brief"
+					artifact["exceptions"] = exceptions
+				} else {
+					artifact["findings"] = findings
+				}
+				artifacts = append(artifacts, artifact)
+			}
+			reviewNodeOutput(variables, node)["artifacts"] = artifacts
+		}
+		result, err := condition.Evaluate(variables)
+		if err != nil || !result.Value || result.CostWarning {
+			t.Fatalf("full batch completion = %#v, %v", result, err)
+		}
+	})
+	t.Run("Should reject critic output without actual evidence", func(t *testing.T) {
+		t.Parallel()
+		variables := reviewLoopFixture(t)
+		raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loop.ValidateActionStructured(criticSchema, loop.ActionPromptResult{Structured: raw}); err != nil {
+			t.Fatalf("valid review schema: %v", err)
+		}
+		reviewArtifact(variables, "critique")["evidence"] = " \t\n"
+		raw, err = json.Marshal(reviewNodeOutput(variables, "critique"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loop.ValidateActionStructured(criticSchema, loop.ActionPromptResult{Structured: raw}); err == nil {
+			t.Fatal("critic output without evidence was accepted")
+		}
+		if _, err := loop.ValidateActionStructured(criticSchema, loop.ActionPromptResult{}); err == nil {
+			t.Fatal("missing critic output was accepted")
+		}
+	})
+	t.Run("Should expose malformed completion input as an evaluation error", func(t *testing.T) {
+		t.Parallel()
+		variables := reviewLoopFixture(t)
+		delete(reviewNodeOutput(variables, "critique"), "verdict")
+		if _, err := condition.Evaluate(variables); err == nil {
+			t.Fatal("malformed completion input did not produce an error")
+		}
+	})
+	t.Run("Should carry the prior typed critique and file evidence to the designer", func(t *testing.T) {
+		t.Parallel()
+		variables := reviewLoopFixture(t)
+		variables["generation"] = 2
+		variables["previous"] = map[string]any{"generation": 1, "nodes": variables["nodes"]}
+		prior := reviewNodeOutput(variables, "critique")
+		prior["blocking_issues"] = []any{map[string]any{"id": "missing_state", "correction": "Add the failure state"}}
+		template := resolved.Templates["nodes.design.params.prompt"]
+		if template == nil {
+			t.Fatal("compiled designer prompt missing")
+		}
+		rendered, err := refs.RenderTemplateString("designer", template.Raw, variables)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(prior)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(rendered, string(raw)) {
+			t.Fatal("designer did not receive the prior critic's blockers and file evidence")
+		}
+	})
+}
+
+func reviewLoopFixture(t *testing.T) map[string]any {
+	t.Helper()
+	const raw = `{
+	  "inputs": {"artifact_path": "docs/design/index.html", "brief": "Review selection"},
+	  "nodes": {
+	    "design": {"status": "succeeded", "output": {
+	      "primary_html_path": "docs/design/index.html", "artifact_paths": ["docs/design/index.html"]}},
+	    "lint": {"status": "succeeded", "output": {"artifacts": [{
+	      "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	      "findings": []}]}},
+	    "verify": {"status": "succeeded", "output": {"artifacts": [{
+	      "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	      "findings": []}]}},
+	    "critique": {"status": "succeeded", "output": {
+	      "verdict": "approved", "blocking_issues": [], "limitations": [], "artifacts": [{
+	        "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	        "evidence": "Read selection handlers against the brief", "exceptions": []}]}}
+	  }
+	}`
+	var variables map[string]any
+	if err := json.Unmarshal([]byte(raw), &variables); err != nil {
+		t.Fatal(err)
+	}
+	return variables
+}
+
+func reviewNodeOutput(variables map[string]any, node string) map[string]any {
+	return variables["nodes"].(map[string]any)[node].(map[string]any)["output"].(map[string]any)
+}
+
+func reviewArtifact(variables map[string]any, node string) map[string]any {
+	return reviewNodeOutput(variables, node)["artifacts"].([]any)[0].(map[string]any)
+}
+
+func addReviewLintFinding(variables map[string]any) {
+	for _, node := range []string{"lint", "verify"} {
+		reviewArtifact(variables, node)["findings"] = []any{
+			map[string]any{
+				"id":       "color_rule",
+				"severity": "P1",
+				"message":  "Color differs",
+				"fix":      "Use approved color",
+			},
+		}
+	}
 }

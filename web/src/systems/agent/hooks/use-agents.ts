@@ -13,6 +13,7 @@ import type {
   UpdateAgentParams,
 } from "../types";
 import { workspaceKeys } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface UseAgentsOptions {
   enabled?: boolean;
@@ -33,8 +34,9 @@ function invalidateAgentCollectionQueries(
 }
 
 export function useAgents(workspace?: string | null, options: UseAgentsOptions = {}) {
+  const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentsListOptions(workspace),
+    ...agentsListOptions(workspace, destination),
     enabled: options.enabled ?? true,
   });
 }
@@ -44,8 +46,9 @@ export function useAgentCatalog(
   filters: AgentCatalogStableFilter = {},
   options: UseAgentsOptions = {}
 ) {
+  const { destination } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...agentCatalogOptions(workspace, filters),
+    ...agentCatalogOptions(workspace, { ...filters, profile: destination }),
     enabled: Boolean(workspace) && (options.enabled ?? true),
   });
   const firstPage = agentCatalogPage(query.data);
@@ -59,19 +62,29 @@ export function useAgentCatalog(
 }
 
 export function useAgent(name: string, workspace?: string | null) {
-  return useQuery(agentDetailOptions(name, workspace));
+  const { destination } = useProfileReadScope();
+  return useQuery(agentDetailOptions(name, workspace, destination));
+}
+
+export interface CreateAgentVariables {
+  params: CreateAgentParams;
+  profile: string;
 }
 
 export function useCreateAgent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: CreateAgentParams) => createAgent(params),
-    onSuccess: (agent, params) => {
+    mutationFn: ({ params, profile }: CreateAgentVariables) =>
+      createAgent(params, undefined, profile),
+    onSuccess: (agent, { params, profile }) => {
       const workspace = params.scope === "workspace" ? params.workspace : null;
-      queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
+      queryClient.setQueryData<AgentPayload>(
+        agentKeys.detail(agent.name, workspace, profile),
+        agent
+      );
     },
-    onSettled: (_agent, error, params) => {
+    onSettled: (_agent, error, { params }) => {
       invalidateAgentCollectionQueries(
         queryClient,
         error,
@@ -83,6 +96,7 @@ export function useCreateAgent() {
 
 export interface UpdateAgentVariables {
   name: string;
+  profile: string;
   params: UpdateAgentParams;
   /**
    * Workspace key used by `useAgent` for this view.
@@ -96,13 +110,14 @@ export function useUpdateAgent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, params }: UpdateAgentVariables) => updateAgent(name, params),
+    mutationFn: ({ name, params, profile }: UpdateAgentVariables) =>
+      updateAgent(name, params, undefined, profile),
     onSuccess: (agent, variables) => {
       // Write only the exact detail key for this view — never broadcast to all
       // same-name workspace caches, and never fall back to params.workspace
       // (null for global winners viewed under an active workspace).
       queryClient.setQueryData<AgentPayload>(
-        agentKeys.detail(agent.name, variables.cacheWorkspace),
+        agentKeys.detail(agent.name, variables.cacheWorkspace, variables.profile),
         agent
       );
     },
@@ -114,6 +129,7 @@ export function useUpdateAgent() {
 
 export interface DeleteAgentVariables {
   name: string;
+  profile: string;
   workspace?: string | null;
 }
 
@@ -121,10 +137,13 @@ export function useDeleteAgent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, workspace }: DeleteAgentVariables) => deleteAgent(name, workspace),
+    mutationFn: ({ name, workspace, profile }: DeleteAgentVariables) =>
+      deleteAgent(name, workspace, undefined, profile),
     onSuccess: (_result: DeleteAgentResponse, variables) => {
       const workspace = variables.workspace ?? null;
-      queryClient.removeQueries({ queryKey: agentKeys.detail(variables.name, workspace) });
+      queryClient.removeQueries({
+        queryKey: agentKeys.detail(variables.name, workspace, variables.profile),
+      });
     },
     onSettled: (_result, error, variables) => {
       invalidateAgentCollectionQueries(queryClient, error, variables?.workspace);
@@ -134,6 +153,7 @@ export function useDeleteAgent() {
 
 export interface DuplicateAgentVariables {
   sourceName: string;
+  profile: string;
   params: DuplicateAgentParams;
 }
 
@@ -141,12 +161,15 @@ export function useDuplicateAgent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sourceName, params }: DuplicateAgentVariables) =>
-      duplicateAgent(sourceName, params),
+    mutationFn: ({ sourceName, params, profile }: DuplicateAgentVariables) =>
+      duplicateAgent(sourceName, params, undefined, profile),
     onSuccess: (agent, variables) => {
       const workspace =
         variables.params.scope === "workspace" ? (variables.params.workspace ?? null) : null;
-      queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
+      queryClient.setQueryData<AgentPayload>(
+        agentKeys.detail(agent.name, workspace, variables.profile),
+        agent
+      );
     },
     onSettled: (_agent, error, variables) => {
       invalidateAgentCollectionQueries(

@@ -38,9 +38,10 @@ type AgentCatalog interface {
 
 // AgentCatalogEntry carries one definition with its durable ownership scope.
 type AgentCatalogEntry struct {
-	Def         compozyconfig.AgentDef
-	Origin      contract.AgentOrigin
-	WorkspaceID string
+	PackageOwned bool
+	Def          compozyconfig.AgentDef
+	Origin       contract.AgentOrigin
+	WorkspaceID  string
 }
 
 // AgentDefinitionSync converges authored definitions into runtime projections.

@@ -25,13 +25,14 @@ it does not change your application's production code.
 ## Ask for independent review
 
 Ask the designer to use **open-design-review** when you want a complete review cycle. The native
-Loop runs a design pass, the original linter, and an independent critic. The critic checks
+Loop runs a design pass, the original linter, an independent critic, and a final file-digest check.
+Only approval of the exact checked files completes the review. The critic checks
 layout and craft, purpose and states, brand fidelity, accessibility, and copy. It requests
 corrections or explains specific exceptions grounded in your approved design system.
 
 The review skill supplies a limit of three complete passes, stopping earlier when approved.
-For a direct Loop invocation, pass `config_overrides` with `iteration_cap: 3`,
-`gate_max_revisions: 2`, and `reattempt_strategy: full_body`; runtime defaults can otherwise
+For a direct Loop invocation, pass `config_overrides` with `iteration_cap: 3`
+and `reattempt_strategy: full_body`; runtime defaults can otherwise
 override the definition's declared values. The Loop's status
 and findings use the existing CompozyOS run inspector. If it exhausts or fails, the latest HTML
 remains on disk with the unresolved outcome; there is no automatic version rollback. Ordinary
@@ -50,7 +51,7 @@ installed JavaScript package. Paths outside `docs/design/`, symlinks along artif
 non-regular files, and oversized input are rejected. A call accepts up to 32 HTMLs, 1 MiB each,
 8 MiB combined, with a 30-second execution limit.
 
-The extension also includes a compact **agent-browser** skill adapted from the official guidance. With its CLI/browser installed
+The extension also includes a compact **open-design-browser** skill adapted from the official agent-browser guidance. With its CLI/browser installed
 and an agent that can read images, the designer can open the HTML and inspect a screenshot.
 Missing browser support does not block a simple sketch; the agent states which checks actually
 ran. Screenshots use existing tooling, with no additional preview application.
