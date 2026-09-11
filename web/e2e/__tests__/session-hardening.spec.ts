@@ -399,6 +399,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const deletableWin = sessionWindow(appPage, deletableSession.id);
   const deletableUi = sessionWindowSelectors(deletableWin, appPage);
   await expect(deletableWin).toBeVisible();
+  await expect(deletableUi.topbarOverflow).toBeVisible();
   await browserArtifacts.captureScreenshot("session-stopped-before-delete", appPage);
   await deletableUi.topbarOverflow.click();
   await deletableUi.deleteButton.click();
@@ -410,7 +411,12 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   );
   await appPage.getByTestId("delete-dialog-confirm").click();
   const deleteResponse = await deleteResponsePromise;
-  expect(deleteResponse.ok(), await deleteResponse.text()).toBe(true);
+  if (!deleteResponse.ok()) {
+    throw new Error(
+      `delete session returned ${deleteResponse.status()}: ${await deleteResponse.text()}`
+    );
+  }
+  expect(deleteResponse.status()).toBe(204);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/sessions");
   await expect(appPage.getByTestId("session-window-empty")).toBeVisible();
 

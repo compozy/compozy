@@ -32,6 +32,14 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	}
 	defer unlockConversation()
 
+	// Recovered stop persistence acquires lifecycleMu itself. Settle it while
+	// owning the conversation operation, before locking deletion staging.
+	if m.hasPendingStopSettlement(target) {
+		if err := stopSessionBeforeDelete(ctx, target, m.StopWithCause); err != nil {
+			return fmt.Errorf("session: settle stop %q before delete: %w", target, err)
+		}
+	}
+
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 

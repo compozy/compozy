@@ -276,8 +276,7 @@ func (m *Manager) stageSessionDelete(
 	if err != nil {
 		return stagedSessionDelete{}, err
 	}
-	pendingStop := m.hasPendingStopSettlement(target)
-	if pendingStop && !stopActive {
+	if m.hasPendingStopSettlement(target) {
 		return stagedSessionDelete{}, fmt.Errorf(
 			"%w: recovered stop for %s has pending persistence",
 			ErrRecoveryPersistence,
@@ -291,7 +290,7 @@ func (m *Manager) stageSessionDelete(
 			workspacepkg.ErrWorkspaceHasActiveSessions,
 		)
 	}
-	if _, active := m.Get(target); active || pendingStop {
+	if _, active := m.Get(target); active {
 		if !stopActive {
 			return stagedSessionDelete{}, fmt.Errorf(
 				"session: stage %q: %w",
