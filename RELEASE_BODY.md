@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-09-10
+## 0.3.0 - 2026-09-11
 
 ### ♻️ Refactoring
 
@@ -210,6 +210,28 @@
 - Respect startup and shutdown lifecycle contexts
 - Preserve interrupted session identity and bridge progress bursts
 - Preserve cancellation delivery and pending activity deadlines
+- Load knowledge memories without enabling automation (#590)
+- Allow resizing maximized internal windows (#589)
+- Delegate bounded native tools to orchestrated workers (#591)
+- Emit profile scope from memory extraction (#592)
+- Recover layout settings saves and expose apply results (#596)
+- Confirm terminal termination when closing windows (#597)
+- Reduce excessive CPU in connected sessions (#599)
+- Bound session summaries and preserve complete details (#600)
+- Reconcile Goal context and session lifecycle (#601)
+- Preserve terminal creation scope and accessible title actions
+- Preserve exact window titles and wait for reasoning controls
+- Deduplicate delivered skill context and gate input-only roles (#607)
+- Verify private Tailscale endpoints through tsnet (#608)
+- Report effective dream role in memory health (#609)
+- Group reasoning and tools in session work segments (#610)
+- Add durable notification acknowledgement (#611)
+- Complete notification review and main integration repairs
+- Keep unread title counts current in background tabs
+- Resolve notification integration Go lint findings
+- Preserve escalation acknowledgement across neutral events
+- Restore finished notifications and timeline disclosure behavior
+- Synchronize attention delivery and durable loop state
 
 ### 🔧 Miscellaneous Tasks
 
@@ -228,6 +250,13 @@
 - Enable memory for the knowledge browser journey
 - Keep noncooperative ACP prompts alive after cancellation
 - Select the desktop workspace before awaiting its client
+- Wait for connected idle Skills prompt readiness
+- Supply valid origins in acknowledgement fixtures
+- Label unscoped attention story notifications
+- Retain explicit global scope in attention fixtures
+- Create escalation fixtures through their lifecycle
+- Project escalation events in acknowledgement fixtures
+- Persist canonical escalation status in overview fixtures
 
 ### Release Notes
 
