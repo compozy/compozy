@@ -36,7 +36,7 @@ export const gatewayAccessStore = createStore({
       if (context.state === "ok" && context.tier === undefined) return undefined;
       return { ...context, state: "ok" as GatewayAccessState, tier: undefined };
     },
-    tierSignalled: (context, event: { tier: GatewayListenerTier }) => {
+    tierSignalled: (context, event: { tier: GatewayListenerTier | undefined }) => {
       if (context.tier === event.tier) return undefined;
       return { ...context, tier: event.tier };
     },

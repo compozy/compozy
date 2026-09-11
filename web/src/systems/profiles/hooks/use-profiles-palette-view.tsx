@@ -124,7 +124,7 @@ export function useProfilesPaletteView({
           },
         ]
       : []),
-    ...(showActions
+    ...(showActions && profileEnablementWrites
       ? [
           {
             value: "action:aggregate",
@@ -135,6 +135,9 @@ export function useProfilesPaletteView({
                 <span>Show all profiles</span>
               </span>
             ),
+            // Same refusal class as the switcher: aggregate selection PUTs are
+            // ProfileRemoteWriteForbidden on remote tiers, so the affordance is
+            // absent (not disabled) there.
             onSelect: () => {
               onDismiss();
               switchProfile.mutate({ kind: "aggregate" });

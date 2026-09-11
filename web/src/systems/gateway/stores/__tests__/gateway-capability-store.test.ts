@@ -57,6 +57,22 @@ describe("gateway capability store", () => {
     );
   });
 
+  it("Should fall back to the default-hidden set when /api/status latches unknown", async () => {
+    // US-001.EC-2: the authoritative status response carries no parsable tier
+    // header, so the tier publishes unknown and the all-false default-hidden
+    // set applies (BR-2) — the previously latched tier does not survive.
+    reportGatewayListenerTier("local");
+    expect(gatewayCapabilityStore.getSnapshot().context.tier).toBe("local");
+
+    const response = jsonResponse(200, {});
+    Object.defineProperty(response, "url", { value: "https://compozy.local/api/status" });
+    await reportGatewayResponse(response);
+
+    const { context } = gatewayCapabilityStore.getSnapshot();
+    expect(context.tier).toBeUndefined();
+    expect(context.capabilities).toEqual(capabilitiesForTier(undefined));
+  });
+
   it("Should re-evaluate from a loopback 403 response", async () => {
     // UT-007 (state, response side): one refusing response latches its tier
     // header and records the loopback signal — a stale map converges from the

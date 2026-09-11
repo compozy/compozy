@@ -23,9 +23,19 @@ function jsonResponse(status: number, payload: unknown, tier?: GatewayListenerTi
   });
 }
 
+/**
+ * The transport classifies by response URL, but `Response.url` is set by fetch
+ * and cannot be passed to the constructor — shadow the read-only getter with
+ * the URL a real daemon response would carry.
+ */
+function withUrl(response: Response, url: string): Response {
+  Object.defineProperty(response, "url", { value: url });
+  return response;
+}
+
 describe("gateway access signal ordering", () => {
   let signals: GatewayAccessSignal[];
-  let tiers: GatewayListenerTier[];
+  let tiers: (GatewayListenerTier | undefined)[];
   let unobserve: () => void;
   let unobserveTier: () => void;
 
@@ -106,5 +116,88 @@ describe("gateway access signal ordering", () => {
     await apiClient.GET("/api/gateway/status");
 
     expect(signals).toEqual([]);
+  });
+});
+
+// Suite: gateway status tier latch
+// Invariant: `/api/status` is the tier's authoritative source — a response from
+// it without a parsable tier header publishes unknown (US-001.EC-2, so the
+// default-hidden capability set applies, BR-2) instead of keeping a stale
+// latched tier. Any other response publishes only a parsable tier: random
+// non-status responses must never unlatch the shell.
+// Owning layer: the shared api-client response middleware.
+describe("gateway status tier latch", () => {
+  let tiers: (GatewayListenerTier | undefined)[];
+  let unobserveTier: () => void;
+
+  beforeEach(() => {
+    tiers = [];
+    unobserveTier = observeGatewayListenerTier(tier => tiers.push(tier));
+  });
+
+  afterEach(() => {
+    unobserveTier();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  /** A `/api/status` response with an optional raw (possibly unparsable) tier header. */
+  function statusResponse(status: number, rawTier?: string): Response {
+    return withUrl(
+      new Response(JSON.stringify({}), {
+        status,
+        headers: {
+          "Content-Type": "application/json",
+          ...(rawTier !== undefined ? { "X-Compozy-Gateway-Tier": rawTier } : {}),
+        },
+      }),
+      "https://compozy.local/api/status"
+    );
+  }
+
+  it("Should latch unknown when /api/status answers without a tier header", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(statusResponse(200)));
+
+    await apiClient.GET("/api/status");
+
+    expect(tiers).toEqual([undefined]);
+  });
+
+  it("Should latch unknown when the /api/status tier header does not parse", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(statusResponse(200, "interior")));
+
+    await apiClient.GET("/api/status");
+
+    expect(tiers).toEqual([undefined]);
+  });
+
+  it("Should unlatch a stale tier when /api/status stops carrying a parsable one", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, {}, "local")));
+    await apiClient.GET("/api/gateway/status");
+    expect(tiers).toEqual(["local"]);
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(statusResponse(200)));
+    await apiClient.GET("/api/status");
+
+    expect(tiers).toEqual(["local", undefined]);
+  });
+
+  it("Should keep the last latched tier when other responses omit the header", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, {}, "local")));
+    await apiClient.GET("/api/gateway/status");
+    expect(tiers).toEqual(["local"]);
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, {})));
+    await apiClient.GET("/api/gateway/status");
+
+    expect(tiers).toEqual(["local"]);
+  });
+
+  it("Should latch a parsable tier from /api/status", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(statusResponse(200, "private")));
+
+    await apiClient.GET("/api/status");
+
+    expect(tiers).toEqual(["private"]);
   });
 });

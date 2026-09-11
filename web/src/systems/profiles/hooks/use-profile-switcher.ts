@@ -16,10 +16,16 @@ export interface ProfileSwitcherModel {
   rows: ProfileRow[];
   activeName: string;
   aggregate: boolean;
+  /**
+   * Switches to the aggregate view. That is the same selection write as
+   * switching profiles (`PUT /api/profiles/selection`), which remote tiers
+   * refuse with `profile_remote_management_forbidden` — so the handler — and
+   * the menu entry it drives — goes absent on those tiers (BR-1).
+   */
+  selectAggregate: (() => void) | undefined;
   quiet: boolean;
   archivedCount: number;
   selectProfile: (name: string) => void;
-  selectAggregate: () => void;
   create: () => void;
   manageable: boolean;
   isLoading: boolean;
@@ -51,7 +57,9 @@ export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
     selectProfile: name => {
       if (profileEnablementWrites) switchProfile.mutate({ kind: "profile", profile: name });
     },
-    selectAggregate: () => switchProfile.mutate({ kind: "aggregate" }),
+    selectAggregate: profileEnablementWrites
+      ? () => switchProfile.mutate({ kind: "aggregate" })
+      : undefined,
     create: () => {
       if (profileEnablementWrites) openProfileDialog({ flow: "create" });
     },

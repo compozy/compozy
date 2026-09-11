@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     workspaceName?: string | null;
   },
   listSurfaceProps: null as null | { profile: unknown },
+  kanbanProps: null as null | { onCreate?: unknown; onRetryTask?: unknown },
   navigate: vi.fn(),
   userOpen: vi.fn(),
   page: {
@@ -145,7 +146,10 @@ vi.mock("@/systems/tasks/components/public-api", () => ({
     );
   },
   TasksInboxView: () => <div data-testid="tasks-inbox-view" />,
-  TasksKanbanBoard: () => <div data-testid="tasks-kanban-view" />,
+  TasksKanbanBoard: (props: { onCreate?: unknown; onRetryTask?: unknown }) => {
+    mocks.kanbanProps = props;
+    return <div data-testid="tasks-kanban-view" />;
+  },
   TasksListSurface: (props: { profile: unknown }) => {
     mocks.listSurfaceProps = props;
     return <div data-testid="tasks-list-surface" />;
@@ -246,5 +250,27 @@ describe("TasksCatalogLocation", () => {
     expect(mocks.emptyStateProps).toMatchObject({
       profileScopeLabel: null,
     });
+  });
+
+  // Invariant: run retry hits a local-only lifecycle route, so the kanban
+  // retry affordance is absent on a remote tier and present on local (BR-1,
+  // same gate as the inbox triage handlers).
+  // Owning layer: Tasks catalog route composition.
+  // Canonical suite: TasksCatalogLocation component tests.
+  it("Should pass the local retry handler to the kanban board", () => {
+    renderCatalog("kanban");
+
+    expect(mocks.kanbanProps?.onRetryTask).toBe(mocks.page.handleRetryRun);
+  });
+
+  it("Should omit the kanban retry affordance when the tier cannot execute it", () => {
+    // Re-latch over the suite's `local` default: the remote shape asserts the
+    // same board renders with both lifecycle handlers absent.
+    latchGatewayTierForTest("private");
+    renderCatalog("kanban");
+
+    expect(screen.getByTestId("tasks-kanban-view")).toBeInTheDocument();
+    expect(mocks.kanbanProps?.onCreate).toBeUndefined();
+    expect(mocks.kanbanProps?.onRetryTask).toBeUndefined();
   });
 });

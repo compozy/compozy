@@ -11,6 +11,11 @@
  * stream ticket are *not* access decisions — a flaky link must never eject the
  * operator from the app, and a spent single-use ticket is resolved by minting a
  * fresh one, not by tearing the session down.
+ *
+ * The tier latch is similarly narrow: a parsable `X-Compozy-Gateway-Tier`
+ * publishes on any response, and only the authoritative `/api/status` response
+ * may publish *unknown* (a missing or unparsable header there resets to the
+ * default-hidden set). Other responses never unlatch a latched tier.
  */
 export type GatewayAccessSignal = "unauthenticated" | "revoked";
 export type GatewayListenerTier = "local" | "private" | "public";
@@ -20,7 +25,12 @@ const REVOKED_CODE = "gateway_device_revoked";
 const GATEWAY_TIER_HEADER = "X-Compozy-Gateway-Tier";
 
 type AccessSignalListener = (signal: GatewayAccessSignal) => void;
-type TierListener = (tier: GatewayListenerTier) => void;
+/**
+ * Tier observations carry a parsable `GatewayListenerTier`, or `undefined`
+ * when the authoritative `/api/status` response proves the tier unknown
+ * (US-001.EC-2) — the default-hidden capability set applies (BR-2).
+ */
+type TierListener = (tier: GatewayListenerTier | undefined) => void;
 /**
  * Forbidden envelopes are handed over raw: this transport knows only that the
  * daemon refused, never which refusals mean what. Deciding that a 403 code is
@@ -84,8 +94,34 @@ export function readGatewayListenerTier(response: Response): GatewayListenerTier
   return parseGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
 }
 
+/**
+ * Tier latch for one response. A parsable tier header publishes on any
+ * response. A missing or unparsable one keeps the last latched tier — except
+ * on `/api/status` itself, the tier's authoritative source, where it publishes
+ * unknown instead (US-001.EC-2): a proxy that strips the header must not leave
+ * a stale tier latched. Random non-status responses never unlatch.
+ */
+function reportResponseGatewayTier(response: Response): void {
+  const tier = parseGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
+  if (!tier && !isGatewayStatusResponse(response)) return;
+  for (const listener of tierListeners) listener(tier);
+}
+
+/**
+ * True only for the daemon status endpoint — the one response allowed to
+ * publish an unknown tier. `Response.url` is empty for synthesized responses,
+ * which therefore never count as the status endpoint.
+ */
+function isGatewayStatusResponse(response: Response): boolean {
+  try {
+    return new URL(response.url).pathname === "/api/status";
+  } catch {
+    return false;
+  }
+}
+
 export async function reportGatewayResponse(response: Response): Promise<void> {
-  reportGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
+  reportResponseGatewayTier(response);
   if (response.status === 403) {
     await reportForbiddenResponse(response);
     return;

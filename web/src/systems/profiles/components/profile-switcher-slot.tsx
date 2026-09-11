@@ -25,7 +25,7 @@ export function ProfileSwitcherSlot({ onOpenSettings }: ProfileSwitcherSlotProps
       quiet={model.quiet}
       archivedCount={model.archivedCount}
       onSelectProfile={model.selectProfile}
-      onSelectAggregate={model.selectAggregate}
+      {...(model.selectAggregate ? { onSelectAggregate: model.selectAggregate } : {})}
       onCreate={model.create}
       onEditProfile={name => openProfileDialog({ flow: "update", profile: name })}
       onOpenSettings={onOpenSettings}

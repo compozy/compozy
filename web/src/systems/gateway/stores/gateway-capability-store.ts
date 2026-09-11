@@ -10,7 +10,11 @@ import { capabilitiesForTier, type GatewayCapabilities } from "../lib/gateway-ca
 import { classifyGatewayLoopback, type GatewayLoopbackSignal } from "../lib/gateway-loopback";
 
 export interface GatewayCapabilityState {
-  /** Latched listener tier; `undefined` until an observation carries a parsable tier. */
+  /**
+   * Latched listener tier; `undefined` until a tier latches. An `/api/status`
+   * response without a parsable tier header also leaves it `undefined`
+   * (unknown — US-001.EC-2), re-deriving the default-hidden set (BR-2).
+   */
   tier: GatewayListenerTier | undefined;
   /** Derived from the tier alone; re-derived whenever the tier latches or changes. */
   capabilities: GatewayCapabilities;
@@ -38,7 +42,7 @@ export const gatewayCapabilityStore = createStore({
     loopbackOnly: undefined as GatewayLoopbackSignal | undefined,
   },
   on: {
-    tierSignalled: (context, event: { tier: GatewayListenerTier }) => {
+    tierSignalled: (context, event: { tier: GatewayListenerTier | undefined }) => {
       const capabilities = capabilitiesForTier(event.tier);
       // A `local` latch makes any recorded loopback refusal stale: on a
       // loopback-bound listener the refused call would succeed. Remote-to-

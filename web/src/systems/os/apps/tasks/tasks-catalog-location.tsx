@@ -203,7 +203,10 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           isLoadingMore={page.isLoadingMoreTasks}
           onCreate={localTaskLifecycle ? () => openCreate() : undefined}
           onRetryLoad={page.retryTasks}
-          onRetryTask={page.handleRetryRun}
+          // Run retry hits POST /api/runs/:id/retry, a local-only lifecycle
+          // route: the affordance goes absent on remote tiers, like the inbox
+          // triage handlers above (BR-1 — absent, never disabled).
+          onRetryTask={localTaskLifecycle ? page.handleRetryRun : undefined}
           onSelectTask={taskId => navigate(`/tasks/${encodeURIComponent(taskId)}`)}
           onLoadMore={page.loadMoreTasks}
           profile={page.profile}
