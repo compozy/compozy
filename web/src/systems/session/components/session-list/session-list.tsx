@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { SearchInput } from "@compozy/ui";
 
+import { isEditableTarget } from "../../lib/editable-target";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierarchy";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -84,11 +85,8 @@ export function SessionList({
   );
   const collapsedThreads = new Set(collapsedThreadIds);
   const allWorkspaces = view.scope === "all-workspaces";
-  const selection = useSessionSelection(view.scope, view.archived);
+  const selection = useSessionSelection(view.scope, view.archived, sessions);
   const catalog = allWorkspaces ? [] : sessions;
-  const currentIds = catalog.map(session => session.id);
-  const { prune } = selection;
-  useEffect(() => prune(currentIds), [prune, currentIds]);
   const visibleOrder = allWorkspaces
     ? []
     : threads.flatMap(thread => [
@@ -134,6 +132,7 @@ export function SessionList({
         if (
           allWorkspaces ||
           event.defaultPrevented ||
+          isEditableTarget(event.target) ||
           !event.currentTarget.contains(event.target as Node)
         )
           return;

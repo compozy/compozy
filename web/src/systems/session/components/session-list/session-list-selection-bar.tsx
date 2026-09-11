@@ -51,7 +51,7 @@ export function SessionListSelectionBar({
   testIdPrefix,
 }: SessionListSelectionBarProps) {
   const allLabel = allSelected ? "Clear selection" : "Select all";
-  const deleteLabel = `Delete ${count} sessions`;
+  const deleteLabel = `Delete ${count} ${count === 1 ? "session" : "sessions"}`;
   return (
     <div
       role="toolbar"

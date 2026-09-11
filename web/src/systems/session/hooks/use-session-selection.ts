@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
@@ -54,6 +55,7 @@ export const sessionSelectionLogic = createStoreLogic({
   },
 });
 
+/** Derive eligible verbs from current payloads and count selected rows outside the visible order. */
 export function sessionSelectionCounts(
   sessions: readonly SessionPayload[],
   visibleIds: readonly string[]
@@ -73,11 +75,18 @@ export function sessionSelectionCounts(
 }
 
 /** One transient selection per list identity; filters and folds do not change that identity. */
-export function useSessionSelection(scope: string, archived: boolean) {
+export function useSessionSelection(
+  scope: string,
+  archived: boolean,
+  sessions?: readonly SessionPayload[]
+) {
   const { store } = useStoreBinding(JSON.stringify([scope, archived]), () =>
     sessionSelectionLogic.createStore()
   );
   const context = useSelector(store, snapshot => snapshot.context);
+  useEffect(() => {
+    if (sessions) store.trigger.prune({ ids: sessions.map(session => session.id) });
+  }, [store, sessions]);
   return {
     selectedIds: context.selectedIds,
     anchorId: context.anchorId,

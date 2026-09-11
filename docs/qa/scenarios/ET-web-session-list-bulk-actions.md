@@ -31,6 +31,8 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    rows outside the visible set. Cmd/Ctrl+A inside the list selects visible rows;
    Enter/Space toggles a focused row. Esc or Done clears selection without closing
    the Sessions modal. Outside the list, these selection shortcuts do not apply.
+   In the filter, Cmd/Ctrl+A keeps its text-selection behavior and Cmd/Ctrl+Backspace
+   edits text without selecting sessions or opening Delete.
 4. Stop the running selection. Verify completion and one batch toast. Rows stay
    selected, and Archive becomes eligible from the updated payload. Archive them:
    successful rows leave the active catalog and selection ends. Open Archived,
@@ -42,7 +44,8 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
 6. Select three sessions and Delete (toolbar, More, or Cmd/Ctrl+Backspace). The set
    dialog names the count, shows status rows, and notes the active count (daemon state; idle sessions count too). Cancel
    preserves selection. With one selected session the existing singular dialog is
-   unchanged. More than five targets show five rows plus the overflow count.
+   unchanged before deletion. A one-session bulk failure shows the daemon error
+   and offers Retry 1 and Close. More than five targets show five rows plus the overflow count.
 7. Confirm: deletion progresses sequentially, Cancel/close are unavailable, and
    neither the dialog nor its host dismisses on Esc/outside click. On success the
    dialog closes, one toast reports the deleted count, rows disappear from the

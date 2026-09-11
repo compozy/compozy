@@ -101,7 +101,9 @@ describe("SessionList selection", () => {
       "2 selected· 1 hidden"
     );
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    expect(screen.getByTestId("session-sidebar-selection-stop")).toHaveTextContent("1 active");
+    expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveTextContent(
+      "1 active"
+    );
     expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("1 stopped");
     expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
       "aria-disabled",
@@ -137,6 +139,24 @@ describe("SessionList selection", () => {
     await user.click(first);
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(sessions[0]);
   });
+  it.each([{ ctrlKey: true }, { metaKey: true }])(
+    "keeps editable filter shortcuts separate from bulk actions (%o)",
+    modifier => {
+      const { actions } = renderList();
+      const filter = screen.getByRole("searchbox", { name: "Filter sessions" });
+      expect(fireEvent.keyDown(filter, { key: "a", ...modifier })).toBe(true);
+      fireEvent.keyUp(filter, { key: "a", ...modifier });
+      expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("session-sidebar-session-running"), modifier);
+      expect(fireEvent.keyDown(filter, { key: "a", ...modifier })).toBe(true);
+      fireEvent.keyUp(filter, { key: "a", ...modifier });
+      expect(fireEvent.keyDown(filter, { key: "Backspace", ...modifier })).toBe(true);
+      fireEvent.keyUp(filter, { key: "Backspace", ...modifier });
+      expect(actions.onDeleteMany).not.toHaveBeenCalled();
+      expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
+    }
+  );
+
   it("prunes departed rows but retains failures and derives updated eligibility from payloads", async () => {
     const user = userEvent.setup();
     const { update } = renderList();
@@ -145,7 +165,7 @@ describe("SessionList selection", () => {
     const stopped = { ...sessions[0]!, state: "stopped" as const };
     update([stopped, sessions[1]!, sessions[2]!]);
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    expect(screen.getByTestId("session-sidebar-selection-stop")).toHaveAttribute(
+    expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveAttribute(
       "aria-disabled",
       "true"
     );

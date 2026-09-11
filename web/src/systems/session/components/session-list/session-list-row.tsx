@@ -30,6 +30,7 @@ export interface SessionListRowProps {
   selection?: SessionRowSelection;
 }
 
+/** Share the navigation row with selection gestures without nesting interactive controls. */
 export function SessionListRow({
   session,
   owner,
@@ -41,8 +42,6 @@ export function SessionListRow({
   trailing,
   selection,
 }: SessionListRowProps) {
-  const signal = sessionBadgeSignal(session.badge);
-  const maskedNote = maskedAttentionNote(session, signal.label);
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
   return (
@@ -76,35 +75,7 @@ export function SessionListRow({
             selection?.mode && "opacity-0"
           )}
         />
-        <span className="min-w-0">
-          <span
-            className={cn(
-              "block truncate text-small-body",
-              // A needs-you row keeps its pull even when the window is not focused.
-              signal.attention === "needs-you" ? "font-medium text-fg-strong" : "text-fg-strong",
-              current && "font-medium"
-            )}
-          >
-            {getSessionDisplayTitle(session)}
-          </span>
-          <span className="block truncate text-micro text-subtle">
-            <span className="font-medium text-muted">{session.agent_name}</span>
-            <span aria-hidden="true"> · </span>
-            <span className={sessionBadgeWordClass(session.badge)}>{signal.label}</span>
-            {maskedNote !== null ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                {maskedNote}
-              </>
-            ) : null}
-            {session.archived_at !== null ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                Archived
-              </>
-            ) : null}
-          </span>
-        </span>
+        <SessionListRowDetails session={session} current={current} />
         <span className="mt-0.5 flex items-center gap-1.5">
           {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
           <Time iso={session.updated_at} className="font-mono text-micro text-subtle" />
@@ -134,5 +105,48 @@ export function SessionListRow({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** Keep attention and lifecycle words visible when the selection checkbox covers the badge. */
+function SessionListRowDetails({
+  session,
+  current,
+}: {
+  session: SessionPayload;
+  current: boolean;
+}) {
+  const signal = sessionBadgeSignal(session.badge);
+  const maskedNote = maskedAttentionNote(session, signal.label);
+  return (
+    <span className="min-w-0">
+      <span
+        className={cn(
+          "block truncate text-small-body",
+          // A needs-you row keeps its pull even when the window is not focused.
+          signal.attention === "needs-you" ? "font-medium text-fg-strong" : "text-fg-strong",
+          current && "font-medium"
+        )}
+      >
+        {getSessionDisplayTitle(session)}
+      </span>
+      <span className="block truncate text-micro text-subtle">
+        <span className="font-medium text-muted">{session.agent_name}</span>
+        <span aria-hidden="true"> · </span>
+        <span className={sessionBadgeWordClass(session.badge)}>{signal.label}</span>
+        {maskedNote !== null ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            {maskedNote}
+          </>
+        ) : null}
+        {session.archived_at !== null ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            Archived
+          </>
+        ) : null}
+      </span>
+    </span>
   );
 }

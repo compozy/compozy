@@ -67,6 +67,30 @@ describe("SessionDeleteDialog sets", () => {
     expect(screen.queryByTestId("delete-dialog-note")).not.toBeInTheDocument();
   });
 
+  it("exposes a single bulk failure and retries without changing the singular confirmation", () => {
+    const onConfirm = vi.fn();
+    const onRetry = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[sessions[0]!]}
+        results={[{ id: "set-0", status: "failed", error: "Session is locked" }]}
+        isDeleting={false}
+        onConfirm={onConfirm}
+        onRetry={onRetry}
+        onOpenChange={onOpenChange}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Delete session" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't delete: Session is locked");
+    fireEvent.click(screen.getByTestId("delete-dialog-retry"));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("delete-dialog-cancel"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("discloses the count, capped set, overflow, and active membership", () => {
     render(
       <SessionDeleteDialog

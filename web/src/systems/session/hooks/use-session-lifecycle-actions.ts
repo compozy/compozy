@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import type { SessionBatchResult } from "../lib/session-batch";
+import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
 import type { SessionPayload } from "../types";
 import {
@@ -61,11 +61,13 @@ export interface UseSessionLifecycleActionsOptions {
   workspaceId?: string | null;
 }
 
+/** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
 }
 
+/** Non-delete batches report one aggregate result because they have no result dialog. */
 function reportBatch(
   action: "stop" | "archive" | "unarchive",
   results: readonly SessionBatchResult[]
@@ -80,6 +82,7 @@ function reportBatch(
   toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
 }
 
+/** Report all successful deletes once, when the result dialog closes. */
 function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
   const count = results.filter(result => result.status === "done").length;
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
@@ -130,6 +133,7 @@ export function useSessionLifecycleActions(
     pendingSessionId = remove.variables;
   }
 
+  /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
@@ -138,51 +142,29 @@ export function useSessionLifecycleActions(
     if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
     batchRunning.current = true;
     setBatchAction(action);
-    const targets = new Set(sessions.map(session => session.id));
-    const results: SessionBatchResult[] =
-      previous.length > 0
-        ? previous.map(result =>
-            targets.has(result.id) ? { id: result.id, status: "pending" } : result
-          )
-        : sessions.map(session => ({ id: session.id, status: "pending" }));
-    const update = (result: SessionBatchResult) => {
-      const index = results.findIndex(current => current.id === result.id);
-      results[index] = result;
-      setBatchResults([...results]);
-    };
-    setBatchResults([...results]);
-    try {
-      for (const session of sessions) {
-        update({ id: session.id, status: "running" });
-        try {
-          if (action === "delete") await remove.mutateAsync(session.id);
-          else if (action === "archive") await archive.mutateAsync(session.id);
-          else if (action === "unarchive") await unarchive.mutateAsync(session.id);
-          else {
-            const outcome = await stop.mutateAsync({ id: session.id, wait: true });
-            if (!outcome.verified || outcome.state !== "stopped") {
-              throw new Error(outcome.attention || "Session stop could not be verified.");
-            }
+    return runSessionBatch({
+      action,
+      ids: sessions.map(session => session.id),
+      previous,
+      onProgress: setBatchResults,
+      execute: async id => {
+        if (action === "delete") await remove.mutateAsync(id);
+        else if (action === "archive") await archive.mutateAsync(id);
+        else if (action === "unarchive") await unarchive.mutateAsync(id);
+        else {
+          const outcome = await stop.mutateAsync({ id, wait: true });
+          if (!outcome.verified || outcome.state !== "stopped") {
+            throw new Error(outcome.attention || "Session stop could not be verified.");
           }
-          update({ id: session.id, status: "done" });
-        } catch (error) {
-          update({
-            id: session.id,
-            status: "failed",
-            error:
-              error instanceof Error && error.message
-                ? error.message
-                : `Failed to ${action} session.`,
-          });
         }
-      }
-      return results;
-    } finally {
+      },
+    }).finally(() => {
       batchRunning.current = false;
       setBatchAction(null);
-    }
+    });
   };
 
+  /** Apply each verb only to sessions eligible in the current host payload. */
   const actOnMany = async (
     action: "stop" | "archive" | "unarchive",
     sessions: readonly SessionPayload[]
@@ -199,6 +181,7 @@ export function useSessionLifecycleActions(
     if (results) reportBatch(action, results);
   };
 
+  /** Retry failed IDs while preserving successful results across the dialog lifetime. */
   const confirmDeleteMany = async () => {
     if (!deleteTarget) return;
     const failedIds = new Set(
@@ -218,6 +201,7 @@ export function useSessionLifecycleActions(
     }
   };
 
+  /** Keep single-row deletion behavior while routing selection batches through result tracking. */
   const confirmDelete = () => {
     if (!deleteSession || remove.isPending || batchRunning.current) return;
     if (deleteTarget?.bulk) {
@@ -233,6 +217,7 @@ export function useSessionLifecycleActions(
     });
   };
 
+  /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;
     const { id } = renameTarget;

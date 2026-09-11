@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -53,6 +53,8 @@ export function SessionDeleteDialog({
   }
   const session = sessions?.[0] ?? singleSession;
   if (!session) return null;
+  const failure = results?.find(result => result.id === session.id && result.status === "failed");
+  const retrying = failure !== undefined && !isDeleting;
   return (
     <Dialog
       open={open}
@@ -69,6 +71,11 @@ export function SessionDeleteDialog({
             including its transcript and history, and removes it from the session list.
           </DialogDescription>
         </DialogHeader>
+        {retrying ? (
+          <p role="alert" className="text-small-body text-danger">
+            Couldn't delete: {failure.error}
+          </p>
+        ) : null}
         <DialogFooter className="gap-2">
           <Button
             type="button"
@@ -77,19 +84,24 @@ export function SessionDeleteDialog({
             disabled={isDeleting}
             data-testid="delete-dialog-cancel"
           >
-            Cancel
+            {retrying ? "Close" : "Cancel"}
           </Button>
           <Button
             type="button"
             variant="destructive"
-            onClick={onConfirm}
+            onClick={retrying ? onRetry : onConfirm}
             disabled={isDeleting}
-            data-testid="delete-dialog-confirm"
+            data-testid={retrying ? "delete-dialog-retry" : "delete-dialog-confirm"}
           >
             {isDeleting ? (
               <>
                 <Spinner className="size-3" />
                 Deleting
+              </>
+            ) : retrying ? (
+              <>
+                <RotateCcw className="size-3" />
+                Retry 1
               </>
             ) : (
               <>

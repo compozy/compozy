@@ -45,13 +45,7 @@ export function SessionDeleteDialogSet({
   const partial = !isDeleting && failed > 0;
   const active = sessionSelectionCounts(sessions, []).stoppable;
   const progressIndex = results.findIndex(result => result.status === "running");
-  const note = isDeleting
-    ? "Don't close the window while this runs."
-    : partial || active === 0
-      ? null
-      : active === 1
-        ? "1 of them is active."
-        : `${active} of them are active.`;
+  const note = sessionDeleteNote(isDeleting, partial, active);
   const resultsById = new Map(results.map(result => [result.id, result]));
   return (
     <Dialog
@@ -87,36 +81,13 @@ export function SessionDeleteDialogSet({
           </DialogDescription>
         </DialogHeader>
         <ul className="overflow-hidden rounded-md border border-line bg-canvas">
-          {sessions.slice(0, 5).map(session => {
-            const result = resultsById.get(session.id);
-            return (
-              <li
-                key={session.id}
-                data-testid={`delete-dialog-row-${session.id}`}
-                className="grid grid-cols-[8px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-t border-line-soft px-2.5 py-1.5 text-form first:border-t-0"
-              >
-                <SessionBadgeMark badge={session.badge} />
-                <span className="truncate">{getSessionDisplayTitle(session)}</span>
-                <span className={`font-mono text-micro ${sessionBadgeWordClass(session.badge)}`}>
-                  {sessionBadgeSignal(session.badge).label}
-                </span>
-                <span className="grid size-3.5 place-items-center text-subtle">
-                  {result?.status === "done" ? (
-                    <Check className="size-3" aria-label="Deleted" />
-                  ) : result?.status === "running" ? (
-                    <Spinner className="size-3 motion-reduce:animate-none" aria-label="Deleting" />
-                  ) : result?.status === "failed" ? (
-                    <X className="size-3 text-danger" aria-label="Failed" />
-                  ) : null}
-                </span>
-                {result?.status === "failed" ? (
-                  <span className="col-start-2 col-end-5 text-micro text-danger">
-                    Couldn't delete: {result.error}
-                  </span>
-                ) : null}
-              </li>
-            );
-          })}
+          {sessions.slice(0, 5).map(session => (
+            <SessionDeleteResultRow
+              key={session.id}
+              session={session}
+              result={resultsById.get(session.id)}
+            />
+          ))}
           {count > 5 ? (
             <li className="border-t border-line-soft px-2.5 py-1.5 text-micro text-subtle">
               and {count - 5} more
@@ -168,4 +139,47 @@ export function SessionDeleteDialogSet({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Present a target and its latest deletion result without changing original set order. */
+function SessionDeleteResultRow({
+  session,
+  result,
+}: {
+  session: SessionPayload;
+  result?: SessionBatchResult;
+}) {
+  return (
+    <li
+      data-testid={`delete-dialog-row-${session.id}`}
+      className="grid grid-cols-[8px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 border-t border-line-soft px-2.5 py-1.5 text-form first:border-t-0"
+    >
+      <SessionBadgeMark badge={session.badge} />
+      <span className="truncate">{getSessionDisplayTitle(session)}</span>
+      <span className={`font-mono text-micro ${sessionBadgeWordClass(session.badge)}`}>
+        {sessionBadgeSignal(session.badge).label}
+      </span>
+      <span className="grid size-3.5 place-items-center text-subtle">
+        {result?.status === "done" ? (
+          <Check className="size-3" aria-label="Deleted" />
+        ) : result?.status === "running" ? (
+          <Spinner className="size-3 motion-reduce:animate-none" aria-label="Deleting" />
+        ) : result?.status === "failed" ? (
+          <X className="size-3 text-danger" aria-label="Failed" />
+        ) : null}
+      </span>
+      {result?.status === "failed" ? (
+        <span className="col-start-2 col-end-5 text-micro text-danger">
+          Couldn't delete: {result.error}
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+/** Prioritize in-flight guidance; otherwise disclose active targets only before a partial result. */
+function sessionDeleteNote(isDeleting: boolean, partial: boolean, active: number): string | null {
+  if (isDeleting) return "Don't close the window while this runs.";
+  if (partial || active === 0) return null;
+  return active === 1 ? "1 of them is active." : `${active} of them are active.`;
 }
