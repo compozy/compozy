@@ -45,6 +45,11 @@
   T10 Compact window controls carry their identification glyph at rest — close
       (X) and minimize (−) — because hover tones do not exist on touch. The
       2-of-3 count is per-design (zoom is meaningless in a stack; close stays).
+  T11 Menubar at the touch tier: the scope label is the give-way element (an
+      unbroken min-w-0 chain from the leading div to the label truncates it
+      before anything can overlap), and the profile switcher is dropped from
+      the trailing cluster — the one control the 390px bar cannot afford.
+      Profiles stay reachable via Settings → Profiles and the palette.
   Residuals (recorded, not frozen as debt-free): profile-switcher trigger keeps
   its 28px well (cross-system slot, quiet-until-plural); log bodies keep their
   own horizontal scroll wells inside the read view.
@@ -401,6 +406,7 @@
       <tr><td>T8</td><td>S5 banner strip</td><td>Between the menubar and the win-layer, full-width, flat <code>canvas-soft</code>, neutral signal — it pushes the work area down and never overlays window content. Wraps to two lines at 390px.</td><td><code>desktop-shell.tsx</code> (already placed here — ratified)</td></tr>
       <tr><td>T9</td><td>Dock pager <span style="color:var(--accent-strong)">· real-device delta</span></td><td>The desktop pager must not lead the touch dock: with a single desktop it rendered an orphaned position pill beside a 50vw dead zone (the "estranho" spacing). Compact renders the pager only when a second desktop exists, shrink-wrapped and capped at half the bar; the floating dock keeps the position pill at every count.</td><td><code>desktop-pager.tsx</code></td></tr>
       <tr><td>T10</td><td>Window-control identification <span style="color:var(--accent-strong)">· real-device delta</span></td><td>Compact controls carry their identification glyph at rest — close (X), minimize (−), in the same neutral ink; hover tones remain the hover/focus affordance. The 2-of-3 count is per-design: compact hides zoom (meaningless in a stack), never close — a phone closes a window from its own bar. Inert chrome stays glyphless (no implied controls).</td><td><code>os-traffic-lights.tsx</code></td></tr>
+      <tr><td>T11</td><td>Menubar scope vs. cluster <span style="color:var(--accent-strong)">· real-device delta</span></td><td>The bar never overlaps at any scope state. The scope label is the give-way element: an unbroken <code>min-w-0</code> chain (leading div → identity → menubar → chip → label) truncates the label before the identity segment can spill under the trailing cluster; mark, globe, and the trailing 44px floors never shrink. Trailing priority at the touch tier: attention bell &gt; command palette &gt; settings &gt; update indicator &gt; profile switcher — the switcher is dropped (absent, not cramped; reachable via Settings → Profiles and the palette). The worktree-fallback notice keeps its slot and is a recorded squeeze residual.</td><td><code>os-menubar.tsx</code>, <code>desktop-menubar.tsx</code></td></tr>
     </table>
   </div>
 

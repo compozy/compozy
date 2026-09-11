@@ -174,7 +174,12 @@ export function OsMenuBar({
     <MenuControl
       data-slot="os-menubar-logo"
       aria-label="CompozyOS"
-      className={cn("grid size-7 place-items-center rounded-menubar-control p-0", controlClass)}
+      className={cn(
+        "grid size-7 place-items-center rounded-menubar-control p-0",
+        // The 44px floor is a floor: the mark never gives its width to the squeeze.
+        touch && "shrink-0",
+        controlClass
+      )}
       menu={logoMenu}
     >
       <Logo variant="symbol" decorative className="size-menubar-logo" />
@@ -186,15 +191,21 @@ export function OsMenuBar({
       className={cn(
         "flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2",
         touch && DIALOG_TOUCH_TARGET_CLASS,
-        touch && "px-1.5"
+        // Touch tier (F3): the chip is the give-way element — it must be
+        // allowed to shrink so the label truncates instead of the identity
+        // segment spilling under the trailing cluster.
+        touch && "min-w-0 px-1.5"
       )}
       menu={workspaceMenu}
     >
-      <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
+      <span className="grid size-workspace-avatar shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
         {workspace.monogram}
       </span>
       <span
-        className={cn("text-small-body font-semibold text-fg-strong", touch && "max-w-28 truncate")}
+        className={cn(
+          "text-small-body font-semibold text-fg-strong",
+          touch && "min-w-0 max-w-28 truncate"
+        )}
       >
         {workspace.name}
       </span>
@@ -211,7 +222,7 @@ export function OsMenuBar({
           </span>
         </>
       ) : null}
-      <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
+      <Icon as={ChevronsUpDown} size="sm" className={cn("text-subtle", touch && "shrink-0")} />
     </MenuControl>
   );
 
@@ -235,9 +246,18 @@ export function OsMenuBar({
         )}
       >
         <div className={cn("flex min-w-0 items-center gap-1", WINDOW_NO_DRAG)}>
-          <div data-slot="os-menubar-identity" className="flex items-center gap-1">
+          {/* Touch tier (F3): every wrapper between the shrinking leading div
+              and the scope label needs min-w-0, or the identity segment keeps
+              its content width and paints under the trailing cluster. */}
+          <div
+            data-slot="os-menubar-identity"
+            className={cn("flex items-center gap-1", touch && "min-w-0")}
+          >
             {wrapMenus ? (
-              <Menubar aria-label="System menu" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar
+                aria-label="System menu"
+                className={cn("gap-1", WINDOW_NO_DRAG, touch && "min-w-0")}
+              >
                 {logoControl}
               </Menubar>
             ) : (
@@ -245,7 +265,10 @@ export function OsMenuBar({
             )}
             {scopeControl}
             {wrapMenus ? (
-              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+              <Menubar
+                aria-label="Workspace"
+                className={cn("gap-1", WINDOW_NO_DRAG, touch && "min-w-0")}
+              >
                 {workspaceControl}
               </Menubar>
             ) : (

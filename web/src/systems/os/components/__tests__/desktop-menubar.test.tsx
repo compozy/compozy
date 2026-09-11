@@ -22,9 +22,12 @@ vi.mock("../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userOpen: vi.fn() } }),
 }));
 
+const MENUBAR_ACTIONS_STATE = vi.hoisted(() => ({ touchViewport: false }));
+
 vi.mock("../../hooks/use-menubar-actions", () => ({
   useMenubarActions: () => ({
     menusVisible: false,
+    touchViewport: MENUBAR_ACTIONS_STATE.touchViewport,
     canOpenApps: false,
     windowCommands: {},
     openApp: vi.fn(),
@@ -75,5 +78,62 @@ describe("DesktopMenubar scope control", () => {
     );
 
     expect(screen.getByTestId("os-global-scope-toggle")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  // F3 real-device delta: at 390px the shrink-0 profile text row forced the
+  // identity segment under the trailing action cluster. It is the
+  // lowest-priority slot, so the touch tier drops it — absent, not cramped.
+  it("Should drop the profile switcher from the bar at the touch tier", () => {
+    MENUBAR_ACTIONS_STATE.touchViewport = true;
+    try {
+      const { container } = render(
+        <UIProvider reducedMotion="always">
+          <CmdPaletteRegistryProvider registry={paletteRegistryFixture([])}>
+            <DesktopMenubar
+              workspaces={[]}
+              activeWorkspace={undefined}
+              scope="global"
+              onSelectWorkspace={vi.fn()}
+              onAddWorkspace={vi.fn()}
+              onRunCommand={vi.fn()}
+              activeOverlay={null}
+              onOverlayOpenChange={vi.fn()}
+              attention={ATTENTION}
+              updateAvailable={false}
+              profileSwitcher={<div data-testid="profile-switcher-slot" />}
+            />
+          </CmdPaletteRegistryProvider>
+        </UIProvider>
+      );
+
+      expect(screen.queryByTestId("profile-switcher-slot")).not.toBeInTheDocument();
+      expect(container.querySelector('[data-slot="os-menubar-settings"]')).not.toBeNull();
+    } finally {
+      MENUBAR_ACTIONS_STATE.touchViewport = false;
+    }
+  });
+
+  it("Should keep the profile switcher slot on the desktop tier", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <CmdPaletteRegistryProvider registry={paletteRegistryFixture([])}>
+          <DesktopMenubar
+            workspaces={[]}
+            activeWorkspace={undefined}
+            scope="global"
+            onSelectWorkspace={vi.fn()}
+            onAddWorkspace={vi.fn()}
+            onRunCommand={vi.fn()}
+            activeOverlay={null}
+            onOverlayOpenChange={vi.fn()}
+            attention={ATTENTION}
+            updateAvailable={false}
+            profileSwitcher={<div data-testid="profile-switcher-slot" />}
+          />
+        </CmdPaletteRegistryProvider>
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("profile-switcher-slot")).toBeInTheDocument();
   });
 });

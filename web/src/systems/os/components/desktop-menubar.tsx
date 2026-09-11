@@ -204,7 +204,13 @@ export function DesktopMenubar({
           </>
         ) : null
       }
-      profileSwitcher={profileSwitcher}
+      // Touch tier priority call (F3): the profile switcher is the one
+      // trailing control the 390px bar cannot afford — a shrink-0 text row
+      // (~120px) that forced the identity segment under the action cluster.
+      // It is the lowest-priority slot: quiet-until-plural (usually absent),
+      // and profiles stay reachable on touch via Settings → Profiles and the
+      // palette's profiles view. Truthful: absent, not cramped.
+      profileSwitcher={touch ? null : profileSwitcher}
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

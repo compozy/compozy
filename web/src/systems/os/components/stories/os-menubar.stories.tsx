@@ -332,6 +332,26 @@ export const TouchTier: Story = {
 };
 
 /**
+ * Touch tier (F3 real-device delta) — Global scope at 390×844: the scope label
+ * is the give-way element (min-w-0 truncation chain), the profile switcher is
+ * absent (reachable via Settings and the palette), and the trailing actions
+ * keep their 44px floor. The bar must never overlap at any scope state.
+ */
+export const TouchTierGlobalScope: Story = {
+  args: {
+    workspace: { name: "Global", monogram: "~" },
+    notifications: 2,
+  },
+  render: args => (
+    <div style={{ maxWidth: 390 }}>
+      <DesktopShell menubar={false} wallpaper="carbon" deskHint>
+        <OsMenuBar {...args} touch />
+      </DesktopShell>
+    </div>
+  ),
+};
+
+/**
  * Degraded desktop sync — the warning stays non-blocking, names the state in
  * text, and leaves every shell command available.
  */
