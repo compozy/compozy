@@ -1,0 +1,205 @@
+---
+title: "Autonomous Coding Agents: Permissions, Spawn, and Review Gates"
+description: "Configure CompozyOS permission modes, resolve explicit approvals, bound child sessions with a TTL, and record task-run reviews without confusing their authority."
+date: 2026-09-11
+category: runtime
+tags:
+  - permissions
+  - autonomy
+  - sessions
+  - review-gates
+  - safe-spawn
+author: pedronauck
+---
+
+A coding agent needs more than permission to continue. You need to know which actions it can
+take, how long delegated work may run, and what evidence is required before accepting a result.
+CompozyOS treats those as separate controls: session permissions, bounded child sessions, and
+task-run review gates.
+
+This guide configures those controls for a repository review. It assumes an installed CompozyOS
+daemon and an authenticated provider; use the [installation guide](/docs/getting-started/installation)
+first. Behavior was checked against the implementation on September 11, 2026.
+
+The execution boundary matters. The default local sandbox runs on the host. Daemon checks govern
+the operations routed through them; they are not a claim that arbitrary native executables are
+contained against every possible action. If you require a separate execution environment, evaluate
+the [sandbox configuration](/docs/sandbox) along with tool policy.
+
+## Start with the permission mode you intend
+
+The built-in configuration defaults to `approve-all`. For a reviewer that should read first and
+request approval for other eligible operations, create
+`.compozy/agents/bounded-reviewer/AGENT.md` in the repository:
+
+```markdown
+---
+name: bounded-reviewer
+permissions: approve-reads
+---
+
+Review the requested changes and cite concrete failure conditions.
+Read the relevant files. Ask before editing or running a command.
+Return findings with evidence; do not publish or merge changes.
+```
+
+The permission field is the policy. The body is task guidance. A prompt saying “do not edit” is
+useful, but it does not replace the policy or the provider's execution boundary.
+
+The current ACP policy behaves as follows:
+
+| Mode            | Built-in file and terminal operations                              | ACP permission requests                                  |
+| --------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| `deny-all`      | Direct read, write, and terminal operations are blocked            | Rejected without asking                                  |
+| `approve-reads` | Direct reads are allowed; writes and terminal creation are blocked | Recognized reads auto-allow; other eligible requests ask |
+| `approve-all`   | Read, write, and terminal creation auto-allow                      | Eligible requests auto-allow                             |
+
+Direct host operations and interactive provider permission requests are different paths. An
+approval request is not a promise that a blocked direct operation can bypass its own checks.
+The policy also validates declared paths against the allowed roots. The implementation is in
+[`internal/acp/permission.go`](https://github.com/compozy/compozy/blob/f94f1fc68233627e32274a3adbeb8d956bd4e0b6/internal/acp/permission.go).
+
+In particular, **`deny-all` is not an “ask about everything” mode**. Use `approve-reads` for the
+interactive review pattern above. A `deny-all` agent cannot perform a useful ordinary file review
+through the blocked operations unless its input is supplied through another permitted path.
+
+## Understand the workspace boundary
+
+CompozyOS checks file paths, including symlink resolution, against the workspace's configured
+roots. A working directory alone is not equivalent to those checks, and a Git worktree is a
+checkout rather than a process sandbox.
+
+Cross-workspace native operations have a separate policy decision using the session mode.
+`approve-all` permits crossing. `deny-all` denies it. `approve-reads` can ask at the native-tool
+boundary; other boundaries deny unless an applicable session consent already exists. A permissive
+mode therefore should not be described as “fully isolated to this repository.” See
+[workspace permissions](/docs/sessions/permissions#cross-workspace-access).
+
+This policy applies to agent sessions. Operator authority and extension permissions have their
+own contracts. Changing an agent's mode is not a way to change every actor's access at once.
+
+## Create the session and inspect requests before answering
+
+From the repository root:
+
+```bash
+compozy session new --cwd "$PWD" --agent bounded-reviewer --name bounded-review
+```
+
+Replace `sess_1234` with the returned ID, then submit the task and inspect interactions:
+
+```bash
+compozy session prompt sess_1234 \
+  "Review the current implementation diff and explain any correctness risks."
+compozy session interactions sess_1234 -o json
+```
+
+Session creation is promptless; the first prompt binds the provider runtime. If a permission
+request is pending, read the requested action and its scope. The explicit approval form is:
+
+```bash
+compozy session approve sess_1234 \
+  --request-id req_1234 \
+  --turn-id turn_1234 \
+  --decision allow-once
+```
+
+All three IDs are placeholders from the actual session and pending request. Do not reuse a request
+from another turn. The decision vocabulary is `allow-once`, `allow-always`, `reject-once`, and
+`reject-always`; choose the narrow decision that matches the action you reviewed.
+
+Approval does not mean the proposed action is correct. It authorizes the particular boundary
+represented by that request. Keep publication or merge decisions tied to their actual output.
+
+## Know which approval state survives
+
+Several records can be called an “approval,” but their lifetime differs:
+
+| Record                                  | Lifetime and meaning                                                       |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| Pending interaction                     | Durable; may become orphaned if its provider turn disappears after restart |
+| Cross-workspace session consent         | In memory; cleared on session stop or daemon restart                       |
+| Native-tool gateway remembered decision | Persisted for an exact workspace, agent, tool, and input digest            |
+| Provider-native “always” option         | Its lasting meaning depends on the option offered by that provider         |
+
+The [permission guide](/docs/sessions/permissions) documents these distinctions. Inspect persisted
+native-tool grants through [tool approvals](/docs/cli/tool/approvals). Resolving an orphaned
+interaction records a decision after restart; it does not revive the disappeared provider turn.
+
+For the first walkthrough, `allow-once` makes the scope easier to reason about. Use remembered
+decisions only after you understand which store owns them and how to revoke them.
+
+## Bound child sessions at creation
+
+Safe spawn is a managed-session operation. The caller needs daemon-issued session identity;
+merely copying a parent ID into a normal terminal does not establish that identity.
+From an eligible CompozyOS-managed parent context:
+
+```bash
+compozy spawn \
+  --agent bounded-reviewer \
+  --role reviewer \
+  --ttl-seconds 1800 \
+  --prompt-overlay "Review the implementation diff and return findings only."
+```
+
+The required TTL is 1,800 seconds, or 30 minutes. The default spawn budget allows depth 1 and up
+to 5 children per parent. The child must stay within the parent's permission atoms for tools,
+skills, MCP servers, workspace paths, channels, and sandbox profiles. A widening request is
+rejected rather than silently rewritten.
+
+By default, children stop when their parent stops. The daemon also owns expiry and cleanup.
+The [safe-spawn reference](/docs/autonomy/safe-spawn) documents configurable limits and the
+registered-workspace requirement when selecting another workspace.
+
+```text
+managed parent identity
+    -> validate TTL, budget, target, and permission subset
+    -> create bounded child session
+    -> supervise child lifetime and cleanup
+```
+
+Spawn creates a session; it does not automatically create or claim a task run. Conversely,
+`session new --parent` records provenance without safe-spawn governance. Use the operation whose
+contract matches the work you intend to delegate.
+
+## Review the task run, not just the final message
+
+A review gate belongs to a **task run**. An ordinary session becoming idle does not automatically
+create a task review. The policies are `none`, `on_success`, `on_failure`, and `always`.
+
+For an existing terminal task run, an operator can request and inspect a review:
+
+```bash
+compozy task review request run_1234 --policy on_success --reason "Verify delivery evidence"
+compozy task review list --run run_1234 -o json
+compozy task review show review_1234 -o json
+```
+
+Use the returned run and review IDs. After evaluating the evidence, submit the appropriate typed
+verdict. This example illustrates a rejection; replace the reason and missing-work item with
+your actual findings:
+
+```bash
+compozy task review submit review_1234 \
+  --run run_1234 \
+  --outcome rejected \
+  --confidence 0.8 \
+  --reason "Required behavior has not been verified" \
+  --missing-work "Run the agreed integration scenario and attach its result" \
+  --delivery-id review_1234-attempt-1 \
+  -o json
+```
+
+The confidence value is part of the illustrative verdict, not a measured confidence score. Keep
+the same delivery identity for an exact retry of that submission. A rejected verdict enqueues one
+linked continuation through the review transaction; outcomes such as `blocked`, `error`, and
+`timeout` express different situations. Use `approved` only when the evidence warrants it.
+
+Operator CLI/API submission and the reviewer-bound native tool both go through the task service's
+verdict contract. The read-only Web review view is an inspection surface. The
+[review-gate guide](/docs/autonomy/review-gate) explains routing, binding, and idempotency.
+
+Permissions govern actions, TTLs govern child lifetime, and reviews govern acceptance of task-run
+results. Keeping those decisions separate gives you a concrete answer when work stops: it may
+need authorization, a new bounded execution, or missing delivery evidence.

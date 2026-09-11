@@ -1,0 +1,174 @@
+---
+title: "Orca vs OpenHands: Worktrees, Agent APIs, and Local Execution"
+description: "Compare Orca's development environment with the OpenHands SDK and services, then see where the OpenHands ACP provider fits inside CompozyOS."
+date: 2026-09-11
+category: engineering
+tags:
+  - orca
+  - openhands
+  - providers
+  - local-first
+  - agent-orchestration
+author: pedronauck
+---
+
+Orca and OpenHands overlap in coding-agent work, but their starting points differ. Orca gives you
+a development environment for working with multiple agent CLIs and Git worktrees. OpenHands
+provides an agent SDK and services for building and running software agents. Choosing between
+them starts with deciding whether you primarily want an environment to work in or an agent
+execution API to build on.
+
+Both ecosystems extend beyond that first description. Orca documents scheduling, memory-related
+hooks, and session restoration. OpenHands includes execution services, a browser client, and an
+automation service. Treating either as an empty shell around a terminal would miss capabilities
+that matter to the decision.
+
+This comparison is written from the CompozyOS project using official documentation checked on
+September 11, 2026. It does not report hands-on performance measurements or rank the quality of
+the agents' code.
+
+## Compare the product boundaries
+
+| Question                     | Orca                                                 | OpenHands                                                       |
+| ---------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| Main starting point          | Development environment around existing agent CLIs   | Software Agent SDK and execution services                       |
+| Typical object you work with | Repository worktree, agent session, terminal, diff   | Conversation, agent, tool, workspace, execution API             |
+| Interactive experience       | Desktop environment with repository and review tools | Agent Canvas browser client; CLI also available                 |
+| Remote operation             | Documented SSH and remote-server paths               | Agent Server and managed or self-hosted deployment options      |
+| Automation                   | Documented scheduled automations                     | Separate automation service for scheduled and event-driven work |
+
+The [Orca introduction](https://www.onorca.dev/docs) and
+[OpenHands component map](https://docs.openhands.dev/overview/introduction) are the starting
+references for this table. Check the exact component and deployment you intend to use; one
+product name can cover several independently configured pieces.
+
+## Orca: organize parallel changes and review their diffs
+
+Orca centers the development workflow on real Git worktrees. Its interface brings agent
+terminals, browser work, and diffs together, and it can use the agent subscriptions you already
+have. The [project repository](https://github.com/stablyai/orca) documents that arrangement and
+the supported desktop, mobile, and remote surfaces.
+
+That is a concrete fit when two agents should attempt changes without editing the same checkout.
+The worktree is also an ordinary Git artifact you can inspect outside the app. It does not,
+however, establish a security boundary between processes sharing the host.
+
+Orca's [session restoration](https://www.onorca.dev/docs/model/session-restore),
+[agent hooks and memory](https://www.onorca.dev/docs/agents/hooks-memory), and
+[scheduled automation](https://www.onorca.dev/docs/cli/automations) documentation are relevant
+to unattended work. Their existence rules out a simplistic “Orca has worktrees but no memory or
+automation” comparison. Evaluate their exact behavior against your intended workflow instead.
+
+For a local trial, choose a small change and inspect the resulting diff, terminal history, and
+session restoration behavior. The quality of that experience matters more than how many tools
+appear in a screenshot.
+
+## OpenHands: compose an agent and expose execution
+
+The [OpenHands Software Agent SDK](https://github.com/OpenHands/software-agent-sdk) provides
+composable agent, conversation, tool, and workspace primitives. Agent Server exposes execution
+through an API. This is a useful starting point when you want to embed agent work inside another
+application rather than operate only through a desktop workflow.
+
+The ecosystem also has a separate
+[Automation Service](https://github.com/OpenHands/automation). Its repository describes cron and
+webhook triggers, run history, and dispatch for OpenHands Cloud, and marks the service beta.
+That is a specific component and deployment context; it should not be flattened into either
+“OpenHands has no scheduler” or “every local OpenHands CLI install includes this service.”
+
+Likewise, “local” needs a precise meaning. An agent process, workspace, model endpoint, and
+automation service can run in different places. Map those locations before deciding which data
+stays on your machine. Review the license of the component you actually deploy rather than
+assuming a single license covers the whole ecosystem.
+
+## Test the workflow you care about
+
+Use one repository revision and a bounded task, such as explaining a failing test without editing
+files. Then use a disposable checkout for a small implementation task. Record:
+
+| Observation                       | Why it matters                                                |
+| --------------------------------- | ------------------------------------------------------------- |
+| Exact agent and model selected    | The environment and the model contribute different behavior   |
+| Working directory and isolation   | Parallel attempts need predictable file ownership             |
+| Approval requests                 | You need to know which layer controls each side effect        |
+| Retained state after interruption | Terminal scrollback and resumable agent context are different |
+| Final diff and test evidence      | A completion message alone does not establish correctness     |
+
+This is an evaluation plan, not a result from tests performed for this article. It avoids a
+common comparison error: attributing a better answer to the runtime when the two runs used
+different models, prompts, or starting revisions.
+
+## Where CompozyOS fits with OpenHands
+
+CompozyOS manages sessions, Loops, memory, permissions, and automation around ACP-compatible
+providers. Its built-in `openhands` provider launches `openhands acp` and uses provider-native
+authentication. This is a CLI integration. It does not import the OpenHands service topology or
+turn Agent Server conversations into CompozyOS sessions.
+
+The relationship is:
+
+```text
+CompozyOS session and automation state
+                  |
+          provider: openhands
+                  |
+             openhands acp
+                  |
+       OpenHands agent execution
+```
+
+Orca is not an entry in the CompozyOS built-in provider registry. That says which executable
+CompozyOS can launch, not which product has the better development environment.
+The [provider reference](/docs/agents/providers) records the integration contract.
+
+## Configure a bounded OpenHands integration check
+
+Use the [OpenHands CLI installation guide](https://docs.openhands.dev/openhands/usage/cli/installation)
+to install and configure the provider first. Confirm that your installed version supports the
+`acp` subcommand. You also need an installed CompozyOS daemon; follow its
+[installation guide](/docs/getting-started/installation).
+
+From your repository, create `.compozy/agents/openhands-check/AGENT.md`:
+
+```markdown
+---
+name: openhands-check
+provider: openhands
+permissions: approve-reads
+---
+
+Inspect the requested repository files and explain their behavior.
+Cite evidence for each conclusion. Do not edit files.
+```
+
+Then inspect the provider and create a session:
+
+```bash
+command -v openhands
+compozy provider inspect openhands -o json
+compozy session new --cwd "$PWD" --agent openhands-check --name openhands-check
+```
+
+Creation returns the logical session before the provider runs. Replace `sess_1234` with its ID:
+
+```bash
+compozy session prompt sess_1234 \
+  "Explain the repository's test entry points and cite their configuration files."
+compozy session status sess_1234 -o json
+compozy session history sess_1234
+```
+
+This tests the installed integration. A successful session creation alone does not verify
+OpenHands authentication or model execution; those happen when the prompt binds the provider.
+If that stage fails, inspect the CLI configuration before changing the agent definition.
+
+## Choose the surface your team will use
+
+Start with Orca when your main requirement is a coherent environment for parallel repository
+work and review. Start with the OpenHands SDK and services when you need to compose or expose
+agent execution inside an application. Evaluate CompozyOS when an existing agent CLI should
+participate in daemon-managed sessions and automation.
+
+There is real overlap, and combinations introduce extra ownership boundaries. Select one system
+to own a particular schedule or run lifecycle, then make any handoff explicit. The useful result
+is knowing where to inspect a failed run and who can authorize its next action.

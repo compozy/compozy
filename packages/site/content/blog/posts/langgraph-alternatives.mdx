@@ -1,0 +1,169 @@
+---
+title: "LangGraph Alternatives: When to Keep or Replace Your Graph"
+description: "Evaluate LangGraph alternatives through checkpoint recovery, approval boundaries, side effects, and deployment needs before rewriting a working agent graph."
+date: 2026-09-11
+category: engineering
+tags:
+  - langgraph
+  - durable-execution
+  - agent-orchestration
+  - loops
+author: pedronauck
+---
+
+A graph that works in development can still fail at an awkward boundary: an external write
+finishes, the process stops, and the next run cannot tell whether to repeat it. Before looking for
+a LangGraph alternative, determine whether the problem belongs to graph control flow, checkpoint
+storage, the external API, or deployment.
+
+LangGraph already supports persistent state, human intervention, and memory. Replacing it because
+“a state graph cannot remember or wait for approval” starts from the wrong diagnosis. A useful
+evaluation asks whether its execution contract fits the application you are building.
+
+This article is written from the CompozyOS project. It uses official documentation checked on
+September 11, 2026 and an illustrative review workflow; it makes no comparative performance claim.
+For a broader survey, see [LangChain alternatives](/blog/langchain-alternatives-production-ai-agents).
+
+## Check storage before changing frameworks
+
+LangGraph distinguishes thread-scoped checkpoints from cross-thread stores. An in-memory
+checkpointer is convenient for development, but its state disappears with the process. Agent
+Server manages persistence infrastructure for deployed applications. Those are materially
+different operating setups, as the
+[persistence guide](https://docs.langchain.com/oss/python/langgraph/persistence) explains.
+
+If a development process loses its conversation after restart, the next useful experiment is a
+persistent backend and a stable thread identifier. A new orchestration library with another
+in-memory store would reproduce the same failure.
+
+Also decide which data is allowed to cross threads. Conversation state, reusable facts, and
+permission decisions have different lifetimes. Putting them in one store does not make their
+retention or authority equivalent.
+
+## Put approval before the side effect
+
+Consider a review agent that proposes a patch and can publish a comment. The execution order
+should make the decision boundary visible:
+
+```text
+read immutable revision
+    -> produce findings
+    -> persist proposed comment + content version
+    -> request approval for that version
+    -> publish approved content
+    -> record external comment ID
+```
+
+LangGraph's interrupt mechanism can pause execution and receive a resume value. Its documentation
+also explains a subtle consequence: the interrupted node starts again on resume, so code before
+the interrupt must tolerate re-execution. Keep side effects idempotent or separate them from that
+node. See [interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts).
+
+The following is framework-neutral pseudocode. It deliberately omits storage, authentication, and
+API implementations; it is a design sketch, not a runnable integration:
+
+```python
+proposal = load_proposal(proposal_id)
+approval = load_approval(proposal_id)
+
+if approval.content_digest != proposal.content_digest:
+    raise ValueError("Approval belongs to an older proposal")
+
+receipt = publish_comment(
+    proposal.body,
+    idempotency_key=proposal.id,
+)
+save_receipt(proposal.id, receipt.external_id)
+```
+
+The digest check prevents approving one artifact and delivering another. The idempotency key is
+useful only if the receiving API honors it. If it does not, you need another reconciliation
+mechanism, such as querying by a durable external identifier. Persisting the receipt afterward
+cannot by itself close the crash window between publication and receipt storage.
+
+That limitation follows from the external side effect. It applies whichever orchestration system
+you choose.
+
+## Match an alternative to the requirement
+
+| Requirement driving the change                 | Direction to evaluate                 | Evidence to collect                                                 |
+| ---------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| More explicit state or conditional routing     | Keep LangGraph and simplify the graph | A trace showing the actual transition problem                       |
+| Long-running business coordination             | Temporal                              | Recovery behavior across worker loss and Activity retries           |
+| Event-driven application jobs                  | Inngest                               | Step retry behavior and event identity handling                     |
+| Agent role and task handoffs                   | CrewAI                                | Whether the collaboration model reduces application complexity      |
+| Existing coding CLIs needing managed operation | CompozyOS                             | Provider launch, session inspection, permissions, and Loop behavior |
+
+For Temporal, examine the separation between
+[workflow execution](https://docs.temporal.io/workflows) and
+[Activities](https://docs.temporal.io/activities). A business workflow can retain your model
+integration as an Activity while taking ownership of the longer process. The difficult work is
+identifying deterministic decisions and side effects, not translating graph edges mechanically.
+
+For Inngest, examine [error handling and retries](https://www.inngest.com/docs/guides/error-handling).
+It can fit an application whose durable unit is a background function split into recorded steps.
+Your model call becomes part of that function; the function's result still needs application-level
+validation.
+
+CrewAI is worth investigating when the uncomfortable part of the graph is representing agent
+roles and handoffs. Its [Flows](https://docs.crewai.com/en/concepts/flows) can also express control
+around crews. Moving to a role vocabulary is useful only if the new representation makes the
+actual workflow clearer.
+
+## Evaluate deployment as a separate choice
+
+Do not count missing infrastructure in a bare library example as a missing product capability.
+LangSmith Deployment supports [cron jobs](https://docs.langchain.com/langsmith/cron-jobs), with
+[self-hosted options](https://docs.langchain.com/langsmith/deploy-to-self-hosted-overview) as well as
+hosted deployment. If scheduled execution is the only
+missing piece, evaluate those paths before replacing the graph.
+
+The questions for deployment are operational: who starts the process, where persistent state
+lives, how credentials reach it, and how an operator inspects a paused run. Those questions remain
+even when a platform handles much of the machinery.
+
+Similarly, the presence of a visual editor does not establish migration compatibility. Two
+products can both draw nodes while using incompatible state, input, and recovery contracts.
+
+## Where CompozyOS changes the unit of work
+
+CompozyOS is useful when the thing you want to operate is an existing agent CLI. Its durable
+session records history and runtime state; a Loop coordinates agent work around that session
+model. The graph editor and file path share a `compozy.loop/v1` definition and daemon validation.
+The [Loop authoring guide](/docs/loops/authoring) documents that format.
+
+This is not an importer for Python `StateGraph` definitions. A migration must decide what happens
+to each node's code, checkpoints, tool calls, and approval data. Some pieces may stay in an
+external service. Others may become instructions for a selected agent or explicit Loop nodes.
+
+For a CompozyOS Loop file you have authored according to that schema, validate before publishing:
+
+```bash
+compozy loop validate --workspace "$PWD" --file ./review-loop.yaml -o json
+```
+
+The command requires an installed daemon and the actual definition file. Validation checks the
+definition without saving it. It does not prove that a provider can authenticate, that a tool is
+available, or that a reviewer will produce a correct verdict. Follow with a controlled run of the
+workflow you intend to operate.
+
+CompozyOS remains a beta local-first runtime. A requirement for always-on shared service
+availability needs an explicit hosting and recovery plan; a persistent session record alone
+does not meet it.
+
+## Preserve meaning during a migration
+
+Before rewriting, map the old workflow's state to the new system:
+
+| Existing fact    | Migration question                                                  |
+| ---------------- | ------------------------------------------------------------------- |
+| Thread or run ID | Will historical links still locate the original work?               |
+| Checkpoint       | Which values are needed to continue, and which are just trace data? |
+| Approval         | Does it identify the exact content, actor, and decision?            |
+| Tool result      | Is replay safe, or does it represent a completed external effect?   |
+| Retry counter    | Which system owns the budget after cutover?                         |
+
+Use one disposable input to exercise interruption before approval and failure after a side
+effect. Inspect the resulting records instead of relying on a “completed” badge. A migration is
+ready when you can explain what the next run will do at both boundaries. If your current graph
+already gives that explanation, the evidence supports keeping it.

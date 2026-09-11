@@ -32,3 +32,24 @@ Network-first route. The scenario remains `untested`.
 
 QA impact 2026-08-10: the product-language hard cut now covers site, Web display strings, CLI help,
 release copy, SDK metadata, and generated references. Reset to `untested`; Task 07 owns the walk.
+
+## 2026-09-11 article publication slice
+
+Eight reviewed articles add blog routes without changing the existing brand or launch article.
+The [publication report](../reports/2026-09-11-blog-publication.md) maps every source draft and
+records factual review. This slice does not reclassify the historical full scenario.
+
+Acceptance for this slice:
+
+1. All eight routes open from the blog index and render one page H1, section anchors, author/date,
+   readable tables, highlighted code, and related-reading links.
+2. Desktop and mobile widths keep content usable without document-wide horizontal overflow;
+   code/table overflow remains locally navigable when necessary.
+3. Each route emits its own canonical, description, Article JSON-LD, and social image. RSS and
+   sitemap include every new permalink.
+4. Existing blog metadata, navigation, code-block, and structured-data suites pass against the
+   generated content, followed by a production build and rendered checks.
+
+Slice validation: passed against the local production build on September 11, 2026. See the
+publication report for gate, metadata, browser, responsive, and command-shape evidence. The
+historical full scenario and real provider execution are outside this editorial slice.

@@ -65,6 +65,43 @@ export function ProseParagraph({ children, className, ...props }: ComponentProps
   );
 }
 
+export function ProseLink({ className, ...props }: ComponentProps<"a">) {
+  return (
+    <a
+      {...props}
+      className={cn(
+        "font-medium text-accent underline decoration-accent/35 underline-offset-4 hover:decoration-accent",
+        className
+      )}
+    />
+  );
+}
+
+export function ProseTable({ className, ...props }: ComponentProps<"table">) {
+  return (
+    <div className="mt-6 overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
+      <table
+        {...props}
+        className={cn("w-full min-w-xl border-collapse text-sm leading-7 text-muted", className)}
+      />
+    </div>
+  );
+}
+
+export function ProseTableHeader({ className, ...props }: ComponentProps<"th">) {
+  return (
+    <th
+      scope="col"
+      {...props}
+      className={cn("border-b border-line px-3 py-2 text-left font-semibold text-fg", className)}
+    />
+  );
+}
+
+export function ProseTableCell({ className, ...props }: ComponentProps<"td">) {
+  return <td {...props} className={cn("border-b border-line px-3 py-2 align-top", className)} />;
+}
+
 export function ProseList({ children, className, ...props }: ComponentProps<"ul">) {
   return (
     <ul

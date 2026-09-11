@@ -1,0 +1,212 @@
+---
+title: "CompozyOS Sessions: Agents, Providers, and Optional Souls"
+description: "Define AGENT.md and optional SOUL.md files, select an ACP provider, and understand which session state CompozyOS retains when execution stops."
+date: 2026-09-11
+category: runtime
+tags:
+  - sessions
+  - providers
+  - agent-definitions
+  - memory
+  - acp
+author: pedronauck
+---
+
+A CompozyOS session can exist before an agent process starts. That is intentional: the session is
+the durable record of work, while the provider is the process that executes a turn. Keeping those
+two objects separate makes it possible to create a session, inspect it, choose a provider, and
+retain the record after execution stops.
+
+This guide builds a repository reviewer to explain four pieces of the setup: `AGENT.md`, the
+provider, the session, and optional `SOUL.md`. The behavior described here was checked against the
+CompozyOS implementation on September 11, 2026. The
+[session lifecycle reference](/docs/sessions/lifecycle) owns the complete transition rules.
+
+## Give each file one job
+
+| Object     | What it defines                                                              | What it does not establish                           |
+| ---------- | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `AGENT.md` | Agent name, required instructions, optional provider and permission settings | A running subprocess                                 |
+| Provider   | How CompozyOS launches and authenticates an ACP integration                  | The whole session lifecycle                          |
+| Session    | Workspace association, history, runtime state, and stable identity           | A guarantee that a subprocess survives a reboot      |
+| `SOUL.md`  | Optional persona and communication principles                                | Tool grants, provider choice, or execution authority |
+
+The provider communicates through the **Agent Client Protocol**, or ACP. CompozyOS hosts that
+connection over JSON-RPC and stdio. Some providers speak ACP directly; others use an adapter.
+[Provider documentation](/docs/agents/providers) records which command each built-in launches.
+
+An agent definition is reusable across sessions. A session records one continuing unit of work.
+Changing the definition file should therefore be an explicit authoring decision, not a way to
+assume you have edited every already-running session.
+
+## Set up the runtime before defining the reviewer
+
+Use an installed CompozyOS beta on macOS or Linux and a configured, authenticated provider. For a
+fresh CLI installation:
+
+```bash
+curl -fsSL https://compozy.com/install.sh | sh
+compozy install
+compozy daemon start
+compozy config validate
+```
+
+Bootstrap writes configuration under `~/.compozy` by default and creates the editable `general`
+agent if it is missing. If you already have an installation, inspect your setup before rerunning
+bootstrap: existing agent files are preserved, but bootstrap configuration can be updated.
+The [installation guide](/docs/getting-started/installation) also covers desktop setup.
+
+The examples below inherit the configured provider. They do not require Claude Code specifically.
+For a concrete choice between two integrations, use the
+[Cursor and Claude Code walkthrough](/blog/cursor-vs-claude-code).
+
+## Create a workspace-local agent
+
+In the repository you want reviewed, create `.compozy/agents/repo-reviewer/AGENT.md`:
+
+```markdown
+---
+name: repo-reviewer
+permissions: approve-reads
+---
+
+Review the requested code paths for correctness and maintainability.
+For each finding, cite the file, explain the failure condition,
+and distinguish a confirmed defect from an unanswered question.
+Read before proposing changes. Do not edit files during a review.
+```
+
+`name` matches the directory. The body supplies the actual review instructions; an empty body is
+invalid. The permission field controls the daemon's policy. The instruction to avoid edits is
+additional task guidance and should not be mistaken for an operating-system sandbox.
+
+Provider selection can remain in the existing configuration:
+
+```toml
+[defaults]
+agent = "general"
+provider = "claude"
+```
+
+That snippet shows the relevant configuration shape, not a complete file to paste over your home.
+An explicit `provider` in `AGENT.md` overrides the default for that definition, and a prompt can
+select its runtime explicitly. Model IDs must be valid for the selected provider.
+
+Agent discovery checks the workspace root, then registered additional roots, then the CompozyOS
+home. The first matching definition wins; lower-priority files are not merged into it. This is
+useful for project-specific reviewers, but it also explains why editing a home-level file may not
+affect a workspace with its own definition.
+
+Inspect the resolved catalog:
+
+```bash
+compozy agent list --workspace "$PWD" -o json
+```
+
+The [AGENT.md reference](/docs/configuration/agent-md) documents the supported fields and
+discovery rules. Unknown fields fail validation rather than becoming arbitrary prompt metadata.
+
+## Add persona only when it adds something useful
+
+The reviewer already has enough instructions to work. If its communication style should be reused
+across tasks, add `.compozy/agents/repo-reviewer/SOUL.md` beside the definition:
+
+```markdown
+---
+version: 1
+role: "Repository reviewer"
+tone:
+  - direct
+  - calm
+principles:
+  - "Lead with defects that can change the result."
+  - "State uncertainty when evidence is incomplete."
+---
+
+Explain the smallest concrete example that demonstrates each defect.
+Keep preferences separate from correctness findings.
+```
+
+This file shapes persona. Putting `provider`, `tools`, `permissions`, or task scheduling fields
+here is invalid. Its `constraints` and `memory_policy` fields, when used, are persona guidance;
+they do not grant access or configure a memory backend.
+
+CompozyOS resolves and snapshots the soul at session start. The recorded snapshot and digest make
+that persona identifiable later. Editing `SOUL.md` does not silently rewrite an active session;
+new sessions use the latest valid file. If the file is absent, the session proceeds without soul
+injection. See the [soul contract](/docs/agents/soul) for validation and size bounds.
+
+## Observe creation before execution
+
+From the repository root:
+
+```bash
+compozy session new --cwd "$PWD" --agent repo-reviewer --name initial-review
+compozy session list -o json
+```
+
+`--cwd` supplies the absolute workspace path and can register it. The expected initial state is
+`active` with `runtime.status: "unbound"`. This describes the contract; the following diagram is
+not a captured response:
+
+```text
+AGENT.md + optional SOUL.md + workspace
+                  |
+                  v
+          durable session created
+          state: active / runtime: unbound
+                  |
+               first prompt
+                  |
+                  v
+          provider process bound
+          events written during execution
+```
+
+Replace `sess_1234` with the ID returned by creation, then request a review:
+
+```bash
+compozy session prompt sess_1234 \
+  "Review the error handling in the repository's main entry point. Cite the relevant files."
+compozy session history sess_1234
+compozy session recap sess_1234
+```
+
+A successful creation proves that CompozyOS accepted the logical session. Only the prompt tests
+provider launch, authentication, and the model turn. This separation is useful when diagnosing an
+installation: you can identify which stage failed instead of treating every error as an agent error.
+
+## Know what remains after a stop
+
+Live events are stored in the session's `events.db`. After stop, CompozyOS materializes an
+operator-readable forensic `ledger.jsonl`. That ledger is history: it is not a memory scope and
+the recall pipeline does not ingest it as memory. The
+[memory documentation](/docs/memory) explains the separate storage and recall model.
+
+The commands for continuing and inspecting work have different purposes:
+
+| Operation              | Purpose                                                              |
+| ---------------------- | -------------------------------------------------------------------- |
+| `session history`      | Read the retained conversation                                       |
+| `session recap`        | Read a bounded reorientation summary                                 |
+| `session resume`       | Acquire an attach lease on an eligible live session                  |
+| `session prompt`       | Submit work; eligible stopped sessions can restore through this path |
+| `session new --parent` | Create a new session with same-workspace parent provenance           |
+
+Closing a terminal is different from losing the daemon or provider process. Retained history does
+not promise that a live subprocess survives either. A terminal `process_exit` remains read-only;
+inspect its status and create a new session linked to it when needed:
+
+```bash
+compozy session status sess_1234 -o json
+compozy session recap sess_1234
+compozy session new --cwd "$PWD" --agent repo-reviewer --parent sess_1234
+```
+
+That parent link is provenance. It does not apply the TTL and permission narrowing of
+[safe spawn](/docs/autonomy/safe-spawn), and it is not proof that every provider's private context
+was transferred. Supply the continuation task explicitly.
+
+You now have a reusable reviewer definition and a way to distinguish its instructions, persona,
+execution, and history. Those boundaries make later automation easier: a scheduled job can select
+the same agent without turning the agent file into a transcript, scheduler, or credential store.

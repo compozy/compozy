@@ -1,0 +1,194 @@
+---
+title: "Cursor vs Claude Code: Running Both in CompozyOS"
+description: "Compare the Cursor Agent and Claude Code integrations, configure their providers, and inspect a CompozyOS session before and after its first prompt."
+date: 2026-09-11
+category: engineering
+tags:
+  - cursor
+  - claude-code
+  - providers
+  - sessions
+  - acp
+author: pedronauck
+---
+
+If you already use Cursor or Claude Code, trying CompozyOS does not require moving your project
+to a new agent implementation. You select a provider, create a session, and send a prompt. CompozyOS
+keeps the session history and manages execution around the selected agent.
+
+The integration has a detail worth understanding before you configure it: **Cursor Agent has an
+ACP entry point; the Claude Code integration uses an ACP adapter built on the Claude Agent SDK.**
+The two launch paths differ even though CompozyOS presents them through the same session commands.
+See [Cursor's ACP documentation](https://cursor.com/docs/cli/acp) and the
+[Claude Agent ACP adapter](https://github.com/agentclientprotocol/claude-agent-acp).
+
+This is a setup comparison from the CompozyOS project, checked against its implementation and the
+linked upstream documentation on September 11, 2026. It does not rank coding quality, speed, or cost.
+
+## Compare the integration you will actually run
+
+Here, “Cursor” means the **Cursor Agent CLI**. Opening the Cursor editor does not launch a provider
+inside a CompozyOS session.
+
+| Detail                   | Claude Code integration                               | Cursor Agent integration                           |
+| ------------------------ | ----------------------------------------------------- | -------------------------------------------------- |
+| CompozyOS provider ID    | `claude`, with alias `claude-code`                    | `cursor`                                           |
+| Built-in launch command  | `npx -y @agentclientprotocol/claude-agent-acp@latest` | `cursor-agent acp`                                 |
+| Authentication owner     | Provider-native login                                 | Provider-native login                              |
+| Default model selection  | CompozyOS ships a curated provider default            | No built-in model default; Cursor chooses          |
+| Explicit model selection | Use a supported catalog ID                            | Use a fresh model ID advertised by Cursor over ACP |
+
+These values come from the CompozyOS [provider registry](https://github.com/compozy/compozy/blob/f94f1fc68233627e32274a3adbeb8d956bd4e0b6/internal/config/provider_builtin.go).
+Local configuration can override them; [provider inspection](/docs/cli/provider/inspect) shows
+the effective setup on your machine.
+
+Choose the provider whose account and CLI you already use for the first walkthrough. Once that
+works, testing the second provider becomes a small configuration change with an understandable
+failure boundary. An authentication failure then points at the provider setup, while a session
+creation failure points at the CompozyOS definition or workspace.
+
+## Prepare the runtime and provider login
+
+Install CompozyOS using the [installation guide](/docs/getting-started/installation). The CLI path
+on a supported macOS or Linux host is:
+
+```bash
+curl -fsSL https://compozy.com/install.sh | sh
+compozy install
+compozy daemon start
+compozy version
+compozy config validate
+```
+
+The installer downloads the distribution; `compozy install` bootstraps its home and configuration.
+It can update existing bootstrap configuration, so this walkthrough assumes a fresh installation
+or an installation whose setup you intend to review. Existing agent files are preserved.
+
+For the Claude integration, make sure Node.js and `npx` are available to the daemon, and complete
+the provider login:
+
+```bash
+compozy provider auth login claude
+compozy provider inspect claude -o json
+```
+
+For Cursor, install and authenticate its Agent CLI using
+[Cursor's CLI setup](https://cursor.com/docs/cli/overview). Confirm the executable that CompozyOS
+expects is available:
+
+```bash
+command -v cursor-agent
+compozy provider inspect cursor -o json
+```
+
+Both built-ins use `native_cli` authentication: CompozyOS does not require a separate API key
+preflight for them. The provider still needs working credentials, and model use remains subject
+to that provider's account and billing. A local CompozyOS daemon does not imply local inference.
+
+## Define an agent without changing your existing general agent
+
+From the repository you want to use, create `.compozy/agents/provider-check/AGENT.md` with this
+content. The directory name and the frontmatter `name` must match:
+
+```markdown
+---
+name: provider-check
+provider: claude
+permissions: approve-reads
+---
+
+Explain this repository's structure using file paths as evidence.
+Read the relevant files before drawing conclusions.
+Ask before making changes or running commands that need approval.
+```
+
+The Markdown body is required. `permissions: approve-reads` selects the daemon policy; the final
+sentence explains the desired behavior to the model. Those are separate mechanisms. For the
+permission boundary and its limits, read the
+[autonomous coding setup](/blog/autonomous-coding-agent-setup).
+
+To make Cursor the definition's default, change only `provider: claude` to `provider: cursor`.
+Leave `model` absent for this initial check. A model name copied from an older article may no
+longer be a valid choice for the installed provider.
+
+## Create first, bind on the first prompt
+
+Run these commands from the repository root:
+
+```bash
+compozy session new --cwd "$PWD" --agent provider-check --name provider-check
+compozy session list -o json
+```
+
+Creation should return an active logical session with an unbound runtime. That distinction lets
+you verify workspace and definition resolution before spending a model turn. The following is a
+schematic of the lifecycle, not captured command output:
+
+```text
+session new
+    -> active session, stable ID, runtime unbound
+session prompt
+    -> provider selection, ACP launch, model turn
+session history / recap
+    -> reads of the retained session record
+```
+
+Copy the returned ID. In the next examples, replace `sess_1234` with that ID. Choose one of these
+first-prompt commands:
+
+```bash
+compozy session prompt sess_1234 \
+  "Map the repository's main modules and cite their entry files." \
+  --provider claude
+```
+
+```bash
+compozy session prompt sess_1234 \
+  "Map the repository's main modules and cite their entry files." \
+  --provider cursor
+```
+
+The explicit provider belongs to this prompt's runtime selection. It does not rewrite `AGENT.md`.
+Later prompts can select another runtime, but that is a process transition, not a guarantee that
+every provider-specific behavior or conversation feature transfers identically.
+
+Inspect what happened:
+
+```bash
+compozy session status sess_1234 -o json
+compozy session history sess_1234
+compozy session recap sess_1234
+```
+
+Use `compozy session events sess_1234 --follow` when you want a live event stream; it keeps running
+until you stop following it. History and recap are bounded reads suited to checking a finished turn.
+
+## Diagnose model selection separately
+
+If the default works and you need a specific model, refresh the relevant catalog:
+
+```bash
+compozy provider models list claude --refresh -o json
+compozy provider models list cursor --refresh -o json
+```
+
+Cursor discovery may start a short ACP inspection process. CompozyOS requires an explicit Cursor
+model to match fresh advertised values; human-friendly aliases from another CLI command are not
+necessarily accepted identifiers. A stale catalog is useful diagnostic context, not proof that a
+model can be selected now. The [model catalog guide](/docs/agents/model-catalog) describes freshness
+and source precedence.
+
+If a launch fails, first check the executable, login, effective provider configuration, and model
+selection. Repeatedly creating sessions will not repair any of those prerequisites.
+
+## Compare the results on the same repository
+
+For a meaningful local comparison, create a separate session for each provider at the same Git
+revision. Use the same prompt and permission mode. Record the selected model, the files each answer
+cites, any incorrect claims, and the approvals needed. Do not let the first agent's edits become
+the second agent's starting point.
+
+That exercise answers whether the provider fits your work. CompozyOS gives both attempts the same
+place to inspect their history, but a shared protocol does not make their answers equivalent.
+Continue with [agents, sessions, and optional souls](/blog/defining-agent-sessions-compozyos)
+when you want reusable definitions for those different working styles.
