@@ -67,7 +67,7 @@ describe("SessionDeleteDialog sets", () => {
     expect(screen.queryByTestId("delete-dialog-note")).not.toBeInTheDocument();
   });
 
-  it("discloses the count, capped set, overflow, and running membership", () => {
+  it("discloses the count, capped set, overflow, and active membership", () => {
     render(
       <SessionDeleteDialog
         open
@@ -84,7 +84,7 @@ describe("SessionDeleteDialog sets", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
     expect(screen.getByText("and 2 more")).toBeInTheDocument();
     expect(screen.queryByTestId("delete-dialog-row-set-5")).not.toBeInTheDocument();
-    expect(screen.getByTestId("delete-dialog-note")).toHaveTextContent("1 of them is running.");
+    expect(screen.getByTestId("delete-dialog-note")).toHaveTextContent("1 of them is active.");
   });
 
   it("shows settled and in-flight results and prevents closing during deletion", () => {

@@ -40,7 +40,7 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    selection clears. All-workspaces groups have no checkboxes, bulk toolbar, or
    select-all shortcut because their per-row lifecycle actions are unavailable.
 6. Select three sessions and Delete (toolbar, More, or Cmd/Ctrl+Backspace). The set
-   dialog names the count, shows status rows, and notes the running count. Cancel
+   dialog names the count, shows status rows, and notes the active count (daemon state; idle sessions count too). Cancel
    preserves selection. With one selected session the existing singular dialog is
    unchanged. More than five targets show five rows plus the overflow count.
 7. Confirm: deletion progresses sequentially, Cancel/close are unavailable, and

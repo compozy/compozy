@@ -101,7 +101,7 @@ describe("SessionList selection", () => {
       "2 selected· 1 hidden"
     );
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    expect(screen.getByTestId("session-sidebar-selection-stop")).toHaveTextContent("1 running");
+    expect(screen.getByTestId("session-sidebar-selection-stop")).toHaveTextContent("1 active");
     expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("1 stopped");
     expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
       "aria-disabled",

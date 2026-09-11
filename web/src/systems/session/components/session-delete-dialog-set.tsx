@@ -43,15 +43,15 @@ export function SessionDeleteDialogSet({
   const failed = results.filter(result => result.status === "failed").length;
   const deleted = results.filter(result => result.status === "done").length;
   const partial = !isDeleting && failed > 0;
-  const running = sessionSelectionCounts(sessions, []).stoppable;
+  const active = sessionSelectionCounts(sessions, []).stoppable;
   const progressIndex = results.findIndex(result => result.status === "running");
   const note = isDeleting
     ? "Don't close the window while this runs."
-    : partial || running === 0
+    : partial || active === 0
       ? null
-      : running === 1
-        ? "1 of them is running."
-        : `${running} of them are running.`;
+      : active === 1
+        ? "1 of them is active."
+        : `${active} of them are active.`;
   const resultsById = new Map(results.map(result => [result.id, result]));
   return (
     <Dialog

@@ -127,7 +127,7 @@ export function SessionListSelectionBar({
             data-testid={`${testIdPrefix}-selection-stop`}
           >
             <Square className="size-3" />
-            Stop<DropdownMenuShortcut>{stoppable} running</DropdownMenuShortcut>
+            Stop<DropdownMenuShortcut>{stoppable} active</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled || archivable === 0 || !onArchive}
