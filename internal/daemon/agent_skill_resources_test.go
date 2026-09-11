@@ -569,6 +569,7 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 	}
 }
 
+// TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy verifies extension-agent resources and Heartbeat policy retain their owning Profile context.
 func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
 	for _, scope := range []resources.ResourceScope{
 		{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},

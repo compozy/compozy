@@ -1,6 +1,7 @@
+import type { ComponentProps } from "react";
 import { Bell, Check, PenLine, ShieldAlert, TriangleAlert, X } from "lucide-react";
 
-import { Button, Eyebrow, formatRelativeTime } from "@compozy/ui";
+import { Button, Eyebrow, cn, formatRelativeTime } from "@compozy/ui";
 
 import type {
   LoopApprovalFact,
@@ -200,10 +201,13 @@ function LoopRunApprovalDecision({
   isPending,
   onDecision,
   followsRequests,
-}: Pick<
-  LoopRunNeedsYouCardProps,
-  "run" | "request" | "fallbackFacts" | "isPending" | "onDecision"
-> & { followsRequests: boolean }) {
+  className,
+  ...props
+}: ComponentProps<"div"> &
+  Pick<
+    LoopRunNeedsYouCardProps,
+    "run" | "request" | "fallbackFacts" | "isPending" | "onDecision"
+  > & { followsRequests: boolean }) {
   const gateId = request?.gateId ?? run.active_gate_id ?? "approve";
   const facts = request?.facts && request.facts.length > 0 ? request.facts : fallbackFacts;
   // Who is asking, and from which round — the "who asks" half of the card's
@@ -221,10 +225,13 @@ function LoopRunApprovalDecision({
     .join(" · ");
   return (
     <div
-      className={`flex items-start gap-3 px-4 py-3.5${
-        followsRequests ? " border-t border-line-soft" : ""
-      }`}
+      className={cn(
+        "flex items-start gap-3 px-4 py-3.5",
+        followsRequests && "border-t border-line-soft",
+        className
+      )}
       data-testid="loop-run-needs-approval"
+      {...props}
     >
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
       <div className="min-w-0 flex-1">

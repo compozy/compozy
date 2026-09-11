@@ -29,6 +29,7 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+// TestMemoryHandlersAndHelpers verifies memory routes preserve workspace ownership, response contracts, and missing-resource errors.
 func TestMemoryHandlersAndHelpers(t *testing.T) {
 	t.Parallel()
 

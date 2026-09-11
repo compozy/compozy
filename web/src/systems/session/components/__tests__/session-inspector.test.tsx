@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@compozy/ui";
 
-import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 
@@ -419,22 +418,25 @@ describe("SessionInspector — Memory v2 forensic ledger surface", () => {
     );
   });
 
-  it("Should treat 404 ledger errors as the truthful empty/unavailable state", () => {
-    render(
-      <SessionInspector
-        messages={[]}
-        sessionId="sess_123"
-        memory={{ ledger: null, error: new SessionLedgerUnavailableError("sess_123") }}
-      />
-    );
+  it.each(["not-materialized", "unsupported"] as const)(
+    "Should present %s ledger availability without a read error",
+    availability => {
+      render(
+        <SessionInspector
+          messages={[]}
+          sessionId="sess_123"
+          memory={{ ledger: null, availability }}
+        />
+      );
 
-    openMemoryTab();
+      openMemoryTab();
 
-    const memorySurface = screen.getByTestId("session-inspector-memory");
-    expect(memorySurface).toHaveAttribute("data-state", "unavailable");
-    expect(screen.queryByTestId("session-inspector-memory-error")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-inspector-memory-empty")).toBeInTheDocument();
-  });
+      const memorySurface = screen.getByTestId("session-inspector-memory");
+      expect(memorySurface).toHaveAttribute("data-state", "unavailable");
+      expect(screen.queryByTestId("session-inspector-memory-error")).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-inspector-memory-empty")).toBeInTheDocument();
+    }
+  );
 
   it("Should render a loading state while the ledger query resolves", () => {
     render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ isLoading: true }} />);

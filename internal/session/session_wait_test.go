@@ -25,6 +25,7 @@ type waitCallResult struct {
 	err     error
 }
 
+// TestWaitForBadgeMatchesSnapshotsAndEdges verifies badge waits against current state and subsequent lifecycle transitions.
 func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 	t.Parallel()
 

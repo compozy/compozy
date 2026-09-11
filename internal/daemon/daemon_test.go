@@ -5560,6 +5560,7 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	}
 }
 
+// TestWorkspaceRegistrationRefreshesHookBindings verifies workspace registration refreshes the hook bindings used by later events.
 func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
 	t.Parallel()
 

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
 import {
+  useGoalTurns,
   useLoop,
   useLoopNodeInventory,
   useLoopAnnotations,
@@ -41,6 +42,30 @@ describe("loop read hooks", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should report Goal history loading only while an enabled initial read is fetching", async () => {
+    let finishRead!: (response: Response) => void;
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>(resolve => {
+          finishRead = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useGoalTurns(WS, "looprun_running", enabled, false),
+      { initialProps: { enabled: false }, wrapper: createWrapper() }
+    );
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.turns).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+    finishRead(Response.json({ turns: [], next_after_seq: null }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.isError).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("Should fetch the catalog through useLoops", async () => {

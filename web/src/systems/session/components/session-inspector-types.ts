@@ -18,6 +18,7 @@ export interface InspectorSessionLedger {
 }
 
 export interface InspectorMemoryState {
+  availability?: "not-materialized" | "unsupported";
   ledger?: InspectorSessionLedger | null;
   isLoading?: boolean;
   error?: Error | null;

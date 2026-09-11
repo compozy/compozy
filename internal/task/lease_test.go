@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// TestClaimCriteriaValidationAndTokenHelpers verifies task claim criteria and token helpers preserve admission and authorization contracts.
 func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 	t.Parallel()
 

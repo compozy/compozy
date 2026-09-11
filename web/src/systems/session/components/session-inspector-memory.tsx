@@ -2,7 +2,6 @@ import { AlertCircle, Library } from "lucide-react";
 
 import { Empty, Eyebrow, MetadataList, Pill, Skeleton, cn } from "@compozy/ui";
 
-import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import type { InspectorMemoryState } from "./session-inspector-types";
 
@@ -38,7 +37,7 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
       </div>
     );
   }
-  if (memory.error && !(memory.error instanceof SessionLedgerUnavailableError)) {
+  if (memory.error) {
     return (
       <div
         className="flex min-h-full flex-col"
@@ -55,9 +54,7 @@ export function SessionInspectorMemorySection({ memory }: { memory: InspectorMem
     );
   }
   if (!memory.ledger) {
-    const unsupported =
-      memory.error instanceof SessionLedgerUnavailableError &&
-      memory.error.reason === "unsupported";
+    const unsupported = memory.availability === "unsupported";
     return (
       <div
         className="flex min-h-full flex-col"

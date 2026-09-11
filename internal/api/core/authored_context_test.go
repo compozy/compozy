@@ -978,24 +978,28 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 
 type emptyHeartbeatStatusStore struct{}
 
+// FindHeartbeatSnapshotByDigest models a Profile with no stored Heartbeat snapshots.
 func (emptyHeartbeatStatusStore) FindHeartbeatSnapshotByDigest(
 	context.Context, string, string, string,
 ) (heartbeat.Snapshot, bool, error) {
 	return heartbeat.Snapshot{}, false, nil
 }
 
+// GetHeartbeatWakeState models a missing wake state in the Profile fixture.
 func (emptyHeartbeatStatusStore) GetHeartbeatWakeState(
 	context.Context, string, string, string,
 ) (heartbeat.WakeState, error) {
 	return heartbeat.WakeState{}, heartbeat.ErrWakeStateNotFound
 }
 
+// ListHeartbeatWakeState models an empty wake-state catalog in the Profile fixture.
 func (emptyHeartbeatStatusStore) ListHeartbeatWakeState(
 	context.Context, heartbeat.WakeStateListQuery,
 ) ([]heartbeat.WakeState, error) {
 	return nil, nil
 }
 
+// TestAuthoredContextResolvesProfileAgentSources verifies authored reads select the correct Profile for agent resources and Heartbeat policy.
 func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 	t.Parallel()
 

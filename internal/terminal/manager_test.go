@@ -30,6 +30,7 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// TestManagerAdmissionAndScope verifies terminal admission, actor identity, and workspace isolation across launch paths.
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
 

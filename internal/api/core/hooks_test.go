@@ -152,6 +152,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 	}
 }
 
+// TestHookHandlers verifies hook catalog and mutation handlers preserve workspace scoping and typed failures.
 func TestHookHandlers(t *testing.T) {
 	t.Parallel()
 

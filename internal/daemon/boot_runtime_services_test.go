@@ -55,6 +55,7 @@ func TestDreamGateConfigFromConfig(t *testing.T) {
 	})
 }
 
+// TestDaemonMemorySessionLedgerAvailability verifies daemon ledger reads distinguish unavailable capability from unavailable session data.
 func TestDaemonMemorySessionLedgerAvailability(t *testing.T) {
 	t.Parallel()
 

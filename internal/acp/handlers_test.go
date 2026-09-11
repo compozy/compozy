@@ -948,6 +948,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	}
 }
 
+// assertTerminalLifecycleHandlers exercises terminal creation, polling, release, and validation through ACP handlers.
 func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 

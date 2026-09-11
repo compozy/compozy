@@ -44,6 +44,7 @@ function toInspectorUsage(
     : null;
 }
 
+/** Coordinates session window reads and projects query state into inspector view models. */
 export function useSessionWindowController(input: {
   windowId: string;
   sessionId: string;
@@ -84,7 +85,8 @@ export function useSessionWindowController(input: {
   const inspectorMemory: InspectorMemoryState = {
     ledger: sessionLedger.data ?? null,
     isLoading: sessionLedger.isLoading,
-    error: sessionLedger.error,
+    availability: sessionLedger.availability,
+    error: sessionLedger.availability ? null : sessionLedger.error,
   };
   const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state, {
     enabled: inspectorEnabled,

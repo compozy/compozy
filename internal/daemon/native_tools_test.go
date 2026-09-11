@@ -1287,6 +1287,7 @@ func nativeNetworkTestSessionManager(workspaceID string, profileIDs ...string) a
 	}
 }
 
+// TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
 
@@ -16029,6 +16030,7 @@ func (unsupportedNativeTaskManager) RunDetail(
 
 type nativeEmptyHeartbeatStore struct{}
 
+// FindHeartbeatSnapshotByDigest models a Profile with no stored Heartbeat snapshots.
 func (nativeEmptyHeartbeatStore) FindHeartbeatSnapshotByDigest(
 	context.Context,
 	string,
@@ -16038,6 +16040,7 @@ func (nativeEmptyHeartbeatStore) FindHeartbeatSnapshotByDigest(
 	return heartbeat.Snapshot{}, false, nil
 }
 
+// GetHeartbeatWakeState models a missing wake state in the Profile fixture.
 func (nativeEmptyHeartbeatStore) GetHeartbeatWakeState(
 	context.Context,
 	string,
@@ -16047,6 +16050,7 @@ func (nativeEmptyHeartbeatStore) GetHeartbeatWakeState(
 	return heartbeat.WakeState{}, heartbeat.ErrWakeStateNotFound
 }
 
+// ListHeartbeatWakeState models an empty wake-state catalog in the Profile fixture.
 func (nativeEmptyHeartbeatStore) ListHeartbeatWakeState(
 	context.Context,
 	heartbeat.WakeStateListQuery,
@@ -16054,6 +16058,7 @@ func (nativeEmptyHeartbeatStore) ListHeartbeatWakeState(
 	return nil, nil
 }
 
+// TestDaemonNativeHeartbeatProfileSources verifies native Heartbeat lookup respects default, selected, and unavailable Profile sources.
 func TestDaemonNativeHeartbeatProfileSources(t *testing.T) {
 	t.Parallel()
 	t.Run("Should reject a non-default profile without its reader", func(t *testing.T) {

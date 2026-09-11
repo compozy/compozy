@@ -391,6 +391,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 	})
 }
 
+// TestHostedProxyHelpers verifies hosted result projection, fallback content, error classification, and exact JSON deduplication.
 func TestHostedProxyHelpers(t *testing.T) {
 	t.Parallel()
 

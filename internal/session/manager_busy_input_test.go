@@ -2035,6 +2035,7 @@ func promptRequestEndsWith(message string, request string) bool {
 	return message == request || strings.HasSuffix(message, "User request:\n\n"+request)
 }
 
+// TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission verifies Goal dispatch preserves ingress semantics and rechecks draft admission after parsing.
 func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *testing.T) {
 	t.Parallel()
 

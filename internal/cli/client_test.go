@@ -5446,6 +5446,7 @@ func TestNewClientConfiguresTimeouts(t *testing.T) {
 	}
 }
 
+// TestUnixSocketClientSessionWaitLifetime verifies requested session waits outlive the ordinary transport deadline.
 func TestUnixSocketClientSessionWaitLifetime(t *testing.T) {
 	t.Parallel()
 

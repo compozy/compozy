@@ -24,7 +24,7 @@ export function useGoalTurns(
   const query = useInfiniteQuery(goalTurnsOptions(workspaceId, runId, enabled, isLive, key));
   return {
     turns: query.data?.pages.flatMap(page => page.turns) ?? [],
-    isLoading: query.isPending,
+    isLoading: query.isLoading,
     isError: query.isError,
     hasMore: query.hasNextPage,
     isLoadingMore: query.isFetchingNextPage,

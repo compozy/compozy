@@ -2715,6 +2715,7 @@ func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {
 	}
 }
 
+// TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills verifies boot registers workspace, agent, and skill hooks under the registered workspace identity.
 func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 	t.Run("Should build hooks from workspace config agent and skills", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
@@ -2980,6 +2981,7 @@ body
 	})
 }
 
+// TestBootRunsWorkspaceTaskRunHookWithRelativeScriptPath verifies task hooks resolve relative scripts within their registered workspace.
 func TestBootRunsWorkspaceTaskRunHookWithRelativeScriptPath(t *testing.T) {
 	t.Run("Should run workspace task-run hook with relative script path", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
@@ -3101,6 +3103,7 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 	})
 }
 
+// TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch verifies changed skill hooks are rebuilt before the next workspace event dispatch.
 func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -4948,6 +4951,7 @@ func (daemonSessionStopACPAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
+// assertLifecycleHookPayload checks that dispatched hook payloads retain their workspace and lifecycle identities.
 func assertLifecycleHookPayload(
 	t *testing.T,
 	path string,

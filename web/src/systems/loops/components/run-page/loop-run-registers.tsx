@@ -1,9 +1,9 @@
 import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-import { Button } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
 
 import { buildGenerationHistory } from "../../lib/loop-generation-presentation";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
@@ -324,14 +324,16 @@ function LoopRunSelectedNodePanel({
   panel,
   verbTarget,
   renderNodeActions,
-}: {
+  className,
+  ...props
+}: ComponentProps<"div"> & {
   panel: ReturnType<typeof selectNodePanel>;
   verbTarget: ReturnType<typeof resolveNodeVerbTarget>;
   renderNodeActions?: LoopRunRegistersProps["renderNodeActions"];
 }) {
   if (!panel) return null;
   return (
-    <div className="border-t border-line-soft p-4">
+    <div className={cn("border-t border-line-soft p-4", className)} {...props}>
       <LoopNodePanel
         actions={verbTarget && renderNodeActions ? renderNodeActions(verbTarget) : undefined}
         panel={panel}

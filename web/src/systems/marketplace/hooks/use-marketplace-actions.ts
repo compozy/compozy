@@ -41,7 +41,9 @@ function mcpInstalledPath(input: MCPInstalledPathInput): string {
   return `/marketplace/mcp/${encodeURIComponent(input.entryId)}?${search.toString()}`;
 }
 
-function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
+/** Replaces in-flight pre-mutation reads before refreshing authoritative marketplace pages. */
+async function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
+  await queryClient.cancelQueries({ queryKey: marketplaceKeys.all });
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
 }
 
