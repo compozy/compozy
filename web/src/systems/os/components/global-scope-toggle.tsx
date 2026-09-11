@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { Globe } from "lucide-react";
 
-import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
+import {
+  DIALOG_TOUCH_TARGET_SQUARE_CLASS,
+  Icon,
+  Toggle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  cn,
+} from "@compozy/ui";
 
 import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 
@@ -12,6 +20,11 @@ export interface GlobalScopeToggleProps {
   lockedReason?: string;
   tooltip: string;
   onCheckedChange: (checked: boolean) => void;
+  /**
+   * Touch tier (S6/T1): the globe grows to the 44px floor inside the menubar.
+   * Desktop rendering omits it and stays pixel-identical.
+   */
+  touch?: boolean;
 }
 
 /**
@@ -25,6 +38,7 @@ export function GlobalScopeToggle({
   lockedReason,
   tooltip,
   onCheckedChange,
+  touch = false,
 }: GlobalScopeToggleProps) {
   const [prevChecked, setPrevChecked] = useState(checked);
   const [announcement, setAnnouncement] = useState("");
@@ -56,6 +70,7 @@ export function GlobalScopeToggle({
               aria-label={accessibleName}
               className={cn(
                 "size-7 min-w-7 p-0 text-muted hover:bg-btn-default-fill hover:text-fg-strong",
+                touch && DIALOG_TOUCH_TARGET_SQUARE_CLASS,
                 "aria-pressed:bg-elevated aria-pressed:text-accent aria-pressed:shadow-highlight",
                 "aria-pressed:hover:text-accent data-[state=on]:bg-elevated data-[state=on]:text-accent",
                 "data-[state=on]:shadow-highlight data-[state=on]:hover:text-accent",

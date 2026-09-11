@@ -1,11 +1,14 @@
 import { ArrowDown } from "lucide-react";
 
+import { DIALOG_TOUCH_TARGET_SQUARE_CLASS } from "@compozy/ui";
+
 import { cn } from "@/lib/utils";
 
 /**
  * Floating scroll-to-bottom affordance: a neutral `size-8` disc (no
  * glass/backdrop-blur) that fades + drifts in with the shared disclosure
- * motion and stays mounted so its exit animates too.
+ * motion and stays mounted so its exit animates too. At the ≤760px touch tier
+ * (S6/T1) it grows to the shared 44px floor so the stream is thumb-drivable.
  */
 export function ScrollToBottomPill({
   visible,
@@ -33,6 +36,7 @@ export function ScrollToBottomPill({
         tabIndex={visible ? 0 : -1}
         className={cn(
           "flex size-8 items-center justify-center rounded-full",
+          DIALOG_TOUCH_TARGET_SQUARE_CLASS,
           "border border-line bg-canvas-soft text-muted shadow-[var(--shadow-overlay)]",
           "transition-colors hover:bg-hover hover:text-fg",
           "focus-visible:shadow-focus-ring focus-visible:outline-none",

@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Mobile surface truth · CompozyOS shell at 390×844</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<!--
+  mobile-surface-truth · S6 ergonomics artboard (task_04 design pass).
+  Freezes the mobile ergonomics visual language for the supported viewport
+  baseline 390×844 before implementation. Grammar: DESIGN.md + tokens.css
+  mirrored by ds-core.css; shell chrome dialect from ds-shell.css.
+
+  Frozen decisions (the implementation matches these, not the reverse):
+  T1  Touch floor 44px at the established ≤760px tier (--height-button-cta-lg,
+      same floor as dialog-shell). Menubar controls fill the 44px bar height.
+  T2  Compact shell presentation (<960px, OS_COMPACT_BREAKPOINT) is unchanged:
+      app menus collapse into the palette, tab bar replaces the dock strip,
+      traffic lights use the 44px compact targets, windows stack.
+  T3  Win-layer work area in compact reserves the tab-bar height (56px), not
+      the floating dock band (82px) — 26px returned to stream content.
+  T4  Viewport contract: viewport-fit=cover + interactive-widget=resizes-content.
+      Keyboard-open shrinks the layout viewport; flex columns keep the composer
+      above the keyboard (US-003.EC-1). No body scroll, ever.
+  T5  Command palette stays top-anchored at the touch tier (divergence from the
+      dialog bottom-surface convention, keyboard interplay outranks it); rows
+      and the input group reach the 44px floor; the results well grows to
+      min(52dvh, 440px) and scrolls under the keyboard.
+  T6  Session rail overlays the transcript at ≤760px (264px rail, --shadow-overlay)
+      instead of docking; the transcript keeps full width underneath.
+  T7  Landscape keeps the same chrome; height is the flexible axis (menubar 44 +
+      tab bar 56 leave ~282px of stack). Windows never render under the tab bar.
+  T8  S5 loopback-only banner strip sits between the menubar and the win-layer,
+      full-width, flat canvas-soft, neutral signal. It pushes the work area down;
+      it never overlays window content.
+  Residuals (recorded, not frozen as debt-free): profile-switcher trigger keeps
+  its 28px well (cross-system slot, quiet-until-plural); log bodies keep their
+  own horizontal scroll wells inside the read view.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1320px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:88ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .boards{margin-top:36px;display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+  .board{display:flex;flex-direction:column;gap:10px}
+  .board__t{font-size:12px;font-weight:510;color:var(--subtle)}
+  .board__t b{color:var(--fg);font-weight:560}
+  .frame{position:relative;flex:none;background:var(--rail);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-overlay)}
+
+  /* ---- shell specimens (ds-shell dialect, board-local geometry) ---- */
+  .os{position:relative;display:flex;flex-direction:column;width:390px;height:844px}
+  .os--landscape{width:844px;height:390px}
+  .menubar{position:relative;z-index:500;flex:none;display:flex;align-items:center;justify-content:space-between;height:44px;flex:none;
+    border-bottom:1px solid var(--line);background:var(--shell-glass);backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell))}
+  .mb-side{display:flex;align-items:center;gap:4px;min-width:0;padding:0 8px;height:100%}
+  .mb-control{display:grid;place-items:center;width:44px;height:44px;color:var(--muted)} /* T1: the bar is the target */
+  .mb-control svg{width:18px;height:18px}
+  .mb-logo{color:var(--fg)}
+  .mb-chip{display:flex;align-items:center;gap:7px;min-width:0;height:44px;padding:0 8px;border-radius:var(--radius-md)}
+  .mb-mono{flex:none;display:grid;place-items:center;width:18px;height:18px;border:1px solid var(--line-strong);border-radius:3px;background:var(--elevated);
+    font-family:var(--font-mono);font-size:9px;font-weight:600;color:var(--fg)}
+  .mb-name{font-size:13px;font-weight:560;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px} /* T1 tier: truncated */
+  .mb-chev{width:12px;height:12px;color:var(--subtle);flex:none}
+
+  /* T8 — S5 loopback-only banner strip: flat, neutral, between menubar and desk */
+  .loopback-strip{z-index:490;flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--canvas-soft)}
+  .loopback-strip svg{width:15px;height:15px;color:var(--neutral);flex:none}
+  .loopback-strip__t{font-size:12px;font-weight:560;color:var(--fg)}
+  .loopback-strip__d{font-size:11px;line-height:1.45;color:var(--muted)}
+
+  .desk{position:relative;flex:1;min-height:0}
+  .win{position:absolute;inset:0;display:flex;flex-direction:column;border:1px solid var(--line-strong);border-radius:var(--r-win);
+    background:var(--canvas-soft);box-shadow:var(--shadow-win);overflow:hidden}
+  .win-head{flex:none;display:flex;align-items:center;gap:12px;height:44px;padding:0 10px;border-bottom:1px solid var(--line-soft)}
+  .tl{display:flex;align-items:center}
+  .tl i{width:15px;height:15px;border-radius:4px;border:1px solid var(--line-strong);background:var(--btn-fill)}
+  .tl i + i{margin-left:0} /* compact: 44px targets touch */
+  .win-title{flex:1;min-width:0;text-align:center;font-size:12px;font-weight:560;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .win-head svg{width:15px;height:15px;color:var(--muted);flex:none}
+  .win-body{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--canvas)}
+
+  /* session stream (T6 rail overlay shown open on board 02) */
+  .stream{position:relative;flex:1;min-height:0;display:flex}
+  .rail{position:absolute;inset:0 auto 0 0;z-index:20;width:264px;display:flex;flex-direction:column;background:var(--rail);border-right:1px solid var(--line);
+    box-shadow:var(--shadow-overlay)}
+  .rail--closed{display:none}
+  .rail__head{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px}
+  .rail__t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .rail__x{display:grid;place-items:center;width:44px;height:44px;margin:-8px -8px -8px 0;color:var(--muted)}
+  .rail__row{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:13px;color:var(--muted)}
+  .rail__row.is-active{background:var(--elevated);color:var(--fg-strong)}
+  .rail__row i{width:7px;height:7px;border-radius:50%;background:var(--success);flex:none}
+  .transcript{flex:1;min-height:0;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+  .msg{max-width:86%;display:flex;flex-direction:column;gap:4px}
+  .msg--agent{align-self:flex-start}
+  .msg--user{align-self:flex-end;align-items:flex-end}
+  .msg__meta{font-size:10px;color:var(--faint);font-family:var(--font-mono)}
+  .msg__body{font-size:13.5px;line-height:1.55;color:var(--fg);background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:10px;padding:8px 11px}
+  .msg--user .msg__body{background:var(--surface-glaze2,rgba(255,255,255,.045))}
+
+  .composer{flex:none;border-top:1px solid var(--line);background:var(--canvas);padding:6px 12px 14px}
+  .composer__well{display:flex;align-items:flex-end;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--canvas-tint);padding:8px 10px}
+  .composer__ph{flex:1;font-size:13.5px;color:var(--subtle)}
+  .composer__send{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink)}
+  .composer__send svg{width:14px;height:14px}
+
+  /* tab bar (existing compact dock, ratified) */
+  .tabbar{z-index:600;flex:none;display:flex;align-items:stretch;height:calc(56px + env(safe-area-inset-bottom,0px));position:relative;
+    border-top:1px solid var(--line);background:var(--shell-glass);backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell))}
+  .tabbar__scroll{flex:1;display:flex;align-items:center;gap:2px;overflow:hidden;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+  .tab-item{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:13px;color:var(--muted)}
+  .tab-item svg{width:21px;height:21px}
+  .tab-item.is-running::after{content:"";position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--muted)}
+  .tab-item.is-badge::before{content:"2";position:absolute;top:2px;right:2px;min-width:15px;height:15px;padding:0 3px;border-radius:7px;background:var(--accent);
+    color:var(--accent-ink);font-family:var(--font-mono);font-size:10px;font-weight:700;display:grid;place-items:center}
+  .tabbar__actions{flex:none;display:flex;align-items:center;border-left:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+  .tab-new{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:var(--accent);color:var(--accent-ink)}
+  .tab-new svg{width:18px;height:18px}
+
+  /* keyboard-open board (EC-1, T4): the shell compresses to the visual
+     viewport (resizes-content) — the keyboard graphic is drawn as a separate
+     specimen below the frame, never over the composer. */
+  .kbd{position:relative;height:296px;display:flex;flex-direction:column;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line)}
+  .kbd__kbd{flex:1;width:100%;background:#242220;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;padding:10px 8px;align-content:start}
+  .kbd__kbd i{height:34px;border-radius:5px;background:var(--elevated);border:1px solid var(--line-strong)}
+  .kbd__home{flex:none;height:22px;display:grid;place-items:center;background:#242220}
+  .kbd__home i{width:110px;height:4px;border-radius:2px;background:var(--line-strong)}
+  .vpline{position:relative;display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .vpline::before{content:"";flex:none;width:14px;border-top:1px dashed color-mix(in oklab,var(--accent) 55%,transparent)}
+
+  /* palette board (T5) */
+  .palette{position:absolute;top:34px;left:8px;right:8px;z-index:800;display:flex;flex-direction:column;border-radius:8px;background:var(--canvas-soft);
+    box-shadow:var(--shadow-overlay);overflow:hidden}
+  .palette__input{display:flex;align-items:center;gap:8px;min-height:44px;margin:4px 4px 0;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--canvas-tint)}
+  .palette__input svg{width:15px;height:15px;color:var(--subtle);flex:none}
+  .palette__ph{font-size:13.5px;color:var(--subtle)}
+  .palette__list{max-height:292px;overflow:hidden;padding:12px 4px 12px}
+  .prow{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:7px;font-size:13px;color:var(--fg)}
+  .prow.is-sel{background:var(--elevated);color:var(--fg-strong)}
+  .prow svg{width:15px;height:15px;color:var(--muted);flex:none}
+  .prow__kbd{margin-left:auto;font-family:var(--font-keys);font-size:10.5px;color:var(--faint)}
+  .palette__foot{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding:8px 14px;font-size:10.5px;color:var(--faint)}
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+
+  /* frozen-map table */
+  .map{margin-top:44px;max-width:1040px}
+  .map h2{font-size:14px;font-weight:600;color:var(--fg-strong);padding-bottom:10px}
+  .callout{position:absolute;z-index:900;display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;
+    background:var(--canvas-tint);border:1px solid var(--line-strong);font-family:var(--font-mono);font-size:10px;color:var(--fg)}
+  .callout b{color:var(--accent-strong);font-weight:700}
+  .legend{margin-top:44px;max-width:1040px;font-size:12px;line-height:1.6;color:var(--muted)}
+  .legend code{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+</style>
+</head>
+<body>
+<div class="hub">
+  <h1>CompozyOS · mobile shell ergonomics — 390×844</h1>
+  <p class="hub__lede">
+    Frozen ergonomics map for surface S6 (task_04, workflow <code>mobile-surface-truth</code>).
+    The compact shell presentation (&lt;960px) already exists — tab bar, stacked windows, compact
+    traffic lights, collapsed menubar menus. This pass freezes the touch-tier layer that rides on
+    it: the 44px floor at the established ≤760px tier, the keyboard-open viewport contract, the
+    compact work-area reservation, the overlay session rail, and the S5 banner strip placement.
+    Boards below are specimens — production components own the real chrome.
+  </p>
+
+  <div class="boards">
+    <!-- BOARD 01 — portrait shell -->
+    <div class="board">
+      <div class="board__t"><b>01 · Portrait shell 390×844</b> — monitoring journey: session stream</div>
+      <div class="frame">
+        <div class="os">
+          <div class="menubar">
+            <div class="mb-side">
+              <span class="mb-control mb-logo"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"/></svg></span>
+              <span class="mb-chip"><span class="mb-mono">CO</span><span class="mb-name">compozy</span><svg class="mb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5"/></svg></span>
+            </div>
+            <div class="mb-side">
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+            </div>
+          </div>
+          <div class="loopback-strip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/></svg>
+            <span><span class="loopback-strip__t">This action runs on the machine running CompozyOS.</span><br>
+            <span class="loopback-strip__d">Paired devices can read, not change settings. Open Compozy on the host to make changes.</span></span>
+          </div>
+          <div class="desk">
+            <div class="win">
+              <div class="win-head">
+                <span class="tl"><i></i><i></i></span>
+                <span class="win-title">iris-coder · session</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </div>
+              <div class="win-body">
+                <div class="stream">
+                  <div class="transcript">
+                    <div class="msg msg--user"><span class="msg__meta">you · 14:02</span><span class="msg__body">Check the failing deploy loop and summarize the last run.</span></div>
+                    <div class="msg msg--agent"><span class="msg__meta">iris-coder · running</span><span class="msg__body">The last run failed at the integration stage — 2 of 9 checks red. Pulling the run log now…</span></div>
+                    <div class="msg msg--agent"><span class="msg__meta">iris-coder</span><span class="msg__body">Retries are within budget; the failure is deterministic (missing fixture).</span></div>
+                  </div>
+                </div>
+                <div class="composer">
+                  <div class="composer__well"><span class="composer__ph">Message iris-coder…</span><span class="composer__send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tabbar__scroll">
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+              <span class="tab-item is-running is-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/></svg></span>
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            </div>
+            <div class="tabbar__actions"><span class="tab-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5v14"/></svg></span></div>
+          </div>
+          <span class="callout" style="top:11px;right:6px"><b>T1</b> 44px bar controls</span>
+          <span class="callout" style="top:96px;left:6px"><b>T8</b> S5 strip · flat · neutral</span>
+          <span class="callout" style="bottom:70px;left:6px"><b>T3</b> work area = tab-bar 56px</span>
+          <span class="callout" style="bottom:8px;right:6px"><b>T2</b> tab bar ratified</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOARD 02 — keyboard open -->
+    <div class="board">
+      <div class="board__t"><b>02 · Keyboard open (US-003.EC-1)</b> — shell compresses to the 548px visual viewport</div>
+      <div class="frame">
+        <div class="os" style="height:548px">
+          <div class="menubar">
+            <div class="mb-side">
+              <span class="mb-control mb-logo"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg></span>
+              <span class="mb-chip"><span class="mb-mono">CO</span><span class="mb-name">compozy</span><svg class="mb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5"/></svg></span>
+            </div>
+            <div class="mb-side">
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83 1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83 1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83 1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+            </div>
+          </div>
+          <div class="desk">
+            <div class="win">
+              <div class="win-head">
+                <span class="tl"><i></i><i></i></span>
+                <span class="win-title">iris-coder · session</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </div>
+              <div class="win-body">
+                <div class="stream">
+                  <div class="rail">
+                    <div class="rail__head"><span class="rail__t">Sessions</span><span class="rail__x"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></span></div>
+                    <div class="rail__row is-active"><i></i>deploy-triage</div>
+                    <div class="rail__row"><i></i>fixture-repair</div>
+                    <div class="rail__row"><i></i>release-notes</div>
+                  </div>
+                  <div class="transcript">
+                    <div class="msg msg--user"><span class="msg__meta">you · 14:02</span><span class="msg__body">Check the failing deploy loop and summarize the last run.</span></div>
+                    <div class="msg msg--agent"><span class="msg__meta">iris-coder · running</span><span class="msg__body">The last run failed at the integration stage — 2 of 9 checks red.</span></div>
+                  </div>
+                </div>
+                <div class="composer">
+                  <div class="composer__well"><span class="composer__ph">Message iris-coder…</span><span class="composer__send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tabbar__scroll">
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+              <span class="tab-item is-running"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/></svg></span>
+            </div>
+            <div class="tabbar__actions"><span class="tab-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5v14"/></svg></span></div>
+          </div>
+          <span class="callout" style="top:210px;right:6px"><b>T6</b> rail overlays, transcript keeps width</span>
+        </div>
+      </div>
+      <div class="vpline">548px visual viewport line — <b style="color:var(--accent-strong)">&nbsp;T4&nbsp;</b> composer + tab bar stay above it</div>
+      <div class="kbd" aria-hidden="true">
+        <div class="kbd__kbd"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="kbd__home"><i></i></div>
+      </div>
+    </div>
+
+    <!-- BOARD 03 — landscape -->
+    <div class="board">
+      <div class="board__t"><b>03 · Landscape 844×390 (US-003.EC-2)</b> — same chrome, height flexes</div>
+      <div class="frame">
+        <div class="os os--landscape">
+          <div class="menubar">
+            <div class="mb-side">
+              <span class="mb-control mb-logo"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg></span>
+              <span class="mb-chip"><span class="mb-mono">CO</span><span class="mb-name">compozy</span><svg class="mb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5"/></svg></span>
+            </div>
+            <div class="mb-side">
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83 1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83 1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83 1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+            </div>
+          </div>
+          <div class="desk">
+            <div class="win">
+              <div class="win-head">
+                <span class="tl"><i></i><i></i></span>
+                <span class="win-title">iris-coder · session</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </div>
+              <div class="win-body">
+                <div class="stream">
+                  <div class="transcript" style="padding:10px 16px">
+                    <div class="msg msg--agent"><span class="msg__meta">iris-coder · running</span><span class="msg__body">Integration stage — 2 of 9 checks red. Failure is deterministic.</span></div>
+                  </div>
+                </div>
+                <div class="composer" style="padding-bottom:8px">
+                  <div class="composer__well" style="min-height:38px"><span class="composer__ph">Message iris-coder…</span><span class="composer__send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z"/></svg></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tabbar__scroll">
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+              <span class="tab-item is-running"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+              <span class="tab-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/></svg></span>
+            </div>
+            <div class="tabbar__actions"><span class="tab-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5v14"/></svg></span></div>
+          </div>
+          <span class="callout" style="top:52px;left:6px"><b>T7</b> 390 − 44 − 56 → ~282px stack; no window under the tab bar</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOARD 04 — palette -->
+    <div class="board">
+      <div class="board__t"><b>04 · Command palette at 390 (T5)</b> — top-anchored, keyboard-safe</div>
+      <div class="frame">
+        <div class="os">
+          <div class="menubar">
+            <div class="mb-side">
+              <span class="mb-control mb-logo"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg></span>
+              <span class="mb-chip"><span class="mb-mono">CO</span><span class="mb-name">compozy</span><svg class="mb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5"/></svg></span>
+            </div>
+            <div class="mb-side">
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+              <span class="mb-control"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83 1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83 1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83 1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+            </div>
+          </div>
+          <div class="desk">
+            <div class="scrim"></div>
+            <div class="palette">
+              <div class="palette__input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <span class="palette__ph">Search apps, sessions, and actions…</span>
+              </div>
+              <div class="palette__list">
+                <div class="prow is-sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>New session<span class="prow__kbd">⌘N</span></div>
+                <div class="prow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/></svg>Open settings<span class="prow__kbd">⌘,</span></div>
+                <div class="prow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>deploy-triage — resume<span class="prow__kbd">↵</span></div>
+                <div class="prow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Switch profile<span class="prow__kbd">⌘P</span></div>
+                <div class="prow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Go to tasks<span class="prow__kbd">⌘G</span></div>
+              </div>
+              <div class="palette__foot"><span>↑↓ select</span><span>↵ open</span><span>esc close</span></div>
+            </div>
+          </div>
+          <span class="callout" style="top:44px;right:6px"><b>T5</b> top anchor · rows 44px · well 52dvh</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="map">
+    <h2>Frozen ergonomics map — what the implementation must match</h2>
+    <table class="matrix">
+      <tr><th style="width:64px">Rule</th><th style="width:220px">Region</th><th>Frozen decision</th><th style="width:250px">Production owner</th></tr>
+      <tr><td>T1</td><td>Touch floor</td><td>44px interactive targets at ≤760px (the established <code>--height-button-cta-lg</code> tier, same floor as <code>dialog-shell</code>). Menubar icon controls fill the 44px bar; palette rows and input reach the floor; the scroll-to-bottom pill grows to it.</td><td><code>os-menubar.tsx</code>, <code>global-scope-toggle.tsx</code>, <code>palette-view-inset.ts</code>, <code>scroll-to-bottom-pill.tsx</code></td></tr>
+      <tr><td>T2</td><td>Compact shell</td><td>Unchanged: &lt;960px collapses app menus into the palette, replaces the dock strip with the 56px tab bar (44px items, safe-area aware, tap = switch, never minimize), compacts traffic lights (44px targets, zoom hidden), stacks windows.</td><td><code>os-dock-tab-bar.tsx</code>, <code>os-traffic-lights.tsx</code>, <code>window-manager-view.ts</code></td></tr>
+      <tr><td>T3</td><td>Work area</td><td>Compact presentation reserves the tab-bar height (56px + safe-area) for the win layer, not the floating dock band (82px). 26px returns to stream content; nothing renders under the tab bar.</td><td><code>os-win-layer.tsx</code> (presentation-driven)</td></tr>
+      <tr><td>T4</td><td>Keyboard open (EC-1)</td><td>Viewport contract <code>viewport-fit=cover, interactive-widget=resizes-content</code>. The layout viewport shrinks; flex columns keep the session composer and palette input above the keyboard. No helper prose, no floating toolbars over the keyboard.</td><td><code>web/index.html</code></td></tr>
+      <tr><td>T5</td><td>Command palette</td><td>Stays top-anchored at the touch tier (a documented divergence from the dialog bottom-surface convention — the keyboard would cover a bottom sheet's input). Input group ≥44px, rows ≥44px, results well grows to min(52dvh, 440px) and scrolls under the keyboard.</td><td><code>os-command-palette.tsx</code>, <code>palette-view-inset.ts</code></td></tr>
+      <tr><td>T6</td><td>Session rail</td><td>At ≤760px the 264px rail overlays the transcript (z-raised, <code>--shadow-overlay</code>) instead of docking; the transcript keeps full width underneath. Toggle semantics unchanged.</td><td><code>session-window-content.tsx</code> (composition wrapper)</td></tr>
+      <tr><td>T7</td><td>Landscape (EC-2)</td><td>Same chrome; height is the flexible axis. 390px height − 44 menubar − 56 tab bar leaves ~282px of stack; the composer and goal strip compress with flex. No landscape-specific chrome is added.</td><td>existing flex shell + T3</td></tr>
+      <tr><td>T8</td><td>S5 banner strip</td><td>Between the menubar and the win-layer, full-width, flat <code>canvas-soft</code>, neutral signal — it pushes the work area down and never overlays window content. Wraps to two lines at 390px.</td><td><code>desktop-shell.tsx</code> (already placed here — ratified)</td></tr>
+    </table>
+  </div>
+
+  <div class="legend">
+    <p><b>Touch-tier boundary.</b> ≤760px is the repo's established touch floor (dialog hosts, help tips);
+    the shell's compact presentation boundary stays 960px. Between 760–960 the compact layout renders
+    with desktop target sizes — tablet landscape in UI-13 keeps its current shape, so &gt;1024px
+    rendering stays pixel-identical by construction.</p>
+    <p><b>Residuals, recorded:</b> the profile-switcher trigger keeps its 28px well (cross-system slot in
+    <code>systems/profiles</code>, quiet-until-plural — a follow-up if the QA walk flags it); log bodies keep
+    their own horizontal scroll wells inside the read view (extension log panel is a read view composed
+    of existing grammar; no change).</p>
+    <p><b>Journeys owned elsewhere:</b> E2E-002 at 390×844 belongs to the task_06 QA pair; terminal surfaces
+    are absent on remote tiers (task_03 gating) and appear in no mobile board.</p>
+  </div>
+</div>
+</body>
+</html>

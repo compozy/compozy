@@ -105,6 +105,8 @@ export function DesktopMenubar({
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
+  // Touch tier rides the same media hook as the compact menu collapse (S6/T1).
+  const touch = actions.touchViewport;
   const scopeModel = desktopMenubarScopeModel({
     activeWorkspace,
     canDisableGlobal,
@@ -125,6 +127,7 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
+      touch={touch}
       workspace={scopeModel.workspace}
       scopeNotice={
         scopeModel.fallback ? (
@@ -156,6 +159,7 @@ export function DesktopMenubar({
       )}
       scopeControl={
         <GlobalScopeToggle
+          touch={touch}
           checked={scopeModel.globalOn}
           locked={scopePending || toggleLocked || (scopeModel.globalOn && !canDisableGlobal)}
           lockedReason={scopeModel.toggleLockedReason}

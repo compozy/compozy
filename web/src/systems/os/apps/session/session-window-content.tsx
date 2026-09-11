@@ -215,19 +215,24 @@ export function SessionWindowContent({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      <SessionSidebar
-        open={sidebar.open}
-        sessions={sidebar.sessions}
-        disconnected={sidebar.disconnected}
-        collapsedThreadIds={sidebar.collapsedThreadIds}
-        view={sidebar.view}
-        currentSessionId={sessionId}
-        onToggleThread={sidebar.onToggleThread}
-        onSelectSession={sidebar.onSelectSession}
-        onNewSession={sidebar.onNewSession}
-        sessionActions={sidebar.sessionActions}
-      />
+    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* Touch tier (S6/T6): at ≤760px the 264px sessions rail overlays the
+          transcript instead of docking — the stream keeps full width and the
+          rail casts the overlay shadow. Desktop keeps the docked flex child. */}
+      <div className="contents max-[760px]:absolute max-[760px]:inset-y-0 max-[760px]:left-0 max-[760px]:z-30 max-[760px]:shadow-overlay">
+        <SessionSidebar
+          open={sidebar.open}
+          sessions={sidebar.sessions}
+          disconnected={sidebar.disconnected}
+          collapsedThreadIds={sidebar.collapsedThreadIds}
+          view={sidebar.view}
+          currentSessionId={sessionId}
+          onToggleThread={sidebar.onToggleThread}
+          onSelectSession={sidebar.onSelectSession}
+          onNewSession={sidebar.onNewSession}
+          sessionActions={sidebar.sessionActions}
+        />
+      </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <SessionWindowNotice
           agentName={agentName}
