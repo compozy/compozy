@@ -103,9 +103,9 @@ before a send is refused. A full queue returns HTTP/UDS `409 queue_full` with `q
 An interrupt with no text or attachments only stops the active turn; it adds no replacement.
 
 Daemon-authored follow-ups use this same durable queue with `owner_kind: "synthetic"`. They retain
-their prompt metadata through restart and share the dispatch order with human follow-ups. Goal-owned
-entries remain visible with their owner identity; clearing a parked Goal entry settles its waiting
-prompt as control-fenced and paused.
+their prompt metadata through restart and share the dispatch order with human follow-ups. Goal-engine
+prompts remain internal: queue reads and entry counts exclude them, and queue clear, edit, promote,
+and remove actions cannot control them. Use the dedicated Goal controls to pause or stop Goal work.
 
 ## Find a message in retained history
 

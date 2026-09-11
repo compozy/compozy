@@ -150,7 +150,7 @@ export const EditingOwnRow: Story = {
   },
 };
 
-/** VC-02 — an agent's and a goal's entries carry their names; the verbs are absent, not disabled. */
+/** VC-02 — agent-owned entries carry actor names and omit mutation controls. */
 export const OtherActor: Story = {
   parameters: scene({ entries: QUEUE_STORY_OTHER_ACTOR_ENTRIES }),
 };

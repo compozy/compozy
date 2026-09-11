@@ -18,21 +18,104 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
-	t.Run("Should clear every parked owner atomically and preserve dispatching outcome", func(t *testing.T) {
+	t.Run("Should hide pending Goals and reject direct operator mutations", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"human", "agent", "synthetic", "goal-queued", "goal-dispatching"} {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 5, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE session_input_queue SET owner_kind = CASE
+			WHEN id LIKE 'goal-%' THEN 'goal' WHEN id = 'human' THEN NULL ELSE id END,
+			status = CASE WHEN id = 'goal-dispatching' THEN 'dispatching' ELSE 'queued' END`); err != nil {
+			t.Fatal(err)
+		}
+		inputs, err := db.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil || len(inputs) != 3 || inputs[0].ID != "agent" || inputs[1].ID != "human" ||
+			inputs[2].ID != "synthetic" {
+			t.Fatalf("public inputs = %#v, %v", inputs, err)
+		}
+		summary, err := db.SessionInputQueueSummary(ctx, sessionID)
+		if err != nil || summary.PendingActive != 3 || summary.PendingQueued != 3 || summary.PendingLeased != 0 {
+			t.Fatalf("public queue summary = %#v, %v", summary, err)
+		}
+		for _, id := range []string{"goal-queued", "goal-dispatching"} {
+			before, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.CancelSessionInput(
+				ctx,
+				sessionID,
+				id,
+				now,
+			); !errors.Is(
+				err,
+				store.ErrSessionInputQueueEntryNotFound,
+			) {
+				t.Fatalf("cancel Goal = %v", err)
+			}
+			replacement := store.SessionInputQueueInsert{
+				ID:           "replacement",
+				SessionID:    sessionID,
+				TargetTurnID: "active-turn",
+				Text:         "operator edit",
+				QueueCap:     5,
+				Now:          now,
+			}
+			if _, _, err := db.ReplaceSessionInput(
+				ctx,
+				sessionID,
+				id,
+				replacement,
+			); !errors.Is(
+				err,
+				store.ErrSessionInputQueueEntryNotFound,
+			) {
+				t.Fatalf("replace Goal = %v", err)
+			}
+			if _, _, err := db.PromoteSessionInputToSteer(
+				ctx,
+				sessionID,
+				id,
+				replacement,
+			); !errors.Is(
+				err,
+				store.ErrSessionInputQueueEntryNotFound,
+			) {
+				t.Fatalf("promote Goal = %v", err)
+			}
+			after, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+			if err != nil || !reflect.DeepEqual(before, after) {
+				t.Fatalf("Goal changed through operator mutation: %#v -> %#v, %v", before, after, err)
+			}
+		}
+	})
+	t.Run("Should clear public inputs while preserving Goal dispatch and active outcomes", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db := openTestGlobalDB(t)
 		sessionID := registerInputQueueSession(t, db)
 		now := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
-		for _, id := range []string{"active", "human", "goal"} {
+		for _, id := range []string{"active", "human", "agent", "goal"} {
 			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
-				ID: id, SessionID: sessionID, Text: id, QueueCap: 3, Now: now,
+				ID: id, SessionID: sessionID, Text: id, QueueCap: 4, Now: now,
 			}); err != nil {
 				t.Fatal(err)
 			}
 		}
 		if _, err := db.db.ExecContext(ctx,
 			`UPDATE session_input_queue SET owner_kind = 'goal', dispatchable = 0 WHERE id = 'goal'`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx,
+			`UPDATE session_input_queue SET owner_kind = 'agent' WHERE id = 'agent'`); err != nil {
 			t.Fatal(err)
 		}
 		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now)
@@ -45,11 +128,16 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if err != nil || result.Cleared != 2 || result.Generation != 1 || len(result.Inputs) != 3 {
 			t.Fatalf("ClearSessionInputs() = %#v, %v", result, err)
 		}
-		for _, id := range []string{"human", "goal"} {
+		for _, id := range []string{"human", "agent"} {
 			entry, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
 			if err != nil || entry.Status != store.SessionInputQueueStatusCanceled {
 				t.Fatalf("cleared input = %#v, %v", entry, err)
 			}
+		}
+		goal, err := db.GetSessionInputQueueEntry(ctx, sessionID, "goal")
+		if err != nil || goal.Status != store.SessionInputQueueStatusQueued || goal.TerminalAt != nil ||
+			goal.CanceledAt != nil || goal.SessionGeneration != result.Generation || goal.Dispatchable {
+			t.Fatalf("preserved Goal = %#v, %v", goal, err)
 		}
 		traces, err := db.ListPendingSessionInputClearTraces(ctx, sessionID)
 		if err != nil || len(traces) != 2 {
@@ -69,6 +157,10 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}
 		if err := db.MarkSessionInputSent(ctx, sessionID, next.ID, now); err != nil {
 			t.Fatal(err)
+		}
+		nextGoal, found, err := db.PeekNextSessionInput(ctx, sessionID)
+		if err != nil || !found || nextGoal.ID != "goal" {
+			t.Fatalf("Goal dispatch after clear = %#v, %v, %v", nextGoal, found, err)
 		}
 	})
 	t.Run("Should roll back clear and generation when an attributed trace cannot be persisted", func(t *testing.T) {

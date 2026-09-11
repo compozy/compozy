@@ -527,6 +527,7 @@ func (q *Queries) InsertSessionInputQueueEntry(ctx context.Context, arg InsertSe
 const listPendingSessionInputs = `-- name: ListPendingSessionInputs :many
 SELECT id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at FROM session_input_queue
 WHERE session_id = ?1
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND status IN (?2, ?3)
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
 ORDER BY delivery DESC, enqueued_at ASC, id ASC
@@ -622,6 +623,7 @@ const listSessionInputQueueSummary = `-- name: ListSessionInputQueueSummary :man
 SELECT mode, status, COUNT(*) AS count
 FROM session_input_queue
 WHERE session_id = ?1
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND session_generation = ?2
   AND status IN (?3, ?4)
 GROUP BY mode, status

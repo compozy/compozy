@@ -12,12 +12,9 @@ import (
 
 const clearQueuedSessionInput = `-- name: ClearQueuedSessionInput :execrows
 UPDATE session_input_queue
-SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1,
-    terminal_at = CASE WHEN owner_kind = 'goal' THEN ?1 ELSE terminal_at END,
-    terminal_kind = CASE WHEN owner_kind = 'goal' THEN 'control-fenced' ELSE terminal_kind END,
-    terminal_disposition = CASE WHEN owner_kind = 'goal' THEN 'paused' ELSE terminal_disposition END,
-    terminal_reason_code = CASE WHEN owner_kind = 'goal' THEN 'goal_control_revoked_in_flight' ELSE terminal_reason_code END
+SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1
 WHERE session_id = ?2 AND id = ?3 AND status = 'queued'
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
 `
 
 type ClearQueuedSessionInputParams struct {
@@ -118,17 +115,20 @@ func (q *Queries) MarkSessionInputClearTraceProjected(ctx context.Context, arg M
 	return err
 }
 
-const rebaseDispatchingSessionInputs = `-- name: RebaseDispatchingSessionInputs :exec
+const rebasePreservedSessionInputs = `-- name: RebasePreservedSessionInputs :exec
 UPDATE session_input_queue SET session_generation = ?1
-WHERE session_id = ?2 AND status = 'dispatching'
+WHERE session_id = ?2
+  AND (status = 'dispatching'
+       OR (owner_kind = 'goal' AND status = 'queued' AND session_generation = ?3))
 `
 
-type RebaseDispatchingSessionInputsParams struct {
-	Generation int64  `json:"generation"`
-	SessionID  string `json:"session_id"`
+type RebasePreservedSessionInputsParams struct {
+	Generation         int64  `json:"generation"`
+	SessionID          string `json:"session_id"`
+	PreviousGeneration int64  `json:"previous_generation"`
 }
 
-func (q *Queries) RebaseDispatchingSessionInputs(ctx context.Context, arg RebaseDispatchingSessionInputsParams) error {
-	_, err := q.db.ExecContext(ctx, rebaseDispatchingSessionInputs, arg.Generation, arg.SessionID)
+func (q *Queries) RebasePreservedSessionInputs(ctx context.Context, arg RebasePreservedSessionInputsParams) error {
+	_, err := q.db.ExecContext(ctx, rebasePreservedSessionInputs, arg.Generation, arg.SessionID, arg.PreviousGeneration)
 	return err
 }

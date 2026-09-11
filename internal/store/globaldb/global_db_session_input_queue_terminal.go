@@ -158,6 +158,9 @@ func (g *SessionRepo) CancelSessionInput(
 		if getErr != nil {
 			return getErr
 		}
+		if existing.OwnerKind == goalPromptOwnerKind {
+			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
+		}
 		if existing.Status == store.SessionInputQueueStatusSent ||
 			existing.Status == store.SessionInputQueueStatusFailed ||
 			existing.Status == store.SessionInputQueueStatusDispatching {

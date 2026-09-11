@@ -68,8 +68,8 @@ func (g *SessionRepo) ClearSessionInputs(
 			}
 			result.Inputs = append(result.Inputs, entry)
 		}
-		return queries.RebaseDispatchingSessionInputs(ctx, sqlcgen.RebaseDispatchingSessionInputsParams{
-			SessionID: req.SessionID, Generation: result.Generation,
+		return queries.RebasePreservedSessionInputs(ctx, sqlcgen.RebasePreservedSessionInputsParams{
+			SessionID: req.SessionID, Generation: result.Generation, PreviousGeneration: result.Generation - 1,
 		})
 	})
 	if err != nil {

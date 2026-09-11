@@ -37,6 +37,7 @@ LIMIT 1;
 -- name: ListPendingSessionInputs :many
 SELECT * FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id)
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
   AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
 ORDER BY delivery DESC, enqueued_at ASC, id ASC;
@@ -95,6 +96,7 @@ SELECT input_generation FROM sessions WHERE id = sqlc.arg(id);
 SELECT mode, status, COUNT(*) AS count
 FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id)
+  AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND session_generation = sqlc.arg(session_generation)
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
 GROUP BY mode, status;
