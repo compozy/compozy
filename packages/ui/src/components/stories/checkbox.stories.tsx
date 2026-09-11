@@ -54,6 +54,15 @@ export const Disabled: Story = {
   ),
 };
 
+export const Indeterminate: Story = {
+  render: () => (
+    <div className="flex items-center gap-2">
+      <Checkbox id="cb-indeterminate" indeterminate />
+      <Label htmlFor="cb-indeterminate">Select all</Label>
+    </div>
+  ),
+};
+
 export const TogglesOnClick: Story = {
   render: () => <Checkbox aria-label="toggle" />,
   play: async ({ canvasElement }) => {

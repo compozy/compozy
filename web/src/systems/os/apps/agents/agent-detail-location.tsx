@@ -70,6 +70,7 @@ interface AgentDetailContentProps {
   rawSearch: AgentDetailSearch;
 }
 
+/** Present an agent and its sessions, forwarding lifecycle results to the shared confirmation UI. */
 export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
   const page = useAgentDetail(name, rawSearch);
   const search = page.search;
@@ -272,6 +273,9 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                   open={page.sessionDeleteDialog.open}
                   onOpenChange={page.sessionDeleteDialog.onOpenChange}
                   session={page.sessionDeleteDialog.session}
+                  sessions={page.sessionDeleteDialog.sessions}
+                  results={page.sessionDeleteDialog.results}
+                  onRetry={page.sessionDeleteDialog.onRetry}
                   isDeleting={page.sessionDeleteDialog.isDeleting}
                   onConfirm={page.sessionDeleteDialog.onConfirm}
                 />

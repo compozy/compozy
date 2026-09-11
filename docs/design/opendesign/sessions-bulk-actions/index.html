@@ -480,7 +480,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
       <div class="spec__demo">
         <div class="stage" data-od-id="sb-select-stage">
           <div class="stage__cell">
-            <span class="stage__cell-t">3 selected · 1 running · 2 stopped <code>delta</code></span>
+            <span class="stage__cell-t">3 selected · 1 active · 2 stopped <code>delta</code></span>
             <aside class="session-sidebar" data-mode="select" aria-label="Sessions" data-od-id="sb-select-rail">
               <div class="session-list-selection-bar" role="toolbar" aria-label="Selected sessions">
                 <span class="cbx" role="checkbox" aria-checked="mixed" aria-label="Select all"><svg data-lucide="minus"></svg></span><i class="ss-n ss-n--abs" style="left:-24px;top:12px">1</i>
@@ -562,7 +562,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
     <div class="spec">
       <div class="spec__note">
         <b>Same verbs as one row's kebab, with numbers.</b>
-        <p>The menu lists what the selection can take: <code>Stop 1 running</code>, <code>Archive 2 stopped</code>, <code>Unarchive 0 archived</code> (disabled), and Delete. Each verb applies to the eligible subset and says so — you never have to deselect the wrong ones first. Stop and Archive act immediately with a toast, exactly as their single-row versions do today. Delete confirms (§04).</p>
+        <p>The menu lists what the selection can take: <code>Stop 1 active</code>, <code>Archive 2 stopped</code>, <code>Unarchive 0 archived</code> (disabled), and Delete. Each verb applies to the eligible subset and says so — you never have to deselect the wrong ones first. Stop and Archive act immediately with a toast, exactly as their single-row versions do today. Delete confirms (§04).</p>
         <p>In the Archived view the gating flips: Unarchive is live, Archive is not.</p>
       </div>
       <div class="spec__demo">
@@ -579,7 +579,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
                 <button class="btn btn--ghost btn--icon" aria-label="Done"><svg data-lucide="x"></svg></button>
               </div>
               <div class="menu menu--overlay session-list-selection-menu" role="menu" aria-label="Actions for 3 sessions">
-                <button class="menu-item" role="menuitem"><svg data-lucide="square"></svg>Stop<span class="chord">1 running</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:8px">1</i>
+                <button class="menu-item" role="menuitem"><svg data-lucide="square"></svg>Stop<span class="chord">1 active</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:8px">1</i>
                 <button class="menu-item" role="menuitem"><svg data-lucide="archive"></svg>Archive<span class="chord">2 stopped</span></button>
                 <button class="menu-item" role="menuitem" disabled aria-disabled="true"><svg data-lucide="rotate-ccw"></svg>Unarchive<span class="chord">0 archived</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:72px">2</i>
                 <div class="menu-sep" role="separator"></div>
@@ -626,7 +626,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
           <li><i class="ss-n">2</i><span><b>Zero = disabled</b> <em>the item stays so the menu never changes shape; muted ink, <code>0 archived</code> says why</em></span></li>
           <li><i class="ss-n">3</i><span><b>Delete</b> <em>DropdownMenuItem <code>variant="destructive"</code> as today · the same action as the bar's trash button, here with its shortcut · opens §04</em></span></li>
         </ul>
-        <div class="ss-tags"><span class="ss-tag"><b>state</b>menu open · 1 running · 2 stopped</span><span class="ss-tag"><b>component</b>DropdownMenu · toast</span><span class="ss-tag"><b>tone</b>danger on Delete only</span></div>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>menu open · 1 active · 2 stopped</span><span class="ss-tag"><b>component</b>DropdownMenu · toast</span><span class="ss-tag"><b>tone</b>danger on Delete only</span></div>
       </div>
     </div>
   </section>
@@ -660,7 +660,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
                 <i class="ss-n ss-n--abs" style="right:8px;top:74px">1</i>
               </div>
               <div class="dialog__foot">
-                <span class="dialog__foot-note"><svg data-lucide="info"></svg><span>1 of them is running.</span></span><i class="ss-n ss-n--abs" style="left:150px;bottom:16px">2</i>
+                <span class="dialog__foot-note"><svg data-lucide="info"></svg><span>1 of them is active.</span></span><i class="ss-n ss-n--abs" style="left:150px;bottom:16px">2</i>
                 <button class="btn btn--ghost">Cancel</button>
                 <button class="btn btn--destructive"><svg data-lucide="trash-2"></svg>Delete 3 sessions</button>
               </div>
@@ -716,7 +716,7 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
         </div>
         <ul class="ss-legend">
           <li><i class="ss-n">1</i><span><b>The set</b> <em>bordered list on canvas, 30px rows: 7px mark · title (truncates) · mono state word · result slot · shows up to 5, then <code>and 4 more</code> as a last line · titles are <code>getSessionDisplayTitle</code>, exactly what the rail shows</em></span></li>
-          <li><i class="ss-n">2</i><span><b>Foot note</b> <em>only when it matters: <code>1 of them is running.</code> / <code>2 of them are running.</code> · states a fact, claims nothing about what the daemon does first (open question 1)</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Foot note</b> <em>only when it matters: <code>1 of them is active.</code> / <code>2 of them are active.</code> · states a fact, claims nothing about what the daemon does first (open question 1)</em></span></li>
           <li><i class="ss-n">3</i><span><b>Progress</b> <em>rows resolve top to bottom: subtle check = deleted · Spinner = in flight · empty = waiting · primary reads <code>Deleting 2 of 3</code> · close and Cancel are gone (production <code>showCloseButton={!isDeleting}</code>)</em></span></li>
           <li><i class="ss-n">4</i><span><b>Per-row failure</b> <em>danger ✕ + one line under the row with the daemon's message verbatim (illustrative text here) · danger only where the operation actually failed; nothing else on the dialog turns red</em></span></li>
           <li><i class="ss-n">5</i><span><b>Retry 1</b> <em>destructive, acts on the failed rows only · Close keeps them selected in the rail so nothing is lost between attempts · toast on the way out: <code>2 sessions deleted</code></em></span></li>
@@ -737,11 +737,11 @@ body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overf
             <tr><td>Row checkbox</td><td><code>Select {title}</code> (aria-label)</td></tr>
             <tr><td>Bar count</td><td><code>{n} selected</code> · <code>{n} selected · {m} hidden</code> when the filter hides some</td></tr>
             <tr><td>Bar all-checkbox</td><td><code>Select all</code> · <code>Clear selection</code> (tooltip flips with state)</td></tr>
-            <tr><td>Bar verbs</td><td><code>Delete {n} sessions</code> · <code>More actions</code> · <code>Done</code></td></tr>
-            <tr><td>Menu</td><td><code>Stop</code> <em>{n} running</em> · <code>Archive</code> <em>{n} stopped</em> · <code>Unarchive</code> <em>{n} archived</em> · <code>Delete {n} sessions</code> — zero = disabled</td></tr>
+            <tr><td>Bar verbs</td><td><code>Delete {n} sessions</code> (n=1: <code>Delete 1 session</code>) · <code>More actions</code> · <code>Done</code></td></tr>
+            <tr><td>Menu</td><td><code>Stop</code> <em>{n} active</em> (daemon <code>state</code> — idle sessions are active too; the badge word <code>running</code> means a turn is in progress) · <code>Archive</code> <em>{n} stopped</em> · <code>Unarchive</code> <em>{n} archived</em> · <code>Delete {n} sessions</code> — zero = disabled</td></tr>
             <tr><td>Dialog title</td><td><code>Delete {n} sessions</code> · n=1 → production <code>Delete session</code></td></tr>
             <tr><td>Dialog description</td><td><code>This permanently removes {n} sessions, including their transcripts and history, and removes them from the session list.</code></td></tr>
-            <tr><td>Dialog note</td><td><code>1 of them is running.</code> · <code>{k} of them are running.</code> · absent when none</td></tr>
+            <tr><td>Dialog note</td><td><code>1 of them is active.</code> · <code>{k} of them are active.</code> · absent when none</td></tr>
             <tr><td>Dialog list overflow</td><td><code>and {n−5} more</code></td></tr>
             <tr><td>Dialog primary</td><td><code>Delete {n} sessions</code> → <code>Deleting {i} of {n}</code> → <code>Retry {f}</code></td></tr>
             <tr><td>Dialog after run</td><td><code>{d} deleted · {f} couldn't be deleted.</code> · row: <code>Couldn't delete: {daemon message}</code></td></tr>

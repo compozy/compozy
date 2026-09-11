@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
@@ -35,6 +35,168 @@ describe("SessionDeleteDialog", () => {
     );
 
     fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+// Invariant: the confirmation names the actual set and blocks dismissal during progress;
+// result/retry presentation belongs to this dialog suite, fan-out to the lifecycle suite.
+describe("SessionDeleteDialog sets", () => {
+  const sessions = Array.from({ length: 7 }, (_, index) => ({
+    ...primarySessionFixture,
+    id: `set-${index}`,
+    name: `Work ${index}`,
+    archived_at: null,
+    state: index === 0 ? ("active" as const) : ("stopped" as const),
+    badge: index === 0 ? "running" : "stopped",
+  }));
+
+  it("uses the unchanged singular confirmation for a set of one", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[sessions[0]!]}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Delete session" })).toBeInTheDocument();
+    expect(screen.getByTestId("delete-dialog-confirm")).toHaveTextContent("Delete session");
+    expect(screen.queryByTestId("delete-dialog-row-set-0")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("delete-dialog-note")).not.toBeInTheDocument();
+  });
+
+  it("exposes a single bulk failure and retries without changing the singular confirmation", () => {
+    const onConfirm = vi.fn();
+    const onRetry = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[sessions[0]!]}
+        results={[{ id: "set-0", status: "failed", error: "Session is locked" }]}
+        isDeleting={false}
+        onConfirm={onConfirm}
+        onRetry={onRetry}
+        onOpenChange={onOpenChange}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Delete session" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't delete: Session is locked");
+    fireEvent.click(screen.getByTestId("delete-dialog-retry"));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("delete-dialog-cancel"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("discloses the count, capped set, overflow, and active membership", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={sessions}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Delete 7 sessions" })).toBeInTheDocument();
+    expect(screen.getByText(/including their transcripts and history/)).toHaveTextContent(
+      "This permanently removes 7 sessions"
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getByText("and 2 more")).toBeInTheDocument();
+    expect(screen.queryByTestId("delete-dialog-row-set-5")).not.toBeInTheDocument();
+    expect(screen.getByTestId("delete-dialog-note")).toHaveTextContent("1 of them is active.");
+  });
+
+  it("names failed targets beyond the preview and keeps their daemon errors visible", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={sessions}
+        results={sessions.map((session, index) =>
+          index < 5
+            ? { id: session.id, status: "done" }
+            : { id: session.id, status: "failed", error: `Locked ${index}` }
+        )}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onRetry={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getAllByRole("alert").map(alert => alert.textContent)).toEqual([
+      "Work 5: Couldn't delete: Locked 5",
+      "Work 6: Couldn't delete: Locked 6",
+    ]);
+    expect(screen.getByTestId("delete-dialog-retry")).toHaveTextContent("Retry 2");
+  });
+
+  it("shows settled and in-flight results and prevents closing during deletion", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={sessions.slice(0, 3)}
+        results={[
+          { id: "set-0", status: "done" },
+          { id: "set-1", status: "running" },
+          { id: "set-2", status: "pending" },
+        ]}
+        isDeleting
+        onConfirm={vi.fn()}
+        onOpenChange={onOpenChange}
+      />
+    );
+    expect(
+      within(screen.getByTestId("delete-dialog-row-set-0")).getByLabelText("Deleted")
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("delete-dialog-row-set-1")).getByLabelText("Deleting")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("delete-dialog-confirm")).toHaveTextContent("Deleting 2 of 3");
+    expect(screen.getByTestId("delete-dialog-cancel")).toBeDisabled();
+    expect(screen.getByTestId("delete-dialog-note")).toHaveTextContent(
+      "Don't close the window while this runs."
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("explains partial failure with the daemon error and exposes retry", () => {
+    const onRetry = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={sessions.slice(0, 3)}
+        results={[
+          { id: "set-0", status: "done" },
+          { id: "set-1", status: "done" },
+          { id: "set-2", status: "failed", error: "Session is locked" },
+        ]}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onRetry={onRetry}
+        onOpenChange={onOpenChange}
+      />
+    );
+    expect(screen.getByText(/2 deleted · 1 couldn't be deleted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/The one that failed is still in the list and still selected/)
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("delete-dialog-row-set-2")).getByText(
+        "Couldn't delete: Session is locked"
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("delete-dialog-note")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("delete-dialog-retry"));
+    expect(onRetry).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByTestId("delete-dialog-cancel"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

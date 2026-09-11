@@ -17,6 +17,7 @@ const SessionRenameDialog = lazy(() =>
   }))
 );
 
+/** Keep catalog actions and their confirmation dialogs available without an active session. */
 export function SessionWindowEmpty({
   windowId,
   workspaceId,
@@ -76,6 +77,9 @@ export function SessionWindowEmpty({
             open
             onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
             session={sidebar.rowDeleteDialog.session}
+            sessions={sidebar.rowDeleteDialog.sessions}
+            results={sidebar.rowDeleteDialog.results}
+            onRetry={sidebar.rowDeleteDialog.onRetry}
             isDeleting={sidebar.rowDeleteDialog.isDeleting}
             onConfirm={sidebar.rowDeleteDialog.onConfirm}
           />

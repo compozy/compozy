@@ -126,6 +126,35 @@ describe("OsSessionsModal", () => {
     for (const manager of managers.splice(0)) manager.destroy();
   });
 
+  it("Should keep the modal open when selecting and use Escape to finish selection first", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const onDeleteMany = vi.fn();
+    render(
+      <OsShellContext.Provider value={createShell()}>
+        <OsSessionsModal
+          open
+          onOpenChange={onOpenChange}
+          sessions={SESSIONS}
+          disconnected={false}
+          view={listView()}
+          onNewSession={vi.fn()}
+          sessionActions={{ ...SESSION_ACTIONS, onDeleteMany }}
+        />
+      </OsShellContext.Provider>
+    );
+    const row = screen.getByTestId("os-sessions-modal-session-session-1");
+    fireEvent.click(row, { metaKey: true });
+    expect(screen.getByTestId("os-sessions-modal-selection-bar")).toBeInTheDocument();
+    expect(jumpToSession).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("os-sessions-modal-selection-delete"));
+    expect(onDeleteMany).toHaveBeenCalledWith([SESSIONS[0]], expect.any(Function));
+    row.focus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("os-sessions-modal-selection-bar")).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("Should coordinate a foreign workspace row without exposing mis-scoped actions", async () => {
     const user = userEvent.setup();
     const foreign = session({
@@ -161,6 +190,7 @@ describe("OsSessionsModal", () => {
       workspaceId: "workspace-2",
     });
     expect(screen.queryByTestId("session-row-actions-session-foreign")).toBeNull();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   it("Should nest provenance children under their parent thread and fold them behind the toggle", async () => {

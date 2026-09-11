@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+
+import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
 import type { SessionPayload } from "../types";
 import {
@@ -20,9 +22,19 @@ export interface SessionLifecycleActionHandlers {
   onArchive: (session: SessionPayload) => void;
   onUnarchive: (session: SessionPayload) => void;
   onDelete: (session: SessionPayload) => void;
+  onStopMany?: (sessions: readonly SessionPayload[]) => void;
+  onArchiveMany?: (sessions: readonly SessionPayload[]) => void;
+  onUnarchiveMany?: (sessions: readonly SessionPayload[]) => void;
+  onDeleteMany?: (
+    sessions: readonly SessionPayload[],
+    onSelectionChange?: (remainingIds: readonly string[]) => void
+  ) => void;
 }
 
 export interface SessionDeleteConfirmation {
+  sessions?: readonly SessionPayload[];
+  results?: readonly SessionBatchResult[];
+  onRetry?: () => void;
   open: boolean;
   session: SessionPayload | null;
   isDeleting: boolean;
@@ -40,6 +52,7 @@ export interface SessionRenameConfirmation {
 
 export interface UseSessionLifecycleActionsResult {
   actions: SessionLifecycleActionHandlers;
+  batchResults: readonly SessionBatchResult[];
   deleteDialog: SessionDeleteConfirmation;
   renameDialog: SessionRenameConfirmation;
 }
@@ -48,9 +61,31 @@ export interface UseSessionLifecycleActionsOptions {
   workspaceId?: string | null;
 }
 
+/** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
+}
+
+/** Non-delete batches report one aggregate result because they have no result dialog. */
+function reportBatch(
+  action: "stop" | "archive" | "unarchive",
+  results: readonly SessionBatchResult[]
+): void {
+  const failures = results.filter(result => result.status === "failed");
+  if (failures.length > 0) {
+    reportActionError(action, new Error(failures.map(result => result.error).join("; ")));
+    return;
+  }
+  const count = results.filter(result => result.status === "done").length;
+  const verb = action === "stop" ? "stopped" : `${action}d`;
+  toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
+}
+
+/** Report all successful deletes once, when the result dialog closes. */
+function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
+  const count = results.filter(result => result.status === "done").length;
+  if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
 /**
@@ -65,12 +100,23 @@ export function useSessionLifecycleActions(
   const unarchive = useUnarchiveSession(options);
   const remove = useDeleteSession(options);
   const rename = useRenameSession(options);
-  const [deleteSession, setDeleteSession] = useState<SessionPayload | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    sessions: readonly SessionPayload[];
+    bulk: boolean;
+    onSelectionChange?: (ids: readonly string[]) => void;
+  } | null>(null);
+  const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
+  const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
+  const batchRunning = useRef(false);
+  const deleteSession = deleteTarget?.sessions[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
 
   let pendingAction: SessionLifecycleAction | null = null;
   let pendingSessionId: string | null = null;
-  if (rename.isPending) {
+  if (batchAction !== null) {
+    pendingAction = batchAction;
+    pendingSessionId = batchResults.find(result => result.status === "running")?.id ?? null;
+  } else if (rename.isPending) {
     pendingAction = "rename";
     pendingSessionId = rename.variables.id;
   } else if (stop.isPending) {
@@ -87,17 +133,91 @@ export function useSessionLifecycleActions(
     pendingSessionId = remove.variables;
   }
 
+  /** Lock lifecycle controls until the sequential batch has settled every target. */
+  const runBatch = async (
+    action: "stop" | "archive" | "unarchive" | "delete",
+    sessions: readonly SessionPayload[],
+    previous: readonly SessionBatchResult[] = []
+  ): Promise<SessionBatchResult[] | null> => {
+    if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
+    batchRunning.current = true;
+    setBatchAction(action);
+    return runSessionBatch({
+      action,
+      ids: sessions.map(session => session.id),
+      previous,
+      onProgress: setBatchResults,
+      execute: async id => {
+        if (action === "delete") await remove.mutateAsync(id);
+        else if (action === "archive") await archive.mutateAsync(id);
+        else if (action === "unarchive") await unarchive.mutateAsync(id);
+        else {
+          const outcome = await stop.mutateAsync({ id, wait: true });
+          if (!outcome.verified || outcome.state !== "stopped") {
+            throw new Error(outcome.attention || "Session stop could not be verified.");
+          }
+        }
+      },
+    }).finally(() => {
+      batchRunning.current = false;
+      setBatchAction(null);
+    });
+  };
+
+  /** Apply each verb only to sessions eligible in the current host payload. */
+  const actOnMany = async (
+    action: "stop" | "archive" | "unarchive",
+    sessions: readonly SessionPayload[]
+  ) => {
+    const eligible = sessions.filter(session =>
+      action === "unarchive"
+        ? session.archived_at !== null
+        : session.archived_at === null &&
+          (action === "archive"
+            ? session.state === "stopped"
+            : session.state === "active" || session.state === "starting")
+    );
+    const results = await runBatch(action, eligible);
+    if (results) reportBatch(action, results);
+  };
+
+  /** Retry failed IDs while preserving successful results across the dialog lifetime. */
+  const confirmDeleteMany = async () => {
+    if (!deleteTarget) return;
+    const failedIds = new Set(
+      batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
+    );
+    const targets =
+      failedIds.size > 0
+        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        : deleteTarget.sessions;
+    const results = await runBatch("delete", targets, batchResults);
+    if (!results) return;
+    const failures = results.filter(result => result.status === "failed");
+    deleteTarget.onSelectionChange?.(failures.map(result => result.id));
+    if (failures.length === 0) {
+      setDeleteTarget(null);
+      reportDeletedSessions(results);
+    }
+  };
+
+  /** Keep single-row deletion behavior while routing selection batches through result tracking. */
   const confirmDelete = () => {
-    if (!deleteSession || remove.isPending) return;
+    if (!deleteSession || remove.isPending || batchRunning.current) return;
+    if (deleteTarget?.bulk) {
+      void confirmDeleteMany();
+      return;
+    }
     const { id } = deleteSession;
     remove.mutate(id, {
       onError: error => reportActionError("delete", error),
       onSuccess: () => {
-        setDeleteSession(current => (current?.id === id ? null : current));
+        setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));
       },
     });
   };
 
+  /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;
     const { id } = renameTarget;
@@ -113,11 +233,12 @@ export function useSessionLifecycleActions(
   };
 
   return {
+    batchResults,
     actions: {
       pendingAction,
       pendingSessionId,
       onRename: session => {
-        if (!rename.isPending) setRenameTarget(session);
+        if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
         stop.mutate({ id: session.id }, { onError: error => reportActionError("stop", error) }),
@@ -126,17 +247,46 @@ export function useSessionLifecycleActions(
       onUnarchive: session =>
         unarchive.mutate(session.id, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
-        if (!remove.isPending) setDeleteSession(session);
+        if (pendingAction === null && !batchRunning.current) {
+          setBatchResults([]);
+          setDeleteTarget({ sessions: [session], bulk: false });
+        }
+      },
+      onStopMany: sessions => {
+        void actOnMany("stop", sessions);
+      },
+      onArchiveMany: sessions => {
+        void actOnMany("archive", sessions);
+      },
+      onUnarchiveMany: sessions => {
+        void actOnMany("unarchive", sessions);
+      },
+      onDeleteMany: (sessions, onSelectionChange) => {
+        if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
+          setBatchResults([]);
+          setDeleteTarget({ sessions: [...sessions], bulk: true, onSelectionChange });
+        }
       },
     },
     deleteDialog: {
       open: deleteSession !== null,
       session: deleteSession,
-      isDeleting: remove.isPending,
+      sessions: deleteTarget?.sessions,
+      results: deleteTarget?.bulk ? batchResults : undefined,
+      isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {
-        if (!open && !remove.isPending) setDeleteSession(null);
+        if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
+          if (batchResults.some(result => result.status === "failed")) {
+            deleteTarget?.onSelectionChange?.(
+              batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
+            );
+          }
+          if (deleteTarget.bulk) reportDeletedSessions(batchResults);
+          setDeleteTarget(null);
+        }
       },
       onConfirm: confirmDelete,
+      onRetry: confirmDelete,
     },
     renameDialog: {
       open: renameTarget !== null,
