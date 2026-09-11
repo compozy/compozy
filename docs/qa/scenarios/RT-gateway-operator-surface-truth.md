@@ -11,8 +11,8 @@ bug_ids: BUG-20260807-gateway-live-config-copy;BUG-20260807-gateway-provider-cau
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/screenshots/05-provider-degraded-no-address.png;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/screenshots/14-audit-no-findings.png
-last_report: docs/qa/reports/2026-08-07-remote-gateway.md
+evidence: docs/qa/evidence/2026-09-11-mobile-surface-truth/i-11-settings-remote-access.png;docs/qa/evidence/2026-09-11-mobile-surface-truth/i-19-after-revoke-web.png
+last_report: docs/qa/reports/2026-09-11-mobile-surface-truth.md
 overlaps: RT-gateway-local-only-boot; RT-connectivity-provider-route
 ---
 
@@ -28,3 +28,23 @@ claims and optimistic mutations.
 QA walk 2026-08-07: Web, CLI, HTTP, and UDS agreed on local-only, degraded, refusal, and remediated
 states; three production defects were fixed and re-walked. A truthful live-address presentation
 remains blocked because the provider account is unavailable.
+
+Re-opened as untested 2026-09-11: the mobile-surface-truth change (branch `mobile-browser-pwa`)
+altered the operator surface — loopback-only affordances are now absent on remote tiers and a
+truthful loopback-only state exists for the two stable 403 codes. The surface-truth walk (including
+remote live-address presentation) re-runs under CH-gateway-paired-operator-surface; the real-address
+leg remains externally blocked pending an authorized TS_AUTHKEY.
+
+QA walk 2026-09-11 (CH-gateway-paired-operator-surface, lab
+`compozy-mobile-surface-truth-20260911-041346-834544`): local surface truth re-passed — Web
+Settings → Remote access, `compozy gateway status -o json`, HTTP, and UDS agreed on the same
+posture (`gateway.enabled` on, private tier desired=enabled with the provider down, operator_ui
+surface desired=enabled/observed=off, "local only · 0 paired devices" header); the degraded
+provider row keeps its actionable cause ("Bind TS_AUTHKEY for tailscale in Settings →
+Extensions") without inventing an address; the private-overlay card shows the truthful
+"Establishing" state instead of a plausible dead URL; the pairing dialog names the missing
+verified address and blocks device handoff honestly. Direct loopback hits on the main daemon
+latch the `X-Compozy-Gateway-Tier: local` header (full local surface), and the private-tier
+listener never binds without the provider (fail-closed, recovery retries), so the new
+loopback-only affordance gating and the truthful 403 strip remain unverifiable in-product —
+blocked-verify on the named external blocker (authorized `TS_AUTHKEY`).
