@@ -2,24 +2,24 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Main rebase validated at fa63698f4; PR607-611 and direct commits reviewed; all5 local patches equal. Build, migration109/state preservation, targeted daemon integration, real Cursor two-turn canary and Web smoke passed. Six stale Web fixture failures reconciled; 188 focused and7205 full Web tests pass; make gate green. Resume cross-workspace matrix and355 pending original rows. Scheduler remains paused; use public fixture strategy before claims.",
-  "completed_rows": 2,
-  "pending_rows": 355,
+  "cursor": "Claim identity and denial guidance fixed; fresh Cursor native claim/file/completion and CLI denial verified, sessions stopped; gate passed. Finish local commit, then continue unwalked workspace/public seams and remaining352rows.",
+  "completed_rows": 5,
+  "pending_rows": 352,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
-  "daemon_pid": 99640,
+  "daemon_pid": 47583,
   "browser_session": "qa-execution-unblock",
   "prompt_handle": null,
   "build": {
-    "go": "make build-go passed: rebase-build-go.txt",
+    "go": "make build-go passed: claim-build-go.txt; includes uncommitted claim fix",
     "web": "root Turbo build passed: rebase-build-web.txt",
-    "head": "fa63698f478e0c942f6142f2cb194b6fc85bc7cd"
+    "head": "8ec6e8886-dirty"
   },
   "active_bug": "BUG-20260910-cursor-mcp-error-schema",
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "make gate passed after fixture reconciliation: rebase-gate-retest.txt (771 Web files, 7205 tests; all affected lanes passed)",
+  "gate": "make gate passed all affected lanes: claim-gate-retest.txt",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -42,7 +42,7 @@
   "cross_run_id": "run-3f438f979925fc60",
   "cross_all_session_id": "sess-35af9e34a61e15e4",
   "native_fix_commit": "ad2571be9",
-  "scheduler_paused": true,
+  "scheduler_paused": false,
   "mcp_retest_session_id": "sess-ab20fe5bde29aefc",
   "mcp_text_fix_commit": "790039e93",
   "mcp_error_session_id": "sess-4cbe38a56cc29a66",
@@ -87,5 +87,24 @@
     "migration_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/rebase-migration-proof.json",
     "canary_session_id": "sess-6ad175ea6b43ce4d",
     "canary_stopped": true
-  }
+  },
+  "dispositions": {
+    "verified": 1,
+    "fixed-and-verified": 1,
+    "unresolved-defect": 1,
+    "blocked-external-runtime": 2,
+    "pending": 352
+  },
+  "cross_deny_session_id": "sess-bc315ce9f46d87a7",
+  "cross_read_session_id": "sess-f5db3f09d3263d2e",
+  "cross_read_retry_session_id": "sess-04e085f6d8b83faf",
+  "cross_claim_session_id": "sess-e4855b551031a4be",
+  "cross_claim_task_id": "task-c365b5cc279933d5",
+  "cross_claim_run_id": "run-5cf0824217f60483",
+  "active_handles": {},
+  "claim_retake_session_id": "sess-8618b40841ab2348",
+  "claim_retake_task_id": "task-d2da1bd355072a06",
+  "claim_retake_run_id": "run-2f5d3acf89ca3289",
+  "claim_denial_retake_session_id": "sess-ce8de99a8a03aef3",
+  "claim_retest_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/claim-retest-proof.json"
 }

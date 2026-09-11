@@ -6904,6 +6904,68 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should query task claims by registration id after workspace alias binding", func(t *testing.T) {
+		t.Parallel()
+
+		for _, ref := range []string{"ws-target", "stable-target", "archive", "/archive", "stable-home"} {
+			t.Run("Should resolve "+ref, func(t *testing.T) {
+				t.Parallel()
+				resolve := func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					switch ref {
+					case "ws-home", "stable-home":
+						return workspacepkg.ResolvedWorkspace{
+							Workspace:   workspacepkg.Workspace{ID: "ws-home"},
+							WorkspaceID: "stable-home",
+						}, nil
+					case "ws-target", "stable-target", "archive", "/archive":
+						return workspacepkg.ResolvedWorkspace{
+							Workspace:   workspacepkg.Workspace{ID: "ws-target"},
+							WorkspaceID: "stable-target",
+						}, nil
+					default:
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+					}
+				}
+				tasks := &nativeTaskManager{claimErr: taskpkg.ErrNoClaimableRun}
+				policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+				registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+					Sessions:   nativeNetworkTestSessionManager("ws-home"),
+					Tasks:      tasks,
+					Workspaces: apitest.StubWorkspaceService{ResolveFn: resolve},
+				}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+				input, err := json.Marshal(map[string]string{"workspace": ref, "run_id": "run-queued"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = registry.Call(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-claim", WorkspaceID: "ws-home", AgentName: "coder"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskRunClaimNext, Input: input},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := "ws-target"
+				if ref == "stable-home" {
+					want = "ws-home"
+				}
+				if tasks.claimNextCalls != 1 || tasks.lastClaimCriteria.WorkspaceID != want ||
+					tasks.lastClaimCriteria.RunID != "run-queued" {
+					t.Fatalf(
+						"claim criteria = %#v after %d calls, want run-queued in %s",
+						tasks.lastClaimCriteria,
+						tasks.claimNextCalls,
+						want,
+					)
+				}
+				if tasks.lastClaimActor.Scope.WorkspaceID != "ws-home" ||
+					tasks.lastClaimActor.Scope.SessionID != "sess-claim" {
+					t.Fatalf("claim actor = %#v, want unchanged caller", tasks.lastClaimActor)
+				}
+			})
+		}
+	})
+
 	t.Run("Should deny cross workspace native autonomy claims", func(t *testing.T) {
 		t.Parallel()
 

@@ -60,6 +60,26 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should include workspace guidance when a foreign claim is denied", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingTaskWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
+		service := &Service{
+			now:             func() time.Time { return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC) },
+			workspaceAccess: policy,
+		}
+		_, err := service.normalizeClaimCriteriaForActor(
+			t.Context(),
+			ClaimCriteria{WorkspaceID: "ws-b", ClaimerSessionID: "sess-a", LeaseDuration: time.Minute},
+			agentActorContextForTest("sess-a", "ws-a"),
+		)
+		if !errors.Is(err, ErrPermissionDenied) || !strings.Contains(err.Error(), workspaceaccess.DenialHint) {
+			t.Fatalf("claim denial = %v, want permission error with workspace guidance", err)
+		}
+		if policy.calls != 1 {
+			t.Fatalf("policy calls = %d, want 1", policy.calls)
+		}
+	})
+
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	base := ClaimCriteria{
 		Scope:                ScopeGlobal,

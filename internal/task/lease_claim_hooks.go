@@ -7,6 +7,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (m *Service) normalizeClaimCriteriaForActor(
@@ -53,8 +54,9 @@ func (m *Service) normalizeClaimCriteriaForActor(
 			}
 			if !allowed {
 				return ClaimCriteria{}, fmt.Errorf(
-					"%w: claim workspace does not match trusted caller",
+					"%w: claim workspace does not match trusted caller: %s",
 					ErrPermissionDenied,
+					workspaceaccess.DenialHint,
 				)
 			}
 		}

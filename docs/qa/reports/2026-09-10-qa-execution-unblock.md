@@ -2,9 +2,9 @@
 
 - **Scope:** All 357 original handoff rows; adjacent repair canaries only.
 - **Cadence tier:** targeted inventory reconciliation and real persona walks
-- **Build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28
+- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28; current runtime fa63698f4, test/docs checkpoint 8ec6e8886
 - **Started:** 2026-09-10T21:56:04.281977+00:00 · **Status:** in-progress
-- **Provider contract:** Codex gpt-5.6-luna, reasoning xhigh; operator native authentication preserved.
+- **Current provider contract:** Cursor Agent grok-4.6, reasoning high, speed fast; supersedes initial Codex Luna xhigh. Operator native authentication preserved.
 - **Environment:** Isolated bootstrap manifest; production-parity build and real Luna xhigh ACP canary completed; inventory execution in progress.
 - **Inventory:** [Complete reconciliation ledger](2026-09-10-qa-execution-unblock/inventory.csv). Original categories are estimates, never verdicts.
 
@@ -117,7 +117,7 @@ All rows initialized Pending before first product interaction. Existing charters
 |---|---|---|---|---|---|---|---|
 | 1 | CH-desktop-agent-headless-cli | J-desktop-agent-headless / APP-agent-cli-app-verbs | Ada | Feature Tour | Pending | | |
 | 2 | CH-desktop-update-rehearsal-macos | J-desktop-update-moment / APP-app-auto-update | Bruno | Interrupt Tour | Pending | | |
-| 3 | Charter mapping pending | J-desktop-first-run / APP-appimage-fuseless-launch | Lea |  | Pending | | |
+| 3 | Prerequisite reassessment | J-desktop-first-run / APP-appimage-fuseless-launch | Lea |  | Blocked (needs human verify) | [Platform prerequisite](../scenarios/APP-appimage-fuseless-launch.md) | Exact Linux x64/FUSE3-only runtime required. |
 | 4 | CH-electron-offline-first-run-linux | J-desktop-first-run / APP-install-first-run-provision | Lea | Network Tour | Pending | | |
 | 5 | CH-native-window-chrome-linux | J-desktop-attach-daily / APP-native-window-controls | Dora | Feature Tour | Pending | | |
 | 6 | CH-desktop-attach-quit-linux | J-desktop-attach-daily / APP-quit-contract | Dora | Interrupt Tour | Pending | | |
@@ -164,7 +164,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 47 | CH-site-docs-search-context | J-evaluate-compozy-beta / ET-site-docs-search-context | Dora | Feature Tour | Pending | | |
 | 48 | CH-terminal-approval-ladder | J-supervise-agent-terminal / ET-terminal-approval-ladder-grants | Bruno | Feature Tour | Pending | | |
 | 49 | CH-terminal-operator-shell | J-operate-integrated-terminal / ET-terminal-session-block-handoff | Bruno | Feature Tour | Pending | | |
-| 50 | CH-terminal-platform-ladder | J-operate-terminal-windows / ET-terminal-windows-parity | Dora | Feature Tour | Pending | | |
+| 50 | Platform prerequisite (historical charter superseded) | J-operate-terminal-windows / ET-terminal-windows-parity | Dora | Feature Tour | Blocked (needs human verify) | [Platform prerequisite](../scenarios/ET-terminal-windows-parity.md) | Real Windows runtime required; no cross-compile pass. |
 | 51 | CH-artifact-recovery-paging | J-14 / ET-tool-result-artifact-recovery | Rafa | Garbage Tour | Pending | | |
 | 52 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-dock-magnification | Bruno | Feature Tour | Pending | | |
 | 53 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-ext-policy-block | Bruno | Money Tour | Pending | | |
@@ -185,7 +185,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 68 | CH-plain-scale-legibility | J-operate-desktop-shell / ET-web-ui-resilience | Bruno | Feature Tour | Pending | | |
 | 69 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-vault-opendesign-listing | Bruno | Feature Tour | Pending | | |
 | 70 | CH-window-tabs-agent-parity | J-agent-manage-window-tabs / ET-window-tab-v3-discard | Ada | Feature Tour | Pending | | |
-| 71 | CH-cross-workspace-mode-seams | J-cross-workspace-access / ET-workspace-access-mode-matrix | Ada | Feature Tour | Pending | | |
+| 71 | CH-cross-workspace-mode-seams | J-cross-workspace-access / ET-workspace-access-mode-matrix | Ada | Feature Tour | Fail | [Provider denial diagnostic](../bugs/BUG-20260910-cursor-denial-hides-workspace-policy.md) | Deny-all branch failed; other reachable seams continue. |
 | 72 | CH-cross-workspace-consent-audit | J-cross-workspace-access / ET-workspace-access-prompt-outcomes | Bruno | Interrupt Tour | Pending | | |
 | 73 | CH-046 | J-26 / GL-001 | Lea | Feature Tour | Pending | | |
 | 74 | CH-046 | J-26 / GL-002 | Lea | Feature Tour | Pending | | |
@@ -597,3 +597,30 @@ At the user's request, reviewed PRs 607–611 individually and the five incoming
 The same lab upgraded to schema109 with stable pre-existing records verified. Go/Web builds, targeted daemon integration, scoped Dream checks, and a fresh two-turn Cursor Grok4.6 High Fast canary passed. Browser smoke covers the rebuilt mixed transcript disclosure and empty attention state. Initial gate exposed six stale test assumptions from the upstream integration; three existing canonical suites were reconciled against the merged contracts and all188 focused tests passed. Full gate retry passed: all affected lanes green, including 771 Web test files / 7205 tests, typecheck and lint (`rebase-gate-retest.txt`).
 
 This integration checkpoint adds no blanket QA verdicts: 2 original rows remain finalized and355 pending. Full notification journeys and external Tailnet proof remain separate; the Cursor MCP error-schema issue remains open.
+
+
+## Cross-workspace restricted-provider walk
+
+Ada's deny-all Cursor session `sess-bc315ce9f46d87a7` attempted native foreign workspace/memory reads and the four requested agent CLI commands through native terminal_exec. All were rejected at the provider permission stage with `User rejected`; no pending operator interaction and no workspace.access_denied audit were present. The provider prevented the underlying CLI execution, so no daemon exit77 evidence exists. The turn ended, and stop was requested. This fails the matrix's promised diagnostic path, without showing any access bypass. [Finding](../bugs/BUG-20260910-cursor-denial-hides-workspace-policy.md) records the precise boundary and prohibits a permission-relaxing workaround.
+
+The attempted public config set for autonomy.scheduler.min_queued_age was rejected as unsupported; config get remains 2m0s. No configuration was changed. Scheduler remains paused with no queued runs or claims. Approve-reads session `sess-f5db3f09d3263d2e` is exercising the CLI seams separately. HTTP/UDS and all-mode task claim branches are not yet accepted.
+
+
+## External platform prerequisites reassessed
+
+Read both complete scenarios and their historical evidence qualifications. Current `uname -srm` reports Darwin25.6.0 arm64; macOS26.6.2. ET-terminal-windows-parity requires actual Windows local/sandbox terminal lifecycle; APP-appimage-fuseless-launch requires the exact released Linux x64 AppImage on FUSE3-only graphical Linux with isolated teardown. Neither can be established by this assigned lab. Their blocked-verify verdicts now reference `platform-prerequisites.json` with exact remaining runtime/artifact conditions. No claimed absence of every other operator machine, and no cross-compilation or older invalid package walk is relabeled as acceptance.
+
+Current inventory dispositions: 1 verified, 1 fixed-and-verified, 1 unresolved defect (matrix branch failed; other seams continue), 2 external-runtime blockers, 352 pending. All357 original rows remain present.
+
+
+Approve-reads CLI evidence: real session `sess-f5db3f09d3263d2e` completed with spawn, coordination status, and peers exit77 plus the prescribed permission-mode guidance. Independent terminal journal confirms all three command IDs/exits; three workspace.access_denied events name the actor, targetB, source denied, mode approve-reads and spawn/coordination seams (`cross-read-cli-proof.json`). Ordinary MCP/terminal allow-once approvals did not grant workspace consent. The first task-next call timed out while awaiting its second terminal approval; no CLI result is claimed. Its expired interaction still appeared in one later public read and rejecting it returned65; no successful late execution is claimed. One clean fresh-session retry is in progress as `sess-04e085f6d8b83faf`.
+
+Scheduler was resumed publicly with no queued runs/claims, then a new archive task `task-c365b5cc279933d5` and exact queued run `run-5cf0824217f60483` were created. Approve-all session `sess-e4855b551031a4be` was promptly instructed to claim that run natively, before the configured2m scheduler escalation threshold. The task's real output is a single archive-handoff.md line; the operator will verify it through public terminal/file reads and task state. No claim token is requested in the response.
+
+## Task claim identity and denial guidance repair
+
+The clean claim attempt returned no work while its exact run remained queued; the scheduler claimed it only later. Diagnosis isolated stable workspace metadata IDs being passed to registration-ID task queries. A separate clean approve-reads task-next retry returned77 without the promised hint. The bounded repair resolves native claim aliases back to the registration ID and retains the permission error while appending the existing guidance. No permission or schema changes. [Finding and impact audit](../bugs/BUG-20260910-task-claim-workspace-identity.md).
+
+The new real Cursor retakes passed: exact foreign-name run claim, target one-line file, native completion, and CLI denial with canonical guidance. Public task state, file read, terminal journal, grant/denial audits, runtime selection, and stopped sessions are captured in `claim-retest-proof.json`. The full matrix still fails the separate Cursor deny-all preemption branch.
+
+Canonical regressions reproduced red then passed with race detection, full task race suite passed, Go build passed, and make gate passed all affected lanes (`claim-gate-retest.txt`). Initial formatter drift was corrected before retry. Seven pre-existing standalone test-shape heuristic findings in lease_test.go are outside this edit; the added test uses the existing owning suite. No further scenario count change:5 dispositioned,352 pending.
