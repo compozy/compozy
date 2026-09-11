@@ -36,3 +36,20 @@ export const PartialFailure: Story = {
     ],
   },
 };
+
+const largeFailedSet = Array.from({ length: 30 }, (_, index) => ({
+  ...BULK_SELECTED_SESSIONS[0]!,
+  id: `failed-${index + 1}`,
+  name: `Failed session ${index + 1}`,
+}));
+
+export const LargePartialFailure: Story = {
+  args: {
+    sessions: largeFailedSet,
+    results: largeFailedSet.map(session => ({
+      id: session.id,
+      status: "failed",
+      error: "The session is locked by another operation. Retry when that operation completes.",
+    })),
+  },
+};

@@ -58,11 +58,11 @@ export function SessionDeleteDialogSet({
     >
       <DialogContent
         showCloseButton={!isDeleting}
-        className="max-w-md"
+        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden"
         data-testid="delete-dialog"
         aria-busy={isDeleting}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Delete {count} sessions</DialogTitle>
           <DialogDescription aria-live="polite">
             {partial ? (
@@ -82,22 +82,29 @@ export function SessionDeleteDialogSet({
             )}
           </DialogDescription>
         </DialogHeader>
-        <ul className="overflow-hidden rounded-md border border-line bg-canvas">
-          {sessions.slice(0, 5).map(session => (
-            <SessionDeleteResultRow
-              key={session.id}
-              session={session}
-              result={resultsById.get(session.id)}
-            />
-          ))}
-          {count > 5 ? (
-            <li className="border-t border-line-soft px-2.5 py-1.5 text-micro text-subtle">
-              and {count - 5} more
-            </li>
-          ) : null}
-        </ul>
-        <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
-        <DialogFooter className="gap-2">
+        <div
+          role="region"
+          aria-label="Deletion results"
+          tabIndex={0}
+          className="min-h-0 space-y-4 overflow-y-auto"
+        >
+          <ul className="overflow-hidden rounded-md border border-line bg-canvas">
+            {sessions.slice(0, 5).map(session => (
+              <SessionDeleteResultRow
+                key={session.id}
+                session={session}
+                result={resultsById.get(session.id)}
+              />
+            ))}
+            {count > 5 ? (
+              <li className="border-t border-line-soft px-2.5 py-1.5 text-micro text-subtle">
+                and {count - 5} more
+              </li>
+            ) : null}
+          </ul>
+          <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
+        </div>
+        <DialogFooter className="shrink-0 gap-2">
           {note ? (
             <span
               className="mr-auto flex items-center gap-1.5 text-micro text-muted"
@@ -178,7 +185,7 @@ function SessionDeleteResultRow({
         ) : null}
       </span>
       {result?.status === "failed" ? (
-        <span className="col-start-2 col-end-5 text-micro text-danger">
+        <span className="col-start-2 col-end-5 text-micro wrap-anywhere text-danger">
           Couldn't delete: {result.error}
         </span>
       ) : null}
@@ -205,7 +212,7 @@ function SessionDeleteOverflowErrors({
     const result = resultsById.get(session.id);
     if (result?.status !== "failed") return null;
     return (
-      <p key={session.id} role="alert" className="text-small-body text-danger">
+      <p key={session.id} role="alert" className="text-small-body wrap-anywhere text-danger">
         {getSessionDisplayTitle(session)}: Couldn't delete: {result.error}
       </p>
     );
