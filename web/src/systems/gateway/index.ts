@@ -117,6 +117,15 @@ export {
   startGatewayAccessObserver,
   type GatewayAccessState,
 } from "./stores/gateway-access-store";
+export {
+  gatewayCapabilityStore,
+  startGatewayCapabilityObserver,
+  type GatewayCapabilityState,
+} from "./stores/gateway-capability-store";
+
+// Capability model (tier → what the listener can execute, per the SurfaceSet matrices)
+export { capabilitiesForTier, type GatewayCapabilities } from "./lib/gateway-capabilities";
+export { classifyGatewayLoopback, type GatewayLoopbackSignal } from "./lib/gateway-loopback";
 
 // API
 export { gatewayApi } from "./adapters/gateway-api";

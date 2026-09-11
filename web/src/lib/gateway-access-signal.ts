@@ -21,9 +21,17 @@ const GATEWAY_TIER_HEADER = "X-Compozy-Gateway-Tier";
 
 type AccessSignalListener = (signal: GatewayAccessSignal) => void;
 type TierListener = (tier: GatewayListenerTier) => void;
+/**
+ * Forbidden envelopes are handed over raw: this transport knows only that the
+ * daemon refused, never which refusals mean what. Deciding that a 403 code is
+ * a domain signal (e.g. loopback-only) belongs to the gateway system, which
+ * subscribes here and classifies.
+ */
+type ForbiddenResponseListener = (status: number, payload: unknown) => void;
 
 const listeners = new Set<AccessSignalListener>();
 const tierListeners = new Set<TierListener>();
+const forbiddenListeners = new Set<ForbiddenResponseListener>();
 
 /** Reads the daemon's stable machine code out of an error envelope. */
 export function gatewayErrorCode(payload: unknown): string | undefined {
@@ -78,6 +86,10 @@ export function readGatewayListenerTier(response: Response): GatewayListenerTier
 
 export async function reportGatewayResponse(response: Response): Promise<void> {
   reportGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
+  if (response.status === 403) {
+    await reportForbiddenResponse(response);
+    return;
+  }
   if (response.status !== 401) return;
   try {
     reportGatewayAccess(response.status, await response.clone().json());
@@ -86,11 +98,34 @@ export async function reportGatewayResponse(response: Response): Promise<void> {
   }
 }
 
+/**
+ * Publishes a 403 envelope to forbidden-response observers. Fired only for
+ * 403s (other statuses say nothing a listener classified) and skipped entirely
+ * when nobody observes, so unobserved refusals cost no body parse.
+ */
+async function reportForbiddenResponse(response: Response): Promise<void> {
+  if (forbiddenListeners.size === 0) return;
+  try {
+    const payload: unknown = await response.clone().json();
+    for (const listener of forbiddenListeners) listener(response.status, payload);
+  } catch {
+    // A 403 without a JSON envelope carries nothing to classify.
+  }
+}
+
 /** Subscribes to access signals. Returns the unsubscribe function. */
 export function observeGatewayAccess(listener: AccessSignalListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/** Subscribes to 403 envelopes. Returns the unsubscribe function. */
+export function observeGatewayForbiddenResponse(listener: ForbiddenResponseListener): () => void {
+  forbiddenListeners.add(listener);
+  return () => {
+    forbiddenListeners.delete(listener);
   };
 }
 
