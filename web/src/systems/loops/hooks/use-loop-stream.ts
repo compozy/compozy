@@ -197,6 +197,11 @@ export function useLoopStream(
       // Named frames carry the kind as event.type; the defensive onmessage frame
       // ("message") falls back to the parsed payload kind.
       const kind = event.type !== "message" ? event.type : (payload.kind ?? "");
+      if (kind === "goal_turn_started" || kind === "goal_turn_completed") {
+        void queryClient.invalidateQueries({
+          queryKey: loopsKeys.goalTurns(trimmedWorkspace, trimmedRun),
+        });
+      }
       if (isLifecycleKind(kind)) {
         invalidateLoopRunQueries(
           queryClient,

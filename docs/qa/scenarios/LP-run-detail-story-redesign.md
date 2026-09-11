@@ -6,10 +6,10 @@ persona: Lea
 journey: J-complete-partial-loop
 expected: The run detail uses the materialized contract for its plain-language Progress story, shows bounded Goal criterion diagnostics and warnings in the turn timeline, and keeps the raw executed definition plus every operator fact reachable through Inspect.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
-qa_status: pass
-bug_ids:
-fix_status:
-retest_status: pass
+qa_status: blocked-verify
+bug_ids: BUG-20260911-goal-turn-history-missing
+fix_status: fixed
+retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-10-loop-convergence/run-detail-goal-diagnostics.png; docs/qa/evidence/2026-08-10-loop-convergence/run-detail-inspect.png; docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
@@ -36,3 +36,7 @@ diagnostics, and Inspect exposed the raw authored definition and runtime facts. 
 reported no errors.
 
 reset: the story timeline gains the graph-completion row families — request lifecycle, route taken, branch pruned, node amended, run forked (.compozy/tasks/graph-eng/task_08.md). The recorded pass predates them.
+
+QA 2026-09-11: real three-turn convergence and ordered public diagnostics passed, but current Run Inspect has no Goal turn timeline after PR452. See BUG-20260911-goal-turn-history-missing; full scenario is not passed.
+
+Retest slice 2026-09-11: the missing read path is repaired. Fresh real three-turn history updates live, distinguishes pending outcomes, and retains ordered rejection/approval diagnostics and evidence after reload. See docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-history-retake-proof.json. Full scenario is still awaiting its remaining generation/fan-out/pagination or diagnostic-warning branches; this focused repair is not a blanket pass.

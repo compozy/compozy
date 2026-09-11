@@ -104,7 +104,7 @@ function LoopRunDetail({
   navigate,
   requestFocus,
 }: LoopRunDetailProps) {
-  const { page, nodeControls, requests, timetravel, dialogs, events } = useLoopRunDetail(
+  const { page, nodeControls, requests, timetravel, dialogs, events, goalTurns } = useLoopRunDetail(
     workspaceId,
     runId,
     { liveDataEnabled }
@@ -204,6 +204,7 @@ function LoopRunDetail({
         storyPaging={page.storyPaging}
         rosterRead={page.rosterRead}
         events={events}
+        goalTurns={goalTurns}
         isReconnecting={page.isReconnecting}
         usageRows={page.usageRows}
         usageNote={page.usageNote}

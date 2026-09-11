@@ -102,6 +102,8 @@ export const loopsKeys = {
   runReadsRoot: () => [...loopsKeys.all, "run-reads"] as const,
   runReads: (workspaceId: string, runId: string) =>
     [...loopsKeys.runReadsRoot(), workspaceId, runId] as const,
+  goalTurns: (workspaceId: string, runId: string, limit = 50) =>
+    [...loopsKeys.runReads(workspaceId, runId), "goal-turns", limit] as const,
   runBriefing: (workspaceId: string, runId: string) =>
     [...loopsKeys.runReads(workspaceId, runId), "briefing"] as const,
   // `state` and `generation` are part of the key: a filtered roster is a

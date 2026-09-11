@@ -1,3 +1,5 @@
+import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
+import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { useState } from "react";
 import type { ReactNode } from "react";
 
@@ -36,6 +38,7 @@ import { LoopRunWatch } from "./inspect/loop-run-watch";
 import type { LoopRunRosterRead } from "./loop-run-page-body";
 
 interface LoopRunRegistersProps {
+  goalTurns?: GoalTurnsRead;
   registers: LoopRunRegistersModel;
   nodes: readonly LoopRosterNode[];
   rollups: readonly LoopFanoutRollup[];
@@ -99,6 +102,7 @@ interface LoopRunRegistersProps {
  * which session the page asks about, and asking is a read.
  */
 export function LoopRunRegisters({
+  goalTurns,
   registers,
   nodes,
   rollups,
@@ -300,6 +304,7 @@ export function LoopRunRegisters({
           />
         </div>
       ) : null}
+      {goalTurns ? <LoopRunTurnsDisclosure read={goalTurns} isLive={isLive} /> : null}
       {watchEvents ? <LoopRunWatch watchEvents={watchEvents} /> : null}
     </LoopRunInspectRegister>
   );

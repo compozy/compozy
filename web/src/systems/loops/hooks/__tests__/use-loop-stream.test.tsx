@@ -278,11 +278,23 @@ describe("useLoopStream", () => {
     act(() => {
       eventSource.emitNamed("token_tick", buildFrame({ kind: "token_tick" }));
       eventSource.emitNamed("channel_msg", buildFrame({ kind: "channel_msg" }));
+    });
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(2));
+    expect(invalidateQueries).not.toHaveBeenCalled();
+
+    // Goal turn frames wake only the durable turn read for this workspace and run.
+    act(() => {
       eventSource.emitNamed("goal_turn_started", buildFrame({ kind: "goal_turn_started" }));
       eventSource.emitNamed("goal_turn_completed", buildFrame({ kind: "goal_turn_completed" }));
     });
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(4));
-    expect(invalidateQueries).not.toHaveBeenCalled();
+    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
+      queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
+    });
+    expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
+      queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
+    });
 
     act(() => {
       eventSource.emitNamed("goal_status_changed", buildFrame({ kind: "goal_status_changed" }));

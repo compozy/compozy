@@ -708,3 +708,21 @@ Busy-feedback delivery gate passed all affected lanes:771 Web files/7209 tests, 
 Lea revisited the retained terminal blocked/exhausted Goal, confirmed no Resume, and observed CLI goal_not_active for resume. A plain Web /goal created a successor without replacement or clear; the old Run remains exhausted. HTTP/UDS/CLI agree, the real Cursor successor completed approved with the independently verified workspace identity, Done survives reload, and session stop is confirmed. Screenshots were visually inspected; goal-blocked-proof.json retains precise observations.
 
 GL012 is verified. The official skill contradicted the existing scenario contract; two sentences now state that live Goals require replacement and terminal blocked permits direct start. This is an editorial correction, reviewed against the real replay, without a prose-only test or additional provider-compliance claim. Inventory:18 dispositioned (11verified,4fixed-and-verified,1unresolveddefect,2externalruntime),339pending.
+
+### Three-turn convergence exposes missing Web history — 2026-09-11
+
+Real session-origin Goal looprun-4e25e5a98540b15d converged with Cursor/Grok4.6 High Fast: count1/rejected (two increments remaining), count2/rejected (one remaining), count3/approved. Independent file reads and total-order CLI/HTTP/UDS evidence agree. The current Run Inspect page exposes no Goal turn timeline across Graph/Nodes/Generations or node details; reload does not restore it. Origin stopped before diagnosis. BUG-20260911-goal-turn-history-missing records PR452 removing the consumer despite its preserved-operator-depth contract. The adjacent previously passing LP-run-detail-story-redesign is regressed; GL004/TA101 stay unfinished. Inventory remains18 dispositioned/339pending.
+
+### Goal history restored and replayed — 2026-09-11
+
+The Web once again reads the existing paged Goal-turn endpoint inside Inspect. Query envelopes preserve server cursors and workspace/Run/Profile identity, and SSE turn events wake that read. No backend, migration, wire, native-tool, config or official-skill contract changed; the bug record owns the impact audit. Two Inspect cases reproduced red;241 focused tests then passed. A numeric item fixture type was corrected and production build/typecheck passed.
+
+Fresh Lea session sess-6c96f86912d1ae77 converged in Run looprun-db7c807f29f666ad with real Cursor/Grok4.6 High Fast worker/judge. Forty public samples independently observed file1/2/3, two exact rejection blockers then approval. Inspect showed pending nullable facts and live updates, and reload preserved all three ordered records and evidence. HTTP limit2/UDS after_seq2 agree with CLI; stop reached stopped. Reviewed screenshots and exact boundaries are in goal-history-retake-proof.json. GL004 is fixed-and-verified; TA101 and the adjacent story scenario still await their broader branches.
+
+Inventory remains18 dispositioned (11verified,4fixed-and-verified,1unresolveddefect,2externalruntime),339pending. GL004 is an adjacent convergence canary outside the original357 and does not increase that count. Required gate initially failed an unchanged Go test during SQLite WAL checkpoint at close; three focused repetitions passed. No weakened assertion or speculative production patch. Gate retry is in progress.
+
+### Draft admission and missing composer handoff — 2026-09-11
+
+Lea resumed CH046/CH-untested030 in fresh sess-ec096d1951e83b23. An idle /goal draft streamed an expanded objective with real Cursor/Grok. CLI --queue and HTTP submissions while busy were rejected without queue growth. UDS arrived after idle and was admitted; no false busy/race proof is assigned. The first Web draft and a separate uncontended Web retry both left the composer empty. Public Run inventory is empty and Goal snapshot null; session stopped. BUG-20260911-goal-draft-empty-composer owns the missing completion-to-composer handoff. GL013/TA104 fail pending repair;18 inventory dispositions and339 pending remain unchanged.
+
+Goal-history gate retry passed all affected lanes (Go plus771 Webfiles/7213tests, typecheck and lint0warnings/0errors), recorded in goal-turn-history-gate-retry.txt. First SQLite-close failure remains documented; no test weakening or unrelated patch was used.

@@ -1584,6 +1584,100 @@ describe("run-page affordances that have to be real", () => {
 // two matching literals are a coincidence a refactor can quietly break.
 const PRUNED_SESSION_ID = "ses-5d871c99";
 
+describe("LoopRunRegisters Goal turn history", () => {
+  const turns: import("../../types").GoalTurn[] = [1, 2, 3].map(turn => ({
+    seq: turn,
+    generation: 1,
+    node_id: "goal",
+    item_index: 0,
+    turn,
+    prompt_attempt: 0,
+    session_id: "session-goal",
+    binding_handle: "binding-goal",
+    binding_epoch: 1,
+    prompt_id: `prompt-${turn}`,
+    result_status: "completed",
+    reason_code: null,
+    stop_reason: "end_turn",
+    verdict_outcome: turn === 3 ? "approved" : "rejected",
+    blocking_issues:
+      turn === 3
+        ? []
+        : [{ id: "count_below_target", note: `Count ${turn}; ${3 - turn} increments remain.` }],
+    criteria: [],
+    warnings: [],
+    evidence_ref: `sha256:turn-${turn}`,
+    prompt_ref: null,
+    tokens_used: null,
+    actor_kind: "daemon",
+    actor_id: "loop-action",
+    started_at: "2026-09-11T19:00:00Z",
+    ended_at: "2026-09-11T19:00:30Z",
+  }));
+
+  function renderHistory(overrides = {}) {
+    const onLoadMore = vi.fn();
+    render(
+      <LoopRunRegisters
+        generations={[]}
+        graph={null}
+        isLive={false}
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={[]}
+        nowMs={Date.parse("2026-09-11T19:01:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes: [],
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        rollups={[]}
+        selection={null}
+        goalTurns={{
+          turns,
+          isLoading: false,
+          isError: false,
+          hasMore: true,
+          isLoadingMore: false,
+          onLoadMore,
+          ...overrides,
+        }}
+      />
+    );
+    return onLoadMore;
+  }
+
+  it("Should retain ordered rejected and approved turns with blockers and evidence in Inspect", async () => {
+    const onLoadMore = renderHistory();
+    fireEvent.click(screen.getByRole("button", { name: /Goal turns/ }));
+    const timeline = screen.getByRole("region", { name: "Goal turn timeline" });
+    expect(
+      [...timeline.querySelectorAll("[data-turn-seq]")].map(row =>
+        row.getAttribute("data-turn-seq")
+      )
+    ).toEqual(["1", "2", "3"]);
+    expect(within(timeline).getAllByText("Rejected")).toHaveLength(2);
+    expect(within(timeline).getByText("Approved")).toBeVisible();
+    expect(within(timeline).getByText("Count 1; 2 increments remain.")).toBeVisible();
+    expect(within(timeline).getByText("Count 2; 1 increments remain.")).toBeVisible();
+    expect(within(timeline).getByText("sha256:turn-1")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Load more turns" }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it("Should report an unread Goal history instead of an empty completed history", () => {
+    renderHistory({ turns: [], isError: true, hasMore: false });
+    fireEvent.click(screen.getByRole("button", { name: /Goal turns/ }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load Goal turns");
+    expect(screen.queryByText(/No Goal turns yet/)).not.toBeInTheDocument();
+  });
+});
+
 describe("LoopRunRegisters pruned session", () => {
   const rosterNode = makeRosterNode("revisor-estilo", "succeeded", {
     generation: 1,
