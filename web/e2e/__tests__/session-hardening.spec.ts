@@ -385,7 +385,10 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   expect(JSON.stringify(afterClear.transcript)).not.toContain("block until canceled");
 
   const deletableSession = session;
-  await runtime.requestJSON(sessionAPIPath(workspace.id, session.id, "/stop"), { method: "POST" });
+  const stopResponse = await appPage.request.post(
+    runtime.url(sessionAPIPath(workspace.id, session.id, "/stop"))
+  );
+  expect(stopResponse.status(), await stopResponse.text()).toBe(204);
   const queue = await runtime.requestJSON<{ inputs: unknown[] }>(
     sessionAPIPath(workspace.id, session.id, "/prompt/queue")
   );

@@ -2960,7 +2960,8 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 				// HTTP masks internal storage details. Verify that contract and prove
 				// the failed queue read short-circuited the subsequent summary read.
 				if payload.Error != http.StatusText(http.StatusInternalServerError) ||
-					strings.Contains(response.Body.String(), tc.queueErr.Error()) || queueReads != 1 || summaryReads != 0 {
+					strings.Contains(response.Body.String(), tc.queueErr.Error()) ||
+					queueReads != 1 || summaryReads != 0 {
 					t.Fatalf(
 						"storage failure response = %#v, queue reads = %d, summary reads = %d",
 						payload, queueReads, summaryReads,
