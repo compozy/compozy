@@ -15,6 +15,18 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+// loopbackGuardCode returns the stable wire code for the shared loopback
+// guard sentinels, or "" when err is not a loopback refusal.
+func loopbackGuardCode(err error) string {
+	switch {
+	case errors.Is(err, ErrLoopbackMutationRequired):
+		return "loopback_mutation_required"
+	case errors.Is(err, ErrLoopbackAPIRequired):
+		return "loopback_api_required"
+	}
+	return ""
+}
+
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
@@ -34,6 +46,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	case errors.Is(err, session.ErrPromptNotInProgress), errors.Is(err, session.ErrSessionNotActive),
 		errors.Is(err, session.ErrSessionArchived), errors.Is(err, store.ErrSessionArchived):
 		payload.Code = "session_not_promptable"
+	}
+	if code := loopbackGuardCode(err); code != "" {
+		payload.Code = code
 	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"

@@ -42,6 +42,18 @@ type normalizedErrorStatus struct {
 // rejected by HTTP MaxBytesReader enforcement.
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
+// ErrLoopbackMutationRequired is the shared transport sentinel for privileged
+// HTTP mutations refused on a non-loopback listener.
+var ErrLoopbackMutationRequired = errors.New(
+	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
+)
+
+// ErrLoopbackAPIRequired is the shared transport sentinel for operator API
+// access refused on a non-loopback local listener.
+var ErrLoopbackAPIRequired = errors.New(
+	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
+)
+
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
 	normalized := normalizeErrorStatus(status, err, maskInternalErrors)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/gin-gonic/gin"
 )
 
@@ -352,7 +353,7 @@ func TestLoopbackGuardsHandleBoundHostPorts(t *testing.T) {
 			name:       "Should block wildcard host with port",
 			boundHost:  "0.0.0.0:2123",
 			wantStatus: http.StatusForbidden,
-			wantError:  errLoopbackAPIRequired.Error(),
+			wantError:  core.ErrLoopbackAPIRequired.Error(),
 		},
 	}
 

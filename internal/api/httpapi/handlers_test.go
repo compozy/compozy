@@ -1223,8 +1223,8 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 			}
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error != errLoopbackAPIRequired.Error() {
-				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+			if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 			}
 		})
 	}
@@ -1241,8 +1241,8 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeJSONResponse(t, recorder, &payload)
-		if payload.Error != errLoopbackAPIRequired.Error() {
-			t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+		if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 		}
 	})
 }
@@ -1378,8 +1378,8 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error != errLoopbackAPIRequired.Error() {
-				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+			if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 			}
 		})
 	}

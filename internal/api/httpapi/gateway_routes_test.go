@@ -143,6 +143,8 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",
 				"PUT /api/resources/:kind/:id",
+				"GET /api/workspaces/:workspace_id/terminals",
+				"POST /api/workspaces/:workspace_id/terminals/exec",
 			},
 		},
 		{
@@ -188,6 +190,8 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",
 				"PUT /api/resources/:kind/:id",
+				"GET /api/workspaces/:workspace_id/terminals",
+				"POST /api/workspaces/:workspace_id/terminals/exec",
 			},
 		},
 		{
@@ -214,6 +218,8 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 				"POST /api/tasks/:id/runs",
 				"GET /api/scheduler",
 				"PUT /api/resources/:kind/:id",
+				"GET /api/workspaces/:workspace_id/terminals",
+				"POST /api/workspaces/:workspace_id/terminals/exec",
 			},
 		},
 	}
@@ -331,6 +337,78 @@ func isForbiddenRemoteRoute(route string) bool {
 		strings.HasPrefix(path, "/api/task-runs/") ||
 		strings.HasPrefix(path, "/api/task-reviews/") ||
 		strings.HasPrefix(path, "/api/runs/")
+}
+
+// IT-001 (mobile-surface-truth): operator tiers register the remote-write
+// refusal handler for notification and profile enablement writes instead of
+// the local mutation handlers.
+func TestGatewayOperatorTiersMapWritesToRemoteWriteRefusal(t *testing.T) {
+	t.Parallel()
+
+	authenticator := gatewayHTTPAuthenticatorStub{
+		authenticate: func(context.Context, string) (gateway.DeviceSession, error) {
+			return gateway.DeviceSession{ID: "device-operator"}, nil
+		},
+	}
+	tests := []struct {
+		name       string
+		surfaceSet SurfaceSet
+	}{
+		{name: "Should refuse writes on the private tier", surfaceSet: SurfaceSetPrivate},
+		{name: "Should refuse writes on the public operator tier", surfaceSet: SurfaceSetPublicOperator},
+		{name: "Should refuse writes on the combined public tier", surfaceSet: SurfaceSetPublicCombined},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			router := newGatewaySurfaceTestRouter(test.surfaceSet, gatewayHTTPServiceStub{}, authenticator)
+			for _, tc := range []struct {
+				name   string
+				method string
+				path   string
+			}{
+				{
+					name:   "notification preset enablement",
+					method: http.MethodPut,
+					path:   "/api/notifications/presets/demo/enablement",
+				},
+				{name: "profile selection", method: http.MethodPut, path: "/api/profiles/selection"},
+			} {
+				t.Run("Should reject "+tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					request := httptest.NewRequestWithContext(
+						t.Context(), tc.method, "http://127.0.0.1:2123"+tc.path, http.NoBody,
+					)
+					response := httptest.NewRecorder()
+					router.ServeHTTP(response, request)
+
+					if response.Code != http.StatusForbidden {
+						t.Fatalf(
+							"%s %s status = %d, want %d; body=%s",
+							tc.method,
+							tc.path,
+							response.Code,
+							http.StatusForbidden,
+							response.Body.String(),
+						)
+					}
+					var payload contract.ProfileErrorPayload
+					if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+						t.Fatalf("json.Unmarshal() error = %v", err)
+					}
+					if payload.Error.Code != "profile_remote_management_forbidden" {
+						t.Fatalf(
+							"payload.Error.Code = %q, want %q",
+							payload.Error.Code,
+							"profile_remote_management_forbidden",
+						)
+					}
+				})
+			}
+		})
+	}
 }
 
 func TestGatewayIngressRateLimit(t *testing.T) {
