@@ -184,6 +184,10 @@ func (m *Manager) finishPromptPump(
 	out chan<- acp.AgentEvent,
 	fatal *promptPumpFatal,
 ) {
+	var before *Info
+	if session != nil {
+		before = session.Info()
+	}
 	identity, identityErr := promptRunIdentity(session, turnState)
 	m.releaseHostedPromptRun(session, turnState)
 	var fatalPromptFailure *store.SessionFailure
@@ -204,6 +208,7 @@ func (m *Manager) finishPromptPump(
 				"error", err,
 			)
 		}
+		m.publishLifecycleAttentionTransition(lifecycleCtx, before, session.Info())
 	}
 	if fatalPromptFailure == nil {
 		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})

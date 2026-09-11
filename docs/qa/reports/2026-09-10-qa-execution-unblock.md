@@ -668,3 +668,15 @@ An adjacent CLI wait failed at30.027s despite --timeout45s (exit69 Client.Timeou
 ### Session wait repair — 2026-09-11
 
 Commit06c5e9e10 routes wait through the existing long-lived transport. A fresh managed session returned idle immediately; the45s timeout returned exit75 with its resumable server payload after45.03s, and a public stop at35s produced state-reached after35.113s. The session is stopped. Canonical race regression and make gate passed. The test-shape checker has ten identical pre-existing baseline findings and no added findings; no unrelated suites were rewritten. See session-wait-retest-proof.json. The adjacent RT-session-wait-state repair is verified; unchanged semantics retain their prior evidence and do not increase the357-row inventory.
+
+### Turn-limit preparation and missed waiter edge — 2026-09-11
+
+A fresh Goal with max_turns1 paused at turn1 and, on resume, ended blocked/exhausted because its public definition uses on_exhausted:halt. This does not test GL007 approval; the documented escalate policy must be prepared separately. The prior max_turns20 value is restored on disk and will take effect at the next owned restart. No approval was fabricated.
+
+During that walk, an existing90s idle wait timed out even though the visible session had become idle; a fresh read returned idle immediately. The persona session ended and origin stopped before diagnosing BUG-20260911-session-wait-misses-settled-edge. The CLI timeout repair remains valid; this is a separate daemon publication issue. RT-session-wait-state is reopened while its correction is validated.
+
+### Prompt boundary notifications repaired — 2026-09-11
+
+Both runtime activity boundaries now publish one canonical attention transition. The final real Cursor/Grok4.6 High Fast retake registered CLI/HTTP/UDS waits before starting the Goal; all reached running after24s. Catalog SSE retained exactly idle→running→idle. The immediately preceding unchanged finalization path woke all three idle waiters after33s. Final Goal history shows one approved turn and Done/settled survives Web reload; independently read notes agree, and origin stop is confirmed. No fresh final-run idle registration is claimed. Proof: wait-both-edges-proof.json.
+
+The canonical wait suite covers visible idle and unseen done, plus exact hook edge count. Red-before/green-after race checks, conventions and build passed. Final make gate passed all affected lanes in wait-both-edges-gate.txt, including 771 Web files / 7205 tests. RT-session-wait-state is repaired and re-walked without changing the original inventory count. Restored goals.max_turns20 is applied in the current daemon and confirmed by the new Goal.

@@ -196,7 +196,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	supervision := m.supervision
 	activity := newPromptActivitySupervisor(ctx, m, session, turnState, supervision)
+	before := session.Info()
 	activity.start()
+	m.publishLifecycleAttentionTransition(ctx, before, session.Info())
 	recoveryRequest := acp.PromptRequest{
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,

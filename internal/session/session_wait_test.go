@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -25,6 +27,80 @@ type waitCallResult struct {
 
 func TestWaitForBadgeMatchesSnapshotsAndEdges(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should publish one settled prompt edge with or without visible presence", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name    string
+			visible bool
+			want    Badge
+		}{
+			{name: "Should settle a visible prompt to idle", visible: true, want: BadgeIdle},
+			{name: "Should settle an unseen prompt to done", want: BadgeDone},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				edges := make(chan hookspkg.SessionAttentionChangedPayload, 8)
+				h, session, _ := newWaitTestHarness(t, WithHookSet(HookSet{
+					Attention: attentionHookFunc(
+						func(_ context.Context, event hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+							edges <- event
+							return event, nil
+						},
+					),
+				}))
+				h.manager.attentionStore = newPresenceAttentionStore()
+				if tc.visible {
+					if _, err := h.manager.SessionPresence(t.Context(), session.ID, "", true); err != nil {
+						t.Fatalf("SessionPresence() error = %v", err)
+					}
+				}
+				for len(edges) > 0 {
+					<-edges
+				}
+				source := make(chan acp.AgentEvent, 1)
+				closeSource := sync.OnceFunc(func() { close(source) })
+				t.Cleanup(closeSource)
+				h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					return source, nil
+				}
+				running := startBadgeWait(t, h.manager, WaitRequest{
+					SessionID: session.ID, Until: []Badge{BadgeRunning}, Timeout: time.Minute,
+				})
+				awaitWaitRegistrationCount(t, h.manager, session.ID, 1)
+				output, err := h.manager.Prompt(t.Context(), session.ID, "Read the workspace note")
+				if err != nil {
+					t.Fatalf("Prompt() error = %v", err)
+				}
+				started := awaitWaitCall(t, running)
+				if started.err != nil || started.outcome.State != BadgeRunning {
+					t.Fatalf("WaitForBadge(running) = %#v, error = %v", started.outcome, started.err)
+				}
+				wait := startBadgeWait(t, h.manager, WaitRequest{
+					SessionID: session.ID, Until: []Badge{BadgeIdle}, Timeout: time.Minute,
+				})
+				awaitWaitRegistrationCount(t, h.manager, session.ID, 1)
+				source <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
+				closeSource()
+				collectEvents(t, output)
+				got := awaitWaitCall(t, wait)
+				if got.err != nil || got.outcome.Outcome != WaitResultStateReached || got.outcome.State != tc.want {
+					t.Fatalf("WaitForBadge() = %#v, error = %v, want %s", got.outcome, got.err, tc.want)
+				}
+				if len(edges) != 2 {
+					t.Fatalf("attention edges = %d, want one start and one settled transition", len(edges))
+				}
+				edge := <-edges
+				if edge.From != string(BadgeIdle) || edge.To != string(BadgeRunning) {
+					t.Fatalf("attention edge = %s -> %s, want idle -> running", edge.From, edge.To)
+				}
+				edge = <-edges
+				if edge.From != string(BadgeRunning) || edge.To != string(tc.want) {
+					t.Fatalf("attention edge = %s -> %s, want running -> %s", edge.From, edge.To, tc.want)
+				}
+			})
+		}
+	})
 
 	t.Run("Should return immediately when the snapshot already satisfies the predicate", func(t *testing.T) {
 		t.Parallel()

@@ -2,24 +2,24 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Wait fix06c5e9e10 committed, real45stimeout and35stransition plus gate passed. GL005/006/008verified. Next configure goals.max_turns1 in lab, restart idle daemon, Bruno CH047 turnextension via pause/resume, then Lea replacement. 13dispositioned344pending.",
+  "cursor": "Both prompt boundaries repaired and verified; final make gate passed. Commit local fix after no-stash hook checks. GL007 candidate validation passed; CLI rejected --file plus --fork-from-name without mutation. Inspect supported fork descriptor, publish then dry-run and execute two-turn counter Goal with on_exhausted:escalate.",
   "completed_rows": 13,
   "pending_rows": 344,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
-  "daemon_pid": 38013,
+  "daemon_pid": 2132,
   "browser_session": "qa-execution-unblock",
   "prompt_handle": null,
   "build": {
-    "go": "goal-parser-build.txt completed; lab restarted with parser fix",
+    "go": "wait-both-edges-build.txt includes start and settled transition publication",
     "web": "root Turbo build passed: rebase-build-web.txt",
-    "head": "dea8c4822-dirty"
+    "head": "b4913cbe6-dirty"
   },
   "active_bug": null,
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "session-wait-gate.txt: all affected local lanes passed",
+  "gate": "wait-both-edges-gate.txt: all affected local lanes passed",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -117,5 +117,19 @@
   "goal_controls_session_id": "sess-00a7a5caef013168",
   "goal_controls_run_id": "looprun-bc34b40550de8f95",
   "wait_retest_session_id": "sess-9c613f80b1953c84",
-  "wait_fix_commit": "06c5e9e10"
+  "wait_fix_commit": "06c5e9e10",
+  "temporary_config": {
+    "goals.max_turns": {
+      "original": 20,
+      "current": 20,
+      "restore_required": false,
+      "daemon_restart_pending": false
+    }
+  },
+  "goal_extension_session_id": "sess-a98e031bb9aae7d6",
+  "goal_extension_run_id": "looprun-594b264319e9add5",
+  "wait_edge_retest_session_id": "sess-748df91bacbb186b",
+  "wait_edge_retest_run_id": "looprun-4e69d0fda79536f2",
+  "wait_both_session_id": "sess-826a858fae705ceb",
+  "wait_both_run_id": "looprun-e7ca98d43e63cb16"
 }

@@ -160,6 +160,5 @@ func (m *Manager) settleSessionAttention(
 	if err != nil {
 		return fmt.Errorf("session: settle attention for %q: %w", sessionID, err)
 	}
-	m.publishAttentionCommit(ctx, sessionID, commit)
 	return nil
 }
