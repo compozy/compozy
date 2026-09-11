@@ -5618,7 +5618,7 @@ args = ["-c", "printf '{}'"]
 
 		waitForCondition(t, "workspace hook binding refresh", func() bool {
 			entries, catalogErr := hooksRuntime.Catalog(hookspkg.CatalogFilter{
-				WorkspaceID: resolved.WorkspaceID,
+				WorkspaceID: resolved.ID,
 				Event:       hookspkg.HookSessionPostCreate,
 			})
 			if catalogErr != nil {

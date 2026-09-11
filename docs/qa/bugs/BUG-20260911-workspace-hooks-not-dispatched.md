@@ -1,6 +1,6 @@
 # BUG-20260911-workspace-hooks-not-dispatched: Configured workspace hooks never run for managed sessions
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Lea
@@ -17,8 +17,22 @@ After integrating main ace125a7e and rebuilding binary85c9d045c-dirty and Web, r
 
 Evidence under docs/qa/evidence/2026-09-10-qa-execution-unblock/: goal-race-hooks-list.json, goal-race-observe-startup.json, goal-race-hook-observe.json, goal-race-user-hook-create.json, goal-race-user-hook-list.json, goal-race-user-draft-response.json, goal-race-user-hooks-observe.json. Both sessions stopped. Both hook scopes were deleted through native tools and the daemon restarted; goal-race-user-cleanup-config.json and goal-race-user-cleanup-workspace.json report empty hook config, with declaration absence confirmed by goal-race-user-cleanup-hooks.json.
 
-## Diagnosis cursor
+## Initial diagnosis
 
 The observed catalog/session mismatch agrees with scopeWorkspaceHookDecls injecting ResolvedWorkspace.WorkspaceID (durable directory ULID), while hookSessionContextFromInfo publishes the session registry ID. Workref only trims; dispatchRuntime forwards unchanged. Existing TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills constructs a Session directly using the durable ID, masking the real session identity boundary. The agent-catalog mismatch repaired in BUG-20260803-agent-workspace-id-disagrees has the same two identities but a different observable; do not reopen that verified bug.
 
 Next: establish a red case in the canonical daemon hook integration suite using the real registered session identity and preserve workspace isolation. Audit other hook payload families and authored matcher compatibility before selecting the smallest correction. No production fix has been applied.
+
+
+## Repair under verification
+
+The canonical daemon integration suite reproduced failures for configured/agent/skill session hooks, workspace task-run hooks and hot-reloaded skill hooks after using the registered ID carried by real runtime payloads. workspace-hooks-red.txt records all three failures. scopeWorkspaceHookDecls now injects ResolvedWorkspace.ID. The directory identity and matcher schema remain intact; a foreign-workspace task event is explicitly rejected before the matching event executes. See the owning cross-surface audit in docs/_memory/change-impact.md. Regression and public re-walk are pending; no fixed verdict yet.
+
+The three canonical integration walks pass after the scoping correction (workspace-hooks-green.txt). Boundary follow-up found the shared HTTP/UDS hook catalog also filtering by directory identity; a red existing handler fixture proves the mismatch. That handler now matches the already-correct native tool's registered-ID query. The existing registration-refresh test's query was aligned; production dispatch assertions remain strict. The heuristic Go-test checker reports identical31 lines against baseline and current integration file, including a file-wide t.Setenv/t.Parallel false positive across separate cases; no new convention diagnostic was introduced.
+
+
+## Verified replay
+
+Fresh sess-49c5692469646aaf on the rebuilt binary enters the previously missing public input.pre_submit hook. CLI and native tool catalogs both expose the registered workspace matcher. The hook barrier enables the exact GL013 race: idle rewritten draft, ordinary prompt wins, draft409 without preemption/queue growth, ordinary native terminal task completes. After cleanup/restart the Goal and Run are absent, queue empty and both fixture config/catalog restored. Full evidence: docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-race-fixed-proof.json.
+
+Required make gate passed (workspace-hooks-gate.txt). The real-provider replay is separate from deterministic Go integration/boundary coverage. GL013 is verified using this race and the earlier complete prefill/busy evidence. Fix commit will be recorded after the authorized local commit; no push.

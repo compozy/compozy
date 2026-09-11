@@ -2,7 +2,7 @@
 
 - **Scope:** All 357 original handoff rows; adjacent repair canaries only.
 - **Cadence tier:** targeted inventory reconciliation and real persona walks
-- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28. Main integrated through fec0e9b08; latest committed fix 06c5e9e10. Daemon includes the Goal parser fix; CLI wait transport repair passed real replay and gate.
+- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28. Current tested binary: be2aaa1d1-dirty with workspace hook identity correction; Web built from second main integration. Main integrated through ace125a7e.
 - **Started:** 2026-09-10T21:56:04.281977+00:00 · **Status:** in-progress
 - **Current provider contract:** Cursor Agent grok-4.6, reasoning high, speed fast; supersedes initial Codex Luna xhigh. Operator native authentication preserved.
 - **Environment:** Same isolated bootstrap manifest; production-parity daemon/Web and real Cursor Grok 4.6 High Fast worker/judge runs verified. Earlier Luna evidence remains historical.
@@ -198,7 +198,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 83 | CH-046 | J-26 / GL-012 | Lea | Feature Tour | Pass | goal-blocked-proof.json | Direct start after blocked; approved successor and retained predecessor. |
-| 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Pending | BUG-20260911-goal-draft-empty-composer | Draft fixed; exact admission race remains pending. |
+| 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Fixed | BUG-20260911-goal-draft-empty-composer; BUG-20260911-workspace-hooks-not-dispatched | Full draft admission proof: goal-race-fixed-proof.json plus prior prefill/busy retake. |
 | 85 | CH-048 | J-27 / GL-014 | Marina | Feature Tour | Pending | | |
 | 86 | CH-048 | J-27 / GL-015 | Marina | Feature Tour | Pending | | |
 | 87 | CH-048 | J-27 / GL-016 | Marina | Feature Tour | Pending | | |
@@ -750,3 +750,13 @@ Vera's Settings navigation canary reached Hooks after Web rebuild and refresh, s
 Initial integrated gate: Go lint/race passed; Web4 old local transcript assertions failed against main's explicit disclosure repair. Current fixture reconciliation restores the stronger main contract in the owning suites and is under validation; no passing gate claim yet. Additional changed-upstream Loop roster/overview acknowledgement race suites passed.
 
 Final rebase validation: make gate passed all affected local lanes;771 Web files/7222 tests, lint and typecheck green. Evidence: rebase-20260911-gate-retry.txt. No push or CI delivery claim.
+
+## Draft admission race closed — 2026-09-11
+
+The workspace hook defect is repaired at the daemon declaration scoping and shared HTTP/UDS catalog boundaries. Existing native hooks already used the registered ID. Canonical integration reproduced the missing config/agent/skill, task-run and watched-skill executions; all pass after the correction, including a foreign-workspace rejection. The catalog handler also reproduced red with different registry/directory IDs and passes after matching the native boundary. No migration or public schema change.
+
+Fresh real Cursor session sess-49c5692469646aaf confirms effective grok-4.6/high/fast and ACP grok-4.6[effort=high,fast=true]. The public hook records the rewritten draft while the session is idle. An ordinary UDS input takes the slot; after barrier release the draft HTTP response is409 goal_draft_requires_idle, with queue0 and the ordinary prompt still active. That same ordinary turn performs the native terminal write, completes end_turn and independently leaves exactly WINNER-49C569 plus newline in draft-race-winner-fixed.txt. All assistant/tool execution belongs to that winner turn. The refused draft remains an input audit row, not a dispatched agent/Goal turn.
+
+After stopping the session and deleting the hook through native management, daemon restart retains no Goal, no Run and an empty queue. Hook config is empty and the declaration absent; the hook process PID was removed. goal-race-fixed-proof.json records the timing, runtime, native catalog agreement, file digest and exact evidence. Combine with unchanged goal-draft-retake-proof.json for admitted Web prefill/reload, protected authored text and already-busy CLI/HTTP/UDS refusal. GL013 is fixed-and-verified. TA095 still needs active-Goal/internal ingress branches.
+
+make gate passed all affected lanes (workspace-hooks-gate.txt), with Go lint/race and root Turbo validation reusing valid7222 Web tests. Three daemon integration cases and boundary suites passed under race detection. Current inventory:20 dispositioned (11verified,6fixed-and-verified,1unresolveddefect,2externalruntime),337pending. The357-row scope remains active.

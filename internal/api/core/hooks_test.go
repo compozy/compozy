@@ -234,7 +234,7 @@ func TestHookHandlers(t *testing.T) {
 					ID:      "ws-alpha",
 					RootDir: "/workspace/alpha",
 				},
-				WorkspaceID: "ws-alpha",
+				WorkspaceID: "01M26N9AVTCXB8NYSTT4PTWKCJ",
 			}, nil
 		},
 	}

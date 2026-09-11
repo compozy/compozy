@@ -109,7 +109,7 @@ func scopeWorkspaceHookDecls(
 				cloned.WorkingDir = strings.TrimSpace(resolved.RootDir)
 			}
 			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, hooksBridgeWorkspaceIDKey) {
-				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
+				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.ID)
 			}
 			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_root") {
 				cloned.Matcher.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)

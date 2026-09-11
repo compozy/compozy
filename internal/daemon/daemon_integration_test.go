@@ -2817,6 +2817,9 @@ body
 `)
 
 		resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
+		if resolvedWorkspace.ID == resolvedWorkspace.WorkspaceID {
+			t.Fatal("fixture must distinguish registered and durable workspace identities")
+		}
 
 		var capturedDeps SessionManagerDeps
 		d, err := New(
@@ -2864,7 +2867,7 @@ body
 			ID:          "sess-1",
 			Name:        "demo",
 			AgentName:   "coder",
-			WorkspaceID: resolvedWorkspace.WorkspaceID,
+			WorkspaceID: resolvedWorkspace.ID,
 			Workspace:   resolvedWorkspace.RootDir,
 			Type:        session.SessionTypeUser,
 			State:       session.StateStopped,
@@ -2938,7 +2941,7 @@ body
 			}
 			for index, item := range windowEvents {
 				windowObserver(testutil.Context(t), windowmanager.Event{
-					WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.WorkspaceID),
+					WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 					Revision:    windowmanager.Revision(index + 1),
 					CommandID:   item.command,
 					Changes:     item.changes,
@@ -2958,12 +2961,12 @@ body
 				if err := json.Unmarshal(payload, &captured); err != nil {
 					t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", item.event, err, payload)
 				}
-				if captured.Event != item.event || captured.WorkspaceID != resolvedWorkspace.WorkspaceID {
+				if captured.Event != item.event || captured.WorkspaceID != resolvedWorkspace.ID {
 					t.Fatalf("captured %s hook payload = %#v", item.event, captured)
 				}
 			}
 			windowObserver(testutil.Context(t), windowmanager.Event{
-				WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.WorkspaceID),
+				WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.ID),
 				CommandID:   windowmanager.CommandWindowFocus,
 			})
 			countPayload, err := os.ReadFile(windowCountOutput)
@@ -3055,9 +3058,9 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 			TaskRunContext: hookspkg.TaskRunContext{
 				TaskID:      "task-1",
 				RunID:       "run-1",
-				WorkspaceID: resolvedWorkspace.WorkspaceID,
+				WorkspaceID: resolvedWorkspace.ID,
 				ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(
-					resolvedWorkspace.WorkspaceID,
+					resolvedWorkspace.ID,
 					"operations",
 				),
 				AgentName:  "qa",
@@ -3067,11 +3070,20 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 			IdempotencyKey: "task.start.task-1",
 		}
 
+		outputPath := filepath.Join(workspaceRoot, compozyconfig.DirName, "task-run-enqueued.json")
+		outside := payload
+		outside.WorkspaceID = "ws-outside"
+		if _, err := d.hooks.DispatchTaskRunEnqueued(testutil.Context(t), outside); err != nil {
+			t.Fatalf("DispatchTaskRunEnqueued(outside workspace) error = %v", err)
+		}
+		if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("outside workspace dispatched the hook: stat error = %v", err)
+		}
+
 		if _, err := d.hooks.DispatchTaskRunEnqueued(testutil.Context(t), payload); err != nil {
 			t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
 		}
 
-		outputPath := filepath.Join(workspaceRoot, compozyconfig.DirName, "task-run-enqueued.json")
 		body, err := os.ReadFile(outputPath)
 		if err != nil {
 			t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
@@ -3082,7 +3094,7 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 			t.Fatalf("json.Unmarshal(task run hook payload) error = %v; body=%s", err, string(body))
 		}
 		if captured.Event != hookspkg.HookTaskRunEnqueued ||
-			captured.WorkspaceID != resolvedWorkspace.WorkspaceID ||
+			captured.WorkspaceID != resolvedWorkspace.ID ||
 			captured.RunID != "run-1" {
 			t.Fatalf("captured payload = %#v, want enqueued payload for the seeded workspace run", captured)
 		}
@@ -3155,7 +3167,7 @@ body
 	sess := &session.Session{
 		ID:          "sess-watch",
 		AgentName:   "general",
-		WorkspaceID: resolvedWorkspace.WorkspaceID,
+		WorkspaceID: resolvedWorkspace.ID,
 		Workspace:   resolvedWorkspace.RootDir,
 		Type:        session.SessionTypeUser,
 		State:       session.StateActive,
@@ -4983,8 +4995,8 @@ func assertLifecycleHookPayload(
 		if !unmarshalOK {
 			t.Skip("payload unavailable after unmarshal failure")
 		}
-		if payload.WorkspaceID != wantWorkspace.WorkspaceID {
-			t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.WorkspaceID)
+		if payload.WorkspaceID != wantWorkspace.ID {
+			t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.ID)
 		}
 	})
 
