@@ -103,7 +103,7 @@ describe("SessionThread queue stories", () => {
 
   it("Should render the populated strip with live verbs and the busy controls (VC-01)", async () => {
     await mountStory(composed.Populated);
-    expect(screen.getAllByTestId("composer-queued-prompt-row")).toHaveLength(3);
+    expect(await screen.findAllByTestId("composer-queued-prompt-row")).toHaveLength(3);
     expect(screen.getByTestId("composer-queue-count")).toHaveTextContent("3");
     expect(screen.getByTestId("composer-queue-clear")).toBeInTheDocument();
     expect(screen.getAllByTestId("composer-queued-edit")).toHaveLength(3);
