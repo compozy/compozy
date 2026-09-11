@@ -226,7 +226,7 @@ Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed gra
 
 | Command                                       | Effect                                                                                        |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `/goal <objective>`                           | Start one session-origin Goal; an existing Goal returns `goal_replace_required`.              |
+| `/goal <objective>`                           | Start one session-origin Goal; an existing live Goal returns `goal_replace_required`.         |
 | `/goal replace <expected-run-id> <objective>` | Compare-and-swap replacement; stale identity returns `goal_replace_stale` without mutation.   |
 | `/goal status`                                | Return the newest visible Goal snapshot.                                                      |
 | `/goal pause`                                 | Persist an actor-aware pause and settle at a safe boundary.                                   |
@@ -250,8 +250,8 @@ CLI, HTTP, and UDS. Invalid runtime, stale replacement, and unauthorized lineage
 structured reason codes; failed bindings remain in the Goal audit instead of being hidden.
 
 Use the current snapshot `run_id` for replacement. If `goal_replace_stale` returns a newer snapshot,
-review it before constructing another command. Terminal `blocked` is not resumable; replace with the
-expected current Run ID or clear it.
+review it before constructing another command. Terminal `blocked` is not resumable. Start a new
+`/goal <objective>` directly, or clear the retained Goal snapshot.
 
 Goal context is `known`, `unknown`, or `pending`. `known` carries trustworthy reported usage;
 `unknown` has no percentage; `pending` waits for a strictly newer report after compaction. A

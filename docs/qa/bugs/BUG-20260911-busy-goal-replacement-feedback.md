@@ -24,3 +24,5 @@ Preserve the structured failure in a typed session error, then publish result/co
 ## Validation
 
 Invariant at the HTTP adapter: a rejected Goal retains its exact typed result and HTTP status. Invariant at the action layer: busy Goal outcomes update only the submitting session/workspace feedback and Goal envelope, retaining failed submission semantics. Canonical suites: session adapters session-api.test.ts and session hooks use-session-actions.test.tsx. Four regressions failed before repair;101 adapter/action tests passed after repair. Root Turbo typecheck/build passed after correcting the new durable request fixture. Fresh real replay and independent reads passed; see busy-goal-feedback-proof.json. The busy failure retained active_prompt and queue0/current Run, exact prefill survived reload, successor completed approved, and stop was confirmed. Required make gate passed all affected lanes, including771 Web files/7209 tests and lint/typecheck. Local commit follows explicit no-stash precommit checks.
+
+Fix commit: ed4593651. Explicit lint-staged --no-stash, commitlint and staged diff checks passed; unrelated deletion and handoff files preserved.

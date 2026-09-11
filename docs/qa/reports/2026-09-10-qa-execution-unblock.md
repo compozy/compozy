@@ -197,7 +197,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 80 | CH-046 | J-26 / GL-009 | Lea | Feature Tour | Fixed | busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
 | 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pass | goal-replacement-proof.json; busy-goal-feedback-proof.json | Public retake and refreshed Web confirmed. |
-| 83 | CH-046 | J-26 / GL-012 | Lea | Feature Tour | Pending | | |
+| 83 | CH-046 | J-26 / GL-012 | Lea | Feature Tour | Pass | goal-blocked-proof.json | Direct start after blocked; approved successor and retained predecessor. |
 | 84 | CH-046 | J-26 / GL-013 | Lea | Feature Tour | Pending | | |
 | 85 | CH-048 | J-27 / GL-014 | Marina | Feature Tour | Pending | | |
 | 86 | CH-048 | J-27 / GL-015 | Marina | Feature Tour | Pending | | |
@@ -702,3 +702,9 @@ Lea repeated the original failure in fresh session sess-a0ef67c2d1664e37. Both p
 GL009 is fixed-and-verified; GL010/011 verified. Inventory:17 dispositioned (10verified,4fixed-and-verified,1unresolveddefect,2externalruntime),340pending. TA094 daemon restart and TA104 streamed-draft branches remain pending.
 
 Busy-feedback delivery gate passed all affected lanes:771 Web files/7209 tests, typecheck and lint (0warnings/0errors). Evidence: busy-goal-feedback-gate.txt. No CI or push was requested.
+
+### Direct start after blocked — 2026-09-11
+
+Lea revisited the retained terminal blocked/exhausted Goal, confirmed no Resume, and observed CLI goal_not_active for resume. A plain Web /goal created a successor without replacement or clear; the old Run remains exhausted. HTTP/UDS/CLI agree, the real Cursor successor completed approved with the independently verified workspace identity, Done survives reload, and session stop is confirmed. Screenshots were visually inspected; goal-blocked-proof.json retains precise observations.
+
+GL012 is verified. The official skill contradicted the existing scenario contract; two sentences now state that live Goals require replacement and terminal blocked permits direct start. This is an editorial correction, reviewed against the real replay, without a prose-only test or additional provider-compliance claim. Inventory:18 dispositioned (11verified,4fixed-and-verified,1unresolveddefect,2externalruntime),339pending.

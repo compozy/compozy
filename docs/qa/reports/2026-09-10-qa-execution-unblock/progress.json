@@ -2,9 +2,9 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Busy Goal feedback correction and real retake passed;17 dispositioned/340pending. Required gate passed. Next explicit no-stash precommit and local commit, then GL012 terminal-blocked new-start contract reconciliation. Ordinary managed session sess-a0ef67c2d1664e37 stopped.",
-  "completed_rows": 17,
-  "pending_rows": 340,
+  "cursor": "GL012 verified from retained terminal blocked/exhausted Goal; plain new Web Goal created run66ba7c51fe914bfd, done/approved and reloaded, origin stopped. Two stale official skill sentences corrected; docs commit pending. 18 dispositioned/339pending. Next GL004 two rejected turns then approval using workspace catalog fork/real Cursor; then GL013 drafts and GL003 remaining invalid branches.",
+  "completed_rows": 18,
+  "pending_rows": 339,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
   "daemon_pid": 2132,
@@ -15,7 +15,7 @@
     "web": "busy-goal-feedback-build-final.txt passed root Turbo typecheck/build",
     "head": "b4913cbe6-dirty"
   },
-  "active_bug": "BUG-20260911-busy-goal-replacement-feedback",
+  "active_bug": null,
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
@@ -89,10 +89,10 @@
     "canary_stopped": true
   },
   "dispositions": {
-    "pending": 340,
+    "pending": 339,
     "blocked-external-runtime": 2,
     "unresolved-defect": 1,
-    "verified": 10,
+    "verified": 11,
     "fixed-and-verified": 4
   },
   "cross_deny_session_id": "sess-bc315ce9f46d87a7",
@@ -140,5 +140,7 @@
   "approval_copy_fix_commit": "cb7867d9a",
   "goal_replacement_retake_session": "sess-7e275639d4a31b55",
   "goal_replacement_retake_run": "looprun-d5ad6d296ef63976",
-  "busy_goal_retake_session": "sess-a0ef67c2d1664e37"
+  "busy_goal_retake_session": "sess-a0ef67c2d1664e37",
+  "busy_goal_fix_commit": "ed4593651",
+  "goal_blocked_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-blocked-proof.json"
 }
