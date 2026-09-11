@@ -1,0 +1,148 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: open-design-review
+  description: Create or refine a workspace HTML design, lint it, and have an independent critic review it.
+  catalog:
+    use_when: "The user explicitly requests a complete review of an OpenDesign HTML artifact."
+    keywords: [design, html, review, accessibility, lint]
+    category: Design
+
+concurrency: forbid
+
+inputs:
+  artifact_path:
+    type: string
+    required: true
+    description: Intended or existing workspace-relative HTML path under docs/design.
+  brief:
+    type: string
+    required: true
+  designer:
+    type: agent
+    default: open-design-designer
+  critic:
+    type: agent
+    default: open-design-critic
+
+contract:
+  goal: "Create or improve the HTML artifact at {{ .inputs.artifact_path }} for this brief: {{ .inputs.brief }}"
+  definition_of_done: "The requested HTML files exist, the design linter ran on every board, and the independent critic approved all applicable findings or documented source-backed exceptions."
+  iteration_cap: 3
+  no_progress:
+    window: 3
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
+
+graph:
+  nodes:
+    - id: design
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.designer }}"
+        prompt: |
+          Create or refine the requested OpenDesign artifact in the trusted workspace.
+          Brief: {{ .inputs.brief }}
+          Intended or existing path: {{ .inputs.artifact_path }}
+          This is generation {{ .generation }}.
+
+          Treat paths as workspace-relative and keep the HTML and its supporting assets under
+          docs/design/. If the intended path exists, inspect it and refine it in place; otherwise
+          create it. Keep the candidate self-contained with copied or inlined assets. Do not edit
+          application source. Read the open-design skill, its applicable craft and artifact
+          references, and the active project design authority before authoring.
+
+          {{ if .previous.generation }}
+          Address the prior gate blockers before returning:
+          {{ .previous.verdicts.quality.blocking_issues }}
+          {{ .previous.verdicts.quality.criteria }}
+          {{ end }}
+
+          Run ext__open_design__lint_artifact on the actual HTML path when available and inspect
+          every finding. Return only the structured result requested below. `primary_html_path`
+          must be an existing path when this node settles; `artifact_paths` must include every related
+          HTML file that the critic should consider.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [status, primary_html_path, artifact_paths, summary]
+          properties:
+            status:
+              type: string
+              enum: [created, updated, unchanged]
+            primary_html_path:
+              type: string
+              minLength: 1
+              pattern: '^docs/design/.+\.html$'
+            artifact_paths:
+              type: array
+              minItems: 1
+              maxItems: 32
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                pattern: '^docs/design/.+\.html$'
+            summary:
+              type: string
+              minLength: 1
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: lint
+      class: action
+      kind: ext__open_design__lint_artifact
+      params:
+        paths: "{{ .nodes.design.output.artifact_paths }}"
+      timeout: 45s
+
+    - id: quality
+      class: control
+      kind: gate
+      criteria:
+        - id: critique
+          type: agent-judge
+          agent: "{{ .inputs.critic }}"
+          rubric: |
+            Independently review the current HTML at
+            {{ .nodes.design.output.primary_html_path }} and every path in
+            {{ .nodes.design.output.artifact_paths }} against this brief:
+            {{ .inputs.brief }}
+
+            The deterministic lint results for these exact file digests are:
+            {{ .nodes.lint.output.artifacts }}
+
+            Read the actual source and the open-design skill's applicable references. Inspect every
+            lint finding, preserving its ID and severity. An applicable P0 must be fixed. The design
+            linter is heuristic: an intentional conflict with the user's brief or active project
+            design system needs a specific source-backed exception in your evidence. Do not suppress
+            a finding or accept a generic claim that a problem is intentional. Use
+            agent-browser for a lightweight screenshot only when that skill and a browser are
+            available; a missing screenshot is not an automatic rejection. Judge craft, purpose
+            and relevant states, active design-system fidelity, accessibility, and copy. Preserve
+            source-backed exceptions instead of applying generic defaults blindly. Do not edit the
+            artifact. Pass only when no applicable actionable issue remains. Return stable
+            snake_case blocking issue IDs and concrete notes for every revision; a passing verdict
+            needs non-empty evidence tied to the artifact and the brief.
+      verdict_policy: revise_until_clean
+      on_result:
+        fail: next_generation
+      max_revisions: 2
+
+  edges:
+    - { from: design, to: lint }
+    - { from: lint, to: quality }
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

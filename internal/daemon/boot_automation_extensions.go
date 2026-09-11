@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
+	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
@@ -28,6 +29,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
 	if err := extensionpkg.ReconcileManagedExtensionArtifacts(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: reconcile managed extension artifacts: %w", err)
+	}
+	if err := opendesign.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: enroll open-design extension: %w", err)
 	}
 	if err := speccycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll spec-cycle extension: %w", err)

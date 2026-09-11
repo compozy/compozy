@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
@@ -1971,15 +1972,17 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 			t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
 		}
 		extRegistry := extensionpkg.NewRegistry(db.DB())
-		info, err := extRegistry.Get(speccycle.Name)
-		if err != nil {
-			t.Fatalf("registry.Get(%s) error = %v", speccycle.Name, err)
-		}
-		if !info.Enabled || info.Source != extensionpkg.SourceBundled {
-			t.Fatalf("spec-cycle info = %#v, want installed and enabled bundled extension", info)
-		}
-		if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
-			t.Fatalf("spec-cycle manifest file = %q, want %q", got, want)
+		for _, extensionName := range []string{speccycle.Name, opendesign.Name} {
+			info, err := extRegistry.Get(extensionName)
+			if err != nil {
+				t.Fatalf("registry.Get(%s) error = %v", extensionName, err)
+			}
+			if !info.Enabled || info.Source != extensionpkg.SourceBundled {
+				t.Fatalf("%s info = %#v, want installed and enabled bundled extension", extensionName, info)
+			}
+			if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
+				t.Fatalf("%s manifest file = %q, want %q", extensionName, got, want)
+			}
 		}
 	})
 }
@@ -2062,59 +2065,61 @@ func TestBootExtensionsReconcilesManagedArtifactsBeforeRuntimeStart(t *testing.T
 	})
 }
 
-func TestBootExtensionsPreservesSpecCycleDisableEnableState(t *testing.T) {
+func TestBootExtensionsPreservesBundledDisableEnableState(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve spec-cycle disable and enable state across boots", func(t *testing.T) {
-		t.Parallel()
+	for _, extensionName := range []string{speccycle.Name, opendesign.Name} {
+		t.Run("Should preserve "+extensionName+" disable and enable state across boots", func(t *testing.T) {
+			t.Parallel()
 
-		db := openDaemonTestGlobalDB(t)
-		homePaths := testHomePaths(t)
-		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
-		runtime := &fakeExtensionRuntime{}
-		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-			return runtime
-		}
-		state := &bootState{
-			logger:   discardLogger(),
-			registry: db,
-			sessions: &fakeSessionManager{},
-			observer: &fakeObserver{},
-			hooks:    &fakeHookRuntime{},
-		}
+			db := openDaemonTestGlobalDB(t)
+			homePaths := testHomePaths(t)
+			d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+			runtime := &fakeExtensionRuntime{}
+			d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+				return runtime
+			}
+			state := &bootState{
+				logger:   discardLogger(),
+				registry: db,
+				sessions: &fakeSessionManager{},
+				observer: &fakeObserver{},
+				hooks:    &fakeHookRuntime{},
+			}
 
-		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-			t.Fatalf("bootExtensions(first) error = %v", err)
-		}
-		extRegistry := extensionpkg.NewRegistry(db.DB())
-		if err := extRegistry.Disable(speccycle.Name); err != nil {
-			t.Fatalf("registry.Disable(%s) error = %v", speccycle.Name, err)
-		}
-		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-			t.Fatalf("bootExtensions(after disable) error = %v", err)
-		}
-		disabled, err := extRegistry.Get(speccycle.Name)
-		if err != nil {
-			t.Fatalf("registry.Get(%s disabled) error = %v", speccycle.Name, err)
-		}
-		if disabled.Enabled {
-			t.Fatalf("spec-cycle enabled after disabled boot = true, want false")
-		}
+			if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+				t.Fatalf("bootExtensions(first) error = %v", err)
+			}
+			extRegistry := extensionpkg.NewRegistry(db.DB())
+			if err := extRegistry.Disable(extensionName); err != nil {
+				t.Fatalf("registry.Disable(%s) error = %v", extensionName, err)
+			}
+			if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+				t.Fatalf("bootExtensions(after disable) error = %v", err)
+			}
+			disabled, err := extRegistry.Get(extensionName)
+			if err != nil {
+				t.Fatalf("registry.Get(%s disabled) error = %v", extensionName, err)
+			}
+			if disabled.Enabled {
+				t.Fatalf("%s enabled after disabled boot = true, want false", extensionName)
+			}
 
-		if err := extRegistry.Enable(speccycle.Name); err != nil {
-			t.Fatalf("registry.Enable(%s) error = %v", speccycle.Name, err)
-		}
-		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-			t.Fatalf("bootExtensions(after enable) error = %v", err)
-		}
-		enabled, err := extRegistry.Get(speccycle.Name)
-		if err != nil {
-			t.Fatalf("registry.Get(%s enabled) error = %v", speccycle.Name, err)
-		}
-		if !enabled.Enabled {
-			t.Fatalf("spec-cycle enabled after enable boot = false, want true")
-		}
-	})
+			if err := extRegistry.Enable(extensionName); err != nil {
+				t.Fatalf("registry.Enable(%s) error = %v", extensionName, err)
+			}
+			if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+				t.Fatalf("bootExtensions(after enable) error = %v", err)
+			}
+			enabled, err := extRegistry.Get(extensionName)
+			if err != nil {
+				t.Fatalf("registry.Get(%s enabled) error = %v", extensionName, err)
+			}
+			if !enabled.Enabled {
+				t.Fatalf("%s enabled after enable boot = false, want true", extensionName)
+			}
+		})
+	}
 }
 
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {

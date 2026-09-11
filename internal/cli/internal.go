@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
+	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +40,8 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 					cmd.OutOrStdout(),
 					cmd.ErrOrStderr(),
 				)
+			case opendesign.Name:
+				return opendesign.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 			case speccycle.Name:
 				return speccycle.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			default:

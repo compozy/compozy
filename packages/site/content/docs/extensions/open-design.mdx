@@ -1,0 +1,69 @@
+---
+title: Open design
+description: Create and refine HTML design references in your workspace with the built-in open-design extension.
+---
+
+The built-in `open-design` extension brings curated OpenDesign design guidance
+and its design linter into CompozyOS. Use it for an interface proposal,
+a site, an HTML presentation, or a visual document.
+
+## Start with a session
+
+Select the **open-design** profile and start a session with **open-design-designer**. Describe
+the design, attach the relevant context, or point to a `_uiux.md` in the workspace. A short request
+is enough:
+
+> Draw a small HTML reference for session bulk actions in docs/design/session-bulk-actions/index.html.
+> Show selection, the bulk action bar, and deletion confirmation using the existing product styling.
+
+The designer reads the relevant project UI and curated design references, then writes HTML
+under `docs/design/`. Your explicit filename takes precedence; otherwise the default is
+`docs/design/<slug>/index.html`. Related states can share one board. Open the HTML directly and
+continue refining it in the same session. The designer creates a reference for implementation;
+it does not change your application's production code.
+
+## Ask for independent review
+
+Ask the designer to use **open-design-review** when you want a complete review cycle. The native
+Loop runs a design pass, the original linter, and an independent critic. The critic checks
+layout and craft, purpose and states, brand fidelity, accessibility, and copy. It requests
+corrections or explains specific exceptions grounded in your approved design system.
+
+The review skill supplies a limit of three complete passes, stopping earlier when approved.
+For a direct Loop invocation, pass `config_overrides` with `iteration_cap: 3`,
+`gate_max_revisions: 2`, and `reattempt_strategy: full_body`; runtime defaults can otherwise
+override the definition's declared values. The Loop's status
+and findings use the existing CompozyOS run inspector. If it exhausts or fails, the latest HTML
+remains on disk with the unresolved outcome; there is no automatic version rollback. Ordinary
+design requests and `_uiux.md` input do not start the Loop automatically.
+
+## Lint and visual inspection
+
+The `ext__open_design__lint_artifact` tool reads HTML from the active workspace's `docs/design/`
+directory. It reports original P0/P1/P2 findings, proposed fixes, and hashes of the checked files.
+It does not change them. A passing lint means no original P0 finding, not a complete visual or
+accessibility review. The heuristic checks must be interpreted against the actual brief and
+design system.
+
+The linter requires **Node.js** on the PATH used by CompozyOS. It needs no OpenDesign daemon or
+installed JavaScript package. Paths outside `docs/design/`, symlinks along artifact paths,
+non-regular files, and oversized input are rejected. A call accepts up to 32 HTMLs, 1 MiB each,
+8 MiB combined, with a 30-second execution limit.
+
+The extension also includes a compact **agent-browser** skill adapted from the official guidance. With its CLI/browser installed
+and an agent that can read images, the designer can open the HTML and inspect a screenshot.
+Missing browser support does not block a simple sketch; the agent states which checks actually
+ran. Screenshots use existing tooling, with no additional preview application.
+
+## Sources and operation
+
+The extension maintains its own prompts, skills, two focused references, and local linter code.
+Selected guidance and lint rules are adapted from
+[OpenDesign](https://github.com/nexu-io/open-design/tree/933dc96038a4ee7a30c56d479f3497ad2716cbb3),
+with attribution and licenses included in the extension. The references cover craft and the
+four artifact formats; your project's design authority determines visual choices. There is no
+upstream repository download, catalog, synchronization task, or OpenDesign service to run.
+
+The profile contributes two agents, three skills, one Loop, and one tool. It uses your configured
+CompozyOS agent provider and does not create credentials or pin a model. Manage enablement and
+inspect resources through the normal [extension lifecycle](/docs/extensions/install).

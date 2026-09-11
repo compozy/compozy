@@ -1,0 +1,172 @@
+{
+    "capabilities": {
+        "provides": ["tool.provider"]
+    },
+    "extension": {
+        "description": "Design interfaces, sites, slides, and visual documents as workspace HTML with curated design guidance and OpenDesign-derived lints.",
+        "min_compozy_version": "0.3.0-beta.1",
+        "name": "open-design",
+        "version": "0.1.0"
+    },
+    "permissions": {
+        "requires": []
+    },
+    "profiles": [
+        {
+            "name": "open-design",
+            "icon": "palette",
+            "defaults": {
+                "agent": "open-design-designer"
+            }
+        }
+    ],
+    "resources": {
+        "agents": [
+            {
+                "path": "agents",
+                "profile": "open-design"
+            }
+        ],
+        "loops": [
+            {
+                "path": "loops",
+                "profile": "open-design"
+            }
+        ],
+        "skills": [
+            {
+                "path": "skills/agent-browser/SKILL.md",
+                "profile": "open-design"
+            },
+            {
+                "path": "skills/open-design-review/SKILL.md",
+                "profile": "open-design"
+            },
+            {
+                "path": "skills/open-design/SKILL.md",
+                "profile": "open-design"
+            }
+        ],
+        "tools": {
+            "lint_artifact": {
+                "backend": {
+                    "handler": "lint_artifact",
+                    "kind": "extension_host"
+                },
+                "concurrency_safe": true,
+                "description": "Run the original OpenDesign heuristic design linter on HTML files under the trusted workspace's docs/design directory. Returns original P0/P1/P2 findings, fixes, file digests, and feedback. Requires Node.js. No files are changed.",
+                "handler": "lint_artifact",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["paths"],
+                    "properties": {
+                        "paths": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "uniqueItems": true,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["artifacts", "passed"],
+                    "properties": {
+                        "passed": {
+                            "type": "boolean"
+                        },
+                        "artifacts": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "path",
+                                    "sha256",
+                                    "findings",
+                                    "counts",
+                                    "feedback",
+                                    "passed"
+                                ],
+                                "properties": {
+                                    "path": {
+                                        "type": "string"
+                                    },
+                                    "sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                    },
+                                    "passed": {
+                                        "type": "boolean"
+                                    },
+                                    "feedback": {
+                                        "type": "string"
+                                    },
+                                    "counts": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": ["P0", "P1", "P2"],
+                                        "properties": {
+                                            "P0": {
+                                                "type": "integer",
+                                                "minimum": 0
+                                            },
+                                            "P1": {
+                                                "type": "integer",
+                                                "minimum": 0
+                                            },
+                                            "P2": {
+                                                "type": "integer",
+                                                "minimum": 0
+                                            }
+                                        }
+                                    },
+                                    "findings": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": ["id", "severity", "message", "fix"],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string",
+                                                    "enum": ["P0", "P1", "P2"]
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "fix": {
+                                                    "type": "string"
+                                                },
+                                                "snippet": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "profile": "open-design",
+                "read_only": true,
+                "risk": "read",
+                "visibility": "model"
+            }
+        }
+    },
+    "subprocess": {
+        "command": "{{compozy_executable}}",
+        "args": ["__internal", "extension-provider", "open-design"]
+    }
+}

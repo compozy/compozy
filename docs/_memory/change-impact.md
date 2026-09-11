@@ -195,3 +195,26 @@ Native compozy__hooks_* and CLI/HTTP/UDS hook management retain their schemas an
 Web consumes the effective hook catalog unchanged. Official skills/compozy/references/extensions.md documents the existing registered-ID contract; site hook declarations already use public ws_ IDs. GL013 requires fresh public admission-race replay after repair; task-run, window and watched-skill integration cases are adjacent checks. No test fixture replaces the real Cursor acceptance walk.
 
 The HTTP/UDS hook catalog handler now resolves alias/name/path input to ResolvedWorkspace.ID as the native hooks tool already does. The canonical core/hooks_test.go fixture keeps different registered/directory IDs and rejects the wrong query identity before the correction (workspace-hooks-catalog-red.txt). The existing registration-refresh unit fixture now queries by the same registered ID; its earlier durable-ID filter no longer represented the public catalog contract.
+
+## Built-in open-design extension
+
+- **Native tools:** adds extension-owned `ext__open_design__lint_artifact`; no `compozy__*` IDs or
+  core API/CLI schemas change. Its typed paths input, original findings output, file digests, and
+  read-only/read-risk descriptor publish through the existing provider and tool invocation surfaces.
+- **Extensibility and hooks:** boot reconciles the new bundled extension and its declared profile;
+  it uses the existing managed-install lifecycle unchanged. Two agents, three explicit skills,
+  two curated design references, and one opt-in native Loop are added. The review skill supplies
+  explicit per-run limits through existing config_overrides; no loop-engine changes are needed.
+  All guidance and lint code is maintained locally, with no upstream download or sync. No
+  hook/config keys, sidecars, viewer, custom capture service, or artifact registry are introduced.
+- **Workspace data isolation:** HTML belongs to the active workspace under `docs/design/`.
+  The linter consumes daemon-authenticated workspace context, never a caller-supplied root, opens
+  artifact components without following symlinks, rejects special files, and limits input/output
+  and process lifetime. Designer instructions prohibit production-code changes as a design side effect.
+- **Official Compozy skill:** `skills/compozy/references/extensions.md` documents profile resources,
+  design/review behavior, Node/browser prerequisites, and locally maintained guidance.
+- **Web/Docs:** existing profile, session, extension inventory, and Loop inspector surfaces expose
+  the resources. No Web component change. The new extension guide and ET-open-design scenario own
+  user guidance and runtime/visual QA; package tests own original-lint parity and resource compilation.
+- **Compatibility:** additive built-in resources and tool namespace, no persisted user-data schema
+  or public replacement. Existing managed-install policies preserve operator-owned installations.

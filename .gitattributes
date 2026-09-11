@@ -1,3 +1,6 @@
 # >>> skeeper lockfile merge driver >>>
 skeeper.lock merge=skeeper-lock
 # <<< skeeper lockfile merge driver <<<
+
+# Built from the maintained sources in extensions/open-design/linter.
+extensions/open-design/lint.gen.mjs linguist-generated=true
