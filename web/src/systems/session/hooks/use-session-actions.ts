@@ -150,8 +150,11 @@ export function useDeleteSession(
 
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },
-    onSettled: (_data, _error, id) => {
+    onSettled: (_data, error, id) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+      if (error && workspaceId) {
+        void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+      }
     },
   });
 }

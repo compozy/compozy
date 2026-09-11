@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -113,7 +114,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 
 	// Invariant: stopping a Goal origin cancels its run without crossing profile/workspace boundaries.
 	// Owner: daemon Goal lifecycle dispatcher; canonical session Goal command suite.
-	t.Run("Should cancel a stopped session Goal and preserve its terminal history", func(t *testing.T) {
+	t.Run("Should cancel a stopped session quarantined Goal and preserve its terminal history", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixture(t)
 		ctx := testutil.Context(t)
@@ -121,6 +122,22 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 			session.GoalCommand{Verb: "set", Objective: "Retain history after stopping"})
 		if err != nil {
+			t.Fatal(err)
+		}
+		// Exercise the reported durable shape: a live Run whose Goal failed before
+		// its first checkpoint and was quarantined in a later generation.
+		db := fixture.db.(*globaldb.GlobalDB).DB()
+		runID := started.Result.Snapshot.RunID
+		if _, err := db.ExecContext(ctx, `UPDATE loop_runs SET generation = 2 WHERE id = ?`, runID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
+			(loop_run_id, generation, node_id, status) VALUES (?, 2, 'goal', 'quarantined')`, runID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO loop_node_controls
+			(loop_run_id, node_id, quarantined, quarantined_at, revision, updated_at)
+			VALUES (?, 'goal', 1, ?, 1, ?)`, runID, time.Now().UTC(), time.Now().UTC()); err != nil {
 			t.Fatal(err)
 		}
 		info := session.Info{ID: fixture.sessionID, WorkspaceID: fixture.workspaceID, ProfileID: fixture.profileID}

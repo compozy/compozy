@@ -313,6 +313,14 @@ HTTP and UDS expose the same daemon-owned queue at
 `idempotency_key`; promotion also submits `expected_turn_id`. Re-read the queue after each mutation
 instead of keeping a client-side shadow list.
 
+Queue reads also work for persisted stopped sessions without starting a provider process. Stopping
+ends periodic Web queue polling; reopening a stopped session may read its durable queue once.
+Queue mutations still enforce their existing prompt eligibility and ownership checks. After a failed
+session deletion, re-read session state before retrying: execution may already be stopped even when
+history removal rolled back. Deletion retries a pending stop finalization through the ordinary stop
+lifecycle; if finalization still fails, history and attachments remain intact. A successful deletion
+removes the queue with its session catalog row.
+
 Clear parked entries explicitly with `compozy session input clear <session-id>`,
 `DELETE .../prompt/queue`, or `compozy__session_inputs_clear`. The response contains `inputs`
 with per-entry statuses, `cleared_count`, and `queue_generation`. Entries already dispatching

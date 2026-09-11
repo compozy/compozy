@@ -17,6 +17,7 @@ import {
 } from "../use-session-actions";
 import { useSessionRewind } from "../use-session-rewind";
 import {
+  useSessionInputs,
   useCancelSessionInput,
   useClearSessionInputs,
   usePromoteSessionInput,
@@ -41,6 +42,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
   promoteSessionInputToSteer: vi.fn(),
@@ -66,6 +68,7 @@ import {
   clearSessionInputs,
   createSession,
   deleteSession,
+  fetchSessionInputs,
   repairSession,
   renameSession,
   resumeSession,
@@ -302,6 +305,9 @@ describe("session actions", () => {
       []
     );
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
+    expect(
+      queryClient.getQueryState(sessionKeys.detail(WORKSPACE_ID, createdSession.id))?.isInvalidated
+    ).toBe(true);
   });
 
   it("useClearSessionConversation rolls back optimistic cache changes on failure", async () => {
@@ -475,6 +481,52 @@ describe("session actions", () => {
     expect(onDeleteSuccess.mock.invocationCallOrder[0]).toBeLessThan(
       invalidateSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
     );
+  });
+
+  // Invariant: deletion aborts concurrent queue reads; failed deletion re-reads durable state.
+  // Owner: session mutation/query integration; HTTP transport is the unit I/O boundary.
+  it("Should fence an in-flight queue read during deletion and reconcile after failure", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    let queueSignal: AbortSignal | undefined;
+    let finishStaleRead!: (value: SessionInputsResponse) => void;
+    let failDelete!: (error: Error) => void;
+    vi.mocked(fetchSessionInputs)
+      .mockImplementationOnce((_workspace, _id, signal) => {
+        queueSignal = signal;
+        return new Promise(resolve => {
+          finishStaleRead = resolve;
+        });
+      })
+      .mockResolvedValue({ inputs: [] });
+    vi.mocked(deleteSession).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          failDelete = reject;
+        })
+    );
+    const { result } = renderHook(
+      () => ({
+        queue: useSessionInputs(WORKSPACE_ID, createdSession.id, { sessionState: "active" }),
+        deletion: useDeleteSession(),
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(queueSignal).toBeDefined());
+    act(() => result.current.deletion.mutate(createdSession.id));
+    await waitFor(() => expect(deleteSession).toHaveBeenCalled());
+    expect(queueSignal?.aborted).toBe(true);
+    await act(async () => finishStaleRead({ inputs: [queuedInput] }));
+    expect(result.current.queue.data?.inputs).not.toEqual([queuedInput]);
+    expect(fetchSessionInputs).toHaveBeenCalledTimes(1);
+    act(() => failDelete(new Error("Goal settlement failed")));
+    await waitFor(() => expect(result.current.deletion.isError).toBe(true));
+    await waitFor(() => expect(result.current.queue.data?.inputs).toEqual([]));
+    expect(fetchSessionInputs).toHaveBeenCalledTimes(2);
+    expect(
+      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+    ).toBeUndefined();
   });
 
   it("useDeleteSession preserves cached session data and drafts on failure", async () => {
