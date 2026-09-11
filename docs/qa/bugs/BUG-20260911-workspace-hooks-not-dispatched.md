@@ -36,3 +36,5 @@ The three canonical integration walks pass after the scoping correction (workspa
 Fresh sess-49c5692469646aaf on the rebuilt binary enters the previously missing public input.pre_submit hook. CLI and native tool catalogs both expose the registered workspace matcher. The hook barrier enables the exact GL013 race: idle rewritten draft, ordinary prompt wins, draft409 without preemption/queue growth, ordinary native terminal task completes. After cleanup/restart the Goal and Run are absent, queue empty and both fixture config/catalog restored. Full evidence: docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-race-fixed-proof.json.
 
 Required make gate passed (workspace-hooks-gate.txt). The real-provider replay is separate from deterministic Go integration/boundary coverage. GL013 is verified using this race and the earlier complete prefill/busy evidence. Fix commit will be recorded after the authorized local commit; no push.
+
+Final fix commit after main integration: `a172d49ff51da7a2f09dfb619a48ad041c5da36d`. The initial diagnosis and pending paragraphs above are chronological history; the verified replay owns the current verdict.

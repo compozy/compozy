@@ -2,8 +2,8 @@
 
 - **Scope:** All 357 original handoff rows; adjacent repair canaries only.
 - **Cadence tier:** targeted inventory reconciliation and real persona walks
-- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28. Current tested binary: be2aaa1d1-dirty with workspace hook identity correction; Web built from second main integration. Main integrated through ace125a7e.
-- **Started:** 2026-09-10T21:56:04.281977+00:00 · **Status:** in-progress
+- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28. Final tested runtime: a172d49ff, after main integration through 35cad0cdd; Go and root Turbo Web builds passed.
+- **Started:** 2026-09-10T21:56:04.281977+00:00 · **Status:** execution closed at user request; PR validation in progress
 - **Current provider contract:** Cursor Agent grok-4.6, reasoning high, speed fast; supersedes initial Codex Luna xhigh. Operator native authentication preserved.
 - **Environment:** Same isolated bootstrap manifest; production-parity daemon/Web and real Cursor Grok 4.6 High Fast worker/judge runs verified. Earlier Luna evidence remains historical.
 - **Inventory:** [Complete reconciliation ledger](2026-09-10-qa-execution-unblock/inventory.csv). Original categories are estimates, never verdicts.
@@ -422,7 +422,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 305 | CH-untested-025-24-bruno-part-2 | J-24 / TA-047 | Bruno | Garbage Tour | Pending | | |
 | 306 | CH-untested-050-bound-runaway-work-ada | J-bound-runaway-work / TA-050 | Ada | Feature Tour | Pending | | |
 | 307 | CH-038 | J-24 / TA-052 | Bruno | Feature Tour | Pending | | |
-| 308 | CH-automation-manual-trigger | J-24 / TA-053 | Bruno | Feature Tour | Pending | | |
+| 308 | CH-automation-manual-trigger | J-24 / TA-053 | Bruno | Feature Tour | Fail | [Trigger timeout](../bugs/BUG-20260911-automation-trigger-cli-timeout.md) | Lea observed the shared CLI failure during the ingress walk; fix deferred at user request. |
 | 309 | CH-038 | J-24 / TA-054 | Bruno | Feature Tour | Pending | | |
 | 310 | CH-producer-backed-trigger-events | J-create-and-activate-trigger / TA-057 | Bruno | Garbage Tour | Pending | | |
 | 311 | CH-untested-026-24-dora | J-24 / TA-061 | Dora | Garbage Tour | Pending | | |
@@ -760,3 +760,27 @@ Fresh real Cursor session sess-49c5692469646aaf confirms effective grok-4.6/high
 After stopping the session and deleting the hook through native management, daemon restart retains no Goal, no Run and an empty queue. Hook config is empty and the declaration absent; the hook process PID was removed. goal-race-fixed-proof.json records the timing, runtime, native catalog agreement, file digest and exact evidence. Combine with unchanged goal-draft-retake-proof.json for admitted Web prefill/reload, protected authored text and already-busy CLI/HTTP/UDS refusal. GL013 is fixed-and-verified. TA095 still needs active-Goal/internal ingress branches.
 
 make gate passed all affected lanes (workspace-hooks-gate.txt), with Go lint/race and root Turbo validation reusing valid7222 Web tests. Three daemon integration cases and boundary suites passed under race detection. Current inventory:20 dispositioned (11verified,6fixed-and-verified,1unresolveddefect,2externalruntime),337pending. The357-row scope remains active.
+
+
+## Continuation plan — Goal ingress after third rebase
+
+Continue CH-untested-030-26-lea / J-26 with Cursor Grok 4.6 High Fast. Reuse the completed idle draft and exact busy-race proofs. Start fresh bounded Goal work, submit a draft while its Run is live, and independently verify the original Goal survives without a draft turn or replacement. Then exercise literal slash text through public native session input and a disposable one-time automation. GL027 shares these branches but also requires Network/extension/binder/synthetic coverage; neither row becomes a full pass from only these inputs. All work stays in the two owned workspaces. Restore/remove disposable automation and stop its sessions after recording durable events and Run reads.
+
+
+## Final execution scope — user-requested PR boundary
+
+On 2026-09-11 the user explicitly ended further QA execution and requested a detailed PR containing the accumulated fixes, with the rest left open. The original inventory remains intact: **11 verified, 6 fixed-and-verified, 2 unresolved defects, 2 external platform blockers, and 336 incomplete cases**. Seventeen cases passed; 340 still require successful closure. [Open cases](2026-09-10-qa-execution-unblock/open-cases.md) enumerates every pending case and the additional findings. This is a partial QA delivery, not completion of all 357 cases or a release-readiness claim.
+
+The last Lea walk completed the active-Goal draft refusal branch: HTTP409 `goal_draft_requires_idle` preserved the original Run and its turn count; the real Cursor worker and judge completed it in one approved turn, with an independently read file. Native-agent and one-time automation sends retained exact literal slash text, finished normally and created no Compozy Goal Run. Cursor separately applied its own Goal skill to that text; provider behavior is distinct from Compozy control parsing. The automation trigger CLI timed out awaiting headers after admission; public history subsequently proved exactly one completed run. No retry was sent. See `goal-ingress-partial-proof.json` and the open automation timeout finding. These are partial TA095/GL027 branches, not new full-case passes.
+
+Third rebase, Go/Web builds and the incoming store queue/supervised-recovery race suite passed. The first integration gate failed once in `TestDaemonModelCatalogWiring` TempDir cleanup. Five repetitions of that exact subtest and the complete owning suite subsequently passed without changes. The root cause is open; no production fix or weakened assertion is claimed. Delivery gate retry is recorded separately in `pr-delivery-gate.txt`.
+
+The full-lab strict auditor returned FAIL with 10 unsatisfied requirements in its original full-scenario/structured-log contract (`pr-lab-audit.txt` and the retained lab audit report). It is not evidence that the full original run completed. Individual case verdicts depend on their linked public observations and independent proofs. Missing full-lab completion is explicitly open under the user's reduced delivery scope; no auditor inputs or thresholds were weakened.
+
+Before teardown, all 96 lab sessions were stopped. The automation definition and temporary hooks were removed; Goal configuration was restored. The exact manifest teardown completed on 2026-09-11T21:15:05Z with `clean: true`, no survivors and no purged data (`pr-lab-teardown.json`). Worktree, retained evidence and the user's Herdr tab remain available.
+
+Final accounting adjustment: the last automation observation belongs to original case TA-053. It moves from pending to unresolved-defect: **21 assessed, 336 incomplete, 17 passed, 2 unresolved defects, 2 platform blockers**. This does not change the 340 original cases still requiring successful closure.
+
+Delivery validation: `make gate` passed all affected local lanes, with Go lint/race and root Turborepo lint/typecheck plus 773 Web suites / 7248 tests (`pr-delivery-gate.txt`). The broad full-lab audit and remaining cases are still open as described above.
+
+Evidence publication boundary: raw artifacts remain in the local evidence directory. The installed Skeeper cannot open this worktree (`worktreeconfig` unsupported). An isolated clone avoids that limitation, but after preserving the locked remote files its publish plan touches 8729 files / 287226316 bytes, exceeding the existing 209715200-byte guardrail. Publication was left open without force, pruning, changing guardrails or manually editing the lock. The source PR contains the detailed report, case register and test/CI results; it must not claim the new raw evidence is available from the existing sidecar lock.

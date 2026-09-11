@@ -1,0 +1,375 @@
+# Open QA cases after this PR
+
+The user ended this QA round on 2026-09-11 and requested delivery of the accumulated fixes. These items are explicitly open; no remaining scenario is claimed passed or silently removed from the original 357-row inventory.
+
+## Inventory accounting
+
+| Disposition | Cases |
+| --- | ---: |
+| Verified | 11 |
+| Fixed and verified | 6 |
+| Unresolved original defect | 2 |
+| External platform prerequisite | 2 |
+| Open, incomplete execution | 336 |
+| Total | 357 |
+
+Thus 340 original cases still need successful closure. Adjacent canaries and newly discovered delivery findings are not added to the original denominator.
+
+## Known original impediments
+
+- [ ] [TA-053](../../scenarios/TA-053.md) — Trigger job now (unresolved-defect).
+- [ ] [APP-appimage-fuseless-launch](../../scenarios/APP-appimage-fuseless-launch.md) — Launch the Linux AppImage on a host without libfuse2 (blocked-external-runtime).
+- [ ] [ET-terminal-windows-parity](../../scenarios/ET-terminal-windows-parity.md) — Run a full interactive terminal on Windows (blocked-external-runtime).
+- [ ] [ET-workspace-access-mode-matrix](../../scenarios/ET-workspace-access-mode-matrix.md) — Decide cross-workspace requests from the session permission mode (unresolved-defect).
+
+## Incomplete branches already explored
+
+- [ ] TA-095 / GL-027: active-Goal draft refusal, native-agent input, and one-time automation now have real Cursor evidence. Network, extension, binder and synthetic-source branches remain open.
+- [ ] TA-094: exact replacement survives earlier checks; the remaining restart/concurrent branch must be reconciled before full closure.
+- [ ] GL-003: invalid bare/oversized starts were repaired; unavailable judge and the remaining public guidance paths are not fully walked.
+- [ ] TA-101: ordered three-turn Goal history was restored and replayed; broad generation/fan-out/pagination and diagnostics coverage remains open.
+
+## Additional findings to investigate
+
+- [ ] Publish retained raw evidence through the sidecar after resolving the existing Skeeper compatibility/size constraints. Current CLI rejects worktreeconfig; isolated-clone sync hydrates 7383 old files and exceeds the configured 200 MiB guardrail (287226316 bytes total). No force, pruning, manual lock edit, or guardrail change was used.
+- [ ] [Automation trigger CLI timeout](../../bugs/BUG-20260911-automation-trigger-cli-timeout.md): the job completed once after the CLI lost its response; no retry was issued.
+- [ ] [Catalog test cleanup race](../../bugs/BUG-20260911-model-catalog-test-cleanup.md): one broad gate failed TempDir cleanup; five focused reproductions and the complete owning suite passed without code changes. Root cause remains unproven.
+
+## All 336 incomplete original cases
+
+- [ ] [APP-agent-cli-app-verbs](../../scenarios/APP-agent-cli-app-verbs.md) — Drive the desktop surface end-to-end through compozy app
+- [ ] [APP-app-auto-update](../../scenarios/APP-app-auto-update.md) — Apply an app update through the product update surface
+- [ ] [APP-install-first-run-provision](../../scenarios/APP-install-first-run-provision.md) — Install CompozyOS and reach the product with no prior setup
+- [ ] [APP-native-window-controls](../../scenarios/APP-native-window-controls.md) — Operate the desktop window from native controls in the menubar
+- [ ] [APP-quit-contract](../../scenarios/APP-quit-contract.md) — Quitting the app never stops my runtime or agent work
+- [ ] [APP-runtime-update-app-owned](../../scenarios/APP-runtime-update-app-owned.md) — An app-provisioned runtime updates as one product update with timing consent
+- [ ] [APP-single-command-multi-target-update](../../scenarios/APP-single-command-multi-target-update.md) — Update runtime and app through one command
+- [ ] [APP-terminal-desktop-fidelity](../../scenarios/APP-terminal-desktop-fidelity.md) — Preserve terminal input and rendering in the packaged desktop
+- [ ] [APP-window-geometry-recovery](../../scenarios/APP-window-geometry-recovery.md) — Restore usable window geometry across relaunch and display changes
+- [ ] [ET-001](../../scenarios/ET-001.md) — Skills list (scoped)
+- [ ] [ET-012](../../scenarios/ET-012.md) — Skill settings: disabled-skill tombstones
+- [ ] [ET-013](../../scenarios/ET-013.md) — Skill settings: registry policy
+- [ ] [ET-016](../../scenarios/ET-016.md) — Extension marketplace search
+- [ ] [ET-017](../../scenarios/ET-017.md) — Install an extension from the source union
+- [ ] [ET-047](../../scenarios/ET-047.md) — MCP OAuth/PKCE login/logout/status
+- [ ] [ET-050](../../scenarios/ET-050.md) — Set extension trust root
+- [ ] [ET-051](../../scenarios/ET-051.md) — Transport-parity 403 fallback (off-loopback)
+- [ ] [ET-053](../../scenarios/ET-053.md) — Follow model catalog guidance across docs and bundled skill
+- [ ] [ET-agent-plugin-marketplace-install](../../scenarios/ET-agent-plugin-marketplace-install.md) — Install an Agent Plugins catalog entry from Marketplace
+- [ ] [ET-api-mcp-oauth-endpoints](../../scenarios/ET-api-mcp-oauth-endpoints.md) — Manage scoped MCP OAuth through daemon API routes
+- [ ] [ET-cli-extension-sideload-policy-block](../../scenarios/ET-cli-extension-sideload-policy-block.md) — Block unverified extension side-loads through structured CLI output
+- [ ] [ET-cli-mcp-authorize](../../scenarios/ET-cli-mcp-authorize.md) — Authorize a remote MCP server through the daemon
+- [ ] [ET-cli-tool-invoke-structural-handles](../../scenarios/ET-cli-tool-invoke-structural-handles.md) — Preserve public structural handles in generic CLI tool output
+- [ ] [ET-compozy-extension-contract-identity](../../scenarios/ET-compozy-extension-contract-identity.md) — Load only Compozy extension, package, and OpenAPI identities
+- [ ] [ET-connectivity-provider-trust](../../scenarios/ET-connectivity-provider-trust.md) — Govern a connectivity provider under extension trust rules
+- [ ] [ET-electron-session-copy-debug](../../scenarios/ET-electron-session-copy-debug.md) — Copy Session text and open Electron diagnostics
+- [ ] [ET-ext-curated-digest-verify](../../scenarios/ET-ext-curated-digest-verify.md) — Verify a curated extension archive against the feed digest
+- [ ] [ET-extension-agent-guided-authoring](../../scenarios/ET-extension-agent-guided-authoring.md) — Build a Compozy extension from the official skill without operator hand-holding
+- [ ] [ET-extension-agent-observer-resolution](../../scenarios/ET-extension-agent-observer-resolution.md) — Observe a resource-defined agent after catalog changes
+- [ ] [ET-extension-code-first-authoring](../../scenarios/ET-extension-code-first-authoring.md) — Build a code-first extension from the embedded CLI templates
+- [ ] [ET-extension-dx-scorecard](../../scenarios/ET-extension-dx-scorecard.md) — Re-grade the extension developer experience against the binding scorecard
+- [ ] [ET-extension-manifest-v2-surfaces](../../scenarios/ET-extension-manifest-v2-surfaces.md) — Generate and expose one valid manifest v2 contract
+- [ ] [ET-extension-passive-update-discovery](../../scenarios/ET-extension-passive-update-discovery.md) — Discover extension updates without flags
+- [ ] [ET-extension-quickstart-verbatim](../../scenarios/ET-extension-quickstart-verbatim.md) — Reach a working extension by following the published quickstart verbatim
+- [ ] [ET-layout-editor-drag-rebalance](../../scenarios/ET-layout-editor-drag-rebalance.md) — Rebalance a split by dragging its divider in Settings
+- [ ] [ET-layout-editor-gaps-follow-canvas](../../scenarios/ET-layout-editor-gaps-follow-canvas.md) — Editing gaps and snap zones updates the layout canvas at real scale
+- [ ] [ET-layout-editor-group-overlap-refused](../../scenarios/ET-layout-editor-group-overlap-refused.md) — Dragging a group edge into a neighbour is flagged before it can apply
+- [ ] [ET-layout-editor-load-saved-layout](../../scenarios/ET-layout-editor-load-saved-layout.md) — Loading a saved layout over unapplied edits asks first
+- [ ] [ET-layout-editor-split-orientation](../../scenarios/ET-layout-editor-split-orientation.md) — Rows and Columns produce the arrangement they show
+- [ ] [ET-layout-editor-split-weights](../../scenarios/ET-layout-editor-split-weights.md) — A split created in Settings passes daemon validation
+- [ ] [ET-marketplace-kill-switch](../../scenarios/ET-marketplace-kill-switch.md) — Remove a pulled catalog entry from every surface
+- [ ] [ET-model-source-five-rate-pricing](../../scenarios/ET-model-source-five-rate-pricing.md) — Extension model source preserves five-rate pricing
+- [ ] [ET-native-tool-approval-grants](../../scenarios/ET-native-tool-approval-grants.md) — Set, remember, and revoke native-tool approval decisions
+- [ ] [ET-native-workspace-scope-isolation](../../scenarios/ET-native-workspace-scope-isolation.md) — Bind native tool calls to the caller workspace before policy
+- [ ] [ET-nested-skill-groups](../../scenarios/ET-nested-skill-groups.md) — Discover grouped workspace skills without cross-workspace leakage
+- [ ] [ET-site-docs-search-context](../../scenarios/ET-site-docs-search-context.md) — Distinguish duplicate documentation results by section
+- [ ] [ET-terminal-approval-ladder-grants](../../scenarios/ET-terminal-approval-ladder-grants.md) — Approve agent terminal commands at the right tier and keep grants revocable
+- [ ] [ET-terminal-session-block-handoff](../../scenarios/ET-terminal-session-block-handoff.md) — Follow a deliberate terminal run from the session transcript
+- [ ] [ET-tool-result-artifact-recovery](../../scenarios/ET-tool-result-artifact-recovery.md) — Recover one oversized tool result across public surfaces
+- [ ] [ET-web-dock-magnification](../../scenarios/ET-web-dock-magnification.md) — Dock proximity magnification and name tip
+- [ ] [ET-web-ext-policy-block](../../scenarios/ET-web-ext-policy-block.md) — Respect extension trust policy in Marketplace
+- [ ] [ET-web-extension-detail](../../scenarios/ET-web-extension-detail.md) — Inspect an installed extension
+- [ ] [ET-web-loop-editor-node-truncate](../../scenarios/ET-web-loop-editor-node-truncate.md) — Loop editor node cards truncate long id and kind labels
+- [ ] [ET-web-loop-editor-sidebar-tabs](../../scenarios/ET-web-loop-editor-sidebar-tabs.md) — Loop editor right rail uses Contract / Node lane tabs
+- [ ] [ET-web-loop-editor-topbar](../../scenarios/ET-web-loop-editor-topbar.md) — Loop editor chrome uses shell topbar actions
+- [ ] [ET-web-marketplace-mcp-authorize-installed](../../scenarios/ET-web-marketplace-mcp-authorize-installed.md) — Authorize an MCP server from Installed scope
+- [ ] [ET-web-marketplace-remove-scope-return](../../scenarios/ET-web-marketplace-remove-scope-return.md) — Return removed items to Marketplace scope
+- [ ] [ET-web-mcp-authorize](../../scenarios/ET-web-mcp-authorize.md) — MCP OAuth authorize/repair flow (browser auto path)
+- [ ] [ET-web-page-content-gutter](../../scenarios/ET-web-page-content-gutter.md) — Main-pane routes share one content gutter
+- [ ] [ET-web-route-chrome-topbar](../../scenarios/ET-web-route-chrome-topbar.md) — Unified window head absorbs PageHead
+- [ ] [ET-web-session-cross-workspace-confirm](../../scenarios/ET-web-session-cross-workspace-confirm.md) — Confirm and switch into the workspace that owns a linked session
+- [ ] [ET-web-session-deep-link-isolation](../../scenarios/ET-web-session-deep-link-isolation.md) — Never move a session deep link across workspaces without confirmation
+- [ ] [ET-web-settings-extensions-policy](../../scenarios/ET-web-settings-extensions-policy.md) — Manage extension marketplace policy
+- [ ] [ET-web-settings-hooks](../../scenarios/ET-web-settings-hooks.md) — Manage hooks from the dedicated Settings page
+- [ ] [ET-web-tasks-mode-url](../../scenarios/ET-web-tasks-mode-url.md) — Tasks mode navigation via URL search param
+- [ ] [ET-web-ui-resilience](../../scenarios/ET-web-ui-resilience.md) — Preserve truthful and accessible async UI across Web systems
+- [ ] [ET-web-vault-opendesign-listing](../../scenarios/ET-web-vault-opendesign-listing.md) — Vault listing matches OpenDesign inspect model
+- [ ] [ET-window-tab-v3-discard](../../scenarios/ET-window-tab-v3-discard.md) — Preserve user layouts across version upgrades
+- [ ] [ET-workspace-access-prompt-outcomes](../../scenarios/ET-workspace-access-prompt-outcomes.md) — Resolve a cross-workspace prompt and expire its session answer
+- [ ] [GL-003](../../scenarios/GL-003.md) — Reject invalid Goal starts without side effects
+- [ ] [GL-014](../../scenarios/GL-014.md) — Render the truthful Goal chip state matrix
+- [ ] [GL-015](../../scenarios/GL-015.md) — Keep turn and transcript history in total order
+- [ ] [GL-016](../../scenarios/GL-016.md) — Filter and label session-origin Runs
+- [ ] [GL-017](../../scenarios/GL-017.md) — Judge end-turn and max-turn-requests correctly
+- [ ] [GL-018](../../scenarios/GL-018.md) — Recover max-tokens without replay
+- [ ] [GL-019](../../scenarios/GL-019.md) — Never judge refused or cancelled partial output
+- [ ] [GL-020](../../scenarios/GL-020.md) — Distinguish reported silent stale and pending context
+- [ ] [GL-021](../../scenarios/GL-021.md) — Fence nested token and wall budgets
+- [ ] [GL-022](../../scenarios/GL-022.md) — Author only the closed Goal editor schema
+- [ ] [GL-023](../../scenarios/GL-023.md) — Run a Goal and run-agent graph without generation drift
+- [ ] [GL-024](../../scenarios/GL-024.md) — Continue a started Goal after catalog mutation
+- [ ] [GL-027](../../scenarios/GL-027.md) — Keep internal slash text literal
+- [ ] [GL-028](../../scenarios/GL-028.md) — Expose truthful native Goal tool lifecycle
+- [ ] [GL-029](../../scenarios/GL-029.md) — Recover safely across every prompt effect phase
+- [ ] [GL-030](../../scenarios/GL-030.md) — Choose one winner in a same-session start race
+- [ ] [GL-031](../../scenarios/GL-031.md) — Fence revoke dispatch and completion races
+- [ ] [GL-032](../../scenarios/GL-032.md) — Keep one active binding epoch through races
+- [ ] [GL-033](../../scenarios/GL-033.md) — Operate Goal without color mouse or motion
+- [ ] [GL-035](../../scenarios/GL-035.md) — Discover externally changed Goals without polling
+- [ ] [GL-036](../../scenarios/GL-036.md) — Recover durable report intent across restart
+- [ ] [GL-037](../../scenarios/GL-037.md) — Never replay an ambiguous judge attempt
+- [ ] [GL-038](../../scenarios/GL-038.md) — Fence a queued prompt after budget crossing
+- [ ] [GL-039](../../scenarios/GL-039.md) — Reconcile control commit before notifier exactly once
+- [ ] [GL-040](../../scenarios/GL-040.md) — Consume one session-origin reseed approval
+- [ ] [GL-judge-session-contract](../../scenarios/GL-judge-session-contract.md) — Constrain and clean up every Goal judge session
+- [ ] [LP-005](../../scenarios/LP-005.md) — Recover observation after closing the run tab
+- [ ] [LP-009](../../scenarios/LP-009.md) — Approve the human gate and resume to done
+- [ ] [LP-014](../../scenarios/LP-014.md) — Pause a run at a generation boundary and resume
+- [ ] [LP-017](../../scenarios/LP-017.md) — Configure checks, gate, strategy, and limits (no fork)
+- [ ] [LP-018](../../scenarios/LP-018.md) — Clamp per-loop limit overrides with no cost cap
+- [ ] [LP-019](../../scenarios/LP-019.md) — Keep structural fields non-editable in Configure
+- [ ] [LP-020](../../scenarios/LP-020.md) — Cancel Configure without writing, focus intact
+- [ ] [LP-021](../../scenarios/LP-021.md) — Fork a read-only Loop and add a node in the editor
+- [ ] [LP-022](../../scenarios/LP-022.md) — Gate publish on the shared linter's per-node verdict
+- [ ] [LP-023](../../scenarios/LP-023.md) — Round-trip Graph/DSL and persist positions in the sidecar
+- [ ] [LP-024](../../scenarios/LP-024.md) — Publish under CAS and run the fork end-to-end
+- [ ] [LP-025](../../scenarios/LP-025.md) — Discover and run a Loop via native tools with surface parity
+- [ ] [LP-026](../../scenarios/LP-026.md) — Read the run status as a truthful structured value
+- [ ] [LP-027](../../scenarios/LP-027.md) — Enforce the approve capability gate with no self-approval
+- [ ] [LP-028](../../scenarios/LP-028.md) — Return a deterministic Unavailable before the service is ready
+- [ ] [LP-029](../../scenarios/LP-029.md) — Run review-and-fix through review, remediation, and done
+- [ ] [LP-030](../../scenarios/LP-030.md) — End a clean agent review as done
+- [ ] [LP-033](../../scenarios/LP-033.md) — Read a Loop's declared starts and attached automations
+- [ ] [LP-034](../../scenarios/LP-034.md) — Attach a schedule/trigger pre-targeted at the Loop
+- [ ] [LP-035](../../scenarios/LP-035.md) — Reject a start-binding outside the declared allowlist
+- [ ] [LP-036](../../scenarios/LP-036.md) — Observe a channel decision harvested into a run
+- [ ] [LP-043](../../scenarios/LP-043.md) — Author a watch-events node in the loop editor
+- [ ] [LP-046](../../scenarios/LP-046.md) — Run a gated loop run-agent session with allowed_tools narrowing
+- [ ] [LP-047](../../scenarios/LP-047.md) — Wake a loop on an automation run completion
+- [ ] [LP-048](../../scenarios/LP-048.md) — Wake a loop on a network message
+- [ ] [LP-049](../../scenarios/LP-049.md) — Wake a loop on a coordinator lifecycle event
+- [ ] [LP-050](../../scenarios/LP-050.md) — Wake a loop on a session event with content redaction
+- [ ] [LP-action-failure-detail](../../scenarios/LP-action-failure-detail.md) — Explain a failed Loop action with its preserved cause and recovery path
+- [ ] [LP-crash-death-resume](../../scenarios/LP-crash-death-resume.md) — Resume one Loop node after its managed session dies
+- [ ] [LP-days-long-node-no-clock](../../scenarios/LP-days-long-node-no-clock.md) — Let a healthy Loop node run for days without a hidden clock
+- [ ] [LP-duplicate-event-suppressed](../../scenarios/LP-duplicate-event-suppressed.md) — Suppress duplicate watch events loudly and durably
+- [ ] [LP-durable-wait-restart](../../scenarios/LP-durable-wait-restart.md) — Resume one durable Loop wait across a daemon restart
+- [ ] [LP-editor-authoring-walk](../../scenarios/LP-editor-authoring-walk.md) — Author the Spec 1 failure contract in the loop editor and watch the run honour it
+- [ ] [LP-implement-tasks-orchestrated-mode](../../scenarios/LP-implement-tasks-orchestrated-mode.md) — Delegate implement-tasks through orchestrated mode
+- [ ] [LP-invalid-snapshot-boot-isolation](../../scenarios/LP-invalid-snapshot-boot-isolation.md) — Isolate one invalid Loop snapshot during boot
+- [ ] [LP-review-round-finalization](../../scenarios/LP-review-round-finalization.md) — Finalize a review round only after complete triage
+- [ ] [LP-run-read-agent-journey](../../scenarios/LP-run-read-agent-journey.md) — Explain and inspect one Loop run through agent-readable projections
+- [ ] [LP-runtime-selection-overrides](../../scenarios/LP-runtime-selection-overrides.md) — Select matrix and single-selector per-task runtimes
+- [ ] [LP-sick-target-degrades-one-lane](../../scenarios/LP-sick-target-degrades-one-lane.md) — Keep healthy Loop lanes running when one target is sick
+- [ ] [LP-task-rollup-wakes-loop](../../scenarios/LP-task-rollup-wakes-loop.md) — Wake one Loop from a parent task rollup
+- [ ] [LP-toggle-loop-goal](../../scenarios/LP-toggle-loop-goal.md) — Run the same custom Loop with and without a goal
+- [ ] [LP-transient-blip-heals](../../scenarios/LP-transient-blip-heals.md) — Heal a transient node failure without starting a repair generation
+- [ ] [LP-unannotated-escalation](../../scenarios/LP-unannotated-escalation.md) — Escalate an unhandled node failure into repair
+- [ ] [LP-waiting-inventory-escalation](../../scenarios/LP-waiting-inventory-escalation.md) — Inspect a waiting node and its bounded escalation ladder
+- [ ] [LP-web-catalog-badge-budget](../../scenarios/LP-web-catalog-badge-budget.md) — Loops catalog enforces the badge budget and states one facts line
+- [ ] [LP-web-loop-configure-modal](../../scenarios/LP-web-loop-configure-modal.md) — Loop Configure runs as a modal on the shared entity shell
+- [ ] [LP-web-node-dialog-modal-contract](../../scenarios/LP-web-node-dialog-modal-contract.md) — Node control dialogs and the quarantine sheet follow the modal contract
+- [ ] [LP-web-request-answer-card](../../scenarios/LP-web-request-answer-card.md) — Answer a parked Loop request from the run page
+- [ ] [LP-web-run-attention-quarantine-routing](../../scenarios/LP-web-run-attention-quarantine-routing.md) — Run attention panel collapses dependency parks and routes to the producer's quarantine entry
+- [ ] [LP-web-run-diff-view](../../scenarios/LP-web-run-diff-view.md) — Compare two generations or two runs of one Loop
+- [ ] [LP-web-run-form-section-grammar](../../scenarios/LP-web-run-form-section-grammar.md) — Run form folds five sections with truthful gists and a reachable input error
+- [ ] [LP-web-run-session-one-click](../../scenarios/LP-web-run-session-one-click.md) — Run detail opens the live agent session in one click and reports usage honestly
+- [ ] [MS-006](../../scenarios/MS-006.md) — Search durable memory
+- [ ] [MS-008](../../scenarios/MS-008.md) — Reindex derived catalog
+- [ ] [MS-016](../../scenarios/MS-016.md) — Trigger dream consolidation
+- [ ] [MS-049](../../scenarios/MS-049.md) — List logs
+- [ ] [MS-058](../../scenarios/MS-058.md) — Display-only echoes stay consistent with the catalog
+- [ ] [MS-059](../../scenarios/MS-059.md) — Recover Memory catalog after interrupted mutation
+- [ ] [MS-atomic-memory-batch](../../scenarios/MS-atomic-memory-batch.md) — Commit one agent memory batch without intermediate state
+- [ ] [MS-background-role-fallback](../../scenarios/MS-background-role-fallback.md) — Fall back background role routing before acceptance
+- [ ] [MS-layout-editor-clear-selection](../../scenarios/MS-layout-editor-clear-selection.md) — Clear the layout canvas selection with pointer or keyboard
+- [ ] [MS-provider-settings-model-delta-roundtrip](../../scenarios/MS-provider-settings-model-delta-roundtrip.md) — Provider Settings preserves model deltas and validation semantics
+- [ ] [MS-settings-roles-panel](../../scenarios/MS-settings-roles-panel.md) — Configure background roles in Settings
+- [ ] [MS-settings-update-mutations](../../scenarios/MS-settings-update-mutations.md) — Apply and cancel an update through settings
+- [ ] [MS-web-provider-auth-gate](../../scenarios/MS-web-provider-auth-gate.md) — Provider editor offers credential controls only under bound-secret ownership
+- [ ] [MS-web-session-deeplink-global-confirm](../../scenarios/MS-web-session-deeplink-global-confirm.md) — Deep link to a Global session turns Global scope on instead of selecting the home row
+- [ ] [MS-web-settings-providers-redesign](../../scenarios/MS-web-settings-providers-redesign.md) — Providers page toolbar, status copy, and Rows/Cards views
+- [ ] [MS-workspace-checkpoint-continuity](../../scenarios/MS-workspace-checkpoint-continuity.md) — Preserve workspace continuity through one checkpoint summary
+- [ ] [MS-workspace-resolution-provenance](../../scenarios/MS-workspace-resolution-provenance.md) — Explain the workspace resolution source in structured output
+- [ ] [NB-001](../../scenarios/NB-001.md) — Network runtime status
+- [ ] [NB-002](../../scenarios/NB-002.md) — Network settings config
+- [ ] [NB-004](../../scenarios/NB-004.md) — Daemon-down / status-error state
+- [ ] [NB-005](../../scenarios/NB-005.md) — List channels
+- [ ] [NB-006](../../scenarios/NB-006.md) — Create channel (spawns sessions)
+- [ ] [NB-007](../../scenarios/NB-007.md) — View channel detail
+- [ ] [NB-008](../../scenarios/NB-008.md) — Channel activity feed (web)
+- [ ] [NB-009](../../scenarios/NB-009.md) — List threads
+- [ ] [NB-010](../../scenarios/NB-010.md) — View thread + isolated messages
+- [ ] [NB-011](../../scenarios/NB-011.md) — Post message into a thread (web)
+- [ ] [NB-012](../../scenarios/NB-012.md) — Open a new thread root
+- [ ] [NB-013](../../scenarios/NB-013.md) — List direct rooms
+- [ ] [NB-014](../../scenarios/NB-014.md) — Resolve / open direct room
+- [ ] [NB-015](../../scenarios/NB-015.md) — View direct room + isolated messages
+- [ ] [NB-016](../../scenarios/NB-016.md) — Post message into a direct room (web)
+- [ ] [NB-017](../../scenarios/NB-017.md) — List daemon-local peers
+- [ ] [NB-019](../../scenarios/NB-019.md) — Presence/greet episode collapsing
+- [ ] [NB-020](../../scenarios/NB-020.md) — Send network message (all kinds)
+- [ ] [NB-027](../../scenarios/NB-027.md) — Get bridge
+- [ ] [NB-031](../../scenarios/NB-031.md) — Restart bridge
+- [ ] [NB-032](../../scenarios/NB-032.md) — Stream bridge health (SSE)
+- [ ] [NB-037](../../scenarios/NB-037.md) — Put bridge secret binding
+- [ ] [NB-045](../../scenarios/NB-045.md) — Get / create / delete notification preset
+- [ ] [NB-047](../../scenarios/NB-047.md) — Return to Network work without workspace bleed
+- [ ] [NB-agent-manages-participation](../../scenarios/NB-agent-manages-participation.md) — Manage participation through structured agent surfaces
+- [ ] [NB-bridge-edit-reply](../../scenarios/NB-bridge-edit-reply.md) — Preserve bridge edit and reply intent
+- [ ] [NB-bridge-overload-recovery](../../scenarios/NB-bridge-overload-recovery.md) — Recover a first-party bridge delivery from provider overload
+- [ ] [NB-bridge-provider-setup](../../scenarios/NB-bridge-provider-setup.md) — Set up, verify, and test bridge providers
+- [ ] [NB-bridge-restart-recovery](../../scenarios/NB-bridge-restart-recovery.md) — Recover unfinished bridge delivery after restart
+- [ ] [NB-bridge-tool-progress](../../scenarios/NB-bridge-tool-progress.md) — Observe safe bridge tool progress
+- [ ] [NB-coordination-invitation-future-runs](../../scenarios/NB-coordination-invitation-future-runs.md) — Coordination invitation accepts for future runs only
+- [ ] [NB-indeterminate-bridge-delivery](../../scenarios/NB-indeterminate-bridge-delivery.md) — Handle indeterminate bridge delivery without replay
+- [ ] [NB-long-bridge-replies](../../scenarios/NB-long-bridge-replies.md) — Deliver long bridge replies safely
+- [ ] [NB-network-availability-toggle](../../scenarios/NB-network-availability-toggle.md) — Disable and re-enable Network without collateral damage
+- [ ] [NB-network-live-config-lifecycle](../../scenarios/NB-network-live-config-lifecycle.md) — Manage Live participation configuration lifecycle
+- [ ] [NB-provider-progress-rendering](../../scenarios/NB-provider-progress-rendering.md) — Render live tool progress across bridge providers
+- [ ] [NB-run-bounded-live-collaboration](../../scenarios/NB-run-bounded-live-collaboration.md) — Run bounded Live collaboration without duplicate wakes
+- [ ] [NB-run-conversation-bounds-usage](../../scenarios/NB-run-conversation-bounds-usage.md) — Run detail shows conversation, bounds, and truthful usage
+- [ ] [NB-web-bridge-setup](../../scenarios/NB-web-bridge-setup.md) — Complete bridge setup in the Web
+- [ ] [NB-web-network-head-trail](../../scenarios/NB-web-network-head-trail.md) — Network window head drills only into conversations
+- [ ] [REL-beta-channel-contract](../../scenarios/REL-beta-channel-contract.md) — Inspect one truthful beta channel contract before publication
+- [ ] [REL-beta-install-paths](../../scenarios/REL-beta-install-paths.md) — Install CompozyOS through a documented beta channel
+- [ ] [REL-beta-installer-provenance](../../scenarios/REL-beta-installer-provenance.md) — Verify the hosted beta installer through Sigstore
+- [ ] [REL-beta-self-update](../../scenarios/REL-beta-self-update.md) — Keep self-update on the running beta line
+- [ ] [REL-channel-repair-known-good](../../scenarios/REL-channel-repair-known-good.md) — Repair the desktop channel to a known-good generation
+- [ ] [RT-008](../../scenarios/RT-008.md) — Delete workspace
+- [ ] [RT-013](../../scenarios/RT-013.md) — Stop session
+- [ ] [RT-015](../../scenarios/RT-015.md) — Attach / resume session
+- [ ] [RT-018](../../scenarios/RT-018.md) — Send prompt (stream)
+- [ ] [RT-026](../../scenarios/RT-026.md) — Provider auth probe
+- [ ] [RT-030](../../scenarios/RT-030.md) — Agent self-identity (`/agent/me`)
+- [ ] [RT-032](../../scenarios/RT-032.md) — Bounded agent spawn (`/agent/spawn`)
+- [ ] [RT-037](../../scenarios/RT-037.md) — Sandbox profile management
+- [ ] [RT-039](../../scenarios/RT-039.md) — Web home dashboard
+- [ ] [RT-041](../../scenarios/RT-041.md) — Active workspace scoping (web)
+- [ ] [RT-043](../../scenarios/RT-043.md) — Session thread transcript states
+- [ ] [RT-044](../../scenarios/RT-044.md) — Session warm-return cache policy
+- [ ] [RT-045](../../scenarios/RT-045.md) — Return to running session shows transcript
+- [ ] [RT-046](../../scenarios/RT-046.md) — Session opens in one loading phase
+- [ ] [RT-048](../../scenarios/RT-048.md) — Inline tool work grouping
+- [ ] [RT-051](../../scenarios/RT-051.md) — List/detail lifecycle convergence
+- [ ] [RT-052](../../scenarios/RT-052.md) — Inspector Usage tab shows real token/cost data
+- [ ] [RT-053](../../scenarios/RT-053.md) — Persistent message toolbar (copy + timestamp)
+- [ ] [RT-055](../../scenarios/RT-055.md) — Flattened grouped reasoning (thought process)
+- [ ] [RT-056](../../scenarios/RT-056.md) — Per-tool icons + visible tense-aware verbs
+- [ ] [RT-058](../../scenarios/RT-058.md) — Live-follow scroll modes + scroll-to-bottom pill
+- [ ] [RT-059](../../scenarios/RT-059.md) — Composer contrast + running semantics + Clear relocation + queued-prompt rows
+- [ ] [RT-069](../../scenarios/RT-069.md) — Agent-create runtime step gains reasoning
+- [ ] [RT-073](../../scenarios/RT-073.md) — Complete one-kickoff autonomous collaboration
+- [ ] [RT-074](../../scenarios/RT-074.md) — Agent fleet scan and truthful states
+- [ ] [RT-075](../../scenarios/RT-075.md) — Agents primary navigation and live count
+- [ ] [RT-078](../../scenarios/RT-078.md) — Agent settings whole-definition CAS and guard
+- [ ] [RT-080](../../scenarios/RT-080.md) — Durable agent delete and un-shadow
+- [ ] [RT-083](../../scenarios/RT-083.md) — Workspace agent fleet catalog
+- [ ] [RT-agent-detail-runtime-live-edit](../../scenarios/RT-agent-detail-runtime-live-edit.md) — Agent detail live runtime selector mutation
+- [ ] [RT-compozy-global-database](../../scenarios/RT-compozy-global-database.md) — Create the Compozy global database without changing session storage
+- [ ] [RT-connectivity-provider-route](../../scenarios/RT-connectivity-provider-route.md) — Verify and supervise a connectivity provider route
+- [ ] [RT-daemon-drain-admission](../../scenarios/RT-daemon-drain-admission.md) — Drain new-work admission without interrupting admitted work
+- [ ] [RT-gateway-browser-stream-reconnect](../../scenarios/RT-gateway-browser-stream-reconnect.md) — Reconnect remote browser streams with fresh tickets
+- [ ] [RT-gateway-no-device-recovery](../../scenarios/RT-gateway-no-device-recovery.md) — Recover after every paired device is unavailable
+- [ ] [RT-gateway-offline-delivery-redelivery](../../scenarios/RT-gateway-offline-delivery-redelivery.md) — Recover an offline public delivery through sender redelivery
+- [ ] [RT-gateway-operator-surface-truth](../../scenarios/RT-gateway-operator-surface-truth.md) — Read truthful gateway posture from the operator surface
+- [ ] [RT-gateway-paired-device](../../scenarios/RT-gateway-paired-device.md) — Pair, manage, and revoke a remote device
+- [ ] [RT-gateway-public-ui-consent](../../scenarios/RT-gateway-public-ui-consent.md) — Consent to public operator access without weakening pairing
+- [ ] [RT-gateway-remote-cli-profile](../../scenarios/RT-gateway-remote-cli-profile.md) — Operate and repair a paired remote CLI profile
+- [ ] [RT-mcp-dead-recovery](../../scenarios/RT-mcp-dead-recovery.md) — Diagnose and automatically recover a dead MCP server
+- [ ] [RT-migrate-memory-stream-when-disabled](../../scenarios/RT-migrate-memory-stream-when-disabled.md) — Migrate the shared memory stream while the memory runtime is disabled
+- [ ] [RT-missing-workspace-pruned](../../scenarios/RT-missing-workspace-pruned.md) — Prune a workspace whose local folder was removed
+- [ ] [RT-openclaw-provider-managed-runtime](../../scenarios/RT-openclaw-provider-managed-runtime.md) — Run OpenClaw without fabricated model controls
+- [ ] [RT-preserve-corrupt-database-family](../../scenarios/RT-preserve-corrupt-database-family.md) — Preserve a corrupt database family
+- [ ] [RT-pressure-context-compaction](../../scenarios/RT-pressure-context-compaction.md) — Compact completed context without losing session evidence
+- [ ] [RT-refuse-ahead-database](../../scenarios/RT-refuse-ahead-database.md) — Refuse a database ahead of the binary
+- [ ] [RT-refuse-cross-stream-legacy-marker](../../scenarios/RT-refuse-cross-stream-legacy-marker.md) — Refuse either legacy marker in the shared database
+- [ ] [RT-refuse-legacy-cli-open](../../scenarios/RT-refuse-legacy-cli-open.md) — Refuse legacy databases on remaining local CLI opens
+- [ ] [RT-refuse-legacy-database](../../scenarios/RT-refuse-legacy-database.md) — Refuse a pre-Goose database without mutation
+- [ ] [RT-refuse-legacy-session-database](../../scenarios/RT-refuse-legacy-session-database.md) — Refuse incompatible session event databases on reads
+- [ ] [RT-secret-redaction-boundary](../../scenarios/RT-secret-redaction-boundary.md) — Redact planted secrets before storage and streaming
+- [ ] [RT-session-context-rebuild](../../scenarios/RT-session-context-rebuild.md) — Rebuild provider context from one session's persisted transcript
+- [ ] [RT-session-cost-provenance](../../scenarios/RT-session-cost-provenance.md) — Session usage reports truthful cost provenance
+- [ ] [RT-session-cwd-resume](../../scenarios/RT-session-cwd-resume.md) — Preserve a session working directory across sandbox launch and resume
+- [ ] [RT-session-delete-owned-history](../../scenarios/RT-session-delete-owned-history.md) — Delete a stopped session with owned runtime history
+- [ ] [RT-session-lifecycle-affordances](../../scenarios/RT-session-lifecycle-affordances.md) — Preserve session identity and unresolved file-mutation evidence
+- [ ] [RT-session-native-stop](../../scenarios/RT-session-native-stop.md) — Stop another session through the governed native tool
+- [ ] [RT-session-spawn-wake](../../scenarios/RT-session-spawn-wake.md) — Wake a parent when its child settles
+- [ ] [RT-spawn-ttl-cleanup](../../scenarios/RT-spawn-ttl-cleanup.md) — Reap a settled child without timeout noise
+- [ ] [RT-subprocess-health-escalation](../../scenarios/RT-subprocess-health-escalation.md) — Escalate a task run after ACP subprocess health failure
+- [ ] [RT-web-attention-toast-delivery](../../scenarios/RT-web-attention-toast-delivery.md) — Receive useful attention alerts without notification fatigue
+- [ ] [RT-workspace-active-session-badge](../../scenarios/RT-workspace-active-session-badge.md) — Surface background sessions across workspaces
+- [ ] [RT-workspace-overview-command-tab](../../scenarios/RT-workspace-overview-command-tab.md) — Switch workspace identity through the Command-Tab overview
+- [ ] [RT-worktree-web-nested-navigation](../../scenarios/RT-worktree-web-nested-navigation.md) — Navigate nested worktrees and scope work to one from the desktop shell
+- [ ] [TA-001](../../scenarios/TA-001.md) — Create task
+- [ ] [TA-004](../../scenarios/TA-004.md) — Edit task
+- [ ] [TA-017](../../scenarios/TA-017.md) — Task hierarchy and active descendants
+- [ ] [TA-021](../../scenarios/TA-021.md) — Task bridge notification subscriptions
+- [ ] [TA-022](../../scenarios/TA-022.md) — List task runs
+- [ ] [TA-023](../../scenarios/TA-023.md) — Get run detail
+- [ ] [TA-024](../../scenarios/TA-024.md) — Manual exact-run claim
+- [ ] [TA-033](../../scenarios/TA-033.md) — Recover needs_attention run
+- [ ] [TA-039](../../scenarios/TA-039.md) — Task dashboard
+- [ ] [TA-040](../../scenarios/TA-040.md) — Task inbox + unread
+- [ ] [TA-044](../../scenarios/TA-044.md) — Scheduler status
+- [ ] [TA-047](../../scenarios/TA-047.md) — Resume scheduler
+- [ ] [TA-050](../../scenarios/TA-050.md) — Agent heartbeat lease
+- [ ] [TA-052](../../scenarios/TA-052.md) — Manage automation job
+- [ ] [TA-054](../../scenarios/TA-054.md) — Job run history
+- [ ] [TA-057](../../scenarios/TA-057.md) — Trigger events + filters
+- [ ] [TA-061](../../scenarios/TA-061.md) — Config-backed job/trigger policy
+- [ ] [TA-062](../../scenarios/TA-062.md) — Automation enable/disable (settings)
+- [ ] [TA-063](../../scenarios/TA-063.md) — Loop-target automation job start
+- [ ] [TA-064](../../scenarios/TA-064.md) — Loop-target trigger and webhook start
+- [ ] [TA-065](../../scenarios/TA-065.md) — Automation list loop filter
+- [ ] [TA-066](../../scenarios/TA-066.md) — Loop start binding parity
+- [ ] [TA-068](../../scenarios/TA-068.md) — Loop run and dry-run HTTP/UDS API
+- [ ] [TA-075](../../scenarios/TA-075.md) — Loop native definition management tools
+- [ ] [TA-077](../../scenarios/TA-077.md) — Loop approval native safety
+- [ ] [TA-078](../../scenarios/TA-078.md) — Loop CLI parity
+- [ ] [TA-079](../../scenarios/TA-079.md) — Loop config defaults lifecycle
+- [ ] [TA-081](../../scenarios/TA-081.md) — Default spec-cycle review-and-fix Loop
+- [ ] [TA-082](../../scenarios/TA-082.md) — Loops sidebar navigation
+- [ ] [TA-083](../../scenarios/TA-083.md) — Loop run form (typed inputs, overrides, dry-run)
+- [ ] [TA-085](../../scenarios/TA-085.md) — Loop configure sheet (no-fork tweaks)
+- [ ] [TA-086](../../scenarios/TA-086.md) — Loop visual editor (fork-and-edit DAG canvas + codec + linter + positions)
+- [ ] [TA-088](../../scenarios/TA-088.md) — Externally started Goal discovery
+- [ ] [TA-089](../../scenarios/TA-089.md) — Goal prompt-kind transcript metadata
+- [ ] [TA-090](../../scenarios/TA-090.md) — Goal turn audit
+- [ ] [TA-091](../../scenarios/TA-091.md) — Goal Run origin filters
+- [ ] [TA-092](../../scenarios/TA-092.md) — Goal config lifecycle
+- [ ] [TA-093](../../scenarios/TA-093.md) — Inline Goal command lifecycle
+- [ ] [TA-094](../../scenarios/TA-094.md) — Goal replace expected-run safety
+- [ ] [TA-095](../../scenarios/TA-095.md) — Goal draft and ingress authorization
+- [ ] [TA-096](../../scenarios/TA-096.md) — Goal native tool lifecycle
+- [ ] [TA-097](../../scenarios/TA-097.md) — Goal CLI turn and origin parity
+- [ ] [TA-098](../../scenarios/TA-098.md) — Goal prompt structured result durability
+- [ ] [TA-099](../../scenarios/TA-099.md) — Goal session header states
+- [ ] [TA-101](../../scenarios/TA-101.md) — Goal Run turn timeline
+- [ ] [TA-102](../../scenarios/TA-102.md) — Goal block authoring in Loop editor
+- [ ] [TA-103](../../scenarios/TA-103.md) — Goal Run origin labels and filters
+- [ ] [TA-105](../../scenarios/TA-105.md) — Goal operational prompt tags
+- [ ] [TA-106](../../scenarios/TA-106.md) — Semantic alert variants
+- [ ] [TA-107](../../scenarios/TA-107.md) — Readable streamed markdown width
+- [ ] [TA-action-run-liveness](../../scenarios/TA-action-run-liveness.md) — Keep long-running Loop nodes alive without a hidden clock
+- [ ] [TA-automation-crud-loop-target](../../scenarios/TA-automation-crud-loop-target.md) — Create update disable and delete Loop-target automations
+- [ ] [TA-automation-suggestions](../../scenarios/TA-automation-suggestions.md) — Review and resolve consent-first automation suggestions
+- [ ] [TA-loop-failure-breaker](../../scenarios/TA-loop-failure-breaker.md) — Bound an unbounded failing Loop watch
+- [ ] [TA-parent-rollup-completion](../../scenarios/TA-parent-rollup-completion.md) — Complete a parent when every child completes
+- [ ] [TA-schedule-catchup-overlap](../../scenarios/TA-schedule-catchup-overlap.md) — Recover one scheduled fire without overlap
+- [ ] [TA-task-create-async-activation](../../scenarios/TA-task-create-async-activation.md) — Create a ready Task without waiting for worker provisioning
+- [ ] [TA-task-run-cost-provenance](../../scenarios/TA-task-run-cost-provenance.md) — Task run summary preserves truthful cost provenance
+- [ ] [TA-task-wake-dedup](../../scenarios/TA-task-wake-dedup.md) — Deliver one creator wake after cache eviction
+- [ ] [TA-terminal-run-inspect](../../scenarios/TA-terminal-run-inspect.md) — Keep terminal task-run diagnostics terminal
+- [ ] [TA-web-task-detail-redesign](../../scenarios/TA-web-task-detail-redesign.md) — Task detail 3-tab IA with command-state head
+- [ ] [TA-workspace-run-capacity](../../scenarios/TA-workspace-run-capacity.md) — Defer and drain workspace runs at the active-run limit

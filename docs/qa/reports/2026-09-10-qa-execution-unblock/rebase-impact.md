@@ -83,3 +83,19 @@ The first post-rebase gate passed Go lint and race lanes, then failed4 Web asser
 Additional incoming-change race checks passed: TestRosterContract and TestOverviewAttentionAcknowledgements, recorded in rebase-20260911-incoming-focused.txt. The full local gate will be repeated after the focused transcript reconciliation.
 
 Final rebase validation: make gate passed all affected local lanes;771 Web files/7222 tests, lint and typecheck green. Evidence: rebase-20260911-gate-retry.txt. No push or CI delivery claim.
+
+
+## Third upstream integration — 2026-09-11
+
+Target `35cad0cddff7a55935ed0b77b2d3b5c5ba956662` adds three PRs to `ace125a7e`. Full PR descriptions and file lists were reviewed and retained as `rebase-pr-618.json`, `rebase-pr-619.json`, and `rebase-pr-621.json`.
+
+| PR | Intended behavior and effect on this QA run |
+| --- | --- |
+| 618 | Internal Goal prompts are excluded from public queue lists/counts. Clear cancels public entries and carries eligible Goal work across generations; direct remove cannot cancel Goal-owned entries. Use Goal/Run reads to prove internal work state, because queue zero no longer proves absence. No schema/DTO/route changes. Upstream real queue/clear/dispatch evidence is scoped to its reported surfaces. |
+| 619 | Workspace session lists support selection and sequential bulk Stop/Archive/Unarchive/Delete with per-ID failures and retry. Selection follows membership, scope, and Archived view. Shared action hooks overlap this branch; preserve local Goal error handling. New bulk scenario remains adjacent to the original 357-row scope. Existing sidebar journeys must account for changed controls. |
+| 621 | Verified supervised-silence stop recovers authoritative owned task work to one linked attempt within the existing budget; exhausted work needs attention. Stop receipts retry idempotently, exact ownership/intent fences win, and owned Loop bindings advance atomically. No schema/config/wire changes. Upstream process-fixture and CI proof does not establish real-provider successor completion. Relevant later task/liveness walks must inspect linked attempts and preserved output. |
+
+The isolated replay completed at `a172d49ff51da7a2f09dfb619a48ad041c5da36d`. All 20 local commits remain: 18 are unchanged in range-diff; two differ only in surrounding import/audit context. The only conflict was appended cross-surface documentation, resolved by retaining both complete sections. Guarded binary patch transfer matched the replay tree and preserved the unrelated deleted agent-browser skill and untracked handoffs. Evidence: `rebase-20260911-third-preservation.json`, `rebase-20260911-third-range-diff.txt`, and `rebase-20260911-third-transfer.patch`. Integration gate and builds are in progress; live lab still needs the new build.
+
+
+Third integration delivery validation passed: Go and root Turbo Web builds, focused incoming GlobalDB queue/supervised-recovery race suites, and the final `make gate` retry. Web:773 suites/7248 tests; lint and typecheck passed. The first broad gate's catalog TempDir cleanup failure remains an open intermittent finding; five exact-subtest repetitions and the complete owning suite passed without code changes. See `pr-delivery-gate.txt` and the catalog cleanup bug record. Final integrated live ingress proof is `goal-ingress-partial-proof.json`; the lab teardown is clean.
