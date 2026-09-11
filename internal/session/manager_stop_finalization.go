@@ -90,6 +90,14 @@ func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session
 		m.dispatchSessionPostStop(ctx, session)
 		return errors.Join(session.stopFinalizationErr, ErrRecoveryPersistence, err)
 	}
+	turnID, err := m.sessionStopTurnID(session)
+	if err == nil {
+		err = m.recoverSupervisedWork(ctx, session.Info(), turnID)
+	}
+	if err != nil {
+		session.setPendingStopState(true, true)
+		return errors.Join(session.stopFinalizationErr, ErrRecoveryPersistence, err)
+	}
 	if err := m.removeRecoveredStopReceipt(session.ID); err != nil {
 		session.setPendingStopState(true, true)
 		m.dispatchSessionPostStop(ctx, session)

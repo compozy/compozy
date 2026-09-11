@@ -43,6 +43,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootC
 	if err := bootSubprocessHealthEscalator(state, store, manager); err != nil {
 		return err
 	}
+	installSupervisedWorkRecovery(state, manager)
 	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: store})
 	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
 		return err

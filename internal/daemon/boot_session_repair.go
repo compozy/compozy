@@ -39,6 +39,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err := d.prepareServerDependencies(ctx, state); err != nil {
 		return err
 	}
+	if err := d.installBootSupervisedWorkRecovery(state); err != nil {
+		return err
+	}
 	if recoverer, ok := state.sessions.(sessionPendingStopRecoverer); ok {
 		if err := recoverer.RecoverPendingStops(ctx); err != nil {
 			return fmt.Errorf("daemon: recover pending session stops: %w", err)

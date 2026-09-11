@@ -5195,6 +5195,212 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 	})
 }
 
+func TestGlobalDBSupervisedRecovery(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		change string
+	}{
+		{"Should preserve a winning success", "UPDATE task_runs SET status = 'succeeded' WHERE id = ?"},
+		{"Should preserve a winning cancellation", "UPDATE task_runs SET status = 'canceled' WHERE id = ?"},
+		{"Should reject ownership transferred to another session", "UPDATE task_runs SET session_id = 'sess-new-owner' WHERE id = ?"},
+		{"Should preserve completed task intent", "UPDATE tasks SET status = 'completed' WHERE id = (SELECT task_id FROM task_runs WHERE id = ?)"},
+		{"Should preserve canceled task intent", "UPDATE tasks SET status = 'canceled' WHERE id = (SELECT task_id FROM task_runs WHERE id = ?)"},
+		{"Should ignore a deleted run", "DELETE FROM task_runs WHERE id = ?"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openLoopTestGlobalDB(t)
+			ctx := t.Context()
+			record := taskRecordForTest("task-supervised-fence")
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+			source := taskRunForTest("run-supervised-fence", record.ID)
+			source.Status, source.SessionID = taskpkg.TaskRunStatusRunning, "sess-supervised"
+			if err := db.CreateTaskRun(ctx, source); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(ctx, tc.change, source.ID); err != nil {
+				t.Fatal(err)
+			}
+			err := db.withTaskMutationTransactionForTest(
+				ctx,
+				"test supervised race",
+				func(tx *taskMutationTxStore) error {
+					result, err := tx.RecoverSupervisedRun(ctx, taskpkg.SupervisedRunRecoveryMutation{
+						Source: source, NewRunID: "run-unwanted", At: time.Now().UTC(),
+						Stop: taskpkg.SupervisedStop{SessionID: source.SessionID, WorkspaceID: "ws-loop-test",
+							ProfileID: source.ProfileID, EventID: "session-stop:turn-fence"},
+					})
+					if result.Applied || result.Requeued {
+						t.Errorf("stale recovery applied: %#v", result)
+					}
+					return err
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.GetTaskRun(ctx, "run-unwanted"); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+				t.Fatalf("unexpected successor: %v", err)
+			}
+		})
+	}
+	t.Run("Should atomically advance the owned Loop cell and close its old binding", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		at := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+		loopRun, sourceID := seedLiveLoopLivenessCellForTest(t, db, at)
+		seedLoopCancellationBindingForTest(
+			t,
+			db,
+			string(loopRun.ID),
+			string(loopRun.WorkspaceID),
+			"main",
+			5,
+			"sess-supervised",
+			at,
+		)
+		if _, err := db.db.ExecContext(ctx, `UPDATE task_runs SET status = 'running', session_id = ?,
+			metadata_json = json_set(metadata_json, '$.node_kind', 'run-agent') WHERE id = ?`, "sess-supervised", sourceID); err != nil {
+			t.Fatal(err)
+		}
+		source, err := db.GetTaskRun(ctx, sourceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(db))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stop := taskpkg.SupervisedStop{SessionID: source.SessionID, WorkspaceID: source.WorkspaceID,
+			ProfileID: source.ProfileID, EventID: "session-stop:turn-loop"}
+		for range 2 {
+			if err := manager.RecoverSupervisedWork(ctx, stop); err != nil {
+				t.Fatal(err)
+			}
+		}
+		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: source.TaskID})
+		if err != nil || len(runs) != 2 {
+			t.Fatalf("runs = %#v, %v", runs, err)
+		}
+		var child taskpkg.Run
+		for _, run := range runs {
+			if run.ID != source.ID {
+				child = run
+			}
+		}
+		if child.PreviousRunID != source.ID || child.LoopRunID != source.LoopRunID ||
+			child.DesignationGroupID != source.DesignationGroupID || !reflect.DeepEqual(child.RunWorktreeState, source.RunWorktreeState) ||
+			!reflect.DeepEqual(child.RequiredCapabilities, source.RequiredCapabilities) {
+			t.Fatalf("child = %#v", child)
+		}
+		var cellRun, bindingState, failureCode string
+		var epoch, attempt int
+		if err := db.db.QueryRowContext(ctx, `SELECT task_run_id, epoch, attempt FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND node_id = 'work'`, loopRun.ID).Scan(&cellRun, &epoch, &attempt); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.db.QueryRowContext(ctx, `SELECT state FROM loop_session_bindings WHERE loop_run_id = ? AND handle = 'main'`, loopRun.ID).
+			Scan(&bindingState); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.db.QueryRowContext(ctx, `SELECT failure_code FROM loop_node_attempts WHERE loop_run_id = ? AND node_id = 'work'`, loopRun.ID).
+			Scan(&failureCode); err != nil {
+			t.Fatal(err)
+		}
+		if cellRun != child.ID || epoch != 5 || attempt != 2 || bindingState != "closed" ||
+			failureCode != taskpkg.SupervisedSilenceReason {
+			t.Fatalf("cell=%s/%d/%d binding=%s cause=%s", cellRun, epoch, attempt, bindingState, failureCode)
+		}
+	})
+	for _, tc := range []struct {
+		name        string
+		status      taskpkg.RunStatus
+		maxAttempts int
+		recoveries  int32
+		wantRetry   bool
+	}{
+		{"Should retry running work with a linked attempt", taskpkg.TaskRunStatusRunning, 3, 0, true},
+		{"Should retry claimed work with a linked attempt", taskpkg.TaskRunStatusClaimed, 3, 0, true},
+		{"Should disable retry with one allowed attempt", taskpkg.TaskRunStatusRunning, 1, 0, false},
+		{"Should count previous lease recoveries against the budget", taskpkg.TaskRunStatusClaimed, 2, 1, false},
+		{"Should retain consumed lease recoveries in the successor", taskpkg.TaskRunStatusRunning, 3, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openLoopTestGlobalDB(t)
+			ctx := t.Context()
+			record := taskRecordForTest("task-supervised")
+			record.MaxAttempts = tc.maxAttempts
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+			source := taskRunForTest("run-supervised", record.ID)
+			source.Status, source.SessionID, source.RecoveryCount = tc.status, "sess-supervised", tc.recoveries
+			source.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: source.SessionID}
+			source.ClaimedAt = source.QueuedAt
+			source.Metadata = json.RawMessage(`{"checkpoint":"committed-part-4"}`)
+			if err := db.CreateTaskRun(ctx, source); err != nil {
+				t.Fatal(err)
+			}
+			manager, err := taskpkg.NewManager(taskpkg.WithStore(db))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stop := taskpkg.SupervisedStop{SessionID: source.SessionID, WorkspaceID: "ws-loop-test",
+				ProfileID: store.DefaultProfileID, EventID: "session-stop:turn-supervised"}
+			var recoveryWG sync.WaitGroup
+			for range 2 {
+				recoveryWG.Go(func() {
+					if err := manager.RecoverSupervisedWork(ctx, stop); err != nil {
+						t.Error(err)
+					}
+				})
+			}
+			recoveryWG.Wait()
+			runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: record.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			previous, err := db.GetTaskRun(ctx, source.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.wantRetry {
+				if len(runs) != 1 || previous.Status != taskpkg.TaskRunStatusNeedsAttention ||
+					previous.Error != taskpkg.SupervisedSilenceExhaustedReason {
+					t.Fatalf("exhausted recovery: runs=%#v previous=%#v", runs, previous)
+				}
+				return
+			}
+			if len(runs) != 2 || previous.Status != taskpkg.TaskRunStatusFailed ||
+				previous.Error != taskpkg.SupervisedSilenceReason {
+				t.Fatalf("recovery: runs=%#v previous=%#v", runs, previous)
+			}
+			for _, run := range runs {
+				if run.ID == source.ID {
+					continue
+				}
+				if run.PreviousRunID != source.ID || run.Attempt != 2 || run.RecoveryCount != tc.recoveries ||
+					run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "" || run.ProfileID != source.ProfileID ||
+					string(run.Metadata) != string(source.Metadata) {
+					t.Fatalf("successor = %#v", run)
+				}
+			}
+			events, err := db.ListTaskEvents(
+				ctx,
+				taskpkg.EventQuery{TaskID: record.ID, EventType: "task.run_recovered"},
+			)
+			if err != nil || len(events) != 1 {
+				t.Fatalf("recovery events = %#v, %v", events, err)
+			}
+		})
+	}
+}
+
 func forceReleaseTaskRunForTest(
 	ctx context.Context,
 	globalDB *GlobalDB,

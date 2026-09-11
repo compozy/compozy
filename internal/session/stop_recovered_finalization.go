@@ -72,6 +72,9 @@ func (m *Manager) settleRecoveredStop(
 	if err := m.stopSessionGoals(settleCtx, info); err != nil {
 		return errors.Join(ErrRecoveryPersistence, err)
 	}
+	if err := m.recoverSupervisedWork(settleCtx, info, settlement.turnID); err != nil {
+		return err
+	}
 	if err := m.removeRecoveredStopReceipt(run.recoveredID); err != nil {
 		return err
 	}

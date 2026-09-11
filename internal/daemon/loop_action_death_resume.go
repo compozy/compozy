@@ -32,6 +32,11 @@ func (r *loopActionRuntime) resumeConfirmedDeadAction(
 		)
 		return false, nil
 	}
+	if info != nil && (info.StopCause == session.CauseInactivity ||
+		(info.StopReason == storepkg.StopTimeout && info.StopDetail == "inactivity")) {
+		// The durable stop receipt owns recovery and fences this attempt's late result.
+		return true, nil
+	}
 	if !confirmedLoopActionSessionDeath(info) {
 		return false, nil
 	}

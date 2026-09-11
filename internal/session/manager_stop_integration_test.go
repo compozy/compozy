@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -25,6 +27,8 @@ import (
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -138,6 +142,117 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	if *meta.StopReason != store.StopUserCanceled {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
 	}
+}
+
+func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should recover owned work only after the frozen process tree exits", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+		var clock atomic.Int64
+		clock.Store(base.UnixNano())
+		pidFile := filepath.Join(t.TempDir(), "child.pid")
+		h := newRealACPIntegrationHarness(t, sessionStopWrapperCommand(t, pidFile))
+		config := testSupervisionConfig()
+		config.QuietAfter, config.StopGrace = time.Second, time.Second
+		h.manager = newManagerWithHarness(t, h, WithDriver(h.manager.driver),
+			WithNow(func() time.Time { return time.Unix(0, clock.Load()).UTC() }),
+			WithSessionSupervision(config),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}))
+		db := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, db, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, db, h, sess)
+		proc := sess.processHandle()
+		childPID := waitForSessionStopWrapperChildPID(t, pidFile)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), sess.ID); err != nil {
+				t.Errorf("cleanup Stop: %v", err)
+			}
+		})
+		tasks, source := seedSupervisedTaskForSession(t, db, sess, base)
+		artifact := filepath.Join(h.workspace, "committed-output.txt")
+		if err := os.WriteFile(artifact, []byte("part-1\npart-2\npart-3\npart-4\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.SetSupervisedWorkRecovery(func(ctx context.Context, info *Info, eventID string) error {
+			if sessionStopProcessAlive(proc.PID) || sessionStopProcessAlive(childPID) {
+				return fmt.Errorf("recovery ran before process tree exit")
+			}
+			return tasks.RecoverSupervisedWork(ctx, taskpkg.SupervisedStop{
+				SessionID: info.ID, WorkspaceID: info.WorkspaceID, ProfileID: info.ProfileID, EventID: eventID,
+			})
+		})
+		installAbsentWorkSources(h.manager)
+		if err := syscall.Kill(-proc.PID, syscall.SIGSTOP); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		for tick := range 3 {
+			at := base.Add(time.Duration(10+tick) * time.Second)
+			clock.Store(at.UnixNano())
+			if err := h.manager.Supervise(ctx, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+		outcome, err := h.manager.AwaitStopped(ctx, sess.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+			t.Fatalf("supervised stop = %#v, %v", outcome, err)
+		}
+		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: source.TaskID})
+		if err != nil || len(runs) != 2 {
+			t.Fatalf("recovered runs = %#v, %v", runs, err)
+		}
+		for _, run := range runs {
+			if run.ID != source.ID && (run.PreviousRunID != source.ID || run.Attempt != 2 ||
+				run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "") {
+				t.Fatalf("successor = %#v", run)
+			}
+		}
+		content, err := os.ReadFile(artifact)
+		if err != nil || string(content) != "part-1\npart-2\npart-3\npart-4\n" {
+			t.Fatalf("committed output = %q, %v", content, err)
+		}
+		assertSupervisionEventCorrelation(t, h.manager, sess, "session.supervision_stopped")
+	})
+}
+
+func seedSupervisedTaskForSession(
+	t *testing.T, db *globaldb.GlobalDB, sess *Session, at time.Time,
+) (*taskpkg.Service, taskpkg.Run) {
+	t.Helper()
+	tasks, err := taskpkg.NewManager(taskpkg.WithStore(db), taskpkg.WithManagerNow(func() time.Time { return at }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := tasks.CreateTask(t.Context(), taskpkg.CreateTask{
+		ProfileID: sess.Info().ProfileID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: sess.WorkspaceID,
+		Title: "Recover committed work", MaxAttempts: new(3),
+	}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := tasks.EnqueueRun(t.Context(), taskpkg.EnqueueRun{TaskID: record.ID}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := taskpkg.DeriveAgentSessionActorContext(sess.ID, sess.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim, err := tasks.ClaimNextRun(t.Context(), taskpkg.ClaimCriteria{
+		RunID: run.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: sess.WorkspaceID,
+		ClaimerSessionID: sess.ID, LeaseDuration: time.Second, Now: at.Add(-time.Minute),
+	}, agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tasks, claim.Run
 }
 
 func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.T) {

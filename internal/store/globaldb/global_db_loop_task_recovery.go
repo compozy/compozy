@@ -168,7 +168,7 @@ func applyLoopTaskRecovery(
 			loopRun,
 			continuation.ID,
 			metadata,
-			args.queuedAt,
+			args,
 		); err != nil {
 			return err
 		}
@@ -248,12 +248,13 @@ func appendLoopTaskRecoveryAttempt(
 	if _, err := exec.ExecContext(ctx, `INSERT INTO loop_node_attempts (
 		loop_run_id, generation, node_id, item_index, attempt, failure_code,
 		cause, disposition, started_at, ended_at
-	) VALUES (?, ?, ?, ?, ?, 'operator_recovery', ?, 'resumed', ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, 'resumed', ?, ?)`,
 		source.LoopRunID,
 		metadata.Generation,
 		metadata.NodeID,
 		metadata.ItemIndex,
 		metadata.Attempt,
+		loopTaskRecoveryCause(args),
 		args.reason,
 		args.queuedAt,
 		args.queuedAt,
@@ -263,13 +264,20 @@ func appendLoopTaskRecoveryAttempt(
 	return nil
 }
 
+func loopTaskRecoveryCause(args retryTaskRunArgs) string {
+	if args.reason == taskpkg.SupervisedSilenceReason {
+		return taskpkg.SupervisedSilenceReason
+	}
+	return "operator_recovery"
+}
+
 func appendLoopTaskRecoveryAttentionClearedEvent(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	loopRun looppkg.Run,
 	continuationID string,
 	metadata loopNodeRunMetadata,
-	at time.Time,
+	args retryTaskRunArgs,
 ) error {
 	return appendLoopRunEventWithExecutor(
 		ctx,
@@ -282,9 +290,9 @@ func appendLoopTaskRecoveryAttentionClearedEvent(
 			loopRunEventPayloadKeyNodeID:     metadata.NodeID,
 			loopRunEventPayloadKeyItemIndex:  metadata.ItemIndex,
 			loopRunEventPayloadKeyTaskRunID:  continuationID,
-			loopRunEventPayloadKeyReason:     "operator_recovery",
+			loopRunEventPayloadKeyReason:     loopTaskRecoveryCause(args),
 		},
-		at,
+		args.queuedAt,
 	)
 }
 
