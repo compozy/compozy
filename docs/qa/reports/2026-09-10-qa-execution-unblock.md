@@ -278,7 +278,7 @@ All rows initialized Pending before first product interaction. Existing charters
 | 161 | Charter mapping pending | J-05 / LP-web-run-session-one-click | Dora |  | Pending | | |
 | 162 | CH-039 | J-25 / MS-006 | Rafa | Interrupt Tour | Pending | | |
 | 163 | CH-039 | J-25 / MS-008 | Dora | Interrupt Tour | Pending | | |
-| 164 | CH-dream-pipeline-canary | J-digest-sessions-into-memory / MS-011 | Rafa | Feature Tour | Pending | | |
+| 164 | CH-untested-valid-019-digest-sessions-into-memory-rafa | J-digest-sessions-into-memory / MS-011 | Rafa | Feature Tour | Fixed | health-retest-proof.json | Browser health and missing-workspace404 verified; gate passed. |
 | 165 | CH-dream-pipeline-canary | J-digest-sessions-into-memory / MS-016 | Dora | Feature Tour | Pending | | |
 | 166 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-041 | Dora | Garbage Tour | Pass | Web typed/simple delete; cancel; disappearing target; HTTP/UDS/reload | |
 | 167 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-049 | Dora | Back-Button Tour | Pending | | |
@@ -409,8 +409,8 @@ All rows initialized Pending before first product interaction. Existing charters
 | 292 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-001 | Bruno | Network Tour | Pending | | |
 | 293 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-004 | Bruno | Network Tour | Pending | | |
 | 294 | CH-untested-024-24-bruno-part-1 | J-24 / TA-017 | Bruno | Garbage Tour | Pending | | |
-| 295 | CH-untested-024-24-bruno-part-1 | J-24 / TA-018 | Bruno | Garbage Tour | Pending | | |
-| 296 | CH-untested-024-24-bruno-part-1 | J-24 / TA-019 | Bruno | Garbage Tour | Pending | | |
+| 295 | CH-untested-024-24-bruno-part-1 | J-24 / TA-018 | Bruno | Garbage Tour | Pass | task-diagnostics-proof.json | CLI/HTTP/UDS and Web Inspect agree after reopen/reload. |
+| 296 | CH-untested-024-24-bruno-part-1 | J-24 / TA-019 | Bruno | Garbage Tour | Pass | task-diagnostics-proof.json | CLI/HTTP/UDS and Web Inspect agree after reopen/reload. |
 | 297 | Charter mapping pending |  / TA-021 | Bruno |  | Pending | | |
 | 298 | CH-untested-024-24-bruno-part-1 | J-24 / TA-022 | Bruno | Garbage Tour | Pending | | |
 | 299 | CH-untested-024-24-bruno-part-1 | J-24 / TA-023 | Bruno | Garbage Tour | Pending | | |
@@ -624,3 +624,21 @@ The clean claim attempt returned no work while its exact run remained queued; th
 The new real Cursor retakes passed: exact foreign-name run claim, target one-line file, native completion, and CLI denial with canonical guidance. Public task state, file read, terminal journal, grant/denial audits, runtime selection, and stopped sessions are captured in `claim-retest-proof.json`. The full matrix still fails the separate Cursor deny-all preemption branch.
 
 Canonical regressions reproduced red then passed with race detection, full task race suite passed, Go build passed, and make gate passed all affected lanes (`claim-gate-retest.txt`). Initial formatter drift was corrected before retry. Seven pre-existing standalone test-shape heuristic findings in lease_test.go are outside this edit; the added test uses the existing owning suite. No further scenario count change:5 dispositioned,352 pending.
+
+## Memory health walk — September11 continuation
+
+Rafa resumed the MS-011 companion charter after the browser session reset; daemon47583 remained live with zero active managed sessions. Settings → Memory opens and reloads with persistence enabled, zero global memory files, no Dream runs, and a disabled Trigger dream control. CLI/HTTP/UDS valid workspace health agrees on status ok, one workspace file/indexed file, zero orphans, and Dream disabled. Global health includes two workspaces; its global file count remains zero. The Settings summary displays that global count.
+
+The invalid-workspace branch instead returns500 memory.internal: HTTP hides the underlying message, while UDS reports workspace not found. A fresh HTTP retry reproduces it. Evidence: health-http-invalid.json, health-uds-invalid.json, health-http-invalid-retry.json; valid and Web observations use the health-* evidence prefix. The persona walk ends here for diagnosis; no health pass is awarded yet.
+
+## Task and run diagnostics — verified
+
+Bruno completed TA-018 and TA-019 under CH-untested-024-24-bruno-part-1. The archive task executed earlier by real Cursor/Grok remains completed after daemon restart. Task Inspect displays terminal next action, current run, stopped session and active scheduler. Run Inspect shows absent finished lease timestamps, the token hash only, and the correct idempotency key. Independent CLI/HTTP/UDS diagnostics match exactly excluding their as_of timestamps. Reopen/reload retains the display; missing task/run IDs produce404. Evidence: task-diagnostics-proof.json and its linked inspected screenshots. The persona slice ends without mutation. TA-023 run detail was observed but review-bearing behavior is not yet settled; TA-022 filter-before-limit requires its own multi-run walk.
+
+The health gate passed core/HTTP/UDS but hit one TempDir cleanup failure in the unchanged catalog composition test. Three targeted repetitions passed; the gate retry is running. No test was weakened or replaced. Current original inventory:3 verified,1 fixed-and-verified,1 unresolved defect,2 external-runtime blockers,350 pending.
+
+## Memory health repair delivered locally
+
+Rafa's real replay closes MS-011: browser summary/reload, matching valid CLI/HTTP/UDS health after restart, and corrected missing-workspace404 diagnostics. The existing Dream role matrix remains valid for unchanged combinations. Full owning memory race suite and test-shape check passed. The first gate hit a catalog fixture TempDir cleanup failure; three targeted reproductions passed, then the full gate retry passed all affected lanes. No unrelated test change.
+
+Current inventory:3 verified,2 fixed-and-verified,1 unresolved defect,2 external-runtime blockers,349 pending (357total). Claim fix is db933e045. The Goal judge's lab-only delivery runtime defaults are now explicitly cursor/grok-4.6/high/fast through four validated scalar config writes; the unsupported whole-object write changed nothing. No Goal execution is claimed yet.

@@ -158,7 +158,7 @@ func StatusForMemoryError(err error) int {
 		return http.StatusNotImplemented
 	case errors.Is(err, ErrMemoryRejected):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, os.ErrNotExist), errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, memory.ErrValidation):
 		return http.StatusBadRequest

@@ -705,6 +705,42 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		})
 	}
 
+	t.Run("Should classify missing health workspaces without hiding their diagnostic", func(t *testing.T) {
+		t.Parallel()
+		for _, mask := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should preserve not found with masking %t", mask), func(t *testing.T) {
+				t.Parallel()
+				fixture, _, _ := setup(t)
+				fixture.Handlers.MaskInternalErrors = mask
+				fixture.Handlers.Workspaces = testutil.StubWorkspaceService{
+					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
+							"resolve missing-health: %w",
+							workspacepkg.ErrWorkspaceNotFound,
+						)
+					},
+				}
+				response := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodGet,
+					"/memory/health?workspace_id=missing-health",
+					nil,
+				)
+				var payload contract.MemoryErrorPayload
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if response.Code != http.StatusNotFound || payload.Code != "memory.not_found" ||
+					!strings.Contains(payload.Message, "workspace not found") {
+					t.Fatalf(
+						"health status=%d payload=%#v, want actionable workspace not found",
+						response.Code,
+						payload,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should report memory health directly", func(t *testing.T) {
 		t.Parallel()
 
