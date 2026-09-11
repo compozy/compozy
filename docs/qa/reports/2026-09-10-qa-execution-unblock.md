@@ -187,8 +187,8 @@ All rows initialized Pending before first product interaction. Existing charters
 | 70 | CH-window-tabs-agent-parity | J-agent-manage-window-tabs / ET-window-tab-v3-discard | Ada | Feature Tour | Pending | | |
 | 71 | CH-cross-workspace-mode-seams | J-cross-workspace-access / ET-workspace-access-mode-matrix | Ada | Feature Tour | Fail | [Provider denial diagnostic](../bugs/BUG-20260910-cursor-denial-hides-workspace-policy.md) | Deny-all branch failed; other reachable seams continue. |
 | 72 | CH-cross-workspace-consent-audit | J-cross-workspace-access / ET-workspace-access-prompt-outcomes | Bruno | Interrupt Tour | Pending | | |
-| 73 | CH-046 | J-26 / GL-001 | Lea | Feature Tour | Pending | | |
-| 74 | CH-046 | J-26 / GL-002 | Lea | Feature Tour | Pending | | |
+| 73 | CH-046 | J-26 / GL-001 | Lea | Feature Tour | Pass | goal-parser-retest-proof.json | Direct 202, one session-origin Run, one canonical judge, completed and retained. |
+| 74 | CH-046 | J-26 / GL-002 | Lea | Feature Tour | Pass | goal-first-run-proof.json | Text clauses remain in one agent-judge rubric; approved real run and refreshed Web. |
 | 75 | CH-046 | J-26 / GL-003 | Lea | Feature Tour | Pending | | |
 | 76 | CH-047 | J-26 / GL-005 | Bruno | Interrupt Tour | Pending | | |
 | 77 | CH-047 | J-26 / GL-006 | Bruno | Interrupt Tour | Pending | | |
@@ -642,3 +642,17 @@ The health gate passed core/HTTP/UDS but hit one TempDir cleanup failure in the 
 Rafa's real replay closes MS-011: browser summary/reload, matching valid CLI/HTTP/UDS health after restart, and corrected missing-workspace404 diagnostics. The existing Dream role matrix remains valid for unchanged combinations. Full owning memory race suite and test-shape check passed. The first gate hit a catalog fixture TempDir cleanup failure; three targeted reproductions passed, then the full gate retry passed all affected lanes. No unrelated test change.
 
 Current inventory:3 verified,2 fixed-and-verified,1 unresolved defect,2 external-runtime blockers,349 pending (357total). Claim fix is db933e045. The Goal judge's lab-only delivery runtime defaults are now explicitly cursor/grok-4.6/high/fast through four validated scalar config writes; the unsupported whole-object write changed nothing. No Goal execution is claimed yet.
+
+## First live Goal with Cursor — partial charter
+
+Lea entered the Web composer with field-writer. Bare /goal produced Internal Server Error in the Web, while the CLI reported a missing objective. Independent Goal status stayed null. The valid objective then created exactly one session-origin Run looprun-04abce75fc6d732c, and the browser displayed active Goal turn1/20. The actual worker and separate judge both ran cursor/grok-4.6/high/fast. One canonical agent-judge criterion includes the textual verify and constraints rubric; it is not a command judge. The run settled complete/done with one approved turn, retained after Web reload. Independent field-summary.md contains the workspaceID and three verb-led steps. Judge and origin sessions are stopped.
+
+Evidence: goal-first-run-proof.json, goal-active-web.png, goal-complete-reloaded.png and goal-bare-submitted-web.png. This does not establish two rejected rounds, replacement/pause, all invalid reasons, or the direct202 browser response; those branches remain open. The persona slice ends for diagnosis of the bare-input error.
+
+GL-002 is now verified against its complete scenario contract. This does not close the other CH-046 branches. Inventory: 9 dispositioned, 348 pending. The invalid-input retake uses fresh Web session sess-a6f30575423e1660 on daemon 38013 with the parser fix; Web now renders human guidance, CLI emits typed rejection, and HTTP/UDS return 422. Public origin-filtered Run lists stay empty and queue entries stay zero before a subsequent valid HTTP202 starts looprun-aba12206404b2583.
+
+### Goal parser repair and adjacent acceptance — 2026-09-11
+
+The reserved Goal command now reaches its owning dispatcher even when its objective is invalid. The existing admission suite proves bare and oversized inputs yield structured reasons without invoking the executor. Red-before/green-after race evidence, test-convention audit, Go build, reviewed diff, and make gate all passed. Fresh Web guidance, CLI structured failures, HTTP/UDS422, empty Run lists and empty queue confirm the repair. A valid adjacent start returned202, created one Run and completed with a real Cursor Grok4.6 High Fast worker and separate judge; independent source read and refreshed Web matched. See goal-parser-retest-proof.json and BUG-20260911-goal-parser-preempts-guidance.md for the cross-surface audit.
+
+GL-001 and GL-002 are verified. GL-003 remains pending for its other invalid branches. Current inventory: 10 dispositioned (5 verified, 2 fixed-and-verified, 1 unresolved defect, 2 external runtime blockers), 347 pending. This is continuing QA, not a final delivery claim.

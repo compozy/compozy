@@ -12,11 +12,11 @@ func (m *Manager) preparePromptSkillInvocations(ctx context.Context, req *prompt
 		return nil
 	}
 	_, goalMatched, err := ParseGoalCommand(req.authoredMessage)
-	if err != nil {
-		return fmt.Errorf("session: parse goal command: %w", err)
-	}
 	if goalMatched {
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("session: parse goal command: %w", err)
 	}
 	catalog, err := m.CommandCatalog(ctx, req.target)
 	if err != nil {
