@@ -38,6 +38,13 @@
   T8  S5 loopback-only banner strip sits between the menubar and the win-layer,
       full-width, flat canvas-soft, neutral signal. It pushes the work area down;
       it never overlays window content.
+  Real-device deltas (Android/Brave ~390×844, private-tier walk):
+  T9  The desktop pager must not lead the touch dock: a single desktop rendered
+      an orphaned position pill beside a 50vw dead zone. Compact renders the
+      pager only when a second desktop exists, shrink-wrapped (capped at 50vw).
+  T10 Compact window controls carry their identification glyph at rest — close
+      (X) and minimize (−) — because hover tones do not exist on touch. The
+      2-of-3 count is per-design (zoom is meaningless in a stack; close stays).
   Residuals (recorded, not frozen as debt-free): profile-switcher trigger keeps
   its 28px well (cross-system slot, quiet-until-plural); log bodies keep their
   own horizontal scroll wells inside the read view.
@@ -80,7 +87,8 @@
     background:var(--canvas-soft);box-shadow:var(--shadow-win);overflow:hidden}
   .win-head{flex:none;display:flex;align-items:center;gap:12px;height:44px;padding:0 10px;border-bottom:1px solid var(--line-soft)}
   .tl{display:flex;align-items:center}
-  .tl i{width:15px;height:15px;border-radius:4px;border:1px solid var(--line-strong);background:var(--btn-fill)}
+  .tl i{display:grid;place-items:center;width:15px;height:15px;border-radius:4px;border:1px solid var(--line-strong);background:var(--btn-fill)}
+  .tl i svg{width:9px;height:9px;color:var(--fg-strong)}
   .tl i + i{margin-left:0} /* compact: 44px targets touch */
   .win-title{flex:1;min-width:0;text-align:center;font-size:12px;font-weight:560;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .win-head svg{width:15px;height:15px;color:var(--muted);flex:none}
@@ -197,7 +205,7 @@
           <div class="desk">
             <div class="win">
               <div class="win-head">
-                <span class="tl"><i></i><i></i></span>
+                <span class="tl"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></i><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg></i></span>
                 <span class="win-title">iris-coder · session</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
               </div>
@@ -229,6 +237,8 @@
           <span class="callout" style="top:96px;left:6px"><b>T8</b> S5 strip · flat · neutral</span>
           <span class="callout" style="bottom:70px;left:6px"><b>T3</b> work area = tab-bar 56px</span>
           <span class="callout" style="bottom:8px;right:6px"><b>T2</b> tab bar ratified</span>
+          <span class="callout" style="bottom:8px;left:6px"><b>T9</b> no pager lead · 1 desktop</span>
+          <span class="callout" style="top:60px;left:6px"><b>T10</b> close/minimize glyphs at rest</span>
         </div>
       </div>
     </div>
@@ -251,7 +261,7 @@
           <div class="desk">
             <div class="win">
               <div class="win-head">
-                <span class="tl"><i></i><i></i></span>
+                <span class="tl"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></i><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg></i></span>
                 <span class="win-title">iris-coder · session</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
               </div>
@@ -310,7 +320,7 @@
           <div class="desk">
             <div class="win">
               <div class="win-head">
-                <span class="tl"><i></i><i></i></span>
+                <span class="tl"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></i><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg></i></span>
                 <span class="win-title">iris-coder · session</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
               </div>
@@ -389,6 +399,8 @@
       <tr><td>T6</td><td>Session rail</td><td>At ≤760px the 264px rail overlays the transcript (z-raised, <code>--shadow-overlay</code>) instead of docking; the transcript keeps full width underneath. Toggle semantics unchanged.</td><td><code>session-window-content.tsx</code> (composition wrapper)</td></tr>
       <tr><td>T7</td><td>Landscape (EC-2)</td><td>Same chrome; height is the flexible axis. 390px height − 44 menubar − 56 tab bar leaves ~282px of stack; the composer and goal strip compress with flex. No landscape-specific chrome is added.</td><td>existing flex shell + T3</td></tr>
       <tr><td>T8</td><td>S5 banner strip</td><td>Between the menubar and the win-layer, full-width, flat <code>canvas-soft</code>, neutral signal — it pushes the work area down and never overlays window content. Wraps to two lines at 390px.</td><td><code>desktop-shell.tsx</code> (already placed here — ratified)</td></tr>
+      <tr><td>T9</td><td>Dock pager <span style="color:var(--accent-strong)">· real-device delta</span></td><td>The desktop pager must not lead the touch dock: with a single desktop it rendered an orphaned position pill beside a 50vw dead zone (the "estranho" spacing). Compact renders the pager only when a second desktop exists, shrink-wrapped and capped at half the bar; the floating dock keeps the position pill at every count.</td><td><code>desktop-pager.tsx</code></td></tr>
+      <tr><td>T10</td><td>Window-control identification <span style="color:var(--accent-strong)">· real-device delta</span></td><td>Compact controls carry their identification glyph at rest — close (X), minimize (−), in the same neutral ink; hover tones remain the hover/focus affordance. The 2-of-3 count is per-design: compact hides zoom (meaningless in a stack), never close — a phone closes a window from its own bar. Inert chrome stays glyphless (no implied controls).</td><td><code>os-traffic-lights.tsx</code></td></tr>
     </table>
   </div>
 

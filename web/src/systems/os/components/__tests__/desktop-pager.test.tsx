@@ -147,4 +147,48 @@ describe("DesktopPager", () => {
     await user.click(screen.getByRole("button", { name: "Show 2 earlier desktops" }));
     expect(onOpenOverview).toHaveBeenCalledTimes(1);
   });
+
+  // T9 real-device delta: a lone desktop is a position indicator, not a
+  // switcher — at the touch dock it rendered as an orphaned pill beside a
+  // 50vw dead zone, so compact renders nothing for a single desktop.
+  it("Should render nothing in compact mode with a single desktop", () => {
+    const { container } = render(
+      <DesktopPager
+        desktops={[{ id: "only", name: "Only" }]}
+        activeDesktopId="only"
+        compact
+        onSelectDesktop={vi.fn()}
+        onOpenOverview={vi.fn()}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("Should keep the single-desktop position pill in the floating dock", () => {
+    render(
+      <DesktopPager
+        desktops={[{ id: "only", name: "Only" }]}
+        activeDesktopId="only"
+        onSelectDesktop={vi.fn()}
+        onOpenOverview={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Desktop 1 of 1: Only" })).toBeInTheDocument();
+  });
+
+  it("Should render every desktop in compact mode once switching exists", () => {
+    renderPager(DESKTOPS.slice(0, 2), "build", true);
+
+    expect(screen.getByRole("button", { name: "Desktop 1 of 2: Control" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Desktop 2 of 2: Build" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("navigation", { name: "Desktops" })).toHaveAttribute(
+      "data-presentation",
+      "compact"
+    );
+  });
 });
