@@ -323,7 +323,9 @@ with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt r
 An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored
 synthetic follow-ups share the durable queue and retain their metadata across restart.
 `session.queue_cleared` and `session.queue_clear_failed` identify the session, turn, actor, and
-entry (when applicable); clearing a parked Goal prompt settles it as control-fenced/paused.
+entry (when applicable). Goal-engine prompts are internal: queue lists and their entry counts
+exclude them, and queue clear/edit/promote/remove cannot control them. Use Goal pause/stop controls
+to manage Goal execution.
 
 Queue statuses are `queued|dispatching|sent|failed|canceled`; `unconfirmed` is client-local and
 must be resolved by replaying the original send identity, never by inventing another queue row.

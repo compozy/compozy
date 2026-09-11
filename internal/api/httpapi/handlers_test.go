@@ -2927,7 +2927,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 				return session.ClearPendingInputsResult{
 					ClearedCount: 1, QueueGeneration: 2,
 					Inputs: []session.PendingInput{
-						{ID: "removed", Status: "canceled", OwnerKind: "goal", OwnerID: "goal-run"},
+						{ID: "removed", Status: "canceled", OwnerKind: "agent", OwnerID: "reviewer"},
 						{ID: "active", Status: "dispatching"},
 					},
 				}, nil
@@ -2944,7 +2944,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 			t.Fatal(err)
 		}
 		if result.ClearedCount != 1 || result.QueueGeneration != 2 || len(result.Inputs) != 2 ||
-			result.Inputs[0].Status != contract.SessionInputCanceled || result.Inputs[0].OwnerID != "goal-run" ||
+			result.Inputs[0].Status != contract.SessionInputCanceled || result.Inputs[0].OwnerID != "reviewer" ||
 			result.Inputs[1].Status != contract.SessionInputDispatching {
 			t.Fatalf("clear response = %#v", result)
 		}
@@ -2962,7 +2962,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	var promoteOpts session.PromotePendingInputOpts
 	manager := stubSessionManager{
 		InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
-			return session.InputQueueSummary{PendingInputs: 1, Cap: 7}, nil
+			return session.InputQueueSummary{PendingInputs: 2, Cap: 7}, nil
 		},
 		ListPendingInputsFn: func(_ context.Context, id string) ([]session.PendingInput, error) {
 			if id != "sess-123" {
@@ -3006,7 +3006,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 
-	t.Run("Should list current pending input", func(t *testing.T) {
+	t.Run("Should count only the public list while retaining the daemon capacity", func(t *testing.T) {
 		recorder := performRequest(
 			t,
 			engine,

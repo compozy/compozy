@@ -1,15 +1,14 @@
 -- name: ClearQueuedSessionInput :execrows
 UPDATE session_input_queue
-SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now),
-    terminal_at = CASE WHEN owner_kind = 'goal' THEN sqlc.arg(now) ELSE terminal_at END,
-    terminal_kind = CASE WHEN owner_kind = 'goal' THEN 'control-fenced' ELSE terminal_kind END,
-    terminal_disposition = CASE WHEN owner_kind = 'goal' THEN 'paused' ELSE terminal_disposition END,
-    terminal_reason_code = CASE WHEN owner_kind = 'goal' THEN 'goal_control_revoked_in_flight' ELSE terminal_reason_code END
-WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(entry_id) AND status = 'queued';
+SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(entry_id) AND status = 'queued'
+  AND (owner_kind IS NULL OR owner_kind != 'goal');
 
--- name: RebaseDispatchingSessionInputs :exec
+-- name: RebasePreservedSessionInputs :exec
 UPDATE session_input_queue SET session_generation = sqlc.arg(generation)
-WHERE session_id = sqlc.arg(session_id) AND status = 'dispatching';
+WHERE session_id = sqlc.arg(session_id)
+  AND (status = 'dispatching'
+       OR (owner_kind = 'goal' AND status = 'queued' AND session_generation = sqlc.arg(previous_generation)));
 
 -- name: InsertSessionInputClearTrace :exec
 INSERT INTO session_input_clear_traces

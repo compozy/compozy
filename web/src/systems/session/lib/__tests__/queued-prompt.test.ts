@@ -42,9 +42,9 @@ describe("queued prompt read model", () => {
 
   it("Should attribute only other actors and never the operator to themselves", () => {
     expect(queuedPromptOwner(undefined, undefined)).toBeNull();
-    expect(queuedPromptOwner("", "goal_1")).toBeNull();
+    expect(queuedPromptOwner("", "agent_1")).toBeNull();
     expect(queuedPromptOwner("user", "u_1")).toBeNull();
-    expect(queuedPromptOwner("goal", " goal_42 ")).toEqual({ id: "goal_42", kind: "goal" });
+    expect(queuedPromptOwner("agent", " agent_42 ")).toEqual({ id: "agent_42", kind: "agent" });
     expect(queuedPromptOwner("coordinator", "")).toEqual({ id: null, kind: "coordinator" });
   });
 
@@ -62,14 +62,14 @@ describe("queued prompt read model", () => {
     const rows = queuedPromptsFromInputs(
       [
         input("inq-b", "dispatching"),
-        { ...input("inq-a", "queued"), owner_id: "reviewer", owner_kind: "goal" },
+        { ...input("inq-a", "queued"), owner_id: "reviewer", owner_kind: "agent" },
       ],
       "ws",
       "sess-1"
     );
     expect(rows.map(row => [row.id, row.position, row.status, row.owner])).toEqual([
       ["inq-b", 1, "dispatching", null],
-      ["inq-a", 2, "queued", { id: "reviewer", kind: "goal" }],
+      ["inq-a", 2, "queued", { id: "reviewer", kind: "agent" }],
     ]);
     expect(queuedPromptsFromInputs(undefined, "ws", "sess-1")).toEqual([]);
   });

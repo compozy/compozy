@@ -71,7 +71,12 @@ export const QUEUE_STORY_OTHER_ACTOR_ENTRIES: QueueStoryEntry[] = [
     owner_kind: "agent",
     text: "Also update the changelog with the new retry semantics",
   },
-  { id: "inp_4f2", owner_id: "release-1.4", owner_kind: "goal", text: "Run the release checklist" },
+  {
+    id: "inp_4f2",
+    owner_id: "release-1.4",
+    owner_kind: "agent",
+    text: "Run the release checklist",
+  },
 ];
 
 export const QUEUE_STORY_CAP = 10;

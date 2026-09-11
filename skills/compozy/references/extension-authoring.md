@@ -124,6 +124,9 @@ history; it is not an action result.
 | Remove a queued input                           | `sessions/inputs/cancel`  | `session.write` |
 | Promote a queued input into steering            | `sessions/inputs/promote` | `session.write` |
 
+Goal-engine prompts are excluded from these operator queue reads and mutations. Control Goals
+through their dedicated lifecycle operations.
+
 Every mutating input operation names `workspace_id`, `session_id`, and `queue_entry_id`. Replace and
 promote also require fresh `text`, `message_id`, and `idempotency_key`; promote requires the current
 `expected_turn_id`. Read the list again after an action instead of maintaining a private queue or
