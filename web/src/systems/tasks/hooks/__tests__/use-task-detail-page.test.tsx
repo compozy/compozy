@@ -34,7 +34,9 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   recoverTaskRun: vi.fn(),
   approveTask: vi.fn(),
   rejectTask: vi.fn(),
+  resumeTask: vi.fn(),
   retryTaskRun: vi.fn(),
+  enqueueTaskRun: vi.fn(),
   clearTaskBlock: vi.fn(),
   fanOutTaskRuns: vi.fn(),
   publishTask: vi.fn(),
@@ -48,6 +50,7 @@ import {
   approveTask,
   cancelTask,
   clearTaskBlock,
+  enqueueTaskRun,
   fanOutTaskRuns,
   getTask,
   getTaskExecutionProfile,
@@ -59,6 +62,7 @@ import {
   recoverTask,
   recoverTaskRun,
   rejectTask,
+  resumeTask,
   retryTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
 import { toast } from "sonner";
@@ -479,6 +483,9 @@ describe("useTaskDetailPage", () => {
 
     expect(approveTask).not.toHaveBeenCalled();
     expect(rejectTask).not.toHaveBeenCalled();
+    expect(resumeTask).not.toHaveBeenCalled();
+    expect(recoverTask).not.toHaveBeenCalled();
+    expect(enqueueTaskRun).not.toHaveBeenCalled();
     expect(clearTaskBlock).not.toHaveBeenCalled();
     expect(publishTask).not.toHaveBeenCalled();
     expect(cancelTask).not.toHaveBeenCalled();
