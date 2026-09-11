@@ -356,6 +356,9 @@ function DesktopShellScopedBody({
           open={sessionLifecycle.deleteDialog.open}
           onOpenChange={sessionLifecycle.deleteDialog.onOpenChange}
           session={sessionLifecycle.deleteDialog.session}
+          sessions={sessionLifecycle.deleteDialog.sessions}
+          results={sessionLifecycle.deleteDialog.results}
+          onRetry={sessionLifecycle.deleteDialog.onRetry}
           isDeleting={sessionLifecycle.deleteDialog.isDeleting}
           onConfirm={sessionLifecycle.deleteDialog.onConfirm}
         />

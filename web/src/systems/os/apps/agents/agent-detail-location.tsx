@@ -272,6 +272,9 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                   open={page.sessionDeleteDialog.open}
                   onOpenChange={page.sessionDeleteDialog.onOpenChange}
                   session={page.sessionDeleteDialog.session}
+                  sessions={page.sessionDeleteDialog.sessions}
+                  results={page.sessionDeleteDialog.results}
+                  onRetry={page.sessionDeleteDialog.onRetry}
                   isDeleting={page.sessionDeleteDialog.isDeleting}
                   onConfirm={page.sessionDeleteDialog.onConfirm}
                 />

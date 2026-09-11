@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { BULK_SESSION_FAMILY, BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
@@ -109,6 +110,21 @@ type Story = StoryObj<typeof meta>;
  */
 export const ProvenanceThreads: Story = {
   args: {
+    view: {
+      scope: "workspace",
+      sort: "last_activity",
+      archived: false,
+      saving: false,
+      setScope: fn(),
+      setSort: fn(),
+      setArchived: fn(),
+      workspaceGroups: [],
+      collapsedWorkspaceIds: new Set(),
+      toggleWorkspace: fn(),
+      aggregate: false,
+      scopeLabel: "default",
+      ownerOf: () => ({ id: "default", name: "default", archived: false }),
+    },
     open: true,
     sessions: PROVENANCE_FAMILY,
     disconnected: false,
@@ -138,5 +154,43 @@ export const CollapsedThreadSignal: Story = {
     ...ProvenanceThreads.args,
     collapsedThreadIds: ["sess-pricing"],
     currentSessionId: "sess-deps",
+  },
+};
+
+async function selectBoardSessions(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const user = userEvent.setup();
+  await user.keyboard("{Control>}");
+  for (const session of BULK_SELECTED_SESSIONS) {
+    await user.click(canvas.getByTestId(`session-sidebar-session-${session.id}`));
+  }
+  await user.keyboard("{/Control}");
+  await expect(canvas.getByTestId("session-sidebar-selection-count")).toHaveTextContent(
+    "3 selected"
+  );
+}
+
+export const SelectionMode: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: BULK_SESSION_FAMILY,
+    currentSessionId: "orchestrator",
+    sessionActions: {
+      ...ProvenanceThreads.args!.sessionActions!,
+      onStopMany: fn(),
+      onArchiveMany: fn(),
+      onUnarchiveMany: fn(),
+      onDeleteMany: fn(),
+    },
+  },
+  play: async ({ canvasElement }) => selectBoardSessions(canvasElement),
+};
+
+export const SelectionMenuOpen: Story = {
+  ...SelectionMode,
+  play: async ({ canvasElement }) => {
+    await selectBoardSessions(canvasElement);
+    await userEvent.click(within(canvasElement).getByTestId("session-sidebar-selection-more"));
   },
 };

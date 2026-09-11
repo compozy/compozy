@@ -1,3 +1,4 @@
+import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import { ChevronRight } from "lucide-react";
 
 import { Icon } from "@compozy/ui";
@@ -27,6 +28,7 @@ export interface SessionListThreadProps {
   collapsed: boolean;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
+  selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
 }
@@ -45,6 +47,7 @@ export function SessionListThread({
   collapsed,
   onToggleThread,
   onSelectSession,
+  selection,
   sessionActions,
   testIdPrefix,
 }: SessionListThreadProps) {
@@ -54,6 +57,7 @@ export function SessionListThread({
       owner={owner}
       current={session.id === currentSessionId}
       onSelect={() => onSelectSession(session)}
+      selection={selection}
       sessionActions={sessionActions}
       testIdPrefix={testIdPrefix}
       trailing={
@@ -90,6 +94,7 @@ export function SessionListThread({
               owner={ownerOf?.(child)}
               current={child.id === currentSessionId}
               onSelect={() => onSelectSession(child)}
+              selection={selection}
               sessionActions={sessionActions}
               testIdPrefix={testIdPrefix}
             />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SearchInput } from "@compozy/ui";
 
@@ -9,6 +9,8 @@ import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { emptyForScope } from "@/systems/profiles";
 
+import { sessionSelectionCounts, useSessionSelection } from "../../hooks/use-session-selection";
+import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListThread } from "./session-list-thread";
 import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
@@ -82,6 +84,38 @@ export function SessionList({
   );
   const collapsedThreads = new Set(collapsedThreadIds);
   const allWorkspaces = view.scope === "all-workspaces";
+  const selection = useSessionSelection(view.scope, view.archived);
+  const catalog = allWorkspaces ? [] : sessions;
+  const currentIds = catalog.map(session => session.id);
+  const { prune } = selection;
+  useEffect(() => prune(currentIds), [prune, currentIds]);
+  const visibleOrder = allWorkspaces
+    ? []
+    : threads.flatMap(thread => [
+        thread.session.id,
+        ...(collapsedThreads.has(thread.session.id)
+          ? []
+          : thread.childSessions.map(session => session.id)),
+      ]);
+  const sessionsById = new Map(catalog.map(session => [session.id, session]));
+  const selectedSessions = selection.selectedIds.flatMap(id => {
+    const session = sessionsById.get(id);
+    return session ? [session] : [];
+  });
+  const selectedIdSet = new Set(selection.selectedIds);
+  const counts = sessionSelectionCounts(selectedSessions, visibleOrder);
+  const rowSelection = {
+    ...selection,
+    selectedIds: selectedIdSet,
+    toggleRange: (id: string) => selection.toggleRange(id, visibleOrder),
+  };
+  const deleteSelected = sessionActions.onDeleteMany
+    ? () =>
+        sessionActions.onDeleteMany?.(selectedSessions, remainingIds => {
+          selection.prune(remainingIds);
+          if (remainingIds.length === 0) selection.clear();
+        })
+    : undefined;
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
   // Say what is empty AND for whom: an operator in Marketing needs to know the
   // list is empty in Marketing, not on the machine (US-009.EC-3).
@@ -93,19 +127,76 @@ export function SessionList({
         : `${emptyForScope("sessions", view.scopeLabel)}.`;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid={`${testIdPrefix}-content`}>
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid={`${testIdPrefix}-content`}
+      onKeyDown={event => {
+        if (
+          allWorkspaces ||
+          event.defaultPrevented ||
+          !event.currentTarget.contains(event.target as Node)
+        )
+          return;
+        if (event.key === "Escape" && selection.mode) {
+          event.preventDefault();
+          event.stopPropagation();
+          selection.clear();
+        } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+          event.preventDefault();
+          event.stopPropagation();
+          selection.selectAll(visibleOrder);
+        } else if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key === "Backspace" &&
+          selection.mode &&
+          sessionActions.pendingAction === null
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          deleteSelected?.();
+        }
+      }}
+    >
       {header?.(visibleCount)}
-      <SessionListToolbar
-        allWorkspaces={allWorkspaces}
-        archived={view.archived}
-        sort={view.sort}
-        disabled={view.saving}
-        onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
-        onArchivedChange={view.setArchived}
-        onSortChange={view.setSort}
-        onNewSession={onNewSession}
-        testIdPrefix={testIdPrefix}
-      />
+      {!allWorkspaces && selection.mode ? (
+        <SessionListSelectionBar
+          count={selection.selectedIds.length}
+          {...counts}
+          allSelected={visibleOrder.length > 0 && visibleOrder.every(id => selectedIdSet.has(id))}
+          disabled={sessionActions.pendingAction !== null}
+          onSelectAll={() => selection.selectAll(visibleOrder)}
+          onClear={selection.clear}
+          onDelete={deleteSelected}
+          onStop={
+            sessionActions.onStopMany
+              ? () => sessionActions.onStopMany?.(selectedSessions)
+              : undefined
+          }
+          onArchive={
+            sessionActions.onArchiveMany
+              ? () => sessionActions.onArchiveMany?.(selectedSessions)
+              : undefined
+          }
+          onUnarchive={
+            sessionActions.onUnarchiveMany
+              ? () => sessionActions.onUnarchiveMany?.(selectedSessions)
+              : undefined
+          }
+          testIdPrefix={testIdPrefix}
+        />
+      ) : (
+        <SessionListToolbar
+          allWorkspaces={allWorkspaces}
+          archived={view.archived}
+          sort={view.sort}
+          disabled={view.saving}
+          onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
+          onArchivedChange={view.setArchived}
+          onSortChange={view.setSort}
+          onNewSession={onNewSession}
+          testIdPrefix={testIdPrefix}
+        />
+      )}
       <div className="px-3 pb-1.5">
         <SearchInput
           value={filter}
@@ -153,6 +244,7 @@ export function SessionList({
                 collapsed={collapsedThreads.has(thread.session.id)}
                 onToggleThread={onToggleThread}
                 onSelectSession={onSelectSession}
+                selection={rowSelection}
                 sessionActions={sessionActions}
                 testIdPrefix={testIdPrefix}
               />

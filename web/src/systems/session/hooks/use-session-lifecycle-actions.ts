@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+
+import type { SessionBatchResult } from "../lib/session-batch";
 
 import type { SessionPayload } from "../types";
 import {
@@ -20,9 +22,19 @@ export interface SessionLifecycleActionHandlers {
   onArchive: (session: SessionPayload) => void;
   onUnarchive: (session: SessionPayload) => void;
   onDelete: (session: SessionPayload) => void;
+  onStopMany?: (sessions: readonly SessionPayload[]) => void;
+  onArchiveMany?: (sessions: readonly SessionPayload[]) => void;
+  onUnarchiveMany?: (sessions: readonly SessionPayload[]) => void;
+  onDeleteMany?: (
+    sessions: readonly SessionPayload[],
+    onSelectionChange?: (remainingIds: readonly string[]) => void
+  ) => void;
 }
 
 export interface SessionDeleteConfirmation {
+  sessions?: readonly SessionPayload[];
+  results?: readonly SessionBatchResult[];
+  onRetry?: () => void;
   open: boolean;
   session: SessionPayload | null;
   isDeleting: boolean;
@@ -40,6 +52,7 @@ export interface SessionRenameConfirmation {
 
 export interface UseSessionLifecycleActionsResult {
   actions: SessionLifecycleActionHandlers;
+  batchResults: readonly SessionBatchResult[];
   deleteDialog: SessionDeleteConfirmation;
   renameDialog: SessionRenameConfirmation;
 }
@@ -51,6 +64,20 @@ export interface UseSessionLifecycleActionsOptions {
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
+}
+
+function reportBatch(
+  action: "stop" | "archive" | "unarchive" | "delete",
+  results: readonly SessionBatchResult[]
+): void {
+  const failures = results.filter(result => result.status === "failed");
+  if (failures.length > 0) {
+    reportActionError(action, new Error(failures.map(result => result.error).join("; ")));
+    return;
+  }
+  const count = results.filter(result => result.status === "done").length;
+  const verb = action === "stop" ? "stopped" : `${action}d`;
+  toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
 }
 
 /**
@@ -65,12 +92,23 @@ export function useSessionLifecycleActions(
   const unarchive = useUnarchiveSession(options);
   const remove = useDeleteSession(options);
   const rename = useRenameSession(options);
-  const [deleteSession, setDeleteSession] = useState<SessionPayload | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    sessions: readonly SessionPayload[];
+    bulk: boolean;
+    onSelectionChange?: (ids: readonly string[]) => void;
+  } | null>(null);
+  const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
+  const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
+  const batchRunning = useRef(false);
+  const deleteSession = deleteTarget?.sessions[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
 
   let pendingAction: SessionLifecycleAction | null = null;
   let pendingSessionId: string | null = null;
-  if (rename.isPending) {
+  if (batchAction !== null) {
+    pendingAction = batchAction;
+    pendingSessionId = batchResults.find(result => result.status === "running")?.id ?? null;
+  } else if (rename.isPending) {
     pendingAction = "rename";
     pendingSessionId = rename.variables.id;
   } else if (stop.isPending) {
@@ -87,13 +125,103 @@ export function useSessionLifecycleActions(
     pendingSessionId = remove.variables;
   }
 
+  const runBatch = async (
+    action: "stop" | "archive" | "unarchive" | "delete",
+    sessions: readonly SessionPayload[],
+    previous: readonly SessionBatchResult[] = []
+  ): Promise<SessionBatchResult[] | null> => {
+    if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
+    batchRunning.current = true;
+    setBatchAction(action);
+    const targets = new Set(sessions.map(session => session.id));
+    const results: SessionBatchResult[] =
+      previous.length > 0
+        ? previous.map(result =>
+            targets.has(result.id) ? { id: result.id, status: "pending" } : result
+          )
+        : sessions.map(session => ({ id: session.id, status: "pending" }));
+    const update = (result: SessionBatchResult) => {
+      const index = results.findIndex(current => current.id === result.id);
+      results[index] = result;
+      setBatchResults([...results]);
+    };
+    setBatchResults([...results]);
+    try {
+      for (const session of sessions) {
+        update({ id: session.id, status: "running" });
+        try {
+          if (action === "delete") await remove.mutateAsync(session.id);
+          else if (action === "archive") await archive.mutateAsync(session.id);
+          else if (action === "unarchive") await unarchive.mutateAsync(session.id);
+          else {
+            const outcome = await stop.mutateAsync({ id: session.id, wait: true });
+            if (!outcome.verified || outcome.state !== "stopped") {
+              throw new Error(outcome.attention || "Session stop could not be verified.");
+            }
+          }
+          update({ id: session.id, status: "done" });
+        } catch (error) {
+          update({
+            id: session.id,
+            status: "failed",
+            error:
+              error instanceof Error && error.message
+                ? error.message
+                : `Failed to ${action} session.`,
+          });
+        }
+      }
+      return results;
+    } finally {
+      batchRunning.current = false;
+      setBatchAction(null);
+    }
+  };
+
+  const actOnMany = async (
+    action: "stop" | "archive" | "unarchive",
+    sessions: readonly SessionPayload[]
+  ) => {
+    const eligible = sessions.filter(session =>
+      action === "unarchive"
+        ? session.archived_at !== null
+        : session.archived_at === null &&
+          (action === "archive"
+            ? session.state === "stopped"
+            : session.state === "active" || session.state === "starting")
+    );
+    const results = await runBatch(action, eligible);
+    if (results) reportBatch(action, results);
+  };
+
+  const confirmDeleteMany = async () => {
+    if (!deleteTarget) return;
+    const failedIds = new Set(
+      batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
+    );
+    const targets =
+      failedIds.size > 0
+        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        : deleteTarget.sessions;
+    const results = await runBatch("delete", targets, batchResults);
+    if (!results) return;
+    const failures = results.filter(result => result.status === "failed");
+    deleteTarget.onSelectionChange?.(failures.map(result => result.id));
+    if (failures.length === 0) setDeleteTarget(null);
+    reportBatch("delete", results);
+  };
+
   const confirmDelete = () => {
-    if (!deleteSession || remove.isPending) return;
+    if (!deleteSession || remove.isPending || batchRunning.current) return;
+    if (deleteTarget?.bulk) {
+      void confirmDeleteMany();
+      return;
+    }
     const { id } = deleteSession;
     remove.mutate(id, {
       onError: error => reportActionError("delete", error),
       onSuccess: () => {
-        setDeleteSession(current => (current?.id === id ? null : current));
+        setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));
       },
     });
   };
@@ -113,11 +241,12 @@ export function useSessionLifecycleActions(
   };
 
   return {
+    batchResults,
     actions: {
       pendingAction,
       pendingSessionId,
       onRename: session => {
-        if (!rename.isPending) setRenameTarget(session);
+        if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
         stop.mutate({ id: session.id }, { onError: error => reportActionError("stop", error) }),
@@ -126,17 +255,45 @@ export function useSessionLifecycleActions(
       onUnarchive: session =>
         unarchive.mutate(session.id, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
-        if (!remove.isPending) setDeleteSession(session);
+        if (pendingAction === null && !batchRunning.current) {
+          setBatchResults([]);
+          setDeleteTarget({ sessions: [session], bulk: false });
+        }
+      },
+      onStopMany: sessions => {
+        void actOnMany("stop", sessions);
+      },
+      onArchiveMany: sessions => {
+        void actOnMany("archive", sessions);
+      },
+      onUnarchiveMany: sessions => {
+        void actOnMany("unarchive", sessions);
+      },
+      onDeleteMany: (sessions, onSelectionChange) => {
+        if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
+          setBatchResults([]);
+          setDeleteTarget({ sessions: [...sessions], bulk: true, onSelectionChange });
+        }
       },
     },
     deleteDialog: {
       open: deleteSession !== null,
       session: deleteSession,
-      isDeleting: remove.isPending,
+      sessions: deleteTarget?.sessions,
+      results: deleteTarget?.bulk ? batchResults : undefined,
+      isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {
-        if (!open && !remove.isPending) setDeleteSession(null);
+        if (!open && !remove.isPending && !batchRunning.current) {
+          if (batchResults.some(result => result.status === "failed")) {
+            deleteTarget?.onSelectionChange?.(
+              batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
+            );
+          }
+          setDeleteTarget(null);
+        }
       },
       onConfirm: confirmDelete,
+      onRetry: confirmDelete,
     },
     renameDialog: {
       open: renameTarget !== null,

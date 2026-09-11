@@ -56,7 +56,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha", runtimeWorkspaceId: "ws_alpha" }),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 
 import {
@@ -73,6 +73,7 @@ import {
   replaceSessionInput,
   rewindSession,
   sendSessionPrompt,
+  stopSession,
   unarchiveSession,
 } from "../../adapters/session-api";
 import { toast } from "sonner";
@@ -1148,5 +1149,184 @@ describe("session actions", () => {
     expect(
       queryClient.getQueryData(sessionKeys.inputQueue(WORKSPACE_ID, createdSession.id))
     ).toEqual({ inputs: [dispatching], queue: { cap: 10, entries: 2 } });
+  });
+});
+
+// Batch invariant: the lifecycle owner serializes existing mutations, preserves per-id results,
+// and retries only failures. Adapter I/O remains this suite's existing mock boundary.
+describe("session lifecycle batches", () => {
+  beforeEach(() => vi.resetAllMocks());
+  function lifecycle() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return renderHook(() => useSessionLifecycleActions(), { wrapper: createWrapper(client) });
+  }
+
+  it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
+    const targets = [
+      createdSession,
+      { ...createdSession, id: "second" },
+      { ...createdSession, id: "third" },
+    ];
+    let releaseFirst!: () => void;
+    vi.mocked(deleteSession)
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>(resolve => {
+            releaseFirst = resolve;
+          })
+      )
+      .mockRejectedValueOnce(new Error("Session is locked"))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+    const selectionChanged = vi.fn();
+    const { result } = lifecycle();
+    act(() => result.current.actions.onDeleteMany?.(targets, selectionChanged));
+    act(() => {
+      result.current.deleteDialog.onConfirm();
+      result.current.deleteDialog.onConfirm();
+    });
+    await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(1));
+    expect(result.current.deleteDialog.results?.map(row => row.status)).toEqual([
+      "running",
+      "pending",
+      "pending",
+    ]);
+    expect(result.current.actions.pendingAction).toBe("delete");
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    expect(result.current.deleteDialog.open).toBe(true);
+    await act(async () => releaseFirst());
+    await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
+    expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([
+      createdSession.id,
+      "second",
+      "third",
+    ]);
+    expect(result.current.deleteDialog.results).toEqual([
+      { id: createdSession.id, status: "done" },
+      { id: "second", status: "failed", error: "Session is locked" },
+      { id: "third", status: "done" },
+    ]);
+    expect(result.current.deleteDialog.open).toBe(true);
+    expect(selectionChanged).toHaveBeenLastCalledWith(["second"]);
+    expect(toast.success).not.toHaveBeenCalled();
+    act(() => result.current.deleteDialog.onRetry?.());
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+    expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([
+      createdSession.id,
+      "second",
+      "third",
+      "second",
+    ]);
+    expect(selectionChanged).toHaveBeenLastCalledWith([]);
+    expect(toast.success).toHaveBeenCalledExactlyOnceWith("3 sessions deleted");
+  });
+
+  it("keeps only failed ids selected when closing a partial result", async () => {
+    vi.mocked(deleteSession)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Busy"));
+    const selectionChanged = vi.fn();
+    const { result } = lifecycle();
+    act(() =>
+      result.current.actions.onDeleteMany?.(
+        [createdSession, { ...createdSession, id: "failed" }],
+        selectionChanged
+      )
+    );
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(result.current.deleteDialog.results?.[1]?.status).toBe("failed"));
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    expect(result.current.deleteDialog.open).toBe(false);
+    expect(selectionChanged).toHaveBeenLastCalledWith(["failed"]);
+  });
+
+  it("stops only eligible sessions sequentially and announces verified completion once", async () => {
+    const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
+    const starting = { ...createdSession, id: "starting", state: "starting" as const };
+    let release!: (value: Awaited<ReturnType<typeof stopSession>>) => void;
+    vi.mocked(stopSession)
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            release = resolve;
+          })
+      )
+      .mockResolvedValueOnce({
+        session_id: "starting",
+        status: "stopped",
+        state: "stopped",
+        verified: true,
+        escalated: false,
+        stop_cause: "user_requested",
+      });
+    const { result } = lifecycle();
+    act(() =>
+      result.current.actions.onStopMany?.([
+        createdSession,
+        stopped,
+        starting,
+        { ...stopped, id: "archived", archived_at: "2026-09-11" },
+      ])
+    );
+    await waitFor(() => expect(stopSession).toHaveBeenCalledTimes(1));
+    expect(stopSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, { wait: true });
+    await act(async () =>
+      release({
+        session_id: createdSession.id,
+        status: "stopped",
+        state: "stopped",
+        verified: true,
+        escalated: false,
+        stop_cause: "user_requested",
+      })
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledExactlyOnceWith("2 sessions stopped")
+    );
+    expect(vi.mocked(stopSession).mock.calls.map(call => call[1])).toEqual([
+      createdSession.id,
+      "starting",
+    ]);
+  });
+
+  it("does not announce an unverified stop as stopped", async () => {
+    vi.mocked(stopSession).mockResolvedValue({
+      session_id: createdSession.id,
+      status: "stopping",
+      state: "stopping",
+      verified: false,
+      escalated: false,
+      attention: "Stop is still pending",
+      stop_cause: "user_requested",
+    });
+    const { result } = lifecycle();
+    act(() => result.current.actions.onStopMany?.([createdSession]));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Stop is still pending"));
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(result.current.batchResults[0]?.status).toBe("failed");
+  });
+
+  it("archives and unarchives only eligible rows with one toast per batch", async () => {
+    const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
+    const archived = { ...stopped, id: "archived", archived_at: "2026-09-11" };
+    vi.mocked(archiveSession).mockResolvedValue(archived);
+    vi.mocked(unarchiveSession).mockResolvedValue(stopped);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived]));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session archived"));
+    expect(archiveSession).toHaveBeenCalledExactlyOnceWith(
+      WORKSPACE_ID,
+      "stopped",
+      expect.any(AbortSignal)
+    );
+    act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session unarchived"));
+    expect(unarchiveSession).toHaveBeenCalledExactlyOnceWith(
+      WORKSPACE_ID,
+      "archived",
+      expect.any(AbortSignal)
+    );
   });
 });

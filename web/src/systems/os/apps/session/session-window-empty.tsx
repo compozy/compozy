@@ -76,6 +76,9 @@ export function SessionWindowEmpty({
             open
             onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
             session={sidebar.rowDeleteDialog.session}
+            sessions={sidebar.rowDeleteDialog.sessions}
+            results={sidebar.rowDeleteDialog.results}
+            onRetry={sidebar.rowDeleteDialog.onRetry}
             isDeleting={sidebar.rowDeleteDialog.isDeleting}
             onConfirm={sidebar.rowDeleteDialog.onConfirm}
           />

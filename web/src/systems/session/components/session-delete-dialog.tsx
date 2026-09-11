@@ -11,12 +11,18 @@ import {
   Spinner,
 } from "@compozy/ui";
 
+import { SessionDeleteDialogSet } from "./session-delete-dialog-set";
+import type { SessionBatchResult } from "../lib/session-batch";
+
 import type { SessionPayload } from "../types";
 
 export interface SessionDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  session: SessionPayload;
+  session?: SessionPayload | null;
+  sessions?: readonly SessionPayload[];
+  results?: readonly SessionBatchResult[];
+  onRetry?: () => void;
   isDeleting: boolean;
   onConfirm: () => void;
 }
@@ -25,10 +31,28 @@ export interface SessionDeleteDialogProps {
 export function SessionDeleteDialog({
   open,
   onOpenChange,
-  session,
+  session: singleSession,
+  sessions,
+  results,
+  onRetry,
   isDeleting,
   onConfirm,
 }: SessionDeleteDialogProps) {
+  if (sessions && sessions.length > 1) {
+    return (
+      <SessionDeleteDialogSet
+        open={open}
+        onOpenChange={onOpenChange}
+        sessions={sessions}
+        results={results}
+        onRetry={onRetry}
+        isDeleting={isDeleting}
+        onConfirm={onConfirm}
+      />
+    );
+  }
+  const session = sessions?.[0] ?? singleSession;
+  if (!session) return null;
   return (
     <Dialog
       open={open}
