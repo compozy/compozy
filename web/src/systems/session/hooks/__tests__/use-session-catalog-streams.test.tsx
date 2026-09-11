@@ -1,3 +1,4 @@
+import { notificationKeys } from "@/systems/notifications";
 import {
   QueryClient,
   QueryClientProvider,
@@ -200,6 +201,7 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("ws_beta") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail("ws_beta", "sess_beta"),
       exact: true,
@@ -221,6 +223,7 @@ describe("useSessionCatalogStreams", () => {
     act(() => sources[0]?.emit("open"));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
 
     unmount();
     expect(sources[0]?.closed).toBe(true);
@@ -310,6 +313,7 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(alpha.id) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.attentionRoot() });
 
     // The server owns authorization; the client routes every valid frame it receives.
     act(() => {

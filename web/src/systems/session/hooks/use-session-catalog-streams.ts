@@ -2,6 +2,8 @@ import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { notificationKeys } from "@/systems/notifications";
+
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
@@ -94,6 +96,7 @@ export interface SessionCatalogStreamHandlers {
 function invalidateGlobalSessionViews(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
   void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.attentionRoot() });
 }
 
 /**

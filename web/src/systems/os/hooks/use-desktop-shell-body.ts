@@ -185,6 +185,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     streamLive: model.sessionCatalogStreamStatus === "live",
     focusedSessionId: useFocusedSessionId(),
     onOpenBell: () => overlays.setOverlayOpen("bell", true),
+    bellOpen: overlays.activeOverlay === "bell",
   });
   const managerSurfaces = useDesktopManagerSurfaces();
   const winLayer = useOsWinLayer();

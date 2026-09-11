@@ -219,42 +219,44 @@ func TestRosterContract(t *testing.T) {
 			})
 		}
 	})
-	t.Run("Should project durable branch skips in their generation without inflating progress", func(t *testing.T) {
-		t.Parallel()
-		source := RosterSource{
-			Run: Run{ID: "run-branch", Status: StatusDone, Generation: 5},
-			Graph: dsl.Graph{Nodes: []dsl.Node{
-				{ID: "review", Class: dsl.NodeClassAction},
-				{ID: "fix", Class: dsl.NodeClassAction},
-			}},
-			Generations: []LoopGeneration{{Generation: 1}, {Generation: 5}},
-			Outputs: []GenerationOutput{
-				{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
-				{Generation: 1, NodeID: "fix", Status: generationOutputSucceeded},
-				{Generation: 5, NodeID: "review", Status: generationOutputSucceeded},
-				{
-					Generation: 5,
-					NodeID:     "fix",
-					Status:     generationOutputSucceeded,
-					OutputRef:  branchSkippedOutputRef,
+	for _, skippedRef := range []string{branchSkippedOutputRef, routeNotTakenOutputRef("router")} {
+		t.Run("Should project durable "+skippedRef+" skips without inflating progress", func(t *testing.T) {
+			t.Parallel()
+			source := RosterSource{
+				Run: Run{ID: "run-branch", Status: StatusDone, Generation: 5},
+				Graph: dsl.Graph{Nodes: []dsl.Node{
+					{ID: "review", Class: dsl.NodeClassAction},
+					{ID: "fix", Class: dsl.NodeClassAction},
+				}},
+				Generations: []LoopGeneration{{Generation: 1}, {Generation: 5}},
+				Outputs: []GenerationOutput{
+					{Generation: 1, NodeID: "review", Status: generationOutputSucceeded},
+					{Generation: 1, NodeID: "fix", Status: generationOutputSucceeded},
+					{Generation: 5, NodeID: "review", Status: generationOutputSucceeded},
+					{
+						Generation: 5,
+						NodeID:     "fix",
+						Status:     generationOutputSucceeded,
+						OutputRef:  skippedRef,
+					},
 				},
-			},
-		}
+			}
 
-		page, err := ProjectRoster(&source, RosterQuery{})
-		if err != nil {
-			t.Fatalf("ProjectRoster() error = %v", err)
-		}
-		nodes := rosterNodesByIdentity(page.Nodes)
-		if nodes[rosterKey(1, "fix", 0)].State != NodeStateSucceeded ||
-			nodes[rosterKey(5, "fix", 0)].State != NodeStateNotTaken {
-			t.Fatalf("branch states = %#v", nodes)
-		}
-		progress := ProgressFromRoster(page, 5)
-		if progress.StepsDone != 1 || progress.StepsTotal != 1 {
-			t.Fatalf("progress = %#v, want 1 of 1", progress)
-		}
-	})
+			page, err := ProjectRoster(&source, RosterQuery{})
+			if err != nil {
+				t.Fatalf("ProjectRoster() error = %v", err)
+			}
+			nodes := rosterNodesByIdentity(page.Nodes)
+			if nodes[rosterKey(1, "fix", 0)].State != NodeStateSucceeded ||
+				nodes[rosterKey(5, "fix", 0)].State != NodeStateNotTaken {
+				t.Fatalf("branch states = %#v", nodes)
+			}
+			progress := ProgressFromRoster(page, 5)
+			if progress.StepsDone != 1 || progress.StepsTotal != 1 {
+				t.Fatalf("progress = %#v, want 1 of 1", progress)
+			}
+		})
+	}
 	t.Run("Should satisfy UT-017 with fanout rollups and stable pagination", func(t *testing.T) {
 		t.Parallel()
 		source := RosterSource{

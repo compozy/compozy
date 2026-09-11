@@ -113,6 +113,7 @@ export interface UseAttentionNotifierOptions {
   streamLive: boolean;
   focusedSessionId: string | null;
   onOpenBell: () => void;
+  bellOpen: boolean;
 }
 
 /**
@@ -131,6 +132,7 @@ export function useAttentionNotifier({
   streamLive,
   focusedSessionId,
   onOpenBell,
+  bellOpen,
 }: UseAttentionNotifierOptions): void {
   const policy = useAttentionPolicy();
   const appActive = useDocumentActive();
@@ -159,9 +161,19 @@ export function useAttentionNotifier({
     resolve: sessionId => targets.get(sessionId) ?? null,
   };
 
+  // The bell is the review surface; overlapping ephemeral notices must not block it.
+  useEffect(() => {
+    if (!bellOpen) return;
+    for (const notification of toast.getToasts()) {
+      if (/^(needs-you|finished|agent|attention-overflow):/.test(String(notification.id))) {
+        toast.dismiss(notification.id);
+      }
+    }
+  }, [bellOpen]);
+
   const render = (batch: AttentionDelivery[]) => {
     if (batch.length === 0) return;
-    if (policy.toasts) {
+    if (policy.toasts && !bellOpen) {
       const plan = planAttentionToasts(batch);
       if (plan.overflowNeedsYou > 0) {
         toast.custom(

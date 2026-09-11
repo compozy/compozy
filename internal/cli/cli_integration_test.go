@@ -6009,9 +6009,17 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 			}
 			shutdown(
 				fmt.Sprintf("stop active session %q", info.ID),
-				func(ctx context.Context) error { return manager.Stop(ctx, info.ID) },
+				func(ctx context.Context) error {
+					err := manager.StopWithCause(ctx, info.ID, session.CauseShutdown, "integration daemon shutdown")
+					// Match daemon.stopSessions: an already finalized session is no longer a stop target.
+					if errors.Is(err, session.ErrSessionNotFound) {
+						return nil
+					}
+					return err
+				},
 			)
 		}
+		shutdown("wait for session finalizations", manager.WaitForFinalizations)
 		shutdown("shutdown network manager", networkManager.Shutdown)
 		shutdown("shutdown UDS server", server.Shutdown)
 		joinRunError("remove daemon info", compozydaemon.RemoveInfo(d.homePaths.DaemonInfo))
