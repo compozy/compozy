@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
+import { cn } from "@/lib/utils";
 import { SessionThread } from "./session-thread-lazy";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
@@ -218,8 +219,19 @@ export function SessionWindowContent({
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {/* Touch tier (S6/T6): at ≤760px the 264px sessions rail overlays the
           transcript instead of docking — the stream keeps full width and the
-          rail casts the overlay shadow. Desktop keeps the docked flex child. */}
-      <div className="contents max-[760px]:absolute max-[760px]:inset-y-0 max-[760px]:left-0 max-[760px]:z-30 max-[760px]:shadow-overlay">
+          rail casts the overlay shadow. Desktop keeps the docked flex child.
+          The box must opt back into a real display at the touch tier: Chromium
+          never blockifies display:contents, so an absolutely positioned
+          contents wrapper generates no box and the rail would stay docked.
+          The overlay shadow rides on the open state only, or a closed rail
+          would paint a 1px shadow ring down the transcript's left edge. */}
+      <div
+        data-testid="session-sidebar-overlay"
+        className={cn(
+          "contents max-[760px]:block max-[760px]:absolute max-[760px]:inset-y-0 max-[760px]:left-0 max-[760px]:z-30",
+          sidebar.open && "max-[760px]:shadow-overlay"
+        )}
+      >
         <SessionSidebar
           open={sidebar.open}
           sessions={sidebar.sessions}

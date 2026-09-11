@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
   sessionThreadProps: vi.fn(),
+  sidebarOpen: false,
   toastError: vi.fn(),
 }));
 
@@ -63,7 +64,7 @@ vi.mock("../use-session-window-controller", () => ({
       onNewSession: vi.fn(),
       onSelectSession: mocks.selectSession,
       onToggleThread: vi.fn(),
-      open: false,
+      open: mocks.sidebarOpen,
       rowDeleteDialog: { open: false },
       rowRenameDialog: { open: false },
       sessionActions: {},
@@ -215,7 +216,36 @@ describe("SessionWindowContent", () => {
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
     mocks.sessionThreadProps.mockReset();
+    mocks.sidebarOpen = false;
     mocks.toastError.mockReset();
+  });
+
+  // Invariant (T6, frozen map in mobile-surface-truth-shell-390.html): at the
+  // touch tier the 264px sessions rail overlays the transcript instead of
+  // docking. The wrapper must opt back into a real display under the media
+  // query — Chromium never blockifies display:contents, so the rail would
+  // stay a docked flex child — and cast the overlay shadow only while open.
+  it("Should compose the touch-tier rail overlay on the sidebar wrapper", async () => {
+    mocks.sidebarOpen = true;
+    render(renderContent(deadSession));
+
+    const overlay = await screen.findByTestId("session-sidebar-overlay");
+    expect(overlay).toHaveClass("contents");
+    expect(overlay).toHaveClass("max-[760px]:block");
+    expect(overlay).toHaveClass("max-[760px]:absolute");
+    expect(overlay).toHaveClass("max-[760px]:inset-y-0");
+    expect(overlay).toHaveClass("max-[760px]:left-0");
+    expect(overlay).toHaveClass("max-[760px]:z-30");
+    expect(overlay).toHaveClass("max-[760px]:shadow-overlay");
+  });
+
+  it("Should keep the closed rail shadowless over the transcript", async () => {
+    render(renderContent(deadSession));
+
+    const overlay = await screen.findByTestId("session-sidebar-overlay");
+    expect(overlay).toHaveClass("contents");
+    expect(overlay).toHaveClass("max-[760px]:absolute");
+    expect(overlay).not.toHaveClass("max-[760px]:shadow-overlay");
   });
 
   it("Should bind Stop generation to prompt cancellation instead of session stopping", async () => {
