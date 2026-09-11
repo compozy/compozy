@@ -53,3 +53,25 @@ Acceptance for this slice:
 Slice validation: passed against the local production build on September 11, 2026. See the
 publication report for gate, metadata, browser, responsive, and command-shape evidence. The
 historical full scenario and real provider execution are outside this editorial slice.
+
+## 2026-09-11 editorial rework slice
+
+The eight new articles were consolidated into six distinct reader tasks. The two older articles
+remain in the archive. The [rework report](../reports/2026-09-11-blog-rework.md) owns editorial
+research, article disposition, generated cover provenance, and current validation.
+
+Acceptance for this replacement slice:
+
+1. The blog index lists eight total articles and features the executable retry experiment.
+   All six revised articles show their own generated abstract cover, title, and reading time.
+2. `/blog/what-is-an-os-for-ai-agents/` permanently redirects to the session-recovery article;
+   `/blog/orca-vs-openhands/` permanently redirects to the agent-evaluation article.
+3. Both desktop and 390px mobile layouts render loaded covers, one H1, useful section links,
+   readable code/tables, and no document-wide overflow. Decorative covers have empty alt text.
+4. All reader downloads are served and match the examples described by their articles. The
+   retry lab and repository briefing collector execute with the documented local prerequisites.
+5. Canonical metadata, Article JSON-LD, OpenGraph/Twitter covers, RSS, sitemap, and related reading
+   use the six retained article routes; retired routes do not remain in discovery surfaces.
+
+Validation status is recorded in the rework report. This slice does not reclassify historical
+brand journeys or claim real-provider execution or a comparative coding-agent benchmark.

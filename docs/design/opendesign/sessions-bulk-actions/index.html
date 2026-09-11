@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session bulk actions · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  sessions-bulk-actions · single board, authored 2026-09-11 before any spec or task.
+  The ask: delete (stop, archive) many sessions at once instead of one kebab at a time.
+  Provenance:
+    production — SessionSidebar (264px rail, bg-rail, pt-1.5), SessionListToolbar (globe · archive ·
+                 spacer · sort · +), SearchInput 28px, SessionListRow (grid 8px/1fr/auto, px-2 py-1.5,
+                 SessionBadgeMark 8px cell, kebab SessionRowActions), SessionListThread (pl-5 hairline),
+                 SessionDeleteDialog (max-w-md, ghost Cancel + destructive Delete), @compozy/ui Checkbox
+                 (16px, elevated, accent plate when checked).
+    delta      — hover-revealed Checkbox over the mark cell; SessionListSelectionBar replaces the toolbar
+                 row while a selection exists; state-gated bulk menu with counts; one confirm for the
+                 set with per-row progress and partial failure.
+  Every product class below is named after the production component it renders. Lab chrome
+  (.lab-*, .ss-contract, .ss-n, .ss-legend, .ss-tags) is annotation ink, never product UI.
+-->
+<style>
+/* ============ page ============ */
+body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);overflow-y:auto}
+.page{max-width:1240px;margin:0 auto;padding:40px 36px 80px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.head .crumb{font-size:12px;color:var(--subtle)}
+.head .crumb a{color:var(--subtle)}
+.head .crumb a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+.head h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+.lede{margin:0 0 26px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;text-wrap:pretty}
+.lede b{color:var(--fg-strong);font-weight:600}
+.mono{font-family:var(--font-mono);font-size:11px;color:var(--subtle)}
+.spacer{flex:1;min-width:4px}
+
+/* ============ lab chrome (same grammar as sessions-stability) ============ */
+.lab-sec{margin:0 0 44px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto;font-family:var(--font-mono)}
+.spec{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;align-items:start}
+.spec__note{font-size:11.5px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:12px;margin-bottom:3px;color:var(--fg-strong)}
+.spec__note p{margin:0 0 8px}
+.spec__note code{font-family:var(--font-mono);font-size:10px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+.stage{
+  position:relative;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  display:flex;align-items:flex-start;justify-content:center;gap:28px;flex-wrap:wrap;padding:28px 24px 32px;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage__cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.stage__cell-t{font-size:11px;font-weight:510;color:var(--muted);display:flex;align-items:center;gap:6px}
+.stage__cell-t code{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.lab-foot{font-size:11px;line-height:1.6;color:var(--faint);border-top:1px solid var(--line-soft);padding-top:14px;max-width:76ch}
+
+.ss-contract{
+  display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,.8fr);gap:0;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+  margin:0 0 36px;overflow:hidden;
+}
+.ss-contract__col{padding:16px 18px;min-width:0}
+.ss-contract__col + .ss-contract__col{border-left:1px solid var(--line-soft)}
+.ss-contract__col .eyebrow{display:block;margin-bottom:8px}
+.ss-contract__what{font-size:var(--text-small-body);line-height:1.55;color:var(--fg);max-width:48ch;text-wrap:pretty;margin:0}
+.ss-contract__what b{color:var(--fg-strong);font-weight:600}
+.ss-contract__file{margin:10px 0 0;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.ss-mods{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.ss-mods li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.ss-mods li b{display:block;font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg);letter-spacing:0}
+.ss-mods li i{display:block;font-style:normal;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);overflow-wrap:anywhere}
+.ss-mods li span{display:block}
+.ss-mod{
+  display:inline-flex;align-items:center;justify-content:center;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--neutral-tint);color:var(--neutral-ink);box-shadow:var(--shadow-hairline-inset);
+}
+.ss-mod--new{background:var(--success-tint);color:var(--success)}
+.ss-mod--modify{background:var(--info-tint);color:var(--info)}
+.ss-mod--reuse{background:var(--neutral-tint);color:var(--subtle)}
+.ss-states{display:flex;flex-direction:column;gap:4px;counter-reset:st;margin:0;padding:0;list-style:none}
+.ss-states li{display:flex;align-items:baseline;gap:8px;font-size:11.5px;line-height:1.5}
+.ss-states li a{color:var(--fg);border-radius:var(--radius-xxs);text-decoration:none}
+.ss-states li a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.ss-states li::before{counter-increment:st;content:counter(st,decimal-leading-zero);font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;width:18px}
+.ss-states li code{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);white-space:nowrap}
+
+.ss-n{
+  display:inline-grid;place-items:center;width:15px;height:15px;flex:none;
+  border-radius:var(--radius-xxs);background:var(--fg-strong);color:var(--canvas);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;font-style:normal;line-height:1;letter-spacing:0;
+  vertical-align:middle;margin:0 4px;pointer-events:none;user-select:none;
+}
+.ss-n--abs{position:absolute;margin:0;z-index:4}
+.ss-legend{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;
+  margin:10px 0 0;padding:10px 12px;border-radius:var(--radius-md);list-style:none;
+  background:var(--canvas-soft);border:1px solid var(--line-soft);
+}
+.ss-legend li{display:grid;grid-template-columns:15px minmax(0,1fr);gap:8px;align-items:start;font-size:11px;line-height:1.5;color:var(--muted)}
+.ss-legend li .ss-n{margin:2px 0 0}
+.ss-legend li b{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--fg);letter-spacing:0}
+.ss-legend li em{font-style:normal;color:var(--subtle)}
+.ss-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ss-tag{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--radius-xs);font-family:var(--font-mono);font-size:9.5px;color:var(--subtle);background:var(--badge-fill)}
+.ss-tag b{font-weight:600;color:var(--faint);letter-spacing:.04em;text-transform:uppercase;font-size:8.5px}
+
+/* dictionary tables */
+.dict{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dict table{width:100%;border-collapse:collapse;font-size:12px}
+.dict th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:6px 8px;border-bottom:1px solid var(--line)}
+.dict td{padding:7px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+.dict td:first-child{color:var(--fg);white-space:nowrap}
+.dict td code{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.dict .keys{margin-right:6px}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.rules li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px}
+.rules li::before{content:"—";color:var(--faint)}
+.rules b{color:var(--fg);font-weight:600}
+.rules--q li::before{content:"?";font-family:var(--font-mono);color:var(--warning)}
+
+@media (max-width:960px){
+  .ss-contract{grid-template-columns:1fr}
+  .ss-contract__col + .ss-contract__col{border-left:0;border-top:1px solid var(--line-soft)}
+  .spec,.dict{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .ss-legend{grid-template-columns:1fr}
+  .page{padding:32px 20px 64px}
+}
+
+/* ============ SessionSidebar host ============
+   production: web/src/systems/session/components/session-sidebar.tsx — w-66 (264px), bg-rail,
+   border-r line, pt-1.5. Same catalog body as the dock's Sessions modal (OsSessionsModal),
+   so everything on this board applies to both hosts. */
+.session-sidebar{
+  position:relative;width:264px;flex:none;display:flex;flex-direction:column;
+  padding-top:6px;min-height:436px;
+  background:var(--rail);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:visible;
+}
+.session-sidebar--crop{min-height:0;height:236px;overflow:hidden}
+.session-sidebar .btn--icon{width:26px;height:26px;padding:0;border-radius:var(--radius)}
+.session-sidebar .btn--icon svg{width:14px;height:14px}
+.session-sidebar .btn--icon.is-open{background:var(--btn-hover);color:var(--fg-strong)}
+
+/* SessionListToolbar — production: flex items-center gap-1 px-3 py-1.5 (38px tall).
+   SessionListSelectionBar (new) has the exact same box, so swapping them never moves the list. */
+.session-list-toolbar,.session-list-selection-bar{position:relative;display:flex;align-items:center;gap:4px;padding:6px 12px;min-height:38px}
+.session-sidebar[data-mode="select"] .session-list-toolbar{display:none}
+.session-sidebar[data-mode="rest"] .session-list-selection-bar{display:none}
+.session-list-selection-bar > .cbx{margin-left:2px} /* x=14 from the rail edge — the same column as the row checkboxes */
+.session-list-selection-bar__count{margin-left:6px;font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong);white-space:nowrap;font-variant-numeric:tabular-nums}
+.session-list-selection-bar__count small{font-size:var(--text-micro);font-weight:400;color:var(--subtle);margin-left:4px}
+.btn--danger-hover:hover,.btn--danger-hover:focus-visible{color:var(--danger);background:var(--danger-tint)}
+
+/* SearchInput — production px-3 pb-1.5, 28px */
+.session-list-search{padding:0 12px 6px}
+.session-list-search .field{width:100%}
+
+/* list — production: flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5 */
+.session-list{display:flex;flex-direction:column;gap:2px;padding:2px 10px 10px;overflow:visible}
+.session-sidebar--crop .session-list{overflow:hidden}
+
+/* ============ SessionListRow ============
+   production: grid [minmax(0,1fr)_auto] gap-1 host; the row button is grid [8px_1fr_auto]
+   gap-2 px-2 py-1.5 rounded-md, hover bg-row-hover, current bg-row-selected + 2px accent
+   bar. The mark is SessionBadgeMark in the 8px cell (mt-1.5). */
+.session-list-row-host{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:4px}
+.session-list-row{
+  position:relative;display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:start;gap:8px;
+  min-width:0;padding:6px 8px;border:0;border-radius:var(--radius);background:transparent;
+  text-align:left;cursor:pointer;color:var(--fg);font:inherit;
+  transition:background var(--dur-fast) var(--ease);
+}
+.session-list-row:hover,.session-list-row-host.is-hover .session-list-row{background:var(--row-hover)}
+.session-list-row[aria-current="true"]{background:var(--row-selected)}
+.session-list-row[aria-current="true"]::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:var(--radius-pill);background:var(--accent)}
+/* selected = the same neutral plate as current; the checked box is the signal, never a colour */
+.session-list-row[aria-selected="true"]{background:var(--row-selected)}
+.session-badge-mark{display:grid;place-items:center;width:8px;height:8px;margin-top:6px;transition:opacity var(--dur-fast) var(--ease)}
+.session-badge-mark .status-dot{width:7px;height:7px;flex-basis:7px;background:var(--neutral)}
+/* production dictionary (lib/session-badge.ts): idle success dot · running accent dot + pulse · stopped neutral ring */
+.session-list-row[data-status="idle"] .status-dot{background:var(--success)}
+.session-list-row[data-status="running"] .status-dot{background:var(--accent);animation:sb-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+.session-list-row[data-status="stopped"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+@keyframes sb-pulse{50%{opacity:.5}}
+.session-list-row__body{min-width:0}
+.session-list-row__title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-small-body);color:var(--fg-strong)}
+.session-list-row[aria-current="true"] .session-list-row__title{font-weight:510}
+.session-list-row__sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-micro);color:var(--subtle)}
+.session-list-row__sub b{font-weight:510;color:var(--muted)}
+.session-list-row[data-status="idle"] .session-list-row__word{color:var(--success)}
+.session-list-row[data-status="running"] .session-list-row__word{color:var(--accent-strong)}
+.session-list-row[data-status="stopped"] .session-list-row__word{color:var(--subtle)}
+.session-list-row__time{margin-top:2px;font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
+.session-list-row__trail{display:flex;align-items:center;gap:2px;padding-top:4px;min-height:1px}
+.session-list-thread-toggle{
+  display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border:0;border-radius:var(--radius-pill);background:transparent;cursor:pointer;
+  font-family:var(--font-mono);font-size:var(--text-micro);color:var(--faint);font-variant-numeric:tabular-nums;
+}
+.session-list-thread-toggle:hover{background:var(--elevated);color:var(--fg)}
+.session-list-thread-toggle svg{width:14px;height:14px;transition:transform var(--dur) var(--ease)}
+.session-list-thread-toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
+/* SessionListThread children — production pl-5 + hairline (left-2.75, top-0.5, bottom-1, bg-line-strong) */
+.session-list-thread__children{position:relative;padding-left:20px}
+.session-list-thread__children::before{content:"";position:absolute;left:11px;top:2px;bottom:4px;width:1px;background:var(--line-strong)}
+
+/* ============ the selection checkbox (delta) ============
+   @compozy/ui Checkbox, 16px, a SIBLING of the row button (never nested inside it), absolutely
+   placed over the 8px mark cell: mark centre is x=12 / y=16 inside the row, so the box sits at
+   left 4 / top 8 and the title (starts at x=24) never moves. Hidden at rest; revealed on row
+   hover or focus; permanent while a selection exists. The mark yields to it — the state word
+   on the second line keeps carrying the state, so nothing is said by colour alone. */
+.session-list-row__select{position:absolute;left:4px;top:8px;z-index:2;opacity:0;pointer-events:none;transition:opacity var(--dur-fast) var(--ease)}
+.session-list-row-host:hover .session-list-row__select,
+.session-list-row-host.is-hover .session-list-row__select,
+.session-list-row-host:focus-within .session-list-row__select,
+.session-sidebar[data-mode="select"] .session-list-row__select{opacity:1;pointer-events:auto}
+.session-list-row-host:hover .session-badge-mark,
+.session-list-row-host.is-hover .session-badge-mark,
+.session-list-row-host:focus-within .session-badge-mark,
+.session-sidebar[data-mode="select"] .session-badge-mark{opacity:0}
+/* while selecting, the per-row kebab leaves: the bar owns the verbs */
+.session-sidebar[data-mode="select"] .session-row-actions{display:none}
+.cbx{cursor:pointer}
+.cbx:hover{border-color:var(--line-strong)}
+.cbx[aria-checked="mixed"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* ============ DropdownMenu (bulk verbs) — mirrors SessionRowActions, pluralised ============ */
+.session-list-selection-menu{position:absolute;right:42px;top:38px;z-index:5;min-width:200px}
+.session-list-selection-menu .menu-item{border:0;background:transparent;font:inherit;cursor:pointer}
+.session-list-selection-menu .menu-item .chord{margin-left:auto;padding-left:14px}
+.session-list-selection-menu .menu-item:disabled .chord{color:var(--faint)}
+
+/* ============ SessionDeleteDialog (sessions[] variant) ============
+   production: Dialog max-w-md (448px), title + description, ghost Cancel, destructive Delete
+   with Trash2 / Spinner. New here: the set list with a state word, per-row results, a foot note. */
+.session-delete-dialog{--w-modal-md:448px;width:min(448px,100%);position:relative}
+.session-delete-dialog .dialog__head{align-items:flex-start}
+.session-delete-dialog .dialog__body{position:relative;padding:14px 20px 18px}
+.session-delete-dialog .dialog__foot{position:relative}
+.session-delete-dialog__status{margin:0 0 10px;font-size:var(--text-form);color:var(--fg)}
+.session-delete-dialog__status b{font-weight:510;color:var(--fg-strong)}
+.session-delete-dialog__list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--canvas)}
+.session-delete-dialog__list li{display:grid;grid-template-columns:8px minmax(0,1fr) auto 14px;align-items:center;gap:10px;padding:7px 10px;font-size:var(--text-form);color:var(--fg)}
+.session-delete-dialog__list li + li{border-top:1px solid var(--line-soft)}
+.session-delete-dialog__list .status-dot{width:7px;height:7px;flex-basis:7px;background:var(--neutral)}
+.session-delete-dialog__list li[data-status="running"] .status-dot{background:var(--accent)}
+.session-delete-dialog__list li[data-status="stopped"] .status-dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.session-delete-dialog__list .title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-delete-dialog__list .word{font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle)}
+.session-delete-dialog__list li[data-status="running"] .word{color:var(--accent-strong)}
+.session-delete-dialog__list .result{width:14px;height:14px;display:grid;place-items:center;color:var(--subtle)}
+.session-delete-dialog__list .result svg{width:13px;height:13px}
+.session-delete-dialog__list .result--failed{color:var(--danger)}
+.session-delete-dialog__list .err{grid-column:2/-1;font-size:var(--text-micro);color:var(--danger);line-height:1.4}
+.session-delete-dialog__more{padding:6px 10px;font-size:var(--text-micro);color:var(--subtle);border-top:1px solid var(--line-soft)}
+.session-delete-dialog .dialog__foot .btn svg{width:13px;height:13px}
+.sb-spin{animation:sb-spin 1s linear infinite}
+@keyframes sb-spin{to{transform:rotate(360deg)}}
+.dialog-cell{display:flex;flex-direction:column;gap:8px;min-width:0}
+.dialog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:1180px){.dialog-grid{grid-template-columns:1fr}}
+
+/* toast (sonner, production) — one line, bottom-right of the shell; drawn flush here */
+.toast{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--radius-md);background:var(--canvas-soft);box-shadow:var(--shadow-overlay);font-size:var(--text-form);color:var(--fg)}
+.toast svg{width:14px;height:14px;color:var(--subtle)}
+
+@media (prefers-reduced-motion:reduce){
+  .session-list-row[data-status="running"] .status-dot{animation:none}
+  .sb-spin{animation:none}
+  .session-list-row__select,.session-badge-mark,.session-list-row{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="sb-page">
+  <div class="head">
+    <span class="crumb"><a href="../README.md">Open Design</a> /</span>
+    <h1 data-od-id="sb-title">Session bulk actions</h1>
+    <span class="crumb mono">sessions-bulk-actions/index.html · 2026-09-11</span>
+  </div>
+  <p class="lede"><b>Pick several sessions, act once.</b> Today every session leaves through its own kebab. This board adds a way to select many rows in the sessions rail — or the dock's Sessions modal, same body — and stop, archive, or delete them together. Nothing changes at rest; the list looks exactly as it does now. Read the contract block, then the four specimens, then the dictionary. Content is illustrative; runtime truth owns values.</p>
+
+  <section class="ss-contract" data-od-id="sb-contract" aria-label="What this board is">
+    <div class="ss-contract__col">
+      <span class="eyebrow">What this board is</span>
+      <p class="ss-contract__what"><b>Bulk actions for the session list.</b> Hover a row and a checkbox appears over its state mark. The first check turns the toolbar into a <b>selection bar</b>: how many, select all, Delete, More (Stop · Archive · Unarchive), Done. Rows stay neutral; a selected row is a plate plus a checked box, never a colour. Delete confirms <b>once for the whole set</b>, shows each session going, and keeps the ones that failed selected so you can try again. With one session selected, everything falls back to today's singular dialogs and menu items — nothing already shipped changes shape.</p>
+      <p class="ss-contract__file">sessions-bulk-actions/index.html · single board · no spec yet</p>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">Production components this board changes</span>
+      <ul class="ss-mods">
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionListSelectionBar</b><i>web/src/systems/session/components/session-list/session-list-selection-bar.tsx</i>replaces the toolbar row while a selection exists — same 38px box: all-checkbox · count · Delete · More · Done</span></li>
+        <li><span class="ss-mod ss-mod--new">new</span><span><b>useSessionSelection</b><i>web/src/systems/session/hooks/use-session-selection.ts</i>selected id set, ⇧ range anchor, mode; clears on scope/archive change, on Esc, and after a fully successful batch</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionListRow</b><i>web/src/systems/session/components/session-list/session-list-row.tsx</i>Checkbox sibling over the mark cell; <code>aria-selected</code>; click toggles in select mode; ⌘/⇧ modifiers; kebab hidden while selecting</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionList</b><i>web/src/systems/session/components/session-list/session-list.tsx</i>hosts the toolbar ↔ bar swap, ⌘A and Esc, passes selection through threads and workspace groups</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionDeleteDialog</b><i>web/src/systems/session/components/session-delete-dialog.tsx</i>takes <code>sessions[]</code>: plural copy, the set list, per-row progress and failure, Retry</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useSessionLifecycleActions</b><i>web/src/systems/session/hooks/use-session-lifecycle-actions.ts</i>batch handlers: sequential fan-out over the existing per-session mutations, progress + partial results, one toast per batch</span></li>
+        <li><span class="ss-mod ss-mod--modify">modify</span><span><b>Checkbox</b><i>packages/ui/src/components/checkbox.tsx</i>render <code>indeterminate</code> (Minus glyph on the same accent plate) — today only checked is styled; story + test</span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>Checkbox · Button · DropdownMenu · Tooltip · Kbd · Spinner · Dialog · toast</b><i>@compozy/ui — unchanged</i></span></li>
+        <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>DELETE /sessions/:id · stop · archive · unarchive</b><i>internal/api/core — unchanged; no bulk route in v1 (open question 2)</i></span></li>
+      </ul>
+    </div>
+    <div class="ss-contract__col">
+      <span class="eyebrow">States on this board</span>
+      <ol class="ss-states">
+        <li><a href="#sb-rest">At rest — nothing new</a><code>§01</code></li>
+        <li><a href="#sb-rest">Hover reveals the checkbox</a><code>§01</code></li>
+        <li><a href="#sb-select">Selection mode · 3 selected</a><code>§02</code></li>
+        <li><a href="#sb-menu">More actions · state-gated counts</a><code>§03</code></li>
+        <li><a href="#sb-dialog">Confirm · Delete 3 sessions</a><code>§04</code></li>
+        <li><a href="#sb-dialog">Deleting 2 of 3</a><code>§04</code></li>
+        <li><a href="#sb-dialog">2 deleted · 1 couldn't be deleted</a><code>§04</code></li>
+        <li><a href="#sb-dict">Copy · keys · rules · open questions</a><code>§05</code></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== 01 · REST → HOVER ===== -->
+  <section class="lab-sec" id="sb-rest" data-od-id="sb-rest">
+    <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">At rest nothing changes; hovering a row offers the checkbox</h2><span class="lab-sec__gist">SessionListRow · rest → hover</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Calm by default.</b>
+        <p>The left rail is production, untouched: toolbar, filter, the Orchestrator thread with its seven children, the kebab on every row. No permanent checkbox column — the rail is 264px and the title already truncates.</p>
+        <p>On the right the pointer rests on <code>Integrate PRs 602–606</code>. A 16px Checkbox fades in over the row's state mark; the title does not move. Clicking it — or ⌘-clicking anywhere on the row — starts a selection. Plain click still opens the session.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage" data-od-id="sb-rest-stage">
+          <div class="stage__cell">
+            <span class="stage__cell-t">At rest <code>production</code></span>
+            <aside class="session-sidebar" data-mode="rest" aria-label="Sessions" data-od-id="sb-rest-rail">
+              <div class="session-list-toolbar">
+                <button class="btn btn--ghost btn--icon" aria-pressed="false" aria-label="All workspaces"><svg data-lucide="globe"></svg></button>
+                <button class="btn btn--ghost btn--icon" aria-pressed="false" aria-label="Archived"><svg data-lucide="archive"></svg></button>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--icon" aria-label="Sort sessions"><svg data-lucide="arrow-down-up"></svg></button>
+                <button class="btn btn--primary btn--icon" aria-label="New session"><svg data-lucide="plus"></svg></button>
+              </div>
+              <div class="session-list-search"><label class="field"><svg data-lucide="search"></svg><input type="text" placeholder="Filter sessions…" aria-label="Filter sessions"></label></div>
+              <div class="session-list">
+                <div class="session-list-thread">
+                  <div class="session-list-row-host">
+                    <button class="session-list-row" data-status="idle" aria-current="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Orchestrator</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">idle</span></span></span><span class="session-list-row__time">just now</span></button>
+                    <span class="cbx session-list-row__select" role="checkbox" aria-checked="false" aria-label="Select Orchestrator"><svg data-lucide="check"></svg></span>
+                    <div class="session-list-row__trail"><button class="session-list-thread-toggle" aria-expanded="true"><svg data-lucide="chevron-right"></svg>7</button><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                  </div>
+                  <div class="session-list-thread__children">
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="running"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 613 — Session bulk actions</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">running</span></span></span><span class="session-list-row__time">just now</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Integrate PRs 602–606</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">15h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 606 — Clear stale worktrees</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 605 — Rename session inline</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 602 — Tail logs in terminal</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 603 — Dropdown focus trap</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 604 — Skip empty turns</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <div class="stage__cell">
+            <span class="stage__cell-t">Hover on a row <code>delta</code></span>
+            <aside class="session-sidebar" data-mode="rest" aria-label="Sessions" data-od-id="sb-hover-rail">
+              <div class="session-list-toolbar">
+                <button class="btn btn--ghost btn--icon" aria-pressed="false" aria-label="All workspaces"><svg data-lucide="globe"></svg></button>
+                <button class="btn btn--ghost btn--icon" aria-pressed="false" aria-label="Archived"><svg data-lucide="archive"></svg></button>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--icon" aria-label="Sort sessions"><svg data-lucide="arrow-down-up"></svg></button>
+                <button class="btn btn--primary btn--icon" aria-label="New session"><svg data-lucide="plus"></svg></button>
+              </div>
+              <div class="session-list-search"><label class="field"><svg data-lucide="search"></svg><input type="text" placeholder="Filter sessions…" aria-label="Filter sessions"></label></div>
+              <div class="session-list">
+                <div class="session-list-thread">
+                  <div class="session-list-row-host">
+                    <button class="session-list-row" data-status="idle" aria-current="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Orchestrator</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">idle</span></span></span><span class="session-list-row__time">just now</span></button>
+                    <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                    <div class="session-list-row__trail"><button class="session-list-thread-toggle" aria-expanded="true"><svg data-lucide="chevron-right"></svg>7</button><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                  </div>
+                  <div class="session-list-thread__children">
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="running"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 613 — Session bulk actions</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">running</span></span></span><span class="session-list-row__time">just now</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host is-hover">
+                      <i class="ss-n ss-n--abs" style="left:-24px;top:9px">1</i>
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Integrate PRs 602–606</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">15h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false" aria-label="Select Integrate PRs 602–606"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button><i class="ss-n ss-n--abs" style="right:-22px;top:6px">2</i></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 606 — Clear stale worktrees</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 605 — Rename session inline</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 602 — Tail logs in terminal</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 603 — Dropdown focus trap</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 604 — Skip empty turns</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"><button class="btn btn--ghost btn--icon session-row-actions" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Checkbox over the mark</b> <em>@compozy/ui Checkbox 16px, elevated fill, line border · a sibling of the row button, absolutely placed at left 4 / top 8 so its centre is the mark's centre · fades in <code>--dur-fast</code> on row hover or focus; the mark fades out under it · the title never shifts (starts at x=24)</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Kebab unchanged at rest</b> <em>production SessionRowActions · still the way to act on one session; it leaves only while a selection exists (§02)</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>rest · hover</span><span class="ss-tag"><b>component</b>SessionListRow · Checkbox</span><span class="ss-tag"><b>accent</b>1 · the + button</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 · SELECTION MODE ===== -->
+  <section class="lab-sec" id="sb-select" data-od-id="sb-select">
+    <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Selection mode — three selected, the bar owns the verbs</h2><span class="lab-sec__gist">SessionListSelectionBar · SessionListRow[aria-selected]</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>The toolbar becomes the selection bar.</b>
+        <p>Same 38px box, so the filter and the list stay put. Left: a checkbox for the whole visible list (mixed here) and the count. Right: Delete, More, Done. The + button leaves — while you are choosing, nothing on the rail is accent except the checked boxes.</p>
+        <p>Every row now shows its checkbox and hides its kebab. A selected row gets the same neutral plate the current session already uses; the box is the signal. The state word on the second line still says <code>running</code>, <code>idle</code>, <code>stopped</code>, so hiding the mark loses nothing.</p>
+        <p>Clicking a row toggles it. Threads still fold and unfold; selecting the Orchestrator does <b>not</b> select its children (open question 1).</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage" data-od-id="sb-select-stage">
+          <div class="stage__cell">
+            <span class="stage__cell-t">3 selected · 1 running · 2 stopped <code>delta</code></span>
+            <aside class="session-sidebar" data-mode="select" aria-label="Sessions" data-od-id="sb-select-rail">
+              <div class="session-list-selection-bar" role="toolbar" aria-label="Selected sessions">
+                <span class="cbx" role="checkbox" aria-checked="mixed" aria-label="Select all"><svg data-lucide="minus"></svg></span><i class="ss-n ss-n--abs" style="left:-24px;top:12px">1</i>
+                <span class="session-list-selection-bar__count">3 selected</span><i class="ss-n ss-n--abs" style="left:112px;top:12px">2</i>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--icon btn--danger-hover" aria-label="Delete 3 sessions"><svg data-lucide="trash-2"></svg></button>
+                <button class="btn btn--ghost btn--icon" aria-label="More actions" aria-haspopup="menu"><svg data-lucide="ellipsis"></svg></button>
+                <button class="btn btn--ghost btn--icon" aria-label="Done"><svg data-lucide="x"></svg></button>
+                <i class="ss-n ss-n--abs" style="right:-24px;top:12px">3</i>
+              </div>
+              <div class="session-list-search"><label class="field"><svg data-lucide="search"></svg><input type="text" placeholder="Filter sessions…" aria-label="Filter sessions"></label></div>
+              <div class="session-list">
+                <div class="session-list-thread">
+                  <div class="session-list-row-host">
+                    <button class="session-list-row" data-status="idle" aria-current="true" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Orchestrator</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">idle</span></span></span><span class="session-list-row__time">just now</span></button>
+                    <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                    <div class="session-list-row__trail"><button class="session-list-thread-toggle" aria-expanded="true"><svg data-lucide="chevron-right"></svg>7</button><i class="ss-n ss-n--abs" style="right:-24px;top:6px">4</i></div>
+                  </div>
+                  <div class="session-list-thread__children">
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="running" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 613 — Session bulk actions</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">running</span></span></span><span class="session-list-row__time">just now</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <i class="ss-n ss-n--abs" style="left:-44px;top:9px">5</i>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Integrate PRs 602–606</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">15h ago</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 606 — Clear stale worktrees</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 605 — Rename session inline</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <i class="ss-n ss-n--abs" style="left:-44px;top:9px">6</i>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 602 — Tail logs in terminal</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 603 — Dropdown focus trap</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 604 — Skip empty turns</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>All-visible checkbox</b> <em>mixed (Minus) when some rows are selected, checked when every visible row is · click selects all visible / clears all · sits at x=14, the same column as the row boxes · Checkbox needs an indeterminate rendering (packages/ui delta)</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Count</b> <em>13.5px 510 fg-strong, tabular · <code>3 selected</code> · when the filter hides some of them: <code>3 selected <small>· 1 hidden</small></code> — the selection survives filtering, the count is absolute</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Verbs</b> <em>ghost icon-sm ×3 with Tooltip: Delete 3 sessions (danger ink on hover/focus only, the dialog is the red moment) · More actions (§03) · Done <kbd class="kbd">esc</kbd> · the + button is gone until Done</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Thread toggle stays, kebab leaves</b> <em>folding still works so you can reach children · SessionRowActions hidden while a selection exists — the bar owns the verbs, one place to look</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Selected row</b> <em><code>aria-selected="true"</code> · plate <code>--row-selected</code> (the same neutral the current session uses) + checked box (accent plate, accent-ink check) · the mark is hidden, the word <code>running</code> in accent-strong still says what it is</em></span></li>
+          <li><i class="ss-n">6</i><span><b>Unselected row in select mode</b> <em>box visible but empty · click anywhere on the row toggles; ⇧-click extends from the last toggled row; opening a session waits until Done</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>select · 3 of 8</span><span class="ss-tag"><b>component</b>SessionListSelectionBar · SessionListRow · Checkbox</span><span class="ss-tag"><b>accent</b>checked boxes only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 · MORE ACTIONS MENU ===== -->
+  <section class="lab-sec" id="sb-menu" data-od-id="sb-menu">
+    <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">More actions — the row menu, pluralised and state-gated</h2><span class="lab-sec__gist">DropdownMenu · counts from the selection</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Same verbs as one row's kebab, with numbers.</b>
+        <p>The menu lists what the selection can take: <code>Stop 1 running</code>, <code>Archive 2 stopped</code>, <code>Unarchive 0 archived</code> (disabled), and Delete. Each verb applies to the eligible subset and says so — you never have to deselect the wrong ones first. Stop and Archive act immediately with a toast, exactly as their single-row versions do today. Delete confirms (§04).</p>
+        <p>In the Archived view the gating flips: Unarchive is live, Archive is not.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="stage" data-od-id="sb-menu-stage" style="min-height:0">
+          <div class="stage__cell">
+            <span class="stage__cell-t">More actions open <code>delta</code></span>
+            <aside class="session-sidebar session-sidebar--crop" data-mode="select" aria-label="Sessions" data-od-id="sb-menu-rail">
+              <div class="session-list-selection-bar" role="toolbar" aria-label="Selected sessions">
+                <span class="cbx" role="checkbox" aria-checked="mixed" aria-label="Select all"><svg data-lucide="minus"></svg></span>
+                <span class="session-list-selection-bar__count">3 selected</span>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--icon btn--danger-hover" aria-label="Delete 3 sessions"><svg data-lucide="trash-2"></svg></button>
+                <button class="btn btn--ghost btn--icon is-open" aria-label="More actions" aria-haspopup="menu" aria-expanded="true"><svg data-lucide="ellipsis"></svg></button>
+                <button class="btn btn--ghost btn--icon" aria-label="Done"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="menu menu--overlay session-list-selection-menu" role="menu" aria-label="Actions for 3 sessions">
+                <button class="menu-item" role="menuitem"><svg data-lucide="square"></svg>Stop<span class="chord">1 running</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:8px">1</i>
+                <button class="menu-item" role="menuitem"><svg data-lucide="archive"></svg>Archive<span class="chord">2 stopped</span></button>
+                <button class="menu-item" role="menuitem" disabled aria-disabled="true"><svg data-lucide="rotate-ccw"></svg>Unarchive<span class="chord">0 archived</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:72px">2</i>
+                <div class="menu-sep" role="separator"></div>
+                <button class="menu-item menu-item--danger" role="menuitem"><svg data-lucide="trash-2"></svg>Delete 3 sessions<span class="chord">⌘⌫</span></button><i class="ss-n ss-n--abs" style="right:-24px;top:113px">3</i>
+              </div>
+              <div class="session-list-search"><label class="field"><svg data-lucide="search"></svg><input type="text" placeholder="Filter sessions…" aria-label="Filter sessions"></label></div>
+              <div class="session-list">
+                <div class="session-list-thread">
+                  <div class="session-list-row-host">
+                    <button class="session-list-row" data-status="idle" aria-current="true" aria-selected="false"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Orchestrator</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">idle</span></span></span><span class="session-list-row__time">just now</span></button>
+                    <span class="cbx session-list-row__select" role="checkbox" aria-checked="false"><svg data-lucide="check"></svg></span>
+                    <div class="session-list-row__trail"><button class="session-list-thread-toggle" aria-expanded="true"><svg data-lucide="chevron-right"></svg>7</button></div>
+                  </div>
+                  <div class="session-list-thread__children">
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="running" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 613 — Session bulk actions</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">running</span></span></span><span class="session-list-row__time">just now</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Integrate PRs 602–606</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">15h ago</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                    <div class="session-list-row-host">
+                      <button class="session-list-row" data-status="stopped" aria-selected="true"><span class="session-badge-mark"><i class="status-dot"></i></span><span class="session-list-row__body"><span class="session-list-row__title">Issue 606 — Clear stale worktrees</span><span class="session-list-row__sub"><b>general</b> · <span class="session-list-row__word">stopped</span></span></span><span class="session-list-row__time">18h ago</span></button>
+                      <span class="cbx is-on session-list-row__select" role="checkbox" aria-checked="true"><svg data-lucide="check"></svg></span>
+                      <div class="session-list-row__trail"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+          <div class="stage__cell" style="align-self:center;max-width:300px">
+            <span class="stage__cell-t">After Stop / Archive <code>production toast</code></span>
+            <div class="toast" role="status"><svg data-lucide="square"></svg>1 session stopped</div>
+            <div class="toast" role="status"><svg data-lucide="archive"></svg>2 sessions archived</div>
+            <p class="spec__note" style="margin-top:4px">Stop and Archive don't confirm — neither do their single-row versions. One toast per batch; a failure uses the daemon's message through the existing <code>reportActionError</code>. The rows that changed stay selected so a second verb can follow.</p>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>Verb + eligible count</b> <em>label is the verb, the chord slot carries <code>{n} {state}</code> in faint · Stop counts <code>active | starting</code>, Archive counts <code>stopped</code> and not archived, Unarchive counts archived — the same gates SessionRowActions uses per row</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Zero = disabled</b> <em>the item stays so the menu never changes shape; muted ink, <code>0 archived</code> says why</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Delete</b> <em>DropdownMenuItem <code>variant="destructive"</code> as today · the same action as the bar's trash button, here with its shortcut · opens §04</em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>menu open · 1 running · 2 stopped</span><span class="ss-tag"><b>component</b>DropdownMenu · toast</span><span class="ss-tag"><b>tone</b>danger on Delete only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 04 · CONFIRM DIALOG ===== -->
+  <section class="lab-sec" id="sb-dialog" data-od-id="sb-dialog">
+    <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Delete confirms once for the set, then tells you what happened</h2><span class="lab-sec__gist">SessionDeleteDialog(sessions[]) · confirm → deleting → partial</span></div>
+    <div class="spec">
+      <div class="spec__note">
+        <b>Today's dialog, plural.</b>
+        <p>Same frame and copy shape as the single-session dialog: title, one sentence of consequence, ghost Cancel, destructive Delete. New: the list of what you picked, with each session's state word, so a running one can't hide inside a number.</p>
+        <p>While it runs the dialog can't be dismissed and each row reports back. If some fail, the dialog stays open and says so per row, using the daemon's message; Retry acts on the failed ones only, and closing keeps exactly those selected in the rail.</p>
+        <p>With one session selected this is the unchanged production dialog.</p>
+      </div>
+      <div class="spec__demo">
+        <div class="dialog-grid" data-od-id="sb-dialog-grid">
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Confirm <code>delta</code></span>
+            <div class="dialog session-delete-dialog" role="alertdialog" aria-labelledby="sb-dlg-1-t" data-od-id="sb-dialog-confirm">
+              <div class="dialog__head">
+                <div class="dialog__head-main"><div class="dialog__title" id="sb-dlg-1-t">Delete 3 sessions</div><p class="dialog__desc">This permanently removes <b>3 sessions</b>, including their transcripts and history, and removes them from the session list.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <ul class="session-delete-dialog__list">
+                  <li data-status="running"><i class="status-dot"></i><span class="title">Issue 613 — Session bulk actions</span><span class="word">running</span><span class="result"></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Integrate PRs 602–606</span><span class="word">stopped</span><span class="result"></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Issue 606 — Clear stale worktrees</span><span class="word">stopped</span><span class="result"></span></li>
+                </ul>
+                <i class="ss-n ss-n--abs" style="right:8px;top:74px">1</i>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><svg data-lucide="info"></svg><span>1 of them is running.</span></span><i class="ss-n ss-n--abs" style="left:150px;bottom:16px">2</i>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--destructive"><svg data-lucide="trash-2"></svg>Delete 3 sessions</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">Deleting 2 of 3 <code>delta</code></span>
+            <div class="dialog session-delete-dialog" role="alertdialog" aria-busy="true" data-od-id="sb-dialog-progress">
+              <div class="dialog__head">
+                <div class="dialog__head-main"><div class="dialog__title">Delete 3 sessions</div><p class="dialog__desc">This permanently removes <b>3 sessions</b>, including their transcripts and history, and removes them from the session list.</p></div>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <ul class="session-delete-dialog__list">
+                  <li data-status="running"><i class="status-dot"></i><span class="title">Issue 613 — Session bulk actions</span><span class="word">running</span><span class="result" aria-label="Deleted"><svg data-lucide="check"></svg></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Integrate PRs 602–606</span><span class="word">stopped</span><span class="result" aria-label="Deleting"><svg data-lucide="loader-circle" class="sb-spin"></svg></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Issue 606 — Clear stale worktrees</span><span class="word">stopped</span><span class="result"></span></li>
+                </ul>
+                <i class="ss-n ss-n--abs" style="right:8px;top:56px">3</i>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span>Don't close the window while this runs.</span></span>
+                <button class="btn btn--ghost" disabled>Cancel</button>
+                <button class="btn btn--destructive" disabled><svg data-lucide="loader-circle" class="sb-spin"></svg>Deleting 2 of 3</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-cell">
+            <span class="stage__cell-t">2 deleted · 1 couldn't be deleted <code>delta</code></span>
+            <div class="dialog session-delete-dialog" role="alertdialog" data-od-id="sb-dialog-partial">
+              <div class="dialog__head">
+                <div class="dialog__head-main"><div class="dialog__title">Delete 3 sessions</div><p class="dialog__desc"><b>2 deleted · 1 couldn't be deleted.</b> The one that failed is still in the list and still selected.</p></div>
+                <button class="dialog__close" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div></div>
+              <div class="dialog__body">
+                <ul class="session-delete-dialog__list">
+                  <li data-status="running"><i class="status-dot"></i><span class="title">Issue 613 — Session bulk actions</span><span class="word">running</span><span class="result" aria-label="Deleted"><svg data-lucide="check"></svg></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Integrate PRs 602–606</span><span class="word">stopped</span><span class="result" aria-label="Deleted"><svg data-lucide="check"></svg></span></li>
+                  <li data-status="stopped"><i class="status-dot"></i><span class="title">Issue 606 — Clear stale worktrees</span><span class="word">stopped</span><span class="result result--failed" aria-label="Failed"><svg data-lucide="x"></svg></span><span class="err">Couldn't delete: session is locked by another operation.</span></li>
+                </ul>
+                <i class="ss-n ss-n--abs" style="right:8px;top:118px">4</i>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note"><span></span></span>
+                <button class="btn btn--ghost">Close</button>
+                <button class="btn btn--destructive"><svg data-lucide="rotate-ccw"></svg>Retry 1</button><i class="ss-n ss-n--abs" style="right:24px;top:-7px">5</i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="ss-legend">
+          <li><i class="ss-n">1</i><span><b>The set</b> <em>bordered list on canvas, 30px rows: 7px mark · title (truncates) · mono state word · result slot · shows up to 5, then <code>and 4 more</code> as a last line · titles are <code>getSessionDisplayTitle</code>, exactly what the rail shows</em></span></li>
+          <li><i class="ss-n">2</i><span><b>Foot note</b> <em>only when it matters: <code>1 of them is running.</code> / <code>2 of them are running.</code> · states a fact, claims nothing about what the daemon does first (open question 1)</em></span></li>
+          <li><i class="ss-n">3</i><span><b>Progress</b> <em>rows resolve top to bottom: subtle check = deleted · Spinner = in flight · empty = waiting · primary reads <code>Deleting 2 of 3</code> · close and Cancel are gone (production <code>showCloseButton={!isDeleting}</code>)</em></span></li>
+          <li><i class="ss-n">4</i><span><b>Per-row failure</b> <em>danger ✕ + one line under the row with the daemon's message verbatim (illustrative text here) · danger only where the operation actually failed; nothing else on the dialog turns red</em></span></li>
+          <li><i class="ss-n">5</i><span><b>Retry 1</b> <em>destructive, acts on the failed rows only · Close keeps them selected in the rail so nothing is lost between attempts · toast on the way out: <code>2 sessions deleted</code></em></span></li>
+        </ul>
+        <div class="ss-tags"><span class="ss-tag"><b>state</b>confirm · deleting · partial failure</span><span class="ss-tag"><b>component</b>SessionDeleteDialog(sessions[]) · Spinner · toast</span><span class="ss-tag"><b>tone</b>danger on the verb and the failed row only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 05 · DICTIONARY ===== -->
+  <section class="lab-sec" id="sb-dict" data-od-id="sb-dict">
+    <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Copy, keys, rules, open questions</h2><span class="lab-sec__gist">verbatim strings · n=1 falls back to production</span></div>
+    <div class="dict">
+      <div>
+        <table>
+          <thead><tr><th>Where</th><th>Copy (verbatim)</th></tr></thead>
+          <tbody>
+            <tr><td>Row checkbox</td><td><code>Select {title}</code> (aria-label)</td></tr>
+            <tr><td>Bar count</td><td><code>{n} selected</code> · <code>{n} selected · {m} hidden</code> when the filter hides some</td></tr>
+            <tr><td>Bar all-checkbox</td><td><code>Select all</code> · <code>Clear selection</code> (tooltip flips with state)</td></tr>
+            <tr><td>Bar verbs</td><td><code>Delete {n} sessions</code> · <code>More actions</code> · <code>Done</code></td></tr>
+            <tr><td>Menu</td><td><code>Stop</code> <em>{n} running</em> · <code>Archive</code> <em>{n} stopped</em> · <code>Unarchive</code> <em>{n} archived</em> · <code>Delete {n} sessions</code> — zero = disabled</td></tr>
+            <tr><td>Dialog title</td><td><code>Delete {n} sessions</code> · n=1 → production <code>Delete session</code></td></tr>
+            <tr><td>Dialog description</td><td><code>This permanently removes {n} sessions, including their transcripts and history, and removes them from the session list.</code></td></tr>
+            <tr><td>Dialog note</td><td><code>1 of them is running.</code> · <code>{k} of them are running.</code> · absent when none</td></tr>
+            <tr><td>Dialog list overflow</td><td><code>and {n−5} more</code></td></tr>
+            <tr><td>Dialog primary</td><td><code>Delete {n} sessions</code> → <code>Deleting {i} of {n}</code> → <code>Retry {f}</code></td></tr>
+            <tr><td>Dialog after run</td><td><code>{d} deleted · {f} couldn't be deleted.</code> · row: <code>Couldn't delete: {daemon message}</code></td></tr>
+            <tr><td>Toasts</td><td><code>{n} sessions deleted</code> · <code>{n} sessions stopped</code> · <code>{n} sessions archived</code> · <code>{n} sessions unarchived</code> · n=1 uses the singular · errors keep <code>reportActionError</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Key</th><th>Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="keys"><kbd class="kbd">click</kbd></span> box</td><td>toggles the row; the first one enters selection mode</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">click</kbd></span> row</td><td>toggles the row without opening it (Ctrl on Linux/Windows)</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">⇧</kbd><kbd class="kbd">click</kbd></span> row</td><td>extends from the last toggled row, in visible order (threads flattened)</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">A</kbd></span></td><td>selects every visible row while focus is in the list</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">space</kbd></span> / <span class="keys"><kbd class="kbd">⏎</kbd></span></td><td>toggles the focused row while a selection exists</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">⌘</kbd><kbd class="kbd">⌫</kbd></span></td><td>opens Delete for the selection</td></tr>
+            <tr><td><span class="keys"><kbd class="kbd">esc</kbd></span></td><td>Done: clears the selection, the toolbar and kebabs return</td></tr>
+          </tbody>
+        </table>
+        <ul class="rules" style="margin-top:18px">
+          <li><span><b>Nothing new at rest.</b> The only permanent change is the hover reveal; the toolbar, the filter, the rows and the kebab are untouched until a box is checked.</span></li>
+          <li><span><b>Neutral selection.</b> Selected = plate + checked box. Accent on the rail while selecting = the checked boxes; the + button leaves with the toolbar.</span></li>
+          <li><span><b>Verbs apply to the eligible subset</b> and say the number. No "deselect the wrong ones first".</span></li>
+          <li><span><b>Selection survives</b> filtering and thread folding; it clears on scope (workspace ↔ all) or Archived toggles, on Esc, and after a batch with no failures.</span></li>
+          <li><span><b>Partial failure keeps the failed ones selected</b>, in the rail and in the dialog. Retry acts on those only.</span></li>
+          <li><span><b>Both hosts.</b> The sidebar and the dock's Sessions modal share <code>SessionList</code>, so the bar, the boxes and the dialog appear in both without a second implementation.</span></li>
+          <li><span><b>Reduced motion:</b> the box appears without a fade, the running dot stops pulsing, the spinner is static. Every state also has its word.</span></li>
+        </ul>
+        <span class="eyebrow" style="display:block;margin:18px 0 8px">Open questions (runtime truth, decided before the spec)</span>
+        <ul class="rules rules--q">
+          <li><span><b>Root with children.</b> Does <code>Manager.Delete</code> cascade to child sessions? If yes, the dialog must list them and the note must say so; if no, selecting the Orchestrator alone is safe as drawn.</span></li>
+          <li><span><b>Fan-out vs bulk route.</b> v1 as drawn: sequential client fan-out over <code>DELETE /sessions/:id</code> (the daemon serialises deletes anyway), which gives per-row results for free. A daemon bulk route is a later optimisation, not a UI change.</span></li>
+          <li><span><b>Running sessions.</b> Delete on a running session is allowed today from the kebab; the note only states the fact. Whether the daemon stops first is its business.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <p class="lab-foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> through <span class="mono">../design-system/ds-core.css</span> (unmodified); the lane lives inline in this file, every product class named after the production component it renders: <span class="mono">.session-sidebar · .session-list-toolbar · .session-list-selection-bar · .session-list-row · .session-badge-mark · .session-row-actions · .session-list-thread · .session-delete-dialog</span>. Read before drawing: <span class="mono">session-sidebar.tsx · session-list.tsx · session-list-toolbar.tsx · session-list-row.tsx · session-list-thread.tsx · session-row-actions.tsx · session-delete-dialog.tsx · use-session-lifecycle-actions.ts · session-badge.ts · sessions-modal.tsx · packages/ui checkbox.tsx · internal/session/manager_delete.go</span>. Fixture from the 2026-09-11 screenshot: Orchestrator + 7 children in <span class="mono">general</span>. Iterate — never regenerate a delivered board.</p>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>
