@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { describeCost, type CostSource } from "../cost-provenance";
 
 function currency(amount: number, code: string, digits: number): string {
-  return new Intl.NumberFormat(undefined, {
+  // Mirror the production formatter's pinned en-US locale.
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: code,
     minimumFractionDigits: digits,

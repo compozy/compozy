@@ -164,6 +164,47 @@ describe("TaskOverviewPanel", () => {
     expect(handlers.onOpenRun).toHaveBeenCalledWith("run_active");
   });
 
+  // Invariant: the Now strip's lifecycle affordances (approve/reject/resume/
+  // recover) register only on the local surface set, so without their handlers
+  // they are absent, never disabled (BR-1); the read bands stay on every tier.
+  // Owning layer: TaskNowAttentionStates composition.
+  // Canonical suite: TaskOverviewPanel component tests.
+  it("Should keep the attention read states while omitting unoffered lifecycle actions", () => {
+    const detail = buildDetailFixture({
+      task: {
+        approval_state: "pending",
+        blocked_reasons: [{ reason: "Paused by operator", source: "paused" }],
+        status: "needs_attention",
+      },
+      summary: { active_run: null, status: "needs_attention" },
+    } as never);
+
+    render(
+      <TaskOverviewPanel
+        detail={detail}
+        isLive={false}
+        nowHandlers={{
+          ...buildHandlers(),
+          onApprove: undefined,
+          onRecover: undefined,
+          onReject: undefined,
+          onResume: undefined,
+        }}
+        onViewAllActivity={vi.fn()}
+        runs={[]}
+        timeline={[]}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-now-approval")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-now-paused")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-now-stuck")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-reject")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-now-recover")).not.toBeInTheDocument();
+  });
+
   it("Should render the route-owned active-run elapsed value", () => {
     const baseline = buildDetailFixture();
     const detail = buildDetailFixture({

@@ -35,10 +35,12 @@ function TaskApprovalState({
   pending,
 }: Pick<TaskNowAttentionStatesProps, "handlers" | "pending">) {
   const approvalPending = Boolean(pending.approve || pending.reject);
-  return (
-    <TaskStateBand
-      actions={
-        <>
+  // The band is a read state and stays on every tier; only the mutation
+  // affordances go absent when their handlers are not offered (BR-1).
+  const actions =
+    handlers.onApprove || handlers.onReject ? (
+      <>
+        {handlers.onReject ? (
           <Button
             className="min-h-6"
             data-testid="tasks-detail-now-reject"
@@ -50,6 +52,8 @@ function TaskApprovalState({
           >
             Reject
           </Button>
+        ) : null}
+        {handlers.onApprove ? (
           <Button
             className="min-h-6"
             data-testid="tasks-detail-now-approve"
@@ -61,8 +65,12 @@ function TaskApprovalState({
           >
             Approve
           </Button>
-        </>
-      }
+        ) : null}
+      </>
+    ) : undefined;
+  return (
+    <TaskStateBand
+      actions={actions}
       body="A manual check is required before this task can start."
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
@@ -118,17 +126,19 @@ function TaskBlockingState({
     return (
       <TaskStateBand
         actions={
-          <Button
-            className="min-h-6"
-            data-testid="tasks-detail-now-resume"
-            disabled={pending.resume}
-            onClick={handlers.onResume}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            Resume
-          </Button>
+          handlers.onResume ? (
+            <Button
+              className="min-h-6"
+              data-testid="tasks-detail-now-resume"
+              disabled={pending.resume}
+              onClick={handlers.onResume}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Resume
+            </Button>
+          ) : undefined
         }
         body={detail.task.paused_reason || "New runs stay queued until the task is resumed."}
         data-testid="tasks-detail-now-paused"
@@ -142,12 +152,15 @@ function TaskBlockingState({
   return (
     <TaskStateBand
       actions={
-        blockId ? (
+        // The band is a read state and stays on every tier; the Clear-block
+        // mutation affordance goes absent when its handler is not offered
+        // (BR-1).
+        blockId && handlers.onClearBlock ? (
           <Button
             className="min-h-6"
             data-testid={`tasks-detail-now-clear-block-${key}`}
             disabled={pending.clearBlock}
-            onClick={() => handlers.onClearBlock(blockId)}
+            onClick={() => handlers.onClearBlock?.(blockId)}
             size="sm"
             type="button"
             variant="neutral"
@@ -179,7 +192,7 @@ function TaskNeedsAttentionState({
   return (
     <TaskStateBand
       actions={
-        canRecover ? (
+        canRecover && handlers.onRecover ? (
           <Button
             className="min-h-6"
             data-testid="tasks-detail-now-recover"

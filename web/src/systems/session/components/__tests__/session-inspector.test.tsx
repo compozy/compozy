@@ -157,7 +157,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
   });
 
   it("Should format a non-USD cost with its currency code", () => {
-    const expectedCost = new Intl.NumberFormat(undefined, {
+    const expectedCost = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "EUR",
       minimumFractionDigits: 2,

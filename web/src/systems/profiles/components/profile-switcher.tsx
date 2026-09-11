@@ -16,7 +16,12 @@ export interface ProfileSwitcherProps {
   quiet: boolean;
   archivedCount: number;
   onSelectProfile: (name: string) => void;
-  onSelectAggregate: () => void;
+  /**
+   * Absent when the tier cannot execute the aggregate selection write
+   * (`profile_remote_management_forbidden`): the aggregate entry goes absent
+   * from the menu, never disabled (BR-1).
+   */
+  onSelectAggregate?: () => void;
   onCreate: () => void;
   onEditProfile?: (name: string) => void;
   onOpenSettings: () => void;
@@ -97,7 +102,7 @@ export function ProfileSwitcher({
           aggregate={aggregate}
           archivedCount={archivedCount}
           onSelectProfile={name => close(() => onSelectProfile(name))()}
-          onSelectAggregate={close(onSelectAggregate)}
+          {...(onSelectAggregate ? { onSelectAggregate: close(onSelectAggregate) } : {})}
           onCreate={close(onCreate)}
           {...(onEditProfile
             ? { onEditProfile: (name: string) => close(() => onEditProfile(name))() }

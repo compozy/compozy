@@ -19,6 +19,7 @@ import {
   useSettingsHooksExtensions,
 } from "@/systems/settings";
 import { useProfileReadScope } from "@/systems/profiles";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function errorMessage(error: unknown): string | null {
@@ -119,8 +120,16 @@ export function useSettingsHooksPage() {
     errorMessage(createPreset.error) ??
     errorMessage(setPresetEnablement.error) ??
     errorMessage(deletePreset.error);
+  // Hook-declaration PUTs hit loopbackMutationGuard (`loopback_mutation_required`,
+  // privilegedMutations); notification-preset enablement hits
+  // ProfileRemoteWriteForbidden (`profile_remote_management_forbidden`,
+  // profileEnablementWrites) — gate the conjunction on both refusal classes.
+  const { privilegedMutations, profileEnablementWrites } = useGatewayCapabilities();
   return {
-    canMutateHooks: capabilityQuery.data?.transport_parity?.settings_http !== false,
+    canMutateHooks:
+      capabilityQuery.data?.transport_parity?.settings_http !== false &&
+      privilegedMutations &&
+      profileEnablementWrites,
     createNotificationPreset,
     deleteNotificationPreset,
     envelope: query.data ?? null,

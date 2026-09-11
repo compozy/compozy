@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
+
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -226,7 +228,11 @@ function taskListPage(tasks = taskFixtures, total = 21): TaskListPage {
   };
 }
 
+let unlatchGatewayTier: () => void;
+
 beforeEach(() => {
+  // Scheduler reads exist only on the local surface set.
+  unlatchGatewayTier = latchGatewayTierForTest("local");
   vi.clearAllMocks();
   workspaceMockState.error = null;
   workspaceMockState.hasHydrated = true;
@@ -261,6 +267,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  unlatchGatewayTier();
 });
 
 describe("useTasksPage", () => {

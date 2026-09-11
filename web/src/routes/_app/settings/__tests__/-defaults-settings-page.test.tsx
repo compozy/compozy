@@ -2,7 +2,9 @@
 // Owning layer: Defaults route. Canonical suite: this route-level regression.
 // Boundary IN: independent settings queries. Boundary OUT: loading/error/retry page state.
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 const mocks = vi.hoisted(() => ({
   page: {
@@ -50,7 +52,11 @@ vi.mock("@/systems/settings", async importOriginal => {
 import { DefaultsSettingsPage } from "../-defaults-settings-page";
 
 describe("DefaultsSettingsPage", () => {
+  let unlatch: () => void;
   beforeEach(() => {
+    // Defaults writes render their save bar only where the tier can execute
+    // them; this suite owns the local shape.
+    unlatch = latchGatewayTierForTest("local");
     mocks.page.error = null;
     mocks.page.isLoading = false;
     mocks.page.handleRetry.mockReset();
@@ -64,6 +70,7 @@ describe("DefaultsSettingsPage", () => {
     mocks.sandboxes.data.sandboxes = [];
     mocks.sandboxes.refetch.mockReset();
   });
+  afterEach(() => unlatch());
 
   it("Should wait for every runtime option catalog before rendering defaults", () => {
     mocks.providers.isLoading = true;

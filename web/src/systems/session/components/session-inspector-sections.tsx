@@ -9,7 +9,8 @@ import type { InspectorUsage } from "./session-inspector-types";
 
 function formatNumber(value?: number): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  return value.toLocaleString();
+  // Pin en-US: product copy is English, so digits/separators must not vary by host locale.
+  return value.toLocaleString("en-US");
 }
 
 export function SessionInspectorUsageSection({
@@ -59,7 +60,7 @@ export function SessionInspectorUsageSection({
           </div>
           {turnCount > 0 ? (
             <Eyebrow className="text-subtle self-start" data-testid="session-inspector-usage-turns">
-              {`Across ${turnCount.toLocaleString()} turn${turnCount === 1 ? "" : "s"}`}
+              {`Across ${turnCount.toLocaleString("en-US")} turn${turnCount === 1 ? "" : "s"}`}
             </Eyebrow>
           ) : null}
         </>

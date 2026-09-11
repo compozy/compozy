@@ -115,6 +115,7 @@ type Handlers struct {
 	resourceAuth     []gin.HandlerFunc
 	Extensions       ExtensionService
 	boundHost        string
+	surfaceSet       SurfaceSet
 	deviceAuth       gateway.DeviceAuthenticator
 	gatewayAdmission gateway.AdmissionController
 	authLimiter      *gateway.AuthFailureLimiter
@@ -171,6 +172,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		resourceAuth:     append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
 		Extensions:       cfg.extensions,
 		boundHost:        boundHost,
+		surfaceSet:       cfg.surfaceSet,
 		deviceAuth:       cfg.deviceAuth,
 		gatewayAdmission: gatewayAdmission,
 		authLimiter:      authLimiter,
@@ -308,7 +310,18 @@ func (h *Handlers) resourceAuthMiddleware() []gin.HandlerFunc {
 	return append([]gin.HandlerFunc(nil), h.resourceAuth...)
 }
 
+// privilegedMutationGuard returns the guard for daemon-authority mutations.
+// The decision keys on the listener's surface set, not the bind host: remote
+// tier listeners are loopback-bound by design (the provider fronts them), so
+// guarded mutations are forbidden there always, while the local listener keeps
+// the loopback-bind rules.
 func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
+	if h != nil {
+		switch h.surfaceSet {
+		case SurfaceSetPrivate, SurfaceSetPublicOperator, SurfaceSetPublicCombined:
+			return remoteTierMutationGuard()
+		}
+	}
 	boundHost := ""
 	if h != nil {
 		boundHost = h.boundHost

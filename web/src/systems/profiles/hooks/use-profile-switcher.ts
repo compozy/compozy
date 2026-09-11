@@ -10,16 +10,22 @@ import {
 } from "../lib/profile-rows";
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import type { ProfileLens } from "../types";
-import { useGatewayAccessTier } from "@/systems/gateway";
+import { useGatewayCapabilities } from "@/systems/gateway";
 
 export interface ProfileSwitcherModel {
   rows: ProfileRow[];
   activeName: string;
   aggregate: boolean;
+  /**
+   * Switches to the aggregate view. That is the same selection write as
+   * switching profiles (`PUT /api/profiles/selection`), which remote tiers
+   * refuse with `profile_remote_management_forbidden` — so the handler — and
+   * the menu entry it drives — goes absent on those tiers (BR-1).
+   */
+  selectAggregate: (() => void) | undefined;
   quiet: boolean;
   archivedCount: number;
   selectProfile: (name: string) => void;
-  selectAggregate: () => void;
   create: () => void;
   manageable: boolean;
   isLoading: boolean;
@@ -37,8 +43,8 @@ export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
   const profiles = useProfiles();
   const view = useActiveProfileView(lens);
   const switchProfile = useSwitchProfile(lens);
-  const tier = useGatewayAccessTier();
 
+  const { profileEnablementWrites } = useGatewayCapabilities();
   const all = profiles.data ?? [];
   const activeName = view.kind === "profile" ? view.profile : PERMANENT_PROFILE;
 
@@ -49,13 +55,17 @@ export function useProfileSwitcher(lens: ProfileLens): ProfileSwitcherModel {
     quiet: isQuiet(all),
     archivedCount: archivedProfiles(all).length,
     selectProfile: name => {
-      if (tier === "local") switchProfile.mutate({ kind: "profile", profile: name });
+      if (profileEnablementWrites) switchProfile.mutate({ kind: "profile", profile: name });
     },
-    selectAggregate: () => switchProfile.mutate({ kind: "aggregate" }),
+    selectAggregate: profileEnablementWrites
+      ? () => switchProfile.mutate({ kind: "aggregate" })
+      : undefined,
     create: () => {
-      if (tier === "local") openProfileDialog({ flow: "create" });
+      if (profileEnablementWrites) openProfileDialog({ flow: "create" });
     },
-    manageable: tier === "local" && !profiles.isLoading && !profiles.isError,
+    // Profile management is a local-only write surface: on remote tiers the
+    // affordances go absent (manageable=false hides the create/edit entries).
+    manageable: profileEnablementWrites && !profiles.isLoading && !profiles.isError,
     isLoading: profiles.isLoading,
     error: profiles.error instanceof Error ? profiles.error : null,
     retry: () => void profiles.refetch(),

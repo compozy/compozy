@@ -2,6 +2,7 @@ import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-lay
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
+import { cn } from "@/lib/utils";
 import { OsShortcutChords } from "./os-shortcut-chords";
 import { OsSnapOverlay } from "./os-snap-overlay";
 import { OsSnapSeamLayer, type SeamGestureHandlers } from "./os-snap-seam";
@@ -159,8 +160,15 @@ export function OsWinLayer({
     <div
       ref={layerRef}
       data-slot="os-win-layer"
-      // The measured work area stops above the Dock band so snaps and floating clamps never resolve beneath it.
-      className="absolute inset-x-0 top-0 bottom-[calc(var(--size-dock-band)+env(safe-area-inset-bottom,0px))]"
+      // The measured work area stops above the Dock band so snaps and floating
+      // clamps never resolve beneath it. Compact stacks reserve the 56px tab bar
+      // instead of the floating dock band — 26px back to stream content (S6/T3).
+      className={cn(
+        "absolute inset-x-0 top-0",
+        presentation === "compact"
+          ? "bottom-[calc(var(--height-dock-tabbar)+env(safe-area-inset-bottom,0px))]"
+          : "bottom-[calc(var(--size-dock-band)+env(safe-area-inset-bottom,0px))]"
+      )}
     >
       {desktops.map(desktop => (
         <DesktopLayer

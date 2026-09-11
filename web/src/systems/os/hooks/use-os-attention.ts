@@ -1,6 +1,7 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useQuery } from "@tanstack/react-query";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -238,14 +239,21 @@ function useTerminalAttentionSources({
   workspaceId: string | null;
 }) {
   const profile = useProfileReadScope();
-  const enabled = workspaceId !== null;
+  // Remote tiers register no terminal routes: no badge, no rows, no queries
+  // that could only ever refuse. Every terminal output is gated on `enabled` —
+  // a cached request projection that survives a local→remote flip must not
+  // keep producing rows or a badge.
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  const enabled = workspaceId !== null && localTaskLifecycle;
   const terminalReadScope = terminalScope(workspaceId ?? "", profile.destination);
   const terminalRequests = useQuery({
     ...terminalInputRequestsQuery(terminalReadScope),
     enabled,
     refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
   });
-  const terminalQueryReady = !terminalRequests.isError && terminalRequests.data !== undefined;
+  const terminalQueryReady =
+    enabled && !terminalRequests.isError && terminalRequests.data !== undefined;
+  const pendingRequests = enabled ? (terminalRequests.data?.pending ?? []) : [];
   return {
     badge: terminalAttentionCount({
       ready: terminalQueryReady,
@@ -256,11 +264,11 @@ function useTerminalAttentionSources({
         terminalReadScope.key.workspaceId,
         terminalReadScope.key.profileKey
       ),
-      pendingRequests: terminalRequests.data?.pending ?? [],
+      pendingRequests,
     }),
     loading: terminalRequests.isLoading,
     ready: terminalQueryReady,
-    rows: (terminalRequests.data?.pending ?? []).map(request => ({
+    rows: pendingRequests.map(request => ({
       id: request.id,
       terminal_id: request.terminal_id,
       ...(request.workspace_id ? { workspace_id: request.workspace_id } : {}),

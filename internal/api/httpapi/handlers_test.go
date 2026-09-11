@@ -1223,8 +1223,8 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 			}
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error != errLoopbackAPIRequired.Error() {
-				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+			if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 			}
 		})
 	}
@@ -1241,14 +1241,20 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeJSONResponse(t, recorder, &payload)
-		if payload.Error != errLoopbackAPIRequired.Error() {
-			t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+		if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 		}
 	})
 }
 
 func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 	t.Parallel()
+
+	// This test drives a non-loopback LOCAL bind (0.0.0.0), so the whole /api
+	// group sits behind loopbackAPIGuard (routes.go) and every mutation below
+	// — settings included — refuses with ErrLoopbackAPIRequired. The
+	// ErrLoopbackMutationRequired sentinel fires only on tier listeners via
+	// remoteTierMutationGuard, which this local-bind setup never exercises.
 
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlersWithSettingsAndExtensions(
@@ -1378,8 +1384,8 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error != errLoopbackAPIRequired.Error() {
-				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
+			if payload.Error != core.ErrLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, core.ErrLoopbackAPIRequired.Error())
 			}
 		})
 	}

@@ -1,7 +1,32 @@
 import { useTopbarSlot } from "@compozy/ui";
 
 import type { TaskDetailLocationController } from "./use-task-detail-location";
+import type { TaskCommandState } from "@/systems/tasks";
 import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tasks";
+import { useGatewayCapabilities } from "@/systems/gateway";
+
+/**
+ * Strips the lifecycle mutations from the command state. Task/run mutation
+ * routes register only under `includeTaskMutations` (`routes.go:216-252`), so
+ * on remote tiers those affordances go absent (BR-1) while navigation stays:
+ * `open_run` is a read, and with no primary and no secondaries left the
+ * actions render nothing.
+ */
+function readOnlyCommand(command: TaskCommandState): TaskCommandState {
+  return {
+    ...command,
+    primary: command.primary?.kind === "open_run" ? command.primary : null,
+    secondary: { edit: false, pause: false, reject: false },
+    overflow: {
+      edit: false,
+      pause: false,
+      resume: false,
+      cancel: false,
+      startNewRun: false,
+      delete: false,
+    },
+  };
+}
 
 /**
  * Publishes task-detail crumbs, status, and actions into the window topbar.
@@ -10,6 +35,10 @@ import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tas
  */
 export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocationController }) {
   const { page, record, command } = controller;
+  // Task lifecycle mutations (publish/approve/start/pause/resume/recover/
+  // retry/cancel/fan-out/delete) register only on the local surface set: on
+  // remote tiers the affordances go absent while reads stay (BR-1).
+  const { localTaskLifecycle } = useGatewayCapabilities();
 
   useTopbarSlot(
     record && command
@@ -26,7 +55,7 @@ export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocatio
           status: <TaskPageStatus status={record.status} />,
           actions: (
             <TaskPageActions
-              command={command}
+              command={localTaskLifecycle ? command : readOnlyCommand(command)}
               handlers={{
                 onPublish: () => void page.handlePublishTask(),
                 onApprove: () => void page.handleApproveTask(),
@@ -52,7 +81,7 @@ export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocatio
           ),
           overflow: (
             <TaskPageOverflow
-              command={command}
+              command={localTaskLifecycle ? command : readOnlyCommand(command)}
               onCancel={() => void page.handleCancelTask()}
               onCopyId={controller.copyTaskId}
               onDelete={() => controller.setDeleteOpen(true)}
@@ -66,7 +95,9 @@ export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocatio
                 resume: page.isResumePending,
                 enqueue: page.isEnqueuePending,
               }}
-              showFanOut={controller.showFanOut}
+              // Fan-out enqueues runs: local-only like the rest of the
+              // lifecycle, so the entry goes absent on remote tiers.
+              showFanOut={localTaskLifecycle && controller.showFanOut}
               taskId={record.id}
             />
           ),

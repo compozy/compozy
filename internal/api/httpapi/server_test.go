@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -1071,7 +1072,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			}
 			var payload contract.ErrorPayload
 			decodeServerJSON(t, resp, &payload)
-			if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
+			if got, want := payload.Error, core.ErrLoopbackAPIRequired.Error(); got != want {
 				t.Fatalf("payload.Error = %q, want %q", got, want)
 			}
 		})
@@ -1094,7 +1095,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeServerJSON(t, resp, &payload)
-		if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
+		if got, want := payload.Error, core.ErrLoopbackAPIRequired.Error(); got != want {
 			t.Fatalf("payload.Error = %q, want %q", got, want)
 		}
 	})
@@ -1116,7 +1117,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		}
 		var payload contract.ErrorPayload
 		decodeServerJSON(t, resp, &payload)
-		if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
+		if got, want := payload.Error, core.ErrLoopbackAPIRequired.Error(); got != want {
 			t.Fatalf("payload.Error = %q, want %q", got, want)
 		}
 	})
@@ -1184,7 +1185,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			}
 			var payload contract.ErrorPayload
 			decodeServerJSON(t, resp, &payload)
-			if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
+			if got, want := payload.Error, core.ErrLoopbackAPIRequired.Error(); got != want {
 				t.Fatalf("payload.Error = %q, want %q", got, want)
 			}
 		})

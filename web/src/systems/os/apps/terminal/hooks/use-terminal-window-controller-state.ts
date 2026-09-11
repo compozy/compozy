@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { toast, type Filter } from "@compozy/ui";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useSettingsGeneral } from "@/systems/settings";
 import {
@@ -87,17 +88,24 @@ export function useTerminalWindowControllerState(windowId: string) {
   const viewer: TerminalViewerIdentity | null =
     viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
   const workspaceId = workspace.runtimeWorkspaceId ?? "";
+  // Remote tiers register no terminal routes: the window renders the truthful
+  // loopback-only state, and none of these reads even run. Both the journal
+  // and the recording read carry readsEnabled themselves: an unlocked journal
+  // or a selected replay must not fire requests at routes the tier never
+  // registers when the capability flips after render.
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  const readsEnabled = workspaceId !== "" && localTaskLifecycle;
   const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
   const journalScope = catalogScope;
   const catalog = useQuery({
     ...terminalCatalogQuery(catalogScope),
-    enabled: workspaceId !== "",
+    enabled: readsEnabled,
   });
   const inputRequestProjection = useQuery({
     ...terminalInputRequestsQuery(catalogScope),
-    enabled: workspaceId !== "",
+    enabled: readsEnabled,
   });
   const inputRequests = {
     data: inputRequestProjection.data?.pending,
@@ -108,13 +116,13 @@ export function useTerminalWindowControllerState(windowId: string) {
   const resolvedInputRequests = inputRequestProjection.data?.resolved ?? [];
   const journal = useInfiniteQuery({
     ...terminalJournalQuery(journalScope, journalFilters),
-    enabled: terminalJournalQueryEnabled(workspaceId, journalUnlocked),
+    enabled: readsEnabled && terminalJournalQueryEnabled(workspaceId, journalUnlocked),
   });
-  const recordings = useTerminalRecordings(catalogScope.key, workspaceId !== "");
+  const recordings = useTerminalRecordings(catalogScope.key, readsEnabled);
   const recordingScope = terminalScope(workspaceId, replay?.profile ?? profile.destination);
   const recording = useQuery({
     ...terminalRecordingQuery(recordingScope, replay?.id ?? ""),
-    enabled: workspaceId !== "" && replay !== null,
+    enabled: readsEnabled && replay !== null,
   });
 
   useTerminalCatalogStream({
@@ -122,7 +130,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     profileKey: catalogScope.key.profileKey,
     allProfiles: profile.aggregate,
     profiles: profiles.data?.map(candidate => candidate.name) ?? [],
-    enabled: workspaceId !== "",
+    enabled: readsEnabled,
   });
 
   const terminalSelector = (terminalId: string) => ({

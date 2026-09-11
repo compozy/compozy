@@ -7,6 +7,7 @@ import {
   taskExecutionProfileFixture,
   taskRunReviewListFixture,
 } from "@/systems/tasks/mocks/fixtures";
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 const hooks = vi.hoisted(() => ({ stream: vi.fn() }));
 
@@ -33,25 +34,35 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   recoverTaskRun: vi.fn(),
   approveTask: vi.fn(),
   rejectTask: vi.fn(),
+  resumeTask: vi.fn(),
   retryTaskRun: vi.fn(),
+  enqueueTaskRun: vi.fn(),
   clearTaskBlock: vi.fn(),
   fanOutTaskRuns: vi.fn(),
+  publishTask: vi.fn(),
+  cancelTask: vi.fn(),
+  pauseTask: vi.fn(),
 }));
 
 vi.mock("../use-task-stream", () => ({ useTaskStream: hooks.stream }));
 
 import {
   approveTask,
+  cancelTask,
   clearTaskBlock,
+  enqueueTaskRun,
   fanOutTaskRuns,
   getTask,
   getTaskExecutionProfile,
   getTaskTimeline,
   listTaskReviews,
   listTaskRuns,
+  pauseTask,
+  publishTask,
   recoverTask,
   recoverTaskRun,
   rejectTask,
+  resumeTask,
   retryTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
 import { toast } from "sonner";
@@ -78,8 +89,14 @@ const detailFixture = {
   },
 };
 
+let unlatch: () => void;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // The lifecycle verbs (approve/reject/resume/recover/start run) gate on the
+  // latched tier at the origin: latch `local` so the suite's default shape
+  // keeps firing them, and unlatch so each case starts from a clean store.
+  unlatch = latchGatewayTierForTest("local");
   vi.mocked(getTask).mockResolvedValue(detailFixture as never);
   vi.mocked(getTaskTimeline).mockResolvedValue([{ event_id: "evt_1", sequence: 1 }] as never);
   vi.mocked(listTaskRuns).mockResolvedValue([{ id: "run_1", status: "running" }] as never);
@@ -88,6 +105,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  unlatch();
   vi.restoreAllMocks();
 });
 
@@ -422,5 +440,57 @@ describe("useTaskDetailPage", () => {
 
     expect(recoverTaskRun).not.toHaveBeenCalled();
     expect(recoverTask).not.toHaveBeenCalled();
+  });
+
+  // Invariant: the lifecycle verbs (approve/reject/resume/recover/clear-block/
+  // start run/publish/cancel/pause/fan-out/run-retry) hit task/run mutation
+  // routes registered only on the local surface set, so at the origin they
+  // no-op on a remote tier — a wiring regression cannot fire a doomed request
+  // (BR-1).
+  // Owning layer: task detail page view model.
+  // Canonical suite: useTaskDetailPage hook tests.
+  it("Should not fire task lifecycle mutations when the tier cannot execute them", async () => {
+    unlatch();
+    unlatch = latchGatewayTierForTest("private");
+    vi.mocked(approveTask).mockResolvedValue({ id: "task_001" } as never);
+    vi.mocked(rejectTask).mockResolvedValue({ id: "task_001" } as never);
+    vi.mocked(publishTask).mockResolvedValue({ id: "task_001" } as never);
+    vi.mocked(cancelTask).mockResolvedValue({ id: "task_001" } as never);
+    const fanOutRequest = {
+      designations: [{ brief: "Investigate checkout" }],
+      network_participation: { mode: "local" as const },
+    };
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.detail?.task.id).toBe("task_001"));
+
+    await act(async () => {
+      await result.current.handleApproveTask();
+      await result.current.handleRejectTask();
+      await result.current.handleResumeTask();
+      await result.current.handleRecoverTask();
+      await result.current.handleEnqueueRun();
+      await result.current.handleClearBlock("block_007");
+      await result.current.handlePublishTask();
+      await result.current.handleCancelTask();
+      await result.current.handlePauseTask("Investigating flakiness");
+      await result.current.handleRetryRun("run_failed");
+      await expect(result.current.handleFanOutRuns(fanOutRequest)).resolves.toBeUndefined();
+    });
+
+    expect(approveTask).not.toHaveBeenCalled();
+    expect(rejectTask).not.toHaveBeenCalled();
+    expect(resumeTask).not.toHaveBeenCalled();
+    expect(recoverTask).not.toHaveBeenCalled();
+    expect(enqueueTaskRun).not.toHaveBeenCalled();
+    expect(clearTaskBlock).not.toHaveBeenCalled();
+    expect(publishTask).not.toHaveBeenCalled();
+    expect(cancelTask).not.toHaveBeenCalled();
+    expect(pauseTask).not.toHaveBeenCalled();
+    expect(retryTaskRun).not.toHaveBeenCalled();
+    expect(fanOutTaskRuns).not.toHaveBeenCalled();
   });
 });

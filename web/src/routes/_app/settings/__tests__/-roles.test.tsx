@@ -1,6 +1,8 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 import type { RolesDisclosure, RolesRuntimeOptions } from "@/systems/settings";
 import { buildRolesViewModel, type RoleViewModel } from "@/systems/settings";
@@ -102,7 +104,10 @@ vi.mock("@/systems/settings/hooks/use-settings-roles-page", () => ({
   useSettingsRolesPage: () => pageState,
 }));
 
+let unlatchGatewayTier: () => void;
+
 beforeEach(() => {
+  unlatchGatewayTier = latchGatewayTierForTest("local");
   pageState = {
     isLoading: false,
     isEmpty: false,
@@ -140,6 +145,10 @@ import { RolesSettingsPage } from "../-roles-settings-page";
 function group(role: string): HTMLElement {
   return screen.getByTestId(`settings-page-roles-group-${role}`);
 }
+
+afterEach(() => {
+  unlatchGatewayTier();
+});
 
 describe("RolesSettingsPage", () => {
   it("renders a loading indicator while either read is pending", () => {

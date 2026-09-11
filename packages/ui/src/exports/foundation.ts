@@ -22,6 +22,7 @@ export {
   WIDTH_RIGHT_RAIL_DEFAULT,
   WIDTH_TABLE_CELL_LG,
 } from "../lib/layout-widths";
+export { DIALOG_TOUCH_TARGET_CLASS, DIALOG_TOUCH_TARGET_SQUARE_CLASS } from "../lib/dialog-shell";
 export { LaneTabs, type LaneTabsItem, type LaneTabsProps } from "../components/custom/lane-tabs";
 export {
   Avatar,

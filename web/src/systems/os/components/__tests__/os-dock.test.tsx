@@ -576,6 +576,23 @@ describe("OsDock", () => {
     });
   });
 
+  it("Should omit the Terminal launcher when the tier cannot execute terminal routes", () => {
+    setDockState(desktopState());
+    const { result, rerender } = renderHook(
+      (includeTerminal: boolean) => useDesktopDock({}, { onNewSession: vi.fn(), includeTerminal }),
+      { initialProps: true }
+    );
+
+    // Local default: the launcher stays in its dock group.
+    expect(result.current.entries.some(entry => entry.id === "terminal")).toBe(true);
+
+    // Remote tiers register no terminal routes: the entry is absent, never a
+    // disabled control (BR-1), and the Home launcher still leads its group.
+    rerender(false);
+    expect(result.current.entries.some(entry => entry.id === "terminal")).toBe(false);
+    expect(result.current.entries.some(entry => entry.id === "dashboard")).toBe(true);
+  });
+
   it("Should mark the sessions dock icon minimized when every session window is minimized", () => {
     const session = windowFixture("window:session-minimized", "session", {
       instanceKey: "session:minimized",

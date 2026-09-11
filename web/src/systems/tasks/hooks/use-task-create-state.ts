@@ -3,6 +3,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useGatewayCapabilities } from "@/systems/gateway";
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "./use-task-actions";
 import { taskEditorDraftLogic } from "./task-editor-draft-store";
 import {
@@ -54,6 +55,14 @@ export function useTaskCreateState(
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
+  // Origin gate for the submit path below: task create (POST /api/tasks and
+  // the child-task variant) and the first-run enqueue register only on the
+  // local surface set (`routes.go` `includeTaskMutations`), with no 403 code
+  // for the truthful loopback-only state to render (BR-3). The create dialog
+  // goes absent at the composition layer (BR-1); this gate is the backstop
+  // that keeps a wiring regression from firing a doomed POST on a remote tier
+  // (mirrors the task-detail lifecycle verbs).
+  const { localTaskLifecycle } = useGatewayCapabilities();
   const submissionStore = useStore(taskEditorSubmissionLogic);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
@@ -102,7 +111,7 @@ export function useTaskCreateState(
   };
 
   const handleSubmit = (nextDraft: TaskEditorDraft, asDraft: boolean) => {
-    if (isScopeResolving) return Promise.resolve(null);
+    if (!localTaskLifecycle || isScopeResolving) return Promise.resolve(null);
     return requestTaskEditorSubmission(
       submissionStore,
       async () => {

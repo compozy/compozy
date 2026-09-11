@@ -19,14 +19,6 @@ const (
 	sessionAttachmentUploadRoutePath = "/api/workspaces/:workspace_id/sessions/:session_id/attachments"
 )
 
-var errLoopbackMutationRequired = errors.New(
-	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
-)
-
-var errLoopbackAPIRequired = errors.New(
-	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
-)
-
 var (
 	errOriginNotAllowed      = errors.New("origin not allowed")
 	errRequestHostNotAllowed = errors.New("request host not allowed")
@@ -377,11 +369,23 @@ func requestBodyLimitMiddlewareWithUploadLimit(maxBytes int64, uploadMaxBytes in
 }
 
 func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackAPIRequired, true)
+	return loopbackGuard(boundHost, core.ErrLoopbackAPIRequired, true)
 }
 
 func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackMutationRequired, false)
+	return loopbackGuard(boundHost, core.ErrLoopbackMutationRequired, false)
+}
+
+// remoteTierMutationGuard forbids daemon-authority mutations on every remote
+// tier listener regardless of the listener's bind host: tier listeners are
+// loopback-bound by design because the connectivity provider fronts them, so
+// the bind host cannot express the browser-facing tier. Paired devices get
+// read-only operator access (BR-6) and the refusal never downgrades.
+func remoteTierMutationGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		core.RespondError(c, http.StatusForbidden, core.ErrLoopbackMutationRequired, false)
+		c.Abort()
+	}
 }
 
 func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.HandlerFunc {

@@ -182,3 +182,32 @@ The [integration report](../qa/reports/2026-09-10-pr-607-611-integration.md) rec
 - **Web/Docs:** The shared list, row, selection bar, lifecycle hook, and all existing delete-dialog hosts support selection and sequential batches. The Checkbox primitive renders its existing indeterminate state. `ET-web-session-list-bulk-actions` owns new QA coverage, with an impact flag in `ET-web-session-sidebar-threads`. Checked `packages/site/content/docs/sessions/lifecycle.mdx`: no sidebar-delete instructions require updating. `COPY.md` has no session-list label registry. Canonical unit/component suites, Storybook builds, and the daemon-served `session-bulk-actions.spec.ts` own automated verification; the controller owns visual parity against the unchanged design board.
 
 PR #619 review remediation preserves the same surface and isolation contracts: editable controls retain text-editing shortcuts, a one-session bulk failure exposes its daemon error and retry, failed targets beyond the five-row preview remain named with their errors, and selection derives from current catalog membership before catalog/selection-store-driven pruning. The existing list/dialog/lifecycle suites own regression coverage; CI owns the final integration run.
+
+## Spec mobile-surface-truth — remote/mobile operator surface truth
+
+Owning delivery: spec set `.compozy/tasks/mobile-surface-truth/` on branch
+`mobile-surface-truth` (PR pending). Downstream tasks cite and update this
+entry instead of restating it.
+
+- **Native tools:** unchanged — checked `compozy__gateway` and all
+  `compozy__*` IDs: the change adds machine codes to two existing 403
+  envelopes and gates SPA affordances; no tool IDs, schemas, digests, or
+  capability gates change.
+- **Extensibility and hooks:** unchanged — extension manifests, hooks,
+  bridge SDKs, MCP sidecars, and registries checked; remote mutation
+  reachability was already 403 (`loopbackMutationGuard`); config lifecycle
+  unaffected (no `config.toml` keys). SD-013: additive wire codes
+  auto-migrate (public surface ladder); no delete targets; the internal
+  sentinel re-home hard-cuts with all consumers updated together.
+- **Workspace data isolation:** unaffected — no data paths, storage, or
+  workspace scoping change; capability state is client-side, derived from
+  the latched listener tier.
+- **Official Compozy skill:** unchanged — checked `skills/compozy/`: no
+  public behavior, CLI path, hook, capability, resource, or tool semantics
+  change; the additive codes do not alter documented CLI/API journeys.
+- **Web/Docs:** `web/src/systems/{gateway,os,terminal,settings,extensions,tasks,notifications,profiles}`
+  and `web/src/lib/{api-client,gateway-access-signal}.ts` per the spec's
+  `_uiux.md`; verification owner is the QA tail pair (qa-report →
+  qa-execution) plus the owning Go/web suites. `packages/site` docs
+  unaffected; the API error-code addition is documented via the spec's
+  `_dx.md`.

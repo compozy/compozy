@@ -312,6 +312,46 @@ export const PresentationOnly: Story = {
 };
 
 /**
+ * Touch tier (S6/T1) — the 390×844 bar: controls fill the 44px bar height, the
+ * workspace name truncates, and the worktree segment steps aside (the workspace
+ * menu still names it). App menus are collapsed into the palette below 960px,
+ * so the bar carries only mark + globe + chip and the trailing controls.
+ */
+export const TouchTier: Story = {
+  args: {
+    workspace: { name: "compozy", monogram: "CO", worktree: "mobile-ergonomics" },
+    notifications: 2,
+  },
+  render: args => (
+    <div style={{ maxWidth: 390 }}>
+      <DesktopShell menubar={false} wallpaper="carbon" deskHint>
+        <OsMenuBar {...args} touch />
+      </DesktopShell>
+    </div>
+  ),
+};
+
+/**
+ * Touch tier (F3 real-device delta) — Global scope at 390×844: the scope label
+ * is the give-way element (min-w-0 truncation chain), the profile switcher is
+ * absent (reachable via Settings and the palette), and the trailing actions
+ * keep their 44px floor. The bar must never overlap at any scope state.
+ */
+export const TouchTierGlobalScope: Story = {
+  args: {
+    workspace: { name: "Global", monogram: "~" },
+    notifications: 2,
+  },
+  render: args => (
+    <div style={{ maxWidth: 390 }}>
+      <DesktopShell menubar={false} wallpaper="carbon" deskHint>
+        <OsMenuBar {...args} touch />
+      </DesktopShell>
+    </div>
+  ),
+};
+
+/**
  * Degraded desktop sync — the warning stays non-blocking, names the state in
  * text, and leaves every shell command available.
  */

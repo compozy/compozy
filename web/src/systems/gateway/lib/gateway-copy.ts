@@ -142,6 +142,25 @@ function isGatewayIngressReachability(value: string): value is GatewayIngressRea
   return Object.prototype.hasOwnProperty.call(INGRESS_REACHABILITY_COPY, value);
 }
 
+/**
+ * The truthful loopback-only state (S5): what the operator hit, and where the
+ * action can actually run. Registered in `COPY.md` (§8 Web UI Microcopy) —
+ * edit the two together. Neutral and informative, never error-red: the daemon
+ * did not fail, it told the truth about where this action belongs.
+ */
+export const LOOPBACK_ONLY_STATE_COPY = {
+  panel: {
+    title: "Not available from this device",
+    description: "This action can only run on the machine running CompozyOS.",
+    hint: "Open CompozyOS on that machine and run it there.",
+  },
+  banner: {
+    title: "This action runs on the machine running CompozyOS",
+    description:
+      "You are connected through remote access, so this action cannot run from this device.",
+  },
+} as const;
+
 export const DEVICE_ORIGIN_LABEL: Record<string, string> = {
   local: "This machine",
   private: "Private overlay",

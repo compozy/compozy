@@ -5,7 +5,9 @@
 // and vanish when it is stale rather than reporting a page total.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
 import { renderHook as renderReactHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { latchGatewayTierForTest } from "@/test/gateway-tier";
 
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -162,7 +164,10 @@ function workspaceForCall(call: number): string | null | undefined {
 }
 
 describe("useOsAttention", () => {
+  let unlatch: () => void;
   beforeEach(() => {
+    // Terminal attention reads exist only on the local surface set.
+    unlatch = latchGatewayTierForTest("local");
     vi.clearAllMocks();
     notificationResponse = { snapshot: "snapshot", total: 0, needs_you: 0, finished: 0, items: [] };
     notificationStale = false;
@@ -201,6 +206,7 @@ describe("useOsAttention", () => {
     });
     vi.mocked(useLoopNodeExists).mockImplementation(() => false);
   });
+  afterEach(() => unlatch());
 
   it("Should read the archive only through the modal catalog leg", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
@@ -469,5 +475,41 @@ describe("useOsAttention", () => {
     expect(result.current.badges.sessions).toBeUndefined();
     expect(result.current.badges.terminal).toBe(1);
     expect(result.current.notificationCount).toBe(0);
+  });
+
+  it("Should drop terminal badge and rows when the tier loses the local lifecycle capability", () => {
+    // A cached terminal-request projection survives a local→remote tier flip:
+    // `enabled: false` stops the fetch, and the cached data must not keep
+    // producing terminal rows or a badge the tier cannot act on.
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        pending: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            profile_id: "profile-work",
+            profile_name: "work",
+            reason: "I need the staging database password",
+            prompt_excerpt: "Password for user atlas:",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester: { kind: "agent", id: "claude-code" },
+          },
+        ],
+        resolved: [],
+      },
+      isError: false,
+      isLoading: false,
+    } as never);
+
+    const { result, rerender } = renderHook(() => useOsAttention(workspace, "live", false));
+    expect(result.current.badges.terminal).toBe(1);
+
+    unlatch();
+    unlatch = latchGatewayTierForTest("private");
+    rerender();
+
+    expect(result.current.badges.terminal).toBeUndefined();
   });
 });

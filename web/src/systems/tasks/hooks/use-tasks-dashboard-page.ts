@@ -1,5 +1,7 @@
 import { toast } from "sonner";
 
+import { useGatewayCapabilities } from "@/systems/gateway";
+
 import { useTaskDashboard } from "./use-task-dashboard";
 import type { TaskDashboardFilter } from "../types";
 import {
@@ -11,20 +13,28 @@ import {
 } from "@/systems/scheduler";
 
 export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boolean) {
+  // The scheduler routes register only on the local surface set, so remote
+  // tiers neither query them nor receive their handlers; the dashboard view
+  // then skips the scheduler panel entirely.
+  const { localTaskLifecycle } = useGatewayCapabilities();
+  const schedulerEnabled = enabled && localTaskLifecycle;
   const dashboardQuery = useTaskDashboard(filters, { enabled });
-  const schedulerStatusQuery = useSchedulerStatus({ enabled });
+  const schedulerStatusQuery = useSchedulerStatus({ enabled: schedulerEnabled });
   const schedulerBacklogFilters = {
     scope: filters.scope,
     limit: 5,
     workspace: filters.workspace,
     include_paused: true,
   };
-  const schedulerBacklogQuery = useSchedulerBacklog(schedulerBacklogFilters, { enabled });
+  const schedulerBacklogQuery = useSchedulerBacklog(schedulerBacklogFilters, {
+    enabled: schedulerEnabled,
+  });
   const pauseMutation = usePauseScheduler();
   const resumeMutation = useResumeScheduler();
   const drainMutation = useDrainScheduler();
 
   const handlePauseScheduler = async (reason: string) => {
+    if (!localTaskLifecycle) return;
     try {
       const normalizedReason = reason.trim();
       await pauseMutation.mutateAsync(normalizedReason ? { reason: normalizedReason } : {});
@@ -36,6 +46,7 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
     }
   };
   const handleResumeScheduler = async (reason?: string) => {
+    if (!localTaskLifecycle) return;
     try {
       const normalizedReason = reason?.trim();
       await resumeMutation.mutateAsync(normalizedReason ? { reason: normalizedReason } : {});
@@ -53,6 +64,7 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
     reason?: string;
     timeoutSeconds?: number;
   }) => {
+    if (!localTaskLifecycle) return;
     try {
       const normalizedReason = reason?.trim();
       await drainMutation.mutateAsync({
@@ -77,6 +89,7 @@ export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boo
     isSchedulerDrainPending: drainMutation.isPending,
     isSchedulerPausePending: pauseMutation.isPending,
     isSchedulerResumePending: resumeMutation.isPending,
+    schedulerAvailable: localTaskLifecycle,
     schedulerBacklog: schedulerBacklogQuery.data ?? null,
     schedulerBacklogError: schedulerBacklogQuery.error ?? null,
     schedulerBacklogLoading: schedulerBacklogQuery.isLoading && !schedulerBacklogQuery.data,
