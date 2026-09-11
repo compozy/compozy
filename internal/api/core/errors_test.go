@@ -353,10 +353,11 @@ func TestRespondErrorFallbackBranches(t *testing.T) {
 }
 
 // IT-002 (mobile-surface-truth): the loopback guards' 403 envelopes carry the
-// stable wire codes frozen in the workflow DX contract. Stays parallel: it
-// never touches the process-global gin mode (CreateTestContext and
-// RespondError do not read it), unlike the sibling diagnostic tests that set
-// it serially.
+// stable wire codes frozen in the workflow DX contract. Stays parallel: its
+// assertions do not depend on the process-global gin mode — CreateTestContext
+// reads that mode only for an output-only debug print (gin v1.12.0), never for
+// behavior, and RespondError is mode-independent — unlike the sibling
+// diagnostic tests that set it serially.
 func TestRespondErrorLoopbackGuardCodes(t *testing.T) {
 	t.Parallel()
 

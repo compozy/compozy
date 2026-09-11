@@ -265,12 +265,16 @@ describe("TasksCatalogLocation", () => {
 
   it("Should omit the kanban retry affordance when the tier cannot execute it", () => {
     // Re-latch over the suite's `local` default: the remote shape asserts the
-    // same board renders with both lifecycle handlers absent.
-    latchGatewayTierForTest("private");
+    // same board renders with both lifecycle handlers absent. The store is
+    // module-scoped, so the private latch's reset is captured and released
+    // here instead of leaking to tests that run after this one.
+    const unlatchPrivate = latchGatewayTierForTest("private");
     renderCatalog("kanban");
 
     expect(screen.getByTestId("tasks-kanban-view")).toBeInTheDocument();
     expect(mocks.kanbanProps?.onCreate).toBeUndefined();
     expect(mocks.kanbanProps?.onRetryTask).toBeUndefined();
+
+    unlatchPrivate();
   });
 });

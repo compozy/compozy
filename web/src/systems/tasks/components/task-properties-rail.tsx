@@ -13,6 +13,7 @@ import {
 } from "../lib/task-formatters";
 import {
   taskExecutionProfileSummary,
+  taskPriorityPresentation,
   taskPropertiesRunSummary,
 } from "../lib/task-properties-presentation";
 import type { TaskDetailView, TaskExecutionProfile, TaskPriority, TaskRun } from "../types";
@@ -20,18 +21,47 @@ import { TaskLoopProvenance } from "./task-loop-provenance";
 import { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
 import { TaskRailSection as RailSection } from "./task-rail-section";
 
+/** Read-only priority value: the editor trigger's dot + label, no affordance. */
+function PriorityValue({ priority }: { priority: TaskPriority }) {
+  const presentation = taskPriorityPresentation(priority);
+  return (
+    <>
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", presentation.dotClass)} />
+      {presentation.label}
+    </>
+  );
+}
+
 export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
   runs: readonly TaskRun[];
   profile?: TaskExecutionProfile | null;
-  onEditSetup: () => void;
+  /**
+   * The setup editor saves through the execution-profile PUT
+   * (`SetTaskExecutionProfile`), a local-only mutation route (`routes.go`
+   * `includeTaskMutations`): the entry goes absent on remote tiers, never
+   * disabled (BR-1). The execution read rows stay on every tier.
+   */
+  onEditSetup?: () => void;
   onInspect: () => void;
-  onApprove: () => void;
-  onReject: () => void;
+  /**
+   * Approval mutations register only on the local surface set: the handlers —
+   * and the buttons they drive — go absent on remote tiers, never disabled
+   * (BR-1). The approval read rows stay on every tier.
+   */
+  onApprove?: () => void;
+  onReject?: () => void;
   approvalPending?: { approve?: boolean; reject?: boolean };
   updatePending?: boolean;
-  onPriorityChange: (priority: TaskPriority) => void;
-  onAutoEnqueueChange: (enabled: boolean) => void;
+  /**
+   * Priority/auto-enqueue persist through task PATCH (`UpdateTask`), a
+   * local-only mutation route (`routes.go` `includeTaskMutations`): the
+   * handlers — and the inline editors they drive — go absent on remote tiers,
+   * never disabled (BR-1). The read rows with the current values stay on
+   * every tier.
+   */
+  onPriorityChange?: (priority: TaskPriority) => void;
+  onAutoEnqueueChange?: (enabled: boolean) => void;
 }
 
 /**
@@ -58,6 +88,7 @@ export function TaskPropertiesRail({
 }: TaskPropertiesRailProps) {
   const record = detail.task;
   const activeRun = detail.summary?.active_run ?? null;
+  const priority = record.priority ?? "medium";
   const owner = record.owner ?? null;
   const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
   const { worker, model, sandbox, channel } = taskExecutionProfileSummary(profile);
@@ -80,34 +111,44 @@ export function TaskPropertiesRail({
             Pending
           </PropertyRow>
           <PropertyRow label="Requested by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <Button
-              aria-busy={approvalPending.reject || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-reject"
-              disabled={approvalBusy}
-              onClick={onReject}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              {approvalPending.reject ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {approvalPending.reject ? "Rejecting…" : "Reject"}
-            </Button>
-            <Button
-              aria-busy={approvalPending.approve || undefined}
-              className="min-h-6"
-              data-testid="tasks-rail-approve"
-              disabled={approvalBusy}
-              onClick={onApprove}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {approvalPending.approve ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {approvalPending.approve ? "Approving…" : "Approve"}
-            </Button>
-          </div>
+          {onApprove || onReject ? (
+            <div className="mt-2 flex items-center justify-end gap-2">
+              {onReject ? (
+                <Button
+                  aria-busy={approvalPending.reject || undefined}
+                  className="min-h-6"
+                  data-testid="tasks-rail-reject"
+                  disabled={approvalBusy}
+                  onClick={onReject}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {approvalPending.reject ? (
+                    <Spinner aria-hidden="true" className="size-3" />
+                  ) : null}
+                  {approvalPending.reject ? "Rejecting…" : "Reject"}
+                </Button>
+              ) : null}
+              {onApprove ? (
+                <Button
+                  aria-busy={approvalPending.approve || undefined}
+                  className="min-h-6"
+                  data-testid="tasks-rail-approve"
+                  disabled={approvalBusy}
+                  onClick={onApprove}
+                  size="sm"
+                  type="button"
+                  variant="neutral"
+                >
+                  {approvalPending.approve ? (
+                    <Spinner aria-hidden="true" className="size-3" />
+                  ) : null}
+                  {approvalPending.approve ? "Approving…" : "Approve"}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </RailSection>
       ) : null}
 
@@ -157,14 +198,18 @@ export function TaskPropertiesRail({
       <RailSection label="Properties">
         <PropertyRow
           editor={
-            <TaskPriorityEditor
-              onChange={onPriorityChange}
-              pending={updatePending}
-              priority={record.priority ?? "medium"}
-            />
+            onPriorityChange ? (
+              <TaskPriorityEditor
+                onChange={onPriorityChange}
+                pending={updatePending}
+                priority={priority}
+              />
+            ) : undefined
           }
           label="Priority"
-        />
+        >
+          {onPriorityChange ? undefined : <PriorityValue priority={priority} />}
+        </PropertyRow>
         <PropertyRow label="Owner">
           {owner ? (
             <>
@@ -202,16 +247,18 @@ export function TaskPropertiesRail({
 
       <RailSection
         action={
-          <Button
-            className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
-            data-testid="tasks-rail-edit-setup"
-            onClick={onEditSetup}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Edit setup
-          </Button>
+          onEditSetup ? (
+            <Button
+              className="-mr-1.5 min-h-6 px-1.5 py-0.5 text-eyebrow font-medium text-muted"
+              data-testid="tasks-rail-edit-setup"
+              onClick={onEditSetup}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Edit setup
+            </Button>
+          ) : undefined
         }
         label="Execution"
       >
@@ -225,14 +272,18 @@ export function TaskPropertiesRail({
         <PropertyRow label="Attempts">{attemptsLabel}</PropertyRow>
         <PropertyRow
           editor={
-            <TaskAutoEnqueueSwitch
-              enabled={Boolean(record.auto_enqueue_on_ready)}
-              onChange={onAutoEnqueueChange}
-              pending={updatePending}
-            />
+            onAutoEnqueueChange ? (
+              <TaskAutoEnqueueSwitch
+                enabled={Boolean(record.auto_enqueue_on_ready)}
+                onChange={onAutoEnqueueChange}
+                pending={updatePending}
+              />
+            ) : undefined
           }
           label="Auto-enqueue"
-        />
+        >
+          {onAutoEnqueueChange ? undefined : record.auto_enqueue_on_ready ? "On" : "Off"}
+        </PropertyRow>
         {channel ? (
           <PropertyRow label="Channel" mono>
             {channel}
