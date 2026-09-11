@@ -255,3 +255,23 @@ gated on the unchanged external blocker: the private-tier legs stay
 blocked-verify pending the user-provisioned authorized `TS_AUTHKEY` (rows
 1–2), and the real-device keyboard-open check remains a human-verification
 residual (row 3).
+
+## Addendum 3 — real-device walk (2026-09-11, user's phone)
+
+The paired session was walked on a real phone (Android, Brave, ~390×844) over
+the verified private endpoint. Core flows confirmed live: pairing gate → paired
+session; surface truth visible (Settings read-only, no save bars); dock, palette
+and window chrome rendering at the touch tier.
+
+Real-device findings (both fixed in-cycle, commit `2bd4ca788`):
+- **F1 (defect):** the compact DesktopPager rendered a single-desktop position
+  pill orphaned at the dock's far edge with ~195px dead zone — dock spacing
+  broken at 390px. Fixed: single desktop renders no switcher; multiple desktops
+  shrink-wrap.
+- **F2 (defect):** window controls identified only via hover tones (no hover on
+  touch); the 2-of-3 count is per-design (zoom hidden, close reachable). Fixed:
+  rest glyphs for close/minimize at the compact tier.
+
+Artboard evolved: T9 (dock pager) and T10 (window-control identification) added
+as real-device deltas. Fixes deployed to the user's runtime; on-device re-walk
+pending. T4 keyboard-open on a real device remains a human-verification residual.

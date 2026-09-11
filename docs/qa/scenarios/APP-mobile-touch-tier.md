@@ -80,3 +80,8 @@ correct >760px rule, unchanged. Desktop 1440×900 spot-check: docked, no
 shadow, behaviorally identical. Zero console errors. Root cause and
 measurements in the bug's Fix/Verification sections; evidence
 `r-1`–`r-6` under `docs/qa/evidence/2026-09-11-mobile-surface-truth/`.
+
+Real-device walk 2026-09-11 (user's phone, Android/Brave ~390×844): paired
+session verified over the private endpoint; two touch-tier findings fixed
+in-cycle (dock pager composition; window-control identification without hover)
+— commit `2bd4ca788`, artboard T9/T10. On-device re-walk pending redeploy.
