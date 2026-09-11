@@ -2,9 +2,9 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Both prompt boundaries repaired and verified; final make gate passed. Commit local fix after no-stash hook checks. GL007 candidate validation passed; CLI rejected --file plus --fork-from-name without mutation. Inspect supported fork descriptor, publish then dry-run and execute two-turn counter Goal with on_exhausted:escalate.",
-  "completed_rows": 13,
-  "pending_rows": 344,
+  "cursor": "GL007 verified incl copy; gate passed, commit pending no-stash hooks. GL009/011 public required/stale/invalid-runtime preserve paused Run, one Run/queue0; origin stopped. Web collapsed Goal hides Draft replacement by design: do not file absence as bug before expanding; fresh continuation must test details + prefill then atomic replacement. No replacement source edit.",
+  "completed_rows": 14,
+  "pending_rows": 343,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
   "daemon_pid": 2132,
@@ -19,7 +19,7 @@
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "wait-both-edges-gate.txt: all affected local lanes passed",
+  "gate": "goal-approval-copy-gate.txt: all affected lanes passed",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -89,11 +89,11 @@
     "canary_stopped": true
   },
   "dispositions": {
-    "pending": 344,
+    "pending": 343,
     "blocked-external-runtime": 2,
     "unresolved-defect": 1,
     "verified": 8,
-    "fixed-and-verified": 2
+    "fixed-and-verified": 3
   },
   "cross_deny_session_id": "sess-bc315ce9f46d87a7",
   "cross_read_session_id": "sess-f5db3f09d3263d2e",
@@ -131,5 +131,10 @@
   "wait_edge_retest_session_id": "sess-748df91bacbb186b",
   "wait_edge_retest_run_id": "looprun-4e69d0fda79536f2",
   "wait_both_session_id": "sess-826a858fae705ceb",
-  "wait_both_run_id": "looprun-e7ca98d43e63cb16"
+  "wait_both_run_id": "looprun-e7ca98d43e63cb16",
+  "wait_edge_fix_commit": "6149b72cf",
+  "goal_extension_catalog_run": "looprun-ed59d9b171ca4681",
+  "goal_extension_copy_run": "looprun-c02be787f8926b20",
+  "goal_replacement_session": "sess-0936c43ba9616a75",
+  "goal_replacement_run": "looprun-547f69874b5bffb1"
 }

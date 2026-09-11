@@ -157,7 +157,7 @@ export function LoopRunNeedsYouCard({
               </div>
               <p className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted">
                 {request?.prompt ??
-                  "The run parked and asks you first. Approving continues the round with the same limits; rejecting ends the run."}
+                  "This run is waiting for your approval. Approving lets it continue; rejecting ends the run."}
               </p>
               {facts.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-x-5.5 gap-y-2">

@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260911-session-wait-client-timeout;BUG-20260911-session-wait-misses-settled-edge
 fix_status: fixed
 retest_status: passed
-fix_commits: 06c5e9e10
+fix_commits: 06c5e9e10;6149b72cf
 evidence: docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json;docs/qa/evidence/2026-09-10-qa-execution-unblock/session-wait-retest-proof.json;docs/qa/evidence/2026-09-10-qa-execution-unblock/wait-both-edges-proof.json
 last_report: docs/qa/reports/2026-09-10-qa-execution-unblock.md
 overlaps: RT-session-attention-catalog
