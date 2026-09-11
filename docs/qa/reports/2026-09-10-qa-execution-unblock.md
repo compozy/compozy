@@ -586,3 +586,14 @@ The isolated missing-agent retest reproduced the masked spawn diagnostic and end
 ## Managed terminal identity repair
 
 The supported CLI retake `sess-27d6aca7a434c19b` failed spawn with exit64 identity_required and returned coordination data without agent identity. It ended and was stopped before diagnosis. [BUG-20260910-terminal-agent-identity](../bugs/BUG-20260910-terminal-agent-identity.md) owns the scope/impact record. Terminal process starts now project their validated originating Actor into existing managed-session environment fields. Canonical process-boundary coverage reproduced failures for exec, open, and pipe, then passed; the full terminal race suite and test conventions passed. Windows cross-compilation passed, without Windows execution. Build, gate, ACP adjacency and real retake remain pending.
+
+
+## Main integration and test reconciliation
+
+The managed terminal identity repair completed before this rebase: full terminal race/adjacent ACP checks, Windows cross-compilation, gate, and the real Cursor foreign-workspace CLI spawn/coordination retake passed. Parent/child sessions were stopped. `terminal-identity-retest-proof.json` records the actor-bound public grant evidence. Its original commit `e5a6b2cea` is now `dcb9d25a4` after rebase.
+
+At the user's request, reviewed PRs 607–611 individually and the five incoming commits without associated PRs, then rebased onto main `fec0e9b08631dd9e2d7eaa66fc7f76f5314ae5c0`. No conflicts; all five local commits retain equal patches. The [integration impact report](2026-09-10-qa-execution-unblock/rebase-impact.md) maps each change to affected journeys, backup provenance, commit mappings, and validation evidence.
+
+The same lab upgraded to schema109 with stable pre-existing records verified. Go/Web builds, targeted daemon integration, scoped Dream checks, and a fresh two-turn Cursor Grok4.6 High Fast canary passed. Browser smoke covers the rebuilt mixed transcript disclosure and empty attention state. Initial gate exposed six stale test assumptions from the upstream integration; three existing canonical suites were reconciled against the merged contracts and all188 focused tests passed. Full gate retry passed: all affected lanes green, including 771 Web test files / 7205 tests, typecheck and lint (`rebase-gate-retest.txt`).
+
+This integration checkpoint adds no blanket QA verdicts: 2 original rows remain finalized and355 pending. Full notification journeys and external Tailnet proof remain separate; the Cursor MCP error-schema issue remains open.

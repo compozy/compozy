@@ -26,3 +26,29 @@ Read the complete PR bodies, commit lists, review summaries, representative prod
 - Rebase directly onto fetched main, preserving all local fix commits. Inspect the final range-diff and any semantic conflicts.
 - Rebuild Go/Web; run the required affected gate and targeted integration checks justified above. Restart the same isolated lab; verify schema 109, retained session/workspace state, Dream false, managed Cursor tools/terminal identity and the changed rendered transcript. Notification read behavior is checked against the new contract; full bell/title journeys remain in the 357-row execution inventory until walked.
 - No push, merge, release or deployment. Full inventory is still 2 finalized / 355 pending at this checkpoint. Rebase integration is a prerequisite, not completion of the QA goal.
+
+## Post-rebase results
+
+Rebase completed without conflicts at `fa63698f478e0c942f6142f2cb194b6fc85bc7cd`; `rebase-range-diff.txt` reports all five local commits unchanged (`=`). Backup ref `backup-rebase-qa-execution-unblock-20260910-234235` preserves the checkpoint before rewriting. Local fix mappings are `4f5ae5298` → `609981b51`, `f32f50a9c` → `ad2571be9`, `ea8f4c3f3` → `790039e93`, and `e5a6b2cea` → `dcb9d25a4`; QA checkpoint `ffbfa1c82` → `fa63698f4`. Historical evidence retains its original commit IDs.
+
+Go and root Turbo Web builds passed. The same isolated daemon restarted with schema 109. `rebase-migration-proof.json` verifies integrity and exact selected stable fields for the pre-existing 22 sessions, 2 workspaces, 1 profile, 2 tasks, and 1 task run. Public listing excludes 9 internal-role sessions by contract; they remain in storage. Backups comprise 23 SQLite databases and the separate bbolt client-state store.
+
+The four targeted daemon integration tests passed with race detection: input-only role scoping, measured delivered catalogs, Dream opt-in combinations, and live scoped Dream overrides (`rebase-targeted-integration.txt`). These use protocol fixtures; the separate real Cursor canary completed two turns with `cursor/grok-4.6/high/fast`. Native Heartbeat matches the pre-rebase valid missing-policy state and digest. Native Memory health agrees with CLI/HTTP/UDS: memory enabled, Dream disabled. The terminal journal independently confirms the agent-owned identity command exited 0 with 81 output bytes; the transcript contains the expected session/agent values. Session stop was verified. `rebase-live-proof.json` records the evidence boundaries.
+
+Web smoke on the rebuilt application showed the empty attention popover with disabled Clear all, preserved historical sessions and Vault state, the new Cursor runtime selection, and ordered thought/tool/thought content within an expanded turn, with reasoning disclosure operable. Screenshots were visually inspected. This is not full acknowledgement, hidden-tab title, or remote Tailnet acceptance.
+
+### Canonical suite reconciliation
+
+The initial required gate passed Go lanes but found six Web test failures in three existing suites. Inspection against the merged contract identified stale fixtures and assertions, without a production regression:
+
+- `session-thread.test.tsx`: settled reasoning auto-collapses, so open its own disclosure before asserting rendered Markdown; keep DOM identity/order/focus assertions. The streaming isolation fixture now assigns the settled answer a prior turn ID because same-turn text chunks intentionally concatenate exactly after `0e820dc0e`.
+- `session-timeline.logic.test.ts`: the outer interrupted turn already owns the summary; require no second nested summary while preserving ordered reasoning/tool entries, interrupted state, outer open state, and visible final text.
+- `desktop-menubar.test.tsx`: provide the real QueryClient context required by the new notification-selection hook; retain the pending-scope aria-disabled assertion.
+
+Owning layers are transcript rendering/derivation and desktop menubar wiring. No new suite or weakened product contract was introduced. Focused root Turbo execution passed all 188 tests (`rebase-web-focused.txt`). Required gate retry is recorded in `rebase-gate-retest.txt`; its final result is recorded below when complete.
+
+Cross-surface impact of these follow-up edits: not applicable — test fixtures and evidence only; no production behavior, native tool, hook/config, data-isolation, official skill, or public contract changed.
+
+Final local gate passed: all affected lanes green; Web 771 test files / 7205 tests, typecheck and lint passed (`rebase-gate-retest.txt`). No CI/push was requested or performed.
+
+Pre-commit formatting/lint ran explicitly with `lint-staged --no-stash`, and commitlint passed. Automatic Husky re-execution is disabled solely because its default lint-staged invocation uses Git stash, which the user prohibits; the checks themselves were completed.

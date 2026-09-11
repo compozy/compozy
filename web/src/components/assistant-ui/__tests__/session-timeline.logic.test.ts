@@ -908,7 +908,9 @@ describe("session timeline derivation", () => {
       expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
       expect(foldRow.rows[0]).toMatchObject({
         active: false,
-        summary: { label: "1 tool · 1 thought · 1 stopped" },
+        // The outer turn fold owns the summary; its body exposes both entries directly.
+        summary: null,
+        expanded: false,
         entries: [{ kind: "reasoning" }, { kind: "tool", status: "interrupted", state }],
       });
       expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal-int" });

@@ -51,7 +51,9 @@ const ATTENTION: OsAttentionModel = {
 
 describe("DesktopMenubar scope control", () => {
   it("Should aria-disable the scope control while scope resolution is pending [RA0289]", () => {
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { enabled: false, retry: false } },
+    });
     render(
       <QueryClientProvider client={queryClient}>
         <UIProvider reducedMotion="always">

@@ -2,24 +2,24 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "User requested rebase and PR impact review. Read merged PR607-611 and direct followups. Preserved code ref and dirty archive; target fec0e9b08 introduces migration109. Stop owned daemon, checkpoint QA docs, rebase without autostash, inspect range-diff, rebuild, gate and real impacted canaries before resuming matrix. Both terminal identity and MCP text fixes gated+realverified on old base. 2 finalized/355 pending.",
+  "cursor": "Main rebase validated at fa63698f4; PR607-611 and direct commits reviewed; all5 local patches equal. Build, migration109/state preservation, targeted daemon integration, real Cursor two-turn canary and Web smoke passed. Six stale Web fixture failures reconciled; 188 focused and7205 full Web tests pass; make gate green. Resume cross-workspace matrix and355 pending original rows. Scheduler remains paused; use public fixture strategy before claims.",
   "completed_rows": 2,
   "pending_rows": 355,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
-  "daemon_pid": null,
+  "daemon_pid": 99640,
   "browser_session": "qa-execution-unblock",
   "prompt_handle": null,
   "build": {
-    "go": "make build-go passed",
-    "web": "bunx turbo run build --filter=compozy-web passed, 3 cached tasks, pre-existing build warnings",
-    "head": "ed7f2d7adc2d7ec38071677d28a2d6e87a019c28"
+    "go": "make build-go passed: rebase-build-go.txt",
+    "web": "root Turbo build passed: rebase-build-web.txt",
+    "head": "fa63698f478e0c942f6142f2cb194b6fc85bc7cd"
   },
   "active_bug": "BUG-20260910-cursor-mcp-error-schema",
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "make gate passed: terminal-identity-gate.txt",
+  "gate": "make gate passed after fixture reconciliation: rebase-gate-retest.txt (771 Web files, 7205 tests; all affected lanes passed)",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -34,22 +34,22 @@
     "verified": "Managed canary completed with native terminal write and independent file proof; runtime/ACP verified high fast."
   },
   "cursor_canary_session_id": "sess-1b77ee9f015e422e",
-  "fix_commit": "4f5ae5298",
+  "fix_commit": "609981b51",
   "policy_session_id": "sess-7f562c591bdbbc98",
   "native_retake_session_id": "sess-967598658cb4e67e",
   "cross_workspace_id": "ws_6948d9a869661f6c",
   "cross_task_id": "task-1a7ec21a5a1987d3",
   "cross_run_id": "run-3f438f979925fc60",
   "cross_all_session_id": "sess-35af9e34a61e15e4",
-  "native_fix_commit": "f32f50a9c",
+  "native_fix_commit": "ad2571be9",
   "scheduler_paused": true,
   "mcp_retest_session_id": "sess-ab20fe5bde29aefc",
-  "mcp_text_fix_commit": "ea8f4c3f3",
+  "mcp_text_fix_commit": "790039e93",
   "mcp_error_session_id": "sess-4cbe38a56cc29a66",
   "cross_cli_session_id": "sess-27d6aca7a434c19b",
   "terminal_identity_retest_session_id": "sess-9ec00faa329ab131",
   "terminal_identity_child_session_id": "sess-d28dfa5a405c8d72",
-  "terminal_identity_fix_commit": "e5a6b2cea",
+  "terminal_identity_fix_commit": "dcb9d25a4",
   "rebase": {
     "old_head": "e5a6b2ceaf8eaaedb976709088f7c152fabec670",
     "target": "fec0e9b08631dd9e2d7eaa66fc7f76f5314ae5c0",
@@ -73,6 +73,19 @@
       "docs/qa/scenarios/RT-024.md"
     ],
     "untracked_incoming_overlap": [],
-    "database_backup": "docs/qa/evidence/2026-09-10-qa-execution-unblock/rebase-database-backup.json"
+    "database_backup": "docs/qa/evidence/2026-09-10-qa-execution-unblock/rebase-database-backup.json",
+    "head": "fa63698f478e0c942f6142f2cb194b6fc85bc7cd",
+    "status": "completed and locally validated",
+    "commit_map": {
+      "4f5ae5298": "609981b51",
+      "f32f50a9c": "ad2571be9",
+      "ea8f4c3f3": "790039e93",
+      "e5a6b2cea": "dcb9d25a4",
+      "ffbfa1c82": "fa63698f4"
+    },
+    "live_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/rebase-live-proof.json",
+    "migration_proof": "docs/qa/evidence/2026-09-10-qa-execution-unblock/rebase-migration-proof.json",
+    "canary_session_id": "sess-6ad175ea6b43ce4d",
+    "canary_stopped": true
   }
 }
