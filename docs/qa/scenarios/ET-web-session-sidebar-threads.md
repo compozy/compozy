@@ -34,3 +34,10 @@ docs/design/opendesign/session/session-sidebar.html. Flag only — walk in the n
 2026-08-17 isolated completion walk: the real Sessions list rendered a missing-origin Goal as a
 root and its later spawned child beneath the thread connector. The count toggle reported one child
 and remained expanded in the accessibility tree. Verdict: pass.
+
+2026-09-11 bulk-actions impact: the shared workspace list now supports checkbox,
+modifier/range, and keyboard selection, replacing its toolbar while selection is
+active. Thread controls and in-place navigation at rest retain their behavior.
+All-workspaces groups remain navigation-only. The new
+`ET-web-session-list-bulk-actions` scenario owns selection, catalog membership,
+sequential actions, confirmation, and retry; prior thread evidence above is retained.
