@@ -384,13 +384,19 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterClear.transcript)).not.toContain("block until canceled");
 
-  const deletableSession = await createSession(runtime, faultAgent, workspace.id);
+  const deletableSession = session;
+  await runtime.requestJSON(sessionAPIPath(workspace.id, session.id, "/stop"), { method: "POST" });
+  const queue = await runtime.requestJSON<{ inputs: unknown[] }>(
+    sessionAPIPath(workspace.id, session.id, "/prompt/queue")
+  );
+  expect(queue.inputs).toEqual([]);
   await appPage.goto(runtime.url(sessionPath(faultAgent, deletableSession.id)), {
     waitUntil: "domcontentloaded",
   });
   const deletableWin = sessionWindow(appPage, deletableSession.id);
   const deletableUi = sessionWindowSelectors(deletableWin, appPage);
   await expect(deletableWin).toBeVisible();
+  await browserArtifacts.captureScreenshot("session-stopped-before-delete", appPage);
   await deletableUi.topbarOverflow.click();
   await deletableUi.deleteButton.click();
   await expect(appPage.getByTestId("delete-dialog")).toBeVisible();
@@ -400,7 +406,8 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
       response.url().endsWith(sessionAPIPath(workspace.id, deletableSession.id))
   );
   await appPage.getByTestId("delete-dialog-confirm").click();
-  expect((await deleteResponsePromise).ok()).toBe(true);
+  const deleteResponse = await deleteResponsePromise;
+  expect(deleteResponse.ok(), await deleteResponse.text()).toBe(true);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/sessions");
   await expect(appPage.getByTestId("session-window-empty")).toBeVisible();
 

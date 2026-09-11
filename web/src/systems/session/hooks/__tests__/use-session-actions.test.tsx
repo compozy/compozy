@@ -302,6 +302,9 @@ describe("session actions", () => {
       []
     );
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
+    expect(
+      queryClient.getQueryState(sessionKeys.detail(WORKSPACE_ID, createdSession.id))?.isInvalidated
+    ).toBe(true);
   });
 
   it("useClearSessionConversation rolls back optimistic cache changes on failure", async () => {

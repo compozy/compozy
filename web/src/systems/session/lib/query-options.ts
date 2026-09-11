@@ -13,6 +13,7 @@ import {
   fetchSessionUsage,
   fetchSessions,
   SessionLedgerUnavailableError,
+  SessionApiError,
 } from "../adapters/session-api";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
 import { fetchSessionCommands } from "../adapters/session-command-api";
@@ -283,14 +284,37 @@ export function sessionResolvedInteractionsOptions(
 export const SESSION_INPUTS_REFETCH_INTERVAL_MS = SESSION_LIVE_REFETCH_INTERVAL_MS;
 
 /** Exact current-generation pending operator input, owned by the daemon. */
-export function sessionInputsOptions(workspace: string, id: string, enabled = true) {
+export function sessionInputsOptions(
+  workspace: string,
+  id: string,
+  options: { enabled?: boolean; sessionState?: SessionState; refetchInterval?: number } = {}
+) {
   return queryOptions({
     queryKey: sessionKeys.inputQueue(workspace, id),
     queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
-    refetchInterval: SESSION_INPUTS_REFETCH_INTERVAL_MS,
+    refetchInterval: query => {
+      if (
+        !isLiveSessionState(options.sessionState) ||
+        isTerminalInputReadError(query.state.error)
+      ) {
+        return false;
+      }
+      return Math.min(
+        options.refetchInterval ?? SESSION_INPUTS_REFETCH_INTERVAL_MS,
+        SESSION_INPUTS_REFETCH_INTERVAL_MS
+      );
+    },
+    retry: (failureCount, error) => !isTerminalInputReadError(error) && failureCount < 1,
     staleTime: 1_000,
-    enabled: !!workspace && !!id && enabled,
+    enabled: !!workspace && !!id && (options.enabled ?? true),
   });
+}
+
+function isTerminalInputReadError(error: unknown): boolean {
+  return (
+    error instanceof SessionApiError &&
+    (error.status === 404 || error.status === 410 || error.code === "session_not_promptable")
+  );
 }
 
 export { sessionTranscriptOptions } from "./session-transcript-options";

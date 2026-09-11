@@ -95,6 +95,7 @@ export function useSessionPageControls(
     activeTurnId,
     getRuntimeSnapshot,
     promptControlsAvailable,
+    sessionState,
     sessionId,
     store,
     workspaceId,
@@ -192,7 +193,9 @@ export function useSessionPageControls(
     deleteMutation.mutate(sessionId, {
       onError: error => {
         console.error("Failed to delete session", error);
-        toast.error("Couldn't delete this session.");
+        toast.error(
+          error instanceof Error ? error.message : "Couldn't delete this session. Try again."
+        );
       },
     });
   };

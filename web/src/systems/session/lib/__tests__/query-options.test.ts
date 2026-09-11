@@ -4,11 +4,13 @@
 // Boundary OUT: HTTP transport and lifecycle persistence, owned by their adapter/runtime suites.
 import { describe, expect, it } from "vitest";
 
+import { SessionApiError } from "../../adapters/session-api-errors";
 import type { SessionInteractionRecord, SessionPayload } from "../../types";
 import {
   sessionAcrossProfilesOptions,
   sessionCommandsOptions,
   sessionDetailOptions,
+  sessionInputsOptions,
   sessionResolvedInteractionsOptions,
   sessionScopedDetailOptions,
 } from "../query-options";
@@ -167,5 +169,43 @@ describe("sessionResolvedInteractionsOptions", () => {
     expect(placeholderFrom(otherSession, previous.queryKey)).toBeUndefined();
     expect(placeholderFrom(otherWorkspace, previous.queryKey)).toBeUndefined();
     expect(placeholderFrom(otherSession, [])).toBeUndefined();
+  });
+});
+
+// Owner: session query policy; transport and daemon lifecycle are covered by integration suites.
+describe("sessionInputsOptions", () => {
+  it("Should read stopped queues once and poll only live sessions", () => {
+    for (const state of ["starting", "active", "stopping", "stopped", undefined] as const) {
+      const options = sessionInputsOptions("ws_alpha", "sess_1", { sessionState: state });
+      expect(options.enabled).toBe(true);
+      if (typeof options.refetchInterval !== "function")
+        throw new Error("expected lifecycle polling");
+      expect(options.refetchInterval({ state: { error: null } } as never)).toBe(
+        state && state !== "stopped" ? 5_000 : false
+      );
+    }
+  });
+
+  it("Should stop retrying terminal queue responses while preserving backend failures", () => {
+    const options = sessionInputsOptions("ws_alpha", "sess_1", {
+      sessionState: "active",
+      refetchInterval: 1_000,
+    });
+    if (typeof options.refetchInterval !== "function" || typeof options.retry !== "function") {
+      throw new Error("expected bounded error policy");
+    }
+    for (const error of [
+      new SessionApiError("gone", 404),
+      new SessionApiError("gone", 410),
+      new SessionApiError("stopped", 400, "sess_1", { code: "session_not_promptable" }),
+    ]) {
+      expect(options.retry(0, error)).toBe(false);
+      expect(options.refetchInterval({ state: { error } } as never)).toBe(false);
+    }
+    const error = new SessionApiError("queue storage failed", 500);
+    expect(options.retry(0, error)).toBe(true);
+    expect(options.retry(1, error)).toBe(false);
+    expect(options.refetchInterval({ state: { error } } as never)).toBe(1_000);
+    expect(sessionInputsOptions("ws_alpha", "sess_2").queryKey).not.toEqual(options.queryKey);
   });
 });

@@ -9,7 +9,7 @@ import (
 )
 
 // Delete removes one session from active runtime state and persisted history.
-func (m *Manager) Delete(ctx context.Context, id string) error {
+func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	if m == nil {
 		return errors.New("session: manager is required")
 	}
@@ -21,6 +21,11 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("session: normalize delete id %q: %w", id, err)
 	}
+	defer func() {
+		if err != nil {
+			m.logger.Error("session: deletion failed", "session_id", target, "error", err)
+		}
+	}()
 	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
 	if err != nil {
 		return err

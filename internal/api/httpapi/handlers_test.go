@@ -2917,6 +2917,35 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 }
 
 func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
+	// Invariant: queue reads preserve stopped-session access and transport failures.
+	// Owner: HTTP boundary; canonical queue handler suite.
+	for _, tc := range []struct {
+		name     string
+		queueErr error
+		status   int
+	}{
+		{"Should read a stopped session queue", nil, http.StatusOK},
+		{"Should preserve queue storage failures", errors.New("queue store unavailable"), http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager := stubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					info := newSessionInfo("sess-123")
+					info.State = session.StateStopped
+					return info, nil
+				},
+				ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
+					return []session.PendingInput{}, tc.queueErr
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			response := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue", nil)
+			if response.Code != tc.status {
+				t.Fatalf("queue status = %d, want %d; body=%s", response.Code, tc.status, response.Body.String())
+			}
+		})
+	}
 	t.Run("Should clear with operator attribution and preserve per-entry outcomes", func(t *testing.T) {
 		t.Parallel()
 		manager := stubSessionManager{
