@@ -2,10 +2,10 @@
 
 - **Scope:** All 357 original handoff rows; adjacent repair canaries only.
 - **Cadence tier:** targeted inventory reconciliation and real persona walks
-- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28; current runtime fa63698f4, test/docs checkpoint 8ec6e8886
+- **Initial build:** ed7f2d7adc2d7ec38071677d28a2d6e87a019c28. Main integrated through fec0e9b08; latest committed fix 06c5e9e10. Daemon includes the Goal parser fix; CLI wait transport repair passed real replay and gate.
 - **Started:** 2026-09-10T21:56:04.281977+00:00 · **Status:** in-progress
 - **Current provider contract:** Cursor Agent grok-4.6, reasoning high, speed fast; supersedes initial Codex Luna xhigh. Operator native authentication preserved.
-- **Environment:** Isolated bootstrap manifest; production-parity build and real Luna xhigh ACP canary completed; inventory execution in progress.
+- **Environment:** Same isolated bootstrap manifest; production-parity daemon/Web and real Cursor Grok 4.6 High Fast worker/judge runs verified. Earlier Luna evidence remains historical.
 - **Inventory:** [Complete reconciliation ledger](2026-09-10-qa-execution-unblock/inventory.csv). Original categories are estimates, never verdicts.
 
 ## Personas
@@ -190,10 +190,10 @@ All rows initialized Pending before first product interaction. Existing charters
 | 73 | CH-046 | J-26 / GL-001 | Lea | Feature Tour | Pass | goal-parser-retest-proof.json | Direct 202, one session-origin Run, one canonical judge, completed and retained. |
 | 74 | CH-046 | J-26 / GL-002 | Lea | Feature Tour | Pass | goal-first-run-proof.json | Text clauses remain in one agent-judge rubric; approved real run and refreshed Web. |
 | 75 | CH-046 | J-26 / GL-003 | Lea | Feature Tour | Pending | | |
-| 76 | CH-047 | J-26 / GL-005 | Bruno | Interrupt Tour | Pending | | |
-| 77 | CH-047 | J-26 / GL-006 | Bruno | Interrupt Tour | Pending | | |
+| 76 | CH-047 | J-26 / GL-005 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
+| 77 | CH-047 | J-26 / GL-006 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
 | 78 | CH-047 | J-26 / GL-007 | Bruno | Interrupt Tour | Pending | | |
-| 79 | CH-047 | J-26 / GL-008 | Bruno | Interrupt Tour | Pending | | |
+| 79 | CH-047 | J-26 / GL-008 | Bruno | Interrupt Tour | Pass | goal-controls-proof.json | Public state, SSE, and refreshed Web confirmed. |
 | 80 | CH-046 | J-26 / GL-009 | Lea | Feature Tour | Pending | | |
 | 81 | CH-046 | J-26 / GL-010 | Lea | Feature Tour | Pending | | |
 | 82 | CH-046 | J-26 / GL-011 | Lea | Feature Tour | Pending | | |
@@ -513,7 +513,7 @@ Runtime isolation and provider home policy are independent. Native terminal comm
 
 ## Final Status
 
-In progress. No release-readiness claim. All 357 rows remain pending execution/reconciliation.
+In progress. No release-readiness claim. Of 357 original rows, 13 have evidence-backed dispositions: 8 verified, 2 fixed-and-verified, 1 unresolved defect, and 2 external runtime blockers. The remaining 344 are pending. The strict whole-run evidence audit is not yet passing. Current cursor and process handles are in progress.json; dated checkpoints below retain historical counts.
 
 ## RT-024 interrupted return walk — defect and repair in progress
 
@@ -656,3 +656,15 @@ GL-002 is now verified against its complete scenario contract. This does not clo
 The reserved Goal command now reaches its owning dispatcher even when its objective is invalid. The existing admission suite proves bare and oversized inputs yield structured reasons without invoking the executor. Red-before/green-after race evidence, test-convention audit, Go build, reviewed diff, and make gate all passed. Fresh Web guidance, CLI structured failures, HTTP/UDS422, empty Run lists and empty queue confirm the repair. A valid adjacent start returned202, created one Run and completed with a real Cursor Grok4.6 High Fast worker and separate judge; independent source read and refreshed Web matched. See goal-parser-retest-proof.json and BUG-20260911-goal-parser-preempts-guidance.md for the cross-surface audit.
 
 GL-001 and GL-002 are verified. GL-003 remains pending for its other invalid branches. Current inventory: 10 dispositioned (5 verified, 2 fixed-and-verified, 1 unresolved defect, 2 external runtime blockers), 347 pending. This is continuing QA, not a final delivery claim.
+
+The parser repair is committed locally as 565ebfb32. The strict lab evidence auditor was invoked after the slice and remains failing with ten whole-run evidence requirements (role/channel breadth, structured object correlation/disruption events, and final report/gate indexing); see goal-parser-strict-audit.txt and the manifest qa-audit-report. Focused behavior proofs and make gate remain valid, but no final QA audit pass is claimed. CH-047 now runs in fresh session sess-00a7a5caef013168 with Run looprun-bc34b40550de8f95; Web Pause has been requested during the active prompt and the public Run confirms pause_requested=true.
+
+### Bruno Goal controls — 2026-09-11
+
+Pause settled turn1 and held the worker idle through reload; concurrent HTTP/UDS resume returned the same Run, with one resume transition and one successor segment. Turn2 completed with approved judgment. Terminal Web clear and live CLI clear both hid the snapshot while retaining both Run audits; the live revocation is recorded as ambiguous/goal_control_revoked_in_flight and Run failed with goal_clear cause. No old Goal or late turn reappeared. Screenshots were visually inspected; independent controlled-summary.md matches the requested workspace. GL005/006/008 pass. The 13 dispositioned rows comprise8 verified,2 fixed-and-verified,1 unresolved defect,2 external blockers;344 remain pending.
+
+An adjacent CLI wait failed at30.027s despite --timeout45s (exit69 Client.Timeout exceeded). The current Goal still completed correctly. Persona session ended and origin stopped before source diagnosis; BUG-20260911-session-wait-client-timeout tracks the bounded transport mismatch.
+
+### Session wait repair — 2026-09-11
+
+Commit06c5e9e10 routes wait through the existing long-lived transport. A fresh managed session returned idle immediately; the45s timeout returned exit75 with its resumable server payload after45.03s, and a public stop at35s produced state-reached after35.113s. The session is stopped. Canonical race regression and make gate passed. The test-shape checker has ten identical pre-existing baseline findings and no added findings; no unrelated suites were rewritten. See session-wait-retest-proof.json. The adjacent RT-session-wait-state repair is verified; unchanged semantics retain their prior evidence and do not increase the357-row inventory.
