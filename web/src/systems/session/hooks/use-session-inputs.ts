@@ -1,3 +1,5 @@
+import { useSelector } from "@xstate/store-react";
+import { sessionStore } from "../stores/session-store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -7,7 +9,7 @@ import {
   replaceSessionInput,
 } from "../adapters/session-api";
 import { sessionKeys } from "../lib/query-keys";
-import { SESSION_INPUTS_REFETCH_INTERVAL_MS, sessionInputsOptions } from "../lib/query-options";
+import { sessionInputsOptions } from "../lib/query-options";
 import { withCachedInputs } from "../lib/queued-prompt";
 import type {
   PromoteSessionInputRequest,
@@ -16,23 +18,23 @@ import type {
   SessionInputPayload,
   SessionInputsResponse,
   SessionPromptPayload,
+  SessionState,
 } from "../types";
 
 export function useSessionInputs(
   workspaceId: string,
   sessionId: string,
-  options: { enabled?: boolean; refetchInterval?: number } = {}
+  options: { enabled?: boolean; sessionState?: SessionState; refetchInterval?: number } = {}
 ) {
-  const queryOptions = sessionInputsOptions(workspaceId, sessionId, options.enabled ?? true);
-  const { refetchInterval } = options;
+  const suspended = useSelector(
+    sessionStore,
+    snapshot => (snapshot.context.liveTailSuppressions[sessionId] ?? 0) > 0
+  );
   return useQuery(
-    // A caller may tighten the cadence (the 1s control poll during a prompt POST); never loosen it.
-    refetchInterval === undefined
-      ? queryOptions
-      : {
-          ...queryOptions,
-          refetchInterval: Math.min(refetchInterval, SESSION_INPUTS_REFETCH_INTERVAL_MS),
-        }
+    sessionInputsOptions(workspaceId, sessionId, {
+      ...options,
+      enabled: (options.enabled ?? true) && !suspended,
+    })
   );
 }
 

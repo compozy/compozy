@@ -18,6 +18,7 @@ import {
   useSendSessionPrompt,
   useSessionInputs,
   type QueuedPrompt,
+  type SessionState,
   type SessionBusyInputAction,
   type SessionBusyInputDraft,
   type SessionBusyInputHandler,
@@ -38,6 +39,7 @@ interface UseSessionBusyInputControlsOptions {
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   promptControlsAvailable: boolean;
   sessionId: string;
+  sessionState: SessionState;
   store: SessionPageControlsStore;
   workspaceId: string;
 }
@@ -47,11 +49,12 @@ export function useSessionBusyInputControls({
   getRuntimeSnapshot,
   promptControlsAvailable,
   sessionId,
+  sessionState,
   store,
   workspaceId,
 }: UseSessionBusyInputControlsOptions) {
   const sendMutation = useSendSessionPrompt({ workspaceId });
-  const inputs = useSessionInputs(workspaceId, sessionId);
+  const inputs = useSessionInputs(workspaceId, sessionId, { sessionState });
   const cancelInput = useCancelSessionInput(workspaceId, sessionId);
   const replaceInput = useReplaceSessionInput(workspaceId, sessionId);
   const promoteInput = usePromoteSessionInput(workspaceId, sessionId);
