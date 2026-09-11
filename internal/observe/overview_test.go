@@ -567,6 +567,10 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		t.Parallel()
 		f := newOverviewFixture(t)
 		ctx := observeTestContext(t)
+		actor := taskpkg.ActorContext{
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
+			Authority: taskpkg.Authority{Read: true, Write: true}, Scope: taskpkg.CallerScope{Operator: true},
+		}
 		f.seedTask(t, taskpkg.Task{
 			ID: "task-escalated", Title: "Needs input", Status: taskpkg.TaskStatusReady,
 			Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref},
@@ -574,12 +578,17 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		escalate := func(eventID, reason string, at time.Time) {
 			t.Helper()
 			origin := taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"}
-			if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			marked, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
 				TaskID: "task-escalated", Reason: reason, MarkedAt: at, Actor: f.actor, Origin: origin,
-			}); err != nil {
+			})
+			if err != nil {
 				t.Fatal(err)
 			}
-			// Escalation metadata and its event jointly drive the stored task projection.
+			// Status reconciliation is a separate write; audit events never mutate it.
+			marked.Status = taskpkg.TaskStatusNeedsAttention
+			if err := f.registry.UpdateTask(ctx, marked, actor); err != nil {
+				t.Fatal(err)
+			}
 			payload, err := json.Marshal(map[string]any{
 				"status": taskpkg.TaskStatusNeedsAttention, "reason": reason, "at": at,
 			})
@@ -620,13 +629,15 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		if err != nil || source.Status != taskpkg.TaskStatusNeedsAttention {
 			t.Fatalf("acknowledgement changed source: status=%s err=%v", source.Status, err)
 		}
-		if _, err := f.registry.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+		cleared, err := f.registry.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
 			TaskID: "task-escalated", Note: "Operator resolved escalation", ClearedAt: f.now.Add(2 * time.Minute),
-			Actor: taskpkg.ActorContext{
-				Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
-				Authority: taskpkg.Authority{Read: true, Write: true}, Scope: taskpkg.CallerScope{Operator: true},
-			},
-		}); err != nil {
+			Actor: actor,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleared.Task.Status = taskpkg.TaskStatusReady
+		if err := f.registry.UpdateTask(ctx, cleared.Task, actor); err != nil {
 			t.Fatal(err)
 		}
 		escalate("renewed-escalation", "New escalation", f.now.Add(3*time.Minute))
