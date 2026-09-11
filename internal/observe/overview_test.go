@@ -568,10 +568,15 @@ func TestOverviewAttentionAcknowledgements(t *testing.T) {
 		f := newOverviewFixture(t)
 		ctx := observeTestContext(t)
 		f.seedTask(t, taskpkg.Task{
-			ID: "task-escalated", Title: "Needs input", Status: taskpkg.TaskStatusNeedsAttention,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref},
-			NeedsAttention: &taskpkg.NeedsAttention{Reason: "Initial escalation", At: f.now, By: f.actor},
+			ID: "task-escalated", Title: "Needs input", Status: taskpkg.TaskStatusReady,
+			Owner: &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: f.actor.Ref},
 		})
+		if _, err := f.registry.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			TaskID: "task-escalated", Reason: "Initial escalation", MarkedAt: f.now,
+			Actor: f.actor, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "overview-test"},
+		}); err != nil {
+			t.Fatal(err)
+		}
 		query := f.query()
 		query.AcknowledgementProfileID = store.DefaultProfileID
 		before, err := f.observer.overviewAttention(ctx, query)
