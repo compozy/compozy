@@ -32,6 +32,10 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	}
 	defer unlockConversation()
 
+	// Loading persisted status also restores any durable stop settlement receipt.
+	if _, err := m.Status(ctx, target); err != nil {
+		return err
+	}
 	// Recovered stop persistence acquires lifecycleMu itself. Settle it while
 	// owning the conversation operation, before locking deletion staging.
 	if m.hasPendingStopSettlement(target) {

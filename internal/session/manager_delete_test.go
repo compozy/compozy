@@ -180,8 +180,15 @@ func TestManagerDelete(t *testing.T) {
 				!errors.Is(err, ErrRecoveryPersistence) {
 				t.Fatalf("delete error = %v", err)
 			}
-			if info, err := manager.Status(t.Context(), active.ID); err != nil || info.State != StateStopped {
+			wantState := StateStopping
+			if restart {
+				wantState = StateStopped
+			}
+			if info, err := manager.Status(t.Context(), active.ID); err != nil || info.State != wantState {
 				t.Fatalf("preserved session = %#v, error = %v", info, err)
+			}
+			if meta := readMeta(t, active.MetaPath()); meta.State != string(StateStopped) {
+				t.Fatalf("persisted history state = %q, want stopped", meta.State)
 			}
 			if content, err := os.ReadFile(attachmentPath); err != nil || string(content) != "retain-until-commit" {
 				t.Fatalf("preserved attachment = %q, error = %v", content, err)
