@@ -18,7 +18,7 @@ overlaps:
 
 Walk the mobile monitoring journey against the normative artboard
 `docs/design/opendesign/mobile-surface-truth/mobile-surface-truth-shell-390.html`
-(frozen by the mobile-surface-truth design pass, branch `mobile-browser-pwa`):
+(frozen by the mobile-surface-truth design pass, branch `mobile-surface-truth`):
 
 - T1 touch floor (44px) on menubar controls, dock, palette rows/input, scroll pill.
 - T3 compact win-layer reserves tab-bar height (stream content gains the dock band).

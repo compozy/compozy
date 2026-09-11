@@ -29,7 +29,7 @@ QA walk 2026-08-07: Web, CLI, HTTP, and UDS agreed on local-only, degraded, refu
 states; three production defects were fixed and re-walked. A truthful live-address presentation
 remains blocked because the provider account is unavailable.
 
-Re-opened as untested 2026-09-11: the mobile-surface-truth change (branch `mobile-browser-pwa`)
+Re-opened as untested 2026-09-11: the mobile-surface-truth change (branch `mobile-surface-truth`)
 altered the operator surface — loopback-only affordances are now absent on remote tiers and a
 truthful loopback-only state exists for the two stable 403 codes. The surface-truth walk (including
 remote live-address presentation) re-runs under CH-gateway-paired-operator-surface; the real-address

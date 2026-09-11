@@ -24,7 +24,7 @@ QA walk 2026-08-07: local pairing, rename, revoke, empty inventory, and replacem
 through product surfaces. The remote tier admission and live-stream cancellation leg remains
 blocked without an authorized provider address and a second remote device.
 
-Re-opened as untested 2026-09-11: the mobile-surface-truth change (branch `mobile-browser-pwa`)
+Re-opened as untested 2026-09-11: the mobile-surface-truth change (branch `mobile-surface-truth`)
 altered the post-pairing operator surface (capability gating), so the paired-device experience is
 re-walked under CH-gateway-paired-operator-surface; the real-address admission leg remains
 externally blocked pending an authorized TS_AUTHKEY.

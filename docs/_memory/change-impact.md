@@ -101,7 +101,7 @@ The [integration report](../qa/reports/2026-09-10-pr-607-611-integration.md) rec
 ## Spec mobile-surface-truth — remote/mobile operator surface truth
 
 Owning delivery: spec set `.compozy/tasks/mobile-surface-truth/` on branch
-`mobile-browser-pwa` (PR pending). Downstream tasks cite and update this
+`mobile-surface-truth` (PR pending). Downstream tasks cite and update this
 entry instead of restating it.
 
 - **Native tools:** unchanged — checked `compozy__gateway` and all

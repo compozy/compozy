@@ -1,6 +1,6 @@
 # QA Run Report — 2026-09-11 — Mobile Surface Truth
 
-- **Scope:** `mobile-surface-truth` workflow (branch `mobile-browser-pwa`) — truthful operator-surface gating on gateway tiers and mobile (390×844) shell ergonomics; E2E-001 + E2E-002 tail QA pair
+- **Scope:** `mobile-surface-truth` workflow (branch `mobile-surface-truth`) — truthful operator-surface gating on gateway tiers and mobile (390×844) shell ergonomics; E2E-001 + E2E-002 tail QA pair
 - **Cadence tier:** targeted
 - **Build:** `029c3773a` (HEAD, clean tree) · **Environment:** isolated lab `compozy-mobile-surface-truth-20260911-041346-834544` — daemon `http://127.0.0.1:53001` serving the built web bundle (`COMPOZY_WEB_DIST_DIR`, production parity), lab `COMPOZY_HOME` `/tmp/compozyqa-4dc542177684/runtime`, UDS socket per manifest; browser driver: Playwright 1.62.1 Chromium (repo-installed) — `agent-browser`/`browser-use` CLIs unavailable in this environment
 - **Started:** 2026-09-11T04:15Z · **Status:** closed <!-- in-progress | closed -->
