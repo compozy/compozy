@@ -21,11 +21,11 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-paired-device | Iris | Truthful Surface Tour | Fail | BUG-20260911-private-ui-origin-rejected-on-forwarded-tier | |
-| 2 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-operator-surface-truth | Iris | Truthful Surface Tour | Fail | BUG-20260911-private-tier-loopback-guard-inert | |
+| 1 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-paired-device | Iris | Truthful Surface Tour | Pass | BUG-20260911-private-ui-origin-rejected-on-forwarded-tier (fixed+verified) | 17304fe8f |
+| 2 | CH-gateway-paired-operator-surface | J-expose-and-pair-gateway / RT-gateway-operator-surface-truth | Iris | Truthful Surface Tour | Pass | BUG-20260911-private-tier-loopback-guard-inert (fixed+verified) | 17304fe8f |
 | 3 | CH-mobile-shell-touch-tier | J-operate-desktop-shell / APP-mobile-touch-tier | Marina | Touch Tier Tour | Fail | BUG-20260911-session-rail-docks-on-touch-tier | |
 
-Status legend: `Pending | Pass | Fixed | Fail | Skipped | Blocked (needs human verify) | Blocked (human decision)` — `Fail` = walked, expected observable not confirmed, fix pending (tracker `fail` / `blocked-verify` per row; see Session Debriefs and the addendum for which applies and why). Rows 1–2 verdicts come from the remote-leg addendum below (earlier same-day blocked-verify runs retained in scenario history).
+Status legend: `Pending | Pass | Fixed | Fail | Skipped | Blocked (needs human verify) | Blocked (human decision)` — rows 1–2 reached `Pass` via the addendum-2 verification walk (their earlier `fail`/`blocked-verify` history lives in the scenario bodies and Addendum 1); row 3 remains `Fail` (different charter, fix pending).
 
 > Row 3 updated by the repair re-walk addendum at the end of this report.
 
@@ -91,9 +91,9 @@ None this run. BUG-20260911-session-rail-docks-on-touch-tier is recorded with ev
 
 ## Human Verifications Needed
 
-- [ ] Provision an authorized `TS_AUTHKEY` (user-provisioned external prerequisite), enable the tailscale provider for the private tier, and verify the private listener answers on its real address; then walk: paired second device admission, absent terminal/write affordances on the private tier, deep-linked write → 403 `loopback_mutation_required` → truthful loopback-only strip naming the host, fresh single-use stream tickets with reconnection re-mint, live revocation closing streams, and public consent/ingress legs (rows 1–2).
+- [x] ~~Provision an authorized `TS_AUTHKEY` and walk the private-tier legs~~ — **done 2026-09-11** (Addendum 1 + Addendum 2): provider established, pairing/admission/streams/revocation and the BR-1 surface-truth walk all verified in-product; both forwarded-tier defects fixed and verified. **The user should revoke both keys used today.**
 - [ ] On a real phone (or device-emulated mobile browser with virtual keyboard), verify the keyboard-open `interactive-widget=resizes-content` contract: composer and palette input stay above the keyboard (row 3 residual).
-- [ ] After BUG-20260911 is fixed: re-walk the T6 rail overlay at 390×844, plus the scroll-pill and log-body scroll-well residuals that were not reachable this run (row 3).
+- [ ] After BUG-20260911-session-rail-docks-on-touch-tier is fixed: re-walk the T6 rail overlay at 390×844, plus the scroll-pill and log-body scroll-well residuals that were not reachable in the morning run (row 3).
 
 ## Decisions for a Human
 
@@ -163,6 +163,45 @@ None this run. BUG-20260911-session-rail-docks-on-touch-tier is recorded with ev
 - **Issues by user impact (addendum):** Blocks-Completion 1 · Data-Loss 0 · Trust-Damage 1 · Friction 0 · Cosmetic 0
 - **Secret disposition:** authorized `TS_AUTHKEY` deleted from `/tmp/opencode/ts-authkey` after the walk; zero occurrences in any persisted artifact (byte-scan); lab runtime purged. The user should revoke the key at the tailscale tailnet as it was live during the session.
 - **Verdict (addendum): not ready** — the remote-tier story is architecturally alive (provider establishes, pairing/admission/streams/revocation all behave), but two P0/P1-class defects (UI origin refusal; missing server-side enforcement) must be fixed and the paired session re-walked before the surface-truth promise holds.
+
+---
+
+## Addendum 2 — 2026-09-11 (verification walk): fixes for the forwarded-tier defects verified in-product
+
+- **Scope:** in-product verification that `17304fe8f` fixes `BUG-20260911-private-ui-origin-rejected-on-forwarded-tier` (P0) and `BUG-20260911-private-tier-loopback-guard-inert` (P1), and completion of the blocked BR-1 legs of `CH-gateway-paired-operator-surface`.
+- **Environment:** fresh lab `compozy-mobile-surface-truth-verify2-20260911-141455-792161` — daemon `http://127.0.0.1:35569`, lab `COMPOZY_HOME` `/tmp/compozyqa-0fa9adbe4836/runtime`, build at HEAD (`17304fe8f` + QA docs). Fresh authorized key used for bring-up only: bound via the extension vault, **secret file deleted immediately after the tier reached `up`**; zero key-material occurrences by byte-scan (daemon log, docs, memory, lab artifacts); device-cookie temp jars deleted after the walk; all five walk devices revoked at the end (empty-inventory recovery root confirmed).
+- **Bring-up note (recipe unchanged from the previous addendum, one delta):** the provider-only enable transition does not by itself drive the first establish attempt; the `operator_ui` surface enable does (it errored `gateway provider degraded` once — tsnet still negotiating — then recovery established the tier: `down → establishing → up` with a verified live address).
+
+### Fix verification measurements
+
+| Defect | Expected after fix | Observed |
+|---|---|---|
+| P0 — origin rejection on the forwarded tier | paired SPA boots over `https://…ts.net:8443`; no `/assets/*` 403s | **Verified** — `networkidle` in 858ms; zero asset rejections across portrait/desktop loads; the only 4xx are the expected `401` on unauthenticated `/api/*`; the app renders its own "Pair this device" gate, pre-filled from the `#pair=` fragment; redeem completes in-UI → paired operator session with the Secure/HttpOnly cookie |
+| P1 — loopback guard inert on the private tier | paired device cookie: guarded mutations → 403 `loopback_mutation_required`; reads → 200; local loopback keeps mutation semantics | **Verified** — `POST /api/drain` → 403 `loopback_mutation_required` (drain state unchanged, confirmed by local read); guarded `PATCH /api/settings/general` → 403 same code; `GET /api/gateway/status` (tier `private`), `GET /api/settings/general`, `GET /api/gateway/devices` → 200; on the local loopback daemon `drain`/`undrain` → 200 (BR-5 canary) |
+
+### Completed BR-1 walk on the paired remote session
+
+- Dock Terminal launcher **absent** (0 matches; local sessions show it). Settings save bar **absent** on `/settings/general`; profile creation **absent** on `/settings/profiles`.
+- Dispatching the daemon-owned "Open Terminal" palette command lands in the **truthful loopback-only window**: "This action runs on the machine running CompozyOS — You are connected through remote access, so this action cannot run from this device."
+- **Deep-linked settings write (attention toggle) → 403 → the shell renders the truthful loopback-only strip** (T8 / US-002.AC-2 in-product; screenshot `ts2-15`).
+- Streams re-verified: single-use tickets (reuse → 401 `gateway_stream_ticket_invalid`), reconnect re-mints, inventory agreement across Web/HTTP/UDS/CLI (5/5/5/5 devices), revocation closing live work (`canceled: 1`, stream closed mid-flight, credential then 401).
+
+### Disclosed residuals (non-blocking, named)
+
+- Notification-delivery toggles on `/settings/attention` still render as live switches on the paired session; toggling refuses 403 into the truthful strip. This is the recorded task_03 residual class (affordance present, server truth holds, gate is a small local edit) — disposition belongs to the loop controller.
+- The settings surface's keyboard/screen-reader rows were not re-probed this walk; the 2026-08-07 walk and UI-13 baseline remain the owning evidence for the unchanged plumbing.
+- Public tier/Funnel remains out of scope (`RT-gateway-public-ui-consent` owns it).
+
+### Addendum 2 verdicts
+
+- `RT-gateway-paired-device` → **pass** (`fix_status: fixed`, `retest_status: pass`, commit `17304fe8f`): the QR/link pairing flow works end to end through the product UI; single-use, cross-surface agreement, and revocation-closes-live-work all confirmed.
+- `RT-gateway-operator-surface-truth` → **pass** (`fix_status: fixed`, `retest_status: pass`, commit `17304fe8f`): live-address presentation, truthful states, BR-1 absences, the 403 → truthful strip backstop, and server-side enforcement all confirmed; named residuals above.
+
+### Addendum 2 final status
+
+- **Issues by user impact (cumulative run):** Blocks-Completion 0 open · Data-Loss 0 · Trust-Damage 0 open (both forwarded-tier defects verified fixed) · Friction 1 open (BUG-20260911-session-rail-docks-on-touch-tier, different charter) · Cosmetic 0
+- **Secret disposition:** fresh key deleted after bring-up; zero occurrences by byte-scan; cookie jars deleted; all walk devices revoked; the user should revoke both keys used today at the tailnet.
+- **Verdict (addendum 2): the remote-tier surface truth holds** — with the two forwarded-tier defects fixed and verified, E2E-001's paired private-tier journey is confirmed in-product; remaining work for this workflow is the T6 mobile rail fix (other charter) and the recorded non-blocking residuals.
 
 ## Repair Re-walk Addendum — 2026-09-11 (BUG-20260911-session-rail-docks-on-touch-tier)
 

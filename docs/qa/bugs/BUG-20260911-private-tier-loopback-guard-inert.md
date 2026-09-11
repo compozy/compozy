@@ -1,6 +1,6 @@
 # BUG-20260911-private-tier-loopback-guard-inert: A paired remote device can change settings and drain the daemon — the "paired devices can read, not change" enforcement is absent on the private tier
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Iris
@@ -52,8 +52,11 @@ enforcement boundary is absent on the private tier.
 
 ## Fix
 
-<!-- filled when status moves to fixed -->
+- **Root cause:** `loopbackMutationGuard` decided "allowed" once from the listener's bound host, and the private tier is by design bound to `127.0.0.1` (the provider fronts it), so the guard never refused remote paired clients.
+- **Fix commit:** 17304fe8f (`privilegedMutationGuard()` keys on the listener surface set: remote tiers (private/public operator) always 403 `loopback_mutation_required` regardless of bind host; the local surface keeps loopback semantics — loopback bind → 200, non-loopback bind → `loopback_api_required`)
+- **Regression test:** `internal/api/httpapi/gateway_routes_test.go` + `middleware_refac_test.go` (tier-keyed mutation policy cases) — failed before the fix, passes after
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+- **Retested:** 2026-09-11, same persona/journey, fresh lab `compozy-mobile-surface-truth-verify2-20260911-141455-792161` · **Report:** docs/qa/reports/2026-09-11-mobile-surface-truth.md (Addendum 2)
+- **Result:** with a paired device cookie over the verified private address, `POST /api/drain` → 403 `loopback_mutation_required` (drain state confirmed unchanged by an independent local read) and guarded `PATCH /api/settings/general` → 403 same code, while reads stay 200; on the local loopback daemon `drain`/`undrain` still return 200 (BR-5 canary). In-product, a deep-linked settings write from the paired session is refused and the shell renders the truthful loopback-only strip (evidence `ts2-15`)

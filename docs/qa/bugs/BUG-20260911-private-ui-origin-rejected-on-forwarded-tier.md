@@ -1,6 +1,6 @@
 # BUG-20260911-private-ui-origin-rejected-on-forwarded-tier: On the paired private tier, the operator UI never loads — every app module is refused with "origin not allowed"
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Iris
@@ -46,8 +46,11 @@ load — which is why the blank page shows the served HTML but no app.
 
 ## Fix
 
-<!-- filled when status moves to fixed -->
+- **Root cause:** the provider's tier forwarder was a raw-TCP copier, so the daemon saw forwarded requests as plain `http` and the CORS/browser-protection origin allowance (scheme-comparing) refused the browser's same-origin `https` Origin sent by ES module loads.
+- **Fix commit:** 17304fe8f (forwarder rewritten as an HTTP-aware reverse proxy forcing truthful `X-Forwarded-Proto: https` / `X-Forwarded-Host`, stripping client-supplied forwarding headers, SSE flush, 502 on unreachable target)
+- **Regression test:** `extensions/connectivity/tailscale/provider_test.go` (forwarder header/scheme cases) — failed before the fix, passes after
 
 ## Verification
 
-<!-- filled when status moves to verified -->
+- **Retested:** 2026-09-11, same persona/journey (Iris, paired private-tier operator session), fresh lab `compozy-mobile-surface-truth-verify2-20260911-141455-792161` · **Report:** docs/qa/reports/2026-09-11-mobile-surface-truth.md (Addendum 2)
+- **Result:** the paired SPA boots over the verified private address — `networkidle` in 858ms, zero `/assets/*` rejections, only the expected unauthenticated `/api` 401s; the "Pair this device" gate renders pre-filled from the `#pair=` fragment and redeeming lands the full paired operator session (evidence `ts2-01`, `ts2-05`, `ts2-07`)
