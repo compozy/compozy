@@ -35,7 +35,7 @@ type SupervisedRunRecoveryResult struct {
 }
 
 type supervisedRunRecoveryStore interface {
-	RecoverSupervisedRun(context.Context, SupervisedRunRecoveryMutation) (SupervisedRunRecoveryResult, error)
+	RecoverSupervisedRun(context.Context, *SupervisedRunRecoveryMutation) (SupervisedRunRecoveryResult, error)
 }
 
 // RecoverSupervisedWork is called only while the verified stop receipt still fences session reuse.
@@ -50,12 +50,17 @@ func (m *Service) RecoverSupervisedWork(ctx context.Context, stop SupervisedStop
 		return err
 	}
 	candidates := supervisedWorkCandidates(runs, stop)
-	if len(candidates) == 0 {
-		return nil
+	var errs []error
+	for _, candidate := range candidates {
+		if err := m.recoverSupervisedRun(ctx, candidate, stop); err != nil {
+			errs = append(errs, fmt.Errorf("recover supervised run %s: %w", candidate.ID, err))
+		}
 	}
-	if len(candidates) != 1 {
-		return fmt.Errorf("task: supervised session has ambiguous work ownership")
-	}
+	return errors.Join(errs...)
+}
+
+// recoverSupervisedRun commits one owned attempt so another candidate's failure cannot roll it back.
+func (m *Service) recoverSupervisedRun(ctx context.Context, source Run, stop SupervisedStop) error {
 	actor, err := DeriveDaemonActorContext("session-supervision", SupervisedSilenceReason)
 	if err != nil {
 		return err
@@ -75,8 +80,8 @@ func (m *Service) RecoverSupervisedWork(ctx context.Context, stop SupervisedStop
 			return errors.New("task: supervised recovery store is unavailable")
 		}
 		var mutationErr error
-		result, mutationErr = recoverer.RecoverSupervisedRun(ctx, SupervisedRunRecoveryMutation{
-			Source: candidates[0], Stop: stop, NewRunID: newRunID, At: at,
+		result, mutationErr = recoverer.RecoverSupervisedRun(ctx, &SupervisedRunRecoveryMutation{
+			Source: source, Stop: stop, NewRunID: newRunID, At: at,
 		})
 		if mutationErr != nil || !result.Applied {
 			return mutationErr
@@ -97,7 +102,7 @@ func (m *Service) RecoverSupervisedWork(ctx context.Context, stop SupervisedStop
 			taskEventRunRecovered,
 			actor,
 			at,
-			supervisedRecoveryPayload(result, stop),
+			supervisedRecoveryPayload(&result, stop),
 		)
 		if mutationErr != nil {
 			return mutationErr
@@ -114,7 +119,8 @@ func (m *Service) RecoverSupervisedWork(ctx context.Context, stop SupervisedStop
 	return nil
 }
 
-func supervisedRecoveryPayload(result SupervisedRunRecoveryResult, stop SupervisedStop) map[string]any {
+// supervisedRecoveryPayload correlates task history with the stable session stop without exposing lease credentials.
+func supervisedRecoveryPayload(result *SupervisedRunRecoveryResult, stop SupervisedStop) map[string]any {
 	action := "needs_attention"
 	if result.Requeued {
 		action = "requeue"
@@ -127,11 +133,12 @@ func supervisedRecoveryPayload(result SupervisedRunRecoveryResult, stop Supervis
 	}
 }
 
+// supervisedWorkCandidates keeps task workers from the profile-scoped query that still belong to the stopped session.
 func supervisedWorkCandidates(runs []Run, stop SupervisedStop) []Run {
 	var candidates []Run
 	for _, run := range runs {
 		if run.SessionID != stop.SessionID || (run.WorkspaceID != "" && run.WorkspaceID != stop.WorkspaceID) ||
-			run.ProfileID != stop.ProfileID || !run.IsTaskAnchored() || run.RunKind.Normalize() != RunKindWorker {
+			!run.IsTaskAnchored() || run.RunKind.Normalize() != RunKindWorker {
 			continue
 		}
 		switch run.Status.Normalize() {

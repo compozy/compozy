@@ -142,6 +142,8 @@ func loadBoundLoopTaskRunCell(
 	}
 }
 
+// applyLoopTaskRecovery advances the owned cell and records its new attempt
+// and cleared attention in the same transaction.
 func applyLoopTaskRecovery(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -238,6 +240,7 @@ func clearLoopTaskRecoveryAttention(
 	return attentionFlag, nil
 }
 
+// appendLoopTaskRecoveryAttempt records the stopped cell attempt with its actual operator or supervision cause.
 func appendLoopTaskRecoveryAttempt(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -264,6 +267,7 @@ func appendLoopTaskRecoveryAttempt(
 	return nil
 }
 
+// loopTaskRecoveryCause preserves operator history while distinguishing automatic supervised recovery.
 func loopTaskRecoveryCause(args retryTaskRunArgs) string {
 	if args.reason == taskpkg.SupervisedSilenceReason {
 		return taskpkg.SupervisedSilenceReason
@@ -271,6 +275,7 @@ func loopTaskRecoveryCause(args retryTaskRunArgs) string {
 	return "operator_recovery"
 }
 
+// appendLoopTaskRecoveryAttentionClearedEvent attributes cleared attention to the action that advanced the cell.
 func appendLoopTaskRecoveryAttentionClearedEvent(
 	ctx context.Context,
 	exec taskSQLExecutor,

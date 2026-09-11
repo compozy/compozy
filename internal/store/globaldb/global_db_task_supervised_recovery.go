@@ -7,14 +7,20 @@ import (
 	"fmt"
 	"time"
 
-	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// RecoverSupervisedRun rechecks ownership and terminal intent inside the task transaction before spending an attempt.
 func (s *taskMutationTxStore) RecoverSupervisedRun(
-	ctx context.Context, mutation taskpkg.SupervisedRunRecoveryMutation,
+	ctx context.Context, mutation *taskpkg.SupervisedRunRecoveryMutation,
 ) (taskpkg.SupervisedRunRecoveryResult, error) {
+	if mutation == nil {
+		return taskpkg.SupervisedRunRecoveryResult{}, fmt.Errorf(
+			"%w: supervised recovery mutation is required",
+			taskpkg.ErrValidation,
+		)
+	}
 	source, err := s.tasks.getTaskRunWithExecutor(ctx, s.exec, mutation.Source.ID)
 	if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
 		return taskpkg.SupervisedRunRecoveryResult{}, nil
@@ -32,7 +38,6 @@ func (s *taskMutationTxStore) RecoverSupervisedRun(
 	}
 	if source.SessionID != mutation.Stop.SessionID ||
 		(source.WorkspaceID != "" && source.WorkspaceID != mutation.Stop.WorkspaceID) ||
-		source.ProfileID != mutation.Stop.ProfileID ||
 		mutation.Stop.EventID == "" {
 		return taskpkg.SupervisedRunRecoveryResult{}, fmt.Errorf(
 			"%w: supervised recovery scope mismatch",
@@ -52,6 +57,10 @@ func (s *taskMutationTxStore) RecoverSupervisedRun(
 	if err != nil {
 		return taskpkg.SupervisedRunRecoveryResult{}, err
 	}
+	// Task profiles are authoritative; task-run projections do not hydrate ProfileID.
+	if taskRecord.ProfileID != mutation.Stop.ProfileID {
+		return taskpkg.SupervisedRunRecoveryResult{}, nil
+	}
 	if taskRecord.Status == taskpkg.TaskStatusCompleted {
 		return taskpkg.SupervisedRunRecoveryResult{}, nil
 	}
@@ -61,30 +70,20 @@ func (s *taskMutationTxStore) RecoverSupervisedRun(
 	return s.recoverSupervisedRun(ctx, source, taskRecord, mutation)
 }
 
+// recoverSupervisedRun atomically settles the stopped attempt and its successor, including any owned Loop cell.
 func (s *taskMutationTxStore) recoverSupervisedRun(
-	ctx context.Context, source taskpkg.Run, taskRecord taskpkg.Task, mutation taskpkg.SupervisedRunRecoveryMutation,
+	ctx context.Context, source taskpkg.Run, taskRecord taskpkg.Task, mutation *taskpkg.SupervisedRunRecoveryMutation,
 ) (taskpkg.SupervisedRunRecoveryResult, error) {
-	var metadata loopNodeRunMetadata
-	var loopRun looppkg.Run
-	var err error
-	if source.IsLoopWorker() {
-		metadata, loopRun, err = loadBoundLoopTaskRunCell(ctx, s.exec, source)
-		if errors.Is(err, looppkg.ErrTransitionConflict) {
-			return taskpkg.SupervisedRunRecoveryResult{}, nil
-		}
-		if err != nil {
-			return taskpkg.SupervisedRunRecoveryResult{}, err
-		}
-		if loopRun.Status != looppkg.StatusRunning {
-			return taskpkg.SupervisedRunRecoveryResult{}, nil
-		}
-		allowed, controlErr := supervisedLoopRecoveryAllowed(ctx, s.exec, source, metadata)
-		if controlErr != nil || !allowed {
-			return taskpkg.SupervisedRunRecoveryResult{}, controlErr
-		}
+	metadata, loopRun, allowed, err := loadSupervisedLoopRecovery(ctx, s.exec, source)
+	if err != nil || !allowed {
+		return taskpkg.SupervisedRunRecoveryResult{}, err
 	}
-	consumed := int64(source.Attempt) + int64(source.RecoveryCount)
-	if consumed >= int64(normalizeStoredTaskMaxAttempts(taskRecord.MaxAttempts)) {
+	nextAttempt, err := nextTaskRunAttemptNumberWithExecutor(ctx, s.exec, taskRecord)
+	if err != nil {
+		return taskpkg.SupervisedRunRecoveryResult{}, err
+	}
+	consumed := int64(nextAttempt) + int64(source.RecoveryCount)
+	if consumed > int64(normalizeStoredTaskMaxAttempts(taskRecord.MaxAttempts)) {
 		attention, attentionErr := s.MarkRunNeedsAttentionMutation(ctx,
 			taskpkg.NewRunNeedsAttentionCommand(source, taskpkg.SupervisedSilenceExhaustedReason, mutation.At))
 		return taskpkg.SupervisedRunRecoveryResult{
@@ -106,13 +105,25 @@ func (s *taskMutationTxStore) recoverSupervisedRun(
 	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, s.exec, source, failed); err != nil {
 		return taskpkg.SupervisedRunRecoveryResult{}, err
 	}
-	if _, err := s.tasks.runs.retryTaskRunTask(ctx, s.exec, source.TaskID); err != nil {
+	openRunID, err := s.tasks.findOpenRunIDForQueuedRunReservation(
+		ctx,
+		s.exec,
+		source.TaskID,
+		source.DesignationGroupID,
+	)
+	if err != nil {
 		return taskpkg.SupervisedRunRecoveryResult{}, err
+	}
+	if openRunID != "" {
+		return taskpkg.SupervisedRunRecoveryResult{}, fmt.Errorf(
+			"%w: task has another open run",
+			taskpkg.ErrInvalidStatusTransition,
+		)
 	}
 	if err := requireNoRetryChildWithExecutor(ctx, s.exec, source.ID); err != nil {
 		return taskpkg.SupervisedRunRecoveryResult{}, err
 	}
-	continuation, err := s.insertSupervisedContinuation(ctx, source, taskRecord, metadata, mutation)
+	continuation, err := s.insertSupervisedContinuation(ctx, source, metadata, mutation, nextAttempt)
 	if err != nil {
 		return taskpkg.SupervisedRunRecoveryResult{}, err
 	}
@@ -128,16 +139,15 @@ func (s *taskMutationTxStore) recoverSupervisedRun(
 	return taskpkg.SupervisedRunRecoveryResult{Previous: source, Run: continuation, Applied: true, Requeued: true}, nil
 }
 
+// insertSupervisedContinuation preserves execution context while issuing a fresh run
+// without live session or lease state.
 func (s *taskMutationTxStore) insertSupervisedContinuation(
-	ctx context.Context, source taskpkg.Run, taskRecord taskpkg.Task,
-	metadata loopNodeRunMetadata, mutation taskpkg.SupervisedRunRecoveryMutation,
+	ctx context.Context, source taskpkg.Run, metadata loopNodeRunMetadata,
+	mutation *taskpkg.SupervisedRunRecoveryMutation, attempt int,
 ) (taskpkg.Run, error) {
-	attempt, err := nextTaskRunAttemptWithExecutor(ctx, s.exec, taskRecord)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
 	continuation := source
 	continuation.ID, continuation.PreviousRunID = mutation.NewRunID, source.ID
+	var err error
 	continuation.Attempt, err = taskRunAttemptFromInt(attempt)
 	if err != nil {
 		return taskpkg.Run{}, err

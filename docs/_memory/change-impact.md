@@ -15,6 +15,8 @@
   Loop recovery validates the node epoch and owned binding. Borrowed Goals retain their controls.
 - **Compatibility:** no database shape change, migration, user-file rollback or public removal.
   The existing verified stop receipt remains until task settlement succeeds, including after restart.
+  Multiple owned runs settle independently; a failed candidate does not roll back recovered work,
+  and replay selects only the remaining active bindings.
   Prior lease recoveries remain charged; exhausted work is parked for attention. Committed outputs
   remain intact; external partial effects require application-specific reconciliation/idempotency.
 - **Official skill:** runtime, tasks and Loop references distinguish Loop silence attention from

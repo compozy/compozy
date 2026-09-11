@@ -37,7 +37,10 @@ Issue 616 verification slice (CI only): `TestManagerIntegrationSupervisedWorkRec
 disposable ACP process group with bounded supervision timings and requires process-tree exit before
 a linked task attempt appears. `TestGlobalDBSupervisedRecovery` owns attempt exhaustion, prior lease
 recovery accounting and the Loop cell/binding transition. `TestSharedSessionStopOperation` owns
-receipt replay and explicit-stop exclusion. Run the integration through the required
+receipt replay and explicit-stop exclusion. Store coverage also checks independent recovery after
+one candidate fails, shared designation budgets and cross-profile/workspace exclusion. Integration
+requires cleared source lease timestamps and rejects a heartbeat using the old claim token.
+Run the integration through the required
 `Supervised work recovery (integration)` CI lane; no host sessions or local QA labs are used.
 The original reporter's 41-minute measurements remain unverified. A successful bounded fixture does
 not establish exactly-once external effects or remeasure the production default timers.

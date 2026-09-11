@@ -170,7 +170,8 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 				t.Errorf("cleanup Stop: %v", err)
 			}
 		})
-		tasks, source := seedSupervisedTaskForSession(t, db, sess, base)
+		tasks, claim := seedSupervisedTaskForSession(t, db, sess, base)
+		source := claim.Run
 		artifact := filepath.Join(h.workspace, "committed-output.txt")
 		if err := os.WriteFile(artifact, []byte("part-1\npart-2\npart-3\npart-4\n"), 0o600); err != nil {
 			t.Fatal(err)
@@ -205,6 +206,12 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 			t.Fatalf("recovered runs = %#v, %v", runs, err)
 		}
 		for _, run := range runs {
+			if run.ID == source.ID {
+				if run.Status != taskpkg.TaskRunStatusFailed || run.Error != taskpkg.SupervisedSilenceReason ||
+					!run.LeaseUntil.IsZero() || !run.HeartbeatAt.IsZero() {
+					t.Fatalf("source retained a live lease after recovery: %#v", run)
+				}
+			}
 			if run.ID != source.ID && (run.PreviousRunID != source.ID || run.Attempt != 2 ||
 				run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "") {
 				t.Fatalf("successor = %#v", run)
@@ -214,13 +221,23 @@ func TestManagerIntegrationSupervisedWorkRecovery(t *testing.T) {
 		if err != nil || string(content) != "part-1\npart-2\npart-3\npart-4\n" {
 			t.Fatalf("committed output = %q, %v", content, err)
 		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext(sess.ID, sess.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tasks.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+			RunID: source.ID, ClaimToken: claim.ClaimToken, LeaseDuration: time.Minute,
+			Now: base.Add(time.Minute),
+		}, agent); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("old lease retained write authority: %v", err)
+		}
 		assertSupervisionEventCorrelation(t, h.manager, sess, "session.supervision_stopped")
 	})
 }
 
 func seedSupervisedTaskForSession(
 	t *testing.T, db *globaldb.GlobalDB, sess *Session, at time.Time,
-) (*taskpkg.Service, taskpkg.Run) {
+) (*taskpkg.Service, *taskpkg.ClaimResult) {
 	t.Helper()
 	tasks, err := taskpkg.NewManager(taskpkg.WithStore(db), taskpkg.WithManagerNow(func() time.Time { return at }))
 	if err != nil {
@@ -252,7 +269,7 @@ func seedSupervisedTaskForSession(
 	if err != nil {
 		t.Fatal(err)
 	}
-	return tasks, claim.Run
+	return tasks, claim
 }
 
 func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.T) {

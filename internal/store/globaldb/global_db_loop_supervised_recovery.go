@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -11,6 +12,25 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// loadSupervisedLoopRecovery admits ordinary task work or an unchanged, recoverable Loop cell and binding.
+func loadSupervisedLoopRecovery(
+	ctx context.Context, exec taskSQLExecutor, source taskpkg.Run,
+) (loopNodeRunMetadata, looppkg.Run, bool, error) {
+	if !source.IsLoopWorker() {
+		return loopNodeRunMetadata{}, looppkg.Run{}, true, nil
+	}
+	metadata, run, err := loadBoundLoopTaskRunCell(ctx, exec, source)
+	if errors.Is(err, looppkg.ErrTransitionConflict) {
+		return metadata, run, false, nil
+	}
+	if err != nil || run.Status != looppkg.StatusRunning {
+		return metadata, run, false, err
+	}
+	allowed, err := supervisedLoopRecoveryAllowed(ctx, exec, source, metadata)
+	return metadata, run, allowed, err
+}
+
+// supervisedLoopRecoveryAllowed honors durable controls and requires the current run-owned session-binding epoch.
 func supervisedLoopRecoveryAllowed(
 	ctx context.Context, exec taskSQLExecutor, source taskpkg.Run, metadata loopNodeRunMetadata,
 ) (bool, error) {

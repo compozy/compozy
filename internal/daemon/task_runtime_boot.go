@@ -11,6 +11,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// bootTasks installs the configured task service, recovery hook and scheduler after durable session stop replay.
 func (d *Daemon) bootTasks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.sessions == nil {
 		return nil

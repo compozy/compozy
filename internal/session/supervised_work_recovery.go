@@ -5,14 +5,17 @@ import (
 	"errors"
 )
 
+// SupervisedWorkRecovery settles task ownership while the verified inactivity stop receipt still fences session reuse.
 type SupervisedWorkRecovery func(context.Context, *Info, string) error
 
+// SetSupervisedWorkRecovery installs the task settlement hook before stop replay or live supervision begins.
 func (m *Manager) SetSupervisedWorkRecovery(recoverWork SupervisedWorkRecovery) {
 	m.supervisedRecoveryMu.Lock()
 	defer m.supervisedRecoveryMu.Unlock()
 	m.supervisedWorkRecovery = recoverWork
 }
 
+// recoverSupervisedWork admits only inactivity stops and retains the receipt on task settlement failure.
 func (m *Manager) recoverSupervisedWork(ctx context.Context, info *Info, turnID string) error {
 	if info.StopCause != CauseInactivity {
 		return nil

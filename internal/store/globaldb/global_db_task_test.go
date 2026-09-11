@@ -5197,11 +5197,161 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 
 func TestGlobalDBSupervisedRecovery(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve a shared designation and account for every linked attempt", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		record := taskRecordForTest("task-supervised-designation")
+		record.MaxAttempts = 4
+		if err := db.CreateTask(ctx, record); err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range int32(2) {
+			source := taskRunForTest(fmt.Sprintf("run-supervised-%d", attempt), record.ID)
+			source.Attempt, source.Status, source.SessionID = attempt+1, taskpkg.TaskRunStatusRunning, "sess-supervised"
+			source.DesignationGroupID = "designation-supervised"
+			if err := db.CreateTaskRun(ctx, source); err != nil {
+				t.Fatal(err)
+			}
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(db))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := manager.RecoverSupervisedWork(ctx, taskpkg.SupervisedStop{
+				SessionID: "sess-supervised", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID,
+				EventID: "session-stop:turn-designation",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: record.ID})
+		if err != nil || len(runs) != 4 {
+			t.Fatalf("runs = %#v, %v", runs, err)
+		}
+		children := make(map[string]int32)
+		for _, run := range runs {
+			if run.PreviousRunID == "" {
+				continue
+			}
+			if run.Status != taskpkg.TaskRunStatusQueued || run.DesignationGroupID != "designation-supervised" ||
+				run.Attempt < 3 || run.Attempt > 4 {
+				t.Fatalf("successor = %#v", run)
+			}
+			children[run.PreviousRunID] = run.Attempt
+		}
+		if len(children) != 2 || children["run-supervised-0"]+children["run-supervised-1"] != 7 {
+			t.Fatalf("linked attempts = %#v, want two distinct successors at attempts 3 and 4", children)
+		}
+	})
+	t.Run("Should recover remaining owned runs after one candidate fails", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		for _, suffix := range []string{"a", "b"} {
+			record := taskRecordForTest("task-supervised-" + suffix)
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+			source := taskRunForTest("run-supervised-"+suffix, record.ID)
+			source.Status, source.SessionID = taskpkg.TaskRunStatusRunning, "sess-supervised"
+			if err := db.CreateTaskRun(ctx, source); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `CREATE TRIGGER reject_supervised_b BEFORE UPDATE OF status ON task_runs
+			WHEN OLD.id = 'run-supervised-b' AND NEW.status = 'failed'
+			BEGIN SELECT RAISE(ABORT, 'recovery temporarily unavailable'); END`); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(db))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stop := taskpkg.SupervisedStop{SessionID: "sess-supervised", WorkspaceID: "ws-1",
+			ProfileID: store.DefaultProfileID, EventID: "session-stop:turn-multiple"}
+		if err := manager.RecoverSupervisedWork(ctx, stop); err == nil {
+			t.Fatal("partial failure must retain the stop receipt")
+		}
+		recovered, err := db.GetTaskRun(ctx, "run-supervised-a")
+		if err != nil || recovered.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("independent candidate did not settle: %#v, %v", recovered, err)
+		}
+		if _, err := db.db.ExecContext(ctx, "DROP TRIGGER reject_supervised_b"); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := manager.RecoverSupervisedWork(ctx, stop); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, suffix := range []string{"a", "b"} {
+			runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: "task-supervised-" + suffix})
+			if err != nil || len(runs) != 2 {
+				t.Fatalf("runs = %#v, %v", runs, err)
+			}
+			for _, run := range runs {
+				if run.ID != "run-supervised-"+suffix &&
+					(run.PreviousRunID != "run-supervised-"+suffix || run.Status != taskpkg.TaskRunStatusQueued || run.Attempt != 2) {
+					t.Fatalf("unexpected successor: %#v", run)
+				}
+			}
+			events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
+				TaskID: "task-supervised-" + suffix, EventType: "task.run_recovered",
+			})
+			if err != nil || len(events) != 1 {
+				t.Fatalf("recovery history duplicated: %#v, %v", events, err)
+			}
+		}
+	})
+	for _, tc := range []struct {
+		name        string
+		sessionID   string
+		workspaceID string
+		profileID   string
+	}{
+		{"Should ignore a session without owned task work", "sess-unbound", "ws-1", store.DefaultProfileID},
+		{"Should preserve another workspace's work", "sess-supervised", "ws-other", store.DefaultProfileID},
+		{"Should preserve another profile's work", "sess-supervised", "ws-1", "profile-other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openLoopTestGlobalDB(t)
+			ctx := t.Context()
+			record := taskRecordForTest("task-supervised-scope")
+			record.Scope, record.WorkspaceID = taskpkg.ScopeWorkspace, "ws-1"
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+			source := taskRunForTest("run-supervised-scope", record.ID)
+			source.Status, source.SessionID = taskpkg.TaskRunStatusRunning, "sess-supervised"
+			if err := db.CreateTaskRun(ctx, source); err != nil {
+				t.Fatal(err)
+			}
+			manager, err := taskpkg.NewManager(taskpkg.WithStore(db))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.RecoverSupervisedWork(ctx, taskpkg.SupervisedStop{
+				SessionID:   tc.sessionID,
+				WorkspaceID: tc.workspaceID,
+				ProfileID:   tc.profileID,
+				EventID:     "session-stop:turn-scope",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: record.ID})
+			if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
+				t.Fatalf("foreign recovery changed work: %#v, %v", runs, err)
+			}
+		})
+	}
 	for _, tc := range []struct {
 		name   string
 		change string
 	}{
-		{"Should preserve a winning success", "UPDATE task_runs SET status = 'succeeded' WHERE id = ?"},
+		{"Should preserve a winning success", "UPDATE task_runs SET status = 'completed' WHERE id = ?"},
 		{"Should preserve a winning cancellation", "UPDATE task_runs SET status = 'canceled' WHERE id = ?"},
 		{"Should reject ownership transferred to another session", "UPDATE task_runs SET session_id = 'sess-new-owner' WHERE id = ?"},
 		{"Should preserve completed task intent", "UPDATE tasks SET status = 'completed' WHERE id = (SELECT task_id FROM task_runs WHERE id = ?)"},
@@ -5228,7 +5378,7 @@ func TestGlobalDBSupervisedRecovery(t *testing.T) {
 				ctx,
 				"test supervised race",
 				func(tx *taskMutationTxStore) error {
-					result, err := tx.RecoverSupervisedRun(ctx, taskpkg.SupervisedRunRecoveryMutation{
+					result, err := tx.RecoverSupervisedRun(ctx, &taskpkg.SupervisedRunRecoveryMutation{
 						Source: source, NewRunID: "run-unwanted", At: time.Now().UTC(),
 						Stop: taskpkg.SupervisedStop{SessionID: source.SessionID, WorkspaceID: "ws-loop-test",
 							ProfileID: source.ProfileID, EventID: "session-stop:turn-fence"},
@@ -5276,7 +5426,7 @@ func TestGlobalDBSupervisedRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		stop := taskpkg.SupervisedStop{SessionID: source.SessionID, WorkspaceID: source.WorkspaceID,
-			ProfileID: source.ProfileID, EventID: "session-stop:turn-loop"}
+			ProfileID: store.DefaultProfileID, EventID: "session-stop:turn-loop"}
 		for range 2 {
 			if err := manager.RecoverSupervisedWork(ctx, stop); err != nil {
 				t.Fatal(err)
@@ -5369,6 +5519,10 @@ func TestGlobalDBSupervisedRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			persistedTask, err := db.GetTask(ctx, record.ID)
+			if err != nil || persistedTask.ProfileID != record.ProfileID {
+				t.Fatalf("task profile changed: %q, %v", persistedTask.ProfileID, err)
+			}
 			if !tc.wantRetry {
 				if len(runs) != 1 || previous.Status != taskpkg.TaskRunStatusNeedsAttention ||
 					previous.Error != taskpkg.SupervisedSilenceExhaustedReason {
@@ -5385,7 +5539,7 @@ func TestGlobalDBSupervisedRecovery(t *testing.T) {
 					continue
 				}
 				if run.PreviousRunID != source.ID || run.Attempt != 2 || run.RecoveryCount != tc.recoveries ||
-					run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "" || run.ProfileID != source.ProfileID ||
+					run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "" || run.TaskID != source.TaskID ||
 					string(run.Metadata) != string(source.Metadata) {
 					t.Fatalf("successor = %#v", run)
 				}

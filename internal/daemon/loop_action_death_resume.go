@@ -11,6 +11,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// resumeConfirmedDeadAction leaves supervised stops to their receipt owner and resumes only confirmed crash deaths.
 func (r *loopActionRuntime) resumeConfirmedDeadAction(
 	ctx context.Context,
 	run taskpkg.Run,

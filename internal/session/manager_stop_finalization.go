@@ -79,7 +79,8 @@ func (m *Manager) finalizeStoppedOwned(
 	return m.finishStoppedPersistence(ctx, session)
 }
 
-// finishStoppedPersistence retains the recovery receipt until stop history and Goal cancellation settle.
+// finishStoppedPersistence retains the receipt until stop history, Goal cancellation
+// and supervised task recovery settle.
 func (m *Manager) finishStoppedPersistence(ctx context.Context, session *Session) error {
 	if err := m.markSessionStopped(ctx, session); err != nil {
 		m.dispatchSessionPostStop(ctx, session)
