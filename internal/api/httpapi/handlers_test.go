@@ -2929,20 +2929,43 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			var queueReads, summaryReads int
 			manager := stubSessionManager{
 				StatusFn: func(context.Context, string) (*session.Info, error) {
 					info := newSessionInfo("sess-123")
 					info.State = session.StateStopped
 					return info, nil
 				},
+				InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
+					summaryReads++
+					return session.InputQueueSummary{}, nil
+				},
 				ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
+					queueReads++
 					return []session.PendingInput{}, tc.queueErr
 				},
 			}
 			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-			response := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue", nil)
+			response := performRequest(
+				t, engine, http.MethodGet, "/api/workspaces/ws-workspace/sessions/sess-123/prompt/queue", nil,
+			)
 			if response.Code != tc.status {
 				t.Fatalf("queue status = %d, want %d; body=%s", response.Code, tc.status, response.Body.String())
+			}
+			if tc.queueErr != nil {
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				// HTTP masks internal storage details. Verify that contract and prove
+				// the failed queue read short-circuited the subsequent summary read.
+				if payload.Error != http.StatusText(http.StatusInternalServerError) ||
+					strings.Contains(response.Body.String(), tc.queueErr.Error()) || queueReads != 1 || summaryReads != 0 {
+					t.Fatalf(
+						"storage failure response = %#v, queue reads = %d, summary reads = %d",
+						payload, queueReads, summaryReads,
+					)
+				}
 			}
 		})
 	}

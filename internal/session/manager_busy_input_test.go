@@ -118,7 +118,9 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		if _, active := h.manager.Get(sess.ID); active {
 			t.Fatal("queue read rebound the stopped runtime")
 		}
-		if _, err := h.manager.ReplacePendingInput(t.Context(), sess.ID, "missing", ReplacePendingInputOpts{Text: "replacement"}); !errors.Is(err, ErrSessionNotActive) {
+		if _, err := h.manager.ReplacePendingInput(
+			t.Context(), sess.ID, "missing", ReplacePendingInputOpts{Text: "replacement"},
+		); !errors.Is(err, ErrSessionNotActive) {
 			t.Fatalf("stopped queue mutation error = %v", err)
 		}
 		if _, err := h.manager.ListPendingInputs(t.Context(), "sess-missing"); !errors.Is(err, ErrSessionNotFound) {
