@@ -2,24 +2,24 @@
   "status": "active",
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-qa-execution-unblock-20260910-215445-053583-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "report_path": "docs/qa/reports/2026-09-10-qa-execution-unblock.md",
-  "cursor": "Rebase onto fetched origin/main ace125a7e after checkpoint; inspect incoming PR584/614 and 11 direct commits. GL013 exact race still pending; fixture removed and lab restarted. 19 dispositioned,338 pending.",
+  "cursor": "Commit main-integration fixture reconciliation, fetch/rebase aftercommit. Next fix workspacehooks registryID mismatch, then exactGL013race.19dispositioned338pending;all temporaryhooksremoved;PID75029.",
   "completed_rows": 19,
   "pending_rows": 338,
   "workspace_id": "ws_fc0dcf020b8034f1",
   "canary_session_id": "sess-c39bcd56be145c66",
-  "daemon_pid": 64998,
+  "daemon_pid": 75029,
   "browser_session": "qa-execution-unblock",
   "prompt_handle": null,
   "build": {
-    "go": "wait-both-edges-build.txt includes start and settled transition publication",
-    "web": "goal-draft-prefill-build-retry.txt passed and freshCursorretake verified",
-    "head": "b4913cbe6-dirty"
+    "go": "rebase-20260911-build-go.txt",
+    "web": "rebase-20260911-build-web.txt: root Turbo build passed",
+    "head": "85c9d045c-dirty"
   },
-  "active_bug": "BUG-20260911-goal-draft-empty-composer",
+  "active_bug": "BUG-20260911-workspace-hooks-not-dispatched",
   "retake_session_id": "sess-f4ff28e4f5f576a6",
   "gate_handle": null,
   "enabled_session_id": "sess-a8ac593ecc5dd73f",
-  "gate": "goal-draft-prefill-gate.txt:all affected lanes passed771files/7218tests",
+  "gate": "rebase-20260911-gate-retry.txt: all affected local lanes passed;771Webfiles/7222tests, lint/typecheck green.",
   "runtime_memory_enabled": true,
   "memory_roles_disabled": [
     "memory_controller",
@@ -159,6 +159,19 @@
     "restore_required": false,
     "baseline_hooks": {},
     "restore_command": "tool invoke compozy__hooks_delete --workspace ws_fc0dcf020b8034f1 --input-file docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-race-hook-delete-input.json -o json",
-    "outcome": "No barrier dispatch; hook catalog normalizes workspace matcher to ULID, session identity uses ws_ alias. Suspected matching defect requires diagnosis after upstream rebase. Hook deleted through native tool; restarted and absence confirmed."
+    "outcome": "No barrier dispatch; hook catalog normalizes workspace matcher to ULID, session identity uses ws_ alias. Suspected matching defect requires diagnosis after upstream rebase. Hook deleted through native tool; restarted and absence confirmed.",
+    "user_scope_restore_required": false,
+    "user_scope_delete_input": "docs/qa/evidence/2026-09-10-qa-execution-unblock/goal-race-user-hook-delete-input.json",
+    "second_session": "sess-a7175fd376d1bec2"
+  },
+  "latest_rebase": {
+    "old_head": "7be050c66c7830fa4a45f7e40d7b6a49bf5d1760",
+    "target": "ace125a7e4b77b632b97bd9b633558c083641165",
+    "base": "fec0e9b08631dd9e2d7eaa66fc7f76f5314ae5c0",
+    "backup_ref": "backup-rebase-qa-execution-unblock-20260911-2025",
+    "replay_worktree": "/Users/pedronauck/Dev/compozy/_worktrees/qa-rebase-20260911-2025",
+    "preserved_deletion": ".agents/skills/agent-browser/SKILL.md",
+    "status": "completed",
+    "rebased_head": "85c9d045c212daee877481c8157143aeadf569c8"
   }
 }

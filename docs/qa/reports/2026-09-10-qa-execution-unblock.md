@@ -739,3 +739,14 @@ Fresh sess-a451bde5b8a3c90b uses Cursor/Grok4.6 High Fast confirmed at effective
 The public input.pre_submit workspace hook was created through compozy__hooks_create and activated by daemon restart. The catalog showed the selected workspace as canonical ULID. Fresh real session sess-89391f6df40779b5 admitted the marked draft normally; the barrier never entered and hooks runs returned no execution. This is not an admission-race pass. The session was stopped; compozy__hooks_delete removed the hook, and restart plus config/catalog reads confirmed removal. Exact workspace matcher behavior needs diagnosis after integrating upstream; the 19/338 counts are unchanged. Evidence: goal-race-hooks-list.json, goal-race-observe-startup.json, goal-race-hook-observe.json, goal-race-first-stopped.json, goal-race-cleanup-config.json, goal-race-cleanup-hooks.json.
 
 New user rule: after each new local commit, fetch and rebase onto main, review every incoming PR and reassess affected evidence. Cursor Agent Grok 4.6 High Fast remains the latest explicit ordinary-provider steering.
+
+
+## Main integration and hook dispatch finding — 2026-09-11
+
+The13 incoming main commits and both associated PRs (#584, #614) were reviewed; the second rebase preserved all18 local commits and the unrelated worktree deletion. See rebase-impact.md. Rebuilt Go/Web and restarted the same isolated lab at85c9d045c-dirty, schema109/memory3. The stopped session queue now returnsHTTP200 andUDS200 with empty inputs after restart. Fresh real Cursor draft sess-a7175fd376d1bec2 completed normally, but its configured hook never ran, reproducing the original workspace-scope observation; BUG-20260911-workspace-hooks-not-dispatched records evidence and diagnosis. Both hook scopes were removed, config reads are empty after restart, and both sessions are stopped. The exact GL013 race is still pending; counts remain19 dispositioned/338pending.
+
+Vera's Settings navigation canary reached Hooks after Web rebuild and refresh, showing lifecycle hooks and notification presets with extension controls on their separate navigation destination. This is a partial CH-extension-policy-admin-gates observation, not a full ET-web-settings-hooks pass.
+
+Initial integrated gate: Go lint/race passed; Web4 old local transcript assertions failed against main's explicit disclosure repair. Current fixture reconciliation restores the stronger main contract in the owning suites and is under validation; no passing gate claim yet. Additional changed-upstream Loop roster/overview acknowledgement race suites passed.
+
+Final rebase validation: make gate passed all affected local lanes;771 Web files/7222 tests, lint and typecheck green. Evidence: rebase-20260911-gate-retry.txt. No push or CI delivery claim.

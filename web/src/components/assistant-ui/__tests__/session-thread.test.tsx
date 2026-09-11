@@ -3449,8 +3449,7 @@ describe("SessionThread transcript states", () => {
       if (mixed) {
         expect(screen.getByTestId("thinking-block")).toBe(thought);
         const thoughtTrigger = within(thought!).getByTestId("thinking-trigger");
-        expect(thoughtTrigger).toHaveAttribute("aria-expanded", "false");
-        await user.click(thoughtTrigger);
+        expect(thoughtTrigger).toHaveAttribute("aria-expanded", "true");
         expect(within(thought!).getByRole("region", { name: "Reasoning" })).toHaveTextContent(
           "Checked files"
         );
@@ -3485,7 +3484,7 @@ describe("SessionThread streaming render-count", () => {
             type: "text",
             text: "Settled answer",
             state: "done",
-            turn_id: "turn-render-settled",
+            turn_id: "turn-render-isolation",
           },
           {
             type: "text",

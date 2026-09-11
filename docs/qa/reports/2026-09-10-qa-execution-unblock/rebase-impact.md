@@ -71,3 +71,15 @@ Fetched target ace125a7e4b77b632b97bd9b633558c083641165 adds 13 commits. GitHub 
 | ace125a7e | Blog content/cover/SEO/rendering revisions plus session-context design artifacts. Site routes and structured-data tests changed; no runtime Goal contract retirement. |
 
 Rebase is pending at this checkpoint. Preserve the unrelated agent-browser skill deletion and untracked handoff directory. Use an isolated Git worktree for replay, then transfer only the reviewed tree delta and advance the branch with an expected-old-HEAD guard. No stash or destructive Git command.
+
+
+The second rebase completed at85c9d045c. Range-diff retains all18 commits:17 unchanged, one overlapping menubar test fixture adjusted to retain local disabled-query defaults while using main's QueryClientProvider. The final source file is identical to the pre-rebase local fixture. A guarded binary patch transfer preserved the unrelated deleted skill and untracked handoffs. Backup, transfer and full range-diff are in rebase-20260911-preservation.json, rebase-20260911-transfer.patch and rebase-20260911-range-diff.txt.
+
+make build-go and root make web-build passed. Restarted daemon reports v0.3.0-beta.25-22-g85c9d045c-dirty, schema109/memory3 unchanged. HTTP/UDS GET of the prior stopped session queue both return200 with empty inputs, confirming the read-only branch from PR614. Required make gate is still running. The fresh real Cursor draft completed after restart; its missing hook dispatch is separately recorded, not a rebase failure attribution.
+
+
+The first post-rebase gate passed Go lint and race lanes, then failed4 Web assertions (7218passed). They were old local fixture expectations from8ec6e8886/3ad57f21a that conflict with the explicit upstream aebf0ccfd repair: disclosed reasoning remains open on settle, and a stopped mixed group retains its summary. The canonical SessionThread test now requires aria-expanded=true and visible reasoning without another click; the timeline suite again requires the exact mixed summary. The render-isolation fixture returns to main's same-turn setup, exercising the stronger isolation boundary after main stopped joining independent prose. No production contract was weakened. Invariant owners are the existing transcript renderer and timeline derivation suites; the menubar case retains its aria-disabled assertion.
+
+Additional incoming-change race checks passed: TestRosterContract and TestOverviewAttentionAcknowledgements, recorded in rebase-20260911-incoming-focused.txt. The full local gate will be repeated after the focused transcript reconciliation.
+
+Final rebase validation: make gate passed all affected local lanes;771 Web files/7222 tests, lint and typecheck green. Evidence: rebase-20260911-gate-retry.txt. No push or CI delivery claim.
